@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { initials, roleLabel } from '../lib/format';
 import { NavIcon } from './NavIcon';
@@ -40,26 +41,79 @@ function ProfileBlock({
   onLogout: () => void;
 }) {
   const { admin } = useAuth();
-  const profileRef = useRef<HTMLDivElement>(null);
+  const profileBtnRef = useRef<HTMLButtonElement>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const displayName = admin?.fullName ?? admin?.email ?? 'Admin';
   const avatar = initials(displayName);
   const role = roleLabel(admin?.role ?? 'admin');
 
+  useLayoutEffect(() => {
+    if (!profileOpen || !profileBtnRef.current) {
+      setMenuPos(null);
+      return;
+    }
+    const rect = profileBtnRef.current.getBoundingClientRect();
+    const menuWidth = 220;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+    setMenuPos({ top: rect.bottom + 8, left });
+  }, [profileOpen]);
+
   useEffect(() => {
+    if (!profileOpen) return;
     function onDocClick(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
-        setProfileOpen(false);
-      }
+      const target = e.target as Node;
+      if (profileBtnRef.current?.contains(target)) return;
+      if ((target as HTMLElement).closest?.('.console-profile-menu--portal')) return;
+      setProfileOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setProfileOpen(false);
     }
     document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [profileOpen]);
+
+  const profileMenu =
+    profileOpen && menuPos
+      ? createPortal(
+          <div
+            className="console-profile-menu console-profile-menu--portal"
+            role="menu"
+            style={{ top: menuPos.top, left: menuPos.left }}
+          >
+            <div className="console-profile-menu-head">
+              <span className="avatar">{avatar}</span>
+              <div>
+                <strong>{displayName}</strong>
+                <small>{role}</small>
+              </div>
+            </div>
+            <button
+              type="button"
+              role="menuitem"
+              className="console-profile-menu-item"
+              onClick={() => {
+                setProfileOpen(false);
+                onLogout();
+              }}
+            >
+              Sign out
+            </button>
+          </div>,
+          document.body
+        )
+      : null;
 
   return (
-    <div className="console-topbar-user-wrap" ref={profileRef}>
+    <div className="console-topbar-user-wrap">
       <button
+        ref={profileBtnRef}
         type="button"
         className="console-topbar-user"
         aria-expanded={profileOpen}
@@ -75,20 +129,7 @@ function ProfileBlock({
           ▾
         </span>
       </button>
-      {profileOpen ? (
-        <div className="console-profile-menu" role="menu">
-          <div className="console-profile-menu-head">
-            <span className="avatar">{avatar}</span>
-            <div>
-              <strong>{displayName}</strong>
-              <small>{role}</small>
-            </div>
-          </div>
-          <button type="button" role="menuitem" className="console-profile-menu-item" onClick={onLogout}>
-            Sign out
-          </button>
-        </div>
-      ) : null}
+      {profileMenu}
     </div>
   );
 }

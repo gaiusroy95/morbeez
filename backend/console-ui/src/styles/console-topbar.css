@@ -8,7 +8,7 @@
   flex-wrap: nowrap;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   background: #fff;
 }
 
@@ -306,6 +306,11 @@
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.12);
   z-index: 200;
   padding: 8px;
+}
+
+.console-profile-menu--portal {
+  position: fixed;
+  z-index: 10000;
 }
 
 .console-profile-menu-head {

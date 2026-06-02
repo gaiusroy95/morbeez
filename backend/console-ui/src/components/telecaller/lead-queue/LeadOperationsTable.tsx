@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../../lib/api';
 import { Btn, Loading } from '../../ui';
 import { Field, Modal, inputClass } from '../../Modal';
@@ -149,7 +150,11 @@ export function LeadOperationsTable({
   const [bulkTag, setBulkTag] = useState('');
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [openMenuLeadId, setOpenMenuLeadId] = useState<string | null>(null);
+  const [actionMenu, setActionMenu] = useState<{
+    lead: OperationalLead;
+    anchor: HTMLButtonElement;
+  } | null>(null);
+  const [actionMenuPos, setActionMenuPos] = useState<{ top: number; left: number } | null>(null);
 
   const prefsLoaded = useRef(false);
   const resizeRef = useRef<{ colId: LeadQueueColumnId; startX: number; startW: number } | null>(null);
@@ -380,16 +385,44 @@ export function LeadOperationsTable({
     return () => el.removeEventListener('scroll', onScroll);
   }, [leads, loading]);
 
+  useLayoutEffect(() => {
+    if (!actionMenu) {
+      setActionMenuPos(null);
+      return;
+    }
+    const rect = actionMenu.anchor.getBoundingClientRect();
+    const menuWidth = 152;
+    let left = rect.right - menuWidth;
+    left = Math.max(8, Math.min(left, window.innerWidth - menuWidth - 8));
+    setActionMenuPos({ top: rect.bottom + 6, left });
+  }, [actionMenu]);
+
   useEffect(() => {
-    if (!openMenuLeadId) return;
+    if (!actionMenu) return;
     function close(e: MouseEvent) {
       const target = e.target as HTMLElement;
-      if (target.closest('.tc-lq-menu-anchor')) return;
-      setOpenMenuLeadId(null);
+      if (actionMenu.anchor.contains(target)) return;
+      if (target.closest('.tc-lq-dropdown--portal')) return;
+      setActionMenu(null);
     }
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [openMenuLeadId]);
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setActionMenu(null);
+    }
+    document.addEventListener('mousedown', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [actionMenu]);
+
+  function toggleActionMenu(lead: OperationalLead, anchor: HTMLButtonElement) {
+    setActionMenu((prev) => (prev?.lead.id === lead.id ? null : { lead, anchor }));
+  }
+
+  function closeActionMenu() {
+    setActionMenu(null);
+  }
 
   const advancedFilterCount = useMemo(() => {
     let n = 0;
@@ -606,11 +639,9 @@ export function LeadOperationsTable({
           <LeadRowActions
             lead={lead}
             canWrite={canWrite}
-            menuOpen={openMenuLeadId === lead.id}
-            onMenuToggle={() => setOpenMenuLeadId((id) => (id === lead.id ? null : lead.id))}
+            menuOpen={actionMenu?.lead.id === lead.id}
+            onMoreClick={(anchor) => toggleActionMenu(lead, anchor)}
             onOpen={() => onOpenLead(lead.id, lead)}
-            onEdit={canWrite && onEditLead ? () => onEditLead(lead.id) : undefined}
-            onDelete={canWrite && onDeleteLead ? () => onDeleteLead(lead) : undefined}
           />
         );
       default:
@@ -1031,11 +1062,9 @@ export function LeadOperationsTable({
                 <LeadRowActions
                   lead={lead}
                   canWrite={canWrite}
-                  menuOpen={openMenuLeadId === lead.id}
-                  onMenuToggle={() => setOpenMenuLeadId((id) => (id === lead.id ? null : lead.id))}
+                  menuOpen={actionMenu?.lead.id === lead.id}
+                  onMoreClick={(anchor) => toggleActionMenu(lead, anchor)}
                   onOpen={() => onOpenLead(lead.id, lead)}
-                  onEdit={canWrite && onEditLead ? () => onEditLead(lead.id) : undefined}
-                  onDelete={canWrite && onDeleteLead ? () => onDeleteLead(lead) : undefined}
                 />
               </article>
             ))}
@@ -1147,6 +1176,44 @@ export function LeadOperationsTable({
           </p>
         </Modal>
       ) : null}
+
+      {actionMenu && actionMenuPos && canWrite
+        ? createPortal(
+            <div
+              className="tc-lq-dropdown tc-lq-dropdown--portal"
+              role="menu"
+              style={{ top: actionMenuPos.top, left: actionMenuPos.left }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {onEditLead ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    onEditLead(actionMenu.lead.id);
+                    closeActionMenu();
+                  }}
+                >
+                  Edit lead
+                </button>
+              ) : null}
+              {onDeleteLead ? (
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="danger"
+                  onClick={() => {
+                    onDeleteLead(actionMenu.lead);
+                    closeActionMenu();
+                  }}
+                >
+                  Delete lead
+                </button>
+              ) : null}
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   );
 }

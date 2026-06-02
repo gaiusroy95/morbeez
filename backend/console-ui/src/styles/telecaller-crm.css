@@ -4397,27 +4397,15 @@
   border-color: #94a3b8;
 }
 
-.tc-lq-menu-anchor {
-  position: relative;
-}
-
-.tc-lq-dropdown {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 4px);
-  z-index: 20;
-  min-width: 140px;
-  padding: 4px;
-  background: #fff;
-  border: 1px solid #e2e8e4;
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-}
-
 .tc-lq-dropdown--portal {
   position: fixed;
   z-index: 9999;
   min-width: 152px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e2e8e4;
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
 }
 
 .tc-lq-dropdown button {
