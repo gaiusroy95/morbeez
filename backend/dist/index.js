@@ -1,0 +1,23 @@
+import { env } from './config/env.js';
+import { logger } from './lib/logger.js';
+import { buildApp } from './app.js';
+import { startOutboxWorkerIfEnabled } from './services/events/outbox.worker.js';
+import { startAdvisoryAutomationWorker } from './services/automation/advisory-automation.worker.js';
+import { startRetentionCleanupWorker } from './services/retention/retention-cleanup.worker.js';
+import { startWhatsAppBroadcastWorker } from './services/whatsapp/broadcasts/whatsapp-broadcast.worker.js';
+import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-prompt.worker.js';
+async function main() {
+    const app = await buildApp();
+    startOutboxWorkerIfEnabled();
+    startAdvisoryAutomationWorker();
+    startRetentionCleanupWorker();
+    startWhatsAppBroadcastWorker();
+    startRoiDailyPromptWorker();
+    await app.listen({ port: env.PORT, host: '0.0.0.0' });
+    logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Morbeez API started');
+}
+main().catch((err) => {
+    logger.fatal({ err }, 'Failed to start');
+    process.exit(1);
+});
+//# sourceMappingURL=index.js.map

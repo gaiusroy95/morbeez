@@ -1,0 +1,61 @@
+{
+  "current": {
+    "color_primary": "#34B35E",
+    "color_accent": "#2A9D4E",
+    "color_trust": "#111111",
+    "color_surface": "#f7f8f7",
+    "color_muted": "#64748b",
+    "enable_ai_crop_doctor_cta": true,
+    "whatsapp_phone": "917676026318",
+    "whatsapp_message": "Hi Morbeez, I need help with ",
+    "enable_dealer_enquiry": true,
+    "enable_organization_schema": true,
+    "display_prices_inr": true,
+    "sections": {
+      "header-group": {
+        "type": "header",
+        "sections": {
+          "announcement": {
+            "type": "announcement-bar",
+            "settings": {
+              "message": "Free crop advisory on WhatsApp — connect with Morbeez experts"
+            }
+          },
+          "header": {
+            "type": "header",
+            "settings": {
+              "menu": "main-menu"
+            }
+          }
+        },
+        "block_order": [],
+        "settings": {}
+      },
+      "footer-group": {
+        "type": "footer",
+        "sections": {
+          "footer": {
+            "type": "footer",
+            "settings": {
+              "tagline": "Premium agriculture solutions for Indian farmers — Grow with Experts",
+              "show_contact_column": true,
+              "contact_heading": "Contact us"
+            },
+            "blocks": {
+              "menu_navigate": {
+                "type": "menu",
+                "settings": { "heading": "Navigate", "menu": "footer", "fallback": "navigate" }
+              },
+              "menu_categories": {
+                "type": "menu",
+                "settings": { "heading": "Product categories", "menu": "", "fallback": "categories" }
+              }
+            },
+            "block_order": ["menu_navigate", "menu_categories"]
+          }
+        },
+        "settings": {}
+      }
+    }
+  }
+}

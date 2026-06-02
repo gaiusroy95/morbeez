@@ -1,0 +1,5 @@
+# Morbeez monorepo — theme lives in theme/
+# Use: npm run theme:dev   (from repo root)
+# Or:  cd theme && shopify theme dev
+
+name = "morbeez"

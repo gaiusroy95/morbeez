@@ -1,0 +1,144 @@
+<section class="morbeez-section" id="MorbeezProduct-{{ section.id }}">
+  <div class="morbeez-container">
+    {%- render 'morbeez-breadcrumbs' -%}
+    <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
+      <div class="space-y-4">
+        {%- liquid
+          assign product_image = product.featured_image
+          if product.selected_or_first_available_variant.featured_image
+            assign product_image = product.selected_or_first_available_variant.featured_image
+          endif
+        -%}
+        {%- if product_image -%}
+          <div class="overflow-hidden rounded-xl border border-gray-100" id="MorbeezProduct-main">
+            {%- render 'morbeez-lazy-image',
+              image: product_image,
+              alt: product.title,
+              loading: 'eager',
+              fetchpriority: 'high',
+              class: 'w-full aspect-square object-cover',
+              id: 'MorbeezProduct-main-image'
+            -%}
+          </div>
+        {%- endif -%}
+        {%- if product.images.size > 1 -%}
+          <div class="flex gap-2 overflow-x-auto">
+            {%- for image in product.images limit: 5 -%}
+              <button type="button" class="shrink-0 overflow-hidden rounded-lg border-2 border-transparent hover:border-[var(--color-primary)]" data-product-thumb>
+                {{ image | image_url: width: 80 | image_tag: class: 'h-16 w-16 object-cover' }}
+              </button>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+      </div>
+
+      <div>
+        {%- if product.vendor != blank -%}
+          <p class="text-sm font-medium text-[var(--color-muted)]">{{ product.vendor }}</p>
+        {%- endif -%}
+        <h1 class="mt-1 font-heading text-2xl font-bold md:text-3xl">{{ product.title }}</h1>
+        {%- render 'morbeez-rating-stars', product: product, class: 'mt-2' -%}
+
+        {%- if product.metafields.morbeez.target_crops.value.size > 0 -%}
+          <div class="mt-3 flex flex-wrap gap-2">
+            {%- for crop in product.metafields.morbeez.target_crops.value -%}
+              <span class="rounded-full bg-[var(--color-surface)] px-2 py-1 text-xs font-medium">{{ crop }}</span>
+            {%- endfor -%}
+          </div>
+        {%- endif -%}
+
+        {%- form 'product', product, id: 'product-form', class: 'mt-6', data-product-form: '' -%}
+          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
+            <div data-product-price-wrap>
+              <div class="flex flex-wrap items-baseline gap-3">
+                <span class="text-2xl font-bold text-[var(--color-primary)]" data-product-price>
+                  {%- render 'morbeez-money', amount: product.selected_or_first_available_variant.price -%}
+                </span>
+                <s class="text-lg text-[var(--color-muted)] hidden" data-product-compare-price></s>
+                <span class="morbeez-pack-savings hidden" data-product-savings></span>
+              </div>
+              <p class="mt-1 hidden text-sm text-[var(--color-muted)]" data-product-unit-rate></p>
+              <p class="mt-1 hidden text-xs font-medium text-[var(--color-trust)]" data-product-qty-line></p>
+            </div>
+
+            <div class="morbeez-qty-stepper" data-qty-stepper>
+              <span class="morbeez-qty-stepper__label">{{ 'products.quantity' | t }}</span>
+              <div class="morbeez-qty-stepper__controls">
+                <button type="button" class="morbeez-qty-stepper__btn" data-qty-minus aria-label="Decrease quantity">−</button>
+                <input
+                  type="number"
+                  name="quantity"
+                  value="1"
+                  min="1"
+                  class="morbeez-qty-stepper__input"
+                  data-qty-input
+                  aria-label="{{ 'products.quantity' | t }}"
+                >
+                <button type="button" class="morbeez-qty-stepper__btn" data-qty-plus aria-label="Increase quantity">+</button>
+              </div>
+            </div>
+          </div>
+
+          {%- unless product.has_only_default_variant -%}
+            <div class="mt-5">
+              {%- render 'morbeez-variant-picker', product: product, section_id: section.id -%}
+            </div>
+          {%- else -%}
+            <input
+              type="hidden"
+              name="id"
+              value="{{ product.selected_or_first_available_variant.id }}"
+              data-variant-picker-card
+              data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+              data-variant-title="{{ product.selected_or_first_available_variant.title | escape }}"
+              data-price="{{ product.selected_or_first_available_variant.price }}"
+              data-compare-at-price="{{ product.selected_or_first_available_variant.compare_at_price | default: 0 }}"
+              data-available="{% if product.selected_or_first_available_variant.available %}true{% else %}false{% endif %}"
+            >
+          {%- endunless -%}
+
+          <button
+            type="submit"
+            name="add"
+            class="morbeez-btn-primary w-full border-0 {% unless product.available %}opacity-50 cursor-not-allowed{% endunless %}"
+            {% unless product.available %}disabled{% endunless %}
+          >
+            {%- if product.available -%}
+              {{ 'products.add_to_cart' | t }}
+            {%- else -%}
+              {{ 'products.sold_out' | t }}
+            {%- endif -%}
+          </button>
+        {%- endform -%}
+
+        {%- if product.metafields.morbeez.waiting_period_days != blank -%}
+          <p class="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            {{ 'products.waiting_period' | t: days: product.metafields.morbeez.waiting_period_days }}
+          </p>
+        {%- endif -%}
+      </div>
+    </div>
+
+    <div class="mt-12 border-t border-gray-100 pt-8">
+      {%- render 'morbeez-product-tabs' -%}
+    </div>
+
+    <div class="mt-10" id="product-reviews">
+      {%- for block in section.blocks -%}
+        {%- render block -%}
+      {%- endfor -%}
+    </div>
+  </div>
+</section>
+
+{%- render 'schema-product' -%}
+{%- render 'schema-faq' -%}
+
+{% schema %}
+{
+  "name": "t:sections.main_product.name",
+  "settings": [],
+  "blocks": [{ "type": "@app" }],
+  "enabled_on": { "templates": ["product"] }
+}
+{% endschema %}

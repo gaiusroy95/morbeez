@@ -1,0 +1,46 @@
+<!doctype html>
+<html class="no-js" lang="{% if request.locale.iso_code == 'en' and settings.display_prices_inr %}en-IN{% else %}{{ request.locale.iso_code }}{% endif %}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="{{ settings.color_primary }}">
+
+    <link rel="preconnect" href="https://cdn.shopify.com" crossorigin>
+    <link rel="dns-prefetch" href="https://cdn.shopify.com">
+
+    {%- render 'meta-tags' -%}
+    {%- render 'css-variables' -%}
+
+    {{ content_for_header }}
+
+    {{ 'theme.css' | asset_url | stylesheet_tag: preload: true }}
+    <script>
+      window.MORBEEZ_AUTH = {
+        apiBase: {{ settings.morbeez_api_base_url | default: 'https://morbeez-api.onrender.com' | json }},
+        proxyBase: '/apps/morbeez/auth'
+      };
+    </script>
+    <script src="{{ 'morbeez-cart-session.js' | asset_url }}" defer></script>
+    <script src="{{ 'theme.js' | asset_url }}" defer></script>
+    <script src="{{ 'farmer-auth-header.js' | asset_url }}" defer></script>
+  </head>
+
+  <body class="template-{{ template.name }}">
+    <a class="sr-only" href="#MainContent">{{ 'accessibility.skip_to_content' | t }}</a>
+
+    {% sections 'header-group' %}
+
+    <main id="MainContent" role="main" tabindex="-1">
+      {{ content_for_layout }}
+    </main>
+
+    {% sections 'footer-group' %}
+
+    {%- render 'morbeez-floating-cart' -%}
+    {% section 'sticky-whatsapp-cta' %}
+
+    {%- if settings.enable_organization_schema -%}
+      {%- render 'schema-organization' -%}
+    {%- endif -%}
+  </body>
+</html>

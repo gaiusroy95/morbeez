@@ -1,0 +1,271 @@
+.dmp-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dmp-label {
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.dmp-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.dmp-trigger:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+.dmp-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dmp-trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dmp-trigger-text--placeholder {
+  color: #94a3b8;
+}
+
+.dmp-chevron {
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.dmp-panel {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.dmp-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.dmp-search-icon {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  padding-left: 0.15rem;
+}
+
+.dmp-search {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+}
+
+.dmp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.dmp-empty {
+  padding: 0.75rem 0.85rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.dmp-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.dmp-row:last-child {
+  border-bottom: none;
+}
+
+.dmp-row--selected .dmp-row-select {
+  background: #059669;
+  color: #fff;
+}
+
+.dmp-row--selected .dmp-icon-btn {
+  color: #fff;
+}
+
+.dmp-row-select {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.dmp-row-select:hover {
+  background: #f8fafc;
+}
+
+.dmp-row--selected .dmp-row-select:hover {
+  background: #047857;
+}
+
+.dmp-check {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 1px solid #94a3b8;
+  border-radius: 0.15rem;
+  flex-shrink: 0;
+}
+
+.dmp-check--on {
+  background: #fff;
+  border-color: #fff;
+  box-shadow: inset 0 0 0 2px #059669;
+}
+
+.dmp-row-actions {
+  display: flex;
+  gap: 0.15rem;
+  padding-right: 0.35rem;
+}
+
+.dmp-icon-btn {
+  border: none;
+  background: transparent;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  cursor: pointer;
+  border-radius: 0.25rem;
+}
+
+.dmp-icon-btn:hover:not(:disabled) {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.dmp-row--selected .dmp-icon-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.dmp-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.dmp-add-input {
+  flex: 1;
+  min-width: 6rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.dmp-add-input--district {
+  flex: 0 1 7rem;
+}
+
+.dmp-add-btn {
+  border: none;
+  border-radius: 0.35rem;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dmp-add-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dmp-edit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+}
+
+.dmp-edit-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.dmp-edit-actions {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.dmp-btn {
+  border: 1px solid #cbd5e1;
+  border-radius: 0.35rem;
+  background: #fff;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.dmp-btn--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.dmp-error {
+  margin: 0;
+  padding: 0.35rem 0.65rem 0.5rem;
+  font-size: 0.75rem;
+  color: #b91c1c;
+}
+
+.dmp-hint {
+  margin: 0;
+  padding: 0 0.65rem 0.5rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}

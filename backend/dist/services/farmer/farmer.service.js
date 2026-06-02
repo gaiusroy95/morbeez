@@ -1,0 +1,114 @@
+import { supabase } from '../../lib/supabase.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { eventBus } from '../../events/bus.js';
+import { isValidIndianPhone, normalizePhone, normalizeWhatsAppWaId } from '../../lib/phone.js';
+export const farmerService = {
+    async upsertByPhone(input) {
+        const phone = normalizePhone(input.phone);
+        if (!isValidIndianPhone(input.phone))
+            throw new ValidationError('Invalid Indian phone number');
+        const { data, error } = await supabase
+            .from('farmers')
+            .upsert({
+            phone,
+            name: input.name ?? null,
+            preferred_language: input.preferredLanguage ?? 'en',
+            district: input.district ?? null,
+            state: input.state ?? null,
+            shopify_customer_id: input.shopifyCustomerId ?? null,
+            source: input.source ?? 'api',
+            updated_at: new Date().toISOString(),
+        }, { onConflict: 'phone' })
+            .select()
+            .single();
+        if (error)
+            throw error;
+        await eventBus.publish('farmer.upserted', { farmerId: data.id, phone }, 'farmer-service');
+        return data;
+    },
+    /** WhatsApp wa_id — accepts 10-digit Indian numbers from Meta without strict pre-check. */
+    async upsertFromWhatsApp(input) {
+        const phone = normalizeWhatsAppWaId(input.phone);
+        if (phone.length < 8)
+            throw new ValidationError('Invalid WhatsApp phone number');
+        const { data: existing } = await supabase
+            .from('farmers')
+            .select('id, preferred_language, name')
+            .eq('phone', phone)
+            .maybeSingle();
+        if (existing) {
+            const patch = { updated_at: new Date().toISOString() };
+            if (input.name?.trim())
+                patch.name = input.name.trim();
+            const { data, error } = await supabase
+                .from('farmers')
+                .update(patch)
+                .eq('id', existing.id)
+                .select()
+                .single();
+            if (error)
+                throw error;
+            await eventBus.publish('farmer.upserted', { farmerId: data.id, phone }, 'farmer-service');
+            return data;
+        }
+        const { data, error } = await supabase
+            .from('farmers')
+            .insert({
+            phone,
+            name: input.name ?? null,
+            preferred_language: input.preferredLanguage ?? 'en',
+            source: 'whatsapp',
+            updated_at: new Date().toISOString(),
+        })
+            .select()
+            .single();
+        if (error)
+            throw error;
+        await eventBus.publish('farmer.upserted', { farmerId: data.id, phone }, 'farmer-service');
+        return data;
+    },
+    async upsertFromShopifyCustomer(input) {
+        return this.upsertByPhone({
+            phone: input.phone,
+            name: input.name,
+            shopifyCustomerId: input.shopifyCustomerId,
+            source: 'shopify',
+        });
+    },
+    async getById(id) {
+        const { data, error } = await supabase.from('farmers').select('*, farm_blocks(*)').eq('id', id).single();
+        if (error || !data)
+            throw new NotFoundError('Farmer not found');
+        return data;
+    },
+    async addCrop(farmerId, crop) {
+        const { data, error } = await supabase
+            .from('farm_blocks')
+            .insert({
+            farmer_id: farmerId,
+            name: `${crop.cropType} Block`,
+            crop_name: crop.cropType,
+            crop_type: crop.cropType.toLowerCase(),
+            acreage_decimal: crop.acreage ?? null,
+            stage: crop.stage ?? null,
+            is_primary: crop.isPrimary ?? false,
+            planting_date: new Date().toISOString().slice(0, 10),
+        })
+            .select()
+            .single();
+        if (error)
+            throw error;
+        return data;
+    },
+    async logInteraction(farmerId, channel, direction, content, metadata) {
+        await supabase.from('interaction_logs').insert({
+            farmer_id: farmerId,
+            channel,
+            direction,
+            content,
+            message_type: 'text',
+            raw_payload: metadata ?? {},
+        });
+    },
+};
+//# sourceMappingURL=farmer.service.js.map

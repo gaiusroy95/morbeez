@@ -1,0 +1,768 @@
+import { z } from 'zod';
+import { assertModuleAccess } from '../../lib/rbac.js';
+import { supabase } from '../../lib/supabase.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
+import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
+import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
+import { escalationAdminService } from '../../services/admin/escalation-admin.service.js';
+import { farmerRoiAdminService } from '../../services/admin/farmer-roi-admin.service.js';
+import { telecallerFarmerProfileService } from '../../services/admin/telecaller-farmer-profile.service.js';
+import { pincodeService } from '../../services/core/pincode.service.js';
+const leadStageEnum = z.enum([
+    'new_lead',
+    'interested',
+    'follow_up',
+    'recommendation',
+    'order_placed',
+    'repeat_customer',
+]);
+export async function osTelecallerRoutes(app) {
+    const api = '/morbeez-staff/api/v1/os/telecaller';
+    app.get(`${api}/overview`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const overview = await telecallerAdminService.getOverview(admin.email);
+        const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true });
+        overview.allLeadsCount = count ?? 0;
+        return reply.send({ ok: true, overview });
+    });
+    app.get(`${api}/nav-badges`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const badges = await telecallerAdminService.getNavBadges();
+        return reply.send({ ok: true, badges });
+    });
+    app.get(`${api}/leads`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = request.query;
+        const result = await telecallerAdminService.listLeads({
+            scope: q.scope === 'mine' ? 'mine' : 'all',
+            stage: q.stage,
+            search: q.search,
+            page: q.page ? Number(q.page) : 1,
+            limit: q.limit ? Number(q.limit) : 30,
+        }, admin.email);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/leads/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.patch(`${api}/leads/:id`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            stage: leadStageEnum.optional(),
+            notes: z.string().optional(),
+            followUpAt: z.string().nullable().optional(),
+            assignedTo: z.string().nullable().optional(),
+            priority: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.updateLead(id, body, admin.email);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/leads/:id/notes`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { note } = z.object({ note: z.string().min(1) }).parse(request.body);
+        const detail = await telecallerAdminService.addNote(id, note, admin.email);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.get(`${api}/pincodes/:pincode`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { pincode } = request.params;
+        const row = await pincodeService.lookupByPincode(pincode);
+        if (!row)
+            return reply.code(404).send({ ok: false, error: 'Pincode not found' });
+        return reply.send({ ok: true, pincode: row });
+    });
+    app.get(`${api}/leads/:id/farmer-profile`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const profile = await telecallerFarmerProfileService.getProfile(detail.lead.farmerId);
+        return reply.send({ ok: true, ...profile });
+    });
+    app.patch(`${api}/leads/:id/farmer-profile`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const body = z
+            .object({
+            name: z.string().optional(),
+            whatsappSame: z.boolean().optional(),
+            whatsappPhone: z.string().optional(),
+            language: z.string().optional(),
+            pincode: z.string().optional(),
+            village: z.string().optional(),
+            totalAcreage: z.number().optional(),
+            shippingAddress: z.string().optional(),
+            deliveryPincode: z.string().optional(),
+            assignedCropAdvisor: z.string().optional(),
+            roiEnabled: z.boolean().optional(),
+            farmerNotes: z.string().optional(),
+            cropExperienceYears: z.number().int().min(0).max(60).optional(),
+            cropBlocks: z
+                .array(z.object({
+                id: z.string().uuid().optional(),
+                blockName: z.string().optional(),
+                cropName: z.string(),
+                acreage: z.number().optional(),
+                plantingDate: z.string().optional(),
+            }))
+                .optional(),
+        })
+            .parse(request.body);
+        const profile = await telecallerFarmerProfileService.updateProfile(detail.lead.farmerId, body);
+        return reply.send({ ok: true, ...profile });
+    });
+    app.get(`${api}/leads/:id/roi-entries`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await farmerRoiAdminService.listEntries(detail.lead.farmerId);
+        return reply.send({ ok: true, ...result });
+    });
+    app.patch(`${api}/leads/:id/roi-entries/:entryId`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id, entryId } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const body = z
+            .object({
+            password: z.string().min(1),
+            entryDate: z.string().optional(),
+            category: z.enum(['labour', 'purchase', 'misc', 'harvest', 'income']).optional(),
+            comments: z.string().nullable().optional(),
+            debitInr: z.number().nullable().optional(),
+            creditInr: z.number().nullable().optional(),
+        })
+            .parse(request.body);
+        const entry = await farmerRoiAdminService.staffEditEntry({
+            farmerId: detail.lead.farmerId,
+            entryId,
+            staffEmail: admin.email,
+            password: body.password,
+            patch: {
+                entryDate: body.entryDate,
+                category: body.category,
+                comments: body.comments,
+                debitInr: body.debitInr,
+                creditInr: body.creditInr,
+            },
+        });
+        return reply.send({ ok: true, entry });
+    });
+    app.get(`${api}/leads/:id/crm`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const bundle = await crmFarmerService.getFarmerCrmBundle(detail.lead.farmerId, id, admin.email);
+        return reply.send({ ok: true, ...bundle });
+    });
+    app.get(`${api}/leads/:id/blocks`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const blocks = await crmFarmerService.ensureDemoBlocks(detail.lead.farmerId);
+        return reply.send({ ok: true, blocks });
+    });
+    app.get(`${api}/leads/:leadId/blocks/:blockId/workspace`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { leadId, blockId } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const workspace = await crmFarmerService.getBlockWorkspace(detail.lead.farmerId, blockId);
+        return reply.send({ ok: true, ...workspace });
+    });
+    app.get(`${api}/leads/:id/interactions`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await crmFarmerService.listHumanCrmInteractions(detail.lead.farmerId, id, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 40);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/leads/:id/recommendations`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await crmFarmerService.listRecommendations(detail.lead.farmerId, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 20);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/leads/:id/field-findings`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await telecallerAdminService.listFieldFindings(detail.lead.farmerId, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 15);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/tasks`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = request.query;
+        const tasks = await telecallerAdminService.listTasks(admin.email, q.status ?? 'pending');
+        return reply.send({ ok: true, tasks });
+    });
+    app.get(`${api}/leads/:id/tasks`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const { data, error } = await supabase
+            .from('crm_tasks')
+            .select('*')
+            .eq('lead_id', id)
+            .order('due_at', { ascending: true })
+            .limit(50);
+        throwIfSupabaseError(error, 'Could not load lead tasks');
+        return reply.send({ ok: true, tasks: data ?? [] });
+    });
+    app.get(`${api}/leads/:id/escalations`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const { data, error } = await supabase
+            .from('agronomist_escalations')
+            .select('*')
+            .eq('farmer_id', detail.lead.farmerId)
+            .order('created_at', { ascending: false })
+            .limit(30);
+        throwIfSupabaseError(error, 'Could not load lead escalations');
+        return reply.send({ ok: true, escalations: data ?? [] });
+    });
+    app.get(`${api}/leads/:id/notes`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const { data, error } = await supabase
+            .from('telecaller_notes')
+            .select('*')
+            .eq('farmer_id', detail.lead.farmerId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        throwIfSupabaseError(error, 'Could not load lead notes');
+        return reply.send({ ok: true, notes: data ?? [] });
+    });
+    app.patch(`${api}/tasks/:id/complete`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        await telecallerAdminService.completeTask(id);
+        return reply.send({ ok: true });
+    });
+    app.delete(`${api}/tasks/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { error } = await supabase
+            .from('crm_tasks')
+            .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+            .eq('id', id);
+        throwIfSupabaseError(error, 'Could not archive task');
+        return reply.send({ ok: true });
+    });
+    app.get(`${api}/whatsapp/threads`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const threads = await telecallerAdminService.listWhatsAppThreads();
+        return reply.send({ ok: true, threads });
+    });
+    app.get(`${api}/whatsapp/:farmerId/messages`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { farmerId } = request.params;
+        const messages = await telecallerAdminService.getWhatsAppMessages(farmerId);
+        return reply.send({ ok: true, messages });
+    });
+    app.post(`${api}/whatsapp/:farmerId/send`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { farmerId } = request.params;
+        const { text } = z.object({ text: z.string().min(1).max(4096) }).parse(request.body);
+        const result = await telecallerAdminService.sendWhatsAppMessage(farmerId, text, admin.email);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/whatsapp/:farmerId/session`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { farmerId } = request.params;
+        const session = await whatsappOsAdminService.getConversationSession(farmerId);
+        return reply.send({ ok: true, session });
+    });
+    app.patch(`${api}/whatsapp/:farmerId/session`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            aiPaused: z.boolean().optional(),
+            owner: z.enum(['ai', 'telecaller', 'agronomist']).optional(),
+            preferredLanguage: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).nullable().optional(),
+            activeBlockId: z.string().uuid().nullable().optional(),
+        })
+            .parse(request.body);
+        const session = await whatsappOsAdminService.updateConversationSession(farmerId, {
+            ...body,
+            activePlotId: body.activeBlockId,
+        });
+        return reply.send({ ok: true, session });
+    });
+    app.post(`${api}/leads`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const body = z
+            .object({
+            phone: z.string().min(10),
+            name: z.string().optional(),
+            notes: z.string().optional(),
+            cropType: z.string().optional(),
+            district: z.string().optional(),
+            state: z.string().optional(),
+            whatsappSame: z.boolean().optional(),
+            whatsappPhone: z.string().optional(),
+            language: z.string().optional(),
+            pincode: z.string().optional(),
+            village: z.string().optional(),
+            totalAcreage: z.number().optional(),
+            shippingAddress: z.string().optional(),
+            deliveryPincode: z.string().optional(),
+            assignedCropAdvisor: z.string().optional(),
+            roiEnabled: z.boolean().optional(),
+            farmerNotes: z.string().optional(),
+            cropExperienceYears: z.number().int().min(0).max(60).optional(),
+            cropBlocks: z
+                .array(z.object({
+                blockName: z.string().optional(),
+                cropName: z.string(),
+                acreage: z.number().optional(),
+                plantingDate: z.string().optional(),
+            }))
+                .optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.createLead(body, admin.email);
+        return reply.status(201).send({ ok: true, lead: detail.lead, farmerId: detail.lead.farmerId });
+    });
+    app.delete(`${api}/leads/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { farmerPurgeService } = await import('../../services/farmer/farmer-purge.service.js');
+        const result = await farmerPurgeService.purgeByLeadId(id);
+        if (!result.ok) {
+            return reply.code(404).send({ ok: false, error: 'Lead not found' });
+        }
+        return reply.send({
+            ok: true,
+            deletedLeadId: id,
+            purgedFarmerId: result.farmerId,
+            phone: result.phone,
+        });
+    });
+    app.post(`${api}/leads/:id/calls`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            outcome: z.string().optional(),
+            notes: z.string().optional(),
+            durationSeconds: z.number().int().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.logCall(id, body, admin.email);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/leads/:id/tasks`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            title: z.string().min(1),
+            dueAt: z.string().optional(),
+            notes: z.string().optional(),
+            taskType: z.string().optional(),
+        })
+            .parse(request.body);
+        const task = await telecallerAdminService.createTask(id, body, admin.email);
+        return reply.send({ ok: true, task });
+    });
+    app.post(`${api}/leads/:id/blocks`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            name: z.string().min(1),
+            area: z.string().optional(),
+            cropId: z.string().uuid().optional(),
+            cropName: z.string().optional(),
+            varietyName: z.string().optional(),
+            irrigationTypeId: z.string().uuid().optional(),
+            soilTypeId: z.string().uuid().optional(),
+            plantingDate: z.string().optional(),
+            spacing: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const block = await crmFarmerService.createBlock(detail.lead.farmerId, body);
+        return reply.status(201).send({ ok: true, block });
+    });
+    app.patch(`${api}/leads/:leadId/blocks/:blockId`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { leadId, blockId } = request.params;
+        const body = z
+            .object({
+            name: z.string().optional(),
+            area: z.string().optional(),
+            cropName: z.string().optional(),
+            plantingDate: z.string().optional(),
+            latitude: z.number().min(6).max(37.5).optional(),
+            longitude: z.number().min(68).max(97.5).optional(),
+            location_source: z.enum(['field_pwa', 'telecaller', 'whatsapp', 'api']).optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const farmerId = detail.lead.farmerId;
+        if (body.latitude !== undefined && body.longitude !== undefined) {
+            const { plotLocationService } = await import('../../services/core/plot-location.service.js');
+            await plotLocationService.updateBlockLocation(blockId, {
+                latitude: body.latitude,
+                longitude: body.longitude,
+                source: body.location_source ?? 'telecaller',
+                farmerId,
+            });
+        }
+        const patch = {};
+        if (body.name != null) {
+            patch.name = body.name;
+            patch.plot_label = body.name;
+        }
+        if (body.area != null)
+            patch.area = body.area;
+        if (body.cropName != null) {
+            patch.crop_name = body.cropName;
+            patch.crop_type = body.cropName.trim().toLowerCase().replace(/\s+/g, '_');
+        }
+        if (body.plantingDate != null)
+            patch.planting_date = body.plantingDate;
+        const block = await crmFarmerService.updateBlock(blockId, patch);
+        return reply.send({ ok: true, block });
+    });
+    app.post(`${api}/leads/:id/soil-reports`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            metrics: z.record(z.unknown()).optional(),
+            pdfUrl: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const report = await crmFarmerService.createSoilReport(detail.lead.farmerId, {
+            blockId: body.blockId,
+            metrics: body.metrics,
+            pdfUrl: body.pdfUrl,
+            uploadedBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, report });
+    });
+    app.delete(`${api}/leads/:leadId/blocks/:blockId`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { blockId } = request.params;
+        const block = await crmFarmerService.updateBlock(blockId, { archived: true });
+        return reply.send({ ok: true, block });
+    });
+    app.post(`${api}/leads/:id/interactions`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            interactionType: z.string().min(1),
+            blockId: z.string().uuid().optional(),
+            summary: z.string().optional(),
+            notes: z.string().optional(),
+            nextAction: z.string().optional(),
+            nextActionAt: z.string().optional(),
+            status: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const interaction = await crmFarmerService.createInteraction(detail.lead.farmerId, id, { ...body, doneBy: admin.email, doneByRole: 'Telecaller' });
+        return reply.status(201).send({ ok: true, interaction });
+    });
+    app.delete(`${api}/interactions/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { error } = await supabase
+            .from('interaction_logs')
+            .update({ status: 'archived' })
+            .eq('id', id);
+        throwIfSupabaseError(error, 'Could not archive interaction');
+        return reply.send({ ok: true });
+    });
+    app.post(`${api}/leads/:id/recommendations`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            recType: z.enum(['ai', 'agronomist', 'spray', 'drench']).optional(),
+            problem: z.string().optional(),
+            recommendation: z.string().min(1),
+            dosage: z.string().optional(),
+            applicationMethod: z.string().optional(),
+            followUpAt: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const rec = await crmFarmerService.createRecommendation(detail.lead.farmerId, id, {
+            ...body,
+            recommendedBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, recommendation: rec });
+    });
+    app.delete(`${api}/recommendations/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { error } = await supabase
+            .from('crm_recommendations')
+            .update({ status: 'archived' })
+            .eq('id', id);
+        throwIfSupabaseError(error, 'Could not archive recommendation');
+        return reply.send({ ok: true });
+    });
+    app.post(`${api}/leads/:id/field-findings`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            blockName: z.string().min(1),
+            cropType: z.string().min(1),
+            observations: z.string().optional(),
+            diseasePest: z.string().optional(),
+            diseaseTone: z.enum(['healthy', 'warning', 'danger']).optional(),
+            actionTaken: z.string().optional(),
+            parameters: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const finding = await telecallerAdminService.createFieldFinding(detail.lead.farmerId, id, body);
+        return reply.status(201).send({ ok: true, finding });
+    });
+    app.delete(`${api}/field-findings/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const { error } = await supabase
+            .from('crm_field_findings')
+            .update({ archived_at: new Date().toISOString() })
+            .eq('id', id);
+        throwIfSupabaseError(error, 'Could not archive field finding');
+        return reply.send({ ok: true });
+    });
+    app.post(`${api}/leads/:id/schedule-visit`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            title: z.string().optional(),
+            dueAt: z.string(),
+            notes: z.string().optional(),
+            blockId: z.string().uuid().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await crmFarmerService.scheduleVisit(detail.lead.farmerId, id, {
+            ...body,
+            assignedTo: admin.email,
+        });
+        return reply.status(201).send({ ok: true, ...result });
+    });
+    app.get(`${api}/leads/:id/orders`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const result = await crmFarmerService.listFarmerOrders(detail.lead.farmerId);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/orders/catalog`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = request.query;
+        const items = await crmFarmerService.getOrderCatalog(q.search);
+        return reply.send({ ok: true, items });
+    });
+    app.post(`${api}/leads/:id/orders`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            lineItems: z.array(z.object({
+                variantId: z.number().optional(),
+                title: z.string(),
+                quantity: z.number().min(1),
+                price: z.number().min(0),
+            })),
+            paymentMode: z.string().optional(),
+            deliveryAddress: z.string().optional(),
+            notes: z.string().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const order = await crmFarmerService.createManualOrder(detail.lead.farmerId, id, {
+            ...body,
+            createdBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, order });
+    });
+    app.post(`${api}/leads/:id/recommendations/:recId/convert-order`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id, recId } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const order = await crmFarmerService.convertRecommendationToOrder(recId, detail.lead.farmerId, id, admin.email);
+        return reply.status(201).send({ ok: true, order });
+    });
+    app.get(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = request.query;
+        const type = z.string().min(1).parse(q.type ?? 'crop');
+        const items = await crmFarmerService.listMasters(type, q.parentId || null, q.search);
+        return reply.send({ ok: true, items });
+    });
+    app.post(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const body = z
+            .object({
+            masterType: z.string().min(1),
+            name: z.string().min(1).max(120),
+            parentId: z.string().uuid().nullable().optional(),
+            category: z.string().optional(),
+            description: z.string().optional(),
+        })
+            .parse(request.body);
+        const item = await crmFarmerService.createMaster({
+            masterType: body.masterType,
+            name: body.name,
+            parentId: body.parentId,
+            category: body.category,
+            description: body.description,
+        });
+        return reply.status(201).send({ ok: true, item });
+    });
+    app.get(`${api}/leads/:id/export`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const type = (q.type ?? 'lead');
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const farmerId = detail.lead.farmerId;
+        let html = '';
+        if (type === 'lead') {
+            html = crmFarmerService.buildExportHtml('lead', {
+                title: `Farmer — ${detail.lead.farmerName}`,
+                rows: [
+                    { label: 'Name', value: String(detail.lead.farmerName) },
+                    { label: 'Phone', value: String(detail.lead.phone ?? '') },
+                    { label: 'Stage', value: String(detail.lead.stageLabel ?? detail.lead.stage) },
+                    { label: 'District', value: String(detail.lead.district ?? '') },
+                ],
+            });
+        }
+        else if (type === 'recommendations') {
+            const recs = await crmFarmerService.listRecommendations(farmerId, 1, 50);
+            html = crmFarmerService.buildExportHtml('recommendations', {
+                title: `Recommendations — ${detail.lead.farmerName}`,
+                table: {
+                    cols: ['Date', 'Block', 'Problem', 'Recommendation', 'Status'],
+                    rows: recs.recommendations.map((r) => [
+                        r.dateLabel ?? '',
+                        r.blockName ?? '',
+                        r.problem ?? '',
+                        r.recommendation ?? '',
+                        r.status ?? '',
+                    ]),
+                },
+            });
+        }
+        else if (type === 'interactions') {
+            const ix = await crmFarmerService.listInteractions(farmerId, 1, 50);
+            html = crmFarmerService.buildExportHtml('interactions', {
+                title: `Interactions — ${detail.lead.farmerName}`,
+                table: {
+                    cols: ['Date', 'Type', 'By', 'Summary', 'Status'],
+                    rows: ix.interactions.map((i) => [
+                        i.atLabel ?? '',
+                        i.typeLabel ?? '',
+                        i.by ?? '',
+                        String(i.summary ?? '').slice(0, 80),
+                        i.status ?? '',
+                    ]),
+                },
+            });
+        }
+        else {
+            const ff = await telecallerAdminService.listFieldFindings(farmerId, 1, 50);
+            html = crmFarmerService.buildExportHtml('findings', {
+                title: `Field Findings — ${detail.lead.farmerName}`,
+                table: {
+                    cols: ['Date', 'Block', 'Agronomist', 'Observations', 'Disease'],
+                    rows: ff.findings.map((f) => [
+                        f.visitedLabel ?? '',
+                        f.blockName ?? '',
+                        f.agronomistName ?? '',
+                        String(f.observations ?? '').slice(0, 80),
+                        f.diseasePest ?? '',
+                    ]),
+                },
+            });
+        }
+        return reply.send({ ok: true, html, filename: `morbeez-${type}-${id.slice(0, 8)}.html` });
+    });
+    app.get(`${api}/leads/:id/share`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const phone = String(detail.lead.phone ?? '');
+        if (q.type === 'recommendation' && q.recId) {
+            const { data } = await supabase.from('crm_recommendations').select('*').eq('id', q.recId).single();
+            const share = crmFarmerService.buildWhatsAppMessage('recommendation', {
+                problem: data?.problem,
+                recommendation: data?.recommendation,
+                dosage: data?.dosage,
+            }, phone);
+            return reply.send({ ok: true, ...share });
+        }
+        const share = crmFarmerService.buildWhatsAppMessage('lead', {
+            name: detail.lead.farmerName,
+            phone,
+            crop: detail.farmer?.crop,
+            territory: detail.farmer?.territory,
+        }, phone);
+        return reply.send({ ok: true, ...share });
+    });
+    app.get(`${api}/escalations`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = request.query;
+        const result = await escalationAdminService.list({
+            status: q.status ?? 'pending',
+            page: q.page ? Number(q.page) : 1,
+            limit: q.limit ? Number(q.limit) : 50,
+        });
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/escalations/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const escalation = await escalationAdminService.getById(id);
+        return reply.send({ ok: true, escalation });
+    });
+    app.patch(`${api}/escalations/:id`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            status: z.enum(['pending', 'assigned', 'in_review', 'resolved', 'closed']).optional(),
+            assignedTo: z.string().optional(),
+            agronomistNotes: z.string().max(5000).optional(),
+            resolution: z.string().max(2000).optional(),
+            correction: z.record(z.unknown()).optional(),
+        })
+            .parse(request.body);
+        const escalation = await escalationAdminService.update(id, body, admin.email);
+        return reply.send({ ok: true, escalation });
+    });
+}
+//# sourceMappingURL=os-telecaller.routes.js.map

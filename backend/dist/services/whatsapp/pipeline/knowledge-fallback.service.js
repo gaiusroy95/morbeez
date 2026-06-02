@@ -1,0 +1,254 @@
+import { env } from '../../../config/env.js';
+import { logger } from '../../../lib/logger.js';
+import { aiReuseService, buildDapBucket, buildSymptomKey } from '../../ai/ai-reuse.service.js';
+import { blockService } from '../../core/block.service.js';
+import { supabase } from '../../../lib/supabase.js';
+import { CALCIUM_NITRATE_MIX_WARNING, lookupCalciumNitratePair, } from './calcium-nitrate-tank-mix.knowledge.js';
+import { compatibilityLookupService, parseProductPairFromText, } from './compatibility-lookup.service.js';
+import { isConversationFollowUp, isDrenchOrMixQuestion, } from './conversation-continuation.service.js';
+import { farmerMemoryService } from './farmer-memory.service.js';
+import { responseComposerService } from './response-composer.service.js';
+import { contextPackService } from './context-pack.service.js';
+import { diseaseWeatherRulesService } from './disease-weather-rules.service.js';
+const FALLBACK_NOTE = {
+    en: '\n\n(Verified Morbeez field guide — live AI is temporarily unavailable.)',
+    ml: '\n\n(സ്ഥിരീകരിച്ച മോർബീസ് മാർഗ്ഗനിർദേശം — ലൈവ് AI താൽക്കാലികമായി ലഭ്യമല്ല.)',
+    ta: '\n\n(சரிபார்க்கப்பட்ட Morbeez வழிகாட்டி — நேரடி AI தற்காலிகமாக இல்லை.)',
+    kn: '\n\n(ಪರಿಶೀಲಿತ Morbeez ಮಾರ್ಗದರ್ಶಿ — ಲೈವ್ AI ತಾತ್ಕಾಲಿಕವಾಗಿ ಲಭ್ಯವಿಲ್ಲ.)',
+    hi: '\n\n(सत्यापित Morbeez मार्गदर्शन — लाइव AI अस्थायी रूप से उपलब्ध नहीं.)',
+};
+function cropLabel(memory) {
+    const c = memory?.cropType ?? 'crop';
+    return c.charAt(0).toUpperCase() + c.slice(1).replace(/_/g, ' ');
+}
+export function isFertilizerOrNutrientQuestion(text) {
+    return /\b(fertiliz|recommend|nutrient|npk|urea|dap|soil\s*application|basal|top\s*dress|fertigation|manure|compost)\b/i.test(text);
+}
+function fertilizerStageGuidance(memory, language) {
+    const crop = cropLabel(memory);
+    const dap = memory.dap ?? 0;
+    const stage = dap < 30
+        ? { en: 'early growth (establishment)', ml: 'ആരംഭ വളർച്ച (സ്ഥാപനം)' }
+        : dap < 90
+            ? { en: 'active vegetative growth', ml: 'സജീവ വളർച്ചാ ഘട്ടം' }
+            : { en: 'later vegetative / pre-harvest', ml: 'പിന്നീടുള്ള വളർച്ച / വിളവെടുപ്പിന് മുമ്പ്' };
+    const map = {
+        en: `For your ${crop} at about ${dap || '?'} days after planting (${stage.en}):\n\n• Split nitrogen in small doses; avoid one heavy dump in hot sun.\n• Use label rates for NPK / organic inputs; jar-test before a full 200 L tank.\n• Calcium nitrate and magnesium sulphate should not go in the same tank.\n• A soil test report (PDF/photo) lets us tune fertilizer to your field — tap *Upload Report* or *Enter lab values* in the soil menu.\n• For a person to review your exact stage today, tap *Expert Help* or type *call*.`,
+        ml: `നിങ്ങളുടെ ${crop} — നടീൽന് ഏകദേശം ${dap || '?'} ദിവസം (${stage.ml}):\n\n• നൈട്രജൻ ചെറിയ ഡോസുകളായി; വെയിലിൽ ഒരുമിച്ച് അധികം നൽകരുത്.\n• NPK / ജൈവ വളം ലേബൽ അനുസരിച്ച്; 200 L ടാങ്കിന് മുമ്പ് jar test.\n• കാൽസ്യം നൈട്രേറ്റ് + മഗ്നീഷ്യം സൾഫേറ്റ് ഒരേ ടാങ്കിൽ വേണ്ട.\n• മണ്ണ് റിപ്പോർട്ട് (PDF/ഫോട്ടോ) ഉണ്ടെങ്കിൽ വളം കൃത്യമാക്കാം — *Upload Report* അല്ലെങ്കിൽ *Enter lab values*.\n• ഇന്നത്തെ ഘട്ടത്തിന് വിദഗ്ധൻ: *Expert Help* അല്ലെങ്കിൽ *call*.`,
+        ta: `உங்கள் ${crop} — நடவுக்கு ~${dap || '?'} நாட்கள்:\n\n• நைட்ரஜனை பிரித்து கொடுங்கள்; NPK லேபிள் விகிதம்.\n• மண் அறிக்கை இருந்தால் உரம் துல்லியமாக — *Upload Report* / *Enter lab values*.\n• *Expert Help* அல்லது *call*.`,
+        kn: `ನಿಮ್ಮ ${crop} — ನಾಟಿಗೆ ~${dap || '?'} ದಿನಗಳು:\n\n• ನೈಟ್ರೋಜನ್ ವಿಭಜಿಸಿ; NPK ಲೇಬಲ್ ಪ್ರಮಾಣ.\n• ಮಣ್ಣಿನ ವರದಿ ಇದ್ದರೆ ರಸಗೊಬ್ಬರ ಸರಿಹೊಂದಿಸಿ — *Upload Report* / *Enter lab values*.\n• *Expert Help* ಅಥವಾ *call*.`,
+        hi: `आपकी ${crop} — रोपण के ~${dap || '?'} दिन:\n\n• नाइट्रोजन विभाजित करें; NPK लेबल दर।\n• मिट्टी रिपोर्ट से खाद सटीक — *Upload Report* / *Enter lab values*.\n• *Expert Help* या *call*.`,
+    };
+    return (map[language] ?? map.en) + (FALLBACK_NOTE[language] ?? FALLBACK_NOTE.en);
+}
+function followUpExpansion(memory, language) {
+    const summary = memory.lastAdvisorySummary?.trim();
+    if (!summary)
+        return null;
+    const crop = cropLabel(memory);
+    const map = {
+        en: `More detail on your ${crop} advice:\n\n${summary}\n\nPractical checks:\n• Jar test in a bottle before mixing the full 200 L tank.\n• Never mix Calcium Nitrate + Magnesium Sulphate in the same tank (clogging).\n• Add microbes first in clean water; avoid hot midday sun.\n• If anything is unclear, type *call* and our agronomist will help.`,
+        ml: `നിങ്ങളുടെ ${crop} ഉപദേശം — കൂടുതൽ വിവരം:\n\n${summary}\n\n• 200 L ടാങ്കിന് മുമ്പ് jar test.\n• കാൽസ്യം നൈട്രേറ്റ് + മഗ്നീഷ്യം സൾഫേറ്റ് ഒരേ ടാങ്കിൽ ചേർക്കരുത്.\n• സ്പഷ്ടമല്ലെങ്കിൽ *call* ടൈപ്പ് ചെയ്യുക.`,
+        ta: `உங்கள் ${crop} ஆலோசனை — மேலும் விவரம்:\n\n${summary}\n\n• 200 L க்கு முன் jar test.\n• Calcium nitrate + magnesium sulphate ஒன்றாக கலக்க வேண்டாம்.\n• *call* என்று அனுப்புங்கள்.`,
+        kn: `ನಿಮ್ಮ ${crop} ಸಲಹೆ — ಹೆಚ್ಚಿನ ವಿವರ:\n\n${summary}\n\n• 200 L ಮೊದಲು jar test.\n• Ca nitrate + MgSO₄ ಒಂದೇ ಟ್ಯಾಂಕിൽ ಬೇಡ.\n• *call* ಟೈಪ್ ಮಾಡಿ.`,
+        hi: `आपकी ${crop} सलाह — और विवरण:\n\n${summary}\n\n• 200 L से पहले jar test.\n• Calcium nitrate + magnesium sulphate एक टैंक में न मिलाएँ.\n• *call* टाइप करें।`,
+    };
+    return (map[language] ?? map.en) + (FALLBACK_NOTE[language] ?? FALLBACK_NOTE.en);
+}
+function drenchMixGuidance(memory, language) {
+    const crop = cropLabel(memory);
+    const map = {
+        en: `For your ${crop} drench (~200 L):\n\n• Trichoderma, Pseudomonas, Bacillus, Paecilomyces: beneficial microbes — usually OK together in clean, pH-neutral water.\n• Organic NPK / seaweed / triacontanol: use label rates; avoid overdosing seaweed.\n• Do NOT mix Calcium Nitrate + Magnesium Sulphate in the same tank (${CALCIUM_NITRATE_MIX_WARNING}).\n• Mix order: water → dissolve NPK → micronutrients → microbes last; always jar-test before full tank.\n• Z-sol / chelates: follow label; avoid strong acid + Ca in one mix.`,
+        ml: `${crop} ഡ്രെഞ്ച് (~200 L):\n\n• ട്രൈക്കോഡർമ, പ്സീഡോമോനാസ്, ബാസillus: സാധാരണയായി ഒരുമിച്ച് OK.\n• കാൽസ്യം നൈട്രേറ്റ് + മഗ്നീഷ്യം സൾഫേറ്റ് ഒരേ ടാങ്കിൽ വേണ്ട.\n• മുഴുവൻ ടാങ്കിനും മുമ്പ് jar test.`,
+        ta: `${crop} drench (~200 L): microbes பொதுவாக OK; Ca nitrate + MgSO₄ ஒன்றாக வேண்டாம்; jar test செய்யுங்கள்.`,
+        kn: `${crop} drench: microbes ಸಾಮಾನ್ಯವಾಗಿ OK; Ca nitrate + MgSO₄ ಒಂದೇ ಟ್ಯಾಂಕ್ ಬೇಡ; jar test.`,
+        hi: `${crop} drench: microbes आमतौर पर OK; Ca nitrate + MgSO₄ एक टैंक में नहीं; jar test करें.`,
+    };
+    return (map[language] ?? map.en) + (FALLBACK_NOTE[language] ?? FALLBACK_NOTE.en);
+}
+function scanTextForCaMgConflict(text, language) {
+    const lower = text.toLowerCase();
+    const hasCa = /calcium\s*nitrate|ca\s*nitrate/i.test(lower);
+    const hasMg = /magnesium\s*sulphate|magnesium\s*sulfate|mgso4|epsom/i.test(lower);
+    if (!hasCa || !hasMg)
+        return null;
+    const chart = lookupCalciumNitratePair('calcium nitrate', 'magnesium sulphate');
+    if (!chart?.found || chart.compatible)
+        return null;
+    const body = language === 'ml'
+        ? 'കാൽസ്യം നൈട്രേറ്റ് + മഗ്നീഷ്യം സൾഫേറ്റ് ഒരേ ഡ്രെഞ്ച്/ടാങ്കിൽ ചേർക്കരുത് — മങ്ങൽ/ക്ലോഗ് സാധ്യത.'
+        : 'Do not mix Calcium Nitrate + Magnesium Sulphate in the same drench/tank — risk of precipitation and clogging.';
+    return responseComposerService.compose({
+        body: `${body}\n\n${chart.notes ?? CALCIUM_NITRATE_MIX_WARNING}`,
+        footer: responseComposerService.advisoryDisclaimer(language),
+    });
+}
+/**
+ * Rule-based / verified-case replies when OpenAI is unavailable (quota, outage).
+ * Uses advisory_reuse_cases, spray_compatibility_rules, Ca nitrate chart, and field playbooks.
+ */
+/** Minimal advisory object when Crop Doctor cannot call OpenAI. */
+export function advisoryFromKnowledgeText(summary, language) {
+    return {
+        probableIssue: 'Field guidance (verified rules)',
+        confidence: 0.58,
+        uncertain: true,
+        nutrientDeficiency: [],
+        stressAnalysis: [],
+        treatments: [],
+        dosageGuidance: [],
+        precautions: ['Confirm with jar test before full tank application'],
+        escalationRecommended: true,
+        escalationReason: 'Live AI unavailable — agronomist review recommended',
+        farmerSummaryEn: summary,
+        farmerSummaryMl: language === 'ml' ? summary : summary,
+        recommendedProductTags: [],
+    };
+}
+function metaFromMemory(memory, district) {
+    return {
+        cropType: memory.cropType,
+        district: district ?? undefined,
+        issueLabel: memory.lastAdvisorySummary?.slice(0, 120),
+    };
+}
+export const knowledgeFallbackService = {
+    async tryReply(params) {
+        const hit = await this.tryReplyWithModule(params);
+        return hit?.text ?? null;
+    },
+    async tryReplyWithModule(params) {
+        const text = params.text.trim();
+        if (!text)
+            return null;
+        const memory = params.memory ??
+            (await farmerMemoryService.build(params.farmerId, { symptomsText: text }));
+        const { data: farmer } = await supabase
+            .from('farmers')
+            .select('district')
+            .eq('id', params.farmerId)
+            .maybeSingle();
+        const district = farmer?.district ? String(farmer.district).trim().toLowerCase() : null;
+        const baseMeta = metaFromMemory(memory, district);
+        const pair = parseProductPairFromText(text);
+        if (pair) {
+            const lookup = await compatibilityLookupService.lookup(pair.productA, pair.productB);
+            if (lookup.found) {
+                logger.info({ farmerId: params.farmerId, pair }, 'Knowledge fallback: spray compatibility rule');
+                return {
+                    text: compatibilityLookupService.formatFarmerReply(lookup, params.language, pair),
+                    module: 'compatibility_chart',
+                    meta: baseMeta,
+                };
+            }
+        }
+        const caMg = scanTextForCaMgConflict(text, params.language);
+        if (caMg) {
+            logger.info({ farmerId: params.farmerId }, 'Knowledge fallback: Ca nitrate chart');
+            return {
+                text: caMg + (FALLBACK_NOTE[params.language] ?? FALLBACK_NOTE.en),
+                module: 'compatibility_chart',
+                meta: baseMeta,
+            };
+        }
+        if (env.ENABLE_AI_REUSE_CACHE) {
+            let dap = memory.dap ?? 0;
+            if (memory.activePlotId) {
+                const block = await blockService.getById(memory.activePlotId, params.farmerId);
+                if (block)
+                    dap = block.dap;
+            }
+            const symptomKey = buildSymptomKey(text);
+            const match = await aiReuseService.findReusableCase({
+                cropType: memory.cropType,
+                district,
+                dapBucket: buildDapBucket(dap),
+                symptomKey,
+            });
+            if (match) {
+                logger.info({ farmerId: params.farmerId, issue: match.advisory.probableIssue }, 'Knowledge fallback: advisory reuse case');
+                const body = params.language === 'ml' && match.advisory.farmerSummaryMl
+                    ? match.advisory.farmerSummaryMl
+                    : match.advisory.farmerSummaryEn;
+                return {
+                    text: body +
+                        (params.language === 'ml'
+                            ? '\n\n(മുൻ വിജയകരമായ കേസിൽ നിന്നുള്ള ശുപാർശ)'
+                            : '\n\n(From a similar verified case in your region)') +
+                        (FALLBACK_NOTE[params.language] ?? FALLBACK_NOTE.en),
+                    module: 'verified_case',
+                    meta: {
+                        ...baseMeta,
+                        issueLabel: match.advisory.probableIssue,
+                    },
+                };
+            }
+        }
+        if (params.followUp || isConversationFollowUp(text)) {
+            const expanded = followUpExpansion(memory, params.language);
+            if (expanded) {
+                logger.info({ farmerId: params.farmerId }, 'Knowledge fallback: follow-up expansion');
+                return { text: expanded, module: 'follow_up_memory', meta: baseMeta };
+            }
+        }
+        if (isDrenchOrMixQuestion(text) || /correct mix|is this (ok|fine|correct)/i.test(text)) {
+            logger.info({ farmerId: params.farmerId }, 'Knowledge fallback: drench/mix guidance');
+            return {
+                text: drenchMixGuidance(memory, params.language),
+                module: 'knowledge_fallback',
+                meta: baseMeta,
+            };
+        }
+        if (isFertilizerOrNutrientQuestion(text)) {
+            logger.info({ farmerId: params.farmerId, dap: memory.dap }, 'Knowledge fallback: fertilizer stage guidance');
+            return {
+                text: fertilizerStageGuidance(memory, params.language),
+                module: 'knowledge_fallback',
+                meta: baseMeta,
+            };
+        }
+        if (memory.verifiedRegionalHints?.trim()) {
+            const crop = cropLabel(memory);
+            const hint = memory.verifiedRegionalHints.trim().slice(0, 600);
+            const body = params.language === 'ml'
+                ? `നിങ്ങളുടെ ${crop} വിളയ്ക്ക് പ്രാദേശികമായി സ്ഥിരീകരിച്ച കുറിപ്പുകൾ:\n\n${hint}\n\nകൂടുതൽ വിശകലനത്തിന് വ്യക്തമായ ഫോട്ടോ അയയ്ക്കുക അല്ലെങ്കിൽ *call* ടൈപ്പ് ചെയ്യുക.`
+                : `Verified notes for your ${crop} crop in your area:\n\n${hint}\n\nSend a clear photo for full analysis or type *call* for our agronomist.`;
+            return {
+                text: body + (FALLBACK_NOTE[params.language] ?? FALLBACK_NOTE.en),
+                module: 'regional_learning',
+                meta: baseMeta,
+            };
+        }
+        const isDiseaseQuestion = /disease|pest|fungus|blast|pyricularia|rot|spot|yellow|wilt|leaf|symptom|രോഗ|കീട/i.test(text);
+        if (isDiseaseQuestion) {
+            try {
+                const pack = await contextPackService.build(params.farmerId, {
+                    cropType: memory.cropType,
+                    symptomsText: text,
+                    dap: memory.dap,
+                    blockId: memory.activePlotId,
+                });
+                const highPriors = pack.diseasePriors.filter((p) => p.likelihood !== 'low');
+                if (highPriors.length) {
+                    const crop = cropLabel(memory);
+                    const priorsText = diseaseWeatherRulesService.formatForPrompt(highPriors);
+                    const envLine = contextPackService.formatForPrompt(pack).slice(0, 800);
+                    const body = params.language === 'ml'
+                        ? `നിങ്ങളുടെ ${crop} — പ്രാദേശിക കാലാവസ്ഥയും സീസണും കണക്കിലെടുത്ത്:\n\n${priorsText}\n\n${envLine}\n\nവ്യക്തമായ ഇലയുടെ ഫോട്ടോ അയയ്ക്കുക — പൂർണ്ണ വിശകലനത്തിന്.`
+                        : `For your ${crop}, based on current weather and season in your area:\n\n${priorsText}\n\n${envLine}\n\nSend a clear leaf photo for a full Morbeez diagnosis (not generic internet advice).`;
+                    logger.info({ farmerId: params.farmerId }, 'Knowledge fallback: disease–weather priors');
+                    return {
+                        text: body + (FALLBACK_NOTE[params.language] ?? FALLBACK_NOTE.en),
+                        module: 'regional_learning',
+                        meta: { ...baseMeta, issueLabel: highPriors[0]?.issueLabel },
+                    };
+                }
+            }
+            catch {
+                /* non-blocking */
+            }
+        }
+        return null;
+    },
+};
+//# sourceMappingURL=knowledge-fallback.service.js.map

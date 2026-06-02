@@ -1,0 +1,46 @@
+<div class="morbeez-container morbeez-section">
+  {%- paginate collection.products by section.settings.products_per_page -%}
+    {%- if collection.products.size == 0 -%}
+      <p class="py-12 text-center text-[var(--color-muted)]">{{ 'collections.empty' | t }}</p>
+    {%- else -%}
+      <p class="mb-6 text-sm text-[var(--color-muted)]">
+        {{ collection.products_count }} {{ 'collections.products_count' | t }}
+        {%- if paginate.pages > 1 -%}
+          · {{ 'general.pagination.page' | t: page: paginate.current_page }} / {{ paginate.pages }}
+        {%- endif -%}
+      </p>
+
+      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+        {%- for product in collection.products -%}
+          {%- render 'morbeez-product-card', product: product -%}
+        {%- endfor -%}
+      </div>
+
+      {%- render 'morbeez-pagination', paginate: paginate -%}
+    {%- endif -%}
+  {%- endpaginate -%}
+
+  {%- if collection.metafields.morbeez.seo_body != blank -%}
+    <div class="mt-12 border-t border-gray-100 pt-8 prose prose-sm max-w-none text-[var(--color-muted)]">
+      {{ collection.metafields.morbeez.seo_body | metafield_tag }}
+    </div>
+  {%- endif -%}
+</div>
+
+{% schema %}
+{
+  "name": "t:sections.main_collection.name",
+  "settings": [
+    {
+      "type": "range",
+      "id": "products_per_page",
+      "min": 12,
+      "max": 48,
+      "step": 4,
+      "default": 24,
+      "label": "t:sections.main_collection.settings.products_per_page",
+      "info": "t:sections.main_collection.settings.products_per_page_info"
+    }
+  ]
+}
+{% endschema %}

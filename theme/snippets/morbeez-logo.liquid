@@ -1,0 +1,42 @@
+{% comment %}
+  Morbeez logo — logo.png (header), logo1.png (footer on dark).
+  @param {string} [class]
+  @param {boolean} [on_dark]
+  @param {image} [logo_override]
+{% endcomment %}
+{%- liquid
+  assign logo_image = logo_override
+
+  assign img_class = 'morbeez-logo__img h-auto w-auto object-contain object-left'
+  if on_dark
+    assign img_class = img_class | append: ' max-h-12 max-w-[220px]'
+  else
+    assign img_class = img_class | append: ' max-h-12 max-w-[220px] sm:max-h-14 sm:max-w-[260px]'
+  endif
+
+  if logo_image == blank
+    if on_dark
+      assign default_asset = 'logo1.png'
+    else
+      assign default_asset = 'logo.png'
+    endif
+  endif
+-%}
+<a href="{{ routes.root_url }}" class="morbeez-logo inline-flex shrink-0 {{ class }}" aria-label="{{ shop.name }}">
+  {%- if logo_image != blank -%}
+    {{
+      logo_image
+      | image_url: width: 320
+      | image_tag: alt: shop.name, class: img_class, widths: '160, 240, 320'
+    }}
+  {%- else -%}
+    <img
+      src="{{ default_asset | asset_url }}"
+      alt="{{ shop.name }}"
+      width="280"
+      height="64"
+      class="{{ img_class }}"
+      loading="eager"
+    >
+  {%- endif -%}
+</a>

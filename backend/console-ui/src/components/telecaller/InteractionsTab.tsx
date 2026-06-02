@@ -1,0 +1,523 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api } from '../../lib/api';
+import type { InteractionListRow } from './InteractionDetailModal';
+
+const base = '/morbeez-staff/api/v1/os/telecaller';
+
+export type InteractionRow = InteractionListRow & {
+  at?: string;
+  typeKey?: string;
+  typeIcon?: string;
+  typeCategory?: string;
+  displayStatus?: string;
+  statusTone?: string;
+  nextActionLabel?: string | null;
+  blockName?: string | null;
+  blockId?: string | null;
+  canArchive?: boolean;
+  summary?: string;
+};
+
+type BlockOption = { id: string; name: string; cropName?: string };
+
+type Filters = {
+  typeKey: string;
+  employee: string;
+  statusTone: string;
+  blockId: string;
+  dateFrom: string;
+  dateTo: string;
+};
+
+const TYPE_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'call', label: 'Call' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'field_visit', label: 'Field visit' },
+  { value: 'order', label: 'Order' },
+  { value: 'ai_diagnosis', label: 'AI diagnosis' },
+  { value: 'note', label: 'Note' },
+];
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'success', label: 'Completed' },
+  { value: 'info', label: 'Sent / Active' },
+  { value: 'warning', label: 'Pending' },
+  { value: 'review', label: 'Under review' },
+  { value: 'purple', label: 'Active' },
+];
+
+const EMPTY_FILTERS: Filters = {
+  typeKey: '',
+  employee: '',
+  statusTone: '',
+  blockId: '',
+  dateFrom: '',
+  dateTo: '',
+};
+
+function ActionsMenuIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden>
+      <circle cx="8" cy="3" r="1.25" />
+      <circle cx="8" cy="8" r="1.25" />
+      <circle cx="8" cy="13" r="1.25" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 6h16M7 12h10M10 18h4"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ResetIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 4v6h6M20 20v-6h-6M5 19a9 9 0 0 0 14-2M19 5a9 9 0 0 0-14 2"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function statusClass(tone: string | undefined): string {
+  switch (tone) {
+    case 'warning':
+      return 'tc-ix-status tc-ix-status--warning';
+    case 'info':
+      return 'tc-ix-status tc-ix-status--info';
+    case 'review':
+      return 'tc-ix-status tc-ix-status--review';
+    case 'purple':
+      return 'tc-ix-status tc-ix-status--purple';
+    default:
+      return 'tc-ix-status tc-ix-status--success';
+  }
+}
+
+function toListRow(r: InteractionRow): InteractionListRow {
+  return {
+    id: r.id,
+    interactionType: r.interactionType ?? r.typeCategory,
+    typeLabel: r.typeCategory,
+    summary: r.summary,
+    by: r.by,
+    role: r.role,
+    createdLabel: r.createdLabel,
+    source: r.source,
+    completionStatus: r.completionStatus ?? null,
+    isDueToday: r.isDueToday,
+    taskId: r.taskId ?? null,
+    canEdit: r.canEdit,
+  };
+}
+
+type Props = {
+  leadId: string;
+  canWrite: boolean;
+  blocks: BlockOption[];
+  refreshKey: number;
+  onAddInteraction: () => void;
+  onOpenDetail: (row: InteractionListRow) => void;
+  onArchive: (interactionId: string) => void;
+};
+
+export function InteractionsTab({
+  leadId,
+  canWrite,
+  blocks,
+  refreshKey,
+  onAddInteraction,
+  onOpenDetail,
+  onArchive,
+}: Props) {
+  const [allItems, setAllItems] = useState<InteractionRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [showFilters, setShowFilters] = useState(true);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    function onDocClick(e: MouseEvent) {
+      const t = e.target as HTMLElement;
+      if (!t.closest('.tc-ix-menu-wrap')) setOpenMenuId(null);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [openMenuId]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api<{
+        ok: boolean;
+        interactions: InteractionRow[];
+        pagination: { total: number };
+      }>(`${base}/leads/${leadId}/interactions?page=1&limit=200`);
+      setAllItems(data.interactions ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load interactions');
+    } finally {
+      setLoading(false);
+    }
+  }, [leadId]);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshKey]);
+
+  const employees = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of allItems) {
+      if (r.by) set.add(String(r.by));
+    }
+    return Array.from(set).sort();
+  }, [allItems]);
+
+  const filtered = useMemo(() => {
+    return allItems.filter((r) => {
+      if (filters.typeKey && r.typeKey !== filters.typeKey) return false;
+      if (filters.employee && r.by !== filters.employee) return false;
+      if (filters.statusTone && r.statusTone !== filters.statusTone) return false;
+      if (filters.blockId && r.blockId !== filters.blockId) return false;
+      if (filters.dateFrom && r.at) {
+        if (new Date(r.at) < new Date(filters.dateFrom)) return false;
+      }
+      if (filters.dateTo && r.at) {
+        const end = new Date(filters.dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(r.at) > end) return false;
+      }
+      return true;
+    });
+  }, [allItems, filters]);
+
+  const total = filtered.length;
+  const pages = Math.max(1, Math.ceil(total / rowsPerPage));
+  const safePage = Math.min(page, pages);
+  const pageItems = filtered.slice((safePage - 1) * rowsPerPage, safePage * rowsPerPage);
+
+  useEffect(() => {
+    if (page > pages) setPage(pages);
+  }, [page, pages]);
+
+  function resetFilters() {
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+  }
+
+  return (
+    <div className="tc-interactions">
+      <div className="tc-ix-header">
+        <div>
+          <h2 className="tc-ix-title">Interactions</h2>
+          <p className="tc-ix-subtitle">All activities and interactions with this farmer</p>
+        </div>
+        <div className="tc-ix-header-actions">
+          {canWrite ? (
+            <button type="button" className="tc-ix-btn-primary" onClick={onAddInteraction}>
+              + Add Interaction
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="tc-ix-btn-icon"
+            title="Toggle filters"
+            onClick={() => setShowFilters((v) => !v)}
+            aria-pressed={showFilters}
+          >
+            <FilterIcon />
+          </button>
+        </div>
+      </div>
+
+      {showFilters ? (
+        <div className="tc-ix-filters">
+          <label className="tc-ix-filter-field">
+            <span>Interaction Type</span>
+            <select
+              value={filters.typeKey}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, typeKey: e.target.value }));
+                setPage(1);
+              }}
+            >
+              {TYPE_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="tc-ix-filter-field">
+            <span>Employee</span>
+            <select
+              value={filters.employee}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, employee: e.target.value }));
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {employees.map((emp) => (
+                <option key={emp} value={emp}>
+                  {emp}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="tc-ix-filter-field tc-ix-filter-field--range">
+            <span>Date Range</span>
+            <div className="tc-ix-date-range">
+              <input
+                type="date"
+                value={filters.dateFrom}
+                aria-label="Date from"
+                onChange={(e) => {
+                  setFilters((f) => ({ ...f, dateFrom: e.target.value }));
+                  setPage(1);
+                }}
+              />
+              <span className="tc-ix-date-range-sep">–</span>
+              <input
+                type="date"
+                value={filters.dateTo}
+                aria-label="Date to"
+                onChange={(e) => {
+                  setFilters((f) => ({ ...f, dateTo: e.target.value }));
+                  setPage(1);
+                }}
+              />
+            </div>
+          </label>
+          <label className="tc-ix-filter-field">
+            <span>Status</span>
+            <select
+              value={filters.statusTone}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, statusTone: e.target.value }));
+                setPage(1);
+              }}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="tc-ix-filter-field">
+            <span>Block</span>
+            <select
+              value={filters.blockId}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, blockId: e.target.value }));
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              {blocks.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="tc-ix-btn-reset" onClick={resetFilters}>
+            <ResetIcon />
+            Reset
+          </button>
+        </div>
+      ) : null}
+
+      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+
+      <div className="tc-ix-table-wrap">
+        {loading ? (
+          <p className="tc-ix-empty">Loading interactions…</p>
+        ) : (
+          <table className="tc-ix-table">
+            <thead>
+              <tr>
+                <th>Date &amp; time</th>
+                <th>Interaction type</th>
+                <th>Done by</th>
+                <th>Summary</th>
+                <th>Next action</th>
+                <th>Status</th>
+                <th>Block</th>
+                <th className="tc-ix-th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageItems.map((r) => {
+                const rowClass =
+                  r.isDueToday && r.completionStatus === 'pending' ? 'tc-ix-row--due' : '';
+                return (
+                  <tr
+                    key={r.id}
+                    className={`tc-ix-row ${rowClass}`}
+                    onClick={() => onOpenDetail(toListRow(r))}
+                  >
+                    <td className="tc-ix-date">{r.createdLabel ?? '—'}</td>
+                    <td>
+                      <div className="tc-ix-type">
+                        <span className="tc-ix-type-icon" aria-hidden>
+                          {r.typeIcon ?? '📝'}
+                        </span>
+                        <span>{r.typeCategory ?? r.interactionType ?? '—'}</span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="tc-ix-by">
+                        <strong>{r.by ?? '—'}</strong>
+                        {r.role ? <span>{r.role}</span> : null}
+                      </div>
+                    </td>
+                    <td className="tc-ix-summary">{String(r.summary ?? '—').slice(0, 140)}</td>
+                    <td className="tc-ix-next">
+                      {r.nextActionLabel ? (
+                        <span className="tc-ix-next-pill">{r.nextActionLabel}</span>
+                      ) : (
+                        <span className="tc-ix-muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={statusClass(r.statusTone)}>
+                        {r.displayStatus ?? r.status ?? '—'}
+                        {r.isDueToday && r.completionStatus === 'pending' ? ' · today' : ''}
+                      </span>
+                    </td>
+                    <td className="tc-ix-block">{r.blockName ?? '—'}</td>
+                    <td className="tc-ix-actions" onClick={(e) => e.stopPropagation()}>
+                      <div className="tc-ix-menu-wrap">
+                        <button
+                          type="button"
+                          className="tc-ix-menu-btn"
+                          aria-label="Row actions"
+                          aria-expanded={openMenuId === r.id}
+                          aria-haspopup="menu"
+                          onClick={() => setOpenMenuId(openMenuId === r.id ? null : r.id)}
+                        >
+                          <ActionsMenuIcon />
+                        </button>
+                        {openMenuId === r.id ? (
+                          <div className="tc-ix-menu" role="menu">
+                            <button type="button" onClick={() => onOpenDetail(toListRow(r))}>
+                              View details
+                            </button>
+                            {canWrite && r.canEdit ? (
+                              <button type="button" onClick={() => onOpenDetail(toListRow(r))}>
+                                Edit
+                              </button>
+                            ) : null}
+                            {canWrite && r.canArchive !== false ? (
+                              <button
+                                type="button"
+                                className="tc-ix-menu-danger"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  onArchive(r.id);
+                                }}
+                              >
+                                Archive
+                              </button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+        {!loading && pageItems.length === 0 ? (
+          <p className="tc-ix-empty">
+            No interactions match your filters. Log a call, follow-up, or visit to get started.
+          </p>
+        ) : null}
+      </div>
+
+      {!loading && total > 0 ? (
+        <div className="tc-ix-footer">
+          <p className="tc-ix-footer-meta">
+            Showing {(safePage - 1) * rowsPerPage + 1} to {Math.min(safePage * rowsPerPage, total)}{' '}
+            of {total} interactions
+          </p>
+          <div className="tc-ix-pagination">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+            >
+              ‹
+            </button>
+            {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
+              let p = i + 1;
+              if (pages > 5 && safePage > 3) {
+                p = safePage - 2 + i;
+                if (p > pages) p = pages - (4 - i);
+              }
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  className={p === safePage ? 'active' : ''}
+                  onClick={() => setPage(p)}
+                >
+                  {p}
+                </button>
+              );
+            })}
+            <button
+              type="button"
+              disabled={safePage >= pages}
+              onClick={() => setPage((p) => Math.min(pages, p + 1))}
+            >
+              ›
+            </button>
+          </div>
+          <label className="tc-ix-rows">
+            Rows per page
+            <select
+              value={rowsPerPage}
+              onChange={(e) => {
+                setRowsPerPage(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              {[10, 20, 50].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
+}

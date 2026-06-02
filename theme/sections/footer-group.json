@@ -1,0 +1,34 @@
+{
+  "name": "t:sections.footer.name",
+  "type": "footer",
+  "sections": {
+    "footer": {
+      "type": "footer",
+      "settings": {
+        "tagline": "Premium agriculture solutions for Indian farmers — Grow with Experts",
+        "show_contact_column": true,
+        "contact_heading": "Contact us"
+      },
+      "blocks": {
+        "menu_navigate": {
+          "type": "menu",
+          "settings": {
+            "heading": "Navigate",
+            "menu": "footer",
+            "fallback": "navigate"
+          }
+        },
+        "menu_categories": {
+          "type": "menu",
+          "settings": {
+            "heading": "Product categories",
+            "menu": "",
+            "fallback": "categories"
+          }
+        }
+      },
+      "block_order": ["menu_navigate", "menu_categories"]
+    }
+  },
+  "order": ["footer"]
+}

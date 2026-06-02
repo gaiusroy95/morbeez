@@ -1,0 +1,436 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply font-body text-morbeez-trust antialiased;
+    background-color: var(--color-surface-elevated);
+    background-image: radial-gradient(
+        ellipse 80% 50% at 50% -20%,
+        color-mix(in srgb, var(--color-primary) 6%, transparent),
+        transparent
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 100% 0%,
+        color-mix(in srgb, var(--color-accent) 5%, transparent),
+        transparent
+      );
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+    color: var(--color-trust);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  .morbeez-container {
+    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .morbeez-section {
+    @apply py-12 md:py-16 lg:py-20;
+  }
+
+  .morbeez-section--tight {
+    @apply py-8 md:py-12;
+  }
+
+  .morbeez-eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-primary)];
+  }
+
+  .morbeez-eyebrow::before {
+    content: '';
+    @apply h-px w-6 bg-[var(--color-accent)];
+  }
+
+  .morbeez-btn {
+    @apply inline-flex min-h-[48px] items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition-all duration-200;
+    @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)];
+  }
+
+  .morbeez-btn-primary {
+    @apply morbeez-btn text-white;
+    background: var(--gradient-brand);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .morbeez-btn-primary:hover {
+    @apply -translate-y-0.5 brightness-110;
+    box-shadow: 0 12px 32px rgb(13 79 43 / 0.2);
+  }
+
+  .morbeez-btn-secondary {
+    @apply morbeez-btn border-2 border-[var(--color-primary)] bg-transparent text-[var(--color-primary)];
+  }
+
+  .morbeez-btn-secondary:hover {
+    @apply bg-[var(--color-primary)] text-white;
+  }
+
+  .morbeez-btn-ghost {
+    @apply morbeez-btn bg-white/80 text-[var(--color-trust)] backdrop-blur-sm;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .morbeez-btn-ghost:hover {
+    @apply bg-white;
+    box-shadow: var(--shadow-md);
+  }
+
+  .morbeez-btn-whatsapp {
+    @apply morbeez-btn text-white;
+    background: linear-gradient(135deg, #25d366 0%, #128c7e 100%);
+    box-shadow: 0 4px 20px rgb(37 211 102 / 0.35);
+  }
+
+  .morbeez-btn-whatsapp:hover {
+    @apply -translate-y-0.5 brightness-105;
+  }
+
+  .morbeez-card {
+    @apply overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white transition-all duration-300;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .morbeez-card:hover {
+    box-shadow: var(--shadow-lg);
+    @apply -translate-y-1;
+  }
+
+  .morbeez-panel {
+    @apply rounded-2xl border border-[var(--color-border)] bg-white p-6 md:p-8;
+    box-shadow: var(--shadow-md);
+  }
+
+  .morbeez-glass {
+    @apply border border-white/20 bg-white/80 backdrop-blur-xl;
+    box-shadow: var(--shadow-md);
+  }
+
+  .morbeez-label {
+    @apply mb-1.5 block text-sm font-medium text-[var(--color-trust)];
+  }
+
+  .field label {
+    @apply mb-1 block text-sm font-semibold text-[var(--color-trust)];
+  }
+
+  .morbeez-input {
+    @apply w-full rounded-xl border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-trust)];
+    @apply transition focus:border-[var(--color-primary)] focus:outline-none focus:ring-2;
+    --tw-ring-color: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  }
+
+  .morbeez-input::placeholder {
+    @apply text-[var(--color-muted)] opacity-70;
+  }
+
+  .morbeez-scroll-x {
+    @apply -mx-4 flex gap-4 overflow-x-auto px-4 pb-3 snap-x snap-mandatory;
+    scrollbar-width: thin;
+  }
+
+  .morbeez-scroll-x > * {
+    @apply snap-start;
+  }
+
+  .morbeez-tab {
+    @apply shrink-0 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-[var(--color-muted)] transition;
+  }
+
+  .morbeez-tab:hover {
+    @apply text-[var(--color-primary)];
+  }
+
+  .morbeez-tab.is-active {
+    @apply border-[var(--color-primary)] text-[var(--color-primary)];
+  }
+
+  .morbeez-badge--sale {
+    @apply rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700;
+  }
+
+  .morbeez-badge--new {
+    @apply rounded-full px-2.5 py-0.5 text-xs font-semibold text-[var(--color-primary)];
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+
+  .morbeez-icon-btn {
+    @apply flex h-11 w-11 items-center justify-center rounded-xl text-[var(--color-trust)] transition;
+    @apply hover:bg-[var(--color-surface)] hover:text-[var(--color-primary)];
+  }
+
+  .morbeez-feature-spotlight {
+    @apply relative overflow-hidden rounded-3xl p-8 md:p-12;
+    background: var(--gradient-brand);
+  }
+
+  .morbeez-feature-spotlight::before {
+    content: '';
+    @apply pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full opacity-20;
+    background: radial-gradient(circle, white 0%, transparent 70%);
+  }
+
+  .morbeez-result-box {
+    @apply rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 text-sm leading-relaxed;
+  }
+
+  .morbeez-result-box--success {
+    @apply border-green-200 bg-green-50/80;
+  }
+
+  .morbeez-result-box--error {
+    @apply border-red-200 bg-red-50/80 text-red-800;
+  }
+
+  .morbeez-drawer:not(.hidden) {
+    @apply block;
+  }
+
+  .morbeez-tile .morbeez-tile__overlay {
+    @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+    background: linear-gradient(to top, color-mix(in srgb, var(--color-trust) 70%, transparent), transparent 55%);
+  }
+
+  .morbeez-tile:hover .morbeez-tile__overlay {
+    @apply opacity-100;
+  }
+
+  .morbeez-header-nav {
+    @apply flex flex-nowrap items-center overflow-visible;
+  }
+
+  .morbeez-site-header .morbeez-container {
+    overflow: visible;
+  }
+
+  .morbeez-nav-link:hover,
+  .morbeez-nav-item:hover > .morbeez-nav-link,
+  .morbeez-nav-item:focus-within > .morbeez-nav-link {
+    @apply text-[var(--color-primary)];
+  }
+
+  .morbeez-nav-item .morbeez-mega-panel {
+    @apply tracking-normal;
+  }
+
+  .morbeez-nav-item:hover .morbeez-mega-panel,
+  .morbeez-nav-item:focus-within .morbeez-mega-panel {
+    @apply visible opacity-100;
+    pointer-events: auto;
+  }
+
+  /* PDP — column variant picker + quantity stepper */
+  .morbeez-variant-picker__label {
+    @apply mb-1 text-sm font-bold text-[var(--color-trust)];
+  }
+
+  .morbeez-variant-picker__hint {
+    @apply mb-3 text-xs text-[var(--color-muted)];
+  }
+
+  .morbeez-variant-picker__badge {
+    @apply mb-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950;
+  }
+
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__badge {
+    @apply bg-white text-amber-800;
+  }
+
+  .morbeez-variant-picker__card.is-best-value {
+    @apply ring-2 ring-amber-400 ring-offset-1;
+  }
+
+  .morbeez-variant-picker__prices {
+    @apply mt-1 flex flex-wrap items-baseline gap-1.5;
+  }
+
+  .morbeez-variant-picker__was {
+    @apply text-xs text-[var(--color-muted)] line-through;
+  }
+
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__was {
+    @apply text-white/70;
+  }
+
+  .morbeez-variant-picker__unit {
+    @apply mt-0.5 text-[11px] font-medium text-[var(--color-muted)];
+  }
+
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__unit {
+    @apply text-white/80;
+  }
+
+  .morbeez-pack-savings {
+    @apply inline-block rounded-lg bg-amber-100 px-2.5 py-1 text-sm font-bold text-amber-900;
+  }
+
+  .morbeez-variant-picker__grid {
+    @apply grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3;
+  }
+
+  .morbeez-variant-picker__card {
+    @apply flex min-h-[4.5rem] flex-col items-start justify-center rounded-xl border-2 border-[var(--color-border)] bg-white px-3 py-2.5 text-left transition;
+  }
+
+  .morbeez-variant-picker__card:hover:not(:disabled) {
+    @apply border-[var(--color-primary)];
+  }
+
+  .morbeez-variant-picker__card.is-selected {
+    @apply border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-md;
+  }
+
+  .morbeez-variant-picker__card.is-unavailable {
+    @apply cursor-not-allowed opacity-50;
+  }
+
+  .morbeez-variant-picker__size {
+    @apply text-sm font-bold leading-tight;
+  }
+
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__size,
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__price {
+    @apply text-white;
+  }
+
+  .morbeez-variant-picker__price {
+    @apply mt-1 text-sm font-semibold text-[var(--color-primary)];
+  }
+
+  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__price {
+    @apply text-white/95;
+  }
+
+  .morbeez-variant-picker__sold {
+    @apply mt-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--color-muted)];
+  }
+
+  .morbeez-qty-stepper {
+    @apply flex flex-col items-end gap-1.5;
+  }
+
+  .morbeez-qty-stepper__label {
+    @apply text-xs font-semibold text-[var(--color-muted)];
+  }
+
+  .morbeez-qty-stepper__controls {
+    @apply inline-flex items-center gap-2;
+  }
+
+  .morbeez-qty-stepper__btn {
+    @apply flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-lg font-bold leading-none text-white transition hover:brightness-105;
+  }
+
+  .morbeez-qty-stepper__input {
+    @apply w-10 border-0 bg-transparent text-center text-base font-bold text-[var(--color-trust)] outline-none;
+    -moz-appearance: textfield;
+  }
+
+  .morbeez-qty-stepper__input::-webkit-outer-spin-button,
+  .morbeez-qty-stepper__input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .morbeez-hero-carousel__arrow {
+    @apply absolute top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/30;
+  }
+
+  .morbeez-hero-carousel__arrow--prev {
+    @apply left-3 md:left-6;
+  }
+
+  .morbeez-hero-carousel__arrow--next {
+    @apply right-3 md:right-6;
+  }
+
+  .morbeez-floating-cart {
+    @apply hidden;
+  }
+
+  @media (max-width: 1023px) {
+    .morbeez-floating-cart {
+      @apply flex;
+    }
+  }
+
+  .morbeez-money__symbol {
+    @apply mr-0.5 font-semibold;
+  }
+
+  .morbeez-pagination__btn {
+    @apply inline-flex min-h-10 min-w-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-[var(--color-trust)] transition;
+  }
+
+  .morbeez-pagination__btn:hover:not(.morbeez-pagination__btn--disabled):not(.morbeez-pagination__btn--current) {
+    @apply border-[var(--color-primary)] text-[var(--color-primary)];
+  }
+
+  .morbeez-pagination__btn--current {
+    @apply border-[var(--color-primary)] bg-[var(--color-primary)] text-white;
+  }
+
+  .morbeez-pagination__btn--disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .morbeez-pagination__ellipsis {
+    @apply min-w-8 border-transparent bg-transparent px-1;
+  }
+
+  .morbeez-auth-tab {
+    @apply bg-[#e8ebe8] text-[var(--color-trust)];
+  }
+
+  .morbeez-auth-tab--active {
+    @apply bg-[var(--color-primary)] text-white;
+  }
+
+  .morbeez-auth-field {
+    @apply flex items-stretch overflow-hidden rounded-lg border border-[var(--color-border)] bg-white;
+  }
+
+  .morbeez-auth-field-icon {
+    @apply flex w-11 shrink-0 items-center justify-center bg-[#eef0ee] text-sm font-semibold text-[var(--color-muted)];
+  }
+
+  .morbeez-auth-input {
+    @apply min-w-0 flex-1 border-0 bg-transparent px-3 py-3 text-sm text-[var(--color-trust)] outline-none placeholder:text-[var(--color-muted)];
+  }
+
+  .morbeez-auth-input--password {
+    @apply pr-10;
+  }
+
+  .morbeez-auth-toggle-pw {
+    @apply absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-primary)];
+  }
+
+  .morbeez-auth-field:has(.morbeez-auth-input--password) {
+    @apply relative;
+  }
+
+  .morbeez-auth-submit {
+    @apply rounded-lg bg-[var(--color-primary)] py-3.5 text-sm font-bold uppercase tracking-wide text-white transition hover:brightness-105 disabled:opacity-60;
+  }
+}

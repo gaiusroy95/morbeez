@@ -1,0 +1,35 @@
+import { isAgricultureMessage } from './crop-message-intent.service.js';
+
+export type GuardResult =
+  | { allowed: true }
+  | { allowed: false; reason: string };
+
+export function validateAgricultureIntent(params: {
+  text: string;
+  hasCropMedia: boolean;
+}): GuardResult {
+  if (params.hasCropMedia) return { allowed: true };
+
+  const text = params.text.trim();
+  if (!text) return { allowed: true };
+
+  if (!isAgricultureMessage(text)) {
+    return {
+      allowed: false,
+      reason: text.length >= 20 ? 'off_topic' : 'non_agriculture',
+    };
+  }
+
+  return { allowed: true };
+}
+
+export function guardRejectionMessage(language: string): string {
+  const messages: Record<string, string> = {
+    en: 'Morbeez Crop Doctor helps with crop health, pests, and farming advice. Send a crop photo or describe your crop problem.',
+    ml: 'മോർബീസ് ക്രോപ്പ് ഡോക്ടർ വിള രോഗം, കീടം, കൃഷി ഉപദേശം എന്നിവയ്ക്കാണ്. വിളയുടെ ഫോട്ടോ അയയ്ക്കുക അല്ലെങ്കിൽ പ്രശ്നം വിവരിക്കുക.',
+    ta: 'மோர்பீஸ் பயிர் ஆலோசனை — பயிர் நோய், பூச்சி. பயிர் புகைப்படம் அனுப்பவும்.',
+    kn: 'ಮೋರ್ಬೀಸ್ ಬೆಳೆ ಸಲಹೆ — ಬೆಳೆ ರೋಗ, ಕೀಟ. ಬೆಳೆಯ ಫೋಟೋ ಕಳುಹಿಸಿ.',
+    hi: 'मोर्बीज़ फसल सलाह — फसल रोग, कीट। फसल की फोटो भेजें या समस्या लिखें।',
+  };
+  return messages[language] ?? messages.en;
+}

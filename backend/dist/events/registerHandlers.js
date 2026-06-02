@@ -1,0 +1,115 @@
+import { eventBus } from './bus.js';
+import { logger } from '../lib/logger.js';
+import { shiprocketService } from '../services/shiprocket/shiprocket.service.js';
+import { whatsappService } from '../services/whatsapp/whatsapp.service.js';
+import { createTelecallerTask } from '../services/whatsapp/pipeline/telecaller-tasks.service.js';
+import { env } from '../config/env.js';
+import { supabase } from '../lib/supabase.js';
+import { orderWhatsappService } from '../services/whatsapp/orders/order-whatsapp.service.js';
+/** Wire domain reactions — keep thin; logic lives in services */
+export function registerEventHandlers() {
+    eventBus.on('shopify.order.paid', async (event) => {
+        const orderId = event.payload.shopifyOrderId;
+        if (!orderId)
+            return;
+        if (env.ENABLE_SHIPROCKET_AUTO_SHIP) {
+            await shiprocketService.createShipmentForShopifyOrder(orderId).catch((err) => {
+                logger.error({ err, orderId }, 'Auto-shipment failed');
+            });
+        }
+    });
+    /* Pipeline already sends OpenAI replies. Legacy handler used non-existent welcome_farmer template. */
+    eventBus.on('whatsapp.message.received', async (event) => {
+        logger.debug({ phone: event.payload.phone, farmerId: event.payload.farmerId }, 'WhatsApp message processed');
+    });
+    eventBus.on('quotation.requested', async (event) => {
+        logger.info({ eventId: event.id }, 'Quotation requested — telecaller queue (M2)');
+    });
+    eventBus.on('shopify.order.fulfilled', async (event) => {
+        logger.info({ orderId: event.payload.shopifyOrderId, tracking: event.payload.trackingNumber }, 'Order fulfilled');
+        if (env.ENABLE_WHATSAPP_ORDER_ALERTS !== false) {
+            await orderWhatsappService
+                .notifyDispatchedFromEvent({
+                shopifyOrderId: event.payload.shopifyOrderId,
+                awb: event.payload.trackingNumber,
+                phone: event.payload.phone,
+                orderName: event.payload.orderName,
+            })
+                .catch((err) => logger.error({ err }, 'Order fulfilled WhatsApp failed'));
+        }
+    });
+    eventBus.on('shipment.created', async (event) => {
+        if (env.ENABLE_WHATSAPP_ORDER_ALERTS === false)
+            return;
+        await orderWhatsappService
+            .notifyDispatchedFromEvent({
+            shopifyOrderId: event.payload.shopifyOrderId,
+            awb: event.payload.awb,
+            phone: event.payload.phone,
+            orderName: event.payload.orderName,
+        })
+            .catch((err) => logger.error({ err }, 'Shipment created WhatsApp failed'));
+    });
+    eventBus.on('shipment.dispatched', async (event) => {
+        if (env.ENABLE_WHATSAPP_ORDER_ALERTS === false)
+            return;
+        await orderWhatsappService
+            .notifyDispatchedFromEvent({
+            shopifyOrderId: event.payload.shopifyOrderId,
+            awb: event.payload.awb,
+            phone: event.payload.phone,
+        })
+            .catch((err) => logger.error({ err }, 'Shipment dispatched WhatsApp failed'));
+    });
+    eventBus.on('order.payment.failed', async (event) => {
+        if (env.ENABLE_WHATSAPP_ORDER_ALERTS === false)
+            return;
+        const phone = event.payload.phone;
+        if (!phone)
+            return;
+        await orderWhatsappService
+            .sendPaymentFailed({
+            phone,
+            checkoutSessionId: event.payload.checkoutSessionId,
+            receipt: event.payload.receipt,
+            amountPaise: event.payload.amountPaise,
+            razorpayOrderId: event.payload.razorpayOrderId,
+        })
+            .catch((err) => logger.error({ err }, 'Payment failed WhatsApp failed'));
+    });
+    eventBus.on('advisory.escalated', async (event) => {
+        const farmerId = event.payload.farmerId;
+        const sessionId = event.payload.sessionId;
+        const priority = event.payload.priority ?? 'normal';
+        logger.warn({ sessionId, escalationId: event.payload.escalationId, priority }, 'Agronomist escalation created');
+        if (farmerId) {
+            await createTelecallerTask({
+                farmerId,
+                title: 'Agronomist review — WhatsApp crop advisory',
+                notes: `Session ${sessionId ?? 'n/a'}: ${event.payload.reason ?? 'escalation'}`,
+                priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'normal',
+            }).catch((err) => logger.error({ err }, 'Telecaller escalation task failed'));
+        }
+    });
+    eventBus.on('advisory.completed', async (event) => {
+        const farmerId = event.payload.farmerId;
+        const escalated = event.payload.escalated;
+        if (!farmerId || escalated)
+            return;
+        const { data: farmer } = await supabase
+            .from('farmers')
+            .select('phone, preferred_language')
+            .eq('id', farmerId)
+            .single();
+        if (farmer?.phone && env.ENABLE_WHATSAPP_AUTO_REPLY) {
+            const msg = farmer.preferred_language === 'ml'
+                ? 'നിങ്ങളുടെ വിള വിശകലനം പൂർത്തിയായി. കൂടുതൽ വിവരങ്ങൾക്ക് മറുപടി നൽകുക.'
+                : 'Your crop advisory is ready. Reply for more details or a callback.';
+            await whatsappService.sendText(farmer.phone, msg).catch((err) => {
+                logger.error({ err }, 'Advisory WhatsApp notify failed');
+            });
+        }
+    });
+    logger.info('Event handlers registered');
+}
+//# sourceMappingURL=registerHandlers.js.map

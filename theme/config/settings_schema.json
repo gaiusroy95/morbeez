@@ -1,0 +1,125 @@
+[
+  {
+    "name": "theme_info",
+    "theme_name": "Morbeez Ag",
+    "theme_version": "1.0.0-m1",
+    "theme_author": "Morbeez",
+    "theme_documentation_url": "https://github.com/",
+    "theme_support_url": "https://github.com/"
+  },
+  {
+    "name": "t:settings.brand.name",
+    "settings": [
+      { "type": "color", "id": "color_primary", "label": "t:settings.brand.color_primary", "default": "#34B35E", "info": "Logo green — buttons, links, accents" },
+      { "type": "color", "id": "color_accent", "label": "t:settings.brand.color_accent", "default": "#2A9D4E", "info": "Darker green for hover states" },
+      { "type": "color", "id": "color_trust", "label": "t:settings.brand.color_trust", "default": "#111111", "info": "Logo black — headings and body text" },
+      { "type": "color", "id": "color_surface", "label": "t:settings.brand.color_surface", "default": "#f7f8f7" },
+      { "type": "color", "id": "color_muted", "label": "t:settings.brand.color_muted", "default": "#5c6b7a" },
+      { "type": "image_picker", "id": "logo", "label": "t:settings.brand.logo" },
+      { "type": "image_picker", "id": "default_og_image", "label": "t:settings.brand.default_og_image" }
+    ]
+  },
+  {
+    "name": "t:settings.typography.name",
+    "settings": [
+      {
+        "type": "font_picker",
+        "id": "type_header_font",
+        "label": "t:settings.typography.type_header_font",
+        "default": "plus_jakarta_sans_n7"
+      },
+      {
+        "type": "font_picker",
+        "id": "type_body_font",
+        "label": "t:settings.typography.type_body_font",
+        "default": "plus_jakarta_sans_n4"
+      }
+    ]
+  },
+  {
+    "name": "t:settings.whatsapp.name",
+    "settings": [
+      {
+        "type": "text",
+        "id": "whatsapp_phone",
+        "label": "t:settings.whatsapp.phone",
+        "info": "Digits only with country code, e.g. 917676026318 (not a full wa.me URL).",
+        "default": "917676026318"
+      },
+      {
+        "type": "textarea",
+        "id": "whatsapp_message",
+        "label": "t:settings.whatsapp.message",
+        "default": "Hi Morbeez, I need help with "
+      }
+    ]
+  },
+  {
+    "name": "t:settings.regional.name",
+    "settings": [
+      {
+        "type": "checkbox",
+        "id": "display_prices_inr",
+        "label": "t:settings.regional.display_prices_inr",
+        "default": true,
+        "info": "t:settings.regional.display_prices_inr_info"
+      },
+      {
+        "type": "paragraph",
+        "content": "t:settings.regional.currency_admin_note"
+      }
+    ]
+  },
+  {
+    "name": "t:settings.store_contact.name",
+    "settings": [
+      { "type": "textarea", "id": "store_address", "label": "t:settings.store_contact.address" },
+      { "type": "text", "id": "store_phone", "label": "t:settings.store_contact.phone" },
+      { "type": "text", "id": "store_email", "label": "t:settings.store_contact.email" },
+      {
+        "type": "header",
+        "content": "t:settings.store_contact.social_header"
+      },
+      { "type": "url", "id": "social_facebook", "label": "Facebook" },
+      { "type": "url", "id": "social_instagram", "label": "Instagram" },
+      { "type": "url", "id": "social_youtube", "label": "YouTube" },
+      { "type": "url", "id": "social_linkedin", "label": "LinkedIn" },
+      { "type": "url", "id": "social_twitter", "label": "X (Twitter)" }
+    ]
+  },
+  {
+    "name": "t:settings.api.name",
+    "settings": [
+      {
+        "type": "text",
+        "id": "morbeez_api_base_url",
+        "label": "t:settings.api.base_url",
+        "default": "https://morbeez-api.onrender.com",
+        "info": "t:settings.api.base_url_info"
+      }
+    ]
+  },
+  {
+    "name": "t:settings.features.name",
+    "settings": [
+      {
+        "type": "checkbox",
+        "id": "enable_ai_crop_doctor_cta",
+        "label": "t:settings.features.enable_ai_crop_doctor_cta",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "enable_dealer_enquiry",
+        "label": "t:settings.features.enable_dealer_enquiry",
+        "default": true
+      },
+      {
+        "type": "checkbox",
+        "id": "enable_organization_schema",
+        "label": "t:settings.features.enable_organization_schema",
+        "default": true
+      }
+    ]
+  }
+]

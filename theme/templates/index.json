@@ -1,0 +1,180 @@
+{
+  "sections": {
+    "hero_carousel": {
+      "type": "hero-carousel",
+      "blocks": {
+        "slide_1": {
+          "type": "slide",
+          "settings": {
+            "eyebrow": "Morbeez — Grow with Experts",
+            "heading_line_1": "Science-backed",
+            "heading_highlight": "CROP CARE",
+            "heading_line_2": "for every Indian farmer",
+            "highlight_color": "#34B35E",
+            "button_label": "Shop products",
+            "button_url": "/collections/all"
+          }
+        },
+        "slide_2": {
+          "type": "slide",
+          "settings": {
+            "eyebrow": "Bio fertilizers · Bio pesticides · Advisory",
+            "heading_highlight": "MORBEEZ",
+            "heading_line_2": "Trusted agri inputs",
+            "highlight_color": "#34B35E",
+            "button_label": "Talk on WhatsApp",
+            "button_url": "/pages/contact"
+          }
+        }
+      },
+      "block_order": ["slide_1", "slide_2"],
+      "settings": {
+        "autoplay": true,
+        "autoplay_speed": 6
+      }
+    },
+    "trust": {
+      "type": "trust-features",
+      "blocks": {
+        "t1": { "type": "feature", "settings": { "icon": "truck", "title": "Fast delivery", "text": "Reliable shipping across India" } },
+        "t2": { "type": "feature", "settings": { "icon": "shield", "title": "Quality assured", "text": "Science-backed formulations" } },
+        "t3": { "type": "feature", "settings": { "icon": "support", "title": "Expert support", "text": "Crop advisory on WhatsApp" } },
+        "t4": { "type": "feature", "settings": { "icon": "leaf", "title": "Farmer-first", "text": "Trusted by growers nationwide" } }
+      },
+      "block_order": ["t1", "t2", "t3", "t4"]
+    },
+    "quick_categories": {
+      "type": "quick-category-bar",
+      "blocks": {
+        "c1": { "type": "chip", "settings": { "label": "Bio Fertilizers", "url": "/collections/bio-fertilizers" } },
+        "c2": { "type": "chip", "settings": { "label": "Bio Pesticides", "url": "/collections/bio-pesticides" } },
+        "c3": { "type": "chip", "settings": { "label": "Organic Inputs", "url": "/collections/organic-inputs" } },
+        "c4": { "type": "chip", "settings": { "label": "Micronutrients", "url": "/collections/micronutrients" } },
+        "c5": { "type": "chip", "settings": { "label": "Shop All", "url": "/collections/all" } }
+      },
+      "block_order": ["c1", "c2", "c3", "c4", "c5"]
+    },
+    "crops": {
+      "type": "crop-categories",
+      "settings": {
+        "heading": "Shop by crop",
+        "subheading": "Ginger, banana, pepper, cardamom & more"
+      }
+    },
+    "problems": {
+      "type": "shop-by-problem",
+      "settings": {
+        "heading": "Shop by problem",
+        "subheading": "Nematodes, fungal disease, nutrient deficiency & stress"
+      }
+    },
+    "bestsellers": {
+      "type": "bestsellers",
+      "settings": {
+        "heading": "Our bestsellers",
+        "subheading": "Popular picks from Morbeez",
+        "collection": "all",
+        "products_to_show": 8
+      }
+    },
+    "featured": {
+      "type": "featured-collection",
+      "settings": {
+        "heading": "Featured products",
+        "subheading": "Top picks from Morbeez agronomy",
+        "collection": "all",
+        "products_to_show": 8,
+        "show_view_all": true
+      }
+    },
+    "combos": {
+      "type": "combo-offer",
+      "settings": {
+        "heading": "Combo offers",
+        "subheading": "Save more on bundled crop programs",
+        "collection": "all",
+        "view_all_label": "View all combos"
+      }
+    },
+    "seasonal": {
+      "type": "seasonal-campaign",
+      "settings": {
+        "badge": "Season alert",
+        "heading": "Monsoon crop protection essentials",
+        "text": "Prepare fields before heavy rains.",
+        "cta_label": "Shop monsoon essentials"
+      }
+    },
+    "flash": {
+      "type": "flash-sale",
+      "settings": {
+        "badge": "Flash sale",
+        "heading": "Limited time offers",
+        "end_datetime": "2026-12-31T23:59:59",
+        "products_to_show": 4
+      }
+    },
+    "advisory": {
+      "type": "advisory-education",
+      "settings": {
+        "heading": "Farmer education & advisory",
+        "subheading": "Guides for Indian agriculture"
+      }
+    },
+    "testimonials": {
+      "type": "testimonials",
+      "settings": {
+        "heading": "Trusted by farmers across India"
+      }
+    },
+    "blog": {
+      "type": "blog-preview",
+      "settings": {
+        "heading": "Blog & crop tips",
+        "articles_count": 3,
+        "view_all_label": "Read all articles"
+      }
+    },
+    "crop_doctor": {
+      "type": "ai-crop-doctor-cta",
+      "settings": {
+        "heading": "AI Crop Doctor",
+        "body": "Upload crop photos for guided product recommendations.",
+        "cta_label": "Try Crop Doctor"
+      }
+    },
+    "dealer": {
+      "type": "dealer-enquiry-cta",
+      "settings": {
+        "heading": "Become a Morbeez dealer",
+        "body": "Wholesale programs & territory support.",
+        "cta_label": "Dealer enquiry"
+      }
+    },
+    "newsletter": {
+      "type": "newsletter-signup",
+      "settings": {
+        "heading": "Stay updated with Morbeez",
+        "subheading": "Crop tips, offers & new product launches"
+      }
+    }
+  },
+  "order": [
+    "hero_carousel",
+    "trust",
+    "quick_categories",
+    "crops",
+    "problems",
+    "bestsellers",
+    "featured",
+    "combos",
+    "seasonal",
+    "flash",
+    "advisory",
+    "testimonials",
+    "blog",
+    "crop_doctor",
+    "dealer",
+    "newsletter"
+  ]
+}
