@@ -22,6 +22,8 @@ export type LeadQueueColumnId =
   | 'followUpDue'
   | 'createdDate';
 
+export type LeadQueueColumnAlign = 'left' | 'center' | 'right';
+
 export type LeadQueueColumnDef = {
   id: LeadQueueColumnId;
   label: string;
@@ -29,18 +31,19 @@ export type LeadQueueColumnDef = {
   sticky?: boolean;
   defaultWidth: number;
   optional?: boolean;
+  align?: LeadQueueColumnAlign;
 };
 
 export const LEAD_QUEUE_COLUMNS: LeadQueueColumnDef[] = [
-  { id: 'priority', label: 'Priority', defaultVisible: true, sticky: true, defaultWidth: 108 },
-  { id: 'farmerName', label: 'Farmer Name', defaultVisible: true, sticky: true, defaultWidth: 168 },
-  { id: 'cropAcreage', label: 'Crop & Acreage', defaultVisible: true, defaultWidth: 140 },
-  { id: 'pendingTasks', label: 'Pending Tasks', defaultVisible: true, defaultWidth: 108 },
-  { id: 'escalations', label: 'Escalations', defaultVisible: true, defaultWidth: 96 },
-  { id: 'lastInteraction', label: 'Last Interaction', defaultVisible: true, defaultWidth: 148 },
-  { id: 'owner', label: 'Owner', defaultVisible: true, defaultWidth: 120 },
-  { id: 'stage', label: 'Stage', defaultVisible: true, defaultWidth: 120 },
-  { id: 'actions', label: 'Actions', defaultVisible: true, sticky: true, defaultWidth: 200 },
+  { id: 'priority', label: 'Priority', defaultVisible: true, sticky: true, defaultWidth: 112, align: 'center' },
+  { id: 'farmerName', label: 'Farmer Name', defaultVisible: true, sticky: true, defaultWidth: 180, align: 'left' },
+  { id: 'cropAcreage', label: 'Crop & Acreage', defaultVisible: true, defaultWidth: 150, align: 'left' },
+  { id: 'pendingTasks', label: 'Pending Tasks', defaultVisible: true, defaultWidth: 100, align: 'center' },
+  { id: 'escalations', label: 'Escalations', defaultVisible: true, defaultWidth: 100, align: 'center' },
+  { id: 'lastInteraction', label: 'Last Interaction', defaultVisible: true, defaultWidth: 150, align: 'left' },
+  { id: 'owner', label: 'Owner', defaultVisible: true, defaultWidth: 130, align: 'left' },
+  { id: 'stage', label: 'Stage', defaultVisible: true, defaultWidth: 128, align: 'center' },
+  { id: 'actions', label: 'Actions', defaultVisible: true, sticky: true, defaultWidth: 148, align: 'right' },
   { id: 'phone', label: 'Phone', defaultVisible: false, optional: true, defaultWidth: 120 },
   { id: 'district', label: 'District', defaultVisible: false, optional: true, defaultWidth: 110 },
   { id: 'pincode', label: 'Pincode', defaultVisible: false, optional: true, defaultWidth: 88 },

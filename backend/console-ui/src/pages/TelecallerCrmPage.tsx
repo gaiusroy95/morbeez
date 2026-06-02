@@ -315,7 +315,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       {!canWrite ? <ReadOnlyBanner /> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
 
-      {overview ? (
+      {overview && workspaceViewMode !== 'list' ? (
         <div className="tc-kpi-grid">
           <div className="tc-kpi-card">
             <span className="tc-kpi-label">My leads</span>
@@ -392,60 +392,6 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
           {workspaceViewMode === 'list' ? (
             <div className="tc-workspace-split tc-workspace-split--list">
               <div className="tc-leads-pane tc-leads-pane--queue">
-                <div className="tc-lq-tasks-row">
-                  <Btn
-                    size="sm"
-                    variant="secondary"
-                    className={showTasks ? 'tc-tasks-toggle active' : 'tc-tasks-toggle'}
-                    onClick={() => setShowTasks((v) => !v)}
-                  >
-                    Tasks ({tasks.length})
-                  </Btn>
-                </div>
-                {showTasks ? (
-                  <div className="tc-tasks-panel">
-                    {tasks.length === 0 ? (
-                      <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-                        No pending tasks
-                      </p>
-                    ) : (
-                      tasks.map((t) => (
-                        <div
-                          key={t.id}
-                          className={`tc-task-item${t.isDueToday ? ' tc-task-item--due-today' : ''}`}
-                        >
-                          <div>
-                            <strong>{t.title}</strong>
-                            {t.dueLabel ? (
-                              <div className="muted">
-                                {t.dueLabel}
-                                {t.isDueToday ? ' · Due today' : ''}
-                              </div>
-                            ) : null}
-                            {t.farmerName ? (
-                              <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
-                                {t.farmerName}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div className="tc-task-actions">
-                            {t.leadId ? (
-                              <Btn size="sm" variant="ghost" onClick={() => openLeadWorkspace(t.leadId!)}>
-                                Open
-                              </Btn>
-                            ) : null}
-                            {canWrite ? (
-                              <Btn size="sm" variant="primary" onClick={() => completeTask(t.id)}>
-                                Done
-                              </Btn>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                ) : null}
-
                 <LeadOperationsTable
                   canWrite={canWrite}
                   scope={scope}
@@ -456,6 +402,61 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                   onEditLead={(id) => openLeadWorkspace(id)}
                   onDeleteLead={deleteLead}
                   refreshToken={queueRefresh}
+                  queueHeaderExtra={
+                    <Btn
+                      size="sm"
+                      variant="secondary"
+                      className={showTasks ? 'tc-tasks-toggle active' : 'tc-tasks-toggle'}
+                      onClick={() => setShowTasks((v) => !v)}
+                    >
+                      Tasks ({tasks.length})
+                    </Btn>
+                  }
+                  tasksPanel={
+                    showTasks ? (
+                      <div className="tc-tasks-panel">
+                        {tasks.length === 0 ? (
+                          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                            No pending tasks
+                          </p>
+                        ) : (
+                          tasks.map((t) => (
+                            <div
+                              key={t.id}
+                              className={`tc-task-item${t.isDueToday ? ' tc-task-item--due-today' : ''}`}
+                            >
+                              <div>
+                                <strong>{t.title}</strong>
+                                {t.dueLabel ? (
+                                  <div className="muted">
+                                    {t.dueLabel}
+                                    {t.isDueToday ? ' · Due today' : ''}
+                                  </div>
+                                ) : null}
+                                {t.farmerName ? (
+                                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                                    {t.farmerName}
+                                  </div>
+                                ) : null}
+                              </div>
+                              <div className="tc-task-actions">
+                                {t.leadId ? (
+                                  <Btn size="sm" variant="ghost" onClick={() => openLeadWorkspace(t.leadId!)}>
+                                    Open
+                                  </Btn>
+                                ) : null}
+                                {canWrite ? (
+                                  <Btn size="sm" variant="primary" onClick={() => completeTask(t.id)}>
+                                    Done
+                                  </Btn>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    ) : null
+                  }
                 />
               </div>
             </div>

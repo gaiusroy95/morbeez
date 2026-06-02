@@ -46,7 +46,7 @@ type Props = {
 export function TelecallerIntelligenceBar({ onSelectLead }: Props) {
   const [data, setData] = useState<WorkspaceIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     let cancelled = false;

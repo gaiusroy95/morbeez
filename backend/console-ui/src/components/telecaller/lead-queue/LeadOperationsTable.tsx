@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from '../../../lib/api';
 import { Btn, Loading } from '../../ui';
 import { Field, Modal, inputClass } from '../../Modal';
 import { LeadQueueColumnManager } from './LeadQueueColumnManager';
+import { LeadRowActions } from './LeadRowActions';
 import {
   DEFAULT_COLUMN_ORDER,
   DEFAULT_FILTER_STATE,
@@ -43,6 +44,8 @@ type Props = {
   onEditLead?: (leadId: string) => void;
   onDeleteLead?: (lead: OperationalLead) => void;
   refreshToken?: number;
+  queueHeaderExtra?: ReactNode;
+  tasksPanel?: ReactNode;
 };
 
 const BASE = '/morbeez-staff/api/v1/os/telecaller';
@@ -98,6 +101,8 @@ export function LeadOperationsTable({
   onEditLead,
   onDeleteLead,
   refreshToken = 0,
+  queueHeaderExtra,
+  tasksPanel,
 }: Props) {
   const [leads, setLeads] = useState<OperationalLead[]>([]);
   const [summary, setSummary] = useState<QueueSummary | null>(null);
@@ -143,9 +148,13 @@ export function LeadOperationsTable({
   const [bulkOwner, setBulkOwner] = useState('');
   const [bulkTag, setBulkTag] = useState('');
   const [team, setTeam] = useState<TeamMember[]>([]);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [openMenuLeadId, setOpenMenuLeadId] = useState<string | null>(null);
 
   const prefsLoaded = useRef(false);
   const resizeRef = useRef<{ colId: LeadQueueColumnId; startX: number; startW: number } | null>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+  const [tableScrolledX, setTableScrolledX] = useState(false);
 
   const filterParams = useMemo<LeadQueueFilterParams>(
     () => ({
@@ -363,6 +372,39 @@ export function LeadOperationsTable({
   }, [loadLeads, refreshToken]);
 
   useEffect(() => {
+    const el = tableWrapRef.current;
+    if (!el) return;
+    const onScroll = () => setTableScrolledX(el.scrollLeft > 8);
+    onScroll();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  }, [leads, loading]);
+
+  useEffect(() => {
+    if (!openMenuLeadId) return;
+    function close(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (target.closest('.tc-lq-menu-anchor')) return;
+      setOpenMenuLeadId(null);
+    }
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [openMenuLeadId]);
+
+  const advancedFilterCount = useMemo(() => {
+    let n = 0;
+    if (stage) n += 1;
+    if (district.trim()) n += 1;
+    if (pincode.trim()) n += 1;
+    if (language.trim()) n += 1;
+    if (crop.trim()) n += 1;
+    if (owner.trim()) n += 1;
+    if (opportunityLevel) n += 1;
+    if (escalationsOnly) n += 1;
+    return n;
+  }, [stage, district, pincode, language, crop, owner, opportunityLevel, escalationsOnly]);
+
+  useEffect(() => {
     function onMouseMove(e: MouseEvent) {
       const r = resizeRef.current;
       if (!r) return;
@@ -559,41 +601,18 @@ export function LeadOperationsTable({
         return <span>{lead.followUpLabel ?? '—'}</span>;
       case 'createdDate':
         return <span className="muted">{lead.createdAtLabel}</span>;
-      case 'actions': {
-        const digits = phoneDigits(lead.phone);
+      case 'actions':
         return (
-          <div className="tc-lq-actions">
-            <button type="button" className="tc-lq-action" onClick={() => onOpenLead(lead.id, lead)}>
-              View
-            </button>
-            {canWrite && onEditLead ? (
-              <button type="button" className="tc-lq-action" onClick={() => onEditLead(lead.id)}>
-                Edit
-              </button>
-            ) : null}
-            {digits ? (
-              <>
-                <a className="tc-lq-action" href={`tel:+91${digits}`}>
-                  Call
-                </a>
-                <a
-                  className="tc-lq-action"
-                  href={`https://wa.me/91${digits}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  WhatsApp
-                </a>
-              </>
-            ) : null}
-            {canWrite && onDeleteLead ? (
-              <button type="button" className="tc-lq-action tc-lq-action--danger" onClick={() => onDeleteLead(lead)}>
-                Delete
-              </button>
-            ) : null}
-          </div>
+          <LeadRowActions
+            lead={lead}
+            canWrite={canWrite}
+            menuOpen={openMenuLeadId === lead.id}
+            onMenuToggle={() => setOpenMenuLeadId((id) => (id === lead.id ? null : lead.id))}
+            onOpen={() => onOpenLead(lead.id, lead)}
+            onEdit={canWrite && onEditLead ? () => onEditLead(lead.id) : undefined}
+            onDelete={canWrite && onDeleteLead ? () => onDeleteLead(lead) : undefined}
+          />
         );
-      }
       default:
         return '—';
     }
@@ -601,148 +620,57 @@ export function LeadOperationsTable({
 
   const colDef = (id: LeadQueueColumnId) => LEAD_QUEUE_COLUMNS.find((c) => c.id === id)!;
 
+  const colAlignClass = (id: LeadQueueColumnId) => {
+    const align = colDef(id).align ?? 'left';
+    return `tc-lq-align-${align}`;
+  };
+
   return (
     <div className="tc-lq-root">
       {summary ? (
-        <div className="tc-lq-summary-grid">
-          <div className="tc-lq-summary-card">
-            <span>Pending Tasks</span>
-            <strong>{summary.pendingTasks}</strong>
+        <div className="tc-lq-metrics-block">
+          <div className="tc-lq-metrics-head">
+            <h2 className="tc-lq-section-title">Lead queue</h2>
+            {queueHeaderExtra ? <div className="tc-lq-metrics-actions">{queueHeaderExtra}</div> : null}
           </div>
-          <div className="tc-lq-summary-card">
-            <span>Escalations</span>
-            <strong>{summary.escalations}</strong>
+          <div className="tc-lq-summary-strip" role="group" aria-label="Queue metrics">
+          {(
+            [
+              { key: 'pending', label: 'Pending', value: summary.pendingTasks },
+              { key: 'escalated', label: 'Escalations', value: summary.escalations },
+              { key: 'due_today', label: 'Due today', value: summary.dueToday },
+              { key: 'hot_leads', label: 'Hot leads', value: summary.hotLeads },
+              { key: 'high_opportunity', label: 'High opp.', value: summary.highOpportunity },
+              { key: 'at_risk', label: 'At risk', value: summary.atRisk },
+            ] as const
+          ).map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={`tc-lq-summary-card${
+                (item.key === 'high_opportunity' ? smartFilter === 'hot_leads' : smartFilter === item.key)
+                  ? ' is-active'
+                  : ''
+              }`}
+              onClick={() => {
+                if (item.key === 'at_risk') return;
+                const filterKey =
+                  item.key === 'high_opportunity' ? 'hot_leads' : item.key;
+                setSmartFilter(filterKey);
+                setPendingTasks(filterKey === 'pending');
+                setEscalationsOnly(filterKey === 'escalated');
+              }}
+            >
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </button>
+          ))}
           </div>
-          <div className="tc-lq-summary-card">
-            <span>Due Today</span>
-            <strong>{summary.dueToday}</strong>
-          </div>
-          <div className="tc-lq-summary-card">
-            <span>Hot Leads</span>
-            <strong>{summary.hotLeads}</strong>
-          </div>
-          <div className="tc-lq-summary-card">
-            <span>High Opportunity</span>
-            <strong>{summary.highOpportunity}</strong>
-          </div>
-          <div className="tc-lq-summary-card">
-            <span>At Risk</span>
-            <strong>{summary.atRisk}</strong>
-          </div>
+          {tasksPanel ? <div className="tc-lq-tasks-panel-wrap">{tasksPanel}</div> : null}
         </div>
       ) : null}
 
-      <div className="tc-leads-toolbar">
-        <div className="tc-toolbar-row tc-toolbar-row--primary">
-          <div className="tc-scope-tabs">
-            <button
-              type="button"
-              className={`tc-scope-tab ${scope === 'mine' ? 'active' : ''}`}
-              onClick={() => onScopeChange('mine')}
-            >
-              My Leads ({counts.mine})
-            </button>
-            <button
-              type="button"
-              className={`tc-scope-tab ${scope === 'all' ? 'active' : ''}`}
-              onClick={() => onScopeChange('all')}
-            >
-              All Leads ({counts.all})
-            </button>
-          </div>
-          <input
-            className="tc-lq-search"
-            placeholder="Search name, phone, crop, district, pincode…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <div className="tc-lq-toolbar-actions">
-            <button type="button" className="tc-lq-columns-btn" onClick={() => setShowColumns((v) => !v)}>
-              Columns ▾
-            </button>
-            <Btn size="sm" variant="secondary" onClick={() => void exportLeads()}>
-              Export all
-            </Btn>
-            <Btn size="sm" variant="secondary" onClick={() => void loadLeads()}>
-              Refresh
-            </Btn>
-          </div>
-        </div>
-
-        <div className="tc-toolbar-row tc-toolbar-row--filters tc-lq-filters-grid">
-          <label className="tc-lq-check">
-            <input type="checkbox" checked={pendingTasks} onChange={(e) => setPendingTasks(e.target.checked)} />
-            Pending tasks only
-          </label>
-          <label className="tc-lq-check">
-            <input
-              type="checkbox"
-              checked={escalationsOnly}
-              onChange={(e) => setEscalationsOnly(e.target.checked)}
-            />
-            Escalations only
-          </label>
-          <select className="tc-filter-select" value={stage} onChange={(e) => setStage(e.target.value)}>
-            <option value="">All stages</option>
-            <option value="new_lead">New Lead</option>
-            <option value="interested">Interested</option>
-            <option value="follow_up">Follow-up</option>
-            <option value="recommendation">Recommendation</option>
-            <option value="order_placed">Order Placed</option>
-          </select>
-          <input
-            className="tc-lq-filter-input"
-            placeholder="District"
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-          />
-          <input
-            className="tc-lq-filter-input"
-            placeholder="Pincode"
-            value={pincode}
-            onChange={(e) => setPincode(e.target.value)}
-          />
-          <input
-            className="tc-lq-filter-input"
-            placeholder="Language"
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-          />
-          <input
-            className="tc-lq-filter-input"
-            placeholder="Crop"
-            value={crop}
-            onChange={(e) => setCrop(e.target.value)}
-          />
-          <input
-            className="tc-lq-filter-input"
-            placeholder="Lead owner"
-            value={owner}
-            onChange={(e) => setOwner(e.target.value)}
-          />
-          <select
-            className="tc-filter-select"
-            value={opportunityLevel}
-            onChange={(e) => setOpportunityLevel(e.target.value as '' | 'high' | 'medium' | 'low')}
-          >
-            <option value="">Opportunity level</option>
-            <option value="high">High (70+)</option>
-            <option value="medium">Medium (40–69)</option>
-            <option value="low">Low (&lt;40)</option>
-          </select>
-          <select className="tc-filter-select" value={sort} onChange={(e) => setSort(e.target.value)}>
-            <option value="priority">Sort: Priority</option>
-            <option value="pending_tasks">Pending Tasks</option>
-            <option value="escalations">Escalations</option>
-            <option value="opportunity_score">Opportunity Score</option>
-            <option value="relationship_score">Relationship Score</option>
-            <option value="acreage">Acreage</option>
-            <option value="follow_up_due">Follow-up Due</option>
-            <option value="recent_interaction">Recent Interaction</option>
-            <option value="recently_added">Recently Added</option>
-          </select>
-        </div>
-
+      <div className="tc-lq-filters-bar" role="toolbar" aria-label="Quick filters">
         <div className="tc-lq-smart-filters">
           {SMART_FILTERS.map((f) => (
             <button
@@ -762,8 +690,150 @@ export function LeadOperationsTable({
               {f.label}
             </button>
           ))}
+          <label className="tc-lq-chip tc-lq-chip--toggle">
+            <input
+              type="checkbox"
+              checked={pendingTasks}
+              onChange={(e) => setPendingTasks(e.target.checked)}
+            />
+            Pending only
+          </label>
         </div>
       </div>
+
+      <section className="tc-lq-command-panel">
+        <div className="tc-lq-command-row">
+          <div className="tc-lq-command-main">
+            <div className="tc-scope-tabs tc-scope-tabs--compact">
+              <button
+                type="button"
+                className={`tc-scope-tab ${scope === 'mine' ? 'active' : ''}`}
+                onClick={() => onScopeChange('mine')}
+              >
+                My leads <em>{counts.mine}</em>
+              </button>
+              <button
+                type="button"
+                className={`tc-scope-tab ${scope === 'all' ? 'active' : ''}`}
+                onClick={() => onScopeChange('all')}
+              >
+                All leads <em>{counts.all}</em>
+              </button>
+            </div>
+            <div className="tc-lq-search-wrap">
+              <span className="tc-lq-search-icon" aria-hidden>
+                ⌕
+              </span>
+              <input
+                className="tc-lq-search"
+                placeholder="Search farmer, phone, crop, district…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="tc-lq-command-tools">
+            <select
+              className="tc-lq-sort-select"
+              value={sort}
+              onChange={(e) => setSort(e.target.value)}
+              aria-label="Sort leads"
+            >
+              <option value="priority">Priority</option>
+              <option value="pending_tasks">Pending tasks</option>
+              <option value="escalations">Escalations</option>
+              <option value="opportunity_score">Opportunity</option>
+              <option value="relationship_score">Relationship</option>
+              <option value="acreage">Acreage</option>
+              <option value="follow_up_due">Follow-up due</option>
+              <option value="recent_interaction">Recent interaction</option>
+              <option value="recently_added">Recently added</option>
+            </select>
+            <button
+              type="button"
+              className={`tc-lq-tool-btn${showAdvancedFilters ? ' is-active' : ''}`}
+              onClick={() => setShowAdvancedFilters((v) => !v)}
+            >
+              Filters
+              {advancedFilterCount > 0 ? <span className="tc-lq-tool-badge">{advancedFilterCount}</span> : null}
+            </button>
+            <button
+              type="button"
+              className={`tc-lq-tool-btn${showColumns ? ' is-active' : ''}`}
+              onClick={() => setShowColumns((v) => !v)}
+            >
+              Columns
+            </button>
+            <button type="button" className="tc-lq-tool-btn" onClick={() => void exportLeads()} title="Export CSV">
+              Export
+            </button>
+            <button type="button" className="tc-lq-tool-btn tc-lq-tool-btn--icon" onClick={() => void loadLeads()} title="Refresh">
+              ↻
+            </button>
+          </div>
+        </div>
+
+        {showAdvancedFilters ? (
+          <div className="tc-lq-advanced-filters">
+            <select className="tc-lq-field" value={stage} onChange={(e) => setStage(e.target.value)}>
+              <option value="">All stages</option>
+              <option value="new_lead">New lead</option>
+              <option value="interested">Interested</option>
+              <option value="follow_up">Follow-up</option>
+              <option value="recommendation">Recommendation</option>
+              <option value="order_placed">Order placed</option>
+            </select>
+            <input
+              className="tc-lq-field"
+              placeholder="District"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+            />
+            <input
+              className="tc-lq-field"
+              placeholder="Pincode"
+              value={pincode}
+              onChange={(e) => setPincode(e.target.value)}
+            />
+            <input
+              className="tc-lq-field"
+              placeholder="Language"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value)}
+            />
+            <input
+              className="tc-lq-field"
+              placeholder="Crop"
+              value={crop}
+              onChange={(e) => setCrop(e.target.value)}
+            />
+            <input
+              className="tc-lq-field"
+              placeholder="Owner email"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+            />
+            <select
+              className="tc-lq-field"
+              value={opportunityLevel}
+              onChange={(e) => setOpportunityLevel(e.target.value as '' | 'high' | 'medium' | 'low')}
+            >
+              <option value="">Opportunity level</option>
+              <option value="high">High (70+)</option>
+              <option value="medium">Medium (40–69)</option>
+              <option value="low">Low (&lt;40)</option>
+            </select>
+            <label className="tc-lq-field tc-lq-field--check">
+              <input
+                type="checkbox"
+                checked={escalationsOnly}
+                onChange={(e) => setEscalationsOnly(e.target.checked)}
+              />
+              Escalations only
+            </label>
+          </div>
+        ) : null}
+      </section>
 
       {showColumns ? (
         <LeadQueueColumnManager
@@ -818,7 +888,11 @@ export function LeadOperationsTable({
         <Loading label="Loading lead queue…" />
       ) : (
         <>
-          <div className="tc-lq-table-wrap">
+          <div className={`tc-lq-table-panel${tableScrolledX ? ' is-scrolled-x' : ''}`}>
+            <div className="tc-lq-table-scroll-hint" aria-hidden>
+              Scroll horizontally for more columns →
+            </div>
+            <div className="tc-lq-table-wrap" ref={tableWrapRef}>
             <table className="tc-lq-table">
               <thead>
                 <tr>
@@ -844,11 +918,14 @@ export function LeadOperationsTable({
                     return (
                       <th
                         key={id}
-                        className={
-                          col.sticky
-                            ? `tc-lq-th tc-lq-th--sticky${id === 'actions' ? ' tc-lq-th--sticky-right' : ''}`
-                            : 'tc-lq-th'
-                        }
+                        className={[
+                          'tc-lq-th',
+                          colAlignClass(id),
+                          col.sticky ? 'tc-lq-th--sticky' : '',
+                          id === 'actions' ? 'tc-lq-th--sticky-right' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
                         style={stickyStyle}
                       >
                         <span className="tc-lq-th-inner">
@@ -910,11 +987,14 @@ export function LeadOperationsTable({
                         return (
                           <td
                             key={id}
-                            className={
-                              col.sticky
-                                ? `tc-lq-td tc-lq-td--sticky${id === 'actions' ? ' tc-lq-td--sticky-right' : ''}`
-                                : 'tc-lq-td'
-                            }
+                            className={[
+                              'tc-lq-td',
+                              colAlignClass(id),
+                              col.sticky ? 'tc-lq-td--sticky' : '',
+                              id === 'actions' ? 'tc-lq-td--sticky-right' : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
                             style={stickyStyle}
                             onClick={id !== 'actions' ? () => onOpenLead(lead.id, lead) : undefined}
                           >
@@ -927,6 +1007,7 @@ export function LeadOperationsTable({
                 )}
               </tbody>
             </table>
+          </div>
           </div>
 
           <div className="tc-lq-mobile-list">
@@ -947,16 +1028,15 @@ export function LeadOperationsTable({
                 <p className="tc-lq-mobile-meta">
                   {lead.cropSummary ?? '—'} · Esc {lead.escalationCount}
                 </p>
-                <div className="tc-lq-actions">
-                  <button type="button" className="tc-lq-action" onClick={() => onOpenLead(lead.id, lead)}>
-                    View
-                  </button>
-                  {phoneDigits(lead.phone) ? (
-                    <a className="tc-lq-action" href={`tel:+91${phoneDigits(lead.phone)}`}>
-                      Call
-                    </a>
-                  ) : null}
-                </div>
+                <LeadRowActions
+                  lead={lead}
+                  canWrite={canWrite}
+                  menuOpen={openMenuLeadId === lead.id}
+                  onMenuToggle={() => setOpenMenuLeadId((id) => (id === lead.id ? null : lead.id))}
+                  onOpen={() => onOpenLead(lead.id, lead)}
+                  onEdit={canWrite && onEditLead ? () => onEditLead(lead.id) : undefined}
+                  onDelete={canWrite && onDeleteLead ? () => onDeleteLead(lead) : undefined}
+                />
               </article>
             ))}
           </div>
