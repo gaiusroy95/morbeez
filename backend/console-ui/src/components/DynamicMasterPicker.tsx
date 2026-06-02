@@ -5,6 +5,7 @@ import {
   itemMatchesMarketKey,
   labelFromMasterItem,
   marketKeyFromItem,
+  parseMarketKey,
   type MasterPickerItem,
 } from '../lib/master-picker-utils';
 import '../styles/dynamic-master-picker.css';

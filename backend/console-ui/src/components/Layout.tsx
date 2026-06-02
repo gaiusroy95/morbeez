@@ -13,17 +13,25 @@ import { TelecallerHeaderProvider } from '../context/TelecallerHeaderContext';
 import { TelecallerWorkspaceHeader } from './telecaller/TelecallerWorkspaceHeader';
 import { cn } from '../lib/cn';
 
+const NARROW_SIDEBAR_MQ = '(max-width: 900px)';
+
+function readCollapsedPreference(): boolean {
+  try {
+    return window.localStorage.getItem('console.sidebar.collapsed') === '1';
+  } catch {
+    return false;
+  }
+}
+
 export function AppLayout() {
   const { admin, modules, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    try {
-      return window.localStorage.getItem('console.sidebar.collapsed') === '1';
-    } catch {
-      return false;
+    if (typeof window !== 'undefined' && window.matchMedia(NARROW_SIDEBAR_MQ).matches) {
+      return true;
     }
+    return readCollapsedPreference();
   });
   const [dateText, setDateText] = useState('');
 
@@ -44,13 +52,11 @@ export function AppLayout() {
   }, []);
 
   useEffect(() => {
-    document.body.classList.toggle('sidebar-open', sidebarOpen);
     document.body.classList.toggle('sidebar-collapsed', sidebarCollapsed);
     return () => {
-      document.body.classList.remove('sidebar-open');
       document.body.classList.remove('sidebar-collapsed');
     };
-  }, [sidebarOpen, sidebarCollapsed]);
+  }, [sidebarCollapsed]);
 
   useEffect(() => {
     try {
@@ -61,8 +67,18 @@ export function AppLayout() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
-    setSidebarOpen(false);
-  }, [location.pathname]);
+    const mq = window.matchMedia(NARROW_SIDEBAR_MQ);
+    const onChange = () => {
+      if (mq.matches) {
+        setSidebarCollapsed(true);
+      } else {
+        setSidebarCollapsed(readCollapsedPreference());
+      }
+    };
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
 
   if (!admin) return null;
 
@@ -71,24 +87,24 @@ export function AppLayout() {
     navigate(toPath(paths.login), { replace: true });
   }
 
-  function handleOpenMenu() {
-    if (window.matchMedia('(max-width: 900px)').matches) {
-      setSidebarOpen(true);
-      return;
-    }
+  function toggleSidebarCollapsed() {
     setSidebarCollapsed((prev) => !prev);
   }
 
   return (
     <div className={cn('app-shell', `route-${meta.pageKey}`)}>
-      <button
-        type="button"
-        className="sidebar-backdrop"
-        aria-hidden={!sidebarOpen}
-        onClick={() => setSidebarOpen(false)}
-      />
-
       <aside className="sidebar" id="sidebar">
+        <button
+          type="button"
+          className="sidebar-rail-toggle"
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!sidebarCollapsed}
+          aria-controls="sidebar"
+          onClick={toggleSidebarCollapsed}
+        >
+          {sidebarCollapsed ? '›' : '‹'}
+        </button>
+
         <div className="sidebar-logo">
           <LogoMark variant="light" />
           <div className="sidebar-logo-text">
@@ -99,7 +115,7 @@ export function AppLayout() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          <SidebarNav modules={modules} onNavigate={() => setSidebarOpen(false)} />
+          <SidebarNav modules={modules} />
         </nav>
 
         <div className="sidebar-bottom">
@@ -123,7 +139,7 @@ export function AppLayout() {
       <div className="main">
         {isTelecallerCrm ? (
           <TelecallerHeaderProvider>
-            <TelecallerWorkspaceHeader onOpenMenu={handleOpenMenu} onLogout={handleLogout} />
+            <TelecallerWorkspaceHeader onOpenMenu={toggleSidebarCollapsed} onLogout={handleLogout} />
             <RoutedPageOutlet />
           </TelecallerHeaderProvider>
         ) : (
@@ -131,7 +147,7 @@ export function AppLayout() {
             <ConsoleTopbar
               pathname={location.pathname}
               dateText={dateText}
-              onOpenMenu={handleOpenMenu}
+              onOpenMenu={toggleSidebarCollapsed}
               onLogout={handleLogout}
             />
             <RoutedPageOutlet />

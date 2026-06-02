@@ -54,16 +54,6 @@
   color: #fff;
 }
 
-.sidebar-backdrop.visible {
-  display: block;
-}
-
-@media (max-width: 900px) {
-  .sidebar.sidebar-open {
-    transform: translateX(0);
-  }
-}
-
 .btn-signout {
   display: block;
   width: 100%;

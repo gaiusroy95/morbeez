@@ -191,7 +191,12 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'automationJobs', label: 'Automation jobs' },
 ];
 
+const OPERATIONS_API_BASE = '/morbeez-staff/api/v1/os/operations';
+
 export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
+  const base = OPERATIONS_API_BASE;
+  const mastersApi = `${base}/masters`;
+
   const [tab, setTab] = useState<Tab>('broadcasts');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
@@ -218,7 +223,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [prices, setPrices] = useState<CropPrice[]>([]);
   const [priceViewCrop, setPriceViewCrop] = useState('ginger');
-  const mastersApi = `${base}/masters`;
   const [priceMarketsFilter, setPriceMarketsFilter] = useState<string[]>([]);
   const [priceYearView, setPriceYearView] = useState(new Date().getFullYear());
   const [districtWeather, setDistrictWeather] = useState<DistrictWeather | null>(null);
@@ -325,8 +329,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     cropType: 'cardamom',
     district: '',
   });
-
-  const base = '/morbeez-staff/api/v1/os/operations';
 
   const visibleRules = useMemo(
     () =>

@@ -14,14 +14,13 @@ import { cn } from '../lib/cn';
 
 type Props = {
   modules: ApiModule[];
-  onNavigate?: () => void;
 };
 
 function isGroupActive(pathname: string, group: NavGroup): boolean {
   return group.children.some((c) => isNavItemActive(pathname, c.path));
 }
 
-export function SidebarNav({ modules, onNavigate }: Props) {
+export function SidebarNav({ modules }: Props) {
   const { pathname } = useLocation();
   const groups = useMemo(() => filterNav(modules), [modules]);
   const [expanded, setExpanded] = useState<Set<string>>(() => {
@@ -71,7 +70,6 @@ export function SidebarNav({ modules, onNavigate }: Props) {
             className={baseClass}
             title={item.label}
             data-tooltip={item.label}
-            onClick={onNavigate}
           >
             <NavIcon name={item.icon} />
             <span>{item.label}</span>
@@ -90,7 +88,6 @@ export function SidebarNav({ modules, onNavigate }: Props) {
           className={({ isActive }) =>
             linkClassName(isActive || isNavItemActive(pathname, item.path), baseClass)
           }
-          onClick={onNavigate}
         >
           <NavIcon name={item.icon} />
           <span>{item.label}</span>
@@ -137,7 +134,6 @@ export function SidebarNav({ modules, onNavigate }: Props) {
                         'sidebar-sublink'
                       )
                     }
-                    onClick={onNavigate}
                   >
                     <span>{child.label}</span>
                   </NavLink>

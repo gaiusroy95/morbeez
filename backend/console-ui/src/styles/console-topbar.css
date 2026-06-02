@@ -24,14 +24,10 @@
   background: var(--bg);
 }
 
-@media (min-width: 901px) {
-  body:not(.sidebar-collapsed) .console-btn-menu {
-    display: none !important;
-  }
-
-  .console-topbar-shell--menu-always .console-btn-menu {
-    display: flex !important;
-  }
+/* Sidebar collapse is handled by the rail toggle on the sidebar edge */
+.console-btn-menu,
+.crm-btn-menu {
+  display: none !important;
 }
 
 .console-topbar-title {
