@@ -3712,6 +3712,96 @@ tr:hover td {
   }
 }
 
+/* Collapsed sidebar — flyout dropdown for grouped nav items */
+.sidebar-flyout-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  background: transparent;
+}
+
+.sidebar-flyout {
+  position: fixed;
+  z-index: 280;
+  min-width: 200px;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+
+.sidebar-flyout-title {
+  margin: 0;
+  padding: 6px 10px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-flyout-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar-flyout-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sidebar-flyout-link:hover {
+  background: var(--green-100);
+  color: var(--green-900);
+}
+
+.sidebar-flyout-link.active {
+  background: var(--green-100);
+  color: var(--green-900);
+  font-weight: 600;
+}
+
+.sidebar-flyout-link .nav-icon {
+  opacity: 0.85;
+}
+
+body.sidebar-collapsed .sidebar-group-btn.has-flyout {
+  position: relative;
+}
+
+body.sidebar-collapsed .sidebar-flyout-indicator {
+  position: absolute;
+  right: 7px;
+  bottom: 8px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid rgba(255, 255, 255, 0.72);
+}
+
+body.sidebar-collapsed .sidebar-group-btn.has-flyout.flyout-open,
+body.sidebar-collapsed .sidebar-group-btn.has-flyout.active-group {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:hover::after,
+body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:hover::before,
+body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible::after,
+body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible::before {
+  content: none;
+}
+
 /* â”€â”€â”€ Sidebar groups â”€â”€â”€ */
 .sidebar-group {
   margin: 4px 0;

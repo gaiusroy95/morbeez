@@ -115,7 +115,7 @@ export function AppLayout() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Main navigation">
-          <SidebarNav modules={modules} />
+          <SidebarNav modules={modules} collapsed={sidebarCollapsed} />
         </nav>
 
         <div className="sidebar-bottom">
