@@ -19,6 +19,9 @@ export type StaffMember = {
     turnoverInr: number;
     performanceScore: number;
     performanceLabel: string;
+    performanceSource: 'engine' | 'estimated';
+    attributedFarmerCount: number;
+    leaderboardEligible: boolean;
     statusOnline: boolean;
 };
 export type StaffWorkspace = {
@@ -49,6 +52,9 @@ export declare const staffAdminService: {
             interactionsThisMonth: number;
             onlineStatus: string;
             lastLoginAt: string | null;
+            attributedFarmerCount: number;
+            leaderboardEligible: boolean;
+            performanceSource: "estimated" | "engine";
         };
         turnoverTrend: {
             labels: string[];
@@ -58,6 +64,7 @@ export declare const staffAdminService: {
             label: string;
             pct: number;
         }[];
+        performanceFactors: unknown[];
         recentLeads: {
             id: any;
             name: string;

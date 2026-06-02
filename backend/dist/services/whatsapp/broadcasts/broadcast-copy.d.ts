@@ -1,5 +1,5 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
-export type BroadcastKind = 'cultivation_schedule' | 'fertigation_reminder' | 'pgr_broadcast' | 'dap_task' | 'cultivation_knowledge';
+export type BroadcastKind = 'cultivation_schedule' | 'fertigation_reminder' | 'pgr_broadcast' | 'dap_task' | 'cultivation_knowledge' | 'daily_market_price';
 type Params = {
     crop: string;
     dap?: number;

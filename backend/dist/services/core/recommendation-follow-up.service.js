@@ -273,6 +273,11 @@ export const recommendationFollowUpService = {
                 sessionId: rec.ai_session_id,
             });
             await this.upsertLearningSample(rec, { applicationConfirmed: true });
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.trackRecommendationApplied({
+                farmerId,
+                recommendationRecordId,
+            });
             await clearConversationPending(farmerId);
             return copy.appliedThanks;
         }

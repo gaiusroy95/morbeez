@@ -67,6 +67,8 @@ export function buildCrossLanguageIntentSlug(cropType, text, issueLabel) {
         parts.push('wilt');
     if (/rot|सड़|ചീച്ചൽ|sclerotium/i.test(sources))
         parts.push('rot');
+    if (/sprout|shoot|tiller|chimb|chimbi|kana|kanaya|കണാ|കണ/i.test(sources))
+        parts.push('sprout');
     if (parts.length < 2) {
         const label = issueLabel?.trim().toLowerCase().replace(/\s+/g, '_').slice(0, 40);
         if (label && label.length >= 4)

@@ -61,24 +61,28 @@ export declare const fieldPwaService: {
     }): Promise<{
         finding: {
             id: unknown;
-            visitedAt: unknown;
-            visitedLabel: string | null;
-            blockName: unknown;
-            cropType: unknown;
+            visitedAt: string | null;
+            visitedLabel: string;
+            blockId: string | null;
+            blockName: string;
+            cropType: string;
             agronomistName: unknown;
-            agronomistRole: unknown;
+            agronomistRole: {};
             agronomistInitials: string;
-            observations: unknown;
+            observations: {};
             parameters: {
                 label: string;
                 value: string;
             }[];
-            diseasePest: unknown;
-            diseaseTone: unknown;
-            actionTaken: unknown;
-            followUpLabel: string | null;
+            diseasePest: {};
+            diseaseTone: string;
+            diseaseLabel: string;
+            actionTaken: {};
+            followUpAt: string | null;
+            followUpLabel: string;
             photoUrls: string[];
             photoCount: number;
+            extraPhotoCount: number;
         };
         photoUrls: string[];
     }>;

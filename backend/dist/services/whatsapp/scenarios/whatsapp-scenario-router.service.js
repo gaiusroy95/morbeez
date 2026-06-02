@@ -31,6 +31,7 @@ import { returnUserGreetingService } from './return-user-greeting.service.js';
 import { farmerFeedbackFlowService } from './farmer-feedback-flow.service.js';
 import { isExplicitAgronomyQuestion } from '../pipeline/agriculture-free-text.service.js';
 import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
+import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 const CROP_MEDIA = new Set(['image', 'image_message', 'document']);
 const MENU_IDS = new Set([
     'menu.crop_assessment',
@@ -813,6 +814,23 @@ export const whatsappScenarioRouter = {
             }
             return { handled: true };
         }
+        // Regional terminology detection + escalation (never guess unknown words)
+        let terminologyDetection = null;
+        if (text && regionalTerminologyProcessor.enabled()) {
+            const termFlow = await regionalTerminologyProcessor.processInbound({
+                farmerId: captured.farmerId,
+                text,
+                language: lang,
+                messageType: msg.msgType,
+                externalMessageId: msg.messageId,
+            });
+            terminologyDetection = termFlow.detection;
+            if (termFlow.handled) {
+                await conversationSessionService.setState(captured.farmerId, 'terminology_clarify');
+                await send.text(msg.phone, regionalTerminologyProcessor.pendingFarmerCopy(lang));
+                return { handled: true };
+            }
+        }
         // Tank-mix / fertilizer — verified DB, else OpenAI with farmer memory (no generic menu)
         if (text && isExplicitAgronomyQuestion(text)) {
             const agronomyHandled = await tryAgronomyReply({
@@ -823,30 +841,10 @@ export const whatsappScenarioRouter = {
                 sendText: send.text,
                 farmerName: msg.profileName,
                 isPremium: captured.isPremium,
+                terminologyDetection,
             });
             if (agronomyHandled) {
                 await conversationSessionService.setState(captured.farmerId, 'main_menu');
-                return { handled: true };
-            }
-        }
-        // Scenario 8 — unknown regional term (short phrase only, not general ag questions)
-        if (text && terminologyService.isLikelyUnknownRegionalPhrase(text)) {
-            const { data: farmer } = await supabase
-                .from('farmers')
-                .select('district')
-                .eq('id', captured.farmerId)
-                .maybeSingle();
-            const resolved = await terminologyService.resolveTerm(text, lang, farmer?.district, undefined);
-            if (!resolved.found || resolved.confidence < 0.6) {
-                await terminologyService.createReviewTask({
-                    farmerId: captured.farmerId,
-                    term: text,
-                    language: lang,
-                    district: farmer?.district ?? undefined,
-                    contextText: text,
-                });
-                await conversationSessionService.setState(captured.farmerId, 'terminology_clarify');
-                await send.text(msg.phone, terminologyService.clarifyCopy(lang));
                 return { handled: true };
             }
         }

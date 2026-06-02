@@ -6,12 +6,31 @@ import { createTelecallerTask } from '../services/whatsapp/pipeline/telecaller-t
 import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
 import { orderWhatsappService } from '../services/whatsapp/orders/order-whatsapp.service.js';
+import { farmerEventCaptureService } from '../services/intelligence/farmer-event-capture.service.js';
 /** Wire domain reactions — keep thin; logic lives in services */
 export function registerEventHandlers() {
     eventBus.on('shopify.order.paid', async (event) => {
         const orderId = event.payload.shopifyOrderId;
         if (!orderId)
             return;
+        const { data: orderRow } = await supabase
+            .from('commerce_orders')
+            .select('farmer_id, phone')
+            .eq('shopify_order_id', orderId)
+            .maybeSingle();
+        let farmerId = orderRow?.farmer_id ? String(orderRow.farmer_id) : null;
+        if (!farmerId && orderRow?.phone) {
+            const { farmerId: resolved } = await orderWhatsappService.resolveFarmerByPhone(String(orderRow.phone));
+            farmerId = resolved;
+        }
+        if (farmerId) {
+            await farmerEventCaptureService.trackOrderConverted({
+                farmerId,
+                shopifyOrderId: orderId,
+                orderName: event.payload.orderName,
+                total: event.payload.total,
+            });
+        }
         if (env.ENABLE_SHIPROCKET_AUTO_SHIP) {
             await shiprocketService.createShipmentForShopifyOrder(orderId).catch((err) => {
                 logger.error({ err, orderId }, 'Auto-shipment failed');
@@ -93,7 +112,16 @@ export function registerEventHandlers() {
     });
     eventBus.on('advisory.completed', async (event) => {
         const farmerId = event.payload.farmerId;
-        const escalated = event.payload.escalated;
+        const escalated = Boolean(event.payload.escalated);
+        const sessionId = event.payload.sessionId;
+        if (farmerId) {
+            await farmerEventCaptureService.trackAdvisorySessionCompleted({
+                farmerId,
+                sessionId: sessionId ?? '',
+                escalated,
+                confidence: event.payload.confidence,
+            });
+        }
         if (!farmerId || escalated)
             return;
         const { data: farmer } = await supabase
@@ -109,6 +137,27 @@ export function registerEventHandlers() {
                 logger.error({ err }, 'Advisory WhatsApp notify failed');
             });
         }
+    });
+    eventBus.on('lead.created', async (event) => {
+        const farmerId = event.payload.farmerId;
+        if (!farmerId)
+            return;
+        await farmerEventCaptureService.trackFarmerOnboarded({
+            farmerId,
+            leadId: event.payload.leadId,
+            source: event.payload.source ?? 'api',
+            intent: event.payload.intent ?? 'general',
+            assignedTo: event.payload.assignedTo ?? null,
+        });
+    });
+    eventBus.on('callback.requested', async (event) => {
+        const farmerId = event.payload.farmerId;
+        if (!farmerId)
+            return;
+        await farmerEventCaptureService.trackCallbackRequested({
+            farmerId,
+            sessionId: event.payload.sessionId,
+        });
     });
     logger.info('Event handlers registered');
 }

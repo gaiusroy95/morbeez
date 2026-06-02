@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
+import { normalizeRegionalFarmerQuery } from './regional-query-normalize.util.js';
 /** Strip punctuation and collapse whitespace (keeps letters/numbers in any script). */
 export function normalizeQuestionText(text) {
-    return text
+    const regional = normalizeRegionalFarmerQuery(text);
+    return regional
         .trim()
         .toLowerCase()
         .replace(/[^\p{L}\p{N}\s]/gu, ' ')
@@ -69,6 +71,12 @@ const TOKEN_ALIASES = {
     dhabba: 'spot',
     dabbe: 'spot',
     dabba: 'spot',
+    kana: 'sprout',
+    kanaya: 'sprout',
+    sprout: 'sprout',
+    sprouting: 'sprout',
+    chimb: 'chimb',
+    chimbi: 'chimb',
 };
 function canonicalToken(token) {
     if (token.length < 2)

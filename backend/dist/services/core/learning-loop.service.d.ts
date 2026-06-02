@@ -7,6 +7,7 @@ export declare const learningLoopService: {
         term: string;
         language: string;
         meaning: string;
+        standardTerm?: string | null;
         cropType?: string | null;
         district?: string | null;
         resolvedBy?: string;

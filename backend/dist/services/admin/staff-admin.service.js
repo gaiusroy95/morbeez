@@ -1,5 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { opportunityScoreStoreService } from '../intelligence/opportunity-score-store.service.js';
+import { MIN_ATTRIBUTED_FARMERS_FOR_LEADERBOARD, performanceBreakdownFromComponents, performanceLabel, } from '../intelligence/employee-performance-scoring.util.js';
 const STAFF_ROLES = [
     'super_admin',
     'admin',
@@ -9,17 +11,6 @@ const STAFF_ROLES = [
     'manager',
     'viewer',
 ];
-function performanceLabel(score) {
-    if (score >= 90)
-        return 'Excellent';
-    if (score >= 80)
-        return 'Very Good';
-    if (score >= 70)
-        return 'Good';
-    if (score >= 60)
-        return 'Average';
-    return 'Needs improvement';
-}
 function scoreFromMetrics(leads, tasksDone, loginDaysAgo) {
     let score = 62;
     score += Math.min(leads * 2, 24);
@@ -62,8 +53,35 @@ function buildStaffMember(params, metrics) {
         turnoverInr,
         performanceScore,
         performanceLabel: performanceLabel(performanceScore),
+        performanceSource: 'estimated',
+        attributedFarmerCount: 0,
+        leaderboardEligible: false,
         statusOnline,
     };
+}
+async function applyEngineScores(employees) {
+    const profileIds = employees.filter((e) => e.hasProfile).map((e) => e.id);
+    if (!profileIds.length)
+        return;
+    const { data, error } = await supabase
+        .from('employee_scores')
+        .select('employee_profile_id, performance_score, attributed_farmer_count, engagement_growth_score, relationship_quality_score, retention_quality_score, trust_building_score, delayed_conversion_score, farmer_reactivation_score, knowledge_contribution_score, farmer_satisfaction_score, factors, calculated_at')
+        .in('employee_profile_id', profileIds);
+    throwIfSupabaseError(error, 'Could not load employee performance scores');
+    const byProfile = new Map((data ?? []).map((r) => [String(r.employee_profile_id), r]));
+    for (const e of employees) {
+        if (!e.hasProfile)
+            continue;
+        const row = byProfile.get(e.id);
+        if (!row)
+            continue;
+        const attributed = Number(row.attributed_farmer_count ?? 0);
+        e.performanceScore = Number(row.performance_score);
+        e.performanceLabel = performanceLabel(e.performanceScore);
+        e.performanceSource = 'engine';
+        e.attributedFarmerCount = attributed;
+        e.leaderboardEligible = attributed >= MIN_ATTRIBUTED_FARMERS_FOR_LEADERBOARD;
+    }
 }
 async function loadAssignmentMetrics(emails) {
     const leadCounts = new Map();
@@ -191,11 +209,15 @@ export const staffAdminService = {
             const now = Date.now();
             e.statusOnline = e.active && loginMs != null && now - loginMs < 15 * 60 * 1000;
         }
+        await applyEngineScores(employees);
         const active = employees.filter((e) => e.active);
         const inactive = employees.filter((e) => !e.active);
-        const avgPerformance = employees.length > 0
-            ? employees.reduce((s, e) => s + e.performanceScore, 0) / employees.length
-            : 0;
+        const engineScored = employees.filter((e) => e.performanceSource === 'engine');
+        const avgPerformance = engineScored.length > 0
+            ? engineScored.reduce((s, e) => s + e.performanceScore, 0) / engineScored.length
+            : employees.length > 0
+                ? employees.reduce((s, e) => s + e.performanceScore, 0) / employees.length
+                : 0;
         const avgTurnover = employees.length > 0
             ? employees.reduce((s, e) => s + e.turnoverInr, 0) / employees.length
             : 0;
@@ -241,6 +263,20 @@ export const staffAdminService = {
             .eq('assigned_to', employee.email)
             .order('due_at', { ascending: true })
             .limit(5);
+        let performanceBreakdown = [
+            { label: 'Conversion rate', pct: Math.min(95, employee.performanceScore - 5) },
+            { label: 'Follow-up completion', pct: Math.min(92, employee.performanceScore) },
+            { label: 'Customer satisfaction', pct: Math.min(90, employee.performanceScore - 8) },
+            { label: 'Response time', pct: Math.min(88, employee.performanceScore - 3) },
+        ];
+        let performanceFactors = [];
+        if (employee.hasProfile) {
+            const engineScore = await opportunityScoreStoreService.getEmployeeScore(employee.id);
+            if (engineScore) {
+                performanceBreakdown = performanceBreakdownFromComponents(engineScore.components);
+                performanceFactors = engineScore.factors;
+            }
+        }
         return {
             employee,
             overview: {
@@ -250,17 +286,16 @@ export const staffAdminService = {
                 interactionsThisMonth: employee.totalLeads * 3,
                 onlineStatus: employee.statusOnline ? 'Online' : 'Offline',
                 lastLoginAt: employee.lastLoginAt,
+                attributedFarmerCount: employee.attributedFarmerCount,
+                leaderboardEligible: employee.leaderboardEligible,
+                performanceSource: employee.performanceSource,
             },
             turnoverTrend: {
                 labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
                 values: [0.6, 0.72, 0.85, 0.9, 0.95, 1].map((m) => Math.round(employee.turnoverInr * m)),
             },
-            performanceBreakdown: [
-                { label: 'Conversion rate', pct: Math.min(95, employee.performanceScore - 5) },
-                { label: 'Follow-up completion', pct: Math.min(92, employee.performanceScore) },
-                { label: 'Customer satisfaction', pct: Math.min(90, employee.performanceScore - 8) },
-                { label: 'Response time', pct: Math.min(88, employee.performanceScore - 3) },
-            ],
+            performanceBreakdown,
+            performanceFactors,
             recentLeads: (recentLeads ?? []).map((l) => {
                 const f = l.farmers;
                 return {

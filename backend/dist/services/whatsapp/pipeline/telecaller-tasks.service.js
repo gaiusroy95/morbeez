@@ -4,19 +4,41 @@ import { farmerHealthScoreService } from './farmer-health-score.service.js';
 export async function createTelecallerTask(params) {
     const dueAt = new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString();
     let effectivePriority = params.priority ?? 'normal';
+    let boostReason = '';
     if (effectivePriority === 'normal') {
         try {
-            const health = await farmerHealthScoreService.compute(params.farmerId);
-            if (farmerHealthScoreService.telecallerPriorityFromHealth(health.band) === 'high') {
+            const { data: retention } = await supabase
+                .from('farmer_retention_tracking')
+                .select('risk_band')
+                .eq('farmer_id', params.farmerId)
+                .maybeSingle();
+            if (retention?.risk_band === 'churned') {
+                effectivePriority = 'urgent';
+                boostReason = 'retention churned';
+            }
+            else if (retention?.risk_band === 'at_risk') {
                 effectivePriority = 'high';
+                boostReason = 'retention at_risk';
             }
         }
         catch {
             /* non-blocking */
         }
     }
-    const healthNote = effectivePriority !== (params.priority ?? 'normal')
-        ? ' [priority boosted: farmer health at_risk]'
+    if (effectivePriority === 'normal') {
+        try {
+            const health = await farmerHealthScoreService.compute(params.farmerId);
+            if (farmerHealthScoreService.telecallerPriorityFromHealth(health.band) === 'high') {
+                effectivePriority = 'high';
+                boostReason = 'farmer health at_risk';
+            }
+        }
+        catch {
+            /* non-blocking */
+        }
+    }
+    const healthNote = boostReason && effectivePriority !== (params.priority ?? 'normal')
+        ? ` [priority boosted: ${boostReason}]`
         : '';
     await supabase.from('crm_tasks').insert({
         farmer_id: params.farmerId,

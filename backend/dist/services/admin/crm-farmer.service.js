@@ -46,7 +46,33 @@ export const crmFarmerService = {
             q = q.ilike('name', `%${search.trim()}%`);
         const { data, error } = await q.limit(200);
         throwIfSupabaseError(error, 'Could not load masters');
-        return data ?? [];
+        let rows = data ?? [];
+        if (type === 'crop' && !parentId && !search?.trim()) {
+            const requiredCrops = ['Ginger', 'Banana', 'Pepper', 'Cardamom'];
+            const existing = new Set(rows.map((r) => String(r.name).trim().toLowerCase()));
+            const missing = requiredCrops.filter((name) => !existing.has(name.toLowerCase()));
+            if (missing.length > 0) {
+                for (const name of missing) {
+                    const { error: insertErr } = await supabase.from('crm_masters').insert({
+                        master_type: 'crop',
+                        name,
+                        sort_order: 0,
+                        parent_id: null,
+                        active: true,
+                    });
+                    if (insertErr && !String(insertErr.message ?? '').toLowerCase().includes('duplicate')) {
+                        throwIfSupabaseError(insertErr, 'Could not seed crop defaults');
+                    }
+                }
+                const { data: refreshed, error: refreshErr } = await q.limit(200);
+                throwIfSupabaseError(refreshErr, 'Could not reload masters');
+                rows = refreshed ?? rows;
+            }
+        }
+        if (type === 'market' && !parentId && !search?.trim()) {
+            rows = await this.seedMarketMastersFromPrices(rows);
+        }
+        return rows;
     },
     async createMaster(input) {
         const { data, error } = await supabase
@@ -63,6 +89,55 @@ export const crmFarmerService = {
         throwIfSupabaseError(error, 'Could not create master');
         return data;
     },
+    async seedMarketMastersFromPrices(rows) {
+        const existing = new Set(rows.map((r) => `${String(r.name).trim().toLowerCase()}|${r.category ? String(r.category).trim().toLowerCase() : ''}`));
+        const { data: priceRows, error: priceErr } = await supabase
+            .from('crop_daily_prices')
+            .select('market_name, district')
+            .eq('active', true)
+            .order('market_name', { ascending: true })
+            .limit(500);
+        throwIfSupabaseError(priceErr, 'Could not load market seeds');
+        let inserted = 0;
+        for (const row of priceRows ?? []) {
+            const marketName = String(row.market_name ?? '').trim();
+            if (!marketName)
+                continue;
+            const district = row.district ? String(row.district).trim() : '';
+            const key = `${marketName.toLowerCase()}|${district.toLowerCase()}`;
+            if (existing.has(key))
+                continue;
+            const { error: insertErr } = await supabase.from('crm_masters').insert({
+                master_type: 'market',
+                name: marketName,
+                category: district || null,
+                sort_order: 0,
+                parent_id: null,
+                active: true,
+            });
+            if (insertErr && !String(insertErr.message ?? '').toLowerCase().includes('duplicate')) {
+                throwIfSupabaseError(insertErr, 'Could not seed market defaults');
+            }
+            else {
+                inserted += 1;
+                existing.add(key);
+            }
+        }
+        if (inserted > 0) {
+            const { data: refreshed, error: refreshErr } = await supabase
+                .from('crm_masters')
+                .select('id, master_type, name, parent_id, category, description, active, sort_order')
+                .eq('master_type', 'market')
+                .eq('active', true)
+                .is('parent_id', null)
+                .order('sort_order')
+                .order('name')
+                .limit(200);
+            throwIfSupabaseError(refreshErr, 'Could not reload market masters');
+            return refreshed ?? rows;
+        }
+        return rows;
+    },
     async updateMaster(id, patch) {
         const updates = { updated_at: new Date().toISOString() };
         if (patch.name != null)
@@ -71,6 +146,8 @@ export const crmFarmerService = {
             updates.active = patch.active;
         if (patch.description != null)
             updates.description = patch.description;
+        if (patch.category !== undefined)
+            updates.category = patch.category?.trim() || null;
         const { data, error } = await supabase.from('crm_masters').update(updates).eq('id', id).select().single();
         throwIfSupabaseError(error, 'Could not update master');
         return data;
@@ -227,6 +304,13 @@ export const crmFarmerService = {
                 : { metrics: emptySoilLabMetrics(), pdfUrl: null, reportedLabel: null },
             latestVisit: latestVisit ? mapFinding(latestVisit) : null,
             recommendations: recommendations.map(mapRecommendation),
+            nextFollowUp: followUps[0]
+                ? {
+                    title: String(followUps[0].title ?? 'Follow-up'),
+                    dueLabel: String(followUps[0].dueLabel ?? '—'),
+                    notes: followUps[0].notes ? String(followUps[0].notes) : undefined,
+                }
+                : null,
             timeline: await this.blockTimeline(farmerId, blockId),
         };
     },
@@ -298,6 +382,16 @@ export const crmFarmerService = {
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not save soil report');
+        const reportId = data?.id ? String(data.id) : '';
+        if (reportId) {
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.trackSoilTestUploaded({
+                farmerId,
+                soilReportId: reportId,
+                blockId: input.blockId ?? null,
+                employeeEmail: input.uploadedBy ?? null,
+            });
+        }
         return data;
     },
     async listRecommendations(farmerId, page = 1, limit = 10) {
@@ -352,11 +446,20 @@ export const crmFarmerService = {
     },
     /** Telecaller CRM tab — human/agronomist activity only (no raw WhatsApp chat logs). */
     async listHumanCrmInteractions(farmerId, leadId, page = 1, limit = 40) {
+        const isDueToday = (iso) => {
+            if (!iso)
+                return false;
+            const due = new Date(iso);
+            const now = new Date();
+            return (due.getFullYear() === now.getFullYear() &&
+                due.getMonth() === now.getMonth() &&
+                due.getDate() === now.getDate());
+        };
         const items = [];
         const [logsRes, callsRes, tasksRes, recsRes, visitsRes, followUpsRes, recRecordsRes] = await Promise.all([
             supabase
                 .from('interaction_logs')
-                .select('*')
+                .select('*, farm_blocks(name, crop_name)')
                 .eq('farmer_id', farmerId)
                 .neq('channel', 'whatsapp')
                 .or('status.is.null,status.neq.archived')
@@ -383,7 +486,7 @@ export const crmFarmerService = {
                 .limit(40),
             supabase
                 .from('crm_field_findings')
-                .select('*')
+                .select('*, farm_blocks(name, crop_name)')
                 .eq('farmer_id', farmerId)
                 .is('archived_at', null)
                 .order('visited_at', { ascending: false })
@@ -413,98 +516,145 @@ export const crmFarmerService = {
             if (/roi daily prompt|roi\.finish/i.test(content))
                 continue;
             const mapped = mapInteraction(r);
-            items.push({
+            const logBlock = r.farm_blocks;
+            items.push(enrichTimelineRow({
                 id: String(r.id),
                 at: String(r.created_at),
                 interactionType: mapped.typeLabel,
                 summary: String(mapped.summary || content).slice(0, 200),
                 status: mapped.status,
+                completionStatus: String(r.status ?? '') === 'archived' ? 'completed' : 'completed',
                 by: String(mapped.by),
                 role: String(mapped.role),
                 createdLabel: mapped.atLabel ?? formatDateTime(r.created_at) ?? '',
+                dueLabel: null,
+                isDueToday: false,
+                taskId: null,
                 source: 'log',
                 canArchive: true,
-            });
+                canEdit: true,
+                nextAction: r.next_action ? String(r.next_action) : null,
+                nextActionAt: r.next_action_at ? String(r.next_action_at) : null,
+                blockName: logBlock?.name ?? logBlock?.crop_name ?? null,
+                blockId: r.block_id ? String(r.block_id) : null,
+            }));
         }
         for (const c of callsRes.data ?? []) {
             if (leadId && c.lead_id && String(c.lead_id) !== leadId)
                 continue;
-            items.push({
+            items.push(enrichTimelineRow({
                 id: `call-${c.id}`,
                 at: String(c.created_at),
-                interactionType: 'Telecaller conversation done',
+                interactionType: 'Call',
                 summary: `Phone call — ${c.outcome ?? 'completed'}${c.notes ? `: ${String(c.notes).slice(0, 100)}` : ''}`,
                 status: 'Completed',
+                completionStatus: 'completed',
                 by: String(c.agent_email ?? 'Telecaller'),
                 role: 'Telecaller',
                 createdLabel: formatDateTime(c.created_at) ?? '',
+                dueLabel: null,
+                isDueToday: false,
+                taskId: null,
                 source: 'call',
                 canArchive: false,
-            });
+                canEdit: false,
+            }));
         }
         for (const t of tasksRes.data ?? []) {
             if (leadId && t.lead_id && String(t.lead_id) !== leadId)
                 continue;
-            const completed = String(t.status ?? '') === 'completed';
-            const at = completed && t.updated_at ? String(t.updated_at) : String(t.created_at);
-            items.push({
-                id: `task-${t.id}-${completed ? 'done' : 'created'}`,
+            const isDone = String(t.status ?? '') === 'done';
+            const at = isDone && t.updated_at ? String(t.updated_at) : String(t.created_at);
+            const dueAt = t.due_at ? String(t.due_at) : null;
+            items.push(enrichTimelineRow({
+                id: `task-${t.id}`,
                 at,
-                interactionType: completed ? 'Follow-up done' : 'Follow-up created',
-                summary: String(t.title ?? 'Follow-up task'),
-                status: completed ? 'Completed' : String(t.status ?? 'Pending'),
+                interactionType: isDone ? 'Follow-up completed' : 'Follow-up',
+                summary: String(t.notes ? `${t.title} — ${t.notes}` : t.title ?? 'Follow-up task').slice(0, 200),
+                status: isDone ? 'Completed' : 'Pending',
+                completionStatus: isDone ? 'completed' : 'pending',
                 by: String(t.assigned_to ?? 'Telecaller'),
                 role: 'Telecaller',
                 createdLabel: formatDateTime(at) ?? '',
+                dueLabel: dueAt ? formatDateTime(dueAt) : null,
+                isDueToday: !isDone && isDueToday(dueAt),
+                taskId: String(t.id),
                 source: 'task',
                 canArchive: false,
-            });
+                canEdit: true,
+                nextAction: isDone ? null : String(t.title ?? 'Follow-up'),
+                nextActionAt: dueAt,
+            }));
         }
         for (const r of recsRes.data ?? []) {
             const block = r.farm_blocks;
             const blockLabel = block?.name ?? block?.crop_name ?? '';
             const baseSummary = String(r.recommendation ?? r.problem ?? 'Product recommendation');
-            items.push({
+            items.push(enrichTimelineRow({
                 id: `crm-rec-${r.id}`,
                 at: String(r.created_at),
-                interactionType: 'Recommendation given',
-                summary: `${baseSummary.slice(0, 180)}${blockLabel ? ` · ${blockLabel}` : ''}`,
+                interactionType: 'Recommendation',
+                summary: baseSummary.slice(0, 200),
                 status: String(r.status ?? 'active'),
+                completionStatus: 'completed',
                 by: String(r.recommended_by ?? 'Agronomist'),
                 role: 'Agronomist',
                 createdLabel: formatDateTime(r.created_at) ?? '',
+                dueLabel: null,
+                isDueToday: false,
+                taskId: null,
                 source: 'recommendation',
                 canArchive: false,
-            });
+                canEdit: false,
+                blockName: blockLabel || null,
+                blockId: r.block_id ? String(r.block_id) : null,
+                nextAction: r.follow_up_at ? 'Schedule follow-up' : null,
+                nextActionAt: r.follow_up_at ? String(r.follow_up_at) : null,
+            }));
         }
         for (const v of visitsRes.data ?? []) {
-            items.push({
+            const visitBlock = v.farm_blocks;
+            items.push(enrichTimelineRow({
                 id: `visit-${v.id}`,
                 at: String(v.visited_at ?? v.created_at),
-                interactionType: 'Agronomist field visit arranged',
+                interactionType: 'Field visit',
                 summary: String(v.observations ?? v.disease_pest ?? 'Field visit completed').slice(0, 200),
                 status: 'Completed',
+                completionStatus: 'completed',
                 by: String(v.agronomist_name ?? 'Agronomist'),
                 role: 'Agronomist',
                 createdLabel: formatDateTime((v.visited_at ?? v.created_at)) ?? '',
+                dueLabel: null,
+                isDueToday: false,
+                taskId: null,
                 source: 'visit',
                 canArchive: false,
-            });
+                canEdit: false,
+                blockName: visitBlock?.name ?? visitBlock?.crop_name ?? null,
+                blockId: v.block_id ? String(v.block_id) : null,
+                nextAction: v.follow_up_at ? 'Follow-up visit' : null,
+                nextActionAt: v.follow_up_at ? String(v.follow_up_at) : null,
+            }));
         }
         for (const rec of recRecordsRes.data ?? []) {
             const issue = rec.issue_detected ?? rec.trade_name ?? 'Crop advisory';
-            items.push({
+            items.push(enrichTimelineRow({
                 id: `rec-wa-${rec.id}`,
                 at: String(rec.communicated_at),
-                interactionType: 'Recommendation given via WhatsApp',
+                interactionType: 'WhatsApp recommendation',
                 summary: String(issue).slice(0, 200),
                 status: String(rec.application_status ?? rec.status ?? 'sent'),
-                by: 'Crop Doctor',
-                role: 'System',
+                completionStatus: null,
+                by: 'AI Engine',
+                role: 'Automated',
                 createdLabel: formatDateTime(rec.communicated_at) ?? '',
+                dueLabel: null,
+                isDueToday: false,
+                taskId: null,
                 source: 'rec_record',
                 canArchive: false,
-            });
+                canEdit: false,
+            }));
         }
         for (const f of followUpsRes.data ?? []) {
             const at = String(f.responded_at ?? f.sent_at ?? f.scheduled_at ?? f.created_at);
@@ -527,18 +677,25 @@ export const crmFarmerService = {
                 interactionType = 'Follow-up outcome recorded';
                 summary = `Result: ${response.replace(/_/g, ' ')}${product ? ` — ${product}` : ''}`;
             }
-            items.push({
+            items.push(enrichTimelineRow({
                 id: `follow-${f.id}`,
                 at,
                 interactionType,
                 summary: summary.slice(0, 200),
                 status: String(f.status ?? 'sent'),
+                completionStatus: response ? 'completed' : 'pending',
                 by: response ? 'Farmer' : 'System',
-                role: response ? 'Farmer' : 'WhatsApp',
+                role: response ? 'Farmer' : 'Automated',
                 createdLabel: formatDateTime(at) ?? '',
+                dueLabel: f.scheduled_at ? formatDateTime(String(f.scheduled_at)) : null,
+                isDueToday: !response && isDueToday(String(f.scheduled_at)),
+                taskId: null,
                 source: 'follow_up',
                 canArchive: false,
-            });
+                canEdit: false,
+                nextAction: !response && f.scheduled_at ? 'Application check' : null,
+                nextActionAt: f.scheduled_at ? String(f.scheduled_at) : null,
+            }));
         }
         items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
         const from = (page - 1) * limit;
@@ -550,6 +707,342 @@ export const crmFarmerService = {
                 limit,
                 total: items.length,
                 pages: Math.max(1, Math.ceil(items.length / limit)),
+            },
+        };
+    },
+    /** Full detail for one timeline row (id encodes source — see listHumanCrmInteractions). */
+    async getHumanCrmInteractionDetail(farmerId, _leadId, interactionId) {
+        const empty = {
+            id: interactionId,
+            source: 'unknown',
+            interactionType: 'Interaction',
+            summary: '',
+            status: '—',
+            by: '—',
+            role: '—',
+            createdLabel: '—',
+            at: new Date().toISOString(),
+            fields: [],
+            sections: [],
+            followUpTimeline: [],
+            products: [],
+        };
+        function parseProducts(raw) {
+            if (!Array.isArray(raw))
+                return [];
+            return raw.map((p) => {
+                if (typeof p === 'string')
+                    return { name: p };
+                if (p && typeof p === 'object') {
+                    const o = p;
+                    const name = String(o.tradeName ?? o.productTitle ?? o.title ?? o.technicalName ?? o.brand ?? 'Product');
+                    const detail = [
+                        o.technicalName ? `Technical: ${o.technicalName}` : '',
+                        o.dosageSchedule ? `Dosage: ${JSON.stringify(o.dosageSchedule)}` : '',
+                        o.reason ? String(o.reason) : '',
+                    ]
+                        .filter(Boolean)
+                        .join(' · ');
+                    return { name, detail: detail || undefined };
+                }
+                return { name: 'Product' };
+            });
+        }
+        function field(label, value) {
+            if (value == null || value === '')
+                return null;
+            return { label, value: String(value) };
+        }
+        if (interactionId.startsWith('rec-wa-')) {
+            const recId = interactionId.slice('rec-wa-'.length);
+            const { data: rec, error } = await supabase
+                .from('recommendation_records')
+                .select('*, farm_blocks(name, crop_name)')
+                .eq('id', recId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load recommendation');
+            if (!rec)
+                return empty;
+            const { data: followRows } = await supabase
+                .from('recommendation_follow_ups')
+                .select('id, phase, status, farmer_response, scheduled_at, sent_at, responded_at, created_at')
+                .eq('recommendation_record_id', recId)
+                .order('created_at', { ascending: false });
+            const block = rec.farm_blocks;
+            const products = parseProducts(rec.products);
+            const followUps = (followRows ?? [])
+                .sort((a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime())
+                .map((f) => ({
+                label: followUpPhaseLabel(String(f.phase ?? ''), f.farmer_response ? String(f.farmer_response) : null),
+                status: String(f.status ?? '—'),
+                atLabel: formatDateTime((f.responded_at ?? f.sent_at ?? f.scheduled_at ?? f.created_at)) ?? '—',
+                detail: f.farmer_response ? `Farmer: ${String(f.farmer_response).replace(/_/g, ' ')}` : undefined,
+            }));
+            const at = String(rec.communicated_at ?? rec.created_at);
+            return {
+                id: interactionId,
+                source: 'rec_record',
+                interactionType: 'Recommendation given via WhatsApp',
+                summary: String(rec.issue_detected ?? rec.trade_name ?? 'Crop advisory'),
+                status: String(rec.application_status ?? rec.status ?? 'communicated'),
+                by: 'Crop Doctor',
+                role: 'System',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Issue detected', rec.issue_detected),
+                    field('Technical', rec.technical_name),
+                    field('Product', rec.trade_name),
+                    field('Application', rec.application_type),
+                    field('Dosage', rec.dosage),
+                    field('DAP at recommendation', rec.dap_at_recommendation),
+                    field('Block', block?.name ?? block?.crop_name),
+                    field('Language', rec.language),
+                    field('Source', rec.source),
+                    field('Outcome', rec.outcome),
+                    field('Weather note', rec.weather_warning),
+                ].filter(Boolean),
+                sections: rec.recommendation_text
+                    ? [{ title: 'Recommendation text', content: String(rec.recommendation_text) }]
+                    : [],
+                followUpTimeline: followUps,
+                products,
+            };
+        }
+        if (interactionId.startsWith('follow-')) {
+            const followId = interactionId.slice('follow-'.length);
+            const { data: f, error } = await supabase
+                .from('recommendation_follow_ups')
+                .select('*, recommendation_records(*)')
+                .eq('id', followId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load follow-up');
+            if (!f)
+                return empty;
+            const rec = f.recommendation_records;
+            const at = String(f.responded_at ?? f.sent_at ?? f.scheduled_at ?? f.created_at);
+            const response = f.farmer_response ? String(f.farmer_response) : null;
+            return {
+                id: interactionId,
+                source: 'follow_up',
+                interactionType: followUpPhaseLabel(String(f.phase), response),
+                summary: String(rec?.issue_detected ?? rec?.trade_name ?? 'Follow-up'),
+                status: String(f.status ?? '—'),
+                by: response ? 'Farmer' : 'System',
+                role: response ? 'Farmer' : 'WhatsApp',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Phase', f.phase),
+                    field('Farmer response', response?.replace(/_/g, ' ')),
+                    field('Scheduled', formatDateTime(f.scheduled_at)),
+                    field('Sent', formatDateTime(f.sent_at)),
+                    field('Issue', rec?.issue_detected),
+                    field('Product', rec?.trade_name ?? rec?.technical_name),
+                ].filter(Boolean),
+                sections: [],
+                followUpTimeline: [],
+                products: parseProducts(rec?.products),
+            };
+        }
+        if (interactionId.startsWith('call-')) {
+            const callId = interactionId.slice('call-'.length);
+            const { data: c, error } = await supabase
+                .from('crm_call_logs')
+                .select('*')
+                .eq('id', callId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load call');
+            if (!c)
+                return empty;
+            const at = String(c.created_at);
+            return {
+                id: interactionId,
+                source: 'call',
+                interactionType: 'Telecaller conversation done',
+                summary: `Phone call — ${c.outcome ?? 'completed'}`,
+                status: String(c.outcome ?? 'completed'),
+                by: String(c.agent_email ?? 'Telecaller'),
+                role: 'Telecaller',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Outcome', c.outcome),
+                    field('Duration (sec)', c.duration_seconds),
+                    field('Direction', c.direction),
+                ].filter(Boolean),
+                sections: c.notes ? [{ title: 'Call notes', content: String(c.notes) }] : [],
+                followUpTimeline: [],
+                products: [],
+            };
+        }
+        if (interactionId.startsWith('task-')) {
+            const rest = interactionId.slice('task-'.length);
+            let taskId = rest;
+            if (rest.endsWith('-done') || rest.endsWith('-created')) {
+                const parts = rest.split('-');
+                taskId = parts.slice(0, -1).join('-');
+            }
+            const { data: t, error } = await supabase
+                .from('crm_tasks')
+                .select('*')
+                .eq('id', taskId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load task');
+            if (!t)
+                return empty;
+            const isDone = String(t.status ?? '') === 'done';
+            const at = isDone && t.updated_at ? String(t.updated_at) : String(t.created_at);
+            const dueIso = t.due_at ? String(t.due_at) : '';
+            return {
+                id: interactionId,
+                source: 'task',
+                interactionType: isDone ? 'Follow-up completed' : 'Follow-up scheduled',
+                summary: String(t.notes ? `${t.title} — ${t.notes}` : t.title ?? 'Follow-up task'),
+                status: isDone ? 'Completed' : 'Pending',
+                completionStatus: isDone ? 'completed' : 'pending',
+                canEdit: !isDone && String(t.status ?? '') !== 'cancelled',
+                taskId: String(t.id),
+                by: String(t.assigned_to ?? 'Telecaller'),
+                role: 'Telecaller',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Task type', t.task_type),
+                    field('Due', formatDateTime(t.due_at)),
+                    field('Priority', t.priority),
+                ].filter(Boolean),
+                sections: t.notes ? [{ title: 'Task notes', content: String(t.notes) }] : [],
+                followUpTimeline: [],
+                products: [],
+                editForm: {
+                    kind: 'task',
+                    title: String(t.title ?? ''),
+                    notes: t.notes ? String(t.notes) : '',
+                    dueAt: dueIso,
+                },
+            };
+        }
+        if (interactionId.startsWith('crm-rec-')) {
+            const recId = interactionId.slice('crm-rec-'.length);
+            const { data: r, error } = await supabase
+                .from('crm_recommendations')
+                .select('*, farm_blocks(name, crop_name)')
+                .eq('id', recId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load recommendation');
+            if (!r)
+                return empty;
+            const block = r.farm_blocks;
+            const at = String(r.created_at);
+            return {
+                id: interactionId,
+                source: 'recommendation',
+                interactionType: 'Recommendation given',
+                summary: String(r.recommendation ?? r.problem ?? '—').slice(0, 200),
+                status: String(r.status ?? 'active'),
+                by: String(r.recommended_by ?? 'Agronomist'),
+                role: 'Agronomist',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Problem', r.problem),
+                    field('Dosage', r.dosage),
+                    field('Application', r.application_method),
+                    field('Follow-up', formatDateTime(r.follow_up_at)),
+                    field('Block', block?.name ?? block?.crop_name),
+                ].filter(Boolean),
+                sections: [
+                    { title: 'Recommendation', content: String(r.recommendation ?? '—') },
+                ],
+                followUpTimeline: [],
+                products: parseProducts(r.products),
+            };
+        }
+        if (interactionId.startsWith('visit-')) {
+            const visitId = interactionId.slice('visit-'.length);
+            const { data: v, error } = await supabase
+                .from('crm_field_findings')
+                .select('*')
+                .eq('id', visitId)
+                .eq('farmer_id', farmerId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load field visit');
+            if (!v)
+                return empty;
+            const at = String(v.visited_at ?? v.created_at);
+            return {
+                id: interactionId,
+                source: 'visit',
+                interactionType: 'Agronomist field visit arranged',
+                summary: String(v.observations ?? v.disease_pest ?? 'Field visit'),
+                status: 'Completed',
+                by: String(v.agronomist_name ?? 'Agronomist'),
+                role: 'Agronomist',
+                createdLabel: formatDateTime(at) ?? '—',
+                at,
+                fields: [
+                    field('Crop', v.crop_type),
+                    field('Disease / pest', v.disease_pest),
+                    field('Action taken', v.action_taken),
+                    field('Follow-up', formatDateTime(v.follow_up_at)),
+                ].filter(Boolean),
+                sections: v.observations
+                    ? [{ title: 'Observations', content: String(v.observations) }]
+                    : [],
+                followUpTimeline: [],
+                products: [],
+            };
+        }
+        const { data: log, error } = await supabase
+            .from('interaction_logs')
+            .select('*')
+            .eq('id', interactionId)
+            .eq('farmer_id', farmerId)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load interaction log');
+        if (!log) {
+            throw new NotFoundError('Interaction not found');
+        }
+        const mapped = mapInteraction(log);
+        const at = String(log.created_at);
+        const archived = String(log.status ?? '') === 'archived';
+        return {
+            id: interactionId,
+            source: 'log',
+            interactionType: mapped.typeLabel,
+            summary: String(mapped.summary || log.content || ''),
+            status: mapped.status,
+            completionStatus: archived ? 'completed' : 'completed',
+            canEdit: !archived,
+            taskId: null,
+            by: String(mapped.by),
+            role: String(mapped.role),
+            createdLabel: mapped.atLabel ?? formatDateTime(at) ?? '—',
+            at,
+            fields: [
+                field('Channel', log.channel),
+                field('Direction', log.direction),
+                field('Next action', log.next_action),
+                field('Next action at', formatDateTime(log.next_action_at)),
+            ].filter(Boolean),
+            sections: [
+                ...(log.summary ? [{ title: 'Summary', content: String(log.summary) }] : []),
+                ...(log.content && log.content !== log.summary
+                    ? [{ title: 'Notes', content: String(log.content) }]
+                    : []),
+            ],
+            followUpTimeline: [],
+            products: [],
+            editForm: {
+                kind: 'log',
+                summary: String(log.summary ?? ''),
+                content: String(log.content ?? log.summary ?? ''),
             },
         };
     },
@@ -699,36 +1192,12 @@ export const crmFarmerService = {
         return { blocks, agronomist, interactions, recommendations, orders, internalNotes };
     },
     async listFarmerOrders(farmerId) {
-        const manual = await this.listManualOrders(farmerId);
-        const { data: farmer } = await supabase.from('farmers').select('phone').eq('id', farmerId).single();
-        const phone = String(farmer?.phone ?? '').replace(/\D/g, '').slice(-10);
-        const commerce = [];
-        if (phone) {
-            const { data } = await supabase
-                .from('commerce_orders')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(100);
-            for (const o of (data ?? []).filter((row) => String(row.phone ?? '').replace(/\D/g, '').slice(-10) === phone).slice(0, 20)) {
-                commerce.push({
-                    id: o.order_name ?? o.id,
-                    orderRef: o.order_name,
-                    dateLabel: formatDateTime(o.created_at),
-                    product: o.order_name ?? 'Order',
-                    qty: 1,
-                    amount: Number(o.total_amount) || 0,
-                    status: 'Delivered',
-                    statusTone: 'success',
-                    payment: 'Paid Online',
-                    deliveryDate: formatDateTime(o.created_at) ?? '—',
-                    deliveryBy: 'Courier',
-                    block: '—',
-                    source: 'commerce',
-                });
-            }
-        }
-        const orders = [...manual, ...commerce].sort((a, b) => new Date(String(b.dateLabel)).getTime() - new Date(String(a.dateLabel)).getTime());
-        return { orders };
+        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
+        return telecallerFarmerOrdersService.listForFarmer(farmerId);
+    },
+    async getFarmerOrderDetail(farmerId, orderId) {
+        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
+        return telecallerFarmerOrdersService.getDetail(farmerId, orderId);
     },
     async ensureDemoBlocks(farmerId) {
         const existing = await this.listBlocks(farmerId);
@@ -816,14 +1285,7 @@ export const crmFarmerService = {
             .order('visited_at', { ascending: false })
             .limit(limit);
         throwIfSupabaseError(error, 'Could not load visits');
-        return (data ?? []).map((r) => ({
-            id: r.id,
-            visitedLabel: formatDateTime(r.visited_at),
-            agronomistName: r.agronomist_name,
-            diseasePest: r.disease_pest,
-            observations: r.observations,
-            spad: (r.parameters ?? []).find((p) => p.label === 'SPAD')?.value,
-        }));
+        return (data ?? []).map((r) => mapFinding(r));
     },
     async archiveFieldFinding(id) {
         const { error } = await supabase
@@ -886,6 +1348,17 @@ export const crmFarmerService = {
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not schedule visit');
+        const taskId = data?.id ? String(data.id) : '';
+        if (taskId && input.assignedTo) {
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.trackSiteVisitScheduled({
+                farmerId,
+                taskId,
+                employeeEmail: input.assignedTo,
+                dueAt: due.toISOString(),
+                blockId: input.blockId ?? null,
+            });
+        }
         const ics = buildIcsEvent({
             uid: String(data.id),
             title,
@@ -918,7 +1391,8 @@ export const crmFarmerService = {
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not create order');
-        return mapManualOrder(data);
+        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
+        return telecallerFarmerOrdersService.getDetail(farmerId, String(data.id));
     },
     async convertRecommendationToOrder(recommendationId, farmerId, leadId, createdBy) {
         const { data: rec, error } = await supabase
@@ -1075,13 +1549,25 @@ function mapBlock(r) {
     };
 }
 function mapFinding(r) {
+    const params = (r.parameters ?? []).map((p) => ({
+        label: String(p.label ?? ''),
+        value: String(p.value ?? ''),
+    }));
+    const param = (needle) => params.find((p) => p.label.toLowerCase().includes(needle.toLowerCase()))?.value;
+    const photos = Array.isArray(r.photo_urls) ? r.photo_urls.filter(Boolean) : [];
     return {
+        id: r.id ? String(r.id) : undefined,
         agronomistName: r.agronomist_name,
         diseasePest: r.disease_pest,
         observations: r.observations,
-        parameters: r.parameters,
+        parameters: params,
         visitedLabel: formatDateTime(r.visited_at),
-        spad: r.parameters?.find((p) => p.label === 'SPAD')?.value,
+        spad: param('spad'),
+        shootCount: param('shoot'),
+        leafCount: param('leaf'),
+        moisture: param('moisture'),
+        pestPressure: param('pest'),
+        photoUrls: photos,
     };
 }
 function mapRecommendation(r) {
@@ -1102,6 +1588,84 @@ function mapRecommendation(r) {
         statusTone: r.status === 'active' ? 'info' : r.status === 'completed' ? 'success' : 'warning',
         followUpLabel: formatDateTime(r.follow_up_at),
         recType: r.rec_type,
+    };
+}
+function interactionTypeMeta(source, interactionType) {
+    const t = interactionType.toLowerCase();
+    if (source === 'call')
+        return { typeKey: 'call', typeIcon: '📞', typeCategory: 'Call' };
+    if (source === 'task')
+        return { typeKey: 'follow_up', typeIcon: '🔔', typeCategory: 'Follow-up' };
+    if (source === 'visit')
+        return { typeKey: 'field_visit', typeIcon: '🌾', typeCategory: 'Field visit' };
+    if (source === 'recommendation') {
+        return { typeKey: 'recommendation', typeIcon: '📋', typeCategory: 'Recommendation' };
+    }
+    if (source === 'rec_record') {
+        return { typeKey: 'whatsapp', typeIcon: '💬', typeCategory: 'WhatsApp' };
+    }
+    if (source === 'follow_up') {
+        return { typeKey: 'whatsapp', typeIcon: '💬', typeCategory: 'WhatsApp' };
+    }
+    if (t.includes('whatsapp'))
+        return { typeKey: 'whatsapp', typeIcon: '💬', typeCategory: 'WhatsApp' };
+    if (t.includes('order'))
+        return { typeKey: 'order', typeIcon: '🛒', typeCategory: 'Order' };
+    if (t.includes('soil'))
+        return { typeKey: 'soil_report', typeIcon: '🧪', typeCategory: 'Soil report' };
+    if (t.includes('lead'))
+        return { typeKey: 'lead_created', typeIcon: '✨', typeCategory: 'Lead created' };
+    if (t.includes('ai') || t.includes('diagnosis')) {
+        return { typeKey: 'ai_diagnosis', typeIcon: '🤖', typeCategory: 'AI diagnosis' };
+    }
+    if (t.includes('reminder'))
+        return { typeKey: 'reminder', typeIcon: '⏰', typeCategory: 'Reminder' };
+    if (t.includes('visit'))
+        return { typeKey: 'field_visit', typeIcon: '🌾', typeCategory: 'Field visit' };
+    return { typeKey: 'note', typeIcon: '📝', typeCategory: 'Note' };
+}
+function interactionStatusMeta(status, completionStatus, source) {
+    if (completionStatus === 'pending') {
+        return { displayStatus: 'Pending', statusTone: 'warning' };
+    }
+    const s = status.toLowerCase();
+    if (s.includes('review'))
+        return { displayStatus: 'Under Review', statusTone: 'review' };
+    if (s === 'sent')
+        return { displayStatus: 'Sent', statusTone: 'info' };
+    if (s === 'active')
+        return { displayStatus: 'Active', statusTone: 'purple' };
+    if (s === 'delivered')
+        return { displayStatus: 'Delivered', statusTone: 'success' };
+    if (s === 'completed' || s === 'done' || s === 'resolved') {
+        return { displayStatus: 'Completed', statusTone: 'success' };
+    }
+    if (source === 'rec_record' || source === 'follow_up') {
+        return { displayStatus: status.charAt(0).toUpperCase() + status.slice(1), statusTone: 'info' };
+    }
+    return { displayStatus: 'Completed', statusTone: 'success' };
+}
+function buildNextActionLabel(nextAction, nextActionAt, dueLabel, completionStatus) {
+    if (nextAction && nextAction !== '—') {
+        const atLabel = nextActionAt ? formatDateTime(nextActionAt) : null;
+        return atLabel ? `${nextAction} — ${atLabel}` : nextAction;
+    }
+    if (dueLabel && completionStatus === 'pending') {
+        return `Follow-up — ${dueLabel}`;
+    }
+    return null;
+}
+function enrichTimelineRow(row) {
+    const typeMeta = interactionTypeMeta(row.source, row.interactionType);
+    const statusMeta = interactionStatusMeta(row.status, row.completionStatus, row.source);
+    return {
+        ...row,
+        ...typeMeta,
+        displayStatus: statusMeta.displayStatus,
+        statusTone: statusMeta.statusTone,
+        nextActionLabel: buildNextActionLabel(row.nextAction, row.nextActionAt, row.dueLabel, row.completionStatus),
+        blockName: row.blockName ?? null,
+        blockId: row.blockId ?? null,
     };
 }
 function followUpPhaseLabel(phase, response) {

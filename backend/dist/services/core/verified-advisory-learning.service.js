@@ -6,7 +6,25 @@ import { blockService } from './block.service.js';
 import { buildCrossLanguageIntentSlug, pickLocalizedFarmerSummary, } from '../whatsapp/pipeline/crop-message-intent.service.js';
 import { pickLatestOutput, textsLikelySame } from '../admin/case-review-inquiry.util.js';
 import { isAgricultureMessage } from '../whatsapp/pipeline/crop-message-intent.service.js';
+import { terminologyService } from '../whatsapp/scenarios/terminology.service.js';
 const VERIFIED_CONFIDENCE = 0.88;
+/** Enrich farmer text with meanings from agronomy_terms (agronomist-approved regional words). */
+async function expandFarmerTextWithAgronomyTerms(text, opts) {
+    const parts = [text.trim()];
+    const tokens = text.split(/\s+/).filter((w) => w.replace(/[^\p{L}\p{N}]/gu, '').length >= 3);
+    const seen = new Set();
+    for (const token of tokens.slice(0, 10)) {
+        const key = token.trim().toLowerCase();
+        if (!key || seen.has(key))
+            continue;
+        seen.add(key);
+        const resolved = await terminologyService.resolveTerm(token, opts.language, opts.district, opts.cropType);
+        if (resolved.found && resolved.meaning) {
+            parts.push(resolved.meaning);
+        }
+    }
+    return parts.filter(Boolean).join(' ');
+}
 function uniqueSymptomKeys(sources) {
     const keys = new Set();
     for (const raw of sources) {
@@ -75,9 +93,11 @@ export const verifiedAdvisoryLearningService = {
         const dap = primary?.dap ?? 0;
         const district = farmer?.district != null ? String(farmer.district).trim().toLowerCase() : null;
         const intentSlug = buildCrossLanguageIntentSlug(cropType, [session?.symptomsText, session?.voiceTranscript].filter(Boolean).join(' '), input.issueLabel);
+        const expandedQuestion = await expandFarmerTextWithAgronomyTerms([session?.symptomsText, session?.voiceTranscript].filter(Boolean).join(' '), { cropType, district, language: 'en' });
         const symptomKeys = uniqueSymptomKeys([
             session?.symptomsText,
             session?.voiceTranscript,
+            expandedQuestion,
             input.issueLabel,
             intentSlug,
             ...(input.extraSymptomSources ?? []),
@@ -175,13 +195,18 @@ export const verifiedAdvisoryLearningService = {
             const primary = await blockService.getPrimaryBlock(params.farmerId);
             dap = primary?.dap ?? 0;
         }
+        const lang = params.language ?? 'en';
+        const expandedText = await expandFarmerTextWithAgronomyTerms(params.text.trim(), {
+            cropType: params.cropType.toLowerCase(),
+            district,
+            language: lang,
+        });
         const match = await aiReuseService.findReusableForFarmerMessage({
             cropType: params.cropType.toLowerCase(),
             district,
             dapBucket: buildDapBucket(dap),
-            text: params.text.trim(),
+            text: expandedText || params.text.trim(),
         });
-        const lang = params.language ?? 'en';
         if (match) {
             return {
                 advisory: {
@@ -218,7 +243,9 @@ export const verifiedAdvisoryLearningService = {
             .limit(5);
         for (const row of sessions ?? []) {
             const prevQ = String(row.symptoms_text ?? '').trim();
-            if (!prevQ || textsLikelySame(prevQ, params.text))
+            if (!prevQ)
+                continue;
+            if (!textsLikelySame(prevQ, params.text))
                 continue;
             const latest = pickLatestOutput(row.ai_advisory_outputs);
             if (!latest)

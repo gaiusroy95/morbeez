@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { buildDapBucket } from '../ai/ai-reuse.service.js';
+import { terminologyDictionaryService } from '../regional-terminology/terminology-dictionary.service.js';
+import { terminologyEscalationService } from '../regional-terminology/terminology-escalation.service.js';
 import { verifiedAdvisoryLearningService } from './verified-advisory-learning.service.js';
 /**
  * Phase 5 — close the loop: staff-verified knowledge → reuse cache + terminology library.
@@ -10,16 +12,27 @@ export const learningLoopService = {
         const term = params.term.trim().toLowerCase();
         if (!term || !params.meaning.trim())
             return;
-        await supabase.from('agronomy_terms').upsert({
+        await terminologyDictionaryService.upsertApproved({
             term,
             language: params.language || 'en',
-            meaning: params.meaning.trim().slice(0, 500),
-            crop_type: params.cropType ?? null,
-            district: params.district ?? null,
-            confidence: 0.92,
-            created_by: 'agronomist',
-            updated_at: new Date().toISOString(),
-        }, { onConflict: 'term,language,crop_type,district' });
+            meaning: params.meaning,
+            standardTerm: params.standardTerm ?? params.meaning,
+            cropType: params.cropType,
+            district: params.district,
+            approvedBy: params.resolvedBy,
+        });
+        await terminologyEscalationService.recordLearningHistory({
+            term,
+            language: params.language || 'en',
+            meaning: params.meaning.trim(),
+            standardTerm: params.standardTerm ?? null,
+            cropType: params.cropType,
+            district: params.district,
+            action: 'approved',
+            taskId: params.taskId,
+            farmerId: params.farmerId,
+            approvedBy: params.resolvedBy ?? null,
+        });
         if (params.farmerId) {
             const { data: farmer } = await supabase
                 .from('farmers')

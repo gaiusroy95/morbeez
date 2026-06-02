@@ -3,6 +3,8 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
+import { crmFarmerService } from './crm-farmer.service.js';
+import { escalationAdminService } from './escalation-admin.service.js';
 const STAGE_LABELS = {
     new_lead: 'New Lead',
     interested: 'Interested',
@@ -51,6 +53,21 @@ function formatDateTime(iso) {
     catch {
         return iso;
     }
+}
+function isDueTodayIso(iso) {
+    if (!iso)
+        return false;
+    const due = new Date(iso);
+    const now = new Date();
+    return (due.getFullYear() === now.getFullYear() &&
+        due.getMonth() === now.getMonth() &&
+        due.getDate() === now.getDate());
+}
+function dueSortKey(iso) {
+    if (!iso)
+        return Number.MAX_SAFE_INTEGER;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
 }
 function mapLeadRow(row) {
     const farmer = row.farmers;
@@ -104,7 +121,10 @@ export const telecallerAdminService = {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayIso = todayStart.toISOString();
-        const [callsRes, tasksRes, leadsRes, ordersRes] = await Promise.all([
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+        const tomorrowIso = tomorrowStart.toISOString();
+        const [callsRes, tasksRes, dueTodayRes, leadsRes, ordersRes] = await Promise.all([
             supabase
                 .from('crm_call_logs')
                 .select('id', { count: 'exact', head: true })
@@ -116,6 +136,13 @@ export const telecallerAdminService = {
                 .eq('status', 'pending')
                 .or(`assigned_to.eq.${agentEmail},assigned_to.is.null`),
             supabase
+                .from('crm_tasks')
+                .select('id', { count: 'exact', head: true })
+                .eq('status', 'pending')
+                .gte('due_at', todayIso)
+                .lt('due_at', tomorrowIso)
+                .or(`assigned_to.eq.${agentEmail},assigned_to.is.null`),
+            supabase
                 .from('leads')
                 .select('id', { count: 'exact', head: true })
                 .eq('stage', 'interested'),
@@ -123,6 +150,7 @@ export const telecallerAdminService = {
         ]);
         throwIfSupabaseError(callsRes.error, 'Could not load overview');
         throwIfSupabaseError(tasksRes.error, 'Could not load overview');
+        throwIfSupabaseError(dueTodayRes.error, 'Could not load overview');
         throwIfSupabaseError(leadsRes.error, 'Could not load overview');
         throwIfSupabaseError(ordersRes.error, 'Could not load overview');
         const monthStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), 1);
@@ -144,6 +172,7 @@ export const telecallerAdminService = {
         return {
             callsToday: callsRes.count ?? 0,
             pendingFollowUps: tasksRes.count ?? 0,
+            followUpsDueToday: dueTodayRes.count ?? 0,
             interestedFarmers: interested,
             ordersGenerated,
             revenue: Math.round(revenue),
@@ -186,8 +215,10 @@ export const telecallerAdminService = {
                 .eq('assigned_to', agentEmail),
             supabase.from('leads').select('id', { count: 'exact', head: true }),
         ]);
+        const { telecallerIntelligenceService } = await import('../intelligence/telecaller-intelligence.service.js');
+        const enriched = await telecallerIntelligenceService.enrichLeadRows(rows);
         return {
-            leads: rows,
+            leads: enriched,
             counts: { mine: myCount ?? 0, all: allCount ?? 0 },
             pagination: {
                 page,
@@ -404,6 +435,25 @@ export const telecallerAdminService = {
             farmerNotes: input.farmerNotes,
             cropBlocks: input.cropBlocks,
         });
+        if (input.preferredMarkets?.length) {
+            const { whatsappOsAdminService } = await import('./whatsapp-os-admin.service.js');
+            await whatsappOsAdminService.saveFarmerMarketPreferences({
+                farmerId: result.farmer.id,
+                cropType: input.cropType || input.cropBlocks?.[0]?.cropName || undefined,
+                markets: input.preferredMarkets
+                    .map((m) => {
+                    const [marketNameRaw, districtRaw] = m.marketKey.split('|');
+                    const marketName = marketNameRaw?.trim();
+                    if (!marketName)
+                        return null;
+                    return {
+                        marketName,
+                        district: districtRaw?.trim() || null,
+                    };
+                })
+                    .filter((m) => Boolean(m)),
+            });
+        }
         await supabase
             .from('leads')
             .update({
@@ -416,6 +466,14 @@ export const telecallerAdminService = {
         if (input.state) {
             await supabase.from('farmers').update({ state: input.state }).eq('id', result.farmer.id);
         }
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackFarmerOnboarded({
+            farmerId: result.farmer.id,
+            leadId: String(result.lead.id),
+            source: 'phone',
+            intent: 'general',
+            assignedTo: agentEmail,
+        });
         return this.getLeadDetail(String(result.lead.id));
     },
     async updateLead(leadId, patch, agentEmail) {
@@ -441,8 +499,124 @@ export const telecallerAdminService = {
         if (patch.stage) {
             await logInteraction(data.farmer_id, 'crm', `Lead stage updated to ${STAGE_LABELS[patch.stage] ?? patch.stage} by ${agentEmail}`);
         }
+        if (patch.assignedTo) {
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.trackLeadAssignment(data.farmer_id, patch.assignedTo);
+        }
         await touchLead(leadId, data.farmer_id);
         return this.getLeadDetail(leadId);
+    },
+    async listLeadNotes(leadId) {
+        const { data: lead } = await supabase.from('leads').select('farmer_id, notes').eq('id', leadId).single();
+        if (!lead)
+            throw new NotFoundError('Lead not found');
+        const { data, error } = await supabase
+            .from('telecaller_notes')
+            .select('*')
+            .eq('farmer_id', lead.farmer_id)
+            .order('created_at', { ascending: false })
+            .limit(80);
+        throwIfSupabaseError(error, 'Could not load notes');
+        const rows = (data ?? []).map((n) => {
+            const body = String(n.note ?? '');
+            return {
+                id: String(n.id),
+                summary: body.slice(0, 160),
+                note: body,
+                author: String(n.author ?? 'Telecaller'),
+                createdLabel: formatDateTime(n.created_at) ?? '—',
+                at: String(n.created_at),
+                canEdit: true,
+                isLegacy: false,
+            };
+        });
+        if (rows.length === 0 && lead.notes) {
+            const chunks = String(lead.notes)
+                .split(/\n{2,}/)
+                .map((s) => s.trim())
+                .filter((s) => s.length > 0);
+            const legacyChunks = chunks.length > 1
+                ? chunks
+                : String(lead.notes)
+                    .split('\n')
+                    .map((s) => s.trim())
+                    .filter((s) => s.length > 20);
+            legacyChunks.forEach((chunk, i) => {
+                rows.push({
+                    id: `legacy-${i}`,
+                    summary: chunk.slice(0, 160),
+                    note: chunk,
+                    author: 'Historical',
+                    createdLabel: '—',
+                    at: new Date(0).toISOString(),
+                    canEdit: false,
+                    isLegacy: true,
+                });
+            });
+        }
+        return { notes: rows };
+    },
+    async getLeadNote(leadId, noteId) {
+        const { data: lead } = await supabase.from('leads').select('farmer_id, notes').eq('id', leadId).single();
+        if (!lead)
+            throw new NotFoundError('Lead not found');
+        if (noteId.startsWith('legacy-')) {
+            const index = Number(noteId.slice('legacy-'.length));
+            const listed = await this.listLeadNotes(leadId);
+            const row = listed.notes.find((n) => n.id === noteId);
+            if (!row)
+                throw new NotFoundError('Note not found');
+            return {
+                id: noteId,
+                summary: row.summary,
+                note: row.note,
+                author: row.author,
+                createdLabel: row.createdLabel,
+                at: row.at,
+                canEdit: false,
+                isLegacy: true,
+                legacyIndex: index,
+            };
+        }
+        const { data: n, error } = await supabase
+            .from('telecaller_notes')
+            .select('*')
+            .eq('id', noteId)
+            .eq('farmer_id', lead.farmer_id)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load note');
+        if (!n)
+            throw new NotFoundError('Note not found');
+        const body = String(n.note ?? '');
+        return {
+            id: String(n.id),
+            summary: body.slice(0, 160),
+            note: body,
+            author: String(n.author ?? 'Telecaller'),
+            createdLabel: formatDateTime(n.created_at) ?? '—',
+            at: String(n.created_at),
+            canEdit: true,
+            isLegacy: false,
+        };
+    },
+    async updateLeadNote(leadId, noteId, note, agentEmail) {
+        if (noteId.startsWith('legacy-')) {
+            throw new NotFoundError('Historical notes cannot be edited. Add a new note instead.');
+        }
+        const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
+        if (!lead)
+            throw new NotFoundError('Lead not found');
+        const { data, error } = await supabase
+            .from('telecaller_notes')
+            .update({ note: note.trim() })
+            .eq('id', noteId)
+            .eq('farmer_id', lead.farmer_id)
+            .select()
+            .single();
+        throwIfSupabaseError(error, 'Could not update note');
+        await logInteraction(lead.farmer_id, 'note', `${agentEmail} updated note`);
+        await touchLead(leadId, lead.farmer_id);
+        return data;
     },
     async addNote(leadId, note, agentEmail) {
         const { data } = await supabase.from('leads').select('farmer_id, notes').eq('id', leadId).single();
@@ -486,7 +660,40 @@ export const telecallerAdminService = {
         }
         return data;
     },
+    async updateTask(taskId, input) {
+        const updates = { updated_at: new Date().toISOString() };
+        if (input.title !== undefined)
+            updates.title = input.title;
+        if (input.notes !== undefined)
+            updates.notes = input.notes;
+        if (input.dueAt !== undefined)
+            updates.due_at = input.dueAt;
+        if (input.markDone) {
+            updates.status = 'done';
+            updates.completed_at = new Date().toISOString();
+        }
+        else if (input.markPending) {
+            updates.status = 'pending';
+            updates.completed_at = null;
+        }
+        const { data: task, error } = await supabase
+            .from('crm_tasks')
+            .update(updates)
+            .eq('id', taskId)
+            .select('lead_id, due_at')
+            .single();
+        throwIfSupabaseError(error, 'Could not update task');
+        if (task?.lead_id && input.dueAt !== undefined) {
+            await supabase.from('leads').update({ follow_up_at: input.dueAt }).eq('id', task.lead_id);
+        }
+        return task;
+    },
     async completeTask(taskId) {
+        const { data: task } = await supabase
+            .from('crm_tasks')
+            .select('farmer_id, assigned_to')
+            .eq('id', taskId)
+            .maybeSingle();
         const { error } = await supabase
             .from('crm_tasks')
             .update({
@@ -496,6 +703,14 @@ export const telecallerAdminService = {
         })
             .eq('id', taskId);
         throwIfSupabaseError(error, 'Could not complete task');
+        if (task?.farmer_id && task.assigned_to) {
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.trackCrmFollowUpCompleted({
+                farmerId: String(task.farmer_id),
+                taskId,
+                agentEmail: String(task.assigned_to),
+            });
+        }
     },
     async logCall(leadId, input, agentEmail) {
         const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
@@ -515,6 +730,187 @@ export const telecallerAdminService = {
         await touchLead(leadId, lead.farmer_id);
         return this.getLeadDetail(leadId);
     },
+    /** All pending work for a lead: CRM tasks, interactions, field follow-ups, escalations, AI approval. */
+    async listLeadPendingTasks(leadId) {
+        const { data: lead, error: leadErr } = await supabase
+            .from('leads')
+            .select('farmer_id, farmers(name, first_name, last_name, phone)')
+            .eq('id', leadId)
+            .single();
+        if (leadErr || !lead)
+            throw new NotFoundError('Lead not found');
+        const farmerId = String(lead.farmer_id);
+        const farmersRel = lead.farmers;
+        const farmer = Array.isArray(farmersRel) ? farmersRel[0] : farmersRel;
+        const farmerName = farmer ? displayFarmerName(farmer) : 'Farmer';
+        const [tasksRes, fieldRes, escRows, aiRes, crmRecRes, interactionsPack,] = await Promise.all([
+            supabase
+                .from('crm_tasks')
+                .select('*')
+                .eq('farmer_id', farmerId)
+                .eq('status', 'pending')
+                .order('due_at', { ascending: true })
+                .limit(100),
+            supabase
+                .from('crm_field_findings')
+                .select('id, block_name, follow_up_at, disease_pest, observations')
+                .eq('farmer_id', farmerId)
+                .is('archived_at', null)
+                .not('follow_up_at', 'is', null)
+                .order('follow_up_at', { ascending: true })
+                .limit(50),
+            escalationAdminService.listForFarmer(farmerId),
+            supabase
+                .from('recommendation_records')
+                .select('id, issue_detected, recommendation_text, status, created_at, block_id')
+                .eq('farmer_id', farmerId)
+                .eq('status', 'pending_approval')
+                .order('created_at', { ascending: false })
+                .limit(30),
+            supabase
+                .from('crm_recommendations')
+                .select('id, recommendation, problem, status, follow_up_at, created_at')
+                .eq('farmer_id', farmerId)
+                .eq('status', 'pending')
+                .limit(30),
+            crmFarmerService.listHumanCrmInteractions(farmerId, leadId, 1, 120),
+        ]);
+        throwIfSupabaseError(tasksRes.error, 'Could not load lead tasks');
+        throwIfSupabaseError(fieldRes.error, 'Could not load field follow-ups');
+        throwIfSupabaseError(aiRes.error, 'Could not load AI approvals');
+        throwIfSupabaseError(crmRecRes.error, 'Could not load CRM recommendations');
+        const items = [];
+        const seenInteractionIds = new Set();
+        const crmTaskIds = new Set((tasksRes.data ?? []).map((t) => String(t.id)));
+        for (const t of tasksRes.data ?? []) {
+            const taskType = String(t.task_type ?? 'follow_up');
+            const dueAt = t.due_at ? String(t.due_at) : null;
+            const isVisit = taskType === 'visit';
+            items.push({
+                id: `crm-task-${t.id}`,
+                itemType: 'crm_task',
+                category: isVisit ? 'Field visit' : 'CRM task',
+                title: String(t.title ?? 'Follow-up'),
+                subtitle: taskType.replace(/_/g, ' '),
+                dueAt,
+                dueLabel: formatDateTime(dueAt) ?? '—',
+                isDueToday: isDueTodayIso(dueAt),
+                farmerName,
+                status: 'pending',
+                statusLabel: isVisit ? 'Visit scheduled' : 'Pending',
+                canComplete: true,
+                taskId: String(t.id),
+                navigateTab: null,
+            });
+        }
+        for (const f of fieldRes.data ?? []) {
+            const dueAt = f.follow_up_at ? String(f.follow_up_at) : null;
+            const block = String(f.block_name ?? 'Block');
+            const overdue = dueAt ? new Date(dueAt).getTime() < Date.now() : false;
+            items.push({
+                id: `field-${f.id}`,
+                itemType: 'field_follow_up',
+                category: 'Field follow-up',
+                title: `Agronomist field follow-up — ${block}`,
+                subtitle: String(f.disease_pest ?? f.observations ?? '').slice(0, 80) || null,
+                dueAt,
+                dueLabel: formatDateTime(dueAt) ?? '—',
+                isDueToday: isDueTodayIso(dueAt),
+                farmerName,
+                status: overdue ? 'overdue' : 'pending',
+                statusLabel: overdue ? 'Overdue' : 'Scheduled',
+                canComplete: false,
+                taskId: null,
+                navigateTab: 'findings',
+            });
+        }
+        for (const e of escRows) {
+            if (e.workflowStatus === 'completed')
+                continue;
+            items.push({
+                id: `esc-${e.id}`,
+                itemType: 'escalation',
+                category: 'Escalation',
+                title: String(e.summary || e.reason || 'Escalation'),
+                subtitle: e.priority ? `Priority: ${e.priority}` : null,
+                dueAt: e.createdAt ? String(e.createdAt) : null,
+                dueLabel: e.createdLabel ?? '—',
+                isDueToday: false,
+                farmerName,
+                status: e.workflowStatus,
+                statusLabel: e.statusLabel,
+                canComplete: false,
+                taskId: null,
+                navigateTab: 'escalations',
+            });
+        }
+        for (const r of aiRes.data ?? []) {
+            items.push({
+                id: `ai-${r.id}`,
+                itemType: 'ai_approval',
+                category: 'AI approval',
+                title: String(r.issue_detected ?? r.recommendation_text ?? 'Recommendation').slice(0, 120),
+                subtitle: 'Awaiting super admin approval',
+                dueAt: r.created_at ? String(r.created_at) : null,
+                dueLabel: formatDateTime(r.created_at) ?? '—',
+                isDueToday: false,
+                farmerName,
+                status: 'pending_approval',
+                statusLabel: 'Pending approval',
+                canComplete: false,
+                taskId: null,
+                navigateTab: 'agronomist',
+            });
+        }
+        for (const r of crmRecRes.data ?? []) {
+            const dueAt = r.follow_up_at ? String(r.follow_up_at) : null;
+            items.push({
+                id: `crm-rec-${r.id}`,
+                itemType: 'crm_recommendation',
+                category: 'Recommendation',
+                title: String(r.recommendation ?? r.problem ?? 'Product recommendation').slice(0, 120),
+                subtitle: 'CRM recommendation pending',
+                dueAt,
+                dueLabel: formatDateTime(dueAt) ?? formatDateTime(r.created_at) ?? '—',
+                isDueToday: isDueTodayIso(dueAt),
+                farmerName,
+                status: 'pending',
+                statusLabel: 'Pending',
+                canComplete: false,
+                taskId: null,
+                navigateTab: 'agronomist',
+            });
+        }
+        for (const ix of interactionsPack.interactions ?? []) {
+            if (ix.completionStatus !== 'pending')
+                continue;
+            const ixId = String(ix.id);
+            if (seenInteractionIds.has(ixId))
+                continue;
+            seenInteractionIds.add(ixId);
+            if (ix.taskId && crmTaskIds.has(String(ix.taskId)))
+                continue;
+            const dueAt = ix.nextActionAt ? String(ix.nextActionAt) : null;
+            items.push({
+                id: `ix-${ixId}`,
+                itemType: 'interaction',
+                category: 'Interaction',
+                title: String(ix.summary ?? ix.typeCategory ?? ix.interactionType ?? 'Interaction').slice(0, 120),
+                subtitle: String(ix.typeCategory ?? ix.interactionType ?? ''),
+                dueAt,
+                dueLabel: ix.dueLabel ?? formatDateTime(dueAt) ?? '—',
+                isDueToday: Boolean(ix.isDueToday),
+                farmerName,
+                status: 'pending',
+                statusLabel: String(ix.displayStatus ?? ix.status ?? 'Pending'),
+                canComplete: Boolean(ix.taskId),
+                taskId: ix.taskId ? String(ix.taskId) : null,
+                navigateTab: 'interactions',
+            });
+        }
+        items.sort((a, b) => dueSortKey(a.dueAt) - dueSortKey(b.dueAt));
+        return items;
+    },
     async listTasks(agentEmail, status = 'pending') {
         const { data, error } = await supabase
             .from('crm_tasks')
@@ -524,6 +920,15 @@ export const telecallerAdminService = {
             .order('due_at', { ascending: true })
             .limit(100);
         throwIfSupabaseError(error, 'Could not load tasks');
+        const now = new Date();
+        const isDueToday = (iso) => {
+            if (!iso)
+                return false;
+            const due = new Date(iso);
+            return (due.getFullYear() === now.getFullYear() &&
+                due.getMonth() === now.getMonth() &&
+                due.getDate() === now.getDate());
+        };
         return (data ?? []).map((t) => {
             const farmer = t.farmers;
             const name = farmer ? displayFarmerName(farmer) : 'Farmer';
@@ -531,6 +936,7 @@ export const telecallerAdminService = {
                 id: t.id,
                 title: t.title,
                 dueLabel: formatDateTime(t.due_at),
+                isDueToday: isDueToday(t.due_at),
                 status: t.status,
                 farmerName: name,
                 phone: farmer?.phone,
@@ -645,7 +1051,7 @@ export const telecallerAdminService = {
         const to = from + limit - 1;
         const { data, error, count } = await supabase
             .from('crm_field_findings')
-            .select('*', { count: 'exact' })
+            .select('*, farm_blocks(name, crop_name)', { count: 'exact' })
             .eq('farmer_id', farmerId)
             .is('archived_at', null)
             .order('visited_at', { ascending: false })
@@ -667,29 +1073,51 @@ export const telecallerAdminService = {
     mapFieldFinding(r) {
         const params = r.parameters ?? [];
         const photos = r.photo_urls ?? [];
+        const block = r.farm_blocks;
+        const blockName = String(r.block_name ?? block?.name ?? '—');
+        const cropType = String(r.crop_type ?? block?.crop_name ?? '—');
+        const diseaseTone = String(r.disease_tone ?? 'warning');
+        const followUpAt = r.follow_up_at ? String(r.follow_up_at) : null;
         return {
             id: r.id,
-            visitedAt: r.visited_at,
-            visitedLabel: formatDateTime(r.visited_at),
-            blockName: r.block_name,
-            cropType: r.crop_type,
+            visitedAt: r.visited_at ? String(r.visited_at) : null,
+            visitedLabel: formatDateTime(r.visited_at) ?? '—',
+            blockId: r.block_id ? String(r.block_id) : null,
+            blockName,
+            cropType,
             agronomistName: r.agronomist_name,
-            agronomistRole: r.agronomist_role,
+            agronomistRole: r.agronomist_role ?? 'Agronomist',
             agronomistInitials: String(r.agronomist_name || 'A')
                 .split(/\s+/)
                 .map((p) => p[0])
                 .join('')
                 .slice(0, 2)
                 .toUpperCase(),
-            observations: r.observations,
+            observations: r.observations ?? '',
             parameters: params,
-            diseasePest: r.disease_pest,
-            diseaseTone: r.disease_tone,
-            actionTaken: r.action_taken,
-            followUpLabel: formatDateTime(r.follow_up_at),
+            diseasePest: r.disease_pest ?? '—',
+            diseaseTone,
+            diseaseLabel: String(r.disease_pest ?? '—'),
+            actionTaken: r.action_taken ?? '',
+            followUpAt,
+            followUpLabel: followUpAt ? formatDateTime(followUpAt) ?? '—' : '—',
             photoUrls: photos,
             photoCount: photos.length,
+            extraPhotoCount: Math.max(0, photos.length - 2),
         };
+    },
+    async getFieldFinding(farmerId, findingId) {
+        const { data, error } = await supabase
+            .from('crm_field_findings')
+            .select('*, farm_blocks(name, crop_name)')
+            .eq('id', findingId)
+            .eq('farmer_id', farmerId)
+            .is('archived_at', null)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load field finding');
+        if (!data)
+            throw new NotFoundError('Field finding not found');
+        return this.mapFieldFinding(data);
     },
     async createFieldFinding(farmerId, leadId, input) {
         const { data, error } = await supabase
@@ -715,6 +1143,12 @@ export const telecallerAdminService = {
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not save field finding');
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackFieldFinding({
+            farmerId,
+            findingId: String(data.id),
+            agentEmail: input.agentEmail ?? input.agronomistName ?? 'field',
+        });
         return this.mapFieldFinding(data);
     },
     async updateFieldFinding(id, patch) {

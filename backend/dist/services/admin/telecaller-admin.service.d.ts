@@ -1,3 +1,19 @@
+export type LeadPendingWorkItem = {
+    id: string;
+    itemType: 'crm_task' | 'interaction' | 'field_follow_up' | 'escalation' | 'ai_approval' | 'crm_recommendation';
+    category: string;
+    title: string;
+    subtitle: string | null;
+    dueAt: string | null;
+    dueLabel: string;
+    isDueToday: boolean;
+    farmerName: string;
+    status: string;
+    statusLabel: string;
+    canComplete: boolean;
+    taskId: string | null;
+    navigateTab: 'interactions' | 'escalations' | 'findings' | 'agronomist' | null;
+};
 export type LeadStage = 'new_lead' | 'interested' | 'follow_up' | 'recommendation' | 'order_placed' | 'repeat_customer';
 export interface TelecallerListQuery {
     scope?: 'mine' | 'all';
@@ -12,6 +28,7 @@ export declare const telecallerAdminService: {
     getOverview(agentEmail: string): Promise<{
         callsToday: number;
         pendingFollowUps: number;
+        followUpsDueToday: number;
         interestedFarmers: number;
         ordersGenerated: number;
         revenue: number;
@@ -20,7 +37,7 @@ export declare const telecallerAdminService: {
         allLeadsCount: number;
     }>;
     listLeads(query: TelecallerListQuery, agentEmail: string): Promise<{
-        leads: {
+        leads: ({
             id: unknown;
             farmerId: unknown;
             intent: unknown;
@@ -43,7 +60,10 @@ export declare const telecallerAdminService: {
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
-        }[];
+        } & {
+            opportunityScore: number | null;
+            retentionRiskBand: string | null;
+        })[];
         counts: {
             mine: number;
             all: number;
@@ -180,11 +200,17 @@ export declare const telecallerAdminService: {
         assignedCropAdvisor?: string;
         roiEnabled?: boolean;
         farmerNotes?: string;
+        preferredMarkets?: Array<{
+            marketKey: string;
+            cropType?: string;
+        }>;
         cropBlocks?: Array<{
             blockName?: string;
             cropName: string;
             acreage?: number;
             plantingDate?: string;
+            latitude?: number;
+            longitude?: number;
         }>;
     }, agentEmail: string): Promise<{
         lead: {
@@ -402,6 +428,40 @@ export declare const telecallerAdminService: {
             done: boolean;
         }[];
     }>;
+    listLeadNotes(leadId: string): Promise<{
+        notes: {
+            id: string;
+            summary: string;
+            note: string;
+            author: string;
+            createdLabel: string;
+            at: string;
+            canEdit: boolean;
+            isLegacy: boolean;
+        }[];
+    }>;
+    getLeadNote(leadId: string, noteId: string): Promise<{
+        id: string;
+        summary: string;
+        note: string;
+        author: string;
+        createdLabel: string;
+        at: string;
+        canEdit: boolean;
+        isLegacy: boolean;
+        legacyIndex: number;
+    } | {
+        id: string;
+        summary: string;
+        note: string;
+        author: string;
+        createdLabel: string;
+        at: string;
+        canEdit: boolean;
+        isLegacy: boolean;
+        legacyIndex?: undefined;
+    }>;
+    updateLeadNote(leadId: string, noteId: string, note: string, agentEmail: string): Promise<any>;
     addNote(leadId: string, note: string, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
@@ -513,6 +573,16 @@ export declare const telecallerAdminService: {
         notes?: string;
         taskType?: string;
     }, agentEmail: string): Promise<any>;
+    updateTask(taskId: string, input: {
+        title?: string;
+        notes?: string;
+        dueAt?: string;
+        markDone?: boolean;
+        markPending?: boolean;
+    }): Promise<{
+        lead_id: any;
+        due_at: any;
+    } | null>;
     completeTask(taskId: string): Promise<void>;
     logCall(leadId: string, input: {
         outcome?: string;
@@ -623,10 +693,13 @@ export declare const telecallerAdminService: {
             done: boolean;
         }[];
     }>;
+    /** All pending work for a lead: CRM tasks, interactions, field follow-ups, escalations, AI approval. */
+    listLeadPendingTasks(leadId: string): Promise<LeadPendingWorkItem[]>;
     listTasks(agentEmail: string, status?: string): Promise<{
         id: any;
         title: any;
         dueLabel: string | null;
+        isDueToday: boolean;
         status: any;
         farmerName: string;
         phone: unknown;
@@ -664,24 +737,28 @@ export declare const telecallerAdminService: {
     listFieldFindings(farmerId: string, page?: number, limit?: number): Promise<{
         findings: {
             id: unknown;
-            visitedAt: unknown;
-            visitedLabel: string | null;
-            blockName: unknown;
-            cropType: unknown;
+            visitedAt: string | null;
+            visitedLabel: string;
+            blockId: string | null;
+            blockName: string;
+            cropType: string;
             agronomistName: unknown;
-            agronomistRole: unknown;
+            agronomistRole: {};
             agronomistInitials: string;
-            observations: unknown;
+            observations: {};
             parameters: {
                 label: string;
                 value: string;
             }[];
-            diseasePest: unknown;
-            diseaseTone: unknown;
-            actionTaken: unknown;
-            followUpLabel: string | null;
+            diseasePest: {};
+            diseaseTone: string;
+            diseaseLabel: string;
+            actionTaken: {};
+            followUpAt: string | null;
+            followUpLabel: string;
             photoUrls: string[];
             photoCount: number;
+            extraPhotoCount: number;
         }[];
         pagination: {
             page: number;
@@ -692,25 +769,54 @@ export declare const telecallerAdminService: {
     }>;
     mapFieldFinding(r: Record<string, unknown>): {
         id: unknown;
-        visitedAt: unknown;
-        visitedLabel: string | null;
-        blockName: unknown;
-        cropType: unknown;
+        visitedAt: string | null;
+        visitedLabel: string;
+        blockId: string | null;
+        blockName: string;
+        cropType: string;
         agronomistName: unknown;
-        agronomistRole: unknown;
+        agronomistRole: {};
         agronomistInitials: string;
-        observations: unknown;
+        observations: {};
         parameters: {
             label: string;
             value: string;
         }[];
-        diseasePest: unknown;
-        diseaseTone: unknown;
-        actionTaken: unknown;
-        followUpLabel: string | null;
+        diseasePest: {};
+        diseaseTone: string;
+        diseaseLabel: string;
+        actionTaken: {};
+        followUpAt: string | null;
+        followUpLabel: string;
         photoUrls: string[];
         photoCount: number;
+        extraPhotoCount: number;
     };
+    getFieldFinding(farmerId: string, findingId: string): Promise<{
+        id: unknown;
+        visitedAt: string | null;
+        visitedLabel: string;
+        blockId: string | null;
+        blockName: string;
+        cropType: string;
+        agronomistName: unknown;
+        agronomistRole: {};
+        agronomistInitials: string;
+        observations: {};
+        parameters: {
+            label: string;
+            value: string;
+        }[];
+        diseasePest: {};
+        diseaseTone: string;
+        diseaseLabel: string;
+        actionTaken: {};
+        followUpAt: string | null;
+        followUpLabel: string;
+        photoUrls: string[];
+        photoCount: number;
+        extraPhotoCount: number;
+    }>;
     createFieldFinding(farmerId: string, leadId: string | null, input: {
         blockId?: string;
         blockName: string;
@@ -727,47 +833,56 @@ export declare const telecallerAdminService: {
         photoUrls?: string[];
         agronomistName?: string;
         agronomistRole?: string;
+        agentEmail?: string;
     }): Promise<{
         id: unknown;
-        visitedAt: unknown;
-        visitedLabel: string | null;
-        blockName: unknown;
-        cropType: unknown;
+        visitedAt: string | null;
+        visitedLabel: string;
+        blockId: string | null;
+        blockName: string;
+        cropType: string;
         agronomistName: unknown;
-        agronomistRole: unknown;
+        agronomistRole: {};
         agronomistInitials: string;
-        observations: unknown;
+        observations: {};
         parameters: {
             label: string;
             value: string;
         }[];
-        diseasePest: unknown;
-        diseaseTone: unknown;
-        actionTaken: unknown;
-        followUpLabel: string | null;
+        diseasePest: {};
+        diseaseTone: string;
+        diseaseLabel: string;
+        actionTaken: {};
+        followUpAt: string | null;
+        followUpLabel: string;
         photoUrls: string[];
         photoCount: number;
+        extraPhotoCount: number;
     }>;
     updateFieldFinding(id: string, patch: Record<string, unknown>): Promise<{
         id: unknown;
-        visitedAt: unknown;
-        visitedLabel: string | null;
-        blockName: unknown;
-        cropType: unknown;
+        visitedAt: string | null;
+        visitedLabel: string;
+        blockId: string | null;
+        blockName: string;
+        cropType: string;
         agronomistName: unknown;
-        agronomistRole: unknown;
+        agronomistRole: {};
         agronomistInitials: string;
-        observations: unknown;
+        observations: {};
         parameters: {
             label: string;
             value: string;
         }[];
-        diseasePest: unknown;
-        diseaseTone: unknown;
-        actionTaken: unknown;
-        followUpLabel: string | null;
+        diseasePest: {};
+        diseaseTone: string;
+        diseaseLabel: string;
+        actionTaken: {};
+        followUpAt: string | null;
+        followUpLabel: string;
         photoUrls: string[];
         photoCount: number;
+        extraPhotoCount: number;
     }>;
     getNavBadges(): Promise<{
         followUpTasks: number;

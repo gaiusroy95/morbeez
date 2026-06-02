@@ -1,4 +1,4 @@
-export type MasterType = 'crop' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
+export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
 export declare const crmFarmerService: {
     listMasters(type: MasterType, parentId?: string | null, search?: string): Promise<{
         id: any;
@@ -17,10 +17,30 @@ export declare const crmFarmerService: {
         category?: string;
         description?: string;
     }): Promise<any>;
+    seedMarketMastersFromPrices(rows: Array<{
+        id: string;
+        master_type: string;
+        name: string;
+        parent_id: string | null;
+        category: string | null;
+        description: string | null;
+        active: boolean;
+        sort_order: number | null;
+    }>): Promise<{
+        id: any;
+        master_type: any;
+        name: any;
+        parent_id: any;
+        category: any;
+        description: any;
+        active: any;
+        sort_order: any;
+    }[]>;
     updateMaster(id: string, patch: {
         name?: string;
         active?: boolean;
         description?: string;
+        category?: string | null;
     }): Promise<any>;
     listBlocks(farmerId: string): Promise<{
         id: unknown;
@@ -171,12 +191,21 @@ export declare const crmFarmerService: {
             pdfUrl: any;
         }[];
         visits: {
-            id: any;
+            id: string | undefined;
+            agronomistName: unknown;
+            diseasePest: unknown;
+            observations: unknown;
+            parameters: {
+                label: string;
+                value: string;
+            }[];
             visitedLabel: string | null;
-            agronomistName: any;
-            diseasePest: any;
-            observations: any;
             spad: string | undefined;
+            shootCount: string | undefined;
+            leafCount: string | undefined;
+            moisture: string | undefined;
+            pestPressure: string | undefined;
+            photoUrls: string[];
         }[];
         blockRecommendations: {
             id: unknown;
@@ -226,12 +255,21 @@ export declare const crmFarmerService: {
             reportedLabel: string | null;
         };
         latestVisit: {
+            id: string | undefined;
             agronomistName: unknown;
             diseasePest: unknown;
             observations: unknown;
-            parameters: unknown;
+            parameters: {
+                label: string;
+                value: string;
+            }[];
             visitedLabel: string | null;
             spad: string | undefined;
+            shootCount: string | undefined;
+            leafCount: string | undefined;
+            moisture: string | undefined;
+            pestPressure: string | undefined;
+            photoUrls: string[];
         } | null;
         recommendations: {
             id: unknown;
@@ -250,6 +288,11 @@ export declare const crmFarmerService: {
             followUpLabel: string | null;
             recType: unknown;
         }[];
+        nextFollowUp: {
+            title: string;
+            dueLabel: string;
+            notes: string | undefined;
+        } | null;
         timeline: {
             title: string;
             atLabel: string;
@@ -350,22 +393,140 @@ export declare const crmFarmerService: {
     /** Telecaller CRM tab — human/agronomist activity only (no raw WhatsApp chat logs). */
     listHumanCrmInteractions(farmerId: string, leadId: string | null, page?: number, limit?: number): Promise<{
         interactions: {
+            displayStatus: string;
+            statusTone: string;
+            nextActionLabel: string | null;
+            blockName: string | null;
+            blockId: string | null;
+            typeKey: string;
+            typeIcon: string;
+            typeCategory: string;
             id: string;
             at: string;
             interactionType: string;
             summary: string;
             status: string;
+            completionStatus: "pending" | "completed" | null;
             by: string;
             role: string;
             createdLabel: string;
-            source: "log" | "call" | "task" | "recommendation" | "visit" | "follow_up" | "rec_record";
+            dueLabel: string | null;
+            isDueToday: boolean;
+            taskId: string | null;
+            source: InteractionSource;
             canArchive: boolean;
+            canEdit: boolean;
+            nextAction?: string | null;
+            nextActionAt?: string | null;
         }[];
         pagination: {
             page: number;
             limit: number;
             total: number;
             pages: number;
+        };
+    }>;
+    /** Full detail for one timeline row (id encodes source — see listHumanCrmInteractions). */
+    getHumanCrmInteractionDetail(farmerId: string, _leadId: string | null, interactionId: string): Promise<{
+        id: string;
+        source: string;
+        interactionType: string;
+        summary: string;
+        status: string;
+        completionStatus?: "pending" | "completed" | null;
+        canEdit?: boolean;
+        taskId?: string | null;
+        by: string;
+        role: string;
+        createdLabel: string;
+        at: string;
+        fields: Array<{
+            label: string;
+            value: string;
+        }>;
+        sections: Array<{
+            title: string;
+            content: string;
+        }>;
+        followUpTimeline: Array<{
+            label: string;
+            status: string;
+            atLabel: string;
+            detail?: string;
+        }>;
+        products: Array<{
+            name: string;
+            detail?: string;
+        }>;
+        editForm?: {
+            kind: "task" | "log";
+            title?: string;
+            notes?: string;
+            dueAt?: string;
+            summary?: string;
+            content?: string;
+        };
+    } | {
+        id: string;
+        source: string;
+        interactionType: string;
+        summary: string;
+        status: string;
+        completionStatus: string;
+        canEdit: boolean;
+        taskId: string;
+        by: string;
+        role: string;
+        createdLabel: string;
+        at: string;
+        fields: Array<{
+            label: string;
+            value: string;
+        }>;
+        sections: {
+            title: string;
+            content: string;
+        }[];
+        followUpTimeline: never[];
+        products: never[];
+        editForm: {
+            kind: string;
+            title: string;
+            notes: string;
+            dueAt: string;
+            summary?: undefined;
+            content?: undefined;
+        };
+    } | {
+        id: string;
+        source: string;
+        interactionType: string;
+        summary: string;
+        status: string;
+        completionStatus: string;
+        canEdit: boolean;
+        taskId: null;
+        by: string;
+        role: string;
+        createdLabel: string;
+        at: string;
+        fields: Array<{
+            label: string;
+            value: string;
+        }>;
+        sections: {
+            title: string;
+            content: string;
+        }[];
+        followUpTimeline: never[];
+        products: never[];
+        editForm: {
+            kind: string;
+            summary: string;
+            content: string;
+            title?: undefined;
+            notes?: undefined;
+            dueAt?: undefined;
         };
     }>;
     createInteraction(farmerId: string, leadId: string | null, input: {
@@ -506,21 +667,7 @@ export declare const crmFarmerService: {
             };
         };
         orders: {
-            orders: {
-                id: unknown;
-                orderRef: unknown;
-                dateLabel: string | null;
-                product: string;
-                qty: number;
-                amount: number;
-                status: string;
-                statusTone: string;
-                payment: string;
-                deliveryDate: string;
-                deliveryBy: string;
-                block: string;
-                source: string;
-            }[];
+            orders: import("./telecaller-farmer-orders.service.js").TelecallerOrderRow[];
         };
         internalNotes: {
             id: unknown;
@@ -535,22 +682,9 @@ export declare const crmFarmerService: {
         }[];
     }>;
     listFarmerOrders(farmerId: string): Promise<{
-        orders: {
-            id: unknown;
-            orderRef: unknown;
-            dateLabel: string | null;
-            product: string;
-            qty: number;
-            amount: number;
-            status: string;
-            statusTone: string;
-            payment: string;
-            deliveryDate: string;
-            deliveryBy: string;
-            block: string;
-            source: string;
-        }[];
+        orders: import("./telecaller-farmer-orders.service.js").TelecallerOrderRow[];
     }>;
+    getFarmerOrderDetail(farmerId: string, orderId: string): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
     ensureDemoBlocks(farmerId: string): Promise<{
         id: unknown;
         farmerId: unknown;
@@ -669,12 +803,21 @@ export declare const crmFarmerService: {
         recType: unknown;
     }>;
     listFieldFindingsForBlock(farmerId: string, blockId: string, limit?: number): Promise<{
-        id: any;
+        id: string | undefined;
+        agronomistName: unknown;
+        diseasePest: unknown;
+        observations: unknown;
+        parameters: {
+            label: string;
+            value: string;
+        }[];
         visitedLabel: string | null;
-        agronomistName: any;
-        diseasePest: any;
-        observations: any;
         spad: string | undefined;
+        shootCount: string | undefined;
+        leafCount: string | undefined;
+        moisture: string | undefined;
+        pestPressure: string | undefined;
+        photoUrls: string[];
     }[]>;
     archiveFieldFinding(id: string): Promise<{
         ok: boolean;
@@ -727,36 +870,8 @@ export declare const crmFarmerService: {
         deliveryAddress?: string;
         notes?: string;
         createdBy?: string;
-    }): Promise<{
-        id: unknown;
-        orderRef: unknown;
-        dateLabel: string | null;
-        product: string;
-        qty: number;
-        amount: number;
-        status: string;
-        statusTone: string;
-        payment: string;
-        deliveryDate: string;
-        deliveryBy: string;
-        block: string;
-        source: string;
-    }>;
-    convertRecommendationToOrder(recommendationId: string, farmerId: string, leadId: string | null, createdBy?: string): Promise<{
-        id: unknown;
-        orderRef: unknown;
-        dateLabel: string | null;
-        product: string;
-        qty: number;
-        amount: number;
-        status: string;
-        statusTone: string;
-        payment: string;
-        deliveryDate: string;
-        deliveryBy: string;
-        block: string;
-        source: string;
-    }>;
+    }): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
+    convertRecommendationToOrder(recommendationId: string, farmerId: string, leadId: string | null, createdBy?: string): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
     listManualOrders(farmerId: string): Promise<{
         id: unknown;
         orderRef: unknown;
@@ -786,6 +901,7 @@ export declare const crmFarmerService: {
         url: string | null;
     };
 };
+type InteractionSource = 'log' | 'call' | 'task' | 'recommendation' | 'visit' | 'follow_up' | 'rec_record';
 type AgronomistProfile = {
     name: unknown;
     employeeId: unknown;

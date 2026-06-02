@@ -126,6 +126,7 @@ export const fieldPwaService = {
             photoUrls,
             agronomistName: input.agronomistName,
             agronomistRole: 'Field Agronomist',
+            agentEmail: input.agronomistEmail,
         });
         return { finding, photoUrls };
     },

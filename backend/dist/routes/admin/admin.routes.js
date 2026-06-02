@@ -189,9 +189,17 @@ export async function adminRoutes(app) {
         const profile = await adminAuthService.me(admin.id);
         const role = String(profile.role);
         const modules = await getModulesForRole(role);
-        const { agronomistTierService } = await import('../../services/admin/agronomist-tier.service.js');
-        const agronomistTier = await agronomistTierService.getTierForAdmin(admin.id, admin.email);
-        const canSelfApproveRecommendations = await agronomistTierService.canSelfApproveRecommendations(admin.id, admin.email, role);
+        let agronomistTier = null;
+        let canSelfApproveRecommendations = false;
+        try {
+            const { agronomistTierService } = await import('../../services/admin/agronomist-tier.service.js');
+            agronomistTier = await agronomistTierService.getTierForAdmin(admin.id, admin.email);
+            canSelfApproveRecommendations =
+                await agronomistTierService.canSelfApproveRecommendations(admin.id, admin.email, role);
+        }
+        catch {
+            /* Do not block sign-in if tier lookup fails (e.g. pending migration). */
+        }
         return reply.send({
             ok: true,
             admin: { ...profile, email: admin.email, agronomistTier },
@@ -1329,6 +1337,7 @@ export async function adminRoutes(app) {
             name: z.string().min(1).optional(),
             active: z.boolean().optional(),
             description: z.string().optional(),
+            category: z.string().max(120).nullable().optional(),
         })
             .parse(request.body);
         const item = await crmFarmerService.updateMaster(id, body);

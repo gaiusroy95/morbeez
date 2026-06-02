@@ -1,4 +1,5 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 /**
  * Agronomy-first reply: verified tank-mix DB → conversational AI with farmer memory.
  * Returns true when a reply was sent.
@@ -11,5 +12,6 @@ export declare function tryAgronomyReply(params: {
     sendText: (phone: string, text: string) => Promise<void>;
     farmerName?: string;
     isPremium?: boolean;
+    terminologyDetection?: TerminologyDetectionResult | null;
 }): Promise<boolean>;
 //# sourceMappingURL=agronomy-reply.service.d.ts.map

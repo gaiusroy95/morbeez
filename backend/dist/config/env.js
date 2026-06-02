@@ -130,12 +130,27 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** Regional terminology detection, escalation, and response localization. */
+    ENABLE_REGIONAL_TERMINOLOGY_ENGINE: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     ENABLE_WHATSAPP_ROI: z
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
     /** Evening (6 PM IST) proactive ROI entry buttons for opted-in farmers. */
     ENABLE_ROI_DAILY_PROMPT: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** Nightly farmer opportunity score engine (IST 02:00–04:59). */
+    ENABLE_OPPORTUNITY_SCORE_WORKER: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** Send educational WhatsApp nudge during low-opportunity nurture batch (default on). */
+    ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: z
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
@@ -153,7 +168,7 @@ function loadEnv() {
     const parsed = envSchema.safeParse(process.env);
     if (!parsed.success) {
         console.error('Invalid environment variables:', parsed.error.flatten().fieldErrors);
-        process.exit(1);
+        throw new Error('Invalid environment configuration');
     }
     return parsed.data;
 }

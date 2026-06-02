@@ -7,7 +7,115 @@ import { broadcastThrottleService } from './broadcast-throttle.service.js';
 import { seasonalPriorityService } from '../pipeline/seasonal-priority.service.js';
 import { computeDap, dapInTargetRange, todayIsoWeekday } from './dap.service.js';
 import { weatherAlertsService } from '../scenarios/weather-alerts.service.js';
+import { dailyPricesService } from '../scenarios/daily-prices.service.js';
 export const broadcastEngineService = {
+    async runDailyMarketPriceBroadcast(options) {
+        const result = {
+            farmersScanned: 0,
+            sent: 0,
+            skipped: 0,
+            failed: 0,
+            errors: [],
+        };
+        let farmerQuery = supabase
+            .from('farmers')
+            .select('id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)')
+            .not('phone', 'is', null);
+        if (options?.farmerId) {
+            farmerQuery = farmerQuery.eq('id', options.farmerId);
+        }
+        const { data: farmers, error } = await farmerQuery.limit(options?.farmerId ? 1 : 5000);
+        if (error) {
+            result.errors.push(error.message);
+            return result;
+        }
+        for (const row of farmers ?? []) {
+            if (!row.phone)
+                continue;
+            result.farmersScanned++;
+            const crops = (row.farm_blocks ?? []).filter((b) => !b.archived_at);
+            if (!crops.length)
+                continue;
+            const primary = crops.find((c) => c.is_primary) ?? crops[0];
+            const cropType = String(primary.crop_type ?? '').trim().toLowerCase();
+            if (!cropType)
+                continue;
+            const { data: prefs, error: prefErr } = await supabase
+                .from('farmer_market_preferences')
+                .select('id')
+                .eq('farmer_id', row.id)
+                .eq('active', true)
+                .or(`crop_type.is.null,crop_type.eq.${cropType}`)
+                .limit(1);
+            if (prefErr) {
+                result.errors.push(prefErr.message);
+                continue;
+            }
+            if (!prefs?.length)
+                continue;
+            const language = (row.preferred_language ?? 'en');
+            const farmerPhone = String(row.phone).replace(/\D/g, '');
+            const dap = computeDap(primary.planting_date ?? primary.planted_at ?? null, primary.created_at);
+            const priority = seasonalPriorityService.adjustBroadcastPriority(65);
+            const body = await dailyPricesService.formatForFarmer(String(row.id), language);
+            const throttle = await broadcastThrottleService.shouldSend({
+                farmerId: String(row.id),
+                broadcastKind: 'daily_market_price',
+                cropType,
+                priority,
+            });
+            if (!throttle.allowed) {
+                if (!options?.dryRun) {
+                    await broadcastThrottleService.logSkipped({
+                        farmerId: String(row.id),
+                        broadcastKind: 'daily_market_price',
+                        cropType,
+                        dap,
+                        ruleId: undefined,
+                        messageBody: body,
+                        skipReason: throttle.reason,
+                        priority,
+                    });
+                }
+                result.skipped++;
+                continue;
+            }
+            if (options?.dryRun) {
+                result.sent++;
+                continue;
+            }
+            try {
+                await whatsappService.sendText(farmerPhone, body);
+                await broadcastThrottleService.logSent({
+                    farmerId: String(row.id),
+                    broadcastKind: 'daily_market_price',
+                    cropType,
+                    dap,
+                    ruleId: undefined,
+                    messageBody: body,
+                    priority,
+                });
+                await farmerService
+                    .logInteraction(String(row.id), 'whatsapp', 'outbound', `[broadcast:daily_market_price] ${body.slice(0, 200)}`)
+                    .catch(() => { });
+                result.sent++;
+            }
+            catch (err) {
+                const msg = String(err);
+                await broadcastThrottleService.logFailed({
+                    farmerId: String(row.id),
+                    broadcastKind: 'daily_market_price',
+                    cropType,
+                    messageBody: body,
+                    error: msg,
+                    priority,
+                });
+                result.failed++;
+            }
+        }
+        logger.info(result, 'Daily market price broadcast run completed');
+        return result;
+    },
     async loadActiveRules() {
         const { data, error } = await supabase
             .from('crop_dap_broadcast_rules')
@@ -193,8 +301,16 @@ export const broadcastEngineService = {
             else
                 result.failed++;
         }
-        logger.info(result, 'WhatsApp broadcast run completed');
-        return result;
+        const marketResult = await this.runDailyMarketPriceBroadcast(options);
+        const merged = {
+            farmersScanned: result.farmersScanned + marketResult.farmersScanned,
+            sent: result.sent + marketResult.sent,
+            skipped: result.skipped + marketResult.skipped,
+            failed: result.failed + marketResult.failed,
+            errors: [...result.errors, ...marketResult.errors],
+        };
+        logger.info(merged, 'WhatsApp broadcast run completed');
+        return merged;
     },
 };
 //# sourceMappingURL=broadcast-engine.service.js.map

@@ -59,6 +59,8 @@ export const telecallerFarmerProfileService = {
                     cropName: b.cropName ?? b.name,
                     acreage: b.area,
                     plantingDate: b.plantingDate,
+                    latitude: b.latitude ?? null,
+                    longitude: b.longitude ?? null,
                     daysAfterPlanting: dap,
                 };
             }),
@@ -113,15 +115,27 @@ export const telecallerFarmerProfileService = {
                         plot_label: plotName,
                         area,
                         planting_date: block.plantingDate ?? null,
+                        latitude: block.latitude ?? null,
+                        longitude: block.longitude ?? null,
+                        location_source: block.latitude != null && block.longitude != null ? 'telecaller' : undefined,
+                        location_captured_at: block.latitude != null && block.longitude != null ? new Date().toISOString() : undefined,
                     });
                 }
                 else {
-                    await crmFarmerService.createBlock(farmerId, {
+                    const created = await crmFarmerService.createBlock(farmerId, {
                         name: plotName,
                         cropName,
                         area,
                         plantingDate: block.plantingDate,
                     });
+                    if (block.latitude != null && block.longitude != null) {
+                        await crmFarmerService.updateBlock(String(created.id), {
+                            latitude: block.latitude,
+                            longitude: block.longitude,
+                            location_source: 'telecaller',
+                            location_captured_at: new Date().toISOString(),
+                        });
+                    }
                 }
             }
         }

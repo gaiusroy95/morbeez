@@ -6,7 +6,8 @@ services:
     name: morbeez-api
     runtime: node
     rootDir: backend
-    buildCommand: npm install && npm run build
+    # Install devDeps for UI builds; @types/node + typescript are in dependencies for tsc under NODE_ENV=production
+    buildCommand: npm install --include=dev && npm run build:render
     startCommand: npm start
     envVars:
       - key: NODE_ENV

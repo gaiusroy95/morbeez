@@ -1,4 +1,7 @@
+import { env } from '../../../config/env.js';
 import { supabase } from '../../../lib/supabase.js';
+import { terminologyAiContextService } from '../../regional-terminology/terminology-ai-context.service.js';
+import { terminologyDetectionEngine } from '../../regional-terminology/terminology-detection.engine.js';
 import { fetchCompactFarmerContext } from './advisory-context.service.js';
 import { inferCropHint } from './crop-hints.js';
 import { conversationSessionService } from '../conversation-session.service.js';
@@ -85,6 +88,27 @@ export const farmerMemoryService = {
             .eq('id', farmerId)
             .maybeSingle();
         const pm = farmerRow?.pincode_master;
+        let regionalTerminologyBlock;
+        if (env.ENABLE_REGIONAL_TERMINOLOGY_ENGINE !== false && options?.symptomsText?.trim()) {
+            const lang = options.language ?? 'en';
+            let detection = options.terminologyDetection ?? null;
+            if (!detection) {
+                detection = await terminologyDetectionEngine.detect({
+                    rawMessage: options.symptomsText,
+                    language: lang,
+                    cropType: cropType || null,
+                    district: farmerRow?.district ? String(farmerRow.district) : null,
+                });
+            }
+            const block = await terminologyAiContextService.buildPromptBlock({
+                language: lang,
+                cropType: cropType || null,
+                district: farmerRow?.district ? String(farmerRow.district) : null,
+                detection,
+            });
+            if (block.trim())
+                regionalTerminologyBlock = block;
+        }
         return {
             farmerId,
             cropType,
@@ -101,6 +125,7 @@ export const farmerMemoryService = {
             knownCropLocked,
             onboardingComplete,
             verifiedRegionalHints: verifiedRegionalHints ?? undefined,
+            regionalTerminologyBlock,
         };
     },
     formatCompactHistory(memory) {
@@ -122,6 +147,9 @@ export const farmerMemoryService = {
         if (memory.verifiedRegionalHints?.trim()) {
             parts.push(`Verified regional learnings:\n${memory.verifiedRegionalHints.trim()}`);
         }
+        if (memory.regionalTerminologyBlock?.trim()) {
+            parts.push(memory.regionalTerminologyBlock.trim());
+        }
         return parts.join('\n');
     },
     formatConversationBlock(memory, maxTurns = 10) {
@@ -138,7 +166,10 @@ export const farmerMemoryService = {
         const hints = memory.verifiedRegionalHints?.trim()
             ? `Expert-verified learnings for this crop/area:\n${memory.verifiedRegionalHints.trim()}`
             : null;
-        return [header, hints, turns ? `Conversation:\n${turns}` : null].filter(Boolean).join('\n\n');
+        const terminology = memory.regionalTerminologyBlock?.trim() ?? null;
+        return [header, hints, terminology, turns ? `Conversation:\n${turns}` : null]
+            .filter(Boolean)
+            .join('\n\n');
     },
     knowsCrop(memory) {
         return memory.knownCropLocked;

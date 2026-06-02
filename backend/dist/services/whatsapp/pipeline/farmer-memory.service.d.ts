@@ -1,4 +1,5 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 export type FarmerMemorySnapshot = {
     farmerId: string;
     cropType: string;
@@ -18,12 +19,16 @@ export type FarmerMemorySnapshot = {
     onboardingComplete: boolean;
     /** Agronomist-approved regional cases + local practices for this crop */
     verifiedRegionalHints?: string;
+    /** Approved regional word glossary for AI prompts */
+    regionalTerminologyBlock?: string;
 };
 export declare const farmerMemoryService: {
     hasRecentThread(farmerId: string): Promise<boolean>;
     build(farmerId: string, options?: {
         symptomsText?: string;
         activePlotId?: string | null;
+        terminologyDetection?: TerminologyDetectionResult | null;
+        language?: AdvisoryLanguage;
     }): Promise<FarmerMemorySnapshot>;
     formatCompactHistory(memory: FarmerMemorySnapshot): string;
     formatConversationBlock(memory: FarmerMemorySnapshot, maxTurns?: number): string;

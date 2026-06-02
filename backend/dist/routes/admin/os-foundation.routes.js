@@ -11,6 +11,10 @@ import { verifiedAdvisoryLearningService } from '../../services/core/verified-ad
 import { recommendationApprovalsService } from '../../services/core/recommendation-approvals.service.js';
 import { agronomistTierService } from '../../services/admin/agronomist-tier.service.js';
 import { UnauthorizedError } from '../../lib/errors.js';
+import { farmerEventService } from '../../services/intelligence/farmer-event.service.js';
+import { employeeAttributionService } from '../../services/intelligence/employee-attribution.service.js';
+import { opportunityScoreStoreService } from '../../services/intelligence/opportunity-score-store.service.js';
+import { farmerOpportunityEngineService } from '../../services/intelligence/farmer-opportunity-engine.service.js';
 const approvalUpdateSchema = z.object({
     issueDetected: z.string().max(500).optional(),
     recommendationText: z.string().min(1).max(8000).optional(),
@@ -246,6 +250,38 @@ export async function osFoundationRoutes(app) {
         if (!detail)
             return reply.code(404).send({ ok: false, message: 'Recommendation not found' });
         return reply.send({ ok: true, ...detail });
+    });
+    app.get(`${api}/farmers/:id/events`, async (request, reply) => {
+        await assertModuleAccess(request, 'intelligence', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const eventTypes = q.types
+            ? q.types.split(',').filter(Boolean)
+            : undefined;
+        const events = await farmerEventService.listForFarmer(id, {
+            limit: q.limit ? Number(q.limit) : 50,
+            since: q.since,
+            eventTypes,
+        });
+        return reply.send({ ok: true, events });
+    });
+    app.get(`${api}/farmers/:id/attributions`, async (request, reply) => {
+        await assertModuleAccess(request, 'intelligence', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const activeOnly = q.activeOnly !== 'false';
+        const attributions = await employeeAttributionService.listForFarmer(id, activeOnly);
+        return reply.send({ ok: true, attributions });
+    });
+    app.get(`${api}/farmers/:id/opportunity-score`, async (request, reply) => {
+        await assertModuleAccess(request, 'intelligence', 'read');
+        const { id } = request.params;
+        const q = request.query;
+        const score = q.recalculate === 'true'
+            ? await farmerOpportunityEngineService.scoreFarmer(id)
+            : (await opportunityScoreStoreService.getFarmerScore(id)) ??
+                (await farmerOpportunityEngineService.scoreFarmer(id));
+        return reply.send({ ok: true, score });
     });
 }
 //# sourceMappingURL=os-foundation.routes.js.map

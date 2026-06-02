@@ -33,6 +33,10 @@ interface CropRow {
     archived_at?: string | null;
 }
 export declare const broadcastEngineService: {
+    runDailyMarketPriceBroadcast(options?: {
+        farmerId?: string;
+        dryRun?: boolean;
+    }): Promise<BroadcastRunResult>;
     loadActiveRules(): Promise<BroadcastRule[]>;
     matchRulesForFarmer(rules: BroadcastRule[], crops: CropRow[], isoWeekday: number): Array<{
         rule: BroadcastRule;

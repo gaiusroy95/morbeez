@@ -102,7 +102,13 @@ export const leadService = {
             .single();
         if (error)
             throw error;
-        await eventBus.publish('lead.created', { leadId: data.id, intent: data.intent }, 'crm');
+        await eventBus.publish('lead.created', {
+            leadId: data.id,
+            farmerId: input.farmerId,
+            intent: data.intent,
+            source: input.source ?? 'api',
+            assignedTo: input.assigned_to ?? null,
+        }, 'crm');
         return { lead: data, created: true };
     },
     async createLead(input) {

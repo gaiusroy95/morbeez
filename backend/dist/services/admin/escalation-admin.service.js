@@ -33,7 +33,102 @@ function farmerDisplayName(row) {
     const combined = [first, last].filter(Boolean).join(' ');
     return combined || String(row.name ?? '').trim() || 'Farmer';
 }
+function workflowFromDbStatus(dbStatus) {
+    const s = String(dbStatus ?? 'pending');
+    if (s === 'resolved' || s === 'closed') {
+        return { workflowStatus: 'completed', statusLabel: 'Completed' };
+    }
+    if (s === 'in_review' || s === 'assigned') {
+        return { workflowStatus: 'agronomist_review', statusLabel: 'Needs agronomist review' };
+    }
+    return { workflowStatus: 'pending', statusLabel: 'Pending' };
+}
+function dbStatusFromWorkflow(workflow) {
+    if (workflow === 'completed')
+        return 'resolved';
+    if (workflow === 'agronomist_review')
+        return 'in_review';
+    return 'pending';
+}
+function parseCommentRole(note, author) {
+    const n = String(note ?? '');
+    if (n.startsWith('[Agronomist]')) {
+        return { role: 'agronomist', body: n.slice('[Agronomist]'.length).trim() };
+    }
+    if (n.startsWith('[Telecaller]')) {
+        return { role: 'telecaller', body: n.slice('[Telecaller]'.length).trim() };
+    }
+    return { role: author.includes('agronomist') ? 'agronomist' : 'telecaller', body: n };
+}
 export const escalationAdminService = {
+    workflowFromDbStatus,
+    dbStatusFromWorkflow,
+    async listForFarmer(farmerId) {
+        const { data, error } = await supabase
+            .from('agronomist_escalations')
+            .select('id, reason, status, priority, confidence_at_escalation, created_at, assigned_to')
+            .eq('farmer_id', farmerId)
+            .order('created_at', { ascending: false })
+            .limit(50);
+        throwIfSupabaseError(error, 'Could not load escalations');
+        return (data ?? []).map((row) => {
+            const wf = workflowFromDbStatus(String(row.status));
+            return {
+                id: row.id,
+                reason: row.reason,
+                summary: String(row.reason ?? '').slice(0, 160),
+                priority: row.priority,
+                confidence: row.confidence_at_escalation,
+                status: row.status,
+                workflowStatus: wf.workflowStatus,
+                statusLabel: wf.statusLabel,
+                assignedTo: row.assigned_to,
+                createdLabel: formatDt(row.created_at) ?? '—',
+                createdAt: row.created_at,
+            };
+        });
+    },
+    async listEscalationComments(escalationId) {
+        const { data, error } = await supabase
+            .from('telecaller_notes')
+            .select('id, author, note, created_at')
+            .eq('escalation_id', escalationId)
+            .order('created_at', { ascending: true });
+        throwIfSupabaseError(error, 'Could not load comments');
+        return (data ?? []).map((c) => {
+            const parsed = parseCommentRole(String(c.note ?? ''), String(c.author ?? ''));
+            return {
+                id: c.id,
+                author: String(c.author ?? '—'),
+                authorRole: parsed.role,
+                body: parsed.body,
+                createdLabel: formatDt(c.created_at) ?? '—',
+                createdAt: c.created_at,
+            };
+        });
+    },
+    async addEscalationComment(escalationId, text, agentEmail, role) {
+        const trimmed = text.trim();
+        if (!trimmed)
+            return;
+        const { data: esc, error: escErr } = await supabase
+            .from('agronomist_escalations')
+            .select('farmer_id, session_id')
+            .eq('id', escalationId)
+            .maybeSingle();
+        throwIfSupabaseError(escErr, 'Could not load escalation');
+        if (!esc)
+            throw new NotFoundError('Escalation not found');
+        const prefix = role === 'agronomist' ? '[Agronomist]' : '[Telecaller]';
+        const { error } = await supabase.from('telecaller_notes').insert({
+            farmer_id: esc.farmer_id,
+            session_id: esc.session_id,
+            escalation_id: escalationId,
+            author: agentEmail,
+            note: `${prefix} ${trimmed}`,
+        });
+        throwIfSupabaseError(error, 'Could not add comment');
+    },
     async list(params) {
         const page = params.page ?? 1;
         const limit = Math.min(params.limit ?? 20, 50);
@@ -85,6 +180,8 @@ export const escalationAdminService = {
         const outputs = session?.ai_advisory_outputs ?? [];
         const latestOutput = outputs[0];
         const recs = session?.ai_product_recommendations ?? [];
+        const wf = workflowFromDbStatus(String(data.status));
+        const comments = await this.listEscalationComments(id);
         return {
             id: data.id,
             sessionId: data.session_id,
@@ -102,8 +199,11 @@ export const escalationAdminService = {
             confidence: data.confidence_at_escalation,
             priority: data.priority,
             status: data.status,
+            workflowStatus: wf.workflowStatus,
+            statusLabel: wf.statusLabel,
             assignedTo: data.assigned_to,
             agronomistNotes: data.agronomist_notes,
+            comments,
             resolution: data.resolution,
             correction: data.correction,
             resolvedAt: data.resolved_at,
@@ -136,8 +236,11 @@ export const escalationAdminService = {
         const patch = {
             updated_at: new Date().toISOString(),
         };
-        if (body.status)
-            patch.status = body.status;
+        const dbStatus = body.workflowStatus
+            ? dbStatusFromWorkflow(body.workflowStatus)
+            : body.status;
+        if (dbStatus)
+            patch.status = dbStatus;
         if (body.assignedTo !== undefined)
             patch.assigned_to = body.assignedTo || agentEmail;
         if (body.agronomistNotes !== undefined)
@@ -146,8 +249,11 @@ export const escalationAdminService = {
             patch.resolution = body.resolution;
         if (body.correction !== undefined)
             patch.correction = body.correction;
-        if (body.status === 'resolved' || body.status === 'closed') {
+        if (dbStatus === 'resolved' || dbStatus === 'closed') {
             patch.resolved_at = new Date().toISOString();
+        }
+        else if (body.workflowStatus && body.workflowStatus !== 'completed') {
+            patch.resolved_at = null;
         }
         const { data, error } = await supabase
             .from('agronomist_escalations')
@@ -158,14 +264,11 @@ export const escalationAdminService = {
         throwIfSupabaseError(error, 'Could not update escalation');
         if (!data)
             throw new NotFoundError('Escalation not found');
-        if (body.agronomistNotes?.trim()) {
-            await supabase.from('telecaller_notes').insert({
-                farmer_id: data.farmer_id,
-                session_id: data.session_id,
-                escalation_id: id,
-                author: agentEmail,
-                note: body.agronomistNotes,
-            });
+        if (body.comment?.trim()) {
+            await this.addEscalationComment(id, body.comment, agentEmail, body.commentRole ?? 'telecaller');
+        }
+        else if (body.agronomistNotes?.trim()) {
+            await this.addEscalationComment(id, body.agronomistNotes, agentEmail, 'agronomist');
         }
         return this.getById(id);
     },

@@ -106,9 +106,21 @@ export const farmerService = {
             channel,
             direction,
             content,
-            message_type: 'text',
+            message_type: metadata?.messageType ?? 'text',
             raw_payload: metadata ?? {},
         });
+        if (channel === 'whatsapp') {
+            const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+            void farmerEventCaptureService.captureWhatsAppInteraction({
+                farmerId,
+                direction,
+                messageType: metadata?.messageType ?? 'text',
+                externalMessageId: metadata?.externalMessageId,
+                contentPreview: content,
+                employeeEmail: metadata?.employeeEmail ?? null,
+                occurredAt: metadata?.occurredAt,
+            });
+        }
     },
 };
 //# sourceMappingURL=farmer.service.js.map

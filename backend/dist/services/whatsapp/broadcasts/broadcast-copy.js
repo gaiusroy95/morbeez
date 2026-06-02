@@ -67,6 +67,13 @@ const MESSAGES = {
         kn: (p) => `📅 *${cropLabel(p.crop, 'kn')} — ${p.dap ?? '?'} DAP*\n\nಈ ವಾರ ಫೀಲ್ಡ್ ಸ್ಕೌಟಿಂಗ್ ಶಿಫಾರಸು.\n\nಲಕ್ಷಣಗಳಿದ್ದರೆ ಫೋಟೋ ಕಳುಹಿಸಿ.`,
         hi: (p) => `📅 *${cropLabel(p.crop, 'hi')} — ${p.dap ?? '?'} DAP*\n\nइस सप्ताह खेत की जांच की सिफारिश।\n\nलक्षण हों तो फोटो भेजें।`,
     },
+    daily_market_price: {
+        en: () => '📈 Daily market price update is ready.',
+        ml: () => '📈 ഇന്നത്തെ മാർക്കറ്റ് വില അപ്‌ഡേറ്റ് തയ്യാറായി.',
+        ta: () => '📈 தினசரி சந்தை விலை அப்டேட் தயார்.',
+        kn: () => '📈 ದೈನಂದಿನ ಮಾರುಕಟ್ಟೆ ದರ ಮಾಹಿತಿ ಸಿದ್ಧವಾಗಿದೆ.',
+        hi: () => '📈 आज का मार्केट रेट अपडेट तैयार है।',
+    },
 };
 export function formatBroadcastMessage(kind, language, params) {
     const fn = MESSAGES[kind][language] ?? MESSAGES[kind].en;

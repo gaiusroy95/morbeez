@@ -5,7 +5,7 @@ import { supabase } from '../../../lib/supabase.js';
 import { t } from './whatsapp-flow-copy.js';
 import { fetchCompactFarmerContext } from '../pipeline/advisory-context.service.js';
 const OPENAI_BASE = 'https://api.openai.com/v1/chat/completions';
-async function fetchPriceRows(crop, today) {
+async function fetchPriceRows(crop, today, preferredMarkets) {
     const { data: rows } = await supabase
         .from('crop_daily_prices')
         .select('market_name, district, price_per_kg, last_year_price_per_kg')
@@ -13,8 +13,25 @@ async function fetchPriceRows(crop, today) {
         .eq('price_date', today)
         .eq('active', true)
         .order('market_name');
-    if (rows?.length)
-        return { date: today, rows };
+    let selectedRows = rows ?? [];
+    if (preferredMarkets?.length && selectedRows.length) {
+        const prefs = preferredMarkets.map((m) => ({
+            market: String(m.market_name).toLowerCase(),
+            district: m.district ? String(m.district).toLowerCase() : null,
+        }));
+        const ranked = selectedRows
+            .map((r) => {
+            const idx = prefs.findIndex((p) => p.market === String(r.market_name).toLowerCase() &&
+                (!p.district || p.district === String(r.district ?? '').toLowerCase()));
+            return { row: r, idx: idx < 0 ? 999 : idx };
+        })
+            .sort((a, b) => a.idx - b.idx);
+        const preferredOnly = ranked.filter((x) => x.idx < 999).map((x) => x.row);
+        if (preferredOnly.length)
+            selectedRows = preferredOnly;
+    }
+    if (selectedRows.length)
+        return { date: today, rows: selectedRows };
     const { data: fallback } = await supabase
         .from('crop_daily_prices')
         .select('market_name, price_per_kg, last_year_price_per_kg, price_date')
@@ -103,7 +120,15 @@ export const dailyPricesService = {
         const ctx = await fetchCompactFarmerContext(farmerId);
         const crop = ctx.cropType.toLowerCase();
         const today = new Date().toISOString().slice(0, 10);
-        const { date, rows } = await fetchPriceRows(crop, today);
+        const { data: preferred } = await supabase
+            .from('farmer_market_preferences')
+            .select('market_name, district')
+            .eq('farmer_id', farmerId)
+            .eq('active', true)
+            .or(`crop_type.is.null,crop_type.eq.${crop}`)
+            .order('priority', { ascending: true })
+            .limit(10);
+        const { date, rows } = await fetchPriceRows(crop, today, preferred ?? []);
         const { data: farmer } = await supabase
             .from('farmers')
             .select('district')

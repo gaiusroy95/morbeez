@@ -4,6 +4,8 @@ export type CropBlockInput = {
     cropName: string;
     acreage?: number;
     plantingDate?: string;
+    latitude?: number;
+    longitude?: number;
 };
 export type FarmerProfileInput = {
     name?: string;
@@ -50,6 +52,8 @@ export declare const telecallerFarmerProfileService: {
             cropName: {};
             acreage: {};
             plantingDate: string | null;
+            latitude: number | null;
+            longitude: number | null;
             daysAfterPlanting: number | null;
         }[];
     }>;
@@ -80,6 +84,8 @@ export declare const telecallerFarmerProfileService: {
             cropName: {};
             acreage: {};
             plantingDate: string | null;
+            latitude: number | null;
+            longitude: number | null;
             daysAfterPlanting: number | null;
         }[];
     }>;

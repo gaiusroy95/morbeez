@@ -11,6 +11,8 @@ import { farmerExperienceLearningService } from '../../services/core/farmer-expe
 import { agronomistCaseReviewService } from '../../services/admin/agronomist-case-review.service.js';
 import { agronomistTierService } from '../../services/admin/agronomist-tier.service.js';
 import { verifiedAdvisoryLearningService } from '../../services/core/verified-advisory-learning.service.js';
+import { agronomistIntelligenceService } from '../../services/intelligence/agronomist-intelligence.service.js';
+import { opportunityIntelligenceDashboardService } from '../../services/intelligence/opportunity-intelligence-dashboard.service.js';
 const draftSchema = z.object({
     findingId: z.string().uuid(),
     farmerId: z.string().uuid(),
@@ -28,6 +30,17 @@ const draftSchema = z.object({
 });
 export async function osAgronomistRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/agronomist';
+    app.get(`${api}/workspace-intelligence`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'read');
+        const intelligence = await agronomistIntelligenceService.getWorkspaceIntelligence(admin.email);
+        return reply.send({ ok: true, intelligence });
+    });
+    app.get(`${api}/farmers/:farmerId/intelligence`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const profile = await opportunityIntelligenceDashboardService.getFarmerProfile(farmerId);
+        return reply.send({ ok: true, profile });
+    });
     app.get(`${api}/cases`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'read');
         const q = request.query;

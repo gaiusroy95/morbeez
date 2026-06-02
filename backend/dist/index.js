@@ -6,6 +6,7 @@ import { startAdvisoryAutomationWorker } from './services/automation/advisory-au
 import { startRetentionCleanupWorker } from './services/retention/retention-cleanup.worker.js';
 import { startWhatsAppBroadcastWorker } from './services/whatsapp/broadcasts/whatsapp-broadcast.worker.js';
 import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-prompt.worker.js';
+import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
 async function main() {
     const app = await buildApp();
     startOutboxWorkerIfEnabled();
@@ -13,6 +14,7 @@ async function main() {
     startRetentionCleanupWorker();
     startWhatsAppBroadcastWorker();
     startRoiDailyPromptWorker();
+    startFarmerOpportunityScoreWorker();
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Morbeez API started');
 }

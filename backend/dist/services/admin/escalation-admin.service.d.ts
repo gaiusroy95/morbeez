@@ -1,4 +1,34 @@
+export type EscalationWorkflowStatus = 'pending' | 'agronomist_review' | 'completed';
+declare function workflowFromDbStatus(dbStatus: string): {
+    workflowStatus: EscalationWorkflowStatus;
+    statusLabel: string;
+};
+declare function dbStatusFromWorkflow(workflow: EscalationWorkflowStatus): string;
 export declare const escalationAdminService: {
+    workflowFromDbStatus: typeof workflowFromDbStatus;
+    dbStatusFromWorkflow: typeof dbStatusFromWorkflow;
+    listForFarmer(farmerId: string): Promise<{
+        id: any;
+        reason: any;
+        summary: string;
+        priority: any;
+        confidence: any;
+        status: any;
+        workflowStatus: EscalationWorkflowStatus;
+        statusLabel: string;
+        assignedTo: any;
+        createdLabel: string;
+        createdAt: any;
+    }[]>;
+    listEscalationComments(escalationId: string): Promise<{
+        id: any;
+        author: string;
+        authorRole: "agronomist" | "system" | "telecaller";
+        body: string;
+        createdLabel: string;
+        createdAt: any;
+    }[]>;
+    addEscalationComment(escalationId: string, text: string, agentEmail: string, role: "telecaller" | "agronomist"): Promise<void>;
     list(params: {
         status?: string;
         page?: number;
@@ -39,8 +69,18 @@ export declare const escalationAdminService: {
         confidence: any;
         priority: any;
         status: any;
+        workflowStatus: EscalationWorkflowStatus;
+        statusLabel: string;
         assignedTo: any;
         agronomistNotes: any;
+        comments: {
+            id: any;
+            author: string;
+            authorRole: "agronomist" | "system" | "telecaller";
+            body: string;
+            createdLabel: string;
+            createdAt: any;
+        }[];
         resolution: any;
         correction: any;
         resolvedAt: any;
@@ -65,8 +105,11 @@ export declare const escalationAdminService: {
     }>;
     update(id: string, body: {
         status?: string;
+        workflowStatus?: EscalationWorkflowStatus;
         assignedTo?: string;
         agronomistNotes?: string;
+        comment?: string;
+        commentRole?: "telecaller" | "agronomist";
         resolution?: string;
         correction?: Record<string, unknown>;
     }, agentEmail: string): Promise<{
@@ -84,8 +127,18 @@ export declare const escalationAdminService: {
         confidence: any;
         priority: any;
         status: any;
+        workflowStatus: EscalationWorkflowStatus;
+        statusLabel: string;
         assignedTo: any;
         agronomistNotes: any;
+        comments: {
+            id: any;
+            author: string;
+            authorRole: "agronomist" | "system" | "telecaller";
+            body: string;
+            createdLabel: string;
+            createdAt: any;
+        }[];
         resolution: any;
         correction: any;
         resolvedAt: any;
@@ -110,4 +163,5 @@ export declare const escalationAdminService: {
     }>;
     countPending(): Promise<number>;
 };
+export {};
 //# sourceMappingURL=escalation-admin.service.d.ts.map

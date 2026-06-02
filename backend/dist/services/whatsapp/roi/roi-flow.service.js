@@ -359,6 +359,14 @@ export const roiFlowService = {
             reason: `WhatsApp ${params.entryType} entry`,
             actor: 'farmer',
         });
+        const { farmerEventCaptureService } = await import('../../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRoiEntry({
+            farmerId: params.farmerId,
+            entryId: String(data.id),
+            entryType: params.entryType,
+            amountInr: params.amount,
+            entryDate: params.entryDate,
+        });
         return data.id;
     },
     async finalizePendingEntry(farmerId, phone, language, send, comments) {

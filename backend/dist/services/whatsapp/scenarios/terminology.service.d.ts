@@ -1,4 +1,5 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
+/** Scenarios 7–9 — regional terminology mapping (delegates to regional-terminology engine). */
 export declare const terminologyService: {
     resolveTerm(term: string, language: AdvisoryLanguage, district?: string | null, cropType?: string | null): Promise<{
         found: boolean;

@@ -553,7 +553,8 @@ export const agronomistCaseReviewService = {
         await escalationAdminService.update(escalationId, {
             status: newStatus,
             assignedTo: agentEmail,
-            agronomistNotes: body.notesForLearning,
+            comment: body.notesForLearning,
+            commentRole: 'agronomist',
             resolution: body.action === 'approve_ai'
                 ? 'AI diagnosis approved by agronomist'
                 : body.action === 'partial_match'
@@ -613,6 +614,15 @@ export const agronomistCaseReviewService = {
             })
                 .eq('id', detail.farmerFeedback.id);
         }
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackCaseReviewSubmitted({
+            farmerId: detail.escalation.farmerId,
+            escalationId,
+            recommendationId: recommendationId ?? null,
+            agentEmail,
+            submittedForApproval: Boolean(body.submitForApproval),
+            selfApproved,
+        });
         return {
             escalationId,
             recommendationId,

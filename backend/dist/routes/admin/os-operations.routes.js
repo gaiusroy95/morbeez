@@ -6,7 +6,9 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
 import { runRoiDailyPromptsNow } from '../../services/whatsapp/roi/roi-daily-prompt.worker.js';
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
+import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
 import { operationsMessagingService } from '../../services/admin/operations-messaging.service.js';
+import { fetchWeatherForecast, resolveCoords, } from '../../services/whatsapp/pipeline/weather-fetch.service.js';
 const broadcastKindEnum = z.enum([
     'cultivation_schedule',
     'fertigation_reminder',
@@ -130,11 +132,216 @@ export async function osOperationsRoutes(app) {
         throwIfSupabaseError(error, 'Could not archive crop price');
         return reply.send({ ok: true });
     });
+    app.get(`${api}/field-activities/blocks`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const blocks = await whatsappOsAdminService.listFieldActivityBlocks(q.limit ? Number(q.limit) : 100);
+        return reply.send({ ok: true, blocks });
+    });
+    app.patch(`${api}/field-activities/blocks/:id/location`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            latitude: z.number().min(-90).max(90),
+            longitude: z.number().min(-180).max(180),
+        })
+            .parse(request.body);
+        const block = await whatsappOsAdminService.updateFieldBlockLocation({
+            blockId: id,
+            latitude: body.latitude,
+            longitude: body.longitude,
+        });
+        return reply.send({ ok: true, block });
+    });
+    app.get(`${api}/field-activities`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = z
+            .object({
+            blockId: z.string().uuid(),
+            limit: z.coerce.number().int().positive().max(300).optional(),
+        })
+            .parse(request.query ?? {});
+        const activities = await whatsappOsAdminService.listFieldActivities({
+            blockId: q.blockId,
+            limit: q.limit,
+        });
+        return reply.send({ ok: true, activities });
+    });
+    app.get(`${api}/field-activity-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = z
+            .object({
+            cropType: z.string().optional(),
+            activeOnly: z.coerce.boolean().optional(),
+        })
+            .parse(request.query ?? {});
+        const types = await whatsappOsAdminService.listFieldActivityTypes({
+            cropType: q.cropType,
+            activeOnly: q.activeOnly,
+        });
+        return reply.send({ ok: true, types });
+    });
+    app.get(`${api}/field-activities/pending-tasks`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = z
+            .object({
+            blockId: z.string().uuid(),
+            limit: z.coerce.number().int().positive().max(300).optional(),
+        })
+            .parse(request.query ?? {});
+        const tasks = await whatsappOsAdminService.listFieldPendingTasks({
+            blockId: q.blockId,
+            limit: q.limit,
+        });
+        return reply.send({ ok: true, tasks });
+    });
+    app.post(`${api}/field-activities`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            blockId: z.string().uuid(),
+            activityTypeId: z.string().uuid().optional(),
+            activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+            activityLabel: z.string().max(120).optional(),
+            activityDate: z.string().min(8).max(20),
+            dap: z.number().int().min(0).max(5000).optional(),
+            notes: z.string().max(1000).optional(),
+            costInr: z.number().min(0).max(10000000).optional(),
+            costBreakdown: z
+                .object({
+                labourCostInr: z.number().min(0).max(10000000).optional(),
+                sprayCostInr: z.number().min(0).max(10000000).optional(),
+                fertilizerCostInr: z.number().min(0).max(10000000).optional(),
+                machineryCostInr: z.number().min(0).max(10000000).optional(),
+            })
+                .optional(),
+            followUpRequired: z.boolean().optional(),
+            followUpDate: z.string().min(8).max(20).optional(),
+            status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+            assignedEmployee: z.string().max(160).optional(),
+        })
+            .parse(request.body);
+        const activity = await whatsappOsAdminService.createFieldActivity(body);
+        return reply.status(201).send({ ok: true, activity });
+    });
+    app.get(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const type = z.string().min(1).parse(q.type ?? 'crop');
+        const items = await crmFarmerService.listMasters(type, q.parentId || null, q.search);
+        return reply.send({ ok: true, items });
+    });
+    app.post(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            masterType: z.string().min(1),
+            name: z.string().min(1).max(120),
+            parentId: z.string().uuid().nullable().optional(),
+            category: z.string().optional(),
+            description: z.string().optional(),
+        })
+            .parse(request.body);
+        const item = await crmFarmerService.createMaster({
+            masterType: body.masterType,
+            name: body.name,
+            parentId: body.parentId,
+            category: body.category,
+            description: body.description,
+        });
+        return reply.status(201).send({ ok: true, item });
+    });
+    app.patch(`${api}/masters/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            name: z.string().min(1).max(120).optional(),
+            category: z.string().max(120).nullable().optional(),
+            description: z.string().optional(),
+            active: z.boolean().optional(),
+        })
+            .parse(request.body);
+        const item = await crmFarmerService.updateMaster(id, body);
+        return reply.send({ ok: true, item });
+    });
+    app.delete(`${api}/masters/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const item = await crmFarmerService.updateMaster(id, { active: false });
+        return reply.send({ ok: true, item });
+    });
+    app.get(`${api}/market-options`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const markets = await whatsappOsAdminService.listMarketOptions(q.cropType);
+        return reply.send({ ok: true, markets });
+    });
+    app.get(`${api}/weather/current`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = z
+            .object({
+            district: z.string().min(1).max(120).optional(),
+        })
+            .parse(request.query ?? {});
+        const coords = resolveCoords({ district: q.district ?? null });
+        const weather = await fetchWeatherForecast({
+            lat: coords.lat,
+            lon: coords.lon,
+            label: coords.label,
+        });
+        return reply.send({ ok: true, weather });
+    });
+    app.get(`${api}/farmer-market-preferences`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = z
+            .object({
+            farmerId: z.string().uuid(),
+            cropType: z.string().optional(),
+        })
+            .parse(request.query ?? {});
+        const preferences = await whatsappOsAdminService.listFarmerMarketPreferences(q);
+        return reply.send({ ok: true, preferences });
+    });
+    app.post(`${api}/farmer-market-preferences`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            farmerId: z.string().uuid(),
+            cropType: z.string().optional(),
+            markets: z
+                .array(z.object({
+                marketName: z.string().min(1).max(160),
+                district: z.string().max(120).optional(),
+            }))
+                .max(10),
+        })
+            .parse(request.body);
+        const preferences = await whatsappOsAdminService.saveFarmerMarketPreferences(body);
+        return reply.send({ ok: true, preferences });
+    });
     app.get(`${api}/terminology/tasks`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = request.query;
         const tasks = await whatsappOsAdminService.listTerminologyReviewTasks(q.status ?? 'open');
         return reply.send({ ok: true, tasks });
+    });
+    app.post(`${api}/terminology/tasks`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            term: z.string().min(1).max(120),
+            rawMessage: z.string().max(500).optional(),
+            language: z.string().max(10).optional(),
+            cropType: z.string().max(80).optional(),
+            district: z.string().max(120).optional(),
+            farmerId: z.string().uuid().optional(),
+            farmerPhone: z.string().max(20).optional(),
+        })
+            .parse(request.body);
+        const task = await whatsappOsAdminService.createTerminologyReviewTask(body);
+        return reply.status(201).send({ ok: true, task });
     });
     app.patch(`${api}/terminology/tasks/:id`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'operations', 'write');
@@ -143,6 +350,7 @@ export async function osOperationsRoutes(app) {
             .object({
             status: z.enum(['open', 'in_review', 'resolved', 'dismissed']),
             resolutionMeaning: z.string().max(500).optional(),
+            standardTerm: z.string().max(200).optional(),
             assignedTo: z.string().max(120).optional(),
         })
             .parse(request.body);

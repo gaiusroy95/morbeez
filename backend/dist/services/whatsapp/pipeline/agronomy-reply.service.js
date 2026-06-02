@@ -1,3 +1,5 @@
+import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
+import { terminologyAiContextService } from '../../regional-terminology/terminology-ai-context.service.js';
 import { farmerService } from '../../farmer/farmer.service.js';
 import { whatsappConversationalService } from '../whatsapp-conversational.service.js';
 import { aiUsageControlService } from './ai-usage-control.service.js';
@@ -22,17 +24,23 @@ export async function tryAgronomyReply(params) {
     const pair = parseProductPairFromText(text);
     if (!isAgronomy && !pair)
         return false;
-    const memory = await farmerMemoryService.build(params.farmerId, { symptomsText: text });
+    const symptomsForAi = terminologyAiContextService.expandedSymptomsText(params.terminologyDetection ?? null, text);
+    const memory = await farmerMemoryService.build(params.farmerId, {
+        symptomsText: symptomsForAi,
+        terminologyDetection: params.terminologyDetection ?? null,
+        language: params.language,
+    });
+    const localize = (body) => regionalTerminologyProcessor.localizeOutbound(body, params.terminologyDetection ?? null, params.language);
     const baseMeta = { cropType: memory.cropType };
     const verified = await verifiedAdvisoryLearningService.matchFarmerQuestion({
         farmerId: params.farmerId,
         cropType: memory.cropType,
-        text,
+        text: symptomsForAi,
         language: params.language,
         activePlotId: memory.activePlotId,
     });
     if (verified) {
-        const body = verifiedAdvisoryLearningService.formatFarmerMessage(verified.advisory, params.language);
+        const body = localize(verifiedAdvisoryLearningService.formatFarmerMessage(verified.advisory, params.language));
         const outbound = await replyAttributionService.deliverAttributedReply({
             farmerId: params.farmerId,
             phone: params.phone,
@@ -85,14 +93,14 @@ export async function tryAgronomyReply(params) {
     if (pair) {
         const lookup = await compatibilityLookupService.lookup(pair.productA, pair.productB);
         if (lookup.found) {
-            const reply = farmerReplyPolishService.isEnabled()
+            const reply = localize(farmerReplyPolishService.isEnabled()
                 ? await farmerReplyPolishService.polishCompatibilityReply({
                     lookup,
                     pair,
                     language: params.language,
                     memory,
                 })
-                : compatibilityLookupService.formatFarmerReply(lookup, params.language, pair);
+                : compatibilityLookupService.formatFarmerReply(lookup, params.language, pair));
             await sendAttributed(reply, 'compatibility_chart');
             return true;
         }
@@ -106,12 +114,12 @@ export async function tryAgronomyReply(params) {
         if (!usage.allowed) {
             const kb = await knowledgeFallbackService.tryReplyWithModule({
                 farmerId: params.farmerId,
-                text,
+                text: symptomsForAi,
                 language: params.language,
                 memory,
             });
             if (kb) {
-                await sendAttributed(kb.text, kb.module);
+                await sendAttributed(localize(kb.text), kb.module);
                 return true;
             }
             await params.sendText(params.phone, aiUsageControlService.usageLimitMessage(params.language, usage.reason));
@@ -126,27 +134,27 @@ export async function tryAgronomyReply(params) {
         if (isAgronomy) {
             const kb = await knowledgeFallbackService.tryReplyWithModule({
                 farmerId: params.farmerId,
-                text,
+                text: symptomsForAi,
                 language: params.language,
                 memory,
             });
             if (kb) {
-                await sendAttributed(kb.text, kb.module);
+                await sendAttributed(localize(kb.text), kb.module);
                 return true;
             }
-            await sendAttributed(farmerMemoryService.memoryAwareFallback(memory, params.language), 'knowledge_fallback');
+            await sendAttributed(localize(farmerMemoryService.memoryAwareFallback(memory, params.language)), 'knowledge_fallback');
             return true;
         }
         return false;
     }
     const reply = await whatsappConversationalService.generateReply({
         farmerId: params.farmerId,
-        userMessage: text,
+        userMessage: symptomsForAi,
         language: params.language,
         farmerName: params.farmerName,
         memory,
     });
-    await sendAttributed(reply, 'conversational_openai');
+    await sendAttributed(localize(reply), 'conversational_openai');
     return true;
 }
 //# sourceMappingURL=agronomy-reply.service.js.map

@@ -110,6 +110,12 @@ export const recommendationCommunicationService = {
             .eq('id', recommendationId);
         throwIfSupabaseError(updErr, 'Could not mark recommendation communicated');
         await recommendationFollowUpService.onRecommendationCommunicated(recommendationId);
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: recommendationId,
+            farmerId: String(row.farmer_id ?? data.farmer_id),
+            milestone: 'communicated',
+        });
         return { sent: true, message: text };
     },
 };

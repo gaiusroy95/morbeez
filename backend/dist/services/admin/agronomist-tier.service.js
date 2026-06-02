@@ -1,27 +1,45 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { canApproveRecommendations } from '../../lib/console-roles.js';
+import { logger } from '../../lib/logger.js';
+function isMissingAgronomistTierColumn(error) {
+    const msg = error?.message ?? '';
+    return (error?.code === 'PGRST204' ||
+        (msg.includes('agronomist_tier') && msg.includes('does not exist')));
+}
+async function loadProfileRole(filter, includeTier) {
+    const select = includeTier ? 'agronomist_tier, role' : 'role';
+    const { data, error } = await supabase
+        .from('employee_profiles')
+        .select(select)
+        .eq(filter.column, filter.value)
+        .maybeSingle();
+    if (error && isMissingAgronomistTierColumn(error) && includeTier) {
+        return loadProfileRole(filter, false);
+    }
+    throwIfSupabaseError(error, 'Could not load agronomist profile');
+    if (!data)
+        return null;
+    const row = data;
+    return { role: row.role ?? null, agronomistTier: row.agronomist_tier };
+}
 export const agronomistTierService = {
     async getTierForAdmin(adminUserId, email) {
         const normalizedEmail = email.trim().toLowerCase();
-        const { data: byAdmin, error: adminErr } = await supabase
-            .from('employee_profiles')
-            .select('agronomist_tier, role')
-            .eq('admin_user_id', adminUserId)
-            .maybeSingle();
-        throwIfSupabaseError(adminErr, 'Could not load agronomist profile');
+        const byAdmin = await loadProfileRole({ column: 'admin_user_id', value: adminUserId }, true);
         if (byAdmin?.role === 'agronomist') {
-            return normalizeTier(byAdmin.agronomist_tier);
+            if (byAdmin.agronomistTier === undefined) {
+                logger.warn('employee_profiles.agronomist_tier missing — run supabase migration 20260636000000');
+                return 'new';
+            }
+            return normalizeTier(byAdmin.agronomistTier);
         }
         if (normalizedEmail) {
-            const { data: byEmail, error: emailErr } = await supabase
-                .from('employee_profiles')
-                .select('agronomist_tier, role')
-                .eq('email', normalizedEmail)
-                .maybeSingle();
-            throwIfSupabaseError(emailErr, 'Could not load agronomist profile');
+            const byEmail = await loadProfileRole({ column: 'email', value: normalizedEmail }, true);
             if (byEmail?.role === 'agronomist') {
-                return normalizeTier(byEmail.agronomist_tier);
+                if (byEmail.agronomistTier === undefined)
+                    return 'new';
+                return normalizeTier(byEmail.agronomistTier);
             }
         }
         return null;

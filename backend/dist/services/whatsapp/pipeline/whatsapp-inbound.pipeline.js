@@ -15,6 +15,7 @@ import { aiUsageControlService } from './ai-usage-control.service.js';
 import { faqCacheService } from './faq-cache.service.js';
 import { farmerMemoryService } from './farmer-memory.service.js';
 import { tryAgronomyReply } from './agronomy-reply.service.js';
+import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import { isConversationFollowUp, shouldUseConversationalContinuation, } from './conversation-continuation.service.js';
 import { shouldSkipFaqForMessage } from './faq-cache.service.js';
 import { knowledgeFallbackService } from './knowledge-fallback.service.js';
@@ -300,6 +301,14 @@ export const whatsappInboundPipeline = {
             external_message_id: msg.messageId,
             raw_payload: msg.rawPayload,
             purge_after: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+        const { farmerEventCaptureService } = await import('../../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.captureWhatsAppInteraction({
+            farmerId: captured.farmerId,
+            direction: 'inbound',
+            messageType: msg.msgType,
+            externalMessageId: msg.messageId,
+            contentPreview: msg.text || msg.msgType,
         });
         // Recover farmers who said "hi" before fix (was misread as Hindi → skipped language menu).
         const ctxEarly = await conversationSessionService.getContext(captured.farmerId);
@@ -672,6 +681,21 @@ export const whatsappInboundPipeline = {
         }
         const agriDiagnosisIntent = shouldRunCropDoctorTextDiagnosis(msg.text);
         const generalAgronomyQuestion = isExplicitAgronomyQuestion(msg.text);
+        let terminologyDetection = null;
+        if (regionalTerminologyProcessor.enabled()) {
+            const termFlow = await regionalTerminologyProcessor.processInbound({
+                farmerId: captured.farmerId,
+                text: msg.text,
+                language: captured.language,
+                messageType: msg.msgType,
+                externalMessageId: msg.messageId,
+            });
+            terminologyDetection = termFlow.detection;
+            if (termFlow.handled) {
+                await sendText(captured.phone, regionalTerminologyProcessor.pendingFarmerCopy(captured.language));
+                return;
+            }
+        }
         if (generalAgronomyQuestion || parseProductPairFromText(msg.text)) {
             const agronomyHandled = await tryAgronomyReply({
                 farmerId: captured.farmerId,
@@ -681,6 +705,7 @@ export const whatsappInboundPipeline = {
                 sendText,
                 farmerName: msg.profileName,
                 isPremium: captured.isPremium,
+                terminologyDetection,
             });
             if (agronomyHandled)
                 return;

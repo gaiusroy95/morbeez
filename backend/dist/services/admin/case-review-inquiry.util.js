@@ -1,3 +1,4 @@
+import { buildLooseSymptomKey, buildSymptomKey, } from '../ai/question-reuse-keys.util.js';
 function normalizeTextKey(text) {
     return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -8,8 +9,24 @@ export function textsLikelySame(a, b) {
     const nb = normalizeTextKey(b);
     if (na === nb)
         return true;
+    if (buildLooseSymptomKey(a) === buildLooseSymptomKey(b))
+        return true;
+    if (buildSymptomKey(a) === buildSymptomKey(b))
+        return true;
     if (na.length >= 12 && nb.length >= 12) {
         return na.includes(nb) || nb.includes(na);
+    }
+    if (na.length >= 4 && nb.length >= 4) {
+        const ta = new Set(na.split(' ').filter((w) => w.length >= 3));
+        const tb = new Set(nb.split(' ').filter((w) => w.length >= 3));
+        if (ta.size && tb.size) {
+            let overlap = 0;
+            for (const w of ta)
+                if (tb.has(w))
+                    overlap += 1;
+            if (overlap / Math.min(ta.size, tb.size) >= 0.6)
+                return true;
+        }
     }
     return false;
 }

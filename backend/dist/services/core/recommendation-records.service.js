@@ -67,8 +67,16 @@ export const recommendationRecordsService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not create recommendation record');
-        const dist = await districtForFarmer(input.farmerId, input.blockId);
         const recordId = String(data.id);
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: recordId,
+            farmerId: input.farmerId,
+            milestone: 'created',
+            employeeEmail: createdBy,
+            metadata: { source: input.source },
+        });
+        const dist = await districtForFarmer(input.farmerId, input.blockId);
         for (const p of input.products ?? []) {
             const title = typeof p === 'object' && p && 'productTitle' in p
                 ? String(p.productTitle)
@@ -108,6 +116,13 @@ export const recommendationRecordsService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not submit recommendation');
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: id,
+            farmerId: String(data.farmer_id),
+            milestone: 'submitted',
+            employeeEmail: reviewedBy ?? null,
+        });
         return data;
     },
     async approve(id, approvedBy) {
@@ -134,6 +149,13 @@ export const recommendationRecordsService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not approve recommendation');
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: id,
+            farmerId: String(data.farmer_id),
+            milestone: 'approved',
+            employeeEmail: approvedBy,
+        });
         return data;
     },
     async reject(id, approvedBy, notes) {
@@ -160,6 +182,14 @@ export const recommendationRecordsService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not reject recommendation');
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: id,
+            farmerId: String(data.farmer_id),
+            milestone: 'rejected',
+            employeeEmail: approvedBy,
+            metadata: { notes: notes ?? null },
+        });
         return data;
     },
     async recordOutcome(id, outcome, notes) {
@@ -176,6 +206,14 @@ export const recommendationRecordsService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not record outcome');
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackRecommendationMilestone({
+            recommendationRecordId: id,
+            farmerId: String(data.farmer_id),
+            milestone: 'outcome_recorded',
+            outcome,
+            metadata: { notes: notes ?? null },
+        });
         return data;
     },
     async listPendingApproval(limit = 50) {

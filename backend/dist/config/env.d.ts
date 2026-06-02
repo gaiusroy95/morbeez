@@ -82,9 +82,15 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS: z.ZodDefault<z.ZodNumber>;
     CULTIVATION_RESULT_DAYS: z.ZodDefault<z.ZodNumber>;
     ENABLE_AI_REUSE_CACHE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Regional terminology detection, escalation, and response localization. */
+    ENABLE_REGIONAL_TERMINOLOGY_ENGINE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_WHATSAPP_ROI: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Evening (6 PM IST) proactive ROI entry buttons for opted-in farmers. */
     ENABLE_ROI_DAILY_PROMPT: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Nightly farmer opportunity score engine (IST 02:00–04:59). */
+    ENABLE_OPPORTUNITY_SCORE_WORKER: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Send educational WhatsApp nudge during low-opportunity nurture batch (default on). */
+    ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     AI_ESCALATION_THRESHOLD: z.ZodDefault<z.ZodNumber>;
     AI_DAILY_TEXT_LIMIT_FREE: z.ZodDefault<z.ZodNumber>;
     AI_DAILY_TEXT_LIMIT_PREMIUM: z.ZodDefault<z.ZodNumber>;
@@ -138,8 +144,11 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS: number;
     CULTIVATION_RESULT_DAYS: number;
     ENABLE_AI_REUSE_CACHE: boolean;
+    ENABLE_REGIONAL_TERMINOLOGY_ENGINE: boolean;
     ENABLE_WHATSAPP_ROI: boolean;
     ENABLE_ROI_DAILY_PROMPT: boolean;
+    ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
+    ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
     AI_ESCALATION_THRESHOLD: number;
     AI_DAILY_TEXT_LIMIT_FREE: number;
     AI_DAILY_TEXT_LIMIT_PREMIUM: number;
@@ -261,8 +270,11 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS?: number | undefined;
     CULTIVATION_RESULT_DAYS?: number | undefined;
     ENABLE_AI_REUSE_CACHE?: string | undefined;
+    ENABLE_REGIONAL_TERMINOLOGY_ENGINE?: string | undefined;
     ENABLE_WHATSAPP_ROI?: string | undefined;
     ENABLE_ROI_DAILY_PROMPT?: string | undefined;
+    ENABLE_OPPORTUNITY_SCORE_WORKER?: string | undefined;
+    ENABLE_OPPORTUNITY_NURTURE_WHATSAPP?: string | undefined;
     AI_ESCALATION_THRESHOLD?: number | undefined;
     AI_DAILY_TEXT_LIMIT_FREE?: number | undefined;
     AI_DAILY_TEXT_LIMIT_PREMIUM?: number | undefined;
@@ -318,8 +330,11 @@ export declare const env: {
     CULTIVATION_APPLICATION_DAYS: number;
     CULTIVATION_RESULT_DAYS: number;
     ENABLE_AI_REUSE_CACHE: boolean;
+    ENABLE_REGIONAL_TERMINOLOGY_ENGINE: boolean;
     ENABLE_WHATSAPP_ROI: boolean;
     ENABLE_ROI_DAILY_PROMPT: boolean;
+    ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
+    ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
     AI_ESCALATION_THRESHOLD: number;
     AI_DAILY_TEXT_LIMIT_FREE: number;
     AI_DAILY_TEXT_LIMIT_PREMIUM: number;
