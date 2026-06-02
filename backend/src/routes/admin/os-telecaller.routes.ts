@@ -12,6 +12,11 @@ import { escalationAdminService } from '../../services/admin/escalation-admin.se
 import { farmerRoiAdminService } from '../../services/admin/farmer-roi-admin.service.js';
 import { telecallerFarmerProfileService } from '../../services/admin/telecaller-farmer-profile.service.js';
 import { pincodeService } from '../../services/core/pincode.service.js';
+import {
+  telecallerLeadQueueService,
+  type OperationalLeadSort,
+} from '../../services/admin/telecaller-lead-queue.service.js';
+import { userTablePreferencesService } from '../../services/admin/user-table-preferences.service.js';
 
 const leadStageEnum = z.enum([
   'new_lead',
@@ -65,6 +70,159 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       admin.email
     );
     return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/leads/operational`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as Record<string, string | undefined>;
+    const result = await telecallerLeadQueueService.listOperationalLeads(
+      {
+        scope: q.scope === 'all' ? 'all' : 'mine',
+        stage: q.stage,
+        search: q.search,
+        district: q.district,
+        pincode: q.pincode,
+        language: q.language,
+        crop: q.crop,
+        owner: q.owner,
+        pendingTasks: q.pendingTasks === 'true' || q.pendingTasks === '1',
+        escalations: q.escalations === 'true' || q.escalations === '1',
+        opportunityLevel: q.opportunityLevel as 'high' | 'medium' | 'low' | undefined,
+        smartFilter: q.smartFilter as
+          | 'all'
+          | 'pending'
+          | 'escalated'
+          | 'overdue'
+          | 'due_today'
+          | 'hot_leads'
+          | 'high_acreage'
+          | 'no_engagement'
+          | undefined,
+        sort: (q.sort as
+          | 'priority'
+          | 'pending_tasks'
+          | 'escalations'
+          | 'opportunity_score'
+          | 'relationship_score'
+          | 'acreage'
+          | 'follow_up_due'
+          | 'recent_interaction'
+          | 'recently_added'
+          | undefined) ?? 'priority',
+        limit: q.limit ? Number(q.limit) : 120,
+      },
+      admin.email
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/leads/queue-summary`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { scope?: string };
+    const summary = await telecallerLeadQueueService.getQueueSummary(
+      admin.email,
+      q.scope === 'all' ? 'all' : 'mine'
+    );
+    return reply.send({ ok: true, summary });
+  });
+
+  app.get(`${api}/leads/export`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as Record<string, string | undefined>;
+    const leadIds = q.leadIds?.split(',').filter(Boolean);
+    const { csv } = await telecallerLeadQueueService.exportLeads(
+      {
+        scope: q.scope === 'all' ? 'all' : 'mine',
+        stage: q.stage,
+        search: q.search,
+        district: q.district,
+        pincode: q.pincode,
+        language: q.language,
+        crop: q.crop,
+        owner: q.owner,
+        pendingTasks: q.pendingTasks === 'true' || q.pendingTasks === '1',
+        escalations: q.escalations === 'true' || q.escalations === '1',
+        opportunityLevel: q.opportunityLevel as 'high' | 'medium' | 'low' | undefined,
+        smartFilter: q.smartFilter as
+          | 'all'
+          | 'pending'
+          | 'escalated'
+          | 'overdue'
+          | 'due_today'
+          | 'hot_leads'
+          | 'high_acreage'
+          | 'no_engagement'
+          | undefined,
+        sort: (q.sort as OperationalLeadSort | undefined) ?? 'priority',
+        limit: q.limit ? Number(q.limit) : 200,
+      },
+      admin.email,
+      leadIds
+    );
+    reply.header('Content-Type', 'text/csv; charset=utf-8');
+    reply.header(
+      'Content-Disposition',
+      `attachment; filename="leads-export-${new Date().toISOString().slice(0, 10)}.csv"`
+    );
+    return reply.send(csv);
+  });
+
+  app.post(`${api}/leads/bulk`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const body = z
+      .object({
+        leadIds: z.array(z.string().uuid()).min(1),
+        action: z.enum([
+          'change_owner',
+          'assign_employee',
+          'change_stage',
+          'add_broadcast_tag',
+          'delete',
+        ]),
+        owner: z.string().email().optional(),
+        stage: leadStageEnum.optional(),
+        broadcastTag: z.string().min(1).max(80).optional(),
+      })
+      .parse(request.body);
+    const result = await telecallerLeadQueueService.bulkUpdateLeads(
+      body.leadIds,
+      body.action,
+      { owner: body.owner, stage: body.stage, broadcastTag: body.broadcastTag },
+      admin.email
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/team`, async (_request, reply) => {
+    await assertModuleAccess(_request, 'telecaller_crm', 'read');
+    const team = await telecallerLeadQueueService.listAssignableTeam();
+    return reply.send({ ok: true, team });
+  });
+
+  app.get(`${api}/table-preferences`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { table?: string; view?: string };
+    const tableName = z.string().min(1).parse(q.table ?? 'telecaller_leads');
+    const viewName = q.view?.trim() || 'active';
+    const prefs = await userTablePreferencesService.get(admin.email, tableName, viewName);
+    const views = await userTablePreferencesService.listViews(admin.email, tableName);
+    return reply.send({ ok: true, preferences: prefs, views });
+  });
+
+  app.put(`${api}/table-preferences`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const body = z
+      .object({
+        tableName: z.string().min(1).default('telecaller_leads'),
+        viewName: z.string().min(1).optional(),
+        visibleColumns: z.array(z.string()).optional(),
+        columnOrder: z.array(z.string()).optional(),
+        columnWidths: z.record(z.number()).optional(),
+        filterState: z.record(z.unknown()).optional(),
+      })
+      .parse(request.body);
+    const prefs = await userTablePreferencesService.upsert(admin.email, body.tableName, body);
+    return reply.send({ ok: true, preferences: prefs });
   });
 
   app.get(`${api}/leads/:id`, async (request, reply) => {

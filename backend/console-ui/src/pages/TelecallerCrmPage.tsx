@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTelecallerHeader } from '../context/TelecallerHeaderContext';
 import { api } from '../lib/api';
 import { LeadDetailPanel } from '../components/telecaller/LeadDetailPanel';
+import { LeadOperationsTable } from '../components/telecaller/lead-queue/LeadOperationsTable';
+import type { OperationalLead } from '../components/telecaller/lead-queue/lead-queue-types';
 import { EscalationsPanel } from '../components/telecaller/EscalationsPanel';
 import { TelecallerIntelligenceBar } from '../components/telecaller/TelecallerIntelligenceBar';
 import { Field, Modal, inputClass } from '../components/Modal';
@@ -85,13 +87,15 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
   const [search, setSearch] = useState('');
   const [showTasks, setShowTasks] = useState(false);
   const [showNewLead, setShowNewLead] = useState(false);
-  const [deleteLeadModal, setDeleteLeadModal] = useState<LeadRow | null>(null);
+  const [deleteLeadModal, setDeleteLeadModal] = useState<OperationalLead | null>(null);
+  const [focusLead, setFocusLead] = useState<OperationalLead | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState<CrmNotification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [showNotifications, setShowNotifications] = useState(false);
   const [workspaceViewMode, setWorkspaceViewMode] = useState<WorkspaceViewMode>('list');
+  const [queueRefresh, setQueueRefresh] = useState(0);
 
   const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -227,8 +231,9 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [workspaceViewMode]);
 
-  function openLeadWorkspace(leadId: string) {
+  function openLeadWorkspace(leadId: string, lead?: OperationalLead) {
     setSelectedLeadId(leadId);
+    setFocusLead(lead ?? null);
     setWorkspaceViewMode('detail');
   }
 
@@ -270,7 +275,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  async function deleteLead(lead: LeadRow) {
+  async function deleteLead(lead: OperationalLead) {
     if (!canWrite) return;
     setDeleteLeadModal(lead);
   }
@@ -281,8 +286,11 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       await api(`${base}/leads/${deleteLeadModal.id}`, { method: 'DELETE' });
       if (selectedLeadId === deleteLeadModal.id) {
         setSelectedLeadId(null);
+        setFocusLead(null);
+        setWorkspaceViewMode('list');
       }
       setDeleteLeadModal(null);
+      setQueueRefresh((v) => v + 1);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not delete lead');
@@ -376,60 +384,24 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       ) : null}
 
       {crmView === 'workspace' ? (
-        <TelecallerIntelligenceBar onSelectLead={(id) => setSelectedLeadId(id)} />
+        <TelecallerIntelligenceBar onSelectLead={(id) => openLeadWorkspace(id)} />
       ) : null}
 
       {crmView === 'workspace' ? (
         <div className="tc-workspace-shell">
           {workspaceViewMode === 'list' ? (
             <div className="tc-workspace-split tc-workspace-split--list">
-              <div className="tc-leads-pane">
-                <div className="tc-leads-toolbar">
-                  <div className="tc-toolbar-row tc-toolbar-row--primary">
-                    <div className="tc-scope-tabs">
-                      <button
-                        type="button"
-                        className={`tc-scope-tab ${scope === 'mine' ? 'active' : ''}`}
-                        onClick={() => setScope('mine')}
-                      >
-                        My Leads ({counts.mine})
-                      </button>
-                      <button
-                        type="button"
-                        className={`tc-scope-tab ${scope === 'all' ? 'active' : ''}`}
-                        onClick={() => setScope('all')}
-                      >
-                        All Leads ({counts.all})
-                      </button>
-                    </div>
-                    <Btn
-                      size="sm"
-                      variant="secondary"
-                      className={showTasks ? 'tc-tasks-toggle active' : 'tc-tasks-toggle'}
-                      onClick={() => setShowTasks((v) => !v)}
-                    >
-                      Tasks ({tasks.length})
-                    </Btn>
-                  </div>
-                  <div className="tc-toolbar-row tc-toolbar-row--filters">
-                    <div className="tc-leads-filters">
-                      <select
-                        className="tc-filter-select"
-                        value={stage}
-                        onChange={(e) => setStage(e.target.value)}
-                        aria-label="Filter by stage"
-                      >
-                        <option value="">All stages</option>
-                        <option value="new_lead">New Lead</option>
-                        <option value="interested">Interested</option>
-                        <option value="follow_up">Follow-up</option>
-                        <option value="recommendation">Recommendation</option>
-                        <option value="order_placed">Order Placed</option>
-                      </select>
-                    </div>
-                  </div>
+              <div className="tc-leads-pane tc-leads-pane--queue">
+                <div className="tc-lq-tasks-row">
+                  <Btn
+                    size="sm"
+                    variant="secondary"
+                    className={showTasks ? 'tc-tasks-toggle active' : 'tc-tasks-toggle'}
+                    onClick={() => setShowTasks((v) => !v)}
+                  >
+                    Tasks ({tasks.length})
+                  </Btn>
                 </div>
-
                 {showTasks ? (
                   <div className="tc-tasks-panel">
                     {tasks.length === 0 ? (
@@ -474,65 +446,17 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                   </div>
                 ) : null}
 
-                <div className="tc-lead-list">
-                  {loading ? (
-                    <Loading label="Loading leads…" />
-                  ) : leads.length === 0 ? (
-                    <p className="tc-leads-empty">No leads in this view</p>
-                  ) : (
-                    leads.map((lead) => (
-                      <div
-                        key={lead.id}
-                        className={`tc-lead-card ${selectedLeadId === lead.id ? 'selected' : ''}`}
-                      >
-                        <button
-                          type="button"
-                          className="tc-lead-card-select"
-                          onClick={() => openLeadWorkspace(lead.id)}
-                        >
-                          <span className="tc-avatar-sm">{lead.farmerInitials}</span>
-                          <div className="tc-lead-card-body">
-                            <div className="tc-lead-card-top">
-                              {lead.opportunityScore != null && lead.opportunityScore >= 70 ? (
-                                <span className="tc-lead-opp-badge" title="Opportunity score">
-                                  ★ {lead.opportunityScore}
-                                </span>
-                              ) : lead.retentionRiskBand === 'at_risk' ||
-                                lead.retentionRiskBand === 'churned' ? (
-                                <span className="tc-lead-risk-badge" title="Retention risk">
-                                  !
-                                </span>
-                              ) : null}
-                              <strong>{lead.farmerName}</strong>
-                              <span className={`tc-stage ${STAGE_CLASS[lead.stage] ?? 'stage-new'}`}>
-                                {lead.stageLabel}
-                              </span>
-                            </div>
-                            <div className="tc-lead-card-meta">
-                              {lead.phone ?? 'No phone'}
-                              {lead.district ? ` · ${lead.district}` : ''}
-                            </div>
-                            <div className="tc-lead-card-dates">
-                              {lead.lastInteractionLabel ? (
-                                <span>Last: {lead.lastInteractionLabel}</span>
-                              ) : null}
-                              {lead.followUpLabel ? <span>Follow-up: {lead.followUpLabel}</span> : null}
-                            </div>
-                          </div>
-                        </button>
-                        {canWrite ? (
-                          <button
-                            type="button"
-                            className="tc-lead-delete-btn"
-                            onClick={() => deleteLead(lead)}
-                          >
-                            Delete
-                          </button>
-                        ) : null}
-                      </div>
-                    ))
-                  )}
-                </div>
+                <LeadOperationsTable
+                  canWrite={canWrite}
+                  scope={scope}
+                  counts={counts}
+                  onScopeChange={setScope}
+                  selectedLeadId={selectedLeadId}
+                  onOpenLead={(id, lead) => openLeadWorkspace(id, lead)}
+                  onEditLead={(id) => openLeadWorkspace(id)}
+                  onDeleteLead={deleteLead}
+                  refreshToken={queueRefresh}
+                />
               </div>
             </div>
           ) : (
@@ -545,9 +469,10 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                 >
                   ← Back to leads
                 </button>
-                {selectedLead ? (
+                {focusLead || selectedLead ? (
                   <span className="tc-workspace-focus-title">
-                    {selectedLead.farmerName} {selectedLead.phone ? `· ${selectedLead.phone}` : ''}
+                    {(focusLead ?? selectedLead)!.farmerName}{' '}
+                    {(focusLead ?? selectedLead)!.phone ? `· ${(focusLead ?? selectedLead)!.phone}` : ''}
                   </span>
                 ) : null}
               </div>
