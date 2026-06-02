@@ -412,8 +412,8 @@ export const telecallerLeadQueueService = {
             ...rows.map((r) => {
                 const cells = [
                     r.farmerName,
-                    r.phone,
-                    r.district,
+                    r.phone != null ? String(r.phone) : null,
+                    r.district != null ? String(r.district) : null,
                     r.pincode,
                     r.language,
                     r.cropSummary,
@@ -435,7 +435,8 @@ export const telecallerLeadQueueService = {
     },
     async exportLeads(query, agentEmail, leadIds) {
         const { leads } = await this.listOperationalLeads(query, agentEmail);
-        const rows = leadIds?.length ? leads.filter((l) => leadIds.includes(l.id)) : leads;
+        const idSet = leadIds?.length ? new Set(leadIds) : null;
+        const rows = idSet ? leads.filter((l) => idSet.has(String(l.id))) : leads;
         return { csv: this.leadsToCsv(rows), count: rows.length };
     },
     async bulkUpdateLeads(leadIds, action, payload, agentEmail) {
