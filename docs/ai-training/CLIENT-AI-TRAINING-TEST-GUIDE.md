@@ -319,6 +319,8 @@ Separately from export, Morbeez can **remember good answers** from real work:
 
 The farmer may see wording like a **similar case in your region** — that means Morbeez reused a proven answer instead of guessing from scratch.
 
+When Morbeez already has **many similar successful cases** for a crop (for example hundreds of ginger leaf-spot cases), it may first ask the farmer **one or two short yes/no questions** (or a leaf photo) so it can match the closest learned case — then give the diagnosis. This is normal and helps accuracy without waiting for a human expert on every chat.
+
 Staff review can still happen when your rules require it (low confidence, severe cases, approvals).
 
 ### What does *not* happen automatically today

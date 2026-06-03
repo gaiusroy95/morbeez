@@ -39,6 +39,7 @@ export type ScenarioRouterResult = {
     handled: true;
     runDiagnosis: true;
     welcomePrefix?: string;
+    symptomsText?: string;
 } | {
     handled: true;
     duplicateImage: true;

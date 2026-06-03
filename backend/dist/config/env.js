@@ -130,6 +130,11 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** Ask 1–2 follow-ups from similar verified cases before Crop Doctor (requires reuse cache). */
+    ENABLE_DIAGNOSIS_FOLLOW_UP: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     /** Regional terminology detection, escalation, and response localization. */
     ENABLE_REGIONAL_TERMINOLOGY_ENGINE: z
         .string()

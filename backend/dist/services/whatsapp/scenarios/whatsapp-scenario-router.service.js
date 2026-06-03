@@ -33,6 +33,8 @@ import { farmerFeedbackFlowService } from './farmer-feedback-flow.service.js';
 import { isExplicitAgronomyQuestion } from '../pipeline/agriculture-free-text.service.js';
 import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
+import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
+const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 const CROP_MEDIA = new Set(['image', 'image_message', 'document']);
 const MENU_IDS = new Set([
     'menu.crop_assessment',
@@ -270,6 +272,27 @@ export const whatsappScenarioRouter = {
             });
             if (roiHandled)
                 return { handled: true };
+        }
+        if (session.state === 'diagnosis_intake' ||
+            text.startsWith('dfq.')) {
+            const intakeResult = await diagnosisFollowUpService.handleIntakeMessage({
+                farmerId: captured.farmerId,
+                phone: msg.phone,
+                language: lang,
+                text,
+                hasPhoto: CROP_MEDIA_INTAKE.has(msg.msgType),
+            });
+            if (intakeResult.handled) {
+                if (intakeResult.ready) {
+                    await send.text(msg.phone, lang === 'ml' ? 'നന്ദി. ഇപ്പോൾ നിങ്ങളുടെ പ്രശ്നം പരിശോധിക്കുന്നു…' : 'Thanks. Analyzing your problem now…');
+                    return {
+                        handled: true,
+                        runDiagnosis: true,
+                        symptomsText: intakeResult.enrichedSymptoms,
+                    };
+                }
+                return { handled: true };
+            }
         }
         if (text && isFarmerResetCommand(text)) {
             await farmerPurgeService.purgeByPhone(captured.phone);

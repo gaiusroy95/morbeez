@@ -82,6 +82,8 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS: z.ZodDefault<z.ZodNumber>;
     CULTIVATION_RESULT_DAYS: z.ZodDefault<z.ZodNumber>;
     ENABLE_AI_REUSE_CACHE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Ask 1–2 follow-ups from similar verified cases before Crop Doctor (requires reuse cache). */
+    ENABLE_DIAGNOSIS_FOLLOW_UP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Regional terminology detection, escalation, and response localization. */
     ENABLE_REGIONAL_TERMINOLOGY_ENGINE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_WHATSAPP_ROI: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
@@ -149,6 +151,7 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS: number;
     CULTIVATION_RESULT_DAYS: number;
     ENABLE_AI_REUSE_CACHE: boolean;
+    ENABLE_DIAGNOSIS_FOLLOW_UP: boolean;
     ENABLE_REGIONAL_TERMINOLOGY_ENGINE: boolean;
     ENABLE_WHATSAPP_ROI: boolean;
     ENABLE_ROI_DAILY_PROMPT: boolean;
@@ -277,6 +280,7 @@ declare const envSchema: z.ZodObject<{
     CULTIVATION_APPLICATION_DAYS?: number | undefined;
     CULTIVATION_RESULT_DAYS?: number | undefined;
     ENABLE_AI_REUSE_CACHE?: string | undefined;
+    ENABLE_DIAGNOSIS_FOLLOW_UP?: string | undefined;
     ENABLE_REGIONAL_TERMINOLOGY_ENGINE?: string | undefined;
     ENABLE_WHATSAPP_ROI?: string | undefined;
     ENABLE_ROI_DAILY_PROMPT?: string | undefined;
@@ -339,6 +343,7 @@ export declare const env: {
     CULTIVATION_APPLICATION_DAYS: number;
     CULTIVATION_RESULT_DAYS: number;
     ENABLE_AI_REUSE_CACHE: boolean;
+    ENABLE_DIAGNOSIS_FOLLOW_UP: boolean;
     ENABLE_REGIONAL_TERMINOLOGY_ENGINE: boolean;
     ENABLE_WHATSAPP_ROI: boolean;
     ENABLE_ROI_DAILY_PROMPT: boolean;

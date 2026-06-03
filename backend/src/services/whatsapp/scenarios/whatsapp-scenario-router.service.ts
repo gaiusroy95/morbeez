@@ -54,6 +54,9 @@ import { isExplicitAgronomyQuestion } from '../pipeline/agriculture-free-text.se
 import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
+import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
+
+const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 
 const CROP_MEDIA = new Set(['image', 'image_message', 'document']);
 const MENU_IDS = new Set([
@@ -100,7 +103,7 @@ export type ScenarioCapture = {
 export type ScenarioRouterResult =
   | { handled: true }
   | { handled: false }
-  | { handled: true; runDiagnosis: true; welcomePrefix?: string }
+  | { handled: true; runDiagnosis: true; welcomePrefix?: string; symptomsText?: string }
   | { handled: true; duplicateImage: true };
 
 /** Map typed or button titles to stable menu ids. */
@@ -361,6 +364,33 @@ export const whatsappScenarioRouter = {
         sessionState: session.state,
       });
       if (roiHandled) return { handled: true };
+    }
+
+    if (
+      session.state === 'diagnosis_intake' ||
+      text.startsWith('dfq.')
+    ) {
+      const intakeResult = await diagnosisFollowUpService.handleIntakeMessage({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        language: lang,
+        text,
+        hasPhoto: CROP_MEDIA_INTAKE.has(msg.msgType),
+      });
+      if (intakeResult.handled) {
+        if (intakeResult.ready) {
+          await send.text(
+            msg.phone,
+            lang === 'ml' ? 'നന്ദി. ഇപ്പോൾ നിങ്ങളുടെ പ്രശ്നം പരിശോധിക്കുന്നു…' : 'Thanks. Analyzing your problem now…'
+          );
+          return {
+            handled: true,
+            runDiagnosis: true,
+            symptomsText: intakeResult.enrichedSymptoms,
+          };
+        }
+        return { handled: true };
+      }
     }
 
     if (text && isFarmerResetCommand(text)) {

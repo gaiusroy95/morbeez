@@ -74,6 +74,7 @@ import { isExplicitAgronomyQuestion } from './agriculture-free-text.service.js';
 import { responseComposerService } from './response-composer.service.js';
 import { assessmentPlaybookService } from '../scenarios/assessment-playbook.service.js';
 import { roiFlowService } from '../roi/roi-flow.service.js';
+import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
 import type { InboundMessage } from './types.js';
 
 const CROP_MEDIA_TYPES = new Set(['image', 'image_message', 'document']);
@@ -547,6 +548,23 @@ export const whatsappInboundPipeline = {
       if (routeResult.welcomePrefix) {
         await send.text(msg.phone, routeResult.welcomePrefix);
       }
+      if (routeResult.symptomsText) {
+        await this.runDiagnosis({
+          farmerId: captured.farmerId,
+          phone: msg.phone,
+          language: activeLang,
+          symptomsText: routeResult.symptomsText,
+          channel: 'whatsapp',
+          sendText: send.text,
+          send,
+        });
+        await eventBus.publish(
+          'whatsapp.message.received',
+          { phone: msg.phone, farmerId: captured.farmerId, text: msg.text, messageType: msg.msgType },
+          'whatsapp'
+        );
+        return;
+      }
       await this.processImage(msg, { ...captured, language: activeLang }, send.text, send);
       await eventBus.publish(
         'whatsapp.message.received',
@@ -825,6 +843,20 @@ export const whatsappInboundPipeline = {
       }
     }
 
+    const caption = msg.text?.trim();
+    if (caption && diagnosisFollowUpService.enabled()) {
+      const memoryImg = await farmerMemoryService.build(captured.farmerId, { symptomsText: caption });
+      const intakeStarted = await diagnosisFollowUpService.startIntake({
+        farmerId: captured.farmerId,
+        phone: captured.phone,
+        language: captured.language,
+        symptomsText: caption,
+        cropType: memoryImg.cropType,
+        hasPhoto: true,
+      });
+      if (intakeStarted.started) return;
+    }
+
     await this.runDiagnosis({
       farmerId: captured.farmerId,
       phone: captured.phone,
@@ -983,6 +1015,17 @@ export const whatsappInboundPipeline = {
           return;
         }
       }
+
+      const intakeStarted = await diagnosisFollowUpService.startIntake({
+        farmerId: captured.farmerId,
+        phone: captured.phone,
+        language: captured.language,
+        symptomsText: msg.text,
+        cropType: memory.cropType,
+        hasPhoto: false,
+      });
+      if (intakeStarted.started) return;
+
       await this.runDiagnosis({
         farmerId: captured.farmerId,
         phone: captured.phone,

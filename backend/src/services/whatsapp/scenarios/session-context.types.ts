@@ -56,4 +56,15 @@ export interface SessionContext {
   /** Farmer Experience Learning — correction after AI diagnosis */
   farmerFeedbackId?: string;
   farmerFeedbackStep?: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+  /** Learned-case follow-up before Crop Doctor (1–2 discriminators + optional photo) */
+  diagnosisIntake?: {
+    initialSymptoms: string;
+    questions: Array<{ id: string; kind: 'yes_no' | 'photo'; text: string }>;
+    currentIndex: number;
+    answers: Record<string, 'yes' | 'no' | 'skip'>;
+    similarCases: Array<{ issueLabel: string; score: number; reuseCaseId?: string }>;
+    bestIssueLabel?: string;
+    matchConfidence?: number;
+    pendingPhoto?: boolean;
+  };
 }
