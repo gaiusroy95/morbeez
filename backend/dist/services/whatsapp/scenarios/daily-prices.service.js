@@ -72,6 +72,8 @@ Write a short, farmer-friendly market price update using ONLY the price facts pr
 Rules:
 - Reply entirely in ${langNames[params.language]}.
 - Max 520 characters.
+- Casual spoken style — like texting a farmer neighbour, not literary or formal prose.
+${params.language === 'ml' ? '- Malayalam: Kerala farmer WhatsApp tone — simple, friendly, short sentences; no formal Malayalam or literal translation from English.' : ''}
 - Sound human and practical for a farmer selling or planning sale.
 - Mention crop and date once.
 - Highlight trend vs last year when data exists.

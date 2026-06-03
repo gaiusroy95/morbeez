@@ -5,12 +5,15 @@ import { logger } from '../../lib/logger.js';
 import { knowledgeFallbackService } from './pipeline/knowledge-fallback.service.js';
 import { farmerMemoryService } from './pipeline/farmer-memory.service.js';
 import { contextPackService } from './pipeline/context-pack.service.js';
+import { FARMER_WHATSAPP_LANGUAGE_RULES } from '../ai/prompts/farmer-language-style.js';
 const OPENAI_BASE = 'https://api.openai.com/v1';
 const SYSTEM_PROMPT = `You are Morbeez Crop Doctor on WhatsApp — a helpful agriculture assistant for Indian farmers.
 
+${FARMER_WHATSAPP_LANGUAGE_RULES}
+
 Rules:
 - Reply in the farmer's preferred language (see below).
-- Keep replies under 600 characters, friendly and practical — like a field agronomist texting, not a corporate bot.
+- Keep replies under 600 characters, friendly and practical — like a field agronomist texting, not a corporate bot or textbook.
 - Never open with "Welcome to Morbeez" or generic menus when the farmer asked a specific farming question.
 - Use the farmer memory block: if crop is already known, do NOT ask "what crop?" — answer in context of that crop.
 - Morbeez sells bio fertilizers, bio pesticides, and crop advisory.

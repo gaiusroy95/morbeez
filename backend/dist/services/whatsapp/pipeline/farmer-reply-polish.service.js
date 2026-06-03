@@ -5,16 +5,21 @@ import { openaiTokenLimitBody } from '../../ai/providers/openai-chat-params.js';
 import { compatibilityLookupService, } from './compatibility-lookup.service.js';
 import { farmerMemoryService } from './farmer-memory.service.js';
 import { responseComposerService } from './response-composer.service.js';
+import { FARMER_WHATSAPP_LANGUAGE_RULES, MALAYALAM_KERALA_WHATSAPP_RULES, } from '../../ai/prompts/farmer-language-style.js';
 const OPENAI_BASE = 'https://api.openai.com/v1';
-function systemPrompt(task) {
+function systemPrompt(task, language) {
+    const mlBlock = language === 'ml' ? `\n\n${MALAYALAM_KERALA_WHATSAPP_RULES}` : '';
     const base = `You rewrite Morbeez WhatsApp messages for Indian farmers.
 CRITICAL: You are NOT allowed to change verified facts. Never invent products, doses, diseases, or mix compatibility.
 - If draft says DO NOT MIX / not compatible / incompatible → keep that meaning exactly.
 - If draft says compatible → keep that meaning exactly.
 - Keep all product names, numbers, rates, and hours unchanged.
 - Reply in the farmer's language. Max 550 characters for the main body.
-- Sound like a caring agronomist texting — warm, direct, no "Welcome to Morbeez", no menus.
-- One short follow-up question only if the draft already had one.`;
+- Sound like a caring agronomist texting — warm, direct, casual spoken style, no "Welcome to Morbeez", no menus.
+- If the draft sounds literary, formal, or hard to read, simplify it into short everyday sentences farmers use in the field.
+- One short follow-up question only if the draft already had one.
+
+${FARMER_WHATSAPP_LANGUAGE_RULES}${mlBlock}`;
     if (task === 'diagnosis') {
         return `${base}
 - Keep the probable issue / pest / disease name exactly as given.
@@ -89,7 +94,7 @@ Write the final WhatsApp message body only (no JSON).`;
                     ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 450),
                     temperature: 0.35,
                     messages: [
-                        { role: 'system', content: systemPrompt(params.task) },
+                        { role: 'system', content: systemPrompt(params.task, params.language) },
                         { role: 'user', content: userPrompt },
                     ],
                 }),

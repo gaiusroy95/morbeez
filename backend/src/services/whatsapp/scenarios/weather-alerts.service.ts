@@ -173,6 +173,8 @@ Write a short, farmer-friendly weather advisory using ONLY the forecast facts pr
 Rules:
 - Reply entirely in ${langNames[params.language]}.
 - Max 520 characters.
+- Casual spoken style — simple sentences farmers understand on WhatsApp, not literary language.
+${params.language === 'ml' ? '- Malayalam: Kerala farmer WhatsApp tone — natural spoken Malayalam, not formal or word-for-word English translation.' : ''}
 - Sound human and practical, not like a rigid template.
 - Mention location once.
 - Include rainfall risk, spray timing guidance, and one crop-specific cultivation alert for ${crop}.

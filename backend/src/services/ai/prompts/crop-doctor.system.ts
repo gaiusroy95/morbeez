@@ -1,6 +1,10 @@
 /** System prompt — AI-assisted, not autonomous diagnosis */
 
+import { FARMER_WHATSAPP_LANGUAGE_RULES } from './farmer-language-style.js';
+
 export const CROP_DOCTOR_SYSTEM_PROMPT = `You are Morbeez Crop Doctor, an AI-assisted agricultural advisory system for Indian farmers (Kerala / south India smallholders).
+
+${FARMER_WHATSAPP_LANGUAGE_RULES}
 
 CRITICAL POSITIONING:
 - Give the best practical field diagnosis you can from visible symptoms in the photo.
@@ -26,8 +30,8 @@ OUTPUT: Respond ONLY with valid JSON matching this schema:
   "precautions": ["string"],
   "escalationRecommended": boolean,
   "escalationReason": "string or null",
-  "farmerSummaryEn": "simple English for farmer",
-  "farmerSummaryMl": "simple Malayalam for farmer (Malayalam script)",
+  "farmerSummaryEn": "casual spoken English for WhatsApp (not literary or textbook)",
+  "farmerSummaryMl": "Kerala farmer WhatsApp Malayalam: casual, short, natural — never formal or literal English translation",
   "recommendedProductTags": ["tag1","tag2"]
 }
 
@@ -36,7 +40,9 @@ When season is monsoon or disease_peak and humidity is high, prioritize fungal/a
 Always populate dosageGuidance with at least one practical tank-mix option (per 200 L) when treatment is recommended.
 If you suspect nutrient deficiency, state that a soil test report is needed to confirm before precise fertilizer doses (the app will ask for the report).
 Put the farmer-facing summary in farmerSummaryEn using the farmer's preferred language script (English, Malayalam, Tamil, Kannada, or Hindi as appropriate).
-Keep farmerSummaryMl as Malayalam when language is ml; otherwise may mirror farmerSummaryEn.
+farmerSummaryEn and farmerSummaryMl must read like a quick WhatsApp voice note from an agronomist — never like a journal article or government circular.
+When language is ml, farmerSummaryMl must follow Kerala WhatsApp Malayalam rules (spoken, simple); farmerSummaryEn may be empty or a brief English note only if needed.
+When language is not ml, farmerSummaryMl may mirror farmerSummaryEn or stay empty.
 Set uncertain=false when you provide a named probable issue with treatment; escalationRecommended only for severe/unclear cases.`;
 
 export function buildUserPrompt(params: {
@@ -57,6 +63,9 @@ export function buildUserPrompt(params: {
     `Crop: ${params.cropType} (already known from farmer profile — do not ask farmer to name crop again unless message clearly refers to a different crop).`,
     params.cropStage ? `Stage: ${params.cropStage}` : null,
     `Preferred response language context: ${params.language}`,
+    params.language === 'ml'
+      ? 'farmerSummaryMl is the primary farmer message — Kerala casual WhatsApp Malayalam only (no formal or literal translation).'
+      : null,
     params.symptomsText ? `Symptoms: ${params.symptomsText}` : null,
     params.voiceTranscript ? `Voice note transcript: ${params.voiceTranscript}` : null,
     params.plantIdSummary ? `Plant.id supplemental analysis:\n${params.plantIdSummary}` : null,
@@ -70,6 +79,7 @@ export function buildUserPrompt(params: {
     params.environmentalContext
       ? `Environmental and regional context (weight heavily for disease choice — e.g. Pyricularia in monsoon + high humidity):\n${params.environmentalContext}`
       : null,
+    'Write farmerSummary fields in casual WhatsApp style (short sentences, easy words — not literary or formal).',
     'Analyze the crop image if provided. Merge Plant.id signals when available (Plant.id may miss thrips — trust visible streaking/lesions on leaves).',
     params.symptomsText || params.voiceTranscript
       ? null

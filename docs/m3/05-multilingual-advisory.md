@@ -19,4 +19,6 @@ Schema supports `ta`, `kn`, `hi` in `ai_advisory_sessions.language` — prompts 
 
 ## Tone
 
-Prompts require simple, farmer-friendly language — no academic jargon.
+Prompts require **casual, spoken** farmer-friendly language (WhatsApp style) — no academic jargon, no literary or textbook prose.
+
+**Malayalam (`ml`):** Kerala farmers on WhatsApp — simple, friendly, short sentences; avoid formal Malayalam and literal English translation. See `MALAYALAM_KERALA_WHATSAPP_RULES` in `farmer-language-style.ts`.

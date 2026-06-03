@@ -9,7 +9,7 @@
 1. AI-assisted only — no guaranteed diagnosis
 2. JSON-only response with fixed schema
 3. Ginger-focused MVP
-4. English + Malayalam farmer summaries
+4. English + Malayalam farmer summaries — **casual spoken tone**, not literary language (`farmer-language-style.ts`)
 5. Escalation flags when uncertain
 
 ## Maintenance
