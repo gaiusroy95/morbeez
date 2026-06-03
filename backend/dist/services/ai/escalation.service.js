@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { eventBus } from '../../events/bus.js';
 import { computeConfidence, escalationReason, shouldEscalate } from './confidence.js';
 import { blockService } from '../core/block.service.js';
+import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
 export const OPEN_ESCALATION_STATUSES = ['pending', 'assigned', 'in_review'];
 function priorityForConfidence(confidence) {
     if (confidence < 0.4)
@@ -46,14 +47,11 @@ export const escalationService = {
     async createIfNeeded(params) {
         const confidence = computeConfidence(params.advisory.confidence, params.plantId ?? null);
         const needsEscalation = shouldEscalate(confidence, params.advisory);
-        await supabase
-            .from('ai_advisory_sessions')
-            .update({
-            confidence_score: confidence,
-            escalation_recommended: needsEscalation,
-            updated_at: new Date().toISOString(),
-        })
-            .eq('id', params.sessionId);
+        await confidenceLifecycleService.applyRouting({
+            sessionId: params.sessionId,
+            confidence,
+            advisory: params.advisory,
+        });
         const reason = needsEscalation
             ? escalationReason(confidence, params.advisory)
             : `Advisory review: ${params.advisory.probableIssue}`.slice(0, 500);

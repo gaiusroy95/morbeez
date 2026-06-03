@@ -19,6 +19,7 @@ import {
   resolveProbableIssue,
   textsLikelySame,
 } from './case-review-inquiry.util.js';
+import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
 
 function formatDt(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -464,6 +465,27 @@ export const agronomistCaseReviewService = {
         agronomistNotes: esc.agronomistNotes,
         correction: esc.correction,
       },
+      lifecycle: sessionRow
+        ? {
+            confidenceBand: sessionRow.confidence_band
+              ? String(sessionRow.confidence_band)
+              : null,
+            autoSent: Boolean(sessionRow.auto_sent),
+            autoSentAt: sessionRow.auto_sent_at ? String(sessionRow.auto_sent_at) : null,
+            humanReviewed: Boolean(sessionRow.human_reviewed),
+            humanReviewedAt: sessionRow.human_reviewed_at
+              ? String(sessionRow.human_reviewed_at)
+              : null,
+            humanReviewedBy: sessionRow.human_reviewed_by
+              ? String(sessionRow.human_reviewed_by)
+              : null,
+            corrected: Boolean(sessionRow.corrected),
+            correctedAt: sessionRow.corrected_at ? String(sessionRow.corrected_at) : null,
+            routingDecidedAt: sessionRow.routing_decided_at
+              ? String(sessionRow.routing_decided_at)
+              : null,
+          }
+        : null,
       farmer: esc.farmer,
       block: primary
         ? {
@@ -771,6 +793,33 @@ export const agronomistCaseReviewService = {
       submittedForApproval: Boolean(body.submitForApproval),
       selfApproved,
     });
+
+    const { aiTrainingEventService } = await import('../core/ai-training-event.service.js');
+    void aiTrainingEventService.recordFromCaseReview({
+      farmerId: detail.escalation.farmerId,
+      blockId: detail.block?.id ?? null,
+      aiSessionId: detail.escalation.sessionId ?? null,
+      escalationId,
+      recommendationRecordId: recommendationId,
+      aiPrediction: detail.ai.probableIssue ?? null,
+      aiConfidence: detail.ai.confidence ?? null,
+      aiTopK: (detail.ai.topDiagnoses ?? []).map((d) => ({
+        label: d.label,
+        confidence: d.confidence ?? null,
+      })),
+      action: body.action,
+      correctDiagnosis: body.correctDiagnosis ?? null,
+      notesForLearning: body.notesForLearning ?? null,
+      reviewedBy: agentEmail,
+    });
+
+    if (detail.escalation.sessionId) {
+      void confidenceLifecycleService.markHumanReviewed(detail.escalation.sessionId, {
+        reviewedBy: agentEmail,
+        corrected: body.action === 'correct_ai' || body.action === 'partial_match',
+        action: body.action,
+      });
+    }
 
     return {
       escalationId,

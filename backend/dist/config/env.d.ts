@@ -91,7 +91,12 @@ declare const envSchema: z.ZodObject<{
     ENABLE_OPPORTUNITY_SCORE_WORKER: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Send educational WhatsApp nudge during low-opportunity nurture batch (default on). */
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Below this → escalate to agronomist (legacy; defaults to review threshold). */
     AI_ESCALATION_THRESHOLD: z.ZodDefault<z.ZodNumber>;
+    /** ≥ this → auto-send advisory without human review. */
+    AI_AUTO_SEND_THRESHOLD: z.ZodDefault<z.ZodNumber>;
+    /** ≥ this → employee review; below → escalate. */
+    AI_REVIEW_THRESHOLD: z.ZodDefault<z.ZodNumber>;
     AI_DAILY_TEXT_LIMIT_FREE: z.ZodDefault<z.ZodNumber>;
     AI_DAILY_TEXT_LIMIT_PREMIUM: z.ZodDefault<z.ZodNumber>;
     AI_DAILY_IMAGE_LIMIT_FREE: z.ZodDefault<z.ZodNumber>;
@@ -150,6 +155,8 @@ declare const envSchema: z.ZodObject<{
     ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
     AI_ESCALATION_THRESHOLD: number;
+    AI_AUTO_SEND_THRESHOLD: number;
+    AI_REVIEW_THRESHOLD: number;
     AI_DAILY_TEXT_LIMIT_FREE: number;
     AI_DAILY_TEXT_LIMIT_PREMIUM: number;
     AI_DAILY_IMAGE_LIMIT_FREE: number;
@@ -276,6 +283,8 @@ declare const envSchema: z.ZodObject<{
     ENABLE_OPPORTUNITY_SCORE_WORKER?: string | undefined;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP?: string | undefined;
     AI_ESCALATION_THRESHOLD?: number | undefined;
+    AI_AUTO_SEND_THRESHOLD?: number | undefined;
+    AI_REVIEW_THRESHOLD?: number | undefined;
     AI_DAILY_TEXT_LIMIT_FREE?: number | undefined;
     AI_DAILY_TEXT_LIMIT_PREMIUM?: number | undefined;
     AI_DAILY_IMAGE_LIMIT_FREE?: number | undefined;
@@ -336,6 +345,8 @@ export declare const env: {
     ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
     AI_ESCALATION_THRESHOLD: number;
+    AI_AUTO_SEND_THRESHOLD: number;
+    AI_REVIEW_THRESHOLD: number;
     AI_DAILY_TEXT_LIMIT_FREE: number;
     AI_DAILY_TEXT_LIMIT_PREMIUM: number;
     AI_DAILY_IMAGE_LIMIT_FREE: number;

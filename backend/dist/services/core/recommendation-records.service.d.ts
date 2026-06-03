@@ -24,7 +24,14 @@ export declare const recommendationRecordsService: {
     submitForApproval(id: string, reviewedBy?: string): Promise<any>;
     approve(id: string, approvedBy: string): Promise<any>;
     reject(id: string, approvedBy: string, notes?: string): Promise<any>;
-    recordOutcome(id: string, outcome: "better" | "partial" | "no_improvement" | "unknown", notes?: string): Promise<any>;
+    recordOutcome(id: string, outcome: "better" | "partial" | "no_improvement" | "unknown", options?: {
+        notes?: string;
+        recoveryDays?: number;
+        farmerFeedback?: string;
+        agronomistFeedback?: string;
+        issueResolved?: boolean;
+        recordedBy?: string;
+    }): Promise<any>;
     listPendingApproval(limit?: number): Promise<any[]>;
     getById(id: string): Promise<any>;
     updateDraft(id: string, patch: {

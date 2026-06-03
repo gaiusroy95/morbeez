@@ -1,10 +1,4 @@
-function toBand(confidence) {
-    if (confidence > 0.9)
-        return 'high';
-    if (confidence >= 0.7)
-        return 'medium';
-    return 'low';
-}
+import { toPolicyConfidenceBand } from '../../domain/ai-training/confidence-routing.js';
 function weatherBand(risk) {
     if (risk >= 70)
         return 'high';
@@ -15,7 +9,7 @@ function weatherBand(risk) {
 export const policyEngineService = {
     evaluate(advisory, contextPack) {
         const conf = Math.max(0, Math.min(1, advisory.confidence));
-        const confidenceBand = toBand(conf);
+        const confidenceBand = toPolicyConfidenceBand(conf);
         const weatherRiskScore = Math.max(0, Math.min(100, Number(contextPack?.weatherRiskScore ?? 35)));
         const weatherRiskBand = weatherBand(weatherRiskScore);
         const stressSignals = advisory.stressAnalysis?.length ?? 0;

@@ -100,6 +100,17 @@ export const cropDoctorService = {
 
     const sessionId = session.id;
 
+    void (async () => {
+      const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+      const blockId = (input as { activePlotId?: string | null }).activePlotId ?? null;
+      await weatherSnapshotService.capture({
+        farmerId: input.farmerId,
+        blockId,
+        eventType: 'ai_session',
+        eventId: sessionId,
+      });
+    })();
+
     const reused = await aiReuseService.tryReuse(input, sessionId);
     if (reused) {
       await persistRecommendations(sessionId, reused.productRecommendations);
@@ -136,7 +147,20 @@ export const cropDoctorService = {
         },
         'crop-doctor'
       );
-      return { ...reused, reused: true, escalationId };
+      if (input.imageStoragePath) {
+        const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+        void cropImageReviewService.enqueueFromSession({
+          sessionId,
+          farmerId: input.farmerId,
+          storagePath: input.imageStoragePath,
+          cropType: input.cropType,
+          blockId: (input as { activePlotId?: string | null }).activePlotId ?? null,
+          symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
+          aiPrediction: reused.advisory.probableIssue,
+          aiConfidence: confidence,
+        });
+      }
+      return { ...reused, reused: true, escalationId, confidence };
     }
 
     let plantIdResult = null;
@@ -288,6 +312,20 @@ export const cropDoctorService = {
       'crop-doctor'
     );
 
+    if (input.imageStoragePath) {
+      const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+      void cropImageReviewService.enqueueFromSession({
+        sessionId,
+        farmerId: input.farmerId,
+        storagePath: input.imageStoragePath,
+        cropType: input.cropType,
+        blockId: (input as { activePlotId?: string | null }).activePlotId ?? null,
+        symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
+        aiPrediction: advisory.probableIssue,
+        aiConfidence: confidence,
+      });
+    }
+
 
     const { data: farmerRow } = await supabase
       .from('farmers')
@@ -360,6 +398,7 @@ export const cropDoctorService = {
       productRecommendations,
       escalated,
       escalationId,
+      confidence,
     };
   },
 

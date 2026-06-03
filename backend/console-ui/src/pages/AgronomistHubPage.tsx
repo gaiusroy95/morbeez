@@ -7,16 +7,29 @@ import { matchesSearch } from '../lib/search-filter';
 import { Alert, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
 import { FarmerFeedbackPanel } from '../components/agronomist/FarmerFeedbackPanel';
 import { CaseReviewPanel } from '../components/agronomist/CaseReviewPanel';
+import { ImageReviewPanel } from '../components/agronomist/ImageReviewPanel';
+import { OutcomeReviewPanel } from '../components/agronomist/OutcomeReviewPanel';
+import { TrainingExportPanel } from '../components/agronomist/TrainingExportPanel';
 import { RecommendationApprovalsWorkspace } from '../components/approvals/RecommendationApprovalsWorkspace';
 import '../styles/approvals-workspace.css';
 import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIntelligenceBar';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
-type AgronomistHubTab = 'case_review' | 'queue' | 'approvals' | 'farmer_feedback';
+type AgronomistHubTab =
+  | 'case_review'
+  | 'image_review'
+  | 'outcome_review'
+  | 'training_export'
+  | 'queue'
+  | 'approvals'
+  | 'farmer_feedback';
 
 const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'case_review', label: 'Case review' },
+  { id: 'image_review', label: 'Image review' },
+  { id: 'outcome_review', label: 'Outcome review' },
+  { id: 'training_export', label: 'Training export' },
   { id: 'queue', label: 'Field findings' },
   { id: 'farmer_feedback', label: 'Farmer feedback' },
   { id: 'approvals', label: 'Approvals' },
@@ -247,6 +260,11 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
       {loading && tab === 'queue' ? <Loading /> : null}
 
       {tab === 'case_review' ? <CaseReviewPanel canWrite={canWrite} /> : null}
+
+      {tab === 'image_review' ? <ImageReviewPanel canWrite={canWrite} /> : null}
+
+      {tab === 'outcome_review' ? <OutcomeReviewPanel canWrite={canWrite} /> : null}
+      {tab === 'training_export' ? <TrainingExportPanel canWrite={canWrite} /> : null}
 
       {tab === 'queue' && !loading ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

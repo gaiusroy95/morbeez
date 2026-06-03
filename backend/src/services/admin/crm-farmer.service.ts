@@ -6,6 +6,7 @@ import { crmInternalNotesService } from './crm-internal-notes.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { emptySoilLabMetrics, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 import { resolveNextActionDueAt } from './interaction-next-action.js';
+import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 
 export type MasterType =
   | 'crop'
@@ -586,6 +587,17 @@ export const crmFarmerService = {
       .select()
       .single();
     throwIfSupabaseError(error, 'Could not create recommendation');
+
+    void (async () => {
+      const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+      await weatherSnapshotService.capture({
+        farmerId,
+        blockId: input.blockId,
+        eventType: 'recommendation',
+        eventId: String(data.id),
+      });
+    })();
+
     return mapRecommendation(data);
   },
 
@@ -672,6 +684,7 @@ export const crmFarmerService = {
       sections: Array<{ title: string; content: string }>;
       followUpTimeline: Array<{ label: string; status: string; atLabel: string; detail?: string }>;
       products: Array<{ name: string; detail?: string }>;
+      operationalChain?: Awaited<ReturnType<typeof loadOperationalChain>>;
       editForm?: {
         kind: 'task' | 'log';
         title?: string;
@@ -996,6 +1009,10 @@ export const crmFarmerService = {
     const archived = String(log.status ?? '') === 'archived';
     const workflowStatus = String(log.workflow_status ?? 'Closed');
     const isActive = workflowStatus === 'Active';
+    const operationalChain = await loadOperationalChain(log as Record<string, unknown>);
+    const findingLabel =
+      operationalChain?.fieldFinding?.issue ??
+      (log.field_finding_text ? String(log.field_finding_text) : null);
     return {
       id: interactionId,
       source: 'log',
@@ -1011,10 +1028,13 @@ export const crmFarmerService = {
       at,
       fields: [
         field('Interaction date', formatDateShort(at)),
-        field('Field finding', log.field_finding_text),
+        field('Field finding', findingLabel),
         field('Field activity', log.field_activity_label),
         field('Activity date', formatDateShort(log.field_activity_date as string)),
-        field('Recommendation', log.recommendation_summary),
+        field(
+          'Recommendation',
+          operationalChain?.recommendation?.summary ?? log.recommendation_summary
+        ),
         field('Outcome', log.outcome),
         field('Next action', log.next_action),
         field('Next action at', formatDateTime(log.next_action_at as string)),
@@ -1033,6 +1053,7 @@ export const crmFarmerService = {
       ],
       followUpTimeline: [],
       products: [],
+      operationalChain,
       editForm: {
         kind: 'log',
         summary: String(log.summary ?? ''),
@@ -1057,6 +1078,12 @@ export const crmFarmerService = {
       workflowStatus?: string;
       fieldFindingText?: string;
       addFieldFinding?: boolean;
+      findingType?: FindingType;
+      severity?: ReviewSeverity;
+      affectedAreaPct?: number;
+      finalConfirmedIssue?: string;
+      aiPrediction?: string;
+      observations?: string;
       fieldActivityLabel?: string;
       fieldActivityTypeId?: string;
       fieldActivityDate?: string;
@@ -1084,6 +1111,7 @@ export const crmFarmerService = {
       interactionAt,
     });
     const fieldFindingText = input.fieldFindingText?.trim() || null;
+    const confirmedIssue = input.finalConfirmedIssue?.trim() || fieldFindingText;
     const fieldActivityLabel = input.fieldActivityLabel?.trim() || null;
     const fieldActivityDate = input.fieldActivityDate ?? null;
     const recommendationSummary = input.recommendationSummary?.trim() || null;
@@ -1120,7 +1148,7 @@ export const crmFarmerService = {
         next_action: input.nextAction?.trim() || null,
         next_action_at: resolvedDueAt ?? input.nextActionAt ?? null,
         workflow_status: workflowStatus,
-        field_finding_text: fieldFindingText,
+        field_finding_text: input.addFieldFinding ? confirmedIssue : fieldFindingText,
         field_activity_label: fieldActivityLabel,
         field_activity_date: fieldActivityDate,
         field_activity_type_id: input.fieldActivityTypeId ?? null,
@@ -1138,14 +1166,31 @@ export const crmFarmerService = {
     let recommendationId: string | null = null;
     const sessionPatch: Record<string, unknown> = {};
 
-    if (input.addFieldFinding && fieldFindingText && input.blockId && leadId) {
+    if (input.addFieldFinding) {
+      if (!input.blockId || !leadId) {
+        throw new ValidationError('Block is required when adding a field finding');
+      }
+      if (!input.findingType || !input.severity || !confirmedIssue) {
+        throw new ValidationError(
+          'Structured field finding requires type, severity, and confirmed issue'
+        );
+      }
+    }
+
+    if (input.addFieldFinding && input.blockId && leadId && confirmedIssue) {
       const { telecallerAdminService } = await import('./telecaller-admin.service.js');
       const finding = await telecallerAdminService.createFieldFinding(farmerId, leadId, {
         blockId: input.blockId,
         blockName,
         cropType,
-        observations: fieldFindingText,
-        diseasePest: fieldFindingText.slice(0, 120),
+        observations: input.observations?.trim() || summary.slice(0, 500),
+        diseasePest: confirmedIssue,
+        diseaseTone: deriveFieldFindingTone(input.findingType!, input.severity!),
+        findingType: input.findingType,
+        severity: input.severity,
+        affectedAreaPct: input.affectedAreaPct,
+        aiPrediction: input.aiPrediction,
+        finalConfirmedIssue: confirmedIssue,
         agentEmail: input.doneBy,
       });
       fieldFindingId = String(finding.id);
@@ -1958,6 +2003,92 @@ function workflowStatusMeta(status: string): { displayStatus: string; statusTone
   return { displayStatus: 'Closed', statusTone: 'success' };
 }
 
+function deriveFieldFindingTone(
+  findingType: FindingType,
+  severity: ReviewSeverity
+): 'healthy' | 'warning' | 'danger' {
+  if (findingType === 'growth_observation' && severity === 'mild') return 'healthy';
+  if (severity === 'severe' || findingType === 'disease' || findingType === 'pest') return 'danger';
+  return 'warning';
+}
+
+async function loadOperationalChain(log: Record<string, unknown>) {
+  const chain: {
+    fieldFinding?: {
+      id: string;
+      issue: string;
+      findingType?: string | null;
+      severity?: string | null;
+      affectedAreaPct?: number | null;
+    };
+    recommendation?: {
+      id: string;
+      summary: string;
+      problem?: string | null;
+      status?: string | null;
+    };
+    escalation?: {
+      id: string;
+      status: string;
+      workflowStatus?: string | null;
+    };
+  } = {};
+
+  const findingId = log.field_finding_id ? String(log.field_finding_id) : null;
+  if (findingId) {
+    const { data: finding } = await supabase
+      .from('crm_field_findings')
+      .select('id, final_confirmed_issue, disease_pest, finding_type, severity, affected_area_pct')
+      .eq('id', findingId)
+      .maybeSingle();
+    if (finding) {
+      chain.fieldFinding = {
+        id: String(finding.id),
+        issue: String(finding.final_confirmed_issue ?? finding.disease_pest ?? '—'),
+        findingType: finding.finding_type ? String(finding.finding_type) : null,
+        severity: finding.severity ? String(finding.severity) : null,
+        affectedAreaPct:
+          finding.affected_area_pct != null ? Number(finding.affected_area_pct) : null,
+      };
+    }
+  }
+
+  const recId = log.recommendation_id ? String(log.recommendation_id) : null;
+  if (recId) {
+    const { data: rec } = await supabase
+      .from('crm_recommendations')
+      .select('id, recommendation, problem, status')
+      .eq('id', recId)
+      .maybeSingle();
+    if (rec) {
+      chain.recommendation = {
+        id: String(rec.id),
+        summary: String(rec.recommendation ?? rec.problem ?? '—').slice(0, 240),
+        problem: rec.problem ? String(rec.problem) : null,
+        status: rec.status ? String(rec.status) : null,
+      };
+    }
+  }
+
+  const escId = log.escalation_id ? String(log.escalation_id) : null;
+  if (escId) {
+    const { data: esc } = await supabase
+      .from('agronomist_escalations')
+      .select('id, status, workflow_status')
+      .eq('id', escId)
+      .maybeSingle();
+    if (esc) {
+      chain.escalation = {
+        id: String(esc.id),
+        status: String(esc.status ?? 'pending'),
+        workflowStatus: esc.workflow_status ? String(esc.workflow_status) : null,
+      };
+    }
+  }
+
+  return Object.keys(chain).length > 0 ? chain : undefined;
+}
+
 function mapOperationalSessionRow(
   r: Record<string, unknown>,
   isDueToday: (iso: string | null | undefined) => boolean
@@ -1994,7 +2125,14 @@ function mapOperationalSessionRow(
     nextActionAt,
     blockName: logBlock?.name ?? logBlock?.crop_name ?? null,
     blockId: r.block_id ? String(r.block_id) : null,
-    fieldFinding: r.field_finding_text ? String(r.field_finding_text) : null,
+    fieldFinding: r.field_finding_text
+      ? String(r.field_finding_text)
+      : r.field_finding_id
+        ? 'Field finding linked'
+        : null,
+    fieldFindingId: r.field_finding_id ? String(r.field_finding_id) : null,
+    recommendationId: r.recommendation_id ? String(r.recommendation_id) : null,
+    escalationId: r.escalation_id ? String(r.escalation_id) : null,
     fieldActivity: r.field_activity_label ? String(r.field_activity_label) : null,
     activityDateLabel: formatDateShort(r.field_activity_date as string),
     recommendation: r.recommendation_summary ? String(r.recommendation_summary) : null,
@@ -2027,6 +2165,9 @@ function enrichTimelineRow(row: {
   blockName?: string | null;
   blockId?: string | null;
   fieldFinding?: string | null;
+  fieldFindingId?: string | null;
+  recommendationId?: string | null;
+  escalationId?: string | null;
   fieldActivity?: string | null;
   activityDateLabel?: string | null;
   recommendation?: string | null;

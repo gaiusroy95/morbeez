@@ -1,4 +1,6 @@
 import { buildLooseSymptomKey, buildSymptomKey, } from '../ai/question-reuse-keys.util.js';
+import { isReviewSeverity } from '../../domain/ai-training/severity.js';
+export { mapRecordSeverityToUi, mapUiSeverityToRecord, } from '../../domain/ai-training/severity.js';
 function normalizeTextKey(text) {
     return text.trim().toLowerCase().replace(/\s+/g, ' ');
 }
@@ -66,30 +68,12 @@ export function resolveProbableIssue(output, sessionProbable, farmerQuestion) {
     }
     return null;
 }
-export function mapRecordSeverityToUi(severity) {
-    if (severity === 'low')
-        return 'mild';
-    if (severity === 'medium')
-        return 'moderate';
-    if (severity === 'high')
-        return 'severe';
-    return undefined;
-}
-export function mapUiSeverityToRecord(severity) {
-    if (severity === 'mild')
-        return 'low';
-    if (severity === 'moderate')
-        return 'medium';
-    if (severity === 'severe')
-        return 'high';
-    return null;
-}
 export function parseEscalationCorrection(raw) {
     if (!raw || typeof raw !== 'object')
         return null;
     const c = raw;
     const sev = c.severity;
-    const severity = sev === 'mild' || sev === 'moderate' || sev === 'severe' ? sev : undefined;
+    const severity = isReviewSeverity(sev) ? sev : undefined;
     return {
         action: c.action != null ? String(c.action) : undefined,
         correctDiagnosis: c.correctDiagnosis != null ? String(c.correctDiagnosis) : null,

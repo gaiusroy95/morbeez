@@ -4679,3 +4679,138 @@
     justify-content: flex-start;
   }
 }
+
+/* Stage 6 — structured field findings + operational chain */
+.tc-structured-finding-severity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tc-structured-finding-sev-btn {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.tc-structured-finding-sev-btn.is-active {
+  border-color: #059669;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 600;
+}
+
+.tc-op-chain {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  padding: 1rem 1.125rem;
+}
+
+.tc-op-chain-title {
+  margin: 0 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.tc-op-chain-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.875rem;
+}
+
+.tc-op-chain-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.tc-op-chain-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-top: 0.35rem;
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+.tc-op-chain-step.is-linked .tc-op-chain-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+}
+
+.tc-op-chain-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.tc-op-chain-value {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.tc-op-chain-meta {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.tc-op-chain-muted {
+  display: block;
+  margin-top: 0.125rem;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.tc-op-chain-link {
+  margin-top: 0.375rem;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #047857;
+  cursor: pointer;
+}
+
+.tc-op-chain-link:hover {
+  text-decoration: underline;
+}
+
+.tc-ff-type-chip,
+.tc-ff-sev-chip {
+  display: inline-block;
+  margin-right: 0.25rem;
+  margin-bottom: 0.125rem;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.tc-ff-type-chip {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.tc-ff-sev-chip {
+  background: #fffbeb;
+  color: #b45309;
+}

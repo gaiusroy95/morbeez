@@ -5,6 +5,7 @@ import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { crmFarmerService } from './crm-farmer.service.js';
 import { escalationAdminService } from './escalation-admin.service.js';
+import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 
 export type LeadPendingWorkItem = {
   id: string;
@@ -1370,6 +1371,13 @@ export const telecallerAdminService = {
       photoUrls: photos,
       photoCount: photos.length,
       extraPhotoCount: Math.max(0, photos.length - 2),
+      findingType: r.finding_type ? String(r.finding_type) : null,
+      severity: r.severity ? String(r.severity) : null,
+      affectedAreaPct: r.affected_area_pct != null ? Number(r.affected_area_pct) : null,
+      aiPrediction: r.ai_prediction ? String(r.ai_prediction) : null,
+      finalConfirmedIssue: r.final_confirmed_issue ? String(r.final_confirmed_issue) : null,
+      weatherContext: (r.weather_context as Record<string, unknown>) ?? {},
+      weatherSnapshotId: r.weather_snapshot_id ? String(r.weather_snapshot_id) : null,
     };
   },
 
@@ -1402,8 +1410,30 @@ export const telecallerAdminService = {
       agronomistName?: string;
       agronomistRole?: string;
       agentEmail?: string;
+      findingType?: FindingType;
+      severity?: ReviewSeverity;
+      affectedAreaPct?: number;
+      aiPrediction?: string;
+      finalConfirmedIssue?: string;
     }
   ) {
+    const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+
+    let weatherSnapshotId: string | null = null;
+    let weatherContext: Record<string, unknown> = {};
+
+    if (input.blockId || farmerId) {
+      const captured = await weatherSnapshotService.capture({
+        farmerId,
+        blockId: input.blockId ?? null,
+        eventType: 'field_finding',
+      });
+      if (captured) {
+        weatherSnapshotId = captured.snapshotId;
+        weatherContext = captured.context;
+      }
+    }
+
     const { data, error } = await supabase
       .from('crm_field_findings')
       .insert({
@@ -1415,9 +1445,16 @@ export const telecallerAdminService = {
         agronomist_name: input.agronomistName ?? 'Field Agronomist',
         agronomist_role: input.agronomistRole ?? 'Field Agronomist',
         observations: input.observations,
-        disease_pest: input.diseasePest ?? 'Pending review',
+        disease_pest: input.diseasePest ?? input.finalConfirmedIssue ?? 'Pending review',
         disease_tone: input.diseaseTone ?? 'warning',
         action_taken: input.actionTaken,
+        finding_type: input.findingType ?? null,
+        severity: input.severity ?? null,
+        affected_area_pct: input.affectedAreaPct ?? null,
+        ai_prediction: input.aiPrediction ?? null,
+        final_confirmed_issue: input.finalConfirmedIssue ?? null,
+        weather_context: weatherContext,
+        weather_snapshot_id: weatherSnapshotId,
         parameters:
           input.parameters && input.parameters.length > 0
             ? input.parameters
@@ -1429,6 +1466,31 @@ export const telecallerAdminService = {
       .single();
 
     throwIfSupabaseError(error, 'Could not save field finding');
+
+    if (weatherSnapshotId) {
+      await supabase
+        .from('weather_snapshots')
+        .update({ event_id: data.id })
+        .eq('id', weatherSnapshotId);
+    }
+
+    const photos = input.photoUrls ?? [];
+    if (photos.length > 0) {
+      const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+      for (const url of photos) {
+        if (!url?.trim()) continue;
+        void cropImageReviewService.enqueue({
+          farmerId,
+          blockId: input.blockId ?? null,
+          fieldFindingId: String(data.id),
+          externalUrl: url.trim(),
+          source: 'field_visit',
+          crop: input.cropType,
+          symptoms: input.observations ? [input.observations.slice(0, 200)] : [],
+          aiPrediction: input.aiPrediction ?? input.diseasePest ?? null,
+        });
+      }
+    }
 
     const { farmerEventCaptureService } = await import(
       '../intelligence/farmer-event-capture.service.js'
@@ -1443,7 +1505,19 @@ export const telecallerAdminService = {
   },
 
   async updateFieldFinding(id: string, patch: Record<string, unknown>) {
-    const allowed = ['observations', 'disease_pest', 'disease_tone', 'action_taken', 'follow_up_at', 'parameters'];
+    const allowed = [
+      'observations',
+      'disease_pest',
+      'disease_tone',
+      'action_taken',
+      'follow_up_at',
+      'parameters',
+      'finding_type',
+      'severity',
+      'affected_area_pct',
+      'ai_prediction',
+      'final_confirmed_issue',
+    ];
     const updates: Record<string, unknown> = {};
     for (const k of allowed) {
       if (patch[k] !== undefined) updates[k] = patch[k];

@@ -1,4 +1,5 @@
 import type { StructuredAdvisory } from './types.js';
+import { toPolicyConfidenceBand } from '../../domain/ai-training/confidence-routing.js';
 
 export type WeatherRiskBand = 'low' | 'moderate' | 'high';
 
@@ -14,12 +15,6 @@ export type PolicyAssessment = {
   escalationPriority: 'normal' | 'high' | 'urgent';
   safetyNotes: string[];
 };
-
-function toBand(confidence: number): 'high' | 'medium' | 'low' {
-  if (confidence > 0.9) return 'high';
-  if (confidence >= 0.7) return 'medium';
-  return 'low';
-}
 
 function weatherBand(risk: number): WeatherRiskBand {
   if (risk >= 70) return 'high';
@@ -40,7 +35,7 @@ export const policyEngineService = {
     }
   ): PolicyAssessment {
     const conf = Math.max(0, Math.min(1, advisory.confidence));
-    const confidenceBand = toBand(conf);
+    const confidenceBand = toPolicyConfidenceBand(conf);
     const weatherRiskScore = Math.max(0, Math.min(100, Number(contextPack?.weatherRiskScore ?? 35)));
     const weatherRiskBand = weatherBand(weatherRiskScore);
     const stressSignals = advisory.stressAnalysis?.length ?? 0;

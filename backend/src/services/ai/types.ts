@@ -71,6 +71,8 @@ export interface DiagnoseResult {
   productRecommendations: ProductRecommendation[];
   escalated: boolean;
   escalationId?: string;
+  /** Merged GPT + Plant.id confidence score */
+  confidence?: number;
   /** Scenario 38 — served from advisory_reuse_cases without OpenAI */
   reused?: boolean;
 }

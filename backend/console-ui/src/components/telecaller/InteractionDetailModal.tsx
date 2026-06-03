@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import { OperationalChainPanel, type OperationalChain } from './OperationalChainPanel';
 
 export type InteractionListRow = {
   id: string;
@@ -43,6 +44,7 @@ type InteractionDetail = {
     summary?: string;
     content?: string;
   };
+  operationalChain?: OperationalChain;
 };
 
 type Props = {
@@ -51,6 +53,8 @@ type Props = {
   onClose: () => void;
   canWrite?: boolean;
   onSaved?: () => void;
+  onOpenFinding?: (findingId: string) => void;
+  onOpenRecommendation?: (recommendationId: string) => void;
 };
 
 function toDatetimeLocalValue(iso: string | undefined): string {
@@ -61,7 +65,15 @@ function toDatetimeLocalValue(iso: string | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function InteractionDetailModal({ leadId, row, onClose, canWrite, onSaved }: Props) {
+export function InteractionDetailModal({
+  leadId,
+  row,
+  onClose,
+  canWrite,
+  onSaved,
+  onOpenFinding,
+  onOpenRecommendation,
+}: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -277,6 +289,14 @@ export function InteractionDetailModal({ leadId, row, onClose, canWrite, onSaved
             </div>
           ) : detail.summary ? (
             <p className="text-sm leading-relaxed text-slate-800">{detail.summary}</p>
+          ) : null}
+
+          {detail.operationalChain ? (
+            <OperationalChainPanel
+              chain={detail.operationalChain}
+              onOpenFinding={onOpenFinding}
+              onOpenRecommendation={onOpenRecommendation}
+            />
           ) : null}
 
           {canWrite && detail.taskId && showPending ? (

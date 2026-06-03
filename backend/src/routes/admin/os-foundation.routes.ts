@@ -21,6 +21,7 @@ import { employeeAttributionService } from '../../services/intelligence/employee
 import { opportunityScoreStoreService } from '../../services/intelligence/opportunity-score-store.service.js';
 import { farmerOpportunityEngineService } from '../../services/intelligence/farmer-opportunity-engine.service.js';
 import type { FarmerEventType } from '../../services/intelligence/farmer-event.types.js';
+import { recordOutcomeBodySchema } from '../../domain/ai-training/validators.js';
 
 const approvalUpdateSchema = z.object({
   issueDetected: z.string().max(500).optional(),
@@ -76,8 +77,7 @@ const recommendationCreateSchema = z.object({
   language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
 });
 
-const outcomeSchema = z.object({
-  outcome: z.enum(['better', 'partial', 'no_improvement', 'unknown']),
+const outcomeSchema = recordOutcomeBodySchema.extend({
   notes: z.string().max(2000).optional(),
 });
 
@@ -263,10 +263,17 @@ export async function osFoundationRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post(`${api}/recommendations/:id/outcome`, async (request, reply) => {
-    await assertModuleAccess(request, 'agronomist', 'write');
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
     const body = outcomeSchema.parse(request.body);
-    const row = await recommendationRecordsService.recordOutcome(id, body.outcome, body.notes);
+    const row = await recommendationRecordsService.recordOutcome(id, body.outcome, {
+      notes: body.notes,
+      recoveryDays: body.recoveryDays,
+      farmerFeedback: body.farmerFeedback,
+      agronomistFeedback: body.agronomistFeedback,
+      issueResolved: body.issueResolved,
+      recordedBy: admin.email,
+    });
     return reply.send({ ok: true, recommendation: row });
   });
 

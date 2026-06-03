@@ -78,6 +78,16 @@ export const cropDoctorService = {
         if (sessionErr)
             throw sessionErr;
         const sessionId = session.id;
+        void (async () => {
+            const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+            const blockId = input.activePlotId ?? null;
+            await weatherSnapshotService.capture({
+                farmerId: input.farmerId,
+                blockId,
+                eventType: 'ai_session',
+                eventId: sessionId,
+            });
+        })();
         const reused = await aiReuseService.tryReuse(input, sessionId);
         if (reused) {
             await persistRecommendations(sessionId, reused.productRecommendations);
@@ -110,7 +120,20 @@ export const cropDoctorService = {
                 confidence: reused.advisory.confidence,
                 reused: true,
             }, 'crop-doctor');
-            return { ...reused, reused: true, escalationId };
+            if (input.imageStoragePath) {
+                const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+                void cropImageReviewService.enqueueFromSession({
+                    sessionId,
+                    farmerId: input.farmerId,
+                    storagePath: input.imageStoragePath,
+                    cropType: input.cropType,
+                    blockId: input.activePlotId ?? null,
+                    symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
+                    aiPrediction: reused.advisory.probableIssue,
+                    aiConfidence: confidence,
+                });
+            }
+            return { ...reused, reused: true, escalationId, confidence };
         }
         let plantIdResult = null;
         const farmerHistory = input.compactHistory ?? (await getFarmerHistory(input.farmerId));
@@ -245,6 +268,19 @@ export const cropDoctorService = {
             severity: advisory.confidence < 0.5 ? 'high' : advisory.confidence < 0.7 ? 'medium' : 'low',
         });
         await eventBus.publish('advisory.completed', { sessionId, farmerId: input.farmerId, escalated, confidence }, 'crop-doctor');
+        if (input.imageStoragePath) {
+            const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+            void cropImageReviewService.enqueueFromSession({
+                sessionId,
+                farmerId: input.farmerId,
+                storagePath: input.imageStoragePath,
+                cropType: input.cropType,
+                blockId: input.activePlotId ?? null,
+                symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
+                aiPrediction: advisory.probableIssue,
+                aiConfidence: confidence,
+            });
+        }
         const { data: farmerRow } = await supabase
             .from('farmers')
             .select('district')
@@ -302,6 +338,7 @@ export const cropDoctorService = {
             productRecommendations,
             escalated,
             escalationId,
+            confidence,
         };
     },
     async scheduleFollowUp(farmerId, sessionId, language) {

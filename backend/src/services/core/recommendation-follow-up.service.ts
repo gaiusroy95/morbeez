@@ -464,7 +464,7 @@ export const recommendationFollowUpService = {
     await recommendationRecordsService.recordOutcome(
       recommendationRecordId,
       outcomeMap[reply === 'worsened' ? 'no_improvement' : reply],
-      `WhatsApp follow-up: ${reply}`
+      { notes: `WhatsApp follow-up: ${reply}` }
     );
 
     await accuracyMetricsService.logFollowupOutcome({

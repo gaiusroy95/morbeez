@@ -46,6 +46,17 @@ export declare const agronomistCaseReviewService: {
             agronomistNotes: any;
             correction: any;
         };
+        lifecycle: {
+            confidenceBand: string | null;
+            autoSent: boolean;
+            autoSentAt: string | null;
+            humanReviewed: boolean;
+            humanReviewedAt: string | null;
+            humanReviewedBy: string | null;
+            corrected: boolean;
+            correctedAt: string | null;
+            routingDecidedAt: string | null;
+        } | null;
         farmer: {
             id: unknown;
             name: string;
@@ -78,7 +89,7 @@ export declare const agronomistCaseReviewService: {
         review: {
             action: "approve_ai" | "correct_ai" | "partial_match" | "escalate_urgent" | null;
             correctDiagnosis: any;
-            severity: import("./case-review-inquiry.util.js").ReviewSeverity | null;
+            severity: "mild" | "moderate" | "severe" | null;
             recommendationText: string | null;
             dosage: string | null;
             notesForLearning: string | null;

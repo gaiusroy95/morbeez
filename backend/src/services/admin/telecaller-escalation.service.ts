@@ -80,6 +80,16 @@ export const telecallerEscalationService = {
       throw new Error('Could not open case review session');
     }
 
+    void (async () => {
+      const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+      await weatherSnapshotService.capture({
+        farmerId: params.farmerId,
+        blockId: params.blockId,
+        eventType: 'ai_session',
+        eventId: String(session.id),
+      });
+    })();
+
     const { escalationId } = await escalationService.createCaseForReview({
       sessionId: String(session.id),
       farmerId: params.farmerId,

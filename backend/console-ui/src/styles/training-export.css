@@ -1,0 +1,283 @@
+.te-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.te-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.te-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.te-subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: #64748b;
+  max-width: 42rem;
+}
+
+.te-period {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.te-period select {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.te-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+
+.te-kpi {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 0.875rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.te-kpi--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.te-kpi-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.te-kpi strong {
+  font-size: 1.375rem;
+  color: #0f172a;
+}
+
+.te-kpi em {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-style: normal;
+}
+
+.te-export-section,
+.te-qa-section {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1rem 1.125rem;
+}
+
+.te-export-section h3,
+.te-qa-section h3 {
+  margin: 0 0 0.75rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.te-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.te-btn {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.45rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+}
+
+.te-btn:hover:not(:disabled) {
+  border-color: #059669;
+  color: #047857;
+}
+
+.te-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.te-btn--primary {
+  background: #059669;
+  border-color: #059669;
+  color: #fff;
+}
+
+.te-btn--primary:hover:not(:disabled) {
+  background: #047857;
+  color: #fff;
+}
+
+.te-export-hint,
+.te-qa-desc {
+  margin: 0.625rem 0 0;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.te-empty {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #94a3b8;
+}
+
+.te-qa-table-wrap {
+  overflow-x: auto;
+}
+
+.te-qa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.te-qa-table th,
+.te-qa-table td {
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.te-qa-table th {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+
+.te-qa-label {
+  max-width: 12rem;
+  word-break: break-word;
+}
+
+.te-qa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.te-qa-btn {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.375rem;
+  background: #fff;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.te-qa-btn--muted {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.te-qa-btn--danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.te-weather-section {
+  border: 1px solid #bfdbfe;
+  border-radius: 0.75rem;
+  background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+  padding: 1rem 1.125rem;
+}
+
+.te-weather-section h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.te-weather-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.625rem;
+  margin: 0.75rem 0;
+}
+
+.te-weather-kpi {
+  border: 1px solid #dbeafe;
+  border-radius: 0.5rem;
+  background: #fff;
+  padding: 0.625rem 0.75rem;
+}
+
+.te-weather-kpi span {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.te-weather-kpi strong {
+  display: block;
+  font-size: 1.125rem;
+  color: #1e3a8a;
+}
+
+.te-weather-kpi em {
+  display: block;
+  font-size: 0.6875rem;
+  color: #64748b;
+  font-style: normal;
+}
+
+.te-weather-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
+}
+
+.te-weather-table th,
+.te-weather-table td {
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #dbeafe;
+}
+
+.te-weather-table th {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.te-weather-insights {
+  margin: 0.75rem 0 0;
+  padding-left: 1.125rem;
+  font-size: 0.8125rem;
+  color: #334155;
+  line-height: 1.45;
+}

@@ -107,6 +107,16 @@ export const recommendationRecordsService = {
     throwIfSupabaseError(error, 'Could not create recommendation record');
 
     const recordId = String(data.id);
+
+    void (async () => {
+      const { weatherSnapshotService } = await import('./weather-snapshot.service.js');
+      await weatherSnapshotService.capture({
+        farmerId: input.farmerId,
+        blockId: input.blockId,
+        eventType: 'recommendation',
+        eventId: recordId,
+      });
+    })();
     const { farmerEventCaptureService } = await import(
       '../intelligence/farmer-event-capture.service.js'
     );
@@ -259,8 +269,33 @@ export const recommendationRecordsService = {
   async recordOutcome(
     id: string,
     outcome: 'better' | 'partial' | 'no_improvement' | 'unknown',
-    notes?: string
+    options?: {
+      notes?: string;
+      recoveryDays?: number;
+      farmerFeedback?: string;
+      agronomistFeedback?: string;
+      issueResolved?: boolean;
+      recordedBy?: string;
+    }
   ) {
+    const notes = options?.notes;
+    const issueResolved =
+      options?.issueResolved ?? (outcome === 'better' || outcome === 'partial');
+
+    const { data: existing } = await supabase
+      .from('recommendation_records')
+      .select('metadata')
+      .eq('id', id)
+      .maybeSingle();
+
+    const metadata = {
+      ...((existing?.metadata as Record<string, unknown>) ?? {}),
+      outcomeReview: {
+        recordedBy: options?.recordedBy ?? null,
+        recordedAt: new Date().toISOString(),
+      },
+    };
+
     const { data, error } = await supabase
       .from('recommendation_records')
       .update({
@@ -268,6 +303,12 @@ export const recommendationRecordsService = {
         outcome,
         outcome_notes: notes ?? null,
         outcome_at: new Date().toISOString(),
+        recovery_days: options?.recoveryDays ?? null,
+        farmer_outcome_feedback: options?.farmerFeedback?.trim() ?? null,
+        agronomist_outcome_feedback: options?.agronomistFeedback?.trim() ?? null,
+        issue_resolved: issueResolved,
+        outcome_recorded_by: options?.recordedBy ?? null,
+        metadata,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
@@ -283,7 +324,12 @@ export const recommendationRecordsService = {
       farmerId: String(data.farmer_id),
       milestone: 'outcome_recorded',
       outcome,
-      metadata: { notes: notes ?? null },
+      employeeEmail: options?.recordedBy ?? null,
+      metadata: {
+        notes: notes ?? null,
+        recoveryDays: options?.recoveryDays ?? null,
+        issueResolved,
+      },
     });
     return data;
   },

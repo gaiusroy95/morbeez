@@ -16,6 +16,14 @@ type WorkspaceIntelligence = {
     highOpportunityFarmers: number;
     farmersNeedingTrust: number;
   };
+  confidence?: {
+    autoSendPct: number | null;
+    employeeReviewPct: number | null;
+    escalatePct: number | null;
+    autoSentRatePct: number | null;
+    correctionRatePct: number | null;
+    avgConfidencePct: number | null;
+  };
   focusFarmers: Array<{
     farmerId: string;
     farmerName: string;
@@ -31,9 +39,29 @@ export function AgronomistIntelligenceBar() {
 
   useEffect(() => {
     let cancelled = false;
-    api<{ ok: boolean; intelligence: WorkspaceIntelligence }>(`${base}/workspace-intelligence`)
-      .then((r) => {
-        if (!cancelled) setData(r.intelligence);
+    Promise.all([
+      api<{ ok: boolean; intelligence: WorkspaceIntelligence }>(`${base}/workspace-intelligence`),
+      api<{ ok: boolean; stats: WorkspaceIntelligence['confidence'] & Record<string, unknown> }>(
+        `${base}/confidence-stats?days=30`
+      ).catch(() => null),
+    ])
+      .then(([intelRes, statsRes]) => {
+        if (cancelled) return;
+        const stats = statsRes?.stats;
+        setData({
+          ...intelRes.intelligence,
+          confidence: stats
+            ? {
+                autoSendPct: (stats as { byBand?: { autoSendPct?: number } }).byBand?.autoSendPct ?? null,
+                employeeReviewPct:
+                  (stats as { byBand?: { employeeReviewPct?: number } }).byBand?.employeeReviewPct ?? null,
+                escalatePct: (stats as { byBand?: { escalatePct?: number } }).byBand?.escalatePct ?? null,
+                autoSentRatePct: (stats as { autoSentRatePct?: number }).autoSentRatePct ?? null,
+                correctionRatePct: (stats as { correctionRatePct?: number }).correctionRatePct ?? null,
+                avgConfidencePct: (stats as { avgConfidencePct?: number }).avgConfidencePct ?? null,
+              }
+            : undefined,
+        });
       })
       .catch(() => {
         if (!cancelled) setData(null);
@@ -82,6 +110,34 @@ export function AgronomistIntelligenceBar() {
               <span className="tc-intel-kpi-label">Need trust</span>
               <strong>{data.cohort.farmersNeedingTrust}</strong>
             </div>
+            {data.confidence ? (
+              <>
+                <div className="tc-intel-kpi">
+                  <span className="tc-intel-kpi-label">Auto-send band</span>
+                  <strong>
+                    {data.confidence.autoSendPct != null
+                      ? `${data.confidence.autoSendPct}%`
+                      : '—'}
+                  </strong>
+                </div>
+                <div className="tc-intel-kpi">
+                  <span className="tc-intel-kpi-label">Avg confidence</span>
+                  <strong>
+                    {data.confidence.avgConfidencePct != null
+                      ? `${data.confidence.avgConfidencePct}%`
+                      : '—'}
+                  </strong>
+                </div>
+                <div className="tc-intel-kpi">
+                  <span className="tc-intel-kpi-label">Correction rate</span>
+                  <strong>
+                    {data.confidence.correctionRatePct != null
+                      ? `${data.confidence.correctionRatePct}%`
+                      : '—'}
+                  </strong>
+                </div>
+              </>
+            ) : null}
           </div>
           {data.focusFarmers.length > 0 ? (
             <div className="tc-intel-priority">

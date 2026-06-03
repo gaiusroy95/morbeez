@@ -1,3 +1,4 @@
+import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'interaction_outcome' | 'interaction_next_action' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
 export declare const crmFarmerService: {
     listMasters(type: MasterType, parentId?: string | null, search?: string): Promise<{
@@ -419,6 +420,9 @@ export declare const crmFarmerService: {
             nextAction?: string | null;
             nextActionAt?: string | null;
             fieldFinding?: string | null;
+            fieldFindingId?: string | null;
+            recommendationId?: string | null;
+            escalationId?: string | null;
             fieldActivity?: string | null;
             activityDateLabel?: string | null;
             recommendation?: string | null;
@@ -464,6 +468,7 @@ export declare const crmFarmerService: {
             name: string;
             detail?: string;
         }>;
+        operationalChain?: Awaited<ReturnType<typeof loadOperationalChain>>;
         editForm?: {
             kind: "task" | "log";
             title?: string;
@@ -503,6 +508,7 @@ export declare const crmFarmerService: {
             summary?: undefined;
             content?: undefined;
         };
+        operationalChain?: undefined;
     } | {
         id: string;
         source: string;
@@ -526,6 +532,26 @@ export declare const crmFarmerService: {
         }[];
         followUpTimeline: never[];
         products: never[];
+        operationalChain: {
+            fieldFinding?: {
+                id: string;
+                issue: string;
+                findingType?: string | null;
+                severity?: string | null;
+                affectedAreaPct?: number | null;
+            };
+            recommendation?: {
+                id: string;
+                summary: string;
+                problem?: string | null;
+                status?: string | null;
+            };
+            escalation?: {
+                id: string;
+                status: string;
+                workflowStatus?: string | null;
+            };
+        } | undefined;
         editForm: {
             kind: string;
             summary: string;
@@ -548,6 +574,12 @@ export declare const crmFarmerService: {
         workflowStatus?: string;
         fieldFindingText?: string;
         addFieldFinding?: boolean;
+        findingType?: FindingType;
+        severity?: ReviewSeverity;
+        affectedAreaPct?: number;
+        finalConfirmedIssue?: string;
+        aiPrediction?: string;
+        observations?: string;
         fieldActivityLabel?: string;
         fieldActivityTypeId?: string;
         fieldActivityDate?: string;
@@ -585,6 +617,9 @@ export declare const crmFarmerService: {
         nextAction?: string | null;
         nextActionAt?: string | null;
         fieldFinding?: string | null;
+        fieldFindingId?: string | null;
+        recommendationId?: string | null;
+        escalationId?: string | null;
         fieldActivity?: string | null;
         activityDateLabel?: string | null;
         recommendation?: string | null;
@@ -938,6 +973,26 @@ export declare const crmFarmerService: {
     };
 };
 type InteractionSource = 'log' | 'call' | 'task' | 'recommendation' | 'visit' | 'follow_up' | 'rec_record';
+declare function loadOperationalChain(log: Record<string, unknown>): Promise<{
+    fieldFinding?: {
+        id: string;
+        issue: string;
+        findingType?: string | null;
+        severity?: string | null;
+        affectedAreaPct?: number | null;
+    };
+    recommendation?: {
+        id: string;
+        summary: string;
+        problem?: string | null;
+        status?: string | null;
+    };
+    escalation?: {
+        id: string;
+        status: string;
+        workflowStatus?: string | null;
+    };
+} | undefined>;
 type AgronomistProfile = {
     name: unknown;
     employeeId: unknown;

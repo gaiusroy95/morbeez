@@ -154,7 +154,12 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
-    AI_ESCALATION_THRESHOLD: z.coerce.number().min(0).max(1).default(0.65),
+    /** Below this → escalate to agronomist (legacy; defaults to review threshold). */
+    AI_ESCALATION_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
+    /** ≥ this → auto-send advisory without human review. */
+    AI_AUTO_SEND_THRESHOLD: z.coerce.number().min(0).max(1).default(0.95),
+    /** ≥ this → employee review; below → escalate. */
+    AI_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
     AI_DAILY_TEXT_LIMIT_FREE: z.coerce.number().default(10),
     AI_DAILY_TEXT_LIMIT_PREMIUM: z.coerce.number().default(100),
     AI_DAILY_IMAGE_LIMIT_FREE: z.coerce.number().default(3),

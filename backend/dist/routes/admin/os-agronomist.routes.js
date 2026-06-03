@@ -13,6 +13,12 @@ import { agronomistTierService } from '../../services/admin/agronomist-tier.serv
 import { verifiedAdvisoryLearningService } from '../../services/core/verified-advisory-learning.service.js';
 import { agronomistIntelligenceService } from '../../services/intelligence/agronomist-intelligence.service.js';
 import { opportunityIntelligenceDashboardService } from '../../services/intelligence/opportunity-intelligence-dashboard.service.js';
+import { caseReviewBodySchema, imageReviewBodySchema, recordOutcomeBodySchema } from '../../domain/ai-training/validators.js';
+import { cropImageReviewService } from '../../services/core/crop-image-review.service.js';
+import { confidenceLifecycleService } from '../../services/core/confidence-lifecycle.service.js';
+import { outcomeReviewService } from '../../services/core/outcome-review.service.js';
+import { trainingExportService } from '../../services/core/training-export.service.js';
+import { weatherCorrelationService } from '../../services/core/weather-correlation.service.js';
 const draftSchema = z.object({
     findingId: z.string().uuid(),
     farmerId: z.string().uuid(),
@@ -61,17 +67,7 @@ export async function osAgronomistRoutes(app) {
     app.post(`${api}/cases/:id/review`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'write');
         const { id } = request.params;
-        const body = z
-            .object({
-            action: z.enum(['approve_ai', 'correct_ai', 'partial_match', 'escalate_urgent']),
-            correctDiagnosis: z.string().max(500).optional(),
-            severity: z.enum(['mild', 'moderate', 'severe']).optional(),
-            recommendationText: z.string().max(8000).optional(),
-            dosage: z.string().max(2000).optional(),
-            notesForLearning: z.string().max(2000).optional(),
-            submitForApproval: z.boolean().optional(),
-        })
-            .parse(request.body);
+        const body = caseReviewBodySchema.parse(request.body);
         const result = await agronomistCaseReviewService.submitReview(id, body, {
             email: admin.email,
             adminUserId: admin.id,
@@ -362,6 +358,131 @@ export async function osAgronomistRoutes(app) {
             .parse(request.body);
         const feedback = await farmerExperienceLearningService.review(id, body, admin.email);
         return reply.send({ ok: true, feedback });
+    });
+    app.get(`${api}/confidence-stats`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z.object({ days: z.coerce.number().int().min(7).max(90).optional() }).parse(request.query ?? {});
+        const stats = await confidenceLifecycleService.getRoutingStats(q.days ?? 30);
+        return reply.send({ ok: true, stats });
+    });
+    app.get(`${api}/crop-images`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z
+            .object({
+            status: z.enum(['pending', 'reviewed', 'skipped', 'excluded', 'all']).optional(),
+            crop: z.string().optional(),
+            page: z.coerce.number().int().min(1).optional(),
+            limit: z.coerce.number().int().min(1).max(50).optional(),
+            sync: z
+                .enum(['true', 'false'])
+                .optional()
+                .transform((v) => v !== 'false'),
+        })
+            .parse(request.query ?? {});
+        const result = await cropImageReviewService.listQueue({
+            status: q.status ?? 'pending',
+            crop: q.crop,
+            page: q.page,
+            limit: q.limit,
+            sync: q.sync,
+        });
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/crop-images/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { id } = request.params;
+        const detail = await cropImageReviewService.getDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/crop-images/:id/review`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { id } = request.params;
+        const body = imageReviewBodySchema.parse(request.body);
+        const image = await cropImageReviewService.submitReview(id, body, admin.email);
+        return reply.send({ ok: true, image });
+    });
+    app.get(`${api}/outcome-review`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z
+            .object({
+            filter: z.enum(['pending', 'overdue', 'all']).optional(),
+            page: z.coerce.number().int().min(1).optional(),
+            limit: z.coerce.number().int().min(1).max(50).optional(),
+        })
+            .parse(request.query ?? {});
+        const result = await outcomeReviewService.listQueue({
+            filter: q.filter ?? 'pending',
+            page: q.page,
+            limit: q.limit,
+        });
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/outcome-review/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { id } = request.params;
+        const detail = await outcomeReviewService.getDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/outcome-review/:id/record`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { id } = request.params;
+        const body = recordOutcomeBodySchema.parse(request.body);
+        const recommendation = await outcomeReviewService.recordOutcome(id, body, admin.email);
+        return reply.send({ ok: true, recommendation });
+    });
+    app.get(`${api}/weather-correlation`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z.object({ days: z.coerce.number().int().min(14).max(365).optional() }).parse(request.query ?? {});
+        const analytics = await weatherCorrelationService.getAnalytics(q.days ?? 90);
+        return reply.send({ ok: true, analytics });
+    });
+    app.get(`${api}/training-export/dashboard`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z.object({ days: z.coerce.number().int().min(7).max(365).optional() }).parse(request.query ?? {});
+        const stats = await trainingExportService.getDashboardStats(q.days ?? 30);
+        return reply.send({ ok: true, stats });
+    });
+    app.get(`${api}/training-export/qa-flags`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z.object({ limit: z.coerce.number().int().min(1).max(100).optional() }).parse(request.query ?? {});
+        const result = await trainingExportService.listQaFlags(q.limit ?? 40);
+        return reply.send({ ok: true, ...result });
+    });
+    app.patch(`${api}/training-export/qa-flag`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const body = z
+            .object({
+            entityType: z.enum(['training_event', 'crop_image']),
+            entityId: z.string().uuid(),
+            flag: z.enum(['needs_review', 'approved', 'excluded']),
+            notes: z.string().max(500).optional(),
+        })
+            .parse(request.body);
+        const result = await trainingExportService.setQaFlag({
+            ...body,
+            reviewedBy: admin.email,
+        });
+        return reply.send(result);
+    });
+    app.get(`${api}/training-export`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z
+            .object({
+            dataset: z.enum(['events', 'images', 'samples', 'weather', 'all']).optional(),
+            format: z.enum(['json', 'csv']).optional(),
+            since: z.string().datetime().optional(),
+            limit: z.coerce.number().int().min(1).max(10000).optional(),
+        })
+            .parse(request.query ?? {});
+        const exported = await trainingExportService.exportDataset({
+            dataset: q.dataset ?? 'all',
+            format: q.format ?? 'json',
+            since: q.since,
+            limit: q.limit,
+        });
+        reply.header('Content-Type', exported.contentType);
+        reply.header('Content-Disposition', `attachment; filename="${exported.filename}"`);
+        return reply.send(exported.body);
     });
 }
 //# sourceMappingURL=os-agronomist.routes.js.map

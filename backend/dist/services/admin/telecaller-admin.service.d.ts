@@ -1,3 +1,4 @@
+import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 export type LeadPendingWorkItem = {
     id: string;
     itemType: 'crm_task' | 'interaction' | 'field_follow_up' | 'escalation' | 'ai_approval' | 'crm_recommendation';
@@ -761,6 +762,13 @@ export declare const telecallerAdminService: {
             photoUrls: string[];
             photoCount: number;
             extraPhotoCount: number;
+            findingType: string | null;
+            severity: string | null;
+            affectedAreaPct: number | null;
+            aiPrediction: string | null;
+            finalConfirmedIssue: string | null;
+            weatherContext: Record<string, unknown>;
+            weatherSnapshotId: string | null;
         }[];
         pagination: {
             page: number;
@@ -793,6 +801,13 @@ export declare const telecallerAdminService: {
         photoUrls: string[];
         photoCount: number;
         extraPhotoCount: number;
+        findingType: string | null;
+        severity: string | null;
+        affectedAreaPct: number | null;
+        aiPrediction: string | null;
+        finalConfirmedIssue: string | null;
+        weatherContext: Record<string, unknown>;
+        weatherSnapshotId: string | null;
     };
     getFieldFinding(farmerId: string, findingId: string): Promise<{
         id: unknown;
@@ -818,6 +833,13 @@ export declare const telecallerAdminService: {
         photoUrls: string[];
         photoCount: number;
         extraPhotoCount: number;
+        findingType: string | null;
+        severity: string | null;
+        affectedAreaPct: number | null;
+        aiPrediction: string | null;
+        finalConfirmedIssue: string | null;
+        weatherContext: Record<string, unknown>;
+        weatherSnapshotId: string | null;
     }>;
     createFieldFinding(farmerId: string, leadId: string | null, input: {
         blockId?: string;
@@ -836,6 +858,11 @@ export declare const telecallerAdminService: {
         agronomistName?: string;
         agronomistRole?: string;
         agentEmail?: string;
+        findingType?: FindingType;
+        severity?: ReviewSeverity;
+        affectedAreaPct?: number;
+        aiPrediction?: string;
+        finalConfirmedIssue?: string;
     }): Promise<{
         id: unknown;
         visitedAt: string | null;
@@ -860,6 +887,13 @@ export declare const telecallerAdminService: {
         photoUrls: string[];
         photoCount: number;
         extraPhotoCount: number;
+        findingType: string | null;
+        severity: string | null;
+        affectedAreaPct: number | null;
+        aiPrediction: string | null;
+        finalConfirmedIssue: string | null;
+        weatherContext: Record<string, unknown>;
+        weatherSnapshotId: string | null;
     }>;
     updateFieldFinding(id: string, patch: Record<string, unknown>): Promise<{
         id: unknown;
@@ -885,6 +919,13 @@ export declare const telecallerAdminService: {
         photoUrls: string[];
         photoCount: number;
         extraPhotoCount: number;
+        findingType: string | null;
+        severity: string | null;
+        affectedAreaPct: number | null;
+        aiPrediction: string | null;
+        finalConfirmedIssue: string | null;
+        weatherContext: Record<string, unknown>;
+        weatherSnapshotId: string | null;
     }>;
     getNavBadges(): Promise<{
         followUpTasks: number;

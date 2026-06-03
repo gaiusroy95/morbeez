@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import type { FieldFindingListRow } from './FieldFindingDetailModal';
+import {
+  FINDING_TYPE_LABELS,
+  REVIEW_SEVERITY_LABELS,
+  type FindingType,
+  type ReviewSeverity,
+} from '../../lib/ai-training-enums';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -19,6 +25,10 @@ type FindingRow = FieldFindingListRow & {
   photoUrls?: string[];
   photoCount?: number;
   extraPhotoCount?: number;
+  findingType?: string | null;
+  severity?: string | null;
+  finalConfirmedIssue?: string | null;
+  affectedAreaPct?: number | null;
 };
 
 type BlockOption = { id: string; name: string; cropName?: string };
@@ -129,9 +139,11 @@ export function FieldFindingsTab({
       'Date',
       'Block',
       'Crop',
+      'Type',
+      'Severity',
+      'Issue',
       'Agronomist',
       'Observations',
-      'Disease',
       'Action',
       'Follow-up',
     ];
@@ -139,9 +151,15 @@ export function FieldFindingsTab({
       f.visitedLabel,
       f.blockName,
       f.cropType,
+      f.findingType
+        ? FINDING_TYPE_LABELS[f.findingType as FindingType] ?? f.findingType
+        : '',
+      f.severity
+        ? REVIEW_SEVERITY_LABELS[f.severity as ReviewSeverity] ?? f.severity
+        : '',
+      f.finalConfirmedIssue ?? f.diseasePest,
       f.agronomistName,
       f.observations,
-      f.diseasePest,
       f.actionTaken,
       f.followUpLabel,
     ]);
@@ -278,10 +296,11 @@ export function FieldFindingsTab({
               <tr>
                 <th>Date &amp; time</th>
                 <th>Block / crop</th>
+                <th>Type</th>
+                <th>Issue</th>
                 <th>Agronomist</th>
                 <th>Observations</th>
                 <th>Parameters</th>
-                <th>Disease / pest</th>
                 <th>Action taken</th>
                 <th>Next follow-up</th>
                 <th>Photos</th>
@@ -311,6 +330,30 @@ export function FieldFindingsTab({
                       <strong className="block text-slate-900">{f.blockName}</strong>
                       <span className="text-xs text-slate-500">{f.cropType}</span>
                     </td>
+                    <td className="tc-ff-type">
+                      {f.findingType ? (
+                        <>
+                          <span className="tc-ff-type-chip">
+                            {FINDING_TYPE_LABELS[f.findingType as FindingType] ?? f.findingType}
+                          </span>
+                          {f.severity ? (
+                            <span className="tc-ff-sev-chip">
+                              {REVIEW_SEVERITY_LABELS[f.severity as ReviewSeverity] ?? f.severity}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="tc-ff-muted">—</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={diseaseClass(f.diseaseTone)}>
+                        {f.finalConfirmedIssue ?? f.diseasePest}
+                      </span>
+                      {f.affectedAreaPct != null ? (
+                        <span className="block text-xs text-slate-500">{f.affectedAreaPct}% affected</span>
+                      ) : null}
+                    </td>
                     <td>
                       <div className="tc-ff-agronomist">
                         <span className="tc-ff-avatar tc-ff-avatar--sm">
@@ -335,9 +378,6 @@ export function FieldFindingsTab({
                           ))}
                         </ul>
                       )}
-                    </td>
-                    <td>
-                      <span className={diseaseClass(f.diseaseTone)}>{f.diseasePest}</span>
                     </td>
                     <td className="tc-ff-action">{String(f.actionTaken ?? '—').slice(0, 80)}</td>
                     <td className="tc-ff-date">{f.followUpLabel}</td>

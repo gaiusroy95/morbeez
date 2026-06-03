@@ -504,6 +504,14 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
           canWrite={canWrite}
           onSaved={bumpData}
           onClose={() => setSelectedInteraction(null)}
+          onOpenFinding={(findingId) => {
+            setSelectedInteraction(null);
+            setSelectedFinding({ id: findingId });
+          }}
+          onOpenRecommendation={() => {
+            setSelectedInteraction(null);
+            setTab('agronomist');
+          }}
         />
       ) : null}
 

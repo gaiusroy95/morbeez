@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { structuredFieldFindingSchema } from '../../domain/ai-training/validators.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
 import { opportunityIntelligenceDashboardService } from '../../services/intelligence/opportunity-intelligence-dashboard.service.js';
 import { telecallerIntelligenceService } from '../../services/intelligence/telecaller-intelligence.service.js';
@@ -17,6 +18,7 @@ import {
   type OperationalLeadSort,
 } from '../../services/admin/telecaller-lead-queue.service.js';
 import { userTablePreferencesService } from '../../services/admin/user-table-preferences.service.js';
+import { agronomistCaseReviewService } from '../../services/admin/agronomist-case-review.service.js';
 
 const leadStageEnum = z.enum([
   'new_lead',
@@ -29,6 +31,33 @@ const leadStageEnum = z.enum([
 
 export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
   const api = '/morbeez-staff/api/v1/os/telecaller';
+
+  app.get(`${api}/diagnosis-labels`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = z
+      .object({
+        cropType: z.string().optional(),
+        search: z.string().optional(),
+      })
+      .parse(request.query ?? {});
+    const labels = await agronomistCaseReviewService.listDiagnosisLabels({
+      cropType: q.cropType,
+      search: q.search,
+    });
+    return reply.send({ ok: true, labels });
+  });
+
+  app.post(`${api}/diagnosis-labels`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const body = z
+      .object({
+        label: z.string().min(1).max(500),
+        cropType: z.string().max(80).nullable().optional(),
+      })
+      .parse(request.body);
+    const created = await agronomistCaseReviewService.createDiagnosisLabel(body);
+    return reply.status(201).send({ ok: true, ...created });
+  });
 
   app.get(`${api}/overview`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
@@ -478,6 +507,7 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         followUpAt: z.string().datetime().optional(),
         parameters: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
       })
+      .merge(structuredFieldFindingSchema)
       .parse(request.body);
     const finding = await telecallerAdminService.updateFieldFinding(id, {
       observations: body.observations,
@@ -486,6 +516,11 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       action_taken: body.actionTaken,
       follow_up_at: body.followUpAt,
       parameters: body.parameters,
+      finding_type: body.findingType,
+      severity: body.severity,
+      affected_area_pct: body.affectedAreaPct,
+      ai_prediction: body.aiPrediction,
+      final_confirmed_issue: body.finalConfirmedIssue,
     });
     return reply.send({ ok: true, finding });
   });
@@ -833,7 +868,6 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         nextAction: z.string().optional(),
         nextActionAt: z.string().optional(),
         workflowStatus: z.enum(['Active', 'Closed', 'Escalated']).optional(),
-        fieldFindingText: z.string().optional(),
         addFieldFinding: z.boolean().optional(),
         fieldActivityLabel: z.string().optional(),
         fieldActivityTypeId: z.string().uuid().optional(),
@@ -843,6 +877,26 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         recommendationCompleted: z.boolean().optional(),
         escalate: z.boolean().optional(),
         status: z.string().optional(),
+      })
+      .merge(structuredFieldFindingSchema)
+      .superRefine((data, ctx) => {
+        if (!data.addFieldFinding) return;
+        if (!data.blockId) {
+          ctx.addIssue({ code: 'custom', message: 'Block is required for field finding', path: ['blockId'] });
+        }
+        if (!data.findingType) {
+          ctx.addIssue({ code: 'custom', message: 'Finding type is required', path: ['findingType'] });
+        }
+        if (!data.severity) {
+          ctx.addIssue({ code: 'custom', message: 'Severity is required', path: ['severity'] });
+        }
+        if (!data.finalConfirmedIssue?.trim()) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Confirmed issue is required',
+            path: ['finalConfirmedIssue'],
+          });
+        }
       })
       .parse(request.body);
     const detail = await telecallerAdminService.getLeadDetail(id);
@@ -911,6 +965,22 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         diseaseTone: z.enum(['healthy', 'warning', 'danger']).optional(),
         actionTaken: z.string().optional(),
         parameters: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+      })
+      .merge(structuredFieldFindingSchema)
+      .superRefine((data, ctx) => {
+        if (!data.findingType) {
+          ctx.addIssue({ code: 'custom', message: 'Finding type is required', path: ['findingType'] });
+        }
+        if (!data.severity) {
+          ctx.addIssue({ code: 'custom', message: 'Severity is required', path: ['severity'] });
+        }
+        if (!data.finalConfirmedIssue?.trim()) {
+          ctx.addIssue({
+            code: 'custom',
+            message: 'Confirmed issue is required',
+            path: ['finalConfirmedIssue'],
+          });
+        }
       })
       .parse(request.body);
     const detail = await telecallerAdminService.getLeadDetail(id);

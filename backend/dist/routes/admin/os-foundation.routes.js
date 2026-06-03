@@ -15,6 +15,7 @@ import { farmerEventService } from '../../services/intelligence/farmer-event.ser
 import { employeeAttributionService } from '../../services/intelligence/employee-attribution.service.js';
 import { opportunityScoreStoreService } from '../../services/intelligence/opportunity-score-store.service.js';
 import { farmerOpportunityEngineService } from '../../services/intelligence/farmer-opportunity-engine.service.js';
+import { recordOutcomeBodySchema } from '../../domain/ai-training/validators.js';
 const approvalUpdateSchema = z.object({
     issueDetected: z.string().max(500).optional(),
     recommendationText: z.string().min(1).max(8000).optional(),
@@ -66,8 +67,7 @@ const recommendationCreateSchema = z.object({
     weatherWarning: z.string().max(500).optional(),
     language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
 });
-const outcomeSchema = z.object({
-    outcome: z.enum(['better', 'partial', 'no_improvement', 'unknown']),
+const outcomeSchema = recordOutcomeBodySchema.extend({
     notes: z.string().max(2000).optional(),
 });
 export async function osFoundationRoutes(app) {
@@ -225,10 +225,17 @@ export async function osFoundationRoutes(app) {
         return reply.send({ ok: true, recommendation: row });
     });
     app.post(`${api}/recommendations/:id/outcome`, async (request, reply) => {
-        await assertModuleAccess(request, 'agronomist', 'write');
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
         const { id } = request.params;
         const body = outcomeSchema.parse(request.body);
-        const row = await recommendationRecordsService.recordOutcome(id, body.outcome, body.notes);
+        const row = await recommendationRecordsService.recordOutcome(id, body.outcome, {
+            notes: body.notes,
+            recoveryDays: body.recoveryDays,
+            farmerFeedback: body.farmerFeedback,
+            agronomistFeedback: body.agronomistFeedback,
+            issueResolved: body.issueResolved,
+            recordedBy: admin.email,
+        });
         return reply.send({ ok: true, recommendation: row });
     });
     app.get(`${api}/product-gaps`, async (request, reply) => {

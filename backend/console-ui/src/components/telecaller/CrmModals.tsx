@@ -6,6 +6,13 @@ import { InteractionTypePicker } from './InteractionTypePicker';
 import { FieldActivityTypePicker } from '../operations/field-activities/FieldActivityTypePicker';
 import type { FieldActivityType } from '../operations/field-activities/field-activity-utils';
 import { CRM_WORKFLOW_STATUSES, type CrmWorkflowStatus } from './crmInteractionTypes';
+import {
+  EMPTY_STRUCTURED_FINDING,
+  StructuredFieldFindingFields,
+  structuredFindingToPayload,
+  validateStructuredFinding,
+  type StructuredFieldFindingValues,
+} from './StructuredFieldFindingFields';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 const operationsBase = '/morbeez-staff/api/v1/os/operations';
@@ -181,7 +188,8 @@ function AddInteractionModal({
   const [summary, setSummary] = useState('');
   const [interactionDate, setInteractionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [addFieldFinding, setAddFieldFinding] = useState(false);
-  const [fieldFindingText, setFieldFindingText] = useState('');
+  const [structuredFinding, setStructuredFinding] =
+    useState<StructuredFieldFindingValues>(EMPTY_STRUCTURED_FINDING);
   const [addFieldActivity, setAddFieldActivity] = useState(false);
   const [fieldActivityTypeId, setFieldActivityTypeId] = useState('');
   const [fieldActivityLabel, setFieldActivityLabel] = useState('');
@@ -225,9 +233,14 @@ function AddInteractionModal({
           if ((addFieldFinding || addFieldActivity) && !blockId) {
             throw new Error('Select a block for field finding or activity');
           }
+          if (addFieldFinding) {
+            const findingErr = validateStructuredFinding(structuredFinding);
+            if (findingErr) throw new Error(findingErr);
+          }
           if (addFieldActivity && !fieldActivityDate) {
             throw new Error('Field activity date is required');
           }
+          const findingPayload = addFieldFinding ? structuredFindingToPayload(structuredFinding) : null;
           const effectiveWorkflow: CrmWorkflowStatus = escalate
             ? 'Escalated'
             : workflowStatus === 'Closed' && nextAction.trim()
@@ -246,8 +259,8 @@ function AddInteractionModal({
               nextAction: nextAction.trim() || undefined,
               nextActionAt: nextActionAt ? new Date(nextActionAt).toISOString() : undefined,
               workflowStatus: effectiveWorkflow,
-              fieldFindingText: addFieldFinding ? fieldFindingText.trim() || undefined : undefined,
               addFieldFinding,
+              ...(findingPayload ?? {}),
               fieldActivityLabel: addFieldActivity ? fieldActivityLabel.trim() || undefined : undefined,
               fieldActivityTypeId: addFieldActivity ? fieldActivityTypeId || undefined : undefined,
               fieldActivityDate: addFieldActivity ? fieldActivityDate : undefined,
@@ -310,14 +323,12 @@ function AddInteractionModal({
             Add field finding
           </label>
           {addFieldFinding ? (
-            <Field label="Field finding">
-              <textarea
-                className={inputClass}
-                rows={2}
-                value={fieldFindingText}
-                onChange={(e) => setFieldFindingText(e.target.value)}
-              />
-            </Field>
+            <StructuredFieldFindingFields
+              values={structuredFinding}
+              cropType={selectedBlock?.cropName}
+              diagnosisApiBase={base}
+              onChange={(patch) => setStructuredFinding((prev) => ({ ...prev, ...patch }))}
+            />
           ) : null}
 
           <label className="flex items-center gap-2 text-sm">
@@ -517,13 +528,11 @@ function AddFieldFindingModal({
   onSaved: () => void;
 }) {
   const [blockId, setBlockId] = useState(blocks[0]?.id ?? '');
-  const [diseaseId, setDiseaseId] = useState('');
-  const [diseaseName, setDiseaseName] = useState('');
-  const [observations, setObservations] = useState('');
+  const [structuredFinding, setStructuredFinding] =
+    useState<StructuredFieldFindingValues>(EMPTY_STRUCTURED_FINDING);
   const { saving, error, run } = useSubmit(onSaved, onClose);
 
   const block = blocks.find((b) => b.id === blockId);
-  const disease = diseaseName.trim();
 
   return (
     <Modal
@@ -533,15 +542,16 @@ function AddFieldFindingModal({
       onSave={() =>
         run(async () => {
           if (!block) throw new Error('Select a block');
+          const findingErr = validateStructuredFinding(structuredFinding);
+          if (findingErr) throw new Error(findingErr);
+          const payload = structuredFindingToPayload(structuredFinding);
           await api(`${base}/leads/${leadId}/field-findings`, {
             method: 'POST',
             body: JSON.stringify({
               blockId: block.id,
               blockName: block.name,
               cropType: block.cropName ?? '—',
-              diseasePest: disease || 'Pending review',
-              diseaseTone: disease.toLowerCase().includes('healthy') ? 'healthy' : 'warning',
-              observations: observations.trim() || undefined,
+              ...payload,
             }),
           });
         })
@@ -558,18 +568,12 @@ function AddFieldFindingModal({
             ))}
           </select>
         </Field>
-        <MasterSelect
-          masterType="disease"
-          label="Disease / pest"
-          value={diseaseId}
-          onChange={(id, n) => {
-            setDiseaseId(id);
-            setDiseaseName(n);
-          }}
+        <StructuredFieldFindingFields
+          values={structuredFinding}
+          cropType={block?.cropName}
+          diagnosisApiBase={base}
+          onChange={(patch) => setStructuredFinding((prev) => ({ ...prev, ...patch }))}
         />
-        <Field label="Observations">
-          <textarea className={inputClass} rows={3} value={observations} onChange={(e) => setObservations(e.target.value)} />
-        </Field>
       </div>
     </Modal>
   );

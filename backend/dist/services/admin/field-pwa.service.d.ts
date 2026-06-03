@@ -83,6 +83,13 @@ export declare const fieldPwaService: {
             photoUrls: string[];
             photoCount: number;
             extraPhotoCount: number;
+            findingType: string | null;
+            severity: string | null;
+            affectedAreaPct: number | null;
+            aiPrediction: string | null;
+            finalConfirmedIssue: string | null;
+            weatherContext: Record<string, unknown>;
+            weatherSnapshotId: string | null;
         };
         photoUrls: string[];
     }>;

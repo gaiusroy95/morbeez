@@ -38,6 +38,7 @@ import {
 } from './reply-attribution.service.js';
 import { farmerReplyPolishService } from './farmer-reply-polish.service.js';
 import { validateAdvisorySafety } from './safety-validation.service.js';
+import { confidenceLifecycleService } from '../../core/confidence-lifecycle.service.js';
 import { extractInboundMedia } from './media-extract.service.js';
 import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
 import { whatsappConversationalService } from '../whatsapp-conversational.service.js';
@@ -1307,6 +1308,17 @@ export const whatsappInboundPipeline = {
           issueLabel: result.advisory.probableIssue,
         },
       });
+
+      const mergedConf = result.confidence ?? result.advisory.confidence;
+      if (
+        confidenceLifecycleService.canAutoSend(mergedConf, result.advisory) &&
+        !result.escalated
+      ) {
+        void confidenceLifecycleService.markAutoSent(
+          result.sessionId,
+          params.channel ?? 'whatsapp'
+        );
+      }
 
       if (params.channel === 'whatsapp' && params.send) {
         await whatsappScenarioRouter.afterDiagnosis({

@@ -1,6 +1,19 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import {
+  FINDING_TYPE_LABELS,
+  REVIEW_SEVERITY_LABELS,
+  type FindingType,
+  type ReviewSeverity,
+} from '../../lib/ai-training-enums';
+import {
+  EMPTY_STRUCTURED_FINDING,
+  StructuredFieldFindingFields,
+  structuredFindingToPayload,
+  validateStructuredFinding,
+  type StructuredFieldFindingValues,
+} from './StructuredFieldFindingFields';
 
 export type FieldFindingListRow = {
   id: string;
@@ -25,6 +38,11 @@ type FieldFindingDetail = {
   followUpLabel: string;
   followUpAt: string | null;
   photoUrls: string[];
+  findingType?: string | null;
+  severity?: string | null;
+  affectedAreaPct?: number | null;
+  finalConfirmedIssue?: string | null;
+  aiPrediction?: string | null;
 };
 
 type Props = {
@@ -39,15 +57,27 @@ function diseaseClass(tone: string): string {
   return `tc-ff-disease tc-ff-disease--${tone}`;
 }
 
+function detailToStructured(detail: FieldFindingDetail): StructuredFieldFindingValues {
+  return {
+    findingType: (detail.findingType as FindingType) ?? '',
+    severity: (detail.severity as ReviewSeverity) ?? '',
+    finalConfirmedIssue: detail.finalConfirmedIssue ?? detail.diseasePest ?? '',
+    affectedAreaPct:
+      detail.affectedAreaPct != null && !Number.isNaN(detail.affectedAreaPct)
+        ? String(detail.affectedAreaPct)
+        : '',
+    observations: detail.observations ?? '',
+  };
+}
+
 export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSaved }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<FieldFindingDetail | null>(null);
-  const [observations, setObservations] = useState('');
-  const [diseasePest, setDiseasePest] = useState('');
-  const [diseaseTone, setDiseaseTone] = useState('warning');
+  const [structuredFinding, setStructuredFinding] =
+    useState<StructuredFieldFindingValues>(EMPTY_STRUCTURED_FINDING);
   const [actionTaken, setActionTaken] = useState('');
 
   const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -60,9 +90,7 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
         `${base}/leads/${leadId}/field-findings/${encodeURIComponent(row.id)}`
       );
       setDetail(d.finding);
-      setObservations(String(d.finding.observations ?? ''));
-      setDiseasePest(String(d.finding.diseasePest ?? ''));
-      setDiseaseTone(String(d.finding.diseaseTone ?? 'warning'));
+      setStructuredFinding(detailToStructured(d.finding));
       setActionTaken(String(d.finding.actionTaken ?? ''));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load field finding');
@@ -77,16 +105,26 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
 
   async function save() {
     if (!detail || !canWrite) return;
+    const findingErr = validateStructuredFinding(structuredFinding);
+    if (findingErr) {
+      setError(findingErr);
+      return;
+    }
+    const payload = structuredFindingToPayload(structuredFinding);
     setSaving(true);
     setError('');
     try {
       await api(`${base}/field-findings/${detail.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          observations: observations.trim(),
-          diseasePest: diseasePest.trim(),
-          diseaseTone,
+          observations: structuredFinding.observations.trim(),
+          diseasePest: payload.diseasePest,
+          diseaseTone: payload.diseaseTone,
           actionTaken: actionTaken.trim(),
+          findingType: payload.findingType,
+          severity: payload.severity,
+          affectedAreaPct: payload.affectedAreaPct,
+          finalConfirmedIssue: payload.finalConfirmedIssue,
         }),
       });
       setEditing(false);
@@ -99,6 +137,9 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
     }
   }
 
+  const issueLabel =
+    detail?.finalConfirmedIssue ?? detail?.diseasePest ?? '—';
+
   return (
     <Modal title="Field finding details" onClose={onClose} wide>
       {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
@@ -109,7 +150,17 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
             <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700">
               {detail.visitedLabel}
             </span>
-            <span className={diseaseClass(detail.diseaseTone)}>{detail.diseasePest}</span>
+            {detail.findingType ? (
+              <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs text-blue-800">
+                {FINDING_TYPE_LABELS[detail.findingType as FindingType] ?? detail.findingType}
+              </span>
+            ) : null}
+            {detail.severity ? (
+              <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs text-amber-900">
+                {REVIEW_SEVERITY_LABELS[detail.severity as ReviewSeverity] ?? detail.severity}
+              </span>
+            ) : null}
+            <span className={diseaseClass(detail.diseaseTone)}>{issueLabel}</span>
             {canWrite && !editing ? (
               <button
                 type="button"
@@ -135,32 +186,12 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
 
           {editing ? (
             <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-              <Field label="Observations">
-                <textarea
-                  className={inputClass}
-                  rows={4}
-                  value={observations}
-                  onChange={(e) => setObservations(e.target.value)}
-                />
-              </Field>
-              <Field label="Disease / pest">
-                <input
-                  className={inputClass}
-                  value={diseasePest}
-                  onChange={(e) => setDiseasePest(e.target.value)}
-                />
-              </Field>
-              <Field label="Severity">
-                <select
-                  className={inputClass}
-                  value={diseaseTone}
-                  onChange={(e) => setDiseaseTone(e.target.value)}
-                >
-                  <option value="healthy">Healthy</option>
-                  <option value="warning">Warning / deficiency</option>
-                  <option value="danger">Disease / pest</option>
-                </select>
-              </Field>
+              <StructuredFieldFindingFields
+                values={structuredFinding}
+                cropType={detail.cropType}
+                diagnosisApiBase={base}
+                onChange={(patch) => setStructuredFinding((prev) => ({ ...prev, ...patch }))}
+              />
               <Field label="Action taken">
                 <textarea
                   className={inputClass}
@@ -189,6 +220,12 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
             </div>
           ) : (
             <>
+              {detail.affectedAreaPct != null ? (
+                <p className="text-sm text-slate-600">
+                  <strong>Affected area:</strong> {detail.affectedAreaPct}% of block
+                </p>
+              ) : null}
+
               <section>
                 <h3 className="text-xs font-semibold uppercase text-slate-500">Observations</h3>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">

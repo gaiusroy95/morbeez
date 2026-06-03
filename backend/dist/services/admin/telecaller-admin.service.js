@@ -1110,6 +1110,13 @@ export const telecallerAdminService = {
             photoUrls: photos,
             photoCount: photos.length,
             extraPhotoCount: Math.max(0, photos.length - 2),
+            findingType: r.finding_type ? String(r.finding_type) : null,
+            severity: r.severity ? String(r.severity) : null,
+            affectedAreaPct: r.affected_area_pct != null ? Number(r.affected_area_pct) : null,
+            aiPrediction: r.ai_prediction ? String(r.ai_prediction) : null,
+            finalConfirmedIssue: r.final_confirmed_issue ? String(r.final_confirmed_issue) : null,
+            weatherContext: r.weather_context ?? {},
+            weatherSnapshotId: r.weather_snapshot_id ? String(r.weather_snapshot_id) : null,
         };
     },
     async getFieldFinding(farmerId, findingId) {
@@ -1126,6 +1133,20 @@ export const telecallerAdminService = {
         return this.mapFieldFinding(data);
     },
     async createFieldFinding(farmerId, leadId, input) {
+        const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+        let weatherSnapshotId = null;
+        let weatherContext = {};
+        if (input.blockId || farmerId) {
+            const captured = await weatherSnapshotService.capture({
+                farmerId,
+                blockId: input.blockId ?? null,
+                eventType: 'field_finding',
+            });
+            if (captured) {
+                weatherSnapshotId = captured.snapshotId;
+                weatherContext = captured.context;
+            }
+        }
         const { data, error } = await supabase
             .from('crm_field_findings')
             .insert({
@@ -1137,9 +1158,16 @@ export const telecallerAdminService = {
             agronomist_name: input.agronomistName ?? 'Field Agronomist',
             agronomist_role: input.agronomistRole ?? 'Field Agronomist',
             observations: input.observations,
-            disease_pest: input.diseasePest ?? 'Pending review',
+            disease_pest: input.diseasePest ?? input.finalConfirmedIssue ?? 'Pending review',
             disease_tone: input.diseaseTone ?? 'warning',
             action_taken: input.actionTaken,
+            finding_type: input.findingType ?? null,
+            severity: input.severity ?? null,
+            affected_area_pct: input.affectedAreaPct ?? null,
+            ai_prediction: input.aiPrediction ?? null,
+            final_confirmed_issue: input.finalConfirmedIssue ?? null,
+            weather_context: weatherContext,
+            weather_snapshot_id: weatherSnapshotId,
             parameters: input.parameters && input.parameters.length > 0
                 ? input.parameters
                 : [{ label: 'Visit', value: 'Recorded from field PWA' }],
@@ -1149,6 +1177,30 @@ export const telecallerAdminService = {
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not save field finding');
+        if (weatherSnapshotId) {
+            await supabase
+                .from('weather_snapshots')
+                .update({ event_id: data.id })
+                .eq('id', weatherSnapshotId);
+        }
+        const photos = input.photoUrls ?? [];
+        if (photos.length > 0) {
+            const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
+            for (const url of photos) {
+                if (!url?.trim())
+                    continue;
+                void cropImageReviewService.enqueue({
+                    farmerId,
+                    blockId: input.blockId ?? null,
+                    fieldFindingId: String(data.id),
+                    externalUrl: url.trim(),
+                    source: 'field_visit',
+                    crop: input.cropType,
+                    symptoms: input.observations ? [input.observations.slice(0, 200)] : [],
+                    aiPrediction: input.aiPrediction ?? input.diseasePest ?? null,
+                });
+            }
+        }
         const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
         void farmerEventCaptureService.trackFieldFinding({
             farmerId,
@@ -1158,7 +1210,19 @@ export const telecallerAdminService = {
         return this.mapFieldFinding(data);
     },
     async updateFieldFinding(id, patch) {
-        const allowed = ['observations', 'disease_pest', 'disease_tone', 'action_taken', 'follow_up_at', 'parameters'];
+        const allowed = [
+            'observations',
+            'disease_pest',
+            'disease_tone',
+            'action_taken',
+            'follow_up_at',
+            'parameters',
+            'finding_type',
+            'severity',
+            'affected_area_pct',
+            'ai_prediction',
+            'final_confirmed_issue',
+        ];
         const updates = {};
         for (const k of allowed) {
             if (patch[k] !== undefined)

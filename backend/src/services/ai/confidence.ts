@@ -1,9 +1,17 @@
-import { env } from '../../config/env.js';
+/**
+ * Merges GPT + Plant.id signals and delegates routing to the AI training domain.
+ * @see backend/src/domain/ai-training/confidence-routing.ts
+ */
 import type { PlantIdHealthResult, StructuredAdvisory } from './types.js';
+import {
+  shouldEscalate as domainShouldEscalate,
+  shouldAutoSend,
+  escalationReason as domainEscalationReason,
+  resolveConfidenceAction,
+  getEscalationThreshold,
+} from '../../domain/ai-training/confidence-routing.js';
 
-export function getEscalationThreshold(): number {
-  return env.AI_ESCALATION_THRESHOLD;
-}
+export { getEscalationThreshold, resolveConfidenceAction, shouldAutoSend };
 
 /** Merge Plant.id signal with GPT self-reported confidence */
 export function computeConfidence(
@@ -25,19 +33,9 @@ export function computeConfidence(
 }
 
 export function shouldEscalate(confidence: number, advisory: StructuredAdvisory): boolean {
-  const threshold = getEscalationThreshold();
-  if (advisory.uncertain || advisory.escalationRecommended) return true;
-  if (confidence < threshold) return true;
-  if (!advisory.probableIssue || advisory.probableIssue.toLowerCase().includes('uncertain')) return true;
-  return false;
+  return domainShouldEscalate(confidence, advisory);
 }
 
 export function escalationReason(confidence: number, advisory: StructuredAdvisory): string {
-  if (advisory.escalationReason) return advisory.escalationReason;
-  if (advisory.uncertain) return 'AI marked diagnosis as uncertain';
-  const threshold = getEscalationThreshold();
-  if (confidence < threshold) {
-    return `Confidence ${(confidence * 100).toFixed(0)}% below threshold ${threshold * 100}%`;
-  }
-  return 'Manual agronomist review recommended';
+  return domainEscalationReason(confidence, advisory);
 }

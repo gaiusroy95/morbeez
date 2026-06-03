@@ -429,6 +429,31 @@ export const farmerExperienceLearningService = {
         .eq('id', fb.escalation_id);
     }
 
+    const { aiTrainingEventService } = await import('./ai-training-event.service.js');
+    void aiTrainingEventService.recordFromFarmerFeedback({
+      farmerId: fb.farmer_id,
+      aiSessionId: fb.session_id,
+      escalationId: fb.escalation_id,
+      farmerFeedbackId: id,
+      aiPrediction: fb.ai_probable_issue,
+      aiConfidence: fb.ai_confidence,
+      farmerSuggestedDiagnosis: fb.farmer_suggested_diagnosis,
+      decision: status,
+      agronomistFinalDiagnosis: finalDx,
+      agronomistNotes: body.agronomistNotes ?? null,
+      confidenceAdjustment: body.confidenceAdjustment ?? null,
+      reviewedBy: agentEmail,
+    });
+
+    if (fb.session_id) {
+      const { confidenceLifecycleService } = await import('./confidence-lifecycle.service.js');
+      void confidenceLifecycleService.markHumanReviewed(fb.session_id, {
+        reviewedBy: agentEmail,
+        corrected: status === 'rejected' || status === 'partial',
+        action: status,
+      });
+    }
+
     return row;
   },
 

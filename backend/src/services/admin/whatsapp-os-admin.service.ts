@@ -340,6 +340,23 @@ export const whatsappOsAdminService = {
       .select('*')
       .single();
     throwIfSupabaseError(error, 'Could not create field activity');
+
+    void (async () => {
+      const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
+      const captured = await weatherSnapshotService.capture({
+        farmerId: String(block.farmer_id),
+        blockId: String(block.id),
+        eventType: 'field_activity',
+        eventId: String(data.id),
+      });
+      if (captured?.snapshotId) {
+        await supabase
+          .from('cultivation_activities')
+          .update({ weather_snapshot_id: captured.snapshotId })
+          .eq('id', data.id);
+      }
+    })();
+
     if (data.follow_up_required) {
       const dueDate = data.follow_up_date ?? params.activityDate;
       const { error: ptErr } = await supabase.from('pending_tasks').insert({

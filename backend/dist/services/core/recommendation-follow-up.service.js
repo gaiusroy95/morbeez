@@ -359,7 +359,7 @@ export const recommendationFollowUpService = {
             updated_at: now,
         })
             .eq('recommendation_record_id', recommendationRecordId);
-        await recommendationRecordsService.recordOutcome(recommendationRecordId, outcomeMap[reply === 'worsened' ? 'no_improvement' : reply], `WhatsApp follow-up: ${reply}`);
+        await recommendationRecordsService.recordOutcome(recommendationRecordId, outcomeMap[reply === 'worsened' ? 'no_improvement' : reply], { notes: `WhatsApp follow-up: ${reply}` });
         await accuracyMetricsService.logFollowupOutcome({
             farmerId,
             sessionId: rec.ai_session_id ?? undefined,

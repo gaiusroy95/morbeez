@@ -48,6 +48,17 @@ type CaseDetail = {
     confidence: number | null;
     timeAgo: string;
   };
+  lifecycle: {
+    confidenceBand: string | null;
+    autoSent: boolean;
+    autoSentAt: string | null;
+    humanReviewed: boolean;
+    humanReviewedAt: string | null;
+    humanReviewedBy: string | null;
+    corrected: boolean;
+    correctedAt: string | null;
+    routingDecidedAt: string | null;
+  } | null;
   farmer: { name: string; phone: string; district: string | null; language?: string } | null;
   block: { name: string; cropType: string; dap: number | null } | null;
   location: {
@@ -113,6 +124,20 @@ function pct(n: number): string {
 
 function scoreDec(n: number): string {
   return n.toFixed(2);
+}
+
+function bandLabel(band: string | null | undefined): string {
+  if (band === 'auto_send') return 'Auto-send (≥95%)';
+  if (band === 'employee_review') return 'Employee review (80–94%)';
+  if (band === 'escalate') return 'Escalate (<80%)';
+  return 'Routing pending';
+}
+
+function bandTone(band: string | null | undefined): string {
+  if (band === 'auto_send') return 'auto';
+  if (band === 'employee_review') return 'review';
+  if (band === 'escalate') return 'escalate';
+  return 'neutral';
 }
 
 function farmerInitial(name: string): string {
@@ -216,6 +241,7 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
       const r = await api<{ ok: boolean } & CaseDetail>(`${base}/cases/${id}`);
       setDetail({
         escalation: r.escalation,
+        lifecycle: r.lifecycle ?? null,
         farmer: r.farmer,
         block: r.block,
         location: r.location,
@@ -541,6 +567,22 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                 <span className="cr-muted">{detail.escalation.timeAgo} ago</span>
                 <IconChevronRight />
               </div>
+              {detail.lifecycle ? (
+                <div className="cr-lifecycle-row">
+                  <span className={`cr-lifecycle-band cr-lifecycle-band--${bandTone(detail.lifecycle.confidenceBand)}`}>
+                    {bandLabel(detail.lifecycle.confidenceBand)}
+                  </span>
+                  {detail.lifecycle.autoSent ? (
+                    <span className="cr-lifecycle-flag cr-lifecycle-flag--sent">Auto-sent</span>
+                  ) : null}
+                  {detail.lifecycle.humanReviewed ? (
+                    <span className="cr-lifecycle-flag cr-lifecycle-flag--reviewed">Human reviewed</span>
+                  ) : null}
+                  {detail.lifecycle.corrected ? (
+                    <span className="cr-lifecycle-flag cr-lifecycle-flag--corrected">Corrected</span>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </header>
         ) : (
