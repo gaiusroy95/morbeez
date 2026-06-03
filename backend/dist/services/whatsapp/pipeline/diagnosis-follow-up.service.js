@@ -9,9 +9,13 @@ import { blockService } from '../../core/block.service.js';
 import { inputClassifierService } from './input-classifier.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappService } from '../whatsapp.service.js';
-const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 2);
-const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 3);
-const STRONG_MATCH_SCORE = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_STRONG_MATCH ?? 0.88);
+import { contextPackService } from './context-pack.service.js';
+import { farmerMemoryService } from './farmer-memory.service.js';
+import { nearbyCasesService } from './nearby-cases.service.js';
+import { diagnosisFollowUpReasoningEngine, } from './diagnosis-follow-up-reasoning.engine.js';
+const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
+const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 1);
+const STRONG_MATCH_SCORE = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_STRONG_MATCH ?? 0.9);
 function tokenSet(text) {
     return new Set(text
         .toLowerCase()
@@ -30,85 +34,6 @@ function overlapScore(a, b) {
             inter += 1;
     }
     return inter / Math.max(sa.size, sb.size);
-}
-function issueSlug(issueLabel) {
-    const t = issueLabel.toLowerCase();
-    if (/thrip|streak|silver/i.test(t))
-        return 'thrips';
-    if (/leaf spot|phyllosticta|spot|blotch/i.test(t))
-        return 'leaf_spot';
-    if (/blast|pyricularia/i.test(t))
-        return 'blast';
-    if (/rot|wilt|soft/i.test(t))
-        return 'root_rot';
-    if (/yellow|chlorosis/i.test(t))
-        return 'nutrient';
-    return 'general';
-}
-const DISCRIMINATORS = {
-    thrips: [
-        {
-            id: 'silver_streaks',
-            en: 'Do you see silvery-white streaks or scraping marks on the leaves?',
-            ml: 'ഇലയിൽ വെള്ള/വെള്ളിമിശ്രിത പട്ടയോ scrape ചിഹ്നങ്ങളും കാണുന്നുണ്ടോ?',
-            hint: /silver|streak|scrape|white line|വെള്ള പട്ട/i,
-        },
-        {
-            id: 'widespread',
-            en: 'Is this on many plants in the field, not just one plant?',
-            ml: 'ഒരു ചെടിയിൽ മാത്രമല്ല, നിലത്ത് പല ചെടികളിലും ഉണ്ടോ?',
-        },
-    ],
-    leaf_spot: [
-        {
-            id: 'round_spots',
-            en: 'Are the spots round with yellow-brown edges?',
-            ml: 'പുള്ളികൾ വൃത്താകാരവും മഞ്ഞ-തവിട്ട അരികുകളുമാണോ?',
-            hint: /round|circle|പുള്ളി|spot/i,
-        },
-        {
-            id: 'after_rain',
-            en: 'Did spots increase after recent rain?',
-            ml: 'അടുത്തിടെ മഴ കഴിഞ്ഞ് പുള്ളി കൂടിയോ?',
-        },
-    ],
-    blast: [
-        {
-            id: 'water_soaked',
-            en: 'Do leaves have water-soaked or burnt-looking patches?',
-            ml: 'ഇലയിൽ വെള്ളം പിടിച്ച അല്ലെങ്കിൽ കരിച്ച പോലെയുള്ള ഭാഗങ്ങളുണ്ടോ?',
-        },
-    ],
-    root_rot: [
-        {
-            id: 'soft_rhizome',
-            en: 'Is the rhizome/underground part soft or smelly?',
-            ml: 'രൈസോം/അടിവേര് മൃദുവോ ദുർഗന്ധമോ?',
-        },
-    ],
-    general: [
-        {
-            id: 'spread_fast',
-            en: 'Is the problem spreading quickly across the field?',
-            ml: 'പ്രശ്നം വേഗത്തിൽ നിലം മുഴുവൻ പടരുന്നുണ്ടോ?',
-        },
-        {
-            id: 'new_growth',
-            en: 'Are new young leaves more affected than old leaves?',
-            ml: 'പുതിയ ഇലകളാണ് കൂടുതൽ ബാധിച്ചതോ?',
-        },
-    ],
-};
-function localizeQuestion(q, lang) {
-    if (lang === 'ml')
-        return q.ml;
-    if (lang === 'hi')
-        return q.en;
-    if (lang === 'ta')
-        return q.en;
-    if (lang === 'kn')
-        return q.en;
-    return q.en;
 }
 function slugOverlap(a, b) {
     if (!a || !b)
@@ -141,6 +66,14 @@ function scoreLearnedCaseMatch(params) {
     const textScore = overlapScore(normalizedFarmer, `${params.issueLabel} ${normalizeRegionalFarmerQuery(params.issueLabel)}`);
     return Math.max(slugScore * 0.92, textScore);
 }
+async function countVerifiedCasesForCrop(cropType) {
+    const { count } = await supabase
+        .from('advisory_reuse_cases')
+        .select('id', { count: 'exact', head: true })
+        .eq('crop_type', cropType.toLowerCase())
+        .eq('outcome_ok', true);
+    return count ?? 0;
+}
 export const diagnosisFollowUpService = {
     enabled() {
         return env.ENABLE_DIAGNOSIS_FOLLOW_UP !== false && env.ENABLE_AI_REUSE_CACHE !== false;
@@ -151,7 +84,7 @@ export const diagnosisFollowUpService = {
         const limit = params.limit ?? 25;
         const { data: rows } = await supabase
             .from('advisory_reuse_cases')
-            .select('id, issue_label, symptom_key, confidence_score, hit_count, advisory_snapshot')
+            .select('id, issue_label, symptom_key, confidence_score, hit_count, advisory_snapshot, district')
             .eq('crop_type', crop)
             .eq('outcome_ok', true)
             .gte('confidence_score', 0.65)
@@ -173,7 +106,7 @@ export const diagnosisFollowUpService = {
             });
             const districtBoost = district && String(row.district ?? '') === district ? 0.08 : 0;
             const finalScore = Math.min(1, score + districtBoost + Math.min(0.12, (row.hit_count ?? 0) / 200));
-            if (finalScore < 0.18)
+            if (finalScore < 0.15)
                 continue;
             scored.push({
                 reuseCaseId: String(row.id),
@@ -192,14 +125,14 @@ export const diagnosisFollowUpService = {
                 if (scored.some((s) => s.reuseCaseId === String(row.id)))
                     continue;
                 const caseSlug = buildCrossLanguageIntentSlug(crop, normalizeRegionalFarmerQuery(issueLabel), issueLabel);
-                if (slugOverlap(farmerSlug, caseSlug) < 0.34)
+                if (slugOverlap(farmerSlug, caseSlug) < 0.3)
                     continue;
                 const snap = row.advisory_snapshot;
                 scored.push({
                     reuseCaseId: String(row.id),
                     issueLabel,
                     symptomKey,
-                    score: 0.42,
+                    score: 0.45,
                     hitCount: Number(row.hit_count ?? 0),
                     confidence: Number(row.confidence_score ?? 0.7),
                     staffVerified: Boolean(snap?.staffVerified),
@@ -218,116 +151,137 @@ export const diagnosisFollowUpService = {
         }, 'Diagnosis follow-up similar-case search');
         return result;
     },
-    buildQuestions(params) {
-        const questions = [];
-        if (params.needsPhoto) {
-            questions.push({
-                id: 'photo',
-                kind: 'photo',
-                text: params.language === 'ml'
-                    ? 'കൃത്യമായ നിർണയത്തിന് ഇലയുടെ അടുത്ത ഫോട്ടോ അയയ്ക്കൂ (അല്ലെങ്കിൽ "skip" എന്ന് ടൈപ്പ് ചെയ്യൂ).'
-                    : 'For a better match with similar cases, please send a close leaf photo (or type skip).',
-            });
-        }
-        const best = params.similarCases[0];
-        const slug = best ? issueSlug(best.issueLabel) : 'general';
-        const pool = DISCRIMINATORS[slug] ?? DISCRIMINATORS.general;
-        for (const def of pool) {
-            if (questions.length >= MAX_QUESTIONS() + (params.needsPhoto ? 1 : 0))
-                break;
-            if (def.hint && def.hint.test(params.symptomsText))
-                continue;
-            if (questions.some((q) => q.id === def.id))
-                continue;
-            questions.push({
-                id: def.id,
-                kind: 'yes_no',
-                text: localizeQuestion(def, params.language),
-            });
-        }
-        return questions.slice(0, MAX_QUESTIONS() + (params.needsPhoto ? 1 : 0));
-    },
-    enrichedSymptoms(intake) {
-        const parts = [intake.initialSymptoms.trim()];
-        for (const [qid, ans] of Object.entries(intake.answers)) {
-            if (ans === 'skip')
-                continue;
-            parts.push(`${qid}: ${ans}`);
-        }
-        if (intake.bestIssueLabel) {
-            parts.push(`Similar cases suggest: ${intake.bestIssueLabel}`);
-        }
-        return parts.filter(Boolean).join('. ');
-    },
-    async startIntake(params) {
-        if (!this.enabled())
-            return { started: false };
+    async buildInvestigationContext(params) {
         const { data: farmer } = await supabase
             .from('farmers')
             .select('district')
             .eq('id', params.farmerId)
             .maybeSingle();
         const district = farmer?.district ? String(farmer.district).trim().toLowerCase() : null;
+        const memory = await farmerMemoryService.build(params.farmerId, {
+            symptomsText: params.symptomsText,
+        });
+        const contextPack = await contextPackService.build(params.farmerId, {
+            cropType: params.cropType,
+            symptomsText: params.symptomsText,
+            dap: memory.dap,
+            blockId: memory.activePlotId,
+        });
+        const nearby = await nearbyCasesService.summarize(params.farmerId, params.cropType);
         const similar = await this.findSimilarLearnedCases({
             cropType: params.cropType,
             district,
             symptomsText: params.symptomsText,
         });
-        if (similar.length < MIN_SIMILAR_CASES()) {
-            logger.info({
-                farmerId: params.farmerId,
-                cropType: params.cropType,
-                similarCount: similar.length,
-                minRequired: MIN_SIMILAR_CASES(),
-            }, 'Diagnosis follow-up skipped: not enough similar learned cases');
-            return { started: false };
-        }
+        const totalVerified = Math.max(nearby.verifiedReuseHits, await countVerifiedCasesForCrop(params.cropType));
         const classified = inputClassifierService.classifyText(params.symptomsText);
         const best = similar[0];
-        const needsPhoto = !params.hasPhoto &&
-            (classified.category === 'disease_stress' ||
-                classified.category === 'insect' ||
-                classified.category === 'unknown_low_conf');
-        const questions = this.buildQuestions({
+        return {
             language: params.language,
+            cropType: params.cropType,
             symptomsText: params.symptomsText,
+            hasPhoto: params.hasPhoto,
+            dap: memory.dap,
             similarCases: similar,
-            needsPhoto,
+            totalVerifiedCases: totalVerified,
+            matchConfidence: best?.score ?? 0,
+            bestIssueLabel: best?.issueLabel,
+            heavyRainLikely: contextPack.heavyRainLikely,
+            highHumidityLikely: contextPack.highHumidityLikely,
+            highHeatLikely: contextPack.highHeatLikely,
+            weatherRiskScore: contextPack.weatherRiskScore,
+            diseasePriors: contextPack.diseasePriors,
+            lastSprayKnown: Boolean(memory.lastSpray?.trim()),
             category: classified.category,
-        });
-        if (!questions.length)
+        };
+    },
+    enrichedSymptoms(intake) {
+        const ctxStub = {
+            language: 'en',
+            cropType: '',
+            symptomsText: intake.initialSymptoms,
+            hasPhoto: true,
+            similarCases: [],
+            totalVerifiedCases: intake.totalVerifiedCases ?? 0,
+            matchConfidence: intake.matchConfidence ?? 0,
+            bestIssueLabel: intake.bestIssueLabel,
+            heavyRainLikely: false,
+            highHumidityLikely: false,
+            highHeatLikely: false,
+            weatherRiskScore: 0,
+            diseasePriors: [],
+            lastSprayKnown: true,
+            category: 'disease_stress',
+        };
+        const answers = {};
+        for (const [k, v] of Object.entries(intake.answers)) {
+            answers[k] = String(v);
+        }
+        return diagnosisFollowUpReasoningEngine.enrichSymptomsFromAnswers(intake.initialSymptoms, answers, ctxStub);
+    },
+    async startIntake(params) {
+        if (!this.enabled())
             return { started: false };
-        if (best && best.score >= STRONG_MATCH_SCORE() && !needsPhoto && questions.length <= 1) {
-            logger.info({ farmerId: params.farmerId, score: best.score }, 'Diagnosis follow-up skipped: strong match without extra questions');
+        const ctx = await this.buildInvestigationContext(params);
+        const band = diagnosisFollowUpReasoningEngine.resolveMatchConfidenceBand(ctx.matchConfidence);
+        if (diagnosisFollowUpReasoningEngine.shouldSkipFollowUpIntake(ctx)) {
+            logger.info({ farmerId: params.farmerId, score: ctx.matchConfidence, band }, 'Diagnosis follow-up skipped: high confidence + photo');
             return { started: false };
         }
+        const hasLearnedPool = ctx.totalVerifiedCases >= MIN_SIMILAR_CASES() || ctx.similarCases.length >= MIN_SIMILAR_CASES();
+        const evidenceMode = !hasLearnedPool &&
+            diagnosisFollowUpReasoningEngine.needsMoreEvidence(ctx);
+        if (!hasLearnedPool && !evidenceMode) {
+            logger.info({
+                farmerId: params.farmerId,
+                verified: ctx.totalVerifiedCases,
+                similar: ctx.similarCases.length,
+            }, 'Diagnosis follow-up skipped: no learned pool and evidence not required');
+            return { started: false };
+        }
+        if (ctx.matchConfidence >= STRONG_MATCH_SCORE() &&
+            params.hasPhoto &&
+            band === 'high' &&
+            !evidenceMode) {
+            return { started: false };
+        }
+        const planned = diagnosisFollowUpReasoningEngine.planQuestionSequence(ctx, MAX_QUESTIONS());
+        const questions = planned.map((q) => diagnosisFollowUpReasoningEngine.toWhatsAppQuestion(q, params.language));
+        if (!questions.length)
+            return { started: false };
         const intake = {
             initialSymptoms: params.symptomsText,
             questions,
             currentIndex: 0,
             answers: {},
-            similarCases: similar.slice(0, 5).map((c) => ({
+            similarCases: ctx.similarCases.slice(0, 5).map((c) => ({
                 issueLabel: c.issueLabel,
                 score: c.score,
                 reuseCaseId: c.reuseCaseId,
             })),
-            bestIssueLabel: best?.issueLabel,
-            matchConfidence: best?.score,
-            pendingPhoto: needsPhoto,
+            bestIssueLabel: ctx.bestIssueLabel,
+            matchConfidence: ctx.matchConfidence,
+            totalVerifiedCases: ctx.totalVerifiedCases,
+            confidenceBand: band,
+            pendingPhoto: !params.hasPhoto,
+            evidenceMode,
         };
         await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: intake });
         await conversationSessionService.setState(params.farmerId, 'diagnosis_intake');
-        const intro = params.language === 'ml'
-            ? `നിങ്ങളുടെ പ്രശ്നം പരിശോധിക്കുന്നു. മോർബീസിൽ സമാനമായ ${similar.length}+ കേസുകൾ ഉണ്ട്.\n\n${best ? `ഏറ്റവും അടുത്തത്: ${best.issueLabel}.\n\n` : ''}ചില ചെറിയ ചോദ്യങ്ങൾ — ശരിയായ ഉത്തരം കിട്ടാൻ:`
-            : `Checking your problem against ${similar.length}+ similar ${params.cropType} cases Morbeez has learned.\n\n${best ? `Closest match: ${best.issueLabel}.\n\n` : ''}A few quick questions for the most accurate advice:`;
+        const intro = diagnosisFollowUpReasoningEngine.buildIntro(ctx);
         await this.sendCurrentQuestion(params.phone, params.language, intake, intro);
-        return { started: true };
+        return { started: true, mode: evidenceMode ? 'evidence' : 'learned' };
     },
     async sendCurrentQuestion(phone, language, intake, prefix) {
         const q = intake.questions[intake.currentIndex];
         if (!q)
             return;
-        const body = prefix ? `${prefix}\n\n${q.text}` : q.text;
+        const step = intake.questions.length > 1
+            ? language === 'ml'
+                ? `(ചോദ്യം ${intake.currentIndex + 1}/${intake.questions.length})\n\n`
+                : `(Question ${intake.currentIndex + 1} of ${intake.questions.length})\n\n`
+            : '';
+        const body = prefix ? `${prefix}\n\n${step}${q.text}` : `${step}${q.text}`;
         if (q.kind === 'yes_no') {
             try {
                 await whatsappService.sendButtons({
@@ -344,13 +298,36 @@ export const diagnosisFollowUpService = {
                 /* fall through */
             }
         }
+        if (q.kind === 'spray_timing') {
+            try {
+                await whatsappService.sendButtons({
+                    to: phone,
+                    body,
+                    buttons: [
+                        { id: `dfq.spray.7d.${q.id}`, title: language === 'ml' ? '7 ദിവസം' : 'Last 7 days' },
+                        { id: `dfq.spray.14d.${q.id}`, title: language === 'ml' ? '14+ ദിവസം' : '14+ days ago' },
+                        { id: `dfq.spray.never.${q.id}`, title: language === 'ml' ? 'ഇല്ല' : 'Not yet' },
+                    ],
+                });
+                return;
+            }
+            catch {
+                /* fall through */
+            }
+        }
         await whatsappService.sendText(phone, body);
     },
     parseButtonReply(text) {
-        const m = text.match(/^dfq\.(yes|no)\.(.+)$/);
-        if (!m)
-            return null;
-        return { questionId: m[2], answer: m[1] === 'yes' ? 'yes' : 'no' };
+        const yesNo = text.match(/^dfq\.(yes|no)\.(.+)$/);
+        if (yesNo) {
+            return { questionId: yesNo[2], answer: yesNo[1] === 'yes' ? 'yes' : 'no' };
+        }
+        const spray = text.match(/^dfq\.spray\.(7d|14d|never)\.(.+)$/);
+        if (spray) {
+            const map = { '7d': 'within_7d', '14d': 'over_14d', never: 'never' };
+            return { questionId: spray[2], answer: map[spray[1]] };
+        }
+        return null;
     },
     parseTextAnswer(text) {
         const t = text.trim().toLowerCase();
@@ -360,6 +337,10 @@ export const diagnosisFollowUpService = {
             return 'yes';
         if (/^(no|n|ഇല്ല|illa|नहीं|இல்லை|ಇಲ್ಲ|2)$/i.test(t))
             return 'no';
+        if (/^(7|7d|week|last week|7 days|7 ദിവസം)/i.test(t))
+            return 'within_7d';
+        if (/^(14|14d|2 week|month|never|not|ഇല്ല)/i.test(t))
+            return 'over_14d';
         return null;
     },
     async handleIntakeMessage(params) {
@@ -369,32 +350,55 @@ export const diagnosisFollowUpService = {
             return { handled: false };
         const current = intake.questions[intake.currentIndex];
         if (!current) {
-            return { handled: true, ready: true, enrichedSymptoms: this.enrichedSymptoms(intake) };
+            return {
+                handled: true,
+                ready: true,
+                enrichedSymptoms: this.enrichedSymptoms(intake),
+                escalateHint: intake.confidenceBand === 'low',
+            };
         }
-        if (current.kind === 'photo' && params.hasPhoto) {
+        const isPhotoQ = current.kind === 'photo';
+        if (isPhotoQ && params.hasPhoto) {
             intake.answers[current.id] = 'yes';
             intake.currentIndex += 1;
             intake.pendingPhoto = false;
         }
-        else if (current.kind === 'photo') {
+        else if (isPhotoQ) {
             const skip = /skip/i.test(params.text);
             if (!skip && !params.hasPhoto) {
                 await whatsappService.sendText(params.phone, params.language === 'ml'
-                    ? 'ദയവായി ഇലയുടെ ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" എന്ന് ടൈപ്പ് ചെയ്യൂ.'
-                    : 'Please send a leaf photo, or type skip.');
+                    ? 'ദയവായി അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" എന്ന് ടൈപ്പ് ചെയ്യൂ.'
+                    : 'Please send a close photo, or type skip.');
                 return { handled: true, ready: false };
             }
             intake.answers[current.id] = skip ? 'skip' : 'yes';
             intake.currentIndex += 1;
+            if (!skip)
+                intake.pendingPhoto = false;
         }
         else {
             const btn = this.parseButtonReply(params.text);
             const ans = btn?.answer ?? this.parseTextAnswer(params.text);
-            if (!ans || (ans !== 'yes' && ans !== 'no' && ans !== 'skip')) {
-                await whatsappService.sendText(params.phone, params.language === 'ml' ? 'അതെ / ഇല്ല എന്ന് മാത്രം അയയ്ക്കൂ.' : 'Please reply Yes or No.');
+            const valid = ['yes', 'no', 'skip', 'within_7d', 'over_14d', 'never', 'unsure'];
+            if (!ans || !valid.includes(ans)) {
+                await whatsappService.sendText(params.phone, params.language === 'ml' ? 'ബട്ടൺ തിരഞ്ഞെടുക്കൂ അല്ലെങ്കിൽ അതെ/ഇല്ല.' : 'Please use the buttons or reply Yes/No.');
                 return { handled: true, ready: false };
             }
             intake.answers[current.id] = btn?.answer ?? ans;
+            const investigation = await this.buildInvestigationContext({
+                farmerId: params.farmerId,
+                language: params.language,
+                symptomsText: intake.initialSymptoms,
+                cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
+                hasPhoto: params.hasPhoto || !intake.pendingPhoto,
+            });
+            const branch = diagnosisFollowUpReasoningEngine.branchAfterAnswer(current.id, ans === 'skip' ? 'skip' : ans, investigation);
+            for (const bq of branch) {
+                const wq = diagnosisFollowUpReasoningEngine.toWhatsAppQuestion(bq, params.language);
+                if (!intake.questions.some((q) => q.id === wq.id)) {
+                    intake.questions.splice(intake.currentIndex + 1, 0, wq);
+                }
+            }
             intake.currentIndex += 1;
         }
         await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: intake });
@@ -406,14 +410,20 @@ export const diagnosisFollowUpService = {
                 farmerId: params.farmerId,
                 bestIssue: intake.bestIssueLabel,
                 matchConfidence: intake.matchConfidence,
+                confidenceBand: intake.confidenceBand,
                 answerCount: Object.keys(intake.answers).length,
+                evidenceMode: intake.evidenceMode,
             }, 'Diagnosis intake complete');
-            return { handled: true, ready: true, enrichedSymptoms: enriched };
+            return {
+                handled: true,
+                ready: true,
+                enrichedSymptoms: enriched,
+                escalateHint: intake.confidenceBand === 'low' && (intake.matchConfidence ?? 0) < 0.7,
+            };
         }
         await this.sendCurrentQuestion(params.phone, params.language, intake);
         return { handled: true, ready: false };
     },
-    /** After intake, try exact reuse; else return enriched text for Crop Doctor. */
     async resolveAfterIntake(params) {
         const district = await supabase
             .from('farmers')

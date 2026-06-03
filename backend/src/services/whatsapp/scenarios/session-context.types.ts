@@ -56,15 +56,18 @@ export interface SessionContext {
   /** Farmer Experience Learning — correction after AI diagnosis */
   farmerFeedbackId?: string;
   farmerFeedbackStep?: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
-  /** Learned-case follow-up before Crop Doctor (1–2 discriminators + optional photo) */
+  /** Learned-case follow-up before Crop Doctor (sequential, reasoning-based) */
   diagnosisIntake?: {
     initialSymptoms: string;
-    questions: Array<{ id: string; kind: 'yes_no' | 'photo'; text: string }>;
+    questions: Array<{ id: string; kind: 'yes_no' | 'photo' | 'spray_timing'; text: string }>;
     currentIndex: number;
-    answers: Record<string, 'yes' | 'no' | 'skip'>;
+    answers: Record<string, 'yes' | 'no' | 'skip' | 'within_7d' | 'over_14d' | 'never' | 'unsure'>;
     similarCases: Array<{ issueLabel: string; score: number; reuseCaseId?: string }>;
     bestIssueLabel?: string;
     matchConfidence?: number;
+    totalVerifiedCases?: number;
+    confidenceBand?: 'high' | 'medium' | 'low';
     pendingPhoto?: boolean;
+    evidenceMode?: boolean;
   };
 }

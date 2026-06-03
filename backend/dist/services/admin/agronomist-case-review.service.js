@@ -618,6 +618,16 @@ export const agronomistCaseReviewService = {
                 selfApproved = true;
             }
         }
+        if (recommendationId &&
+            body.submitForApproval &&
+            (body.action === 'approve_ai' ||
+                body.action === 'correct_ai' ||
+                body.action === 'partial_match')) {
+            const { verifiedAdvisoryLearningService } = await import('../core/verified-advisory-learning.service.js');
+            await verifiedAdvisoryLearningService
+                .promoteFromRecommendationRecord(recommendationId, agentEmail)
+                .catch(() => { });
+        }
         if (detail.farmerFeedback &&
             (body.action === 'approve_ai' || body.action === 'partial_match' || body.action === 'correct_ai')) {
             await supabase

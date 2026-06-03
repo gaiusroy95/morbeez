@@ -1,5 +1,6 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { SessionContext } from '../scenarios/session-context.types.js';
+import { type InvestigationContext } from './diagnosis-follow-up-reasoning.engine.js';
 export type SimilarLearnedCase = {
     reuseCaseId: string;
     issueLabel: string;
@@ -11,7 +12,7 @@ export type SimilarLearnedCase = {
 };
 export type FollowUpQuestion = {
     id: string;
-    kind: 'yes_no' | 'photo';
+    kind: 'yes_no' | 'photo' | 'spray_timing';
     text: string;
 };
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
@@ -23,13 +24,13 @@ export declare const diagnosisFollowUpService: {
         symptomsText: string;
         limit?: number;
     }): Promise<SimilarLearnedCase[]>;
-    buildQuestions(params: {
+    buildInvestigationContext(params: {
+        farmerId: string;
         language: AdvisoryLanguage;
         symptomsText: string;
-        similarCases: SimilarLearnedCase[];
-        needsPhoto: boolean;
-        category: string;
-    }): FollowUpQuestion[];
+        cropType: string;
+        hasPhoto: boolean;
+    }): Promise<InvestigationContext>;
     enrichedSymptoms(intake: IntakeContext): string;
     startIntake(params: {
         farmerId: string;
@@ -40,14 +41,14 @@ export declare const diagnosisFollowUpService: {
         hasPhoto: boolean;
     }): Promise<{
         started: boolean;
-        message?: string;
+        mode?: "learned" | "evidence";
     }>;
     sendCurrentQuestion(phone: string, language: AdvisoryLanguage, intake: IntakeContext, prefix?: string): Promise<void>;
     parseButtonReply(text: string): {
         questionId: string;
-        answer: "yes" | "no";
+        answer: "yes" | "no" | "within_7d" | "over_14d" | "never";
     } | null;
-    parseTextAnswer(text: string): "yes" | "no" | "skip" | null;
+    parseTextAnswer(text: string): "yes" | "no" | "skip" | "within_7d" | "over_14d" | "never" | "unsure" | null;
     handleIntakeMessage(params: {
         farmerId: string;
         phone: string;
@@ -61,10 +62,10 @@ export declare const diagnosisFollowUpService: {
         handled: true;
         ready: true;
         enrichedSymptoms: string;
+        escalateHint?: boolean;
     } | {
         handled: false;
     }>;
-    /** After intake, try exact reuse; else return enriched text for Crop Doctor. */
     resolveAfterIntake(params: {
         farmerId: string;
         cropType: string;

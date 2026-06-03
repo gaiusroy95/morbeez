@@ -361,6 +361,64 @@ This step proves **live learning memory**, not the export file alone.
 
 ---
 
+## Test diagnosis follow-up (Farmer A → Farmer B)
+
+**Goal:** Prove Morbeez asks **one-by-one follow-up questions** on WhatsApp before giving final advice, using cases your agronomists already approved.
+
+**Time:** Day 0 — build memory (3 cases). Day 1 — test Farmer B (5 minutes).
+
+### Before you start
+
+- Morbeez team confirms on the server: Crop Doctor, reuse cache, and diagnosis follow-up are **enabled**.
+- Use **two real test phone numbers** (Farmer A and Farmer B).
+- Set **crop = ginger (ഇഞ്ചി)** on both farmers’ profiles.
+
+### Part 1 — Farmer A: build 3 learned cases
+
+Send **three separate** WhatsApp messages from Farmer A (same phone is fine). Each time: **text + leaf photo**, then agronomist **Submit for approval** and **send to farmer**.
+
+| # | Farmer A sends (Malayalam) | Agronomist approves as (example) |
+|---|----------------------------|----------------------------------|
+| 1 | `ഇഞ്ചി ഇലയിൽ മഞ്ഞ-തവിട്ട പുള്ളികൾ. മഴ കഴിഞ്ഞ് കൂടി.` + photo | Ginger leaf spot — fungicide + drainage |
+| 2 | `ഇഞ്ചി ഇലയിൽ വെള്ള പട്ടയുണ്ട്, ചെടി മുരടുന്നില്ല.` + photo | Thrips / silver streak damage |
+| 3 | `ഇഞ്ചി ഇല കരിച്ച പോലെ, നനഞ്ഞ സ്ഥലം.` + photo | Foliar blast / wet field risk |
+
+**Pass for each case:** Portal says recommendation was **submitted and sent** (not left as draft only).
+
+### Part 2 — Farmer B: trigger follow-up questions
+
+Farmer B sends (similar to case 1, **with text**):
+
+```text
+എന്റെ ഇഞ്ചി ഇലയിൽ പുള്ളികൾ വന്നിട്ടുണ്ട്, മഴ കഴിഞ്ഞതിന് ശേഷം കൂടുതലായി.
+```
+
+Add a **new leaf photo** in the same message if possible.
+
+### Part 3 — What you should see on Farmer B’s WhatsApp
+
+1. **Intro** — e.g. “Morbeez found X+ similar successful ginger cases…” and closest issue name.  
+2. **Question 1 of N** — e.g. close leaf photo, or “Did spots increase after rain?” with **Yes / No** buttons.  
+3. **Question 2** (if needed) — e.g. round spots? last fungicide spray? (7 days / 14+ days / not yet).  
+4. **Then** — “Analyzing your problem…” and final advice aligned with staff-approved ginger guidance.
+
+### Pass / fail
+
+| Pass | Fail |
+|------|------|
+| Farmer B got **1–3 sequential questions** before final advice | Only generic AI paragraph, no questions |
+| Final advice matches agronomist pattern from Farmer A cases | Unrelated guess |
+| Buttons worked (Yes/No or spray timing) | Chat stuck or ignored answers |
+
+| Check | Pass? |
+|-------|-------|
+| Farmer A: 3 cases approved **and sent** | ☐ |
+| Farmer B: intro mentioned similar cases | ☐ |
+| Farmer B: at least 1 follow-up question before advice | ☐ |
+| Farmer B: final advice reasonable vs case 1 | ☐ |
+
+---
+
 ## Printable test sheet (one run)
 
 Copy for each real-world test.
