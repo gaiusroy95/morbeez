@@ -26,13 +26,15 @@ export const structuredFieldFindingSchema = z.object({
     finalConfirmedIssue: z.string().max(200).optional(),
     weatherContext: z.record(z.unknown()).optional(),
 });
+/** Max WhatsApp recommendation body (agronomist case review). DB is TEXT; outbound WhatsApp capped separately. */
+export const CASE_REVIEW_RECOMMENDATION_TEXT_MAX = 8000;
 /** Case review submission */
 export const caseReviewBodySchema = z.object({
     action: reviewActionSchema,
     correctDiagnosis: z.string().max(200).optional(),
     severity: reviewSeveritySchema.optional(),
-    recommendationText: z.string().max(2000).optional(),
-    dosage: z.string().max(500).optional(),
+    recommendationText: z.string().max(CASE_REVIEW_RECOMMENDATION_TEXT_MAX).optional(),
+    dosage: z.string().max(2000).optional(),
     notesForLearning: z.string().max(1000).optional(),
     submitForApproval: z.boolean().optional(),
 });

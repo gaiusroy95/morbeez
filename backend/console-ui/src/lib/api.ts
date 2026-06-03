@@ -54,8 +54,15 @@ export async function api<T = unknown>(
   };
 
   if (!res.ok) {
-    const body = data as { message?: string; error?: string };
+    const body = data as {
+      message?: string;
+      error?: string;
+      issues?: Array<{ message?: string; path?: (string | number)[] }>;
+    };
     let msg = body.message || body.error || res.statusText || 'Request failed';
+    if (body.error === 'VALIDATION_ERROR' && body.message) {
+      msg = body.message;
+    }
     if (body.error === 'NOT_FOUND' && msg === 'API route not found') {
       msg =
         'API route not found. Restart the backend after `npm run build:api` so new routes (e.g. Employees) are registered.';

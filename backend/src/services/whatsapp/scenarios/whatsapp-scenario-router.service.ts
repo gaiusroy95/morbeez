@@ -47,6 +47,7 @@ import {
 } from './onboarding-flow.service.js';
 import { pincodeService } from '../../core/pincode.service.js';
 import { recommendationFollowUpService } from '../../core/recommendation-follow-up.service.js';
+import { improvementLevelFromButton } from '../../../domain/ai-training/outcome-kpi.js';
 import { returnUserGreetingService } from './return-user-greeting.service.js';
 import { farmerFeedbackFlowService } from './farmer-feedback-flow.service.js';
 import { isExplicitAgronomyQuestion } from '../pipeline/agriculture-free-text.service.js';
@@ -421,39 +422,83 @@ export const whatsappScenarioRouter = {
             recId,
             'need_clarification'
           );
-        } else if (text === 'rec.outcome_yes') {
-          reply = await recommendationFollowUpService.handleOutcomeReply(
-            captured.farmerId,
-            recId,
-            'improved'
-          );
-        } else if (text === 'rec.outcome_no') {
-          reply = await recommendationFollowUpService.handleOutcomeReply(
-            captured.farmerId,
-            recId,
-            'no_improvement'
-          );
-        } else if (text === 'rec.outcome_worse') {
-          reply = await recommendationFollowUpService.handleOutcomeReply(
-            captured.farmerId,
-            recId,
-            'worsened'
-          );
         } else {
-          return { handled: false };
+          const kpiLevel = improvementLevelFromButton(text);
+          if (kpiLevel) {
+            reply = await recommendationFollowUpService.handleOutcomeKpi({
+              farmerId: captured.farmerId,
+              recommendationRecordId: recId,
+              improvementLevel: kpiLevel,
+              source: 'whatsapp_button',
+            });
+          } else {
+            return { handled: false };
+          }
         }
         await send.text(msg.phone, reply);
         return { handled: true };
       }
     }
 
-    // Follow-up outcome capture (Step 8/9) — legacy free-text + recommendation engine
-    if (text && /^(improved|better|partial|no improvement|worse|worsening)$/i.test(text)) {
-      const ctx = await conversationSessionService.getContext(captured.farmerId);
-      const recId =
-        ctx.pendingRecommendationRecordId ??
-        (await recommendationFollowUpService.resolvePendingRecommendationId(captured.farmerId));
+    const ctxEarly = await conversationSessionService.getContext(captured.farmerId);
+    const pendingRecId =
+      ctxEarly.pendingRecommendationRecordId ??
+      (await recommendationFollowUpService.resolvePendingRecommendationId(captured.farmerId));
+
+    if (
+      pendingRecId &&
+      ctxEarly.pendingRecommendationFollowUp === 'outcome' &&
+      CROP_MEDIA.has(msg.msgType)
+    ) {
+      const photoAck = await recommendationFollowUpService.handleOutcomePhotoUpload(
+        captured.farmerId,
+        pendingRecId
+      );
+      if (photoAck) {
+        await send.text(msg.phone, photoAck);
+        return { handled: true };
+      }
+    }
+
+    if (text && pendingRecId && ctxEarly.pendingRecommendationFollowUp === 'outcome') {
+      const kpiFromButton = improvementLevelFromButton(text);
+      if (kpiFromButton) {
+        const reply = await recommendationFollowUpService.handleOutcomeKpi({
+          farmerId: captured.farmerId,
+          recommendationRecordId: pendingRecId,
+          improvementLevel: kpiFromButton,
+          source: 'whatsapp_button',
+        });
+        await send.text(msg.phone, reply);
+        return { handled: true };
+      }
+      const interpreted = await recommendationFollowUpService.interpretAndHandleOutcomeText(
+        captured.farmerId,
+        pendingRecId,
+        text,
+        false
+      );
+      if (interpreted) {
+        await send.text(msg.phone, interpreted);
+        return { handled: true };
+      }
+    }
+
+    // Follow-up outcome capture — legacy keywords + accuracy metrics
+    if (text && /^(improved|better|partial|no improvement|worse|worsening|[1-4])$/i.test(text)) {
+      const ctx = ctxEarly;
+      const recId = pendingRecId;
       if (recId && ctx.pendingRecommendationFollowUp === 'outcome') {
+        const interpreted = await recommendationFollowUpService.interpretAndHandleOutcomeText(
+          captured.farmerId,
+          recId,
+          text,
+          false
+        );
+        if (interpreted) {
+          await send.text(msg.phone, interpreted);
+          return { handled: true };
+        }
         const normalized = text.toLowerCase();
         const reply = await recommendationFollowUpService.handleOutcomeReply(
           captured.farmerId,

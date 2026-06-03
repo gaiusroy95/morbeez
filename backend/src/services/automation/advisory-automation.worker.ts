@@ -30,6 +30,8 @@ async function processJob(job: {
     job.job_type === 'rec_application_check' ||
     job.job_type === 'rec_application_reminder' ||
     job.job_type === 'rec_outcome_check' ||
+    job.job_type === 'rec_outcome_reminder' ||
+    job.job_type === 'rec_outcome_no_response' ||
     job.job_type === 'rec_no_response_escalation'
   ) {
     await recommendationFollowUpService.processAutomationJob(job);

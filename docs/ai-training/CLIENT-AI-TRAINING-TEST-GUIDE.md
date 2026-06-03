@@ -1,400 +1,446 @@
-# Morbeez AI Training — Client Self-Test Guide
+# Morbeez AI Training — Real-World Test Guide (For Your Team)
 
-This guide lets your team **run a full AI training test without a developer present**, then **review the results later** in the staff console and export.
+Use this guide to test **AI training on your live Morbeez system** — the same WhatsApp number and staff portal your team uses with real farmers. You do not need to understand how the software is built.
 
-**What you are testing:** the closed loop where the system learns from real operations:
+**What you are proving:** when a farmer reports a crop problem on WhatsApp, Morbeez records the AI advice, your staff can correct or approve it, and **later** you can see those results in the staff portal and download a training report.
+
+**Time:** about 30–45 minutes on day one, then 5–10 minutes a few days later for follow-up outcome.
+
+---
+
+## Important: test on the real system
+
+| Do this | Do not do this |
+|---------|----------------|
+| Use your **live** Morbeez WhatsApp line farmers already message | Use a demo on someone’s laptop only |
+| Log in to the **same staff portal** your agronomists use every day | Assume a test “works” if only a developer saw it internally |
+| Use a **real test farmer** registered in Morbeez (name + phone on file) | Use a random phone number that is not in your farmer list |
+| Run the test in **one environment** (e.g. only production, or only your agreed pilot server) | Mix messages on live WhatsApp with staff logged into a different server |
+
+Before the first test, your Morbeez onboarding or IT contact should confirm: WhatsApp is live, staff logins work, and the **Training export** tab appears under Agronomist Hub. If any of that is missing, fix that first — this guide assumes the live product is ready.
+
+---
+
+## The full journey (simple picture)
+
+1. **Farmer** — Sends problem + photo on WhatsApp.  
+2. **Agronomist** — Reviews the case in the staff portal, approves or corrects the AI.  
+3. **Telecaller** *(optional)* — Logs a field visit or call with structured field finding.  
+4. **Agronomist** *(a few days later)* — Records whether the advice helped (outcome).  
+5. **Lead agronomist / admin** — Opens **Training export** to see numbers and download the report.  
+6. *(Automatic)* **WhatsApp outcome KPI** — ~5–7 days after recommendation, farmer gets a short 4-option follow-up (no staff action needed for most farmers).  
+7. *(Optional)* **Test farmer again** — Similar WhatsApp message to confirm live memory (see section after Step 5).
+
+---
+
+## Before you start — one-time checklist
+
+Ask your Morbeez contact to confirm **yes** to all of these on the system you will use:
+
+- [ ] Farmers can message Morbeez on WhatsApp and get replies today  
+- [ ] Staff portal opens in the browser and agronomist accounts can log in  
+- [ ] **Agronomist Hub** shows tabs: Case review, Image review, Outcome review, **Training export**  
+- [ ] You have chosen **one test farmer** (see below)  
+
+### Choose your test farmer
+
+Pick someone safe for a trial (a pilot farmer or internal test account), not a high-stakes case unless management agrees.
+
+| Check | Why |
+|-------|-----|
+| Name and mobile number match what Morbeez has on file | WhatsApp only works when the number is registered |
+| Language is set (Malayalam or English) | Replies should match how that farmer normally reads messages |
+| Crop/plot is on file (e.g. ginger field) | Better advice and weather context |
+| You have the phone in hand (or the farmer is briefed) | Someone must send the WhatsApp messages |
+
+**Tip:** Write down the farmer’s name and phone on your test sheet — you will search for them in the portal later.
+
+### Who needs which login
+
+| Person | What they do in this test |
+|--------|---------------------------|
+| Person with the test phone | Sends WhatsApp messages (Step 1) |
+| Agronomist | Case review, image review, outcome review (Steps 2, 4) |
+| Telecaller | Optional field visit log (Step 3) |
+| Senior agronomist or admin | Training export and download (Step 5); approvals if your process requires it |
+
+---
+
+## Step 1 — Farmer reports on WhatsApp (real message, real photo)
+
+**When:** Day 0 — start here.
+
+**Who:** The test farmer’s phone (or your staff holding that phone).
+
+### What to send
+
+1. A short message describing the crop problem in normal language.  
+   - English example: *Ginger leaves have white streaks and yellow spots.*  
+   - Malayalam example: *ഇഞ്ചി ഇലയിൽ വെള്ള പട്ടയും മഞ്ഞ പുള്ളിയും ഉണ്ട്.*
+
+2. **One or two clear photos** of the affected leaves (good light, not blurry).
+
+3. Answer any short questions from Morbeez on WhatsApp (crop, plot, etc.) if the bot asks.
+
+### What should happen on the phone
+
+Within a few minutes the farmer should receive:
+
+- Crop advice in simple, friendly language (not a long formal essay).  
+- Sometimes a line that the agronomist team will also review — that is normal when the system wants human backup.
+
+### How you know Step 1 worked (no technical tools)
+
+| Check | Pass? |
+|-------|-------|
+| Farmer received a reply on WhatsApp | ☐ |
+| Reply mentions their crop problem or what is seen in the photo | ☐ |
+| You noted the **date and time** of the message | ☐ |
+
+**If there is no reply within 10 minutes:** stop and contact your Morbeez support contact. Do not continue the staff steps until WhatsApp is working for that number.
+
+---
+
+## Step 2 — Agronomist reviews the case (main training step)
+
+**When:** Same day, shortly after Step 1 (within 1–2 hours is ideal).
+
+**Who:** Agronomist (or whoever normally does case review).
+
+### Open the case
+
+1. Log in to the **Morbeez staff portal** (use the link your organization was given).  
+2. Go to **Agronomist Hub**.  
+3. Open the **Case review** tab.  
+4. Show **Open** cases only.  
+5. Find your **test farmer** (newest cases are usually at the top).  
+6. Open that case.
+
+### What to look at on screen
+
+- What the farmer wrote or sent on WhatsApp  
+- What the **AI thinks** the problem is  
+- How **confident** the AI is (shown on the case screen)  
+- Photos from the farmer  
+- The suggested message back to the farmer  
+
+### What to do (this is what “trains” the system)
+
+For a proper training test, the agronomist should **not only read** — they must **submit** a decision:
+
+| Button | When to use it |
+|--------|----------------|
+| **Correct AI** | The AI diagnosis or advice needs a fix — **use this at least once in your first full test** |
+| **Approve AI** | The AI is fully right and you are happy to stand behind it |
+
+Then:
+
+1. Set **severity** (low / medium / high).  
+2. If correcting: choose the **confirmed diagnosis** from the list (do not rely only on free typing).  
+3. Edit the **WhatsApp reply** so it sounds natural for the farmer (short, casual).  
+4. Add **learning notes** if your team uses them.  
+5. Press **Save & send** — or send for **approval** first if your company requires a second sign-off.
+
+### Image review (same day, if the farmer sent a photo)
+
+1. In **Agronomist Hub**, open **Image review**.  
+2. Find the pending photo for your test farmer.  
+3. Choose **Confirm AI** or **Correct AI**, with diagnosis and severity.
+
+### How you know Step 2 worked
+
+| Check | Pass? |
+|-------|-------|
+| The case is no longer in the **Open** queue (or shows as reviewed) | ☐ |
+| Farmer received the final recommendation on WhatsApp (if your process sends it) | ☐ |
+| You noted **who** reviewed and **what** they chose (Approve vs Correct) | ☐ |
+
+---
+
+## Step 3 — Telecaller field follow-up (optional, real operations)
+
+**When:** Day 0–2, if you want to test how field work links to the same farmer.
+
+**Who:** Telecaller or field staff with CRM access.
+
+1. Open **Telecaller CRM** in the staff portal.  
+2. Find the test farmer’s lead.  
+3. On the **WhatsApp** tab, confirm today’s messages appear.  
+4. **Add interaction** — log the call or visit.  
+5. Tick **Add field finding** and fill in:  
+   - Type of finding  
+   - Severity  
+   - Confirmed issue (pick from the diagnosis list)  
+6. Save.  
+7. Open that interaction and check the **Operational chain** — it should show the field finding (and recommendation link if applicable).  
+8. On the **Field findings** tab, confirm a new row for that farmer with type, issue, and severity.
+
+This step is optional but recommended if your real operation includes telecaller follow-up.
+
+---
+
+## Step 4 — Outcome review (a few days later, real follow-up)
+
+**When:** **5–14 days** after the recommendation went to the farmer — same timing you would use in real follow-up.
+
+**Who:** Agronomist.
+
+**Why:** This records whether the advice actually helped. Without it, the “did it work?” part of training is incomplete.
+
+1. **Agronomist Hub** → **Outcome review**.  
+2. Find the test farmer’s pending item.  
+3. Record the result, for example:  
+   - Crop is better  
+   - Some improvement  
+   - No improvement  
+4. Add recovery days or short notes if your form asks for them.
+
+### How you know Step 4 worked
+
+| Check | Pass? |
+|-------|-------|
+| That farmer’s outcome shows as recorded (not still pending) | ☐ |
+| Date of outcome review is written on your test sheet | ☐ |
+
+---
+
+## Step 5 — See results later (Training export)
+
+**When:** Any time after Step 2; **best** after Steps 3 and 4 if you did them.
+
+**Who:** Senior agronomist, training lead, or admin with access to **Training export**.
+
+This is how you **see results later** without asking a developer.
+
+### On-screen dashboard
+
+1. **Agronomist Hub** → **Training export**.  
+2. Set the time range to include your test day (e.g. last 7 or 30 days).  
+3. Review the summary numbers, for example:  
+   - How often staff **corrected** the AI vs approved it  
+   - Label accuracy  
+   - Image reviews completed  
+   - Outcome success (after Step 4)  
+
+If you completed Step 2 today but all numbers are zero, widen the date range or confirm you are on the **same live system** where the test was run.
+
+### Weather section
+
+On the same **Training export** page, scroll to **Weather correlation**. You should see rainfall-related insights for the period. That confirms weather was tied to real field activity during your test.
+
+### Quality checks (QA flags)
+
+If the list shows items flagged for review, your lead can mark them **approved** or **excluded** according to your internal QA process.
+
+### Download the training report
+
+1. Choose to export **everything** (recommended for a full test).  
+2. Download the file to your computer.  
+3. Open it and **search for your test farmer’s name or phone number**.  
+
+You should find entries that match what you did:
+
+| What you did in the test | What you should find in the file |
+|--------------------------|----------------------------------|
+| Case review with Approve or Correct | A record of the AI suggestion and the staff final diagnosis |
+| Image review | A record of the photo and staff decision |
+| Outcome review | A record of whether the crop improved |
+| Weather | Weather-related data for the same period |
+
+Keep the downloaded file as **proof of the test** for management or auditors.
+
+### How you know Step 5 worked
+
+| Check | Pass? |
+|-------|-------|
+| Dashboard numbers moved for the period that includes your test date | ☐ |
+| Downloaded file contains your test farmer’s name or phone | ☐ |
+| File shows the diagnosis staff chose in Case review | ☐ |
+| Weather section is visible on the Training export page | ☐ |
+
+---
+
+## Automated WhatsApp outcome KPI (scalable follow-up)
+
+After a recommendation is **sent to the farmer**, Morbeez automatically runs a **short WhatsApp survey** — you do not need to call every farmer.
+
+### What the farmer sees (~5–7 days later)
+
+A simple message with **four choices**:
+
+1. Fully improved  
+2. Slightly improved  
+3. No improvement  
+4. Worse  
+
+They can tap one option (or reply **1–4**). They may also send a **new leaf photo**.
+
+### What Morbeez does automatically
+
+| Farmer answer | Typical system action |
+|---------------|----------------------|
+| Fully / slightly improved | Outcome saved; successful cases feed future advice |
+| No improvement or worse | Flagged for **staff verification**; telecaller/agronomist may follow up |
+| No reply | Reminder sent; then flagged if still silent |
+| Free-text or photo | AI interprets and classifies when possible |
+
+### What staff do (selective — not every farmer)
+
+Open **Agronomist Hub → Outcome review**:
+
+- **Verify KPI** — only cases that need human confirmation (failures, severe cases, uncertain AI, random QA samples).  
+- **WhatsApp outcome KPIs** panel at the top — response rate, improvement counts, how many need verification.
+
+Most successful recoveries **do not** need a manual phone call. That is how the system scales to thousands of farmers.
+
+---
+
+## What happens after Training export? Will farmers get smarter answers?
+
+Many teams expect: *“We exported the training file, so the AI is now trained and the next farmer with the same problem gets that answer automatically.”*
+
+Here is how Morbeez works today, in plain terms.
+
+### What Training export does
+
+- **Records and proves** what happened: AI suggestion, staff correction, photos, outcomes, weather.  
+- Gives you a **downloadable report** for management, auditors, or a future data/AI partner.  
+- Does **not** by itself replace the live AI the next morning. Think of it as **evidence and study material**, not an automatic “install new brain” button.
+
+### What already helps the *next* similar farmer (live system)
+
+Separately from export, Morbeez can **remember good answers** from real work:
+
+| When memory usually builds | What can happen next time |
+|----------------------------|---------------------------|
+| Staff **approved and sent** a recommendation the team stands behind | A **similar** question (same crop, similar symptoms, same area and growth stage) may get that **verified** answer again |
+| A case had a **good outcome** recorded later | That success can strengthen what is reused for others |
+| The **same farmer** asks again within a day or two with similar wording | They may get a **consistent** follow-up based on the recent case |
+
+The farmer may see wording like a **similar case in your region** — that means Morbeez reused a proven answer instead of guessing from scratch.
+
+Staff review can still happen when your rules require it (low confidence, severe cases, approvals).
+
+### What does *not* happen automatically today
+
+| Expectation | Reality today |
+|-------------|-----------------|
+| Download export → AI instantly “retrained” for everyone | **No** — retraining from the file is a **separate** project with your Morbeez or data team |
+| Every **Correct AI** instantly changes all future replies worldwide | **Not always** — the correction is **saved for training**; **live reuse** for other farmers usually needs the answer to be **approved/sent** and often a **good outcome**, not only a draft save |
+| Exact same WhatsApp sentence every time | **Similar** problems match — wording can differ slightly |
+
+### Simple picture of the full loop
 
 ```text
-Farmer reports issue (WhatsApp)
-  → AI predicts diagnosis
-  → Staff correct or approve
-  → Field data and outcomes are recorded
-  → Training data can be exported for model improvement
+Farmer on WhatsApp
+    → AI answer OR remembered verified answer
+    → Staff review (Correct / Approve)
+    → Training export (report for later improvement)
+    → (In parallel) verified cases feed live memory
+    → Next similar farmer often gets the improved answer
 ```
 
-**Time needed:** about **30–45 minutes** for the main path, plus **5–10 minutes** a few days later for outcome review.
+### Optional Step 6 — Test that memory is working (real world)
+
+**When:** After Step 2, once the recommendation was **sent to the farmer** (and approved if your process requires it).  
+**Who:** Same test farmer again, or a **second** registered farmer in the **same crop and area**.
+
+1. Send a **similar** problem on WhatsApp (same type of leaf issue, new photo is fine).  
+2. Compare the reply to what the agronomist finalized in Step 2.  
+3. **Pass** if the advice matches the staff-corrected diagnosis and spray guidance, or clearly says it is based on a similar successful case.  
+4. **Fail** if it is a completely unrelated new guess — contact Morbeez support (reuse may not be enabled, or the case was not yet eligible for memory).
+
+| Check | Pass? |
+|-------|-------|
+| Second message got advice aligned with Step 2 staff diagnosis | ☐ |
+| Optional: message mentioned similar / verified case | ☐ |
+
+This step proves **live learning memory**, not the export file alone.
 
 ---
 
-## 1. Before you start (one-time setup)
+## Printable test sheet (one run)
 
-Your technical contact (developer or IT) should confirm these are done on the **same environment** you will test (staging or production).
+Copy for each real-world test.
 
-| Requirement | Why it matters |
-|-------------|----------------|
-| Database migrations applied | Tables such as `ai_training_events`, `crop_images`, `weather_snapshots` must exist |
-| API and staff console deployed | Latest build with Agronomist **Training export** tab |
-| WhatsApp connected to this API | Farmer messages must reach Morbeez backend |
-| **Test farmer** in the system | Phone on WhatsApp must match `farmers.phone` |
-| Test farmer has a **crop block** (e.g. ginger) | Better AI context and weather |
-| Staff accounts with correct roles | See [Roles](#5-who-does-what) below |
+**Test ID:** ___________  
+**Date started:** ___________  
+**Test farmer name:** ___________  
+**Test farmer phone:** ___________  
+**Staff portal used (e.g. production / pilot):** ___________  
 
-### Staff console URL
+**Day 0 — WhatsApp**  
+- [ ] Farmer sent message + clear photo  
+- [ ] Farmer received reply on WhatsApp  
+- [ ] Time noted: ___________  
 
-Open the Morbeez staff portal in a browser:
+**Day 0 — Agronomist**  
+- [ ] Case opened in **Case review**  
+- [ ] Submitted **Correct AI** or **Approve AI**: ___________  
+- [ ] **Image review** done (if photo was sent)  
+- [ ] Reviewer name: ___________  
 
-```text
-https://<YOUR-API-HOST>/morbeez-staff/
-```
+**Day 0–2 — Telecaller (optional)**  
+- [ ] Interaction + field finding saved  
+- [ ] Operational chain visible  
 
-Examples: your staging API domain or production API domain. **Do not** use a separate Vite-only dev URL unless your developer told you to.
+**Day 5–14 — Outcome**  
+- [ ] Outcome recorded: Better / Partial / No improvement  
+- [ ] Date: ___________  
 
-Log in with the accounts your team normally uses (agronomist, telecaller, admin).
+**Results later — Training export**  
+- [ ] Dashboard checked (date range: ___________ )  
+- [ ] Report downloaded  
+- [ ] Test farmer found in report  
+- [ ] File saved at: ___________  
 
-### Test farmer checklist
-
-- [ ] Farmer name and phone are correct in CRM / farmer list  
-- [ ] `preferred_language` is set (`ml` for Malayalam, `en` for English)  
-- [ ] At least one active farm block with crop type (e.g. ginger)  
-- [ ] You know the farmer’s phone number for WhatsApp testing  
-
-**Tip:** Use a dedicated test farmer, not a real paying customer, unless your team agrees.
-
-### Optional: confidence thresholds (developer setting)
-
-These environment values control auto-send vs human review (defaults are fine for most tests):
-
-| Setting | Default | Meaning |
-|---------|---------|---------|
-| `AI_AUTO_SEND_THRESHOLD` | 0.95 | At or above → AI may send without agronomist |
-| `AI_REVIEW_THRESHOLD` | 0.80 | Between review and auto → telecaller validation band |
-| Below 0.80 | — | Stronger escalation messaging to farmer |
-
-You do not need to change these to complete a training test. For a **richer training record**, agronomists should use **Correct AI** at least once (see Step 3).
+**Optional — Similar message again (live memory)**  
+- [ ] Second similar WhatsApp test done  
+- [ ] Reply matched staff diagnosis from Step 2  
+- [ ] Date: ___________  
 
 ---
 
-## 2. What you will do (overview)
+## When the test is successful (for management)
 
-| Step | Who | When | Where |
-|------|-----|------|--------|
-| A | Farmer | Day 0 | WhatsApp |
-| B | Agronomist | Day 0 | Staff → **Agronomist Hub** |
-| C | Telecaller (optional) | Day 0–2 | Staff → **Telecaller CRM** |
-| D | Agronomist | Day 5–14 | **Outcome review** tab |
-| E | Admin / lead agronomist | Anytime after B | **Training export** tab |
+You can say the **real-world AI training loop works** when you have all of the following:
 
----
+1. **WhatsApp proof** — Real thread with the test farmer on the live Morbeez number.  
+2. **Staff proof** — A reviewed case in Agronomist Hub (not left open forever).  
+3. **Learning proof** — At least one **Correct AI** or **Approve AI** submitted with a clear final diagnosis.  
+4. **Results proof** — Training export dashboard and downloaded report that include that farmer after the test date.  
+5. **Follow-up proof** *(recommended)* — Outcome recorded after several days.
 
-## 3. Step A — Farmer sends an issue on WhatsApp
-
-**Goal:** Create one new AI advisory session with a photo and symptoms.
-
-### Instructions (give to the test farmer or use the test phone yourself)
-
-1. From the **registered** WhatsApp number, send a clear message describing the problem.  
-   Example (English): `Ginger leaves have white streaks and yellow spots`  
-   Example (Malayalam): `ഇഞ്ചി ഇലയിൽ വെള്ള പട്ടയും മഞ്ഞ പുള്ളിയും ഉണ്ട്`
-
-2. Send **one or two clear photos** of affected leaves (good light, in focus).
-
-3. Follow any bot prompts if shown (crop/plot, etc.).
-
-### What the farmer should receive
-
-- A WhatsApp reply with crop advice (casual, farmer-friendly language).  
-- Possibly a note that the agronomist team will review (if confidence is low).
-
-### Quick check (if you have Supabase access)
-
-Within about **1 minute**, your developer can run:
-
-```sql
-SELECT id, status, confidence_score, confidence_band, auto_sent, created_at
-FROM ai_advisory_sessions
-WHERE farmer_id = '<TEST_FARMER_UUID>'
-ORDER BY created_at DESC
-LIMIT 3;
-```
-
-You should see a **new row** with recent `created_at`.
-
-Also:
-
-```sql
-SELECT id, status, reason, confidence_at_escalation, created_at
-FROM agronomist_escalations
-WHERE farmer_id = '<TEST_FARMER_UUID>'
-ORDER BY created_at DESC
-LIMIT 3;
-```
-
-A new **pending** (or open) case should appear for Case review.
-
-**If nothing appears:** WhatsApp webhook or farmer phone mismatch — contact your developer (Section 8).
+That is a complete test on the **live** system, not a theoretical walkthrough.
 
 ---
 
-## 4. Step B — Agronomist reviews the case (core training step)
+## If something goes wrong
 
-**URL:** `https://<YOUR-API-HOST>/morbeez-staff/agronomist`  
-**Tab:** **Case review**
+| Problem | What to do |
+|---------|------------|
+| No WhatsApp reply | Contact Morbeez support; confirm the phone is registered and WhatsApp is live on **this** system |
+| Case does not appear in Case review | Confirm staff are on the **same** portal as the live WhatsApp line; check Open filter; wait 5 minutes and refresh |
+| Cannot save case review | Use an agronomist account allowed to edit cases, not view-only |
+| Training export tab missing | Contact Morbeez — your portal may need an update on that server |
+| Export file has no test farmer | Widen the date range; confirm the test was on this server, not another |
+| Malayalam reply too formal | Report to Morbeez; run a **new** WhatsApp test after they confirm an update |
+| Second similar message still wrong | Confirm Step 2 was **sent/approved**, not draft only; try optional Step 6 after outcome; contact Morbeez |
 
-### 4.1 Open the queue
-
-1. Log in as an **agronomist** (or role with agronomist hub access).  
-2. Open **Agronomist Hub** → **Case review**.  
-3. Filter **Open** cases.  
-4. Find the test farmer (sort by newest if needed).  
-5. Open the case.
-
-### 4.2 Review content
-
-Check:
-
-- Farmer message / symptoms  
-- AI **probable issue** and **confidence** (badges on the panel)  
-- Photos attached to the session  
-- Suggested WhatsApp reply text  
-
-### 4.3 Submit a review (important for training data)
-
-For a meaningful training test, do **one** of the following:
-
-| Action | When to use | Training value |
-|--------|-------------|----------------|
-| **Correct AI** | AI label is wrong or incomplete | **Best** — creates correction in `ai_training_events` |
-| **Approve AI** | AI is fully correct | Still logged; label matches AI |
-
-Steps:
-
-1. Choose **Approve AI** or **Correct AI**.  
-2. Set **severity** (low / medium / high).  
-3. If correcting: pick the **confirmed diagnosis** from the label picker.  
-4. Adjust the **WhatsApp message** if needed (simple, casual language).  
-5. Add **learning notes** if your process uses them.  
-6. Submit (**Save & send** or submit for approval if your org requires a second approver).
-
-### 4.4 Image review (same day, if photo was sent)
-
-**Tab:** **Image review**
-
-1. Open pending images.  
-2. Find the test farmer’s image.  
-3. **Confirm AI** or **Correct AI** with label and severity.
-
-This adds image-level training rows in `crop_images` and related events.
-
-### Expected result after Step B
-
-- Case leaves the open queue (or status updates).  
-- Farmer may receive the approved recommendation on WhatsApp (depending on approval workflow).  
-- Training pipeline has at least one **case review** event.
+Do not troubleshoot with database or code tools — use the checks above and your Morbeez contact.
 
 ---
 
-## 5. Step C — Telecaller field follow-up (optional)
+## Message to send the test farmer (copy/paste)
 
-Use this to test **structured field data** and the **operational chain** (interaction → finding → recommendation).
+You can send this on WhatsApp before the test:
 
-**URL:** `https://<YOUR-API-HOST>/morbeez-staff/telecaller`
-
-1. Search for the test **lead / farmer**.  
-2. Open the **WhatsApp** tab — confirm the farmer’s messages appear.  
-3. **Add interaction** — log a call or visit.  
-4. Enable **Add field finding** and fill structured fields:  
-   - **Finding type**  
-   - **Severity**  
-   - **Confirmed issue** (diagnosis picker — not only free text)  
-5. Save.  
-6. Open the interaction → confirm **Operational chain** shows finding (and recommendation/escalation if linked).  
-7. **Field findings** tab — confirm the new row shows type, issue, severity.
-
-This feeds structured inputs and weather linkage used in later export.
+> Morbeez trial — please send:  
+> 1) One message about your crop problem (e.g. ginger leaf spots).  
+> 2) One or two clear close-up photos of the leaves.  
+> 3) Reply to any short questions from Morbeez.  
+> Our office team will also review your case. Thank you.
 
 ---
 
-## 6. Step D — Outcome review (a few days later)
-
-**Goal:** Record whether the recommendation helped — closes the learning loop.
-
-**When:** **5–14 days** after the recommendation was sent, or when your follow-up process schedules it.
-
-**Tab:** **Outcome review**
-
-1. Open **Agronomist Hub** → **Outcome review**.  
-2. Find the test farmer’s pending recommendation.  
-3. Record outcome, for example:  
-   - Better / partial improvement / no improvement  
-   - Recovery days (if applicable)  
-   - Short farmer feedback notes  
-
-### Expected result
-
-- Recommendation outcome stored for analytics and export (`samples` dataset).  
-- Outcome success metrics update on the training dashboard.
-
----
-
-## 7. Step E — See results (Training export)
-
-**When:** Anytime after Step B; best after Steps C and D if you ran them.
-
-**Tab:** **Training export**  
-**URL:** same Agronomist Hub → **Training export**
-
-### 7.1 Dashboard (on screen)
-
-Review KPIs such as:
-
-- Correction rate  
-- Label accuracy  
-- Image QA counts  
-- Outcome success (if outcomes were recorded)  
-
-Adjust the **days** filter (e.g. 7 or 30) to include your test date.
-
-### 7.2 Weather correlation (on screen)
-
-Scroll to **Weather correlation** — rainfall bands and insights for the selected period. Confirms weather was captured with sessions/findings.
-
-### 7.3 QA flags (on screen)
-
-Review auto-flagged label mismatches. You can mark flags **approved** or **excluded** if your role has write access.
-
-### 7.4 Download export file
-
-1. Choose dataset: **All** (recommended for a full test) or Events / Images / Samples.  
-2. Choose format: **JSON** (recommended) or CSV for a single dataset.  
-3. Click export / download.  
-4. Open the file and search for your test farmer’s phone, name, or diagnosis labels.
-
-**What to look for in the JSON export:**
-
-| Section | Your test should include |
-|---------|---------------------------|
-| `events` | Rows with `review_surface` = `case_review`, your AI prediction and human label |
-| `images` | Rows if you completed Image review |
-| `samples` | Rows if outcome or learning samples were created |
-| `weather` | Snapshots linked to sessions or findings |
-
-Filename pattern: `morbeez-training-export-YYYY-MM-DD.json`
-
-### 7.5 SQL verification (optional, Supabase)
-
-If your team has database access:
-
-```sql
--- Corrections (gold labels differ from AI)
-SELECT reviewed_at, review_surface, ai_prediction, human_final_label, human_action, crop_type
-FROM ai_training_events
-WHERE farmer_id = '<TEST_FARMER_UUID>'
-ORDER BY reviewed_at DESC
-LIMIT 20;
-```
-
-```sql
--- Images reviewed
-SELECT id, ai_prediction, agronomist_label, review_status, created_at
-FROM crop_images
-WHERE farmer_id = '<TEST_FARMER_UUID>'
-ORDER BY created_at DESC
-LIMIT 10;
-```
-
----
-
-## 8. Roles — who does what
-
-| Role | Steps |
-|------|--------|
-| **Farmer / test phone** | Step A — WhatsApp only |
-| **Agronomist** | Steps B, D, E (Case review, Image review, Outcome review, Training export) |
-| **Telecaller** | Step C (optional) |
-| **Admin / super agronomist** | Approvals tab if recommendations need second sign-off; full export |
-
----
-
-## 9. End-to-end test checklist (printable)
-
-Copy this for each test run. Write the **test date** and **farmer name**.
-
-```text
-Test run ID: ___________   Date: ___________   Farmer: ___________
-
-[ ] Prerequisites confirmed (migrations, WhatsApp, test farmer in system)
-[ ] A — WhatsApp: symptoms + photo sent
-[ ] A — New ai_advisory_sessions row (developer or SQL check)
-[ ] B — Case review: Correct AI or Approve AI submitted
-[ ] B — Image review completed (if photo sent)
-[ ] C — (Optional) Telecaller structured field finding + interaction chain
-[ ] D — Outcome review recorded (5–14 days later)
-[ ] E — Training export dashboard shows activity in date range
-[ ] E — JSON export downloaded and contains test farmer data
-[ ] E — Weather section visible on Training export tab
-```
-
----
-
-## 10. Troubleshooting
-
-| Problem | Likely cause | What to do |
-|---------|--------------|------------|
-| No WhatsApp reply | Webhook not pointing to this API | Ask developer to verify webhook URL and logs |
-| Farmer not found | Phone mismatch | Align WhatsApp number with `farmers.phone` |
-| Empty Case review queue | Wrong environment or filter | Confirm staging vs prod; check Open filter |
-| No Training export tab | Old UI build | Redeploy console; hard-refresh browser |
-| Export empty for today | Date range too narrow | Increase **days** on dashboard and export `since` |
-| Cannot submit case review | Read-only role | Use agronomist account with write access |
-| Malayalam too formal | Prompt deploy | Ensure latest API deployed; send **new** message after deploy |
-
----
-
-## 11. What “success” looks like for the client
-
-After one complete test run you should be able to show:
-
-1. **Operational proof** — WhatsApp thread + closed agronomist case.  
-2. **Training proof** — `ai_training_events` row(s) with human action and final label.  
-3. **Analytics proof** — Training export dashboard movement and downloadable JSON.  
-4. **Optional depth** — Structured field finding, image review, outcome, weather columns in export.
-
-That is sufficient evidence that the AI training architecture is working in your live environment, not only in demos.
-
----
-
-## 12. For developers (technical reference)
-
-Stage-by-stage implementation notes (for your dev team, not required for testers):
-
-| Doc | Topic |
-|-----|--------|
-| [STAGE0-STANDARDIZATION.md](./STAGE0-STANDARDIZATION.md) | Enums, confidence routing |
-| [STAGE1-STRUCTURED-INPUTS.md](./STAGE1-STRUCTURED-INPUTS.md) | Farmers, findings, weather snapshots |
-| [STAGE2-CORRECTION-SPINE.md](./STAGE2-CORRECTION-SPINE.md) | `ai_training_events` |
-| [STAGE3-IMAGE-REVIEW.md](./STAGE3-IMAGE-REVIEW.md) | `crop_images` |
-| [STAGE4-CONFIDENCE-LIFECYCLE.md](./STAGE4-CONFIDENCE-LIFECYCLE.md) | Confidence bands |
-| [STAGE5-OUTCOME-REVIEW.md](./STAGE5-OUTCOME-REVIEW.md) | Recommendation outcomes |
-| [STAGE6-INTERACTION-FINDING-UI.md](./STAGE6-INTERACTION-FINDING-UI.md) | Telecaller structured findings |
-| [STAGE7-TRAINING-EXPORT.md](./STAGE7-TRAINING-EXPORT.md) | Export API and datasets |
-| [STAGE8-WEATHER-CORRELATION.md](./STAGE8-WEATHER-CORRELATION.md) | Weather in export |
-
-**Migrations to apply (AI training stack):**
-
-```text
-20260647000000_ai_training_structured_inputs.sql
-20260648000000_ai_training_events.sql
-20260649000000_crop_images.sql
-20260650000000_ai_confidence_lifecycle.sql
-20260651000000_recommendation_outcomes.sql
-```
-
-(Plus any earlier Morbeez OS migrations your environment already uses.)
-
----
-
-## 13. Handout for the test farmer (WhatsApp)
-
-You can send this to the person holding the test phone:
-
-```text
-Morbeez test — please:
-1) Send a message describing your crop problem (ginger leaf issue is fine).
-2) Send 1–2 clear close-up photos of the affected leaves.
-3) Wait for the reply, then follow any short questions from the bot.
-Thank you — our team will also review your case in the office system.
-```
-
----
-
-*Document version: AI training stages 0–8. Update `<YOUR-API-HOST>` and farmer UUID before sharing with the client.*
+*This guide is for real-world operational testing only. Technical implementation notes for Morbeez developers are kept separately and are not required for your team to run this test.*

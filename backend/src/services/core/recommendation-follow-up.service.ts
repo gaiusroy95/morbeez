@@ -12,6 +12,13 @@ import { learningLoopService } from './learning-loop.service.js';
 import { followUpCopy } from './recommendation-follow-up-copy.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import { escalationService } from '../ai/escalation.service.js';
+import {
+  type ImprovementLevel,
+  type OutcomeKpiPayload,
+  improvementLevelToOutcomeReply,
+} from '../../domain/ai-training/outcome-kpi.js';
+import { outcomeKpiInterpretationService } from './outcome-kpi-interpretation.service.js';
+import { outcomeHumanRoutingService } from './outcome-human-routing.service.js';
 
 const APPLICATION_CHECK_DAYS = () =>
   Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1);
@@ -20,6 +27,10 @@ const MAX_APPLICATION_REMINDERS = () =>
   Number(process.env.REC_FOLLOWUP_MAX_REMINDERS ?? 3);
 const NO_RESPONSE_ESCALATION_DAYS = () =>
   Number(process.env.REC_FOLLOWUP_NO_RESPONSE_DAYS ?? 3);
+const OUTCOME_REMINDER_DAYS = () => Number(process.env.REC_FOLLOWUP_OUTCOME_REMINDER_DAYS ?? 2);
+const MAX_OUTCOME_REMINDERS = () => Number(process.env.REC_FOLLOWUP_MAX_OUTCOME_REMINDERS ?? 2);
+const OUTCOME_NO_RESPONSE_DAYS = () =>
+  Number(process.env.REC_FOLLOWUP_OUTCOME_NO_RESPONSE_DAYS ?? 3);
 
 type RecRow = {
   id: string;
@@ -239,23 +250,40 @@ export const recommendationFollowUpService = {
     if (!rec?.farmers?.phone) return false;
 
     const lang = (rec.language || rec.farmers.preferred_language || 'en') as AdvisoryLanguage;
-    const body = followUpCopy(lang).outcomeCheck;
+    const copy = followUpCopy(lang);
+    const issue = (rec.issue_detected ?? 'your crop issue').slice(0, 80);
+    const body = copy.outcomeCheck.replace('our recommendation', `our advice for ${issue}`);
+
+    const kpiOptions = this.outcomeKpiListOptions(lang);
 
     try {
-      await whatsappService.sendButtons({
+      await whatsappService.sendList({
         to: rec.farmers.phone,
         body,
-        buttons: [
-          { id: 'rec.outcome_yes', title: 'Improved' },
-          { id: 'rec.outcome_no', title: 'No Change' },
-          { id: 'rec.outcome_worse', title: 'Worsened' },
-        ],
+        buttonText: lang === 'ml' ? 'ഓപ്ഷൻ തിരഞ്ഞെടുക്കൂ' : 'Choose option',
+        sections: [{ title: 'Outcome', rows: kpiOptions }],
       });
     } catch {
-      await whatsappService.sendText(
-        rec.farmers.phone,
-        `${body}\n\nReply: Improved / No Improvement / Worsened`
-      );
+      try {
+        await whatsappService.sendButtons({
+          to: rec.farmers.phone,
+          body,
+          buttons: [
+            { id: 'rec.outcome_full', title: 'Fully better' },
+            { id: 'rec.outcome_slight', title: 'Slight better' },
+            { id: 'rec.outcome_none', title: 'No change' },
+          ],
+        });
+        await whatsappService.sendText(
+          rec.farmers.phone,
+          lang === 'ml' ? '4 = കൂടുതൽ മോശം (Worse)' : '4 = Worse — reply 4 if crop worsened'
+        );
+      } catch {
+        await whatsappService.sendText(
+          rec.farmers.phone,
+          `${body}\n\n1 Fully improved\n2 Slightly improved\n3 No improvement\n4 Worse`
+        );
+      }
     }
 
     const now = new Date().toISOString();
@@ -267,10 +295,325 @@ export const recommendationFollowUpService = {
       status: 'sent',
       scheduled_at: now,
       sent_at: now,
+      metadata: { kpiVersion: 2 },
+    });
+
+    await this.scheduleJob({
+      farmerId: rec.farmer_id,
+      recommendationRecordId,
+      jobType: 'rec_outcome_reminder',
+      scheduledAt: addDays(OUTCOME_REMINDER_DAYS()),
+      payload: { language: rec.language, reminderCount: 1 },
+      sessionId: rec.ai_session_id,
+    });
+
+    await this.scheduleJob({
+      farmerId: rec.farmer_id,
+      recommendationRecordId,
+      jobType: 'rec_outcome_no_response',
+      scheduledAt: addDays(OUTCOME_NO_RESPONSE_DAYS()),
+      payload: { language: rec.language },
+      sessionId: rec.ai_session_id,
     });
 
     await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'outcome');
     return true;
+  },
+
+  outcomeKpiListOptions(lang: AdvisoryLanguage): Array<{
+    id: string;
+    title: string;
+    description?: string;
+  }> {
+    if (lang === 'ml') {
+      return [
+        { id: 'rec.outcome_full', title: '1 പൂർണ്ണ മെച്ചം', description: 'Fully improved' },
+        { id: 'rec.outcome_slight', title: '2 കുറച്ച് മെച്ചം', description: 'Slightly improved' },
+        { id: 'rec.outcome_none', title: '3 മെച്ചമില്ല', description: 'No improvement' },
+        { id: 'rec.outcome_worse', title: '4 കൂടുതൽ മോശം', description: 'Worse' },
+      ];
+    }
+    return [
+      { id: 'rec.outcome_full', title: '1 Fully improved' },
+      { id: 'rec.outcome_slight', title: '2 Slightly improved' },
+      { id: 'rec.outcome_none', title: '3 No improvement' },
+      { id: 'rec.outcome_worse', title: '4 Worse' },
+    ];
+  },
+
+  async sendOutcomeReminder(recommendationRecordId: string, reminderCount: number): Promise<void> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec?.farmers?.phone) return;
+
+    const { data: open } = await supabase
+      .from('recommendation_follow_ups')
+      .select('id, status')
+      .eq('recommendation_record_id', recommendationRecordId)
+      .eq('phase', 'outcome_check')
+      .in('status', ['sent'])
+      .limit(1);
+
+    if (!open?.length) return;
+
+    const lang = (rec.language || rec.farmers.preferred_language || 'en') as AdvisoryLanguage;
+    const copy = followUpCopy(lang);
+    await whatsappService.sendText(rec.farmers.phone, copy.outcomeReminder);
+
+    const now = new Date().toISOString();
+    await supabase.from('recommendation_follow_ups').insert({
+      recommendation_record_id: recommendationRecordId,
+      farmer_id: rec.farmer_id,
+      block_id: rec.block_id,
+      phase: 'outcome_reminder',
+      status: 'sent',
+      scheduled_at: now,
+      sent_at: now,
+      reminder_count: reminderCount,
+    });
+
+    if (reminderCount < MAX_OUTCOME_REMINDERS()) {
+      await this.scheduleJob({
+        farmerId: rec.farmer_id,
+        recommendationRecordId,
+        jobType: 'rec_outcome_reminder',
+        scheduledAt: addDays(OUTCOME_REMINDER_DAYS()),
+        payload: { language: rec.language, reminderCount: reminderCount + 1 },
+        sessionId: rec.ai_session_id,
+      });
+    }
+  },
+
+  async handleOutcomePhotoUpload(
+    farmerId: string,
+    recommendationRecordId: string
+  ): Promise<string | null> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec || rec.farmer_id !== farmerId) return null;
+
+    const lang = (rec.language || 'en') as AdvisoryLanguage;
+    const existing = await this.readOutcomeKpi(recommendationRecordId);
+    const kpi: OutcomeKpiPayload = {
+      ...(existing ?? {
+        improvementLevel: 'slight_improvement',
+        collectedAt: new Date().toISOString(),
+        source: 'whatsapp_text',
+        aiClassification: 'uncertain',
+        aiConfidence: 0.5,
+      }),
+      photoUploaded: true,
+      collectedAt: new Date().toISOString(),
+    };
+
+    await supabase
+      .from('recommendation_records')
+      .update({
+        outcome_kpi: kpi,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', recommendationRecordId);
+
+    return followUpCopy(lang).outcomePhotoPrompt;
+  },
+
+  async handleOutcomeKpi(params: {
+    farmerId: string;
+    recommendationRecordId: string;
+    improvementLevel: ImprovementLevel;
+    source: OutcomeKpiPayload['source'];
+    photoUploaded?: boolean;
+    aiClassification?: OutcomeKpiPayload['aiClassification'];
+    aiConfidence?: number;
+    rawSnippet?: string;
+  }): Promise<string> {
+    const rec = await this.loadRecord(params.recommendationRecordId);
+    if (!rec || rec.farmer_id !== params.farmerId) {
+      return 'Could not find your recommendation. Type menu for help.';
+    }
+
+    const lang = (rec.language || 'en') as AdvisoryLanguage;
+    const copy = followUpCopy(lang);
+    const level = params.improvementLevel;
+    const aiConf = params.aiConfidence ?? 0.88;
+
+    const kpi: OutcomeKpiPayload = {
+      improvementLevel: level,
+      photoUploaded: params.photoUploaded ?? false,
+      aiClassification:
+        params.aiClassification ?? (aiConf < 0.6 ? 'uncertain' : level === 'fully_improved' ? 'positive' : level === 'slight_improvement' ? 'partial' : 'failed'),
+      aiConfidence: aiConf,
+      collectedAt: new Date().toISOString(),
+      source: params.source,
+      rawSnippet: params.rawSnippet?.slice(0, 300),
+    };
+
+    const meta = (rec.metadata ?? {}) as Record<string, unknown>;
+    const routing = await outcomeHumanRoutingService.decide({
+      farmerId: params.farmerId,
+      recommendationRecordId: params.recommendationRecordId,
+      improvementLevel: level,
+      kpi,
+      severity: rec.severity,
+      aiSessionConfidence: null,
+      farmerMetadata: meta,
+    });
+
+    await supabase
+      .from('recommendation_records')
+      .update({
+        outcome_kpi: kpi,
+        outcome_source: params.source === 'agronomist' ? 'agronomist' : 'whatsapp_kpi',
+        needs_human_outcome_review: routing.needsHumanReview,
+        human_outcome_review_reason: routing.needsHumanReview
+          ? outcomeHumanRoutingService.formatReasonsForStaff(routing.reasons)
+          : null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.recommendationRecordId);
+
+    const reply = improvementLevelToOutcomeReply(level);
+    await this.markOutcomeFollowUpResponded(params.recommendationRecordId, reply);
+
+    if (routing.needsHumanReview) {
+      await this.queueHumanOutcomeVerification(params.farmerId, rec, level, routing.reasons);
+      if (level === 'worse') {
+        await clearConversationPending(params.farmerId);
+        return copy.worsenedReply;
+      }
+      if (level === 'no_improvement') {
+        await clearConversationPending(params.farmerId);
+        return copy.noImprovementReply;
+      }
+      await clearConversationPending(params.farmerId);
+      return lang === 'ml'
+        ? 'നന്ദി! ഞങ്ങളുടെ ടീം ഈ അപ്ഡേറ്റ് പരിശോധിക്കും.'
+        : 'Thank you! Our team will verify this update shortly.';
+    }
+
+    return this.handleOutcomeReply(params.farmerId, params.recommendationRecordId, reply, {
+      kpi,
+      skipHumanRouting: true,
+    });
+  },
+
+  async interpretAndHandleOutcomeText(
+    farmerId: string,
+    recommendationRecordId: string,
+    text: string,
+    hasImage?: boolean
+  ): Promise<string | null> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec || rec.farmer_id !== farmerId) return null;
+
+    const lang = (rec.language || 'en') as AdvisoryLanguage;
+    const interpreted = await outcomeKpiInterpretationService.interpretFarmerReply({
+      text,
+      language: lang,
+      issueLabel: rec.issue_detected,
+      hasImage,
+    });
+    if (!interpreted) return null;
+
+    return this.handleOutcomeKpi({
+      farmerId,
+      recommendationRecordId,
+      improvementLevel: interpreted.improvementLevel,
+      source: interpreted.source === 'whatsapp_ai' ? 'whatsapp_ai' : 'whatsapp_text',
+      photoUploaded: hasImage,
+      aiClassification: interpreted.aiClassification,
+      aiConfidence: interpreted.confidence,
+      rawSnippet: interpreted.rawSnippet,
+    });
+  },
+
+  async readOutcomeKpi(recommendationRecordId: string): Promise<OutcomeKpiPayload | null> {
+    const { data } = await supabase
+      .from('recommendation_records')
+      .select('outcome_kpi')
+      .eq('id', recommendationRecordId)
+      .maybeSingle();
+    const kpi = data?.outcome_kpi;
+    if (!kpi || typeof kpi !== 'object') return null;
+    return kpi as OutcomeKpiPayload;
+  },
+
+  async markOutcomeFollowUpResponded(
+    recommendationRecordId: string,
+    reply: OutcomeReply
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    await supabase
+      .from('recommendation_follow_ups')
+      .update({
+        status: 'responded',
+        farmer_response: reply,
+        responded_at: now,
+        updated_at: now,
+      })
+      .eq('recommendation_record_id', recommendationRecordId)
+      .eq('phase', 'outcome_check')
+      .in('status', ['sent', 'scheduled']);
+  },
+
+  async queueHumanOutcomeVerification(
+    farmerId: string,
+    rec: RecRow,
+    level: ImprovementLevel,
+    reasons: string[]
+  ): Promise<void> {
+    const needsEscalation = level === 'worse' || level === 'no_improvement';
+    if (needsEscalation && rec.ai_session_id) {
+      if (level === 'worse') {
+        await this.escalateWorsened(farmerId, rec);
+      } else {
+        await this.escalateNoImprovement(farmerId, rec.id, rec);
+      }
+      return;
+    }
+
+    if (reasons.includes('qa_random_sample') || reasons.includes('uncertain_ai_classification')) {
+      await createTelecallerTask({
+        farmerId,
+        title: 'Outcome QA verification',
+        notes: `Verify WhatsApp KPI outcome for ${rec.issue_detected ?? 'crop case'}. Reasons: ${reasons.join(', ')}`,
+        priority: 'normal',
+      });
+    }
+  },
+
+  async escalateOutcomeNoResponse(
+    farmerId: string,
+    recommendationRecordId: string
+  ): Promise<void> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec) return;
+
+    const { data: responded } = await supabase
+      .from('recommendation_follow_ups')
+      .select('id')
+      .eq('recommendation_record_id', recommendationRecordId)
+      .eq('phase', 'outcome_check')
+      .in('status', ['responded', 'completed'])
+      .limit(1);
+
+    if (responded?.length) return;
+
+    await supabase
+      .from('recommendation_records')
+      .update({
+        needs_human_outcome_review: true,
+        human_outcome_review_reason: outcomeHumanRoutingService.formatReasonsForStaff([
+          'outcome_no_whatsapp_response',
+        ]),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', recommendationRecordId);
+
+    await createTelecallerTask({
+      farmerId,
+      title: 'Outcome follow-up — no WhatsApp response',
+      notes: `No KPI reply after outcome message. Rec ${recommendationRecordId.slice(0, 8)}`,
+      priority: 'normal',
+    });
   },
 
   async handleApplicationReply(
@@ -417,7 +760,8 @@ export const recommendationFollowUpService = {
   async handleOutcomeReply(
     farmerId: string,
     recommendationRecordId: string,
-    reply: OutcomeReply
+    reply: OutcomeReply,
+    opts?: { kpi?: OutcomeKpiPayload; skipHumanRouting?: boolean }
   ): Promise<string> {
     const rec = await this.loadRecord(recommendationRecordId);
     if (!rec || rec.farmer_id !== farmerId) {
@@ -442,16 +786,32 @@ export const recommendationFollowUpService = {
       worsened: 'worsened',
     };
 
-    await supabase
-      .from('recommendation_follow_ups')
-      .update({
-        status: 'completed',
-        farmer_response: reply,
-        responded_at: now,
-        updated_at: now,
-      })
-      .eq('recommendation_record_id', recommendationRecordId)
-      .eq('phase', 'outcome_check');
+    if (!opts?.skipHumanRouting) {
+      await this.markOutcomeFollowUpResponded(recommendationRecordId, reply);
+    } else {
+      const now2 = new Date().toISOString();
+      await supabase
+        .from('recommendation_follow_ups')
+        .update({
+          status: 'completed',
+          farmer_response: reply,
+          responded_at: now2,
+          updated_at: now2,
+        })
+        .eq('recommendation_record_id', recommendationRecordId)
+        .eq('phase', 'outcome_check');
+    }
+
+    if (opts?.kpi) {
+      await supabase
+        .from('recommendation_records')
+        .update({
+          outcome_kpi: opts.kpi,
+          outcome_source: 'whatsapp_kpi',
+          updated_at: now,
+        })
+        .eq('id', recommendationRecordId);
+    }
 
     await supabase
       .from('recommendation_applications')
@@ -491,7 +851,7 @@ export const recommendationFollowUpService = {
       await aiReuseService.markOutcomeForSession(rec.ai_session_id, true).catch(() => {});
       await learningLoopService.onLearningSampleReady(recommendationRecordId).catch(() => {});
       await clearConversationPending(farmerId);
-      return copy.improvedThanks;
+      return reply === 'partial' ? copy.slightImprovementThanks : copy.improvedThanks;
     }
 
     if (reply === 'worsened') {
@@ -553,6 +913,14 @@ export const recommendationFollowUpService = {
       }
       case 'rec_outcome_check':
         await this.sendOutcomeCheck(recId);
+        break;
+      case 'rec_outcome_reminder': {
+        const reminderCount = Number(job.payload.reminderCount ?? 1);
+        await this.sendOutcomeReminder(recId, reminderCount);
+        break;
+      }
+      case 'rec_outcome_no_response':
+        await this.escalateOutcomeNoResponse(job.farmer_id, recId);
         break;
       case 'rec_no_response_escalation':
         await this.escalateNoApplicationConfirmation(job.farmer_id, recId, null);
@@ -666,7 +1034,9 @@ export const recommendationFollowUpService = {
 
     const { data: recs } = await supabase
       .from('recommendation_records')
-      .select('id, status, application_status, outcome, communicated_at, applied_at')
+      .select(
+        'id, status, application_status, outcome, communicated_at, applied_at, needs_human_outcome_review, outcome_kpi'
+      )
       .gte('created_at', since);
 
     const rows = recs ?? [];
@@ -677,13 +1047,38 @@ export const recommendationFollowUpService = {
       (r) => r.application_status === 'applied' || r.status === 'applied' || r.status === 'outcome_recorded'
     );
     const outcomes = rows.filter((r) => r.status === 'outcome_recorded');
-    const success = outcomes.filter((r) => r.outcome === 'better');
+    const success = outcomes.filter((r) => r.outcome === 'better' || r.outcome === 'partial');
+
+    const { data: outcomeFollowUps } = await supabase
+      .from('recommendation_follow_ups')
+      .select('status, farmer_response, phase')
+      .eq('phase', 'outcome_check')
+      .gte('created_at', since);
+
+    const outcomeSent = (outcomeFollowUps ?? []).filter((f) => f.status === 'sent' || f.status === 'responded' || f.status === 'completed');
+    const outcomeResponded = (outcomeFollowUps ?? []).filter((f) =>
+      ['responded', 'completed'].includes(String(f.status))
+    );
+
+    let photoUploaded = 0;
+    let fullyImproved = 0;
+    let slightImproved = 0;
+    for (const r of rows) {
+      const kpi = r.outcome_kpi as OutcomeKpiPayload | null;
+      if (kpi?.photoUploaded) photoUploaded += 1;
+      if (kpi?.improvementLevel === 'fully_improved') fullyImproved += 1;
+      if (kpi?.improvementLevel === 'slight_improvement') slightImproved += 1;
+    }
 
     const { count: pendingFollowUps } = await supabase
       .from('recommendation_follow_ups')
       .select('id', { count: 'exact', head: true })
       .eq('status', 'scheduled')
       .gte('scheduled_at', since);
+
+    const needsHumanReview = rows.filter(
+      (r) => r.needs_human_outcome_review && !r.outcome
+    ).length;
 
     return {
       periodDays: days,
@@ -695,6 +1090,17 @@ export const recommendationFollowUpService = {
       outcomeRecorded: outcomes.length,
       successRatePct:
         outcomes.length > 0 ? Math.round((success.length / outcomes.length) * 100) : 0,
+      whatsappKpi: {
+        outcomeMessagesSent: outcomeSent.length,
+        outcomeResponseRatePct:
+          outcomeSent.length > 0
+            ? Math.round((outcomeResponded.length / outcomeSent.length) * 100)
+            : 0,
+        fullyImprovedCount: fullyImproved,
+        slightImprovementCount: slightImproved,
+        photoUploadedCount: photoUploaded,
+        pendingHumanVerification: needsHumanReview,
+      },
       pendingScheduledFollowUps: pendingFollowUps ?? 0,
       noResponseFarmers: rows.filter((r) => r.application_status === 'pending_application').length,
     };

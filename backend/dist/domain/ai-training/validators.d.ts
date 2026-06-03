@@ -57,6 +57,8 @@ export declare const structuredFieldFindingSchema: z.ZodObject<{
     aiPrediction?: string | undefined;
     finalConfirmedIssue?: string | undefined;
 }>;
+/** Max WhatsApp recommendation body (agronomist case review). DB is TEXT; outbound WhatsApp capped separately. */
+export declare const CASE_REVIEW_RECOMMENDATION_TEXT_MAX = 8000;
 /** Case review submission */
 export declare const caseReviewBodySchema: z.ZodObject<{
     action: z.ZodEnum<["approve_ai", "correct_ai", "partial_match", "escalate_urgent"]>;

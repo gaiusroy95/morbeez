@@ -1,5 +1,5 @@
 import type { RecommendationOutcome } from '../../domain/ai-training/enums.js';
-export type OutcomeReviewQueueFilter = 'pending' | 'overdue' | 'all';
+export type OutcomeReviewQueueFilter = 'pending' | 'overdue' | 'needs_review' | 'all';
 export type RecordStructuredOutcomeInput = {
     outcome: RecommendationOutcome;
     notes?: string;
@@ -34,6 +34,9 @@ export declare const outcomeReviewService: {
             dapAtRecommendation: number | null;
             source: string | null;
             createdAt: string;
+            outcomeKpi: Record<string, unknown> | null;
+            needsHumanOutcomeReview: boolean;
+            humanOutcomeReviewReason: string | null;
             farmer: {
                 name: string | null;
                 phone: string | null;
@@ -81,6 +84,9 @@ export declare const outcomeReviewService: {
             dapAtRecommendation: number | null;
             source: string | null;
             createdAt: string;
+            outcomeKpi: Record<string, unknown> | null;
+            needsHumanOutcomeReview: boolean;
+            humanOutcomeReviewReason: string | null;
             farmer: {
                 name: string | null;
                 phone: string | null;

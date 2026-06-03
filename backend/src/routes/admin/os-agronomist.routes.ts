@@ -75,7 +75,14 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
   app.post(`${api}/cases/:id/review`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
-    const body = caseReviewBodySchema.parse(request.body);
+    const parsed = caseReviewBodySchema.safeParse(request.body);
+    if (!parsed.success) {
+      const message = parsed.error.issues
+        .map((i) => (i.path.length ? `${i.path.join('.')}: ${i.message}` : i.message))
+        .join('; ');
+      return reply.status(400).send({ ok: false, error: 'VALIDATION_ERROR', message });
+    }
+    const body = parsed.data;
     const result = await agronomistCaseReviewService.submitReview(id, body, {
       email: admin.email,
       adminUserId: admin.id,
@@ -436,7 +443,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     await assertModuleAccess(request, 'agronomist', 'read');
     const q = z
       .object({
-        filter: z.enum(['pending', 'overdue', 'all']).optional(),
+        filter: z.enum(['pending', 'overdue', 'needs_review', 'all']).optional(),
         page: z.coerce.number().int().min(1).optional(),
         limit: z.coerce.number().int().min(1).max(50).optional(),
       })
@@ -462,6 +469,13 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     const body = recordOutcomeBodySchema.parse(request.body);
     const recommendation = await outcomeReviewService.recordOutcome(id, body, admin.email);
     return reply.send({ ok: true, recommendation });
+  });
+
+  app.get(`${api}/follow-up/kpis`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ days: z.coerce.number().int().min(7).max(365).optional() }).parse(request.query ?? {});
+    const kpis = await recommendationFollowUpService.getKpis(q.days ?? 30);
+    return reply.send({ ok: true, kpis });
   });
 
   app.get(`${api}/weather-correlation`, async (request, reply) => {

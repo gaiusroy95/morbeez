@@ -22,6 +22,11 @@ import '../../styles/case-review.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
+/** Must match backend CASE_REVIEW_RECOMMENDATION_TEXT_MAX */
+const RECOMMENDATION_TEXT_MAX = 8000;
+/** Farmers read on WhatsApp — long messages are hard to use; warn only */
+const RECOMMENDATION_TEXT_WHATSAPP_SOFT = 1200;
+
 type QueueItem = {
   id: string;
   caseRef: string;
@@ -326,8 +331,18 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
   const pageEnd = Math.min(page * pageSize, total);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const recommendationTooLong = recommendationText.length > RECOMMENDATION_TEXT_MAX;
+  const recommendationLongForWhatsApp =
+    recommendationText.length > RECOMMENDATION_TEXT_WHATSAPP_SOFT;
+
   async function submitReview(submitForApproval: boolean) {
     if (!canWrite || !selectedId) return;
+    if (recommendationTooLong) {
+      setError(
+        `WhatsApp response is too long (${recommendationText.length.toLocaleString()} characters). Shorten to ${RECOMMENDATION_TEXT_MAX.toLocaleString()} or fewer.`
+      );
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -908,16 +923,30 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                         className="cr-textarea cr-textarea--primary"
                         rows={12}
                         value={recommendationText}
+                        maxLength={RECOMMENDATION_TEXT_MAX}
                         onChange={(e) => setRecommendationText(e.target.value)}
                         placeholder="Edit the full message the farmer will receive on WhatsApp…"
                         spellCheck
+                        aria-invalid={recommendationTooLong}
                       />
                       <div className="cr-editor-footer">
                         <span className="cr-editor-tip">
                           Same advice in the farmer&apos;s language — keep products and doses accurate.
+                          {recommendationLongForWhatsApp && !recommendationTooLong ? (
+                            <> Prefer short sentences; very long messages are hard on WhatsApp.</>
+                          ) : null}
                         </span>
-                        <span className="cr-editor-count">
-                          {recommendationText.length.toLocaleString()} chars
+                        <span
+                          className={`cr-editor-count${
+                            recommendationTooLong
+                              ? ' cr-editor-count--error'
+                              : recommendationLongForWhatsApp
+                                ? ' cr-editor-count--warn'
+                                : ''
+                          }`}
+                        >
+                          {recommendationText.length.toLocaleString()} /{' '}
+                          {RECOMMENDATION_TEXT_MAX.toLocaleString()} chars
                         </span>
                       </div>
                     </label>
@@ -950,7 +979,9 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                     <button
                       type="button"
                       className="cr-btn cr-btn--outline"
-                      disabled={saving || !recommendationText.trim()}
+                      disabled={
+                        saving || !recommendationText.trim() || recommendationTooLong
+                      }
                       onClick={() => void submitReview(false)}
                     >
                       Save Review
@@ -958,7 +989,9 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                     <button
                       type="button"
                       className="cr-btn cr-btn--primary"
-                      disabled={saving || !recommendationText.trim()}
+                      disabled={
+                        saving || !recommendationText.trim() || recommendationTooLong
+                      }
                       onClick={() => void submitReview(true)}
                     >
                       Save &amp; Send Recommendation

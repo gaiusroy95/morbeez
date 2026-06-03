@@ -2,9 +2,12 @@ const MAP = {
     en: {
         applicationCheck: 'Have you applied the recommendation for the issue we shared?\n\nTap a button below:',
         notYetReminder: 'Please apply the recommendation when possible and update us here.',
-        outcomeCheck: 'Did the crop condition improve after applying the recommendation?\n\nPlease send updated photos if possible.',
+        outcomeCheck: 'Morbeez follow-up — did the crop improve after our recommendation?\n\nTap one option below (or reply 1–4).\n\nOptional: send a latest leaf photo after this.',
+        outcomeReminder: 'Quick reminder — how is the crop after the spray?\n\nTap one option or reply 1–4.',
+        outcomePhotoPrompt: 'Thank you! Photo received — we recorded it with your follow-up.',
         appliedThanks: 'Thank you! We recorded that you applied the recommendation. We will check back in a few days.',
         improvedThanks: 'Glad to hear there is improvement. Keep monitoring the crop.',
+        slightImprovementThanks: 'Good — slight improvement is a positive sign. Keep watching for 3–4 more days.',
         noImprovementReply: 'Thank you for the update. Our team will review your case and contact you soon.',
         worsenedReply: 'Our agronomist team will call you within 4 hours.',
         clarificationAck: 'Thank you. A Morbeez team member will call you to clarify the recommendation.',
@@ -12,9 +15,12 @@ const MAP = {
     ml: {
         applicationCheck: 'ഞങ്ങൾ നൽകിയ ശുപാർശ പ്രയോഗിച്ചോ?\n\nതാഴെ ബട്ടൺ തിരഞ്ഞെടുക്കുക:',
         notYetReminder: 'സാധ്യമാകുമ്പോൾ ശുപാർശ പ്രയോഗിച്ച് ഇവിടെ അറിയിക്കുക.',
-        outcomeCheck: 'ശുപാർശ പ്രയോഗിച്ചതിന് ശേഷം വിളയുടെ നില മെച്ചപ്പെട്ടോ?\n\nസാധ്യമെങ്കിൽ പുതിയ ഫോട്ടോ അയയ്ക്കുക.',
+        outcomeCheck: 'മോർബീസ് ഫോളോ-അപ്പ് — സ്പ്രേ ചെയ്തതിന് ശേഷം വിളയിൽ മെച്ചമുണ്ടോ?\n\nതാഴെ ഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കൂ (അല്ലെങ്കിൽ 1–4 എന്ന് മാത്രം അയയ്ക്കൂ).\n\nഇലയുടെ പുതിയ ഫോട്ടോ അയയ്ക്കാം.',
+        outcomeReminder: 'ഓർമ്മപ്പെടുത്തൽ — സ്പ്രേയ്ക്ക് ശേഷം വിള എങ്ങനെയുണ്ട്?\n\nഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കൂ അല്ലെങ്കിൽ 1–4.',
+        outcomePhotoPrompt: 'നന്ദി! ഫോട്ടോ ലഭിച്ചു — ഫോളോ-അപ്പിനൊപ്പം രേഖപ്പെടുത്തി.',
         appliedThanks: 'നന്ദി! ശുപാർശ പ്രയോഗിച്ചതായി രേഖപ്പെടുത്തി. കുറച്ച് ദിവസത്തിന് ശേഷം വീണ്ടും ചോദിക്കും.',
         improvedThanks: 'മെച്ചപ്പെട്ടതായി കേൾക്കുന്നതിൽ സന്തോഷം.',
+        slightImprovementThanks: 'നല്ലത് — കുറച്ച് മെച്ചമുണ്ട്. 3–4 ദിവസം കൂടി നിരീക്ഷിക്കൂ.',
         noImprovementReply: 'അപ്ഡേറ്റിന് നന്ദി. ഞങ്ങളുടെ ടീം പരിശോധിച്ച് ബന്ധപ്പെടും.',
         worsenedReply: 'ഞങ്ങളുടെ അഗ്രോണമിസ്റ്റ് ടീം 4 മണിക്കൂറിനുള്ളിൽ വിളിക്കും.',
         clarificationAck: 'നന്ദി. വ്യക്തതയ്ക്കായി ടീം വിളിക്കും.',
@@ -52,6 +58,6 @@ const MAP = {
 };
 export function followUpCopy(lang) {
     const key = (lang in MAP ? lang : 'en');
-    return MAP[key] ?? MAP.en;
+    return { ...MAP.en, ...(MAP[key] ?? {}) };
 }
 //# sourceMappingURL=recommendation-follow-up-copy.js.map

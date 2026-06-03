@@ -6,6 +6,7 @@ import {
   RECOMMENDATION_OUTCOME_LABELS,
   type RecommendationOutcome,
 } from '../../lib/ai-training-enums';
+import { FollowUpKpiPanel } from './FollowUpKpiPanel';
 import '../../styles/outcome-review.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -27,6 +28,9 @@ type QueueItem = {
     scheduledAt: string;
     farmerResponse: string | null;
   } | null;
+  outcomeKpi?: Record<string, unknown> | null;
+  needsHumanOutcomeReview?: boolean;
+  humanOutcomeReviewReason?: string | null;
 };
 
 type OutcomeDetail = {
@@ -40,7 +44,7 @@ type OutcomeDetail = {
   session: { confidence_score?: number } | null;
 };
 
-type Filter = 'pending' | 'overdue' | 'all';
+type Filter = 'pending' | 'overdue' | 'needs_review' | 'all';
 
 export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
   const [filter, setFilter] = useState<Filter>('pending');
@@ -162,6 +166,7 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="or-page mt-4">
+      <FollowUpKpiPanel />
       {error ? (
         <Alert tone="error">
           <p>{error}</p>
@@ -176,7 +181,7 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
               {pendingCount > 0 ? <span className="or-pending-badge">{pendingCount}</span> : null}
             </h3>
             <div className="or-filter-row">
-              {(['pending', 'overdue', 'all'] as Filter[]).map((f) => (
+              {(['pending', 'overdue', 'needs_review', 'all'] as Filter[]).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -186,7 +191,13 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
                     setSelectedId(null);
                   }}
                 >
-                  {f === 'pending' ? 'Pending' : f === 'overdue' ? 'Overdue' : 'Recorded'}
+                  {f === 'pending'
+                    ? 'Pending'
+                    : f === 'overdue'
+                      ? 'Overdue'
+                      : f === 'needs_review'
+                        ? 'Verify KPI'
+                        : 'Recorded'}
                 </button>
               ))}
             </div>
@@ -265,6 +276,28 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
                   {rec.pendingFollowUp.farmerResponse
                     ? ` · Farmer said: ${rec.pendingFollowUp.farmerResponse.replace(/_/g, ' ')}`
                     : ''}
+                </div>
+              ) : null}
+
+              {rec.needsHumanOutcomeReview ? (
+                <div className="or-followup-hint or-followup-hint--warn">
+                  <strong>Selective verification required</strong>
+                  {rec.humanOutcomeReviewReason ? (
+                    <p className="mt-1 text-sm">{rec.humanOutcomeReviewReason}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {rec.outcomeKpi && typeof rec.outcomeKpi === 'object' ? (
+                <div className="or-followup-hint">
+                  <strong>WhatsApp KPI (automated)</strong>
+                  <p className="mt-1 text-sm">
+                    Level: {String(rec.outcomeKpi.improvementLevel ?? '—').replace(/_/g, ' ')}
+                    {rec.outcomeKpi.photoUploaded ? ' · Photo received' : ''}
+                    {rec.outcomeKpi.aiClassification
+                      ? ` · AI: ${String(rec.outcomeKpi.aiClassification)}`
+                      : ''}
+                  </p>
                 </div>
               ) : null}
 

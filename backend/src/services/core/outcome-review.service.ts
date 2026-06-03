@@ -6,7 +6,7 @@ import { recommendationFollowUpService } from './recommendation-follow-up.servic
 import { learningLoopService } from './learning-loop.service.js';
 import type { RecommendationOutcome } from '../../domain/ai-training/enums.js';
 
-export type OutcomeReviewQueueFilter = 'pending' | 'overdue' | 'all';
+export type OutcomeReviewQueueFilter = 'pending' | 'overdue' | 'needs_review' | 'all';
 
 export type RecordStructuredOutcomeInput = {
   outcome: RecommendationOutcome;
@@ -47,6 +47,11 @@ function mapRow(r: Record<string, unknown>) {
     dapAtRecommendation: r.dap_at_recommendation != null ? Number(r.dap_at_recommendation) : null,
     source: r.source ? String(r.source) : null,
     createdAt: String(r.created_at),
+    outcomeKpi: (r.outcome_kpi as Record<string, unknown> | null) ?? null,
+    needsHumanOutcomeReview: Boolean(r.needs_human_outcome_review),
+    humanOutcomeReviewReason: r.human_outcome_review_reason
+      ? String(r.human_outcome_review_reason)
+      : null,
     farmer: farmer
       ? {
           name: farmer.name ? String(farmer.name) : null,
@@ -89,6 +94,7 @@ export const outcomeReviewService = {
         `id, farmer_id, block_id, ai_session_id, issue_detected, recommendation_text, dosage,
          status, application_status, outcome, outcome_notes, recovery_days, issue_resolved,
          communicated_at, applied_at, outcome_at, dap_at_recommendation, source, created_at,
+         outcome_kpi, needs_human_outcome_review, human_outcome_review_reason,
          farmers(name, phone, district), farm_blocks(name, crop_type, plot_label)`,
         { count: 'exact' }
       )
@@ -103,6 +109,8 @@ export const outcomeReviewService = {
         .in('status', ['communicated', 'applied'])
         .is('outcome', null)
         .lte('applied_at', cutoff);
+    } else if (filter === 'needs_review') {
+      query = query.eq('needs_human_outcome_review', true).is('outcome', null);
     } else {
       query = query.eq('status', 'outcome_recorded');
     }
@@ -215,6 +223,16 @@ export const outcomeReviewService = {
       issueResolved,
       recordedBy: agentEmail,
     });
+
+    await supabase
+      .from('recommendation_records')
+      .update({
+        needs_human_outcome_review: false,
+        human_outcome_review_reason: null,
+        outcome_source: 'agronomist',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', recommendationId);
 
     const now = new Date().toISOString();
     await supabase

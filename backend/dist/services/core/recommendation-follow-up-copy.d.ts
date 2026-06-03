@@ -2,8 +2,11 @@ type Copy = {
     applicationCheck: string;
     notYetReminder: string;
     outcomeCheck: string;
+    outcomeReminder: string;
+    outcomePhotoPrompt: string;
     appliedThanks: string;
     improvedThanks: string;
+    slightImprovementThanks: string;
     noImprovementReply: string;
     worsenedReply: string;
     clarificationAck: string;
