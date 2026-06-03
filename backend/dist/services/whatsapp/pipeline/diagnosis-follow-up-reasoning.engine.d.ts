@@ -52,6 +52,8 @@ export declare const diagnosisFollowUpReasoningEngine: {
     enrichSymptomsFromAnswers(initial: string, answers: Record<string, string>, ctx: InvestigationContext): string;
     formatFieldInvestigationSummary(answers: Record<string, string>, ctx: InvestigationContext): string;
     inferPrimaryIssueFromIntake(initialSymptoms: string, answers: Record<string, string>, bestIssueLabel?: string): string;
+    /** Single paragraph synthesizing every follow-up answer (not just one rule). */
+    synthesizeAllAnswersConclusion(initialSymptoms: string, answers: Record<string, string>, ctx: InvestigationContext): string;
 };
 export type PostIntakeDiagnosisPayload = {
     enrichedSymptoms: string;

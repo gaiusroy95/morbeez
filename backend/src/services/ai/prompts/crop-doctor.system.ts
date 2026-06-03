@@ -23,6 +23,8 @@ FIELD INVESTIGATION RULE (critical):
 - Example: round_spots=Yes + rain=Yes + no recent fungicide → prioritize fungal leaf spot; explain spray timing after rain gap.
 - Example: silver_streaks=Yes + round_spots=No → prioritize thrips.
 - farmerSummary must mention 2–3 specific facts the farmer confirmed (rain, spray history, spread, spot shape).
+- When FIELD INVESTIGATION lists 3+ answers, farmerSummaryEn MUST reference at least 4 of those confirmed facts in plain language (not just the first symptom).
+- Treat INTEGRATED SYNTHESIS as the executive summary of ALL follow-up answers — do not answer from only one line item.
 
 OUTPUT: Respond ONLY with valid JSON matching this schema:
 {

@@ -403,9 +403,15 @@ export const diagnosisFollowUpReasoningEngine = {
     }
 
     const inferred = this.inferPrimaryIssueFromIntake(ctx.symptomsText, answers, ctx.bestIssueLabel);
+    const holistic = this.synthesizeAllAnswersConclusion(ctx.symptomsText, answers, ctx);
+
     lines.push('');
     lines.push(`Investigation conclusion (use as probableIssue unless image strongly contradicts): ${inferred}`);
+    lines.push('');
+    lines.push('INTEGRATED SYNTHESIS (all answers combined — farmerSummary MUST reflect this):');
+    lines.push(holistic);
     if (ctx.bestIssueLabel) {
+      lines.push('');
       lines.push(`Similar verified cases in Morbeez suggested: ${ctx.bestIssueLabel}`);
     }
 
@@ -419,28 +425,101 @@ export const diagnosisFollowUpReasoningEngine = {
   ): string {
     const yes = (id: string) => answers[id] === 'yes';
     const no = (id: string) => answers[id] === 'no';
+    const neverSprayed =
+      answers['last_fungicide'] === 'never' ||
+      answers['fungicide_after_rain'] === 'never' ||
+      answers['last_fungicide'] === 'over_14d';
 
-    if (yes('round_spots') && (yes('after_rain') || yes('rain_recent'))) {
-      return 'Fungal leaf spot (Phyllosticta / anthracnose) — confirmed round spots after rain';
-    }
-    if (yes('round_spots')) {
-      return 'Fungal leaf spot — farmer confirmed round lesions with yellow-brown edges';
-    }
-    if (yes('silver_streaks') && no('round_spots')) {
-      return 'Thrips damage — silvery streaks without typical round fungal spots';
-    }
-    if (/silver|streak/i.test(initialSymptoms) && yes('spread_fast') && !yes('round_spots')) {
-      return 'Thrips damage with possible secondary spots — prioritize thrips management';
-    }
-    if (yes('water_soaked') || yes('soft_rhizome')) {
-      return 'Foliar blast or rhizome rot risk — wet field / water-soaked lesions';
-    }
-    if (yes('mulch_heat') && yes('new_growth_yellow')) {
-      return 'Heat stress under mulch — not primary nutrient deficiency';
+    const scores: Record<string, number> = {
+      leaf_spot: 0,
+      thrips: 0,
+      blast_rot: 0,
+      heat_stress: 0,
+    };
+
+    if (yes('round_spots')) scores.leaf_spot += 4;
+    if (yes('after_rain') || yes('rain_recent')) scores.leaf_spot += 2;
+    if (neverSprayed) scores.leaf_spot += 1;
+    if (yes('spread_fast')) scores.leaf_spot += 1;
+    if (yes('field_percent')) scores.leaf_spot += 1;
+
+    if (yes('silver_streaks')) scores.thrips += 4;
+    if (/silver|streak/i.test(initialSymptoms)) scores.thrips += 2;
+    if (no('round_spots')) scores.thrips += 2;
+    if (yes('spread_fast') && !yes('round_spots')) scores.thrips += 1;
+
+    if (yes('water_soaked')) scores.blast_rot += 3;
+    if (yes('soft_rhizome')) scores.blast_rot += 3;
+    if (yes('drainage_poor')) scores.blast_rot += 2;
+
+    if (yes('mulch_heat')) scores.heat_stress += 2;
+    if (yes('new_growth_yellow')) scores.heat_stress += 2;
+
+    const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    const [topKey, topScore] = ranked[0];
+
+    if (topScore >= 3) {
+      if (topKey === 'leaf_spot') {
+        const parts = ['Fungal leaf spot (Phyllosticta / anthracnose)'];
+        if (yes('rain_recent') || yes('after_rain')) parts.push('rain-triggered spread');
+        if (neverSprayed) parts.push('no recent fungicide');
+        if (yes('field_percent')) parts.push('>20% field affected');
+        return parts.join(' — ');
+      }
+      if (topKey === 'thrips') return 'Thrips damage — silvery streak pattern';
+      if (topKey === 'blast_rot') return 'Foliar blast or rhizome rot — wet field stress';
+      if (topKey === 'heat_stress') return 'Heat stress under mulch — not primary nutrient deficiency';
     }
 
     if (bestIssueLabel?.trim()) return bestIssueLabel.trim();
-    return 'Field issue — resolve using investigation answers and image';
+    return 'Field issue — resolve using all investigation answers and image';
+  },
+
+  /** Single paragraph synthesizing every follow-up answer (not just one rule). */
+  synthesizeAllAnswersConclusion(
+    initialSymptoms: string,
+    answers: Record<string, string>,
+    ctx: InvestigationContext
+  ): string {
+    const yes = (id: string) => answers[id] === 'yes';
+    const parts: string[] = [];
+
+    parts.push(`Original complaint: ${initialSymptoms.trim().slice(0, 200)}.`);
+
+    const facts: string[] = [];
+    if (yes('rain_recent') || yes('after_rain')) facts.push('rain recently increased symptoms');
+    if (answers['last_fungicide'] === 'never' || answers['fungicide_after_rain'] === 'never') {
+      facts.push('farmer has not sprayed fungicide yet');
+    } else if (answers['last_fungicide'] === 'within_7d') {
+      facts.push('fungicide was sprayed within the last 7 days');
+    } else if (answers['last_fungicide'] === 'over_14d') {
+      facts.push('last fungicide spray was 14+ days ago');
+    }
+    if (yes('spread_fast')) facts.push('problem is spreading quickly');
+    if (yes('field_percent')) facts.push('more than 20% of the field is affected (severe spread)');
+    if (yes('round_spots')) facts.push('spots are round with yellow-brown edges (fungal pattern)');
+    if (yes('silver_streaks')) facts.push('silvery streaks/scrape marks present');
+    if (yes('water_soaked')) facts.push('water-soaked or burnt leaf patches');
+    if (yes('soft_rhizome')) facts.push('soft or smelly rhizome');
+    if (yes('drainage_poor')) facts.push('poor drainage / standing water');
+    if (yes('mulch_heat')) facts.push('thick mulch may be causing heat stress');
+    if (yes('new_growth_yellow')) facts.push('young leaves more yellow than old');
+
+    if (facts.length) {
+      parts.push(`All follow-up answers together: ${facts.join('; ')}.`);
+    } else {
+      parts.push('Follow-up answers recorded but no strong pattern flags.');
+    }
+
+    if (ctx.highHumidityLikely) parts.push('Regional weather: high humidity this week.');
+    if (ctx.heavyRainLikely) parts.push('Regional weather: heavy rain likely.');
+
+    const issue = this.inferPrimaryIssueFromIntake(initialSymptoms, answers, ctx.bestIssueLabel);
+    parts.push(
+      `Integrated conclusion (must reflect ALL answers above, not just the first symptom): ${issue}.`
+    );
+
+    return parts.join(' ');
   },
 };
 
