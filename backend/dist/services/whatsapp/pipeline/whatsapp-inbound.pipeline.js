@@ -622,18 +622,28 @@ export const whatsappInboundPipeline = {
             }
         }
         const caption = msg.text?.trim();
-        if (caption && diagnosisFollowUpService.enabled()) {
-            const memoryImg = await farmerMemoryService.build(captured.farmerId, { symptomsText: caption });
-            const intakeStarted = await diagnosisFollowUpService.startIntake({
-                farmerId: captured.farmerId,
-                phone: captured.phone,
-                language: captured.language,
-                symptomsText: caption,
-                cropType: memoryImg.cropType,
-                hasPhoto: true,
+        if (diagnosisFollowUpService.enabled()) {
+            const memoryImg = await farmerMemoryService.build(captured.farmerId, {
+                symptomsText: caption || undefined,
             });
-            if (intakeStarted.started)
-                return;
+            const sessCtx = await conversationSessionService.getContext(captured.farmerId);
+            const symptomsForIntake = caption ||
+                sessCtx.pendingSymptomsText?.trim() ||
+                (memoryImg.cropType === 'ginger'
+                    ? 'ginger leaf spot problem'
+                    : `${memoryImg.cropType} crop leaf problem`);
+            if (symptomsForIntake.length >= 8) {
+                const intakeStarted = await diagnosisFollowUpService.startIntake({
+                    farmerId: captured.farmerId,
+                    phone: captured.phone,
+                    language: captured.language,
+                    symptomsText: symptomsForIntake,
+                    cropType: memoryImg.cropType,
+                    hasPhoto: true,
+                });
+                if (intakeStarted.started)
+                    return;
+            }
         }
         await this.runDiagnosis({
             farmerId: captured.farmerId,

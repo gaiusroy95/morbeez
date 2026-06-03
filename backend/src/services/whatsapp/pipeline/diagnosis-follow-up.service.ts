@@ -3,6 +3,9 @@ import { logger } from '../../../lib/logger.js';
 import { supabase } from '../../../lib/supabase.js';
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import { aiReuseService, buildDapBucket } from '../../ai/ai-reuse.service.js';
+import { normalizeRegionalFarmerQuery } from '../../ai/regional-query-normalize.util.js';
+import { buildQuestionReuseKeys } from '../../ai/question-reuse-keys.util.js';
+import { buildCrossLanguageIntentSlug } from './crop-message-intent.service.js';
 import { blockService } from '../../core/block.service.js';
 import { inputClassifierService } from './input-classifier.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
@@ -127,6 +130,51 @@ function localizeQuestion(q: DiscriminatorDef, lang: AdvisoryLanguage): string {
   return q.en;
 }
 
+function slugOverlap(a: string | null, b: string | null): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const pa = a.split('_').filter(Boolean);
+  const pb = b.split('_').filter(Boolean);
+  if (!pa.length || !pb.length) return 0;
+  const pbSet = new Set(pb);
+  let shared = 0;
+  for (const p of pa) {
+    if (pbSet.has(p)) shared += 1;
+  }
+  return shared / Math.max(pa.length, pb.length);
+}
+
+function scoreLearnedCaseMatch(params: {
+  cropType: string;
+  symptomsText: string;
+  issueLabel: string;
+  symptomKey: string;
+}): number {
+  const normalizedFarmer = normalizeRegionalFarmerQuery(params.symptomsText);
+  const farmerSlug = buildCrossLanguageIntentSlug(params.cropType, normalizedFarmer);
+  const caseSlug = buildCrossLanguageIntentSlug(
+    params.cropType,
+    normalizeRegionalFarmerQuery(params.issueLabel),
+    params.issueLabel
+  );
+
+  const farmerKeys = new Set(
+    buildQuestionReuseKeys({
+      text: params.symptomsText,
+      intentSlug: farmerSlug,
+    })
+  );
+  if (farmerKeys.has(params.symptomKey)) return 0.96;
+
+  const slugScore = slugOverlap(farmerSlug, caseSlug);
+  const textScore = overlapScore(
+    normalizedFarmer,
+    `${params.issueLabel} ${normalizeRegionalFarmerQuery(params.issueLabel)}`
+  );
+
+  return Math.max(slugScore * 0.92, textScore);
+}
+
 export const diagnosisFollowUpService = {
   enabled(): boolean {
     return env.ENABLE_DIAGNOSIS_FOLLOW_UP !== false && env.ENABLE_AI_REUSE_CACHE !== false;
@@ -151,18 +199,26 @@ export const diagnosisFollowUpService = {
       .order('hit_count', { ascending: false })
       .limit(80);
 
+    const normalizedFarmer = normalizeRegionalFarmerQuery(params.symptomsText);
+    const farmerSlug = buildCrossLanguageIntentSlug(crop, normalizedFarmer);
+
     const scored: SimilarLearnedCase[] = [];
+    const rowCount = rows?.length ?? 0;
     for (const row of rows ?? []) {
       const issueLabel = String(row.issue_label ?? '').trim();
       const symptomKey = String(row.symptom_key ?? '');
       const snap = row.advisory_snapshot as { staffVerified?: boolean } | null;
-      const textBlob = `${issueLabel} ${symptomKey}`;
-      const score = overlapScore(params.symptomsText, textBlob);
+      const score = scoreLearnedCaseMatch({
+        cropType: crop,
+        symptomsText: params.symptomsText,
+        issueLabel,
+        symptomKey,
+      });
       const districtBoost =
         district && String((row as { district?: string }).district ?? '') === district ? 0.08 : 0;
       const finalScore = Math.min(1, score + districtBoost + Math.min(0.12, (row.hit_count ?? 0) / 200));
 
-      if (finalScore < 0.12) continue;
+      if (finalScore < 0.18) continue;
 
       scored.push({
         reuseCaseId: String(row.id),
@@ -175,8 +231,44 @@ export const diagnosisFollowUpService = {
       });
     }
 
+    if (scored.length < MIN_SIMILAR_CASES() && rowCount >= MIN_SIMILAR_CASES() && farmerSlug) {
+      for (const row of rows ?? []) {
+        const issueLabel = String(row.issue_label ?? '').trim();
+        const symptomKey = String(row.symptom_key ?? '');
+        if (scored.some((s) => s.reuseCaseId === String(row.id))) continue;
+        const caseSlug = buildCrossLanguageIntentSlug(
+          crop,
+          normalizeRegionalFarmerQuery(issueLabel),
+          issueLabel
+        );
+        if (slugOverlap(farmerSlug, caseSlug) < 0.34) continue;
+        const snap = row.advisory_snapshot as { staffVerified?: boolean } | null;
+        scored.push({
+          reuseCaseId: String(row.id),
+          issueLabel,
+          symptomKey,
+          score: 0.42,
+          hitCount: Number(row.hit_count ?? 0),
+          confidence: Number(row.confidence_score ?? 0.7),
+          staffVerified: Boolean(snap?.staffVerified),
+        });
+      }
+    }
+
     scored.sort((a, b) => b.score - a.score);
-    return scored.slice(0, limit);
+    const result = scored.slice(0, limit);
+    logger.info(
+      {
+        crop,
+        farmerSlug,
+        rowCount,
+        matched: result.length,
+        topScore: result[0]?.score,
+        topIssue: result[0]?.issueLabel?.slice(0, 80),
+      },
+      'Diagnosis follow-up similar-case search'
+    );
+    return result;
   },
 
   buildQuestions(params: {
@@ -253,6 +345,15 @@ export const diagnosisFollowUpService = {
     });
 
     if (similar.length < MIN_SIMILAR_CASES()) {
+      logger.info(
+        {
+          farmerId: params.farmerId,
+          cropType: params.cropType,
+          similarCount: similar.length,
+          minRequired: MIN_SIMILAR_CASES(),
+        },
+        'Diagnosis follow-up skipped: not enough similar learned cases'
+      );
       return { started: false };
     }
 
@@ -275,6 +376,10 @@ export const diagnosisFollowUpService = {
     if (!questions.length) return { started: false };
 
     if (best && best.score >= STRONG_MATCH_SCORE() && !needsPhoto && questions.length <= 1) {
+      logger.info(
+        { farmerId: params.farmerId, score: best.score },
+        'Diagnosis follow-up skipped: strong match without extra questions'
+      );
       return { started: false };
     }
 
