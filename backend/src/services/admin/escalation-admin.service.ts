@@ -34,6 +34,9 @@ function farmerDisplayName(row: Record<string, unknown> | null): string {
 
 export type EscalationWorkflowStatus = 'pending' | 'agronomist_review' | 'completed';
 
+/** DB statuses that still need agronomist attention */
+export const OPEN_ESCALATION_DB_STATUSES = ['pending', 'assigned', 'in_review'] as const;
+
 function workflowFromDbStatus(dbStatus: string): {
   workflowStatus: EscalationWorkflowStatus;
   statusLabel: string;
@@ -161,7 +164,11 @@ export const escalationAdminService = {
       .range(from, from + limit - 1);
 
     if (params.status && params.status !== 'all') {
-      query = query.eq('status', params.status);
+      if (params.status === 'open') {
+        query = query.in('status', [...OPEN_ESCALATION_DB_STATUSES]);
+      } else {
+        query = query.eq('status', params.status);
+      }
     }
 
     const { data, error, count } = await query;
@@ -320,7 +327,7 @@ export const escalationAdminService = {
     const { count } = await supabase
       .from('agronomist_escalations')
       .select('id', { count: 'exact', head: true })
-      .in('status', ['pending', 'assigned', 'in_review']);
+      .in('status', [...OPEN_ESCALATION_DB_STATUSES]);
     return count ?? 0;
   },
 };

@@ -182,6 +182,21 @@ export async function osOperationsRoutes(app) {
         });
         return reply.send({ ok: true, types });
     });
+    app.post(`${api}/field-activity-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            activityName: z.string().min(1).max(120),
+            category: z.string().max(40).optional(),
+            crop: z.string().max(40).nullable().optional(),
+            icon: z.string().max(40).nullable().optional(),
+            colorTag: z.string().max(40).nullable().optional(),
+            followupDefaultDays: z.number().int().min(0).max(365).nullable().optional(),
+        })
+            .parse(request.body);
+        const type = await whatsappOsAdminService.createFieldActivityType(body);
+        return reply.status(201).send({ ok: true, type });
+    });
     app.get(`${api}/field-activities/pending-tasks`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = z

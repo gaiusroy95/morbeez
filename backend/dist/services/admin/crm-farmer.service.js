@@ -5,6 +5,20 @@ import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { crmInternalNotesService } from './crm-internal-notes.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { emptySoilLabMetrics, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
+import { resolveNextActionDueAt } from './interaction-next-action.js';
+function formatDateShort(iso) {
+    if (!iso)
+        return null;
+    try {
+        return new Date(iso).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+        });
+    }
+    catch {
+        return iso;
+    }
+}
 function formatDateTime(iso) {
     if (!iso)
         return null;
@@ -316,6 +330,46 @@ export const crmFarmerService = {
     },
     async blockTimeline(farmerId, blockId) {
         const items = [];
+        const { data: sessions } = await supabase
+            .from('interaction_logs')
+            .select('interaction_at, created_at, interaction_type, summary, outcome, field_activity_label')
+            .eq('farmer_id', farmerId)
+            .eq('block_id', blockId)
+            .eq('is_operational_session', true)
+            .or('status.is.null,status.neq.archived')
+            .order('interaction_at', { ascending: false, nullsFirst: false })
+            .limit(8);
+        for (const s of sessions ?? []) {
+            const at = String(s.interaction_at ?? s.created_at);
+            const type = String(s.interaction_type ?? 'Interaction');
+            const detail = [s.summary, s.field_activity_label ? `Activity: ${s.field_activity_label}` : null, s.outcome]
+                .filter(Boolean)
+                .join(' · ');
+            items.push({
+                title: type,
+                at,
+                atLabel: formatDateShort(at) ?? formatDateTime(at) ?? '',
+                kind: 'interaction',
+                detail: detail.slice(0, 160) || undefined,
+            });
+        }
+        const { data: activities } = await supabase
+            .from('cultivation_activities')
+            .select('applied_at, activity_label, activity_type, added_from')
+            .eq('farm_block_id', blockId)
+            .order('applied_at', { ascending: false })
+            .limit(6);
+        for (const a of activities ?? []) {
+            const label = String(a.activity_label ?? a.activity_type ?? 'Field activity');
+            const from = String(a.added_from ?? '') === 'interaction' ? ' (from interaction)' : '';
+            items.push({
+                title: label,
+                at: `${a.applied_at}T12:00:00.000Z`,
+                atLabel: formatDateShort(String(a.applied_at)) ?? '',
+                kind: 'field_activity',
+                detail: from ? `Logged${from}` : undefined,
+            });
+        }
         const recEvents = await recommendationFollowUpService.buildBlockTimelineEvents(blockId, farmerId);
         for (const e of recEvents) {
             items.push({
@@ -444,7 +498,7 @@ export const crmFarmerService = {
             pagination: { page, limit, total: count ?? 0, pages: Math.max(1, Math.ceil((count ?? 0) / limit)) },
         };
     },
-    /** Telecaller CRM tab — human/agronomist activity only (no raw WhatsApp chat logs). */
+    /** Telecaller CRM tab — operational workflow sessions only (no merged micro-events). */
     async listHumanCrmInteractions(farmerId, leadId, page = 1, limit = 40) {
         const isDueToday = (iso) => {
             if (!iso)
@@ -455,258 +509,28 @@ export const crmFarmerService = {
                 due.getMonth() === now.getMonth() &&
                 due.getDate() === now.getDate());
         };
-        const items = [];
-        const [logsRes, callsRes, tasksRes, recsRes, visitsRes, followUpsRes, recRecordsRes] = await Promise.all([
-            supabase
-                .from('interaction_logs')
-                .select('*, farm_blocks(name, crop_name)')
-                .eq('farmer_id', farmerId)
-                .neq('channel', 'whatsapp')
-                .or('status.is.null,status.neq.archived')
-                .order('created_at', { ascending: false })
-                .limit(80),
-            supabase
-                .from('crm_call_logs')
-                .select('*')
-                .eq('farmer_id', farmerId)
-                .order('created_at', { ascending: false })
-                .limit(40),
-            supabase
-                .from('crm_tasks')
-                .select('*')
-                .eq('farmer_id', farmerId)
-                .order('created_at', { ascending: false })
-                .limit(40),
-            supabase
-                .from('crm_recommendations')
-                .select('*, farm_blocks(name, crop_name)')
-                .eq('farmer_id', farmerId)
-                .neq('status', 'archived')
-                .order('created_at', { ascending: false })
-                .limit(40),
-            supabase
-                .from('crm_field_findings')
-                .select('*, farm_blocks(name, crop_name)')
-                .eq('farmer_id', farmerId)
-                .is('archived_at', null)
-                .order('visited_at', { ascending: false })
-                .limit(40),
-            supabase
-                .from('recommendation_follow_ups')
-                .select('*, recommendation_records(issue_detected, trade_name, technical_name)')
-                .eq('farmer_id', farmerId)
-                .order('created_at', { ascending: false })
-                .limit(60),
-            supabase
-                .from('recommendation_records')
-                .select('id, created_at, communicated_at, issue_detected, trade_name, application_status, status')
-                .eq('farmer_id', farmerId)
-                .not('communicated_at', 'is', null)
-                .order('communicated_at', { ascending: false })
-                .limit(30),
-        ]);
-        throwIfSupabaseError(logsRes.error, 'Could not load interactions');
-        throwIfSupabaseError(callsRes.error, 'Could not load calls');
-        throwIfSupabaseError(tasksRes.error, 'Could not load tasks');
-        for (const r of logsRes.data ?? []) {
-            const ch = String(r.channel ?? '').toLowerCase();
-            if (ch === 'whatsapp' || ch === 'call')
-                continue;
-            const content = String(r.content ?? r.summary ?? '');
-            if (/roi daily prompt|roi\.finish/i.test(content))
-                continue;
-            const mapped = mapInteraction(r);
-            const logBlock = r.farm_blocks;
-            items.push(enrichTimelineRow({
-                id: String(r.id),
-                at: String(r.created_at),
-                interactionType: mapped.typeLabel,
-                summary: String(mapped.summary || content).slice(0, 200),
-                status: mapped.status,
-                completionStatus: String(r.status ?? '') === 'archived' ? 'completed' : 'completed',
-                by: String(mapped.by),
-                role: String(mapped.role),
-                createdLabel: mapped.atLabel ?? formatDateTime(r.created_at) ?? '',
-                dueLabel: null,
-                isDueToday: false,
-                taskId: null,
-                source: 'log',
-                canArchive: true,
-                canEdit: true,
-                nextAction: r.next_action ? String(r.next_action) : null,
-                nextActionAt: r.next_action_at ? String(r.next_action_at) : null,
-                blockName: logBlock?.name ?? logBlock?.crop_name ?? null,
-                blockId: r.block_id ? String(r.block_id) : null,
-            }));
-        }
-        for (const c of callsRes.data ?? []) {
-            if (leadId && c.lead_id && String(c.lead_id) !== leadId)
-                continue;
-            items.push(enrichTimelineRow({
-                id: `call-${c.id}`,
-                at: String(c.created_at),
-                interactionType: 'Call',
-                summary: `Phone call — ${c.outcome ?? 'completed'}${c.notes ? `: ${String(c.notes).slice(0, 100)}` : ''}`,
-                status: 'Completed',
-                completionStatus: 'completed',
-                by: String(c.agent_email ?? 'Telecaller'),
-                role: 'Telecaller',
-                createdLabel: formatDateTime(c.created_at) ?? '',
-                dueLabel: null,
-                isDueToday: false,
-                taskId: null,
-                source: 'call',
-                canArchive: false,
-                canEdit: false,
-            }));
-        }
-        for (const t of tasksRes.data ?? []) {
-            if (leadId && t.lead_id && String(t.lead_id) !== leadId)
-                continue;
-            const isDone = String(t.status ?? '') === 'done';
-            const at = isDone && t.updated_at ? String(t.updated_at) : String(t.created_at);
-            const dueAt = t.due_at ? String(t.due_at) : null;
-            items.push(enrichTimelineRow({
-                id: `task-${t.id}`,
-                at,
-                interactionType: isDone ? 'Follow-up completed' : 'Follow-up',
-                summary: String(t.notes ? `${t.title} — ${t.notes}` : t.title ?? 'Follow-up task').slice(0, 200),
-                status: isDone ? 'Completed' : 'Pending',
-                completionStatus: isDone ? 'completed' : 'pending',
-                by: String(t.assigned_to ?? 'Telecaller'),
-                role: 'Telecaller',
-                createdLabel: formatDateTime(at) ?? '',
-                dueLabel: dueAt ? formatDateTime(dueAt) : null,
-                isDueToday: !isDone && isDueToday(dueAt),
-                taskId: String(t.id),
-                source: 'task',
-                canArchive: false,
-                canEdit: true,
-                nextAction: isDone ? null : String(t.title ?? 'Follow-up'),
-                nextActionAt: dueAt,
-            }));
-        }
-        for (const r of recsRes.data ?? []) {
-            const block = r.farm_blocks;
-            const blockLabel = block?.name ?? block?.crop_name ?? '';
-            const baseSummary = String(r.recommendation ?? r.problem ?? 'Product recommendation');
-            items.push(enrichTimelineRow({
-                id: `crm-rec-${r.id}`,
-                at: String(r.created_at),
-                interactionType: 'Recommendation',
-                summary: baseSummary.slice(0, 200),
-                status: String(r.status ?? 'active'),
-                completionStatus: 'completed',
-                by: String(r.recommended_by ?? 'Agronomist'),
-                role: 'Agronomist',
-                createdLabel: formatDateTime(r.created_at) ?? '',
-                dueLabel: null,
-                isDueToday: false,
-                taskId: null,
-                source: 'recommendation',
-                canArchive: false,
-                canEdit: false,
-                blockName: blockLabel || null,
-                blockId: r.block_id ? String(r.block_id) : null,
-                nextAction: r.follow_up_at ? 'Schedule follow-up' : null,
-                nextActionAt: r.follow_up_at ? String(r.follow_up_at) : null,
-            }));
-        }
-        for (const v of visitsRes.data ?? []) {
-            const visitBlock = v.farm_blocks;
-            items.push(enrichTimelineRow({
-                id: `visit-${v.id}`,
-                at: String(v.visited_at ?? v.created_at),
-                interactionType: 'Field visit',
-                summary: String(v.observations ?? v.disease_pest ?? 'Field visit completed').slice(0, 200),
-                status: 'Completed',
-                completionStatus: 'completed',
-                by: String(v.agronomist_name ?? 'Agronomist'),
-                role: 'Agronomist',
-                createdLabel: formatDateTime((v.visited_at ?? v.created_at)) ?? '',
-                dueLabel: null,
-                isDueToday: false,
-                taskId: null,
-                source: 'visit',
-                canArchive: false,
-                canEdit: false,
-                blockName: visitBlock?.name ?? visitBlock?.crop_name ?? null,
-                blockId: v.block_id ? String(v.block_id) : null,
-                nextAction: v.follow_up_at ? 'Follow-up visit' : null,
-                nextActionAt: v.follow_up_at ? String(v.follow_up_at) : null,
-            }));
-        }
-        for (const rec of recRecordsRes.data ?? []) {
-            const issue = rec.issue_detected ?? rec.trade_name ?? 'Crop advisory';
-            items.push(enrichTimelineRow({
-                id: `rec-wa-${rec.id}`,
-                at: String(rec.communicated_at),
-                interactionType: 'WhatsApp recommendation',
-                summary: String(issue).slice(0, 200),
-                status: String(rec.application_status ?? rec.status ?? 'sent'),
-                completionStatus: null,
-                by: 'AI Engine',
-                role: 'Automated',
-                createdLabel: formatDateTime(rec.communicated_at) ?? '',
-                dueLabel: null,
-                isDueToday: false,
-                taskId: null,
-                source: 'rec_record',
-                canArchive: false,
-                canEdit: false,
-            }));
-        }
-        for (const f of followUpsRes.data ?? []) {
-            const at = String(f.responded_at ?? f.sent_at ?? f.scheduled_at ?? f.created_at);
-            const response = f.farmer_response ? String(f.farmer_response) : null;
-            const recMeta = f.recommendation_records;
-            const product = recMeta?.trade_name ?? recMeta?.technical_name ?? recMeta?.issue_detected ?? '';
-            let interactionType = followUpPhaseLabel(String(f.phase), response);
-            let summary = product || 'Recommendation follow-up';
-            if (response === 'yes_applied') {
-                interactionType = 'Farmer applied fertigation / spray';
-                summary = product ? `Confirmed applied: ${product}` : 'Farmer confirmed application';
-            }
-            else if (response === 'not_yet') {
-                summary = product ? `Not yet applied: ${product}` : 'Farmer has not applied yet';
-            }
-            else if (response === 'need_clarification') {
-                summary = product ? `Needs clarification: ${product}` : 'Farmer asked for clarification';
-            }
-            else if (response === 'improved' || response === 'no_improvement' || response === 'worsened') {
-                interactionType = 'Follow-up outcome recorded';
-                summary = `Result: ${response.replace(/_/g, ' ')}${product ? ` — ${product}` : ''}`;
-            }
-            items.push(enrichTimelineRow({
-                id: `follow-${f.id}`,
-                at,
-                interactionType,
-                summary: summary.slice(0, 200),
-                status: String(f.status ?? 'sent'),
-                completionStatus: response ? 'completed' : 'pending',
-                by: response ? 'Farmer' : 'System',
-                role: response ? 'Farmer' : 'Automated',
-                createdLabel: formatDateTime(at) ?? '',
-                dueLabel: f.scheduled_at ? formatDateTime(String(f.scheduled_at)) : null,
-                isDueToday: !response && isDueToday(String(f.scheduled_at)),
-                taskId: null,
-                source: 'follow_up',
-                canArchive: false,
-                canEdit: false,
-                nextAction: !response && f.scheduled_at ? 'Application check' : null,
-                nextActionAt: f.scheduled_at ? String(f.scheduled_at) : null,
-            }));
-        }
-        items.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
         const from = (page - 1) * limit;
-        const pageItems = items.slice(from, from + limit);
+        let query = supabase
+            .from('interaction_logs')
+            .select('*, farm_blocks(name, crop_name)', { count: 'exact' })
+            .eq('farmer_id', farmerId)
+            .eq('is_operational_session', true)
+            .or('status.is.null,status.neq.archived')
+            .order('interaction_at', { ascending: false, nullsFirst: false })
+            .order('created_at', { ascending: false });
+        if (leadId) {
+            query = query.or(`lead_id.eq.${leadId},lead_id.is.null`);
+        }
+        const { data, error, count } = await query.range(from, from + limit - 1);
+        throwIfSupabaseError(error, 'Could not load interactions');
+        const items = (data ?? []).map((r) => mapOperationalSessionRow(r, isDueToday));
         return {
-            interactions: pageItems,
+            interactions: items,
             pagination: {
                 page,
                 limit,
-                total: items.length,
-                pages: Math.max(1, Math.ceil(items.length / limit)),
+                total: count ?? 0,
+                pages: Math.max(1, Math.ceil((count ?? 0) / limit)),
             },
         };
     },
@@ -1001,7 +825,7 @@ export const crmFarmerService = {
         }
         const { data: log, error } = await supabase
             .from('interaction_logs')
-            .select('*')
+            .select('*, farm_blocks(name, crop_name)')
             .eq('id', interactionId)
             .eq('farmer_id', farmerId)
             .maybeSingle();
@@ -1010,29 +834,41 @@ export const crmFarmerService = {
             throw new NotFoundError('Interaction not found');
         }
         const mapped = mapInteraction(log);
-        const at = String(log.created_at);
+        const at = String(log.interaction_at ?? log.created_at);
         const archived = String(log.status ?? '') === 'archived';
+        const workflowStatus = String(log.workflow_status ?? 'Closed');
+        const isActive = workflowStatus === 'Active';
         return {
             id: interactionId,
             source: 'log',
             interactionType: mapped.typeLabel,
-            summary: String(mapped.summary || log.content || ''),
-            status: mapped.status,
-            completionStatus: archived ? 'completed' : 'completed',
+            summary: String(log.summary || log.content || ''),
+            status: workflowStatus,
+            completionStatus: isActive && log.next_action ? 'pending' : 'completed',
             canEdit: !archived,
             taskId: null,
             by: String(mapped.by),
             role: String(mapped.role),
-            createdLabel: mapped.atLabel ?? formatDateTime(at) ?? '—',
+            createdLabel: formatDateShort(at) ?? mapped.atLabel ?? formatDateTime(at) ?? '—',
             at,
             fields: [
-                field('Channel', log.channel),
-                field('Direction', log.direction),
+                field('Interaction date', formatDateShort(at)),
+                field('Field finding', log.field_finding_text),
+                field('Field activity', log.field_activity_label),
+                field('Activity date', formatDateShort(log.field_activity_date)),
+                field('Recommendation', log.recommendation_summary),
+                field('Outcome', log.outcome),
                 field('Next action', log.next_action),
                 field('Next action at', formatDateTime(log.next_action_at)),
+                field('Workflow status', workflowStatus),
+                field('Escalation', log.escalation_id ? 'Agronomist case review opened' : null),
+                field('Block', log.farm_blocks?.name),
             ].filter(Boolean),
             sections: [
                 ...(log.summary ? [{ title: 'Summary', content: String(log.summary) }] : []),
+                ...(log.recommendation_summary
+                    ? [{ title: 'Recommendation', content: String(log.recommendation_summary) }]
+                    : []),
                 ...(log.content && log.content !== log.summary
                     ? [{ title: 'Notes', content: String(log.content) }]
                     : []),
@@ -1047,31 +883,165 @@ export const crmFarmerService = {
         };
     },
     async createInteraction(farmerId, leadId, input) {
-        const channel = input.channel ??
-            (input.interactionType.toLowerCase().includes('call')
-                ? 'call'
-                : 'crm');
+        const summary = (input.summary ?? input.notes ?? '').trim();
+        if (!summary) {
+            throw new ValidationError('Summary is required');
+        }
+        const workflowStatus = input.escalate
+            ? 'Escalated'
+            : input.workflowStatus ?? (input.nextAction?.trim() ? 'Active' : 'Closed');
+        const interactionAt = input.interactionAt ?? new Date().toISOString();
+        const resolvedDueAt = resolveNextActionDueAt({
+            nextAction: input.nextAction,
+            nextActionAt: input.nextActionAt,
+            interactionAt,
+        });
+        const fieldFindingText = input.fieldFindingText?.trim() || null;
+        const fieldActivityLabel = input.fieldActivityLabel?.trim() || null;
+        const fieldActivityDate = input.fieldActivityDate ?? null;
+        const recommendationSummary = input.recommendationSummary?.trim() || null;
+        let blockName = 'Block';
+        let cropType = 'Crop';
+        if (input.blockId) {
+            const { data: blockRow } = await supabase
+                .from('farm_blocks')
+                .select('name, crop_name, crop_type')
+                .eq('id', input.blockId)
+                .maybeSingle();
+            if (blockRow) {
+                blockName = String(blockRow.name ?? blockName);
+                cropType = String(blockRow.crop_name ?? blockRow.crop_type ?? cropType);
+            }
+        }
         const { data, error } = await supabase
             .from('interaction_logs')
             .insert({
             farmer_id: farmerId,
             lead_id: leadId,
             block_id: input.blockId,
-            channel,
+            channel: input.channel ?? 'crm',
             direction: 'outbound',
             interaction_type: input.interactionType,
             done_by: input.doneBy,
             done_by_role: input.doneByRole,
-            summary: input.summary ?? input.notes,
-            content: input.notes ?? input.summary,
-            next_action: input.nextAction,
-            next_action_at: input.nextActionAt,
+            summary,
+            content: input.notes?.trim() || summary,
+            interaction_at: interactionAt,
+            outcome: input.outcome ?? null,
+            next_action: input.nextAction?.trim() || null,
+            next_action_at: resolvedDueAt ?? input.nextActionAt ?? null,
+            workflow_status: workflowStatus,
+            field_finding_text: fieldFindingText,
+            field_activity_label: fieldActivityLabel,
+            field_activity_date: fieldActivityDate,
+            field_activity_type_id: input.fieldActivityTypeId ?? null,
+            recommendation_summary: recommendationSummary,
+            escalated: input.escalate ?? false,
+            is_operational_session: true,
             status: input.status ?? 'completed',
         })
-            .select()
+            .select('*, farm_blocks(name, crop_name)')
             .single();
         throwIfSupabaseError(error, 'Could not create interaction');
-        return mapInteraction(data);
+        let fieldFindingId = null;
+        let fieldActivityId = null;
+        let recommendationId = null;
+        const sessionPatch = {};
+        if (input.addFieldFinding && fieldFindingText && input.blockId && leadId) {
+            const { telecallerAdminService } = await import('./telecaller-admin.service.js');
+            const finding = await telecallerAdminService.createFieldFinding(farmerId, leadId, {
+                blockId: input.blockId,
+                blockName,
+                cropType,
+                observations: fieldFindingText,
+                diseasePest: fieldFindingText.slice(0, 120),
+                agentEmail: input.doneBy,
+            });
+            fieldFindingId = String(finding.id);
+            sessionPatch.field_finding_id = fieldFindingId;
+        }
+        if (input.addFieldActivity && input.blockId && fieldActivityDate) {
+            const { whatsappOsAdminService } = await import('./whatsapp-os-admin.service.js');
+            const activity = await whatsappOsAdminService.createFieldActivity({
+                blockId: input.blockId,
+                activityType: 'other',
+                activityTypeId: input.fieldActivityTypeId,
+                activityLabel: fieldActivityLabel ?? undefined,
+                activityDate: fieldActivityDate,
+                notes: summary,
+                source: 'telecaller',
+            });
+            fieldActivityId = String(activity.id);
+            await supabase
+                .from('cultivation_activities')
+                .update({
+                interaction_log_id: data.id,
+                added_from: 'interaction',
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', fieldActivityId);
+            sessionPatch.field_activity_id = fieldActivityId;
+            if (!fieldActivityLabel && activity.activity_label) {
+                sessionPatch.field_activity_label = activity.activity_label;
+            }
+        }
+        if (input.recommendationCompleted && recommendationSummary && leadId) {
+            const rec = await this.createRecommendation(farmerId, leadId, {
+                blockId: input.blockId,
+                recommendation: recommendationSummary,
+                recommendedBy: input.doneBy ?? 'Telecaller',
+                recType: 'agronomist',
+            });
+            recommendationId = String(rec.id);
+            sessionPatch.recommendation_id = recommendationId;
+        }
+        if (Object.keys(sessionPatch).length > 0) {
+            await supabase.from('interaction_logs').update(sessionPatch).eq('id', data.id);
+            Object.assign(data, sessionPatch);
+        }
+        if (input.escalate) {
+            const { telecallerEscalationService } = await import('./telecaller-escalation.service.js');
+            const esc = await telecallerEscalationService.escalateFromInteraction({
+                farmerId,
+                leadId,
+                interactionLogId: String(data.id),
+                summary,
+                interactionType: input.interactionType,
+                blockId: input.blockId,
+                cropType,
+                agentEmail: input.doneBy ?? 'Telecaller',
+            });
+            await supabase
+                .from('interaction_logs')
+                .update({ escalation_id: esc.escalationId })
+                .eq('id', data.id);
+            Object.assign(data, { escalation_id: esc.escalationId });
+        }
+        if (leadId && input.nextAction?.trim() && workflowStatus === 'Active') {
+            const { telecallerAdminService } = await import('./telecaller-admin.service.js');
+            await telecallerAdminService.createTask(leadId, {
+                title: input.nextAction.trim(),
+                dueAt: resolvedDueAt ?? undefined,
+                notes: summary,
+                taskType: 'follow_up',
+                blockId: input.blockId,
+                interactionLogId: String(data.id),
+            }, input.doneBy ?? 'Telecaller');
+        }
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackInteractionSession({
+            farmerId,
+            interactionLogId: String(data.id),
+            interactionType: input.interactionType,
+            workflowStatus,
+            escalated: Boolean(input.escalate),
+            outcome: input.outcome ?? null,
+            nextAction: input.nextAction ?? null,
+            blockId: input.blockId,
+            employeeEmail: input.doneBy,
+            occurredAt: interactionAt,
+        });
+        return mapOperationalSessionRow(data, () => false);
     },
     async getAgronomist(farmerId) {
         const { data } = await supabase
@@ -1248,7 +1218,22 @@ export const crmFarmerService = {
         };
     },
     async updateInteraction(id, patch) {
-        const allowed = ['interaction_type', 'summary', 'content', 'next_action', 'next_action_at', 'status', 'block_id'];
+        const allowed = [
+            'interaction_type',
+            'summary',
+            'content',
+            'next_action',
+            'next_action_at',
+            'status',
+            'block_id',
+            'outcome',
+            'workflow_status',
+            'field_finding_text',
+            'field_activity_label',
+            'field_activity_date',
+            'recommendation_summary',
+            'interaction_at',
+        ];
         const updates = {};
         for (const k of allowed) {
             if (patch[k] !== undefined)
@@ -1609,8 +1594,10 @@ function interactionTypeMeta(source, interactionType) {
     }
     if (t.includes('whatsapp'))
         return { typeKey: 'whatsapp', typeIcon: '💬', typeCategory: 'WhatsApp' };
-    if (t.includes('order'))
-        return { typeKey: 'order', typeIcon: '🛒', typeCategory: 'Order' };
+    if (t.includes('roi'))
+        return { typeKey: 'roi', typeIcon: '📊', typeCategory: 'ROI' };
+    if (t.includes('follow'))
+        return { typeKey: 'follow_up', typeIcon: '📞', typeCategory: 'Follow-up' };
     if (t.includes('soil'))
         return { typeKey: 'soil_report', typeIcon: '🧪', typeCategory: 'Soil report' };
     if (t.includes('lead'))
@@ -1655,12 +1642,82 @@ function buildNextActionLabel(nextAction, nextActionAt, dueLabel, completionStat
     }
     return null;
 }
+function sessionTypeIcon(type) {
+    const t = type.toLowerCase();
+    if (t.includes('whatsapp'))
+        return '💬';
+    if (t.includes('follow'))
+        return '📞';
+    if (t.includes('agronomist') || t.includes('visit'))
+        return '👨‍🌾';
+    if (t.includes('roi'))
+        return '📊';
+    if (t.includes('recommendation') || t.includes('issue'))
+        return '📋';
+    return '📝';
+}
+function workflowStatusMeta(status) {
+    const s = String(status ?? 'Closed');
+    if (s === 'Active')
+        return { displayStatus: 'Active', statusTone: 'purple' };
+    if (s === 'Escalated')
+        return { displayStatus: 'Escalated', statusTone: 'review' };
+    return { displayStatus: 'Closed', statusTone: 'success' };
+}
+function mapOperationalSessionRow(r, isDueToday) {
+    const interactionType = String(r.interaction_type ?? 'Interaction');
+    const at = String(r.interaction_at ?? r.created_at);
+    const workflowStatus = String(r.workflow_status ?? 'Closed');
+    const wfMeta = workflowStatusMeta(workflowStatus);
+    const isActive = workflowStatus === 'Active';
+    const nextAction = r.next_action ? String(r.next_action) : null;
+    const nextActionAt = r.next_action_at ? String(r.next_action_at) : null;
+    const completionStatus = isActive && nextAction ? 'pending' : 'completed';
+    const logBlock = r.farm_blocks;
+    const typeMeta = interactionTypeMeta('log', interactionType);
+    return enrichTimelineRow({
+        id: String(r.id),
+        at,
+        interactionType,
+        summary: String(r.summary ?? r.content ?? '').slice(0, 240),
+        status: wfMeta.displayStatus,
+        completionStatus,
+        by: String(r.done_by ?? 'Staff'),
+        role: String(r.done_by_role ?? 'Telecaller'),
+        createdLabel: formatDateShort(at) ?? formatDateTime(at) ?? '',
+        dueLabel: nextActionAt ? formatDateTime(nextActionAt) : null,
+        isDueToday: completionStatus === 'pending' && isDueToday(nextActionAt),
+        taskId: null,
+        source: 'log',
+        canArchive: true,
+        canEdit: true,
+        nextAction,
+        nextActionAt,
+        blockName: logBlock?.name ?? logBlock?.crop_name ?? null,
+        blockId: r.block_id ? String(r.block_id) : null,
+        fieldFinding: r.field_finding_text ? String(r.field_finding_text) : null,
+        fieldActivity: r.field_activity_label ? String(r.field_activity_label) : null,
+        activityDateLabel: formatDateShort(r.field_activity_date),
+        recommendation: r.recommendation_summary ? String(r.recommendation_summary) : null,
+        outcome: r.outcome ? String(r.outcome) : null,
+        workflowStatus,
+        typeIcon: sessionTypeIcon(interactionType),
+        typeKey: typeMeta.typeKey,
+        typeCategory: interactionType,
+    });
+}
 function enrichTimelineRow(row) {
     const typeMeta = interactionTypeMeta(row.source, row.interactionType);
-    const statusMeta = interactionStatusMeta(row.status, row.completionStatus, row.source);
+    const statusMeta = row.displayStatus && row.statusTone
+        ? { displayStatus: row.displayStatus, statusTone: row.statusTone }
+        : row.workflowStatus
+            ? workflowStatusMeta(String(row.workflowStatus))
+            : interactionStatusMeta(row.status, row.completionStatus, row.source);
     return {
         ...row,
-        ...typeMeta,
+        typeKey: row.typeKey ?? typeMeta.typeKey,
+        typeIcon: row.typeIcon ?? typeMeta.typeIcon,
+        typeCategory: row.typeCategory ?? typeMeta.typeCategory,
         displayStatus: statusMeta.displayStatus,
         statusTone: statusMeta.statusTone,
         nextActionLabel: buildNextActionLabel(row.nextAction, row.nextActionAt, row.dueLabel, row.completionStatus),

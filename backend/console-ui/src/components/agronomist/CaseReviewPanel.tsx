@@ -17,6 +17,7 @@ import {
   IconTrendUp,
   IconWhatsApp,
 } from './case-review-icons';
+import { DiagnosisLabelPicker } from './DiagnosisLabelPicker';
 import '../../styles/case-review.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -162,7 +163,7 @@ const DX_FALLBACK = [
 
 export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
   const { canSelfApprove } = useAuth();
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState('open');
   const [sort, setSort] = useState<'priority' | 'newest'>('priority');
   const [page, setPage] = useState(1);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -280,7 +281,19 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
   const overallConf = detail?.ai.confidence ?? detail?.escalation.confidence;
   const diagnosisOptions = useMemo(() => {
     const fromAi = detail?.ai.topDiagnoses.map((d) => d.label) ?? [];
-    return [...new Set([...fromAi, ...DX_FALLBACK, correctDiagnosis].filter(Boolean))];
+    const fromBreakdown = detail?.confidenceBreakdown.map((d) => d.label) ?? [];
+    const fromQuestion = detail?.inquiry.farmerQuestion?.trim()
+      ? [detail.inquiry.farmerQuestion.trim()]
+      : [];
+    return [
+      ...new Set([
+        ...fromAi,
+        ...fromBreakdown,
+        ...fromQuestion,
+        ...DX_FALLBACK,
+        correctDiagnosis,
+      ].filter(Boolean)),
+    ];
   }, [detail, correctDiagnosis]);
 
   const pageStart = (page - 1) * pageSize + 1;
@@ -353,7 +366,8 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                     setPage(1);
                   }}
                 >
-                  <option value="pending">Pending</option>
+                  <option value="open">Open (needs review)</option>
+                  <option value="pending">Pending only</option>
                   <option value="assigned">Assigned</option>
                   <option value="in_review">In review</option>
                   <option value="resolved">Resolved</option>
@@ -800,21 +814,18 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                     </button>
                   </div>
 
-                  <label className="cr-field">
-                    <span className="cr-field-label">Correct Diagnosis</span>
-                    <select
-                      className="cr-input"
+                  <div className="cr-field">
+                    <DiagnosisLabelPicker
+                      label="Correct Diagnosis"
+                      apiBase={base}
+                      cropType={detail?.block?.cropType ?? null}
                       value={correctDiagnosis}
-                      onChange={(e) => setCorrectDiagnosis(e.target.value)}
+                      extraOptions={diagnosisOptions}
                       disabled={action === 'approve_ai'}
-                    >
-                      {diagnosisOptions.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                      placeholder="Select or add diagnosis…"
+                      onChange={setCorrectDiagnosis}
+                    />
+                  </div>
 
                   <div className="cr-field">
                     <span className="cr-field-label">Severity</span>

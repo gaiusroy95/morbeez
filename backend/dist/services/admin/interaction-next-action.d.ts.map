@@ -1,0 +1,1 @@
+{"version":3,"file":"interaction-next-action.d.ts","sourceRoot":"","sources":["../../../src/services/admin/interaction-next-action.ts"],"names":[],"mappings":"AAAA;;GAEG;AACH,wBAAgB,sBAAsB,CAAC,KAAK,EAAE;IAC5C,UAAU,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IAC3B,YAAY,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;IAC7B,aAAa,CAAC,EAAE,MAAM,GAAG,IAAI,CAAC;CAC/B,GAAG,MAAM,GAAG,IAAI,CAsChB"}

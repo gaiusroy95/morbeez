@@ -27,6 +27,8 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
   const onAddLead = header?.onAddLead;
   const selectedPhone = header?.selectedPhone;
   const unread = header?.unreadNotifications ?? 0;
+  const pendingEscalations = header?.pendingEscalations ?? 0;
+  const bellCount = unread + pendingEscalations;
 
   function normalizePhone(phone: string) {
     const digits = phone.replace(/\D/g, '');
@@ -51,7 +53,8 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
           ? { label: 'Add Lead', onClick: onAddLead }
           : { label: 'Add Lead', onClick: () => {}, hidden: true }
       }
-      notificationCount={unread}
+      notificationCount={bellCount}
+      notificationTone={pendingEscalations > 0 ? 'escalation' : 'default'}
       onNotificationsClick={() => header?.onToggleNotifications()}
       trailingActions={
         <>

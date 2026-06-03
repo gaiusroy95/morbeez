@@ -11,6 +11,7 @@ import {
 import { Alert, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
 import { Field, Modal, inputClass } from '../components/Modal';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
+import { FieldActivityPhase2Panel } from '../components/operations/field-activities/FieldActivityPhase2Panel';
 import { cropSlugFromName } from '../lib/master-picker-utils';
 
 type Tab =
@@ -162,15 +163,6 @@ type FieldActivityType = {
   active_status: boolean;
 };
 
-type FieldPendingTask = {
-  id: string;
-  task_type: string;
-  due_date: string;
-  status: string;
-  title: string | null;
-  source_activity_id: string | null;
-};
-
 const BROADCAST_KINDS = [
   'cultivation_schedule',
   'fertigation_reminder',
@@ -229,7 +221,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
   const [fieldBlocks, setFieldBlocks] = useState<FieldActivityBlock[]>([]);
   const [fieldActivities, setFieldActivities] = useState<FieldActivity[]>([]);
   const [fieldActivityTypes, setFieldActivityTypes] = useState<FieldActivityType[]>([]);
-  const [fieldPendingTasks, setFieldPendingTasks] = useState<FieldPendingTask[]>([]);
   const [selectedBlockId, setSelectedBlockId] = useState('');
   const [tasks, setTasks] = useState<TermTask[]>([]);
   const [termStatus, setTermStatus] = useState('open');
@@ -312,10 +303,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     dap: '',
     notes: '',
     costInr: '',
-    labourCostInr: '',
-    sprayCostInr: '',
-    fertilizerCostInr: '',
-    machineryCostInr: '',
     followUpRequired: false,
     followUpDate: '',
     status: 'completed',
@@ -467,29 +454,33 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
         if (blockId && blockId !== selectedBlockId) setSelectedBlockId(blockId);
         const selected = blocks.find((x) => x.id === blockId);
         const cropType = selected?.crop_type ?? '';
-        const [typesRes, tasksRes] = await Promise.all([
+        const [typesRes] = await Promise.all([
           api<{ ok: boolean; types: FieldActivityType[] }>(
             `${base}/field-activity-types?cropType=${encodeURIComponent(cropType)}&activeOnly=true`
           ),
-          blockId
-            ? api<{ ok: boolean; tasks: FieldPendingTask[] }>(
-                `${base}/field-activities/pending-tasks?blockId=${encodeURIComponent(blockId)}&limit=100`
-              )
-            : Promise.resolve({ ok: true, tasks: [] }),
         ]);
         const types = typesRes.types ?? [];
         setFieldActivityTypes(types);
         if (types.length > 0) {
           setFieldForm((f) => {
             if (types.some((t) => t.id === f.activityTypeId)) return f;
+            const first = types[0];
+            const category = first.category?.toLowerCase() ?? '';
+            const activityType = category.includes('nutrition')
+              ? 'fertigation'
+              : category.includes('protection')
+                ? 'spray_applied'
+                : category.includes('observation')
+                  ? 'scouting'
+                  : 'other';
             return {
               ...f,
-              activityTypeId: types[0].id,
-              activityLabel: f.activityLabel || types[0].activity_name,
+              activityTypeId: first.id,
+              activityLabel: f.activityLabel || first.activity_name,
+              activityType,
             };
           });
         }
-        setFieldPendingTasks(tasksRes.tasks ?? []);
         if (blockId) {
           const a = await api<{ ok: boolean; activities: FieldActivity[] }>(
             `${base}/field-activities?blockId=${encodeURIComponent(blockId)}&limit=200`
@@ -676,9 +667,9 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  async function saveFieldActivity(e: FormEvent) {
+  async function saveFieldActivity(e: FormEvent): Promise<boolean> {
     e.preventDefault();
-    if (!canWrite || !selectedBlockId) return;
+    if (!canWrite || !selectedBlockId) return false;
     setError('');
     try {
       await api(`${base}/field-activities`, {
@@ -692,16 +683,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
           dap: fieldForm.dap ? Number(fieldForm.dap) : undefined,
           notes: fieldForm.notes.trim() || undefined,
           costInr: fieldForm.costInr ? Number(fieldForm.costInr) : undefined,
-          costBreakdown: {
-            labourCostInr: fieldForm.labourCostInr ? Number(fieldForm.labourCostInr) : undefined,
-            sprayCostInr: fieldForm.sprayCostInr ? Number(fieldForm.sprayCostInr) : undefined,
-            fertilizerCostInr: fieldForm.fertilizerCostInr
-              ? Number(fieldForm.fertilizerCostInr)
-              : undefined,
-            machineryCostInr: fieldForm.machineryCostInr
-              ? Number(fieldForm.machineryCostInr)
-              : undefined,
-          },
           followUpRequired: fieldForm.followUpRequired,
           followUpDate: fieldForm.followUpRequired ? fieldForm.followUpDate || undefined : undefined,
           status: fieldForm.status,
@@ -712,17 +693,15 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
         activityLabel: '',
         notes: '',
         costInr: '',
-        labourCostInr: '',
-        sprayCostInr: '',
-        fertilizerCostInr: '',
-        machineryCostInr: '',
         dap: '',
         followUpRequired: false,
         followUpDate: '',
       }));
       await loadTab();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save field activity');
+      return false;
     }
   }
 
@@ -1316,13 +1295,14 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
           {tab === 'fieldActivity' ? (
             <FieldActivityPhase2Panel
               canWrite={canWrite}
+              apiBase={base}
               blocks={fieldBlocks}
               selectedBlockId={selectedBlock?.id ?? ''}
               activities={fieldActivities}
               activityTypes={fieldActivityTypes}
-              pendingTasks={fieldPendingTasks}
               form={fieldForm}
               onFormChange={setFieldForm}
+              onActivityTypesChange={setFieldActivityTypes}
               onSave={saveFieldActivity}
               onBlockChange={setSelectedBlockId}
             />
@@ -1649,603 +1629,3 @@ function TableSection({ title, children }: { title: string; children: ReactNode 
   );
 }
 
-function formatDateLabel(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
-}
-
-function computeDapFromDates(plantingDate?: string | null, eventDate?: string | null): number | null {
-  if (!plantingDate || !eventDate) return null;
-  const start = new Date(plantingDate);
-  const end = new Date(eventDate);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
-  const diff = Math.floor((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
-  return diff < 0 ? 0 : diff;
-}
-
-function FieldActivityPhase2Panel(props: {
-  canWrite: boolean;
-  blocks: FieldActivityBlock[];
-  selectedBlockId: string;
-  activities: FieldActivity[];
-  activityTypes: FieldActivityType[];
-  pendingTasks: FieldPendingTask[];
-  form: {
-    activityTypeId: string;
-    activityType: string;
-    activityLabel: string;
-    activityDate: string;
-    dap: string;
-    notes: string;
-    costInr: string;
-    labourCostInr: string;
-    sprayCostInr: string;
-    fertilizerCostInr: string;
-    machineryCostInr: string;
-    followUpRequired: boolean;
-    followUpDate: string;
-    status: string;
-  };
-  onFormChange: (value: {
-    activityTypeId: string;
-    activityType: string;
-    activityLabel: string;
-    activityDate: string;
-    dap: string;
-    notes: string;
-    costInr: string;
-    labourCostInr: string;
-    sprayCostInr: string;
-    fertilizerCostInr: string;
-    machineryCostInr: string;
-    followUpRequired: boolean;
-    followUpDate: string;
-    status: string;
-  } | ((prev: {
-      activityTypeId: string;
-      activityType: string;
-      activityLabel: string;
-      activityDate: string;
-      dap: string;
-      notes: string;
-      costInr: string;
-      labourCostInr: string;
-      sprayCostInr: string;
-      fertilizerCostInr: string;
-      machineryCostInr: string;
-      followUpRequired: boolean;
-      followUpDate: string;
-      status: string;
-    }) => {
-      activityTypeId: string;
-      activityType: string;
-      activityLabel: string;
-      activityDate: string;
-      dap: string;
-      notes: string;
-      costInr: string;
-      labourCostInr: string;
-      sprayCostInr: string;
-      fertilizerCostInr: string;
-      machineryCostInr: string;
-      followUpRequired: boolean;
-      followUpDate: string;
-      status: string;
-    })) => void;
-  onSave: (e: FormEvent) => Promise<void>;
-  onBlockChange: (blockId: string) => void;
-}) {
-  const selectedBlock = props.blocks.find((b) => b.id === props.selectedBlockId) ?? null;
-  const autoDap = computeDapFromDates(selectedBlock?.planting_date, props.form.activityDate);
-  const dapForDisplay = props.form.dap ? Number(props.form.dap) : autoDap;
-  const totalCost = props.activities.reduce((sum, item) => sum + Number(item.cost_inr ?? 0), 0);
-  const pendingCount = props.activities.filter((item) => item.activity_status === 'pending').length;
-  const selectedType =
-    props.activityTypes.find((t) => t.id === props.form.activityTypeId) ?? null;
-  const quickTypes = props.activityTypes.slice(0, 6);
-  const healthStatus =
-    pendingCount > 0 ? 'Needs attention' : props.activities.length > 0 ? 'Active tracking' : 'No records';
-  const timelineRows = [...props.activities].sort((a, b) => {
-    const dateCmp = String(b.applied_at).localeCompare(String(a.applied_at));
-    if (dateCmp !== 0) return dateCmp;
-    return String(b.created_at).localeCompare(String(a.created_at));
-  });
-
-  function iconForType(icon?: string | null): string {
-    const key = String(icon ?? '').toLowerCase();
-    if (key.includes('spray')) return '💦';
-    if (key.includes('droplet')) return '💧';
-    if (key.includes('sprout')) return '🌱';
-    if (key.includes('eye')) return '👁️';
-    if (key.includes('flask')) return '🧪';
-    if (key.includes('users')) return '👷';
-    if (key.includes('layer')) return '🧺';
-    return '📝';
-  }
-
-  function colorClassForTag(tag?: string | null): string {
-    const t = String(tag ?? '').toLowerCase();
-    if (t.includes('red')) return 'border-l-red-400 bg-red-50/30';
-    if (t.includes('amber') || t.includes('yellow')) return 'border-l-amber-400 bg-amber-50/30';
-    if (t.includes('blue')) return 'border-l-blue-400 bg-blue-50/30';
-    if (t.includes('violet') || t.includes('purple')) return 'border-l-violet-400 bg-violet-50/30';
-    if (t.includes('lime')) return 'border-l-lime-400 bg-lime-50/30';
-    if (t.includes('slate') || t.includes('gray')) return 'border-l-slate-400 bg-slate-50/30';
-    return 'border-l-emerald-400 bg-emerald-50/30';
-  }
-
-  function followUpSlaBadge(row: FieldActivity): { label: string; className: string } | null {
-    if (!row.follow_up_required || !row.follow_up_date || row.activity_status === 'completed') return null;
-    const due = new Date(`${row.follow_up_date}T00:00:00.000Z`);
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-    const diffDays = Math.floor((due.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
-    if (diffDays < 0) return { label: 'Overdue', className: 'bg-red-100 text-red-700' };
-    if (diffDays === 0) return { label: 'Due today', className: 'bg-amber-100 text-amber-800' };
-    return { label: `Due in ${diffDays}d`, className: 'bg-blue-100 text-blue-700' };
-  }
-
-  function dateBadgeParts(iso: string): { day: string; month: string; year: string } {
-    const d = new Date(`${iso}T00:00:00.000Z`);
-    if (Number.isNaN(d.getTime())) return { day: '--', month: '---', year: '----' };
-    return {
-      day: d.toLocaleDateString('en-IN', { day: '2-digit' }),
-      month: d.toLocaleDateString('en-IN', { month: 'short' }),
-      year: d.toLocaleDateString('en-IN', { year: 'numeric' }),
-    };
-  }
-
-  function statusPillClass(status: FieldActivity['activity_status']): string {
-    if (status === 'completed') return 'bg-emerald-100 text-emerald-700';
-    if (status === 'pending') return 'bg-amber-100 text-amber-800';
-    return 'bg-slate-200 text-slate-700';
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-slate-800">Operations / Field Activities</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="min-w-[220px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700"
-            value={props.selectedBlockId}
-            onChange={(e) => props.onBlockChange(e.target.value)}
-          >
-            {props.blocks.map((block) => (
-              <option key={block.id} value={block.id}>
-                {(block.plot_label || block.name) ?? 'Block'} - {block.crop_type}{' '}
-                {block.acreage_decimal != null ? `(${block.acreage_decimal} Acre)` : ''}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 shadow-sm"
-          >
-            ▾ Filter
-          </button>
-        </div>
-      </div>
-
-      <section className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 shadow-sm">
-        {selectedBlock ? (
-          <div className="grid gap-3 lg:grid-cols-[1fr_120px]">
-            <div>
-              <p className="text-sm font-bold text-emerald-900">
-                {String(selectedBlock.crop_type ?? '').toUpperCase()} - {(selectedBlock.plot_label || selectedBlock.name || 'BLOCK A').toUpperCase()}
-              </p>
-              <div className="mt-2 grid gap-2 text-xs sm:grid-cols-3 lg:grid-cols-6">
-                <div>
-                  <p className="text-slate-500">Acreage</p>
-                  <p className="font-semibold text-slate-800">{selectedBlock.acreage_decimal ?? '—'} Acre</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Planting Date</p>
-                  <p className="font-semibold text-slate-800">{selectedBlock.planting_date ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">DAP</p>
-                  <p className="font-semibold text-emerald-700">{dapForDisplay ?? '—'} Days</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Growth Stage</p>
-                  <p className="font-semibold text-slate-800">{selectedBlock.stage ?? '—'}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Health Status</p>
-                  <p className="font-semibold text-amber-700">{healthStatus}</p>
-                </div>
-                <div>
-                  <p className="text-slate-500">Farmer</p>
-                  <p className="font-semibold text-slate-800 truncate">
-                    {selectedBlock.farmers?.name ?? selectedBlock.farmers?.phone ?? '—'}
-                  </p>
-                </div>
-              </div>
-            </div>
-            <div className="h-20 w-full rounded-lg border border-emerald-200 bg-gradient-to-br from-lime-100 via-emerald-100 to-green-200 shadow-inner" />
-          </div>
-        ) : (
-          <p className="text-xs text-slate-500">No blocks found. Create farm blocks first.</p>
-        )}
-      </section>
-
-      <section className="grid gap-3 xl:grid-cols-[1fr_370px]">
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-[15px] font-semibold text-slate-900">Field Activity Timeline</h3>
-            <button
-              type="button"
-              disabled={!props.canWrite}
-              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              + Add Activity
-            </button>
-          </div>
-          <div className="space-y-3">
-            {timelineRows.map((row) => {
-              const inferredDap = computeDapFromDates(selectedBlock?.planting_date, row.applied_at);
-              const title =
-                row.activity_label?.trim() ||
-                row.field_activity_types?.activity_name ||
-                row.activity_type.replace(/_/g, ' ');
-              const icon = iconForType(row.field_activity_types?.icon);
-              const cardTone = colorClassForTag(row.field_activity_types?.color_tag);
-              const badge = dateBadgeParts(row.applied_at);
-              const sla = followUpSlaBadge(row);
-              return (
-                <article key={row.id} className="grid grid-cols-[52px_1fr] gap-2 sm:grid-cols-[58px_1fr]">
-                  <div className="rounded-lg border border-slate-200 bg-white p-1 text-center text-[10px] leading-tight text-slate-600 shadow-sm">
-                    <p className="font-bold text-slate-900">{badge.day}</p>
-                    <p>{badge.month}</p>
-                    <p>{badge.year}</p>
-                  </div>
-                  <div className={`rounded-xl border border-slate-200 border-l-4 bg-white p-3 shadow-sm ${cardTone}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="flex items-center gap-1 text-[14px] font-semibold text-slate-900">
-                          <span>{icon}</span>
-                          <span>{title}</span>
-                        </p>
-                        <p className="text-xs font-medium text-emerald-700">DAP {row.dap ?? inferredDap ?? '—'}</p>
-                      </div>
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${statusPillClass(row.activity_status)}`}>
-                        {row.activity_status}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-slate-600">Notes: {row.notes ?? '—'}</p>
-                    <div className="mt-2 grid gap-2 border-t border-slate-100 pt-2 text-xs text-slate-600 sm:grid-cols-2">
-                      <p>
-                        <span className="text-slate-500">Cost:</span> ₹{Number(row.cost_inr ?? 0).toLocaleString('en-IN')}
-                      </p>
-                      <p>
-                        <span className="text-slate-500">Follow-up:</span>{' '}
-                        {row.follow_up_required
-                          ? row.follow_up_date
-                            ? formatDateLabel(row.follow_up_date)
-                            : 'Required'
-                          : 'No'}
-                      </p>
-                      {sla ? (
-                        <p className="sm:col-span-2">
-                          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${sla.className}`}>
-                            {sla.label}
-                          </span>
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-            {timelineRows.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-slate-200 bg-white p-4 text-center text-xs text-slate-500">
-                No field activities for this block yet.
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <aside className="space-y-3">
-          <form onSubmit={props.onSave} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-900">Add Field Activity</h3>
-              <button
-                type="button"
-                className="text-slate-500 text-xs"
-                aria-label="Collapse form"
-              >
-                ▴
-              </button>
-            </div>
-            {quickTypes.length > 0 ? (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {quickTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    type="button"
-                    onClick={() =>
-                      props.onFormChange((f) => ({
-                        ...f,
-                        activityTypeId: type.id,
-                        activityLabel: type.activity_name,
-                        activityType:
-                          type.category?.toLowerCase().includes('nutrition')
-                            ? 'fertigation'
-                            : type.category?.toLowerCase().includes('protection')
-                              ? 'spray_applied'
-                              : type.category?.toLowerCase().includes('observation')
-                                ? 'scouting'
-                                : 'other',
-                      }))
-                    }
-                    className={`rounded-full border px-2 py-1 text-[11px] ${
-                      props.form.activityTypeId === type.id
-                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {iconForType(type.icon)} {type.activity_name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-
-            <div className="mt-3 space-y-2 text-xs text-slate-600">
-              <label className="block">
-                Activity Type (dynamic) *
-                <select
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.activityTypeId}
-                  onChange={(e) => {
-                    const selected = props.activityTypes.find((t) => t.id === e.target.value);
-                    props.onFormChange((f) => ({
-                      ...f,
-                      activityTypeId: e.target.value,
-                      activityLabel: selected?.activity_name ?? f.activityLabel,
-                      activityType:
-                        selected?.category?.toLowerCase().includes('nutrition')
-                          ? 'fertigation'
-                          : selected?.category?.toLowerCase().includes('protection')
-                            ? 'spray_applied'
-                            : selected?.category?.toLowerCase().includes('observation')
-                              ? 'scouting'
-                              : 'other',
-                      followUpDate:
-                        f.followUpRequired && selected?.followup_default_days != null && f.activityDate
-                          ? new Date(
-                              new Date(`${f.activityDate}T00:00:00.000Z`).getTime() +
-                                selected.followup_default_days * 24 * 60 * 60 * 1000
-                            )
-                              .toISOString()
-                              .slice(0, 10)
-                          : f.followUpDate,
-                    }));
-                  }}
-                >
-                  {props.activityTypes.map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.activity_name} {type.crop ? `(${type.crop})` : '(all crops)'}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                Activity Type *
-                <select
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.activityType}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, activityType: e.target.value }))}
-                >
-                  <option value="other">Other</option>
-                  <option value="spray_applied">Spray applied</option>
-                  <option value="fertigation">Fertigation</option>
-                  <option value="drench">Drench</option>
-                  <option value="scouting">Scouting</option>
-                </select>
-              </label>
-              <label className="block">
-                Activity Label
-                <input
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.activityLabel}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, activityLabel: e.target.value }))}
-                  placeholder="e.g. Weed management"
-                />
-              </label>
-              <label className="block">
-                Activity Date *
-                <input
-                  type="date"
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.activityDate}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, activityDate: e.target.value }))}
-                  required
-                />
-              </label>
-              <label className="block">
-                DAP
-                <div className="mt-1 rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm font-medium text-slate-700">
-                  {props.form.dap || (dapForDisplay == null ? 'auto' : String(dapForDisplay))}
-                </div>
-              </label>
-              <label className="block">
-                Notes
-                <textarea
-                  className="mt-1 h-20 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.notes}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, notes: e.target.value }))}
-                />
-              </label>
-              <label className="block">
-                Cost (₹)
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.costInr}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, costInr: e.target.value }))}
-                  placeholder="Enter cost (optional)"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <label className="block">
-                  Labour ₹
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={props.form.labourCostInr}
-                    onChange={(e) => props.onFormChange((f) => ({ ...f, labourCostInr: e.target.value }))}
-                  />
-                </label>
-                <label className="block">
-                  Spray ₹
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={props.form.sprayCostInr}
-                    onChange={(e) => props.onFormChange((f) => ({ ...f, sprayCostInr: e.target.value }))}
-                  />
-                </label>
-                <label className="block">
-                  Fertilizer ₹
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={props.form.fertilizerCostInr}
-                    onChange={(e) =>
-                      props.onFormChange((f) => ({ ...f, fertilizerCostInr: e.target.value }))
-                    }
-                  />
-                </label>
-                <label className="block">
-                  Machinery ₹
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={props.form.machineryCostInr}
-                    onChange={(e) =>
-                      props.onFormChange((f) => ({ ...f, machineryCostInr: e.target.value }))
-                    }
-                  />
-                </label>
-              </div>
-              <div>
-                <p className="mb-1 text-xs">Follow-up Required</p>
-                <div className="inline-flex overflow-hidden rounded-md border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => props.onFormChange((f) => ({ ...f, followUpRequired: true }))}
-                    className={`px-3 py-1 text-xs font-medium ${
-                      props.form.followUpRequired
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    Yes
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      props.onFormChange((f) => ({ ...f, followUpRequired: false, followUpDate: '' }))
-                    }
-                    className={`px-3 py-1 text-xs font-medium ${
-                      !props.form.followUpRequired
-                        ? 'bg-slate-700 text-white'
-                        : 'bg-white text-slate-600'
-                    }`}
-                  >
-                    No
-                  </button>
-                </div>
-              </div>
-              {props.form.followUpRequired ? (
-                <label className="block">
-                  Follow-up Date
-                  <input
-                    type="date"
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                    value={props.form.followUpDate}
-                    onChange={(e) => props.onFormChange((f) => ({ ...f, followUpDate: e.target.value }))}
-                  />
-                </label>
-              ) : null}
-              <label className="block">
-                Status
-                <select
-                  className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                  value={props.form.status}
-                  onChange={(e) => props.onFormChange((f) => ({ ...f, status: e.target.value }))}
-                >
-                  <option value="completed">Completed</option>
-                  <option value="pending">Pending</option>
-                  <option value="cancelled">Cancelled</option>
-                </select>
-              </label>
-              <button
-                type="submit"
-                disabled={!props.canWrite || !props.selectedBlockId}
-                className="mt-1 w-full rounded bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                Save Activity
-              </button>
-            </div>
-          </form>
-          <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="text-sm font-semibold text-slate-900">Activity Summary (This Block)</h3>
-            <div className="mt-2 space-y-1 text-xs">
-              <p className="flex items-center justify-between text-slate-600">
-                <span>Total Activities</span>
-                <span className="font-semibold text-slate-900">{props.activities.length}</span>
-              </p>
-              <p className="flex items-center justify-between text-emerald-700">
-                <span>Completed</span>
-                <span className="font-semibold">{props.activities.filter((i) => i.activity_status === 'completed').length}</span>
-              </p>
-              <p className="flex items-center justify-between text-amber-700">
-                <span>Pending Follow-ups</span>
-                <span className="font-semibold">{pendingCount}</span>
-              </p>
-              <p className="flex items-center justify-between text-slate-900">
-                <span>Total Cost</span>
-                <span className="font-semibold">₹{totalCost.toLocaleString('en-IN')}</span>
-              </p>
-            </div>
-            <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 p-2.5 text-[11px] text-amber-800">
-              Tip: Regular activity logging helps accurate ROI and recommendations.
-            </div>
-            {selectedType ? (
-              <p className="mt-2 text-[11px] text-slate-500">
-                Current form type: {selectedType.activity_name} ({selectedType.category})
-              </p>
-            ) : null}
-            {props.pendingTasks.length > 0 ? (
-              <div className="mt-3 border-t border-slate-100 pt-2">
-                <p className="text-[11px] font-semibold uppercase text-slate-500">Upcoming follow-up tasks</p>
-                <div className="mt-1 space-y-1 text-[11px] text-slate-600">
-                  {props.pendingTasks.slice(0, 4).map((task) => (
-                    <p key={task.id}>
-                      {task.title ?? task.task_type} ({task.due_date})
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-          </section>
-        </aside>
-      </section>
-    </div>
-  );
-}

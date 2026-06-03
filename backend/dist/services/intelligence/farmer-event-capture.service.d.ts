@@ -89,5 +89,17 @@ export declare const farmerEventCaptureService: {
         findingId: string;
         agentEmail: string;
     }): Promise<void>;
+    trackInteractionSession(params: {
+        farmerId: string;
+        interactionLogId: string;
+        interactionType: string;
+        workflowStatus: string;
+        escalated: boolean;
+        outcome?: string | null;
+        nextAction?: string | null;
+        blockId?: string;
+        employeeEmail?: string | null;
+        occurredAt?: string;
+    }): Promise<void>;
 };
 //# sourceMappingURL=farmer-event-capture.service.d.ts.map

@@ -641,16 +641,22 @@ export const telecallerAdminService = {
         const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
         if (!lead)
             throw new NotFoundError('Lead not found');
+        const taskType = input.taskType ?? 'follow_up';
+        const safeType = ['follow_up', 'call', 'whatsapp', 'visit', 'other'].includes(taskType)
+            ? taskType
+            : 'other';
         const { data, error } = await supabase
             .from('crm_tasks')
             .insert({
             farmer_id: lead.farmer_id,
             lead_id: leadId,
+            block_id: input.blockId ?? null,
+            interaction_log_id: input.interactionLogId ?? null,
             assigned_to: agentEmail,
             title: input.title,
             notes: input.notes,
             due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
-            task_type: input.taskType ?? 'follow_up',
+            task_type: safeType,
         })
             .select()
             .single();

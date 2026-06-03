@@ -366,5 +366,25 @@ export const farmerEventCaptureService = {
             employeeEmail: params.agentEmail,
         });
     },
+    async trackInteractionSession(params) {
+        const eventType = params.escalated ? 'CROP_ASSESSMENT_REQUESTED' : 'CALLBACK_REQUESTED';
+        await this.recordSafe({
+            farmerId: params.farmerId,
+            eventType,
+            source: 'crm',
+            employeeEmail: params.employeeEmail ?? undefined,
+            referenceType: 'interaction_log',
+            referenceId: params.interactionLogId,
+            idempotencyKey: `ix:${params.interactionLogId}`,
+            occurredAt: params.occurredAt,
+            eventValue: {
+                interactionType: params.interactionType,
+                workflowStatus: params.workflowStatus,
+                outcome: params.outcome,
+                nextAction: params.nextAction,
+                blockId: params.blockId ?? null,
+            },
+        });
+    },
 };
 //# sourceMappingURL=farmer-event-capture.service.js.map

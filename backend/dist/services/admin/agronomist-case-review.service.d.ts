@@ -173,6 +173,17 @@ export declare const agronomistCaseReviewService: {
         verifiedAnswerIndexed: boolean;
         message: string;
     }>;
+    listDiagnosisLabels(params: {
+        cropType?: string | null;
+        search?: string | null;
+    }): Promise<string[]>;
+    createDiagnosisLabel(params: {
+        label: string;
+        cropType?: string | null;
+    }): Promise<{
+        id: string;
+        label: string;
+    }>;
 };
 export {};
 //# sourceMappingURL=agronomist-case-review.service.d.ts.map

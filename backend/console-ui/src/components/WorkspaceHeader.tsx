@@ -31,6 +31,8 @@ type Props = {
   showDate?: boolean;
   dateText?: string;
   notificationCount?: number;
+  /** When escalations are pending, badge uses alert styling (magenta). */
+  notificationTone?: 'default' | 'escalation';
   onNotificationsClick?: () => void;
   menuAlwaysVisible?: boolean;
 };
@@ -144,6 +146,7 @@ export function WorkspaceHeader({
   showDate = false,
   dateText = '',
   notificationCount = 0,
+  notificationTone = 'default',
   onNotificationsClick,
   menuAlwaysVisible = false,
 }: Props) {
@@ -241,12 +244,20 @@ export function WorkspaceHeader({
         <button
           type="button"
           className="tool-btn tool-btn-bell"
-          aria-label="Notifications"
+          aria-label={
+            notificationCount > 0
+              ? `${notificationCount} notification${notificationCount === 1 ? '' : 's'}`
+              : 'Notifications'
+          }
           onClick={onNotificationsClick}
         >
           <NavIcon name="bell" className="icon-tool" />
           {notificationCount > 0 ? (
-            <span className="bell-badge">{notificationCount > 99 ? '99+' : notificationCount}</span>
+            <span
+              className={`bell-badge${notificationTone === 'escalation' ? ' bell-badge--escalation' : ''}`}
+            >
+              {notificationCount > 99 ? '99+' : notificationCount}
+            </span>
           ) : null}
         </button>
 

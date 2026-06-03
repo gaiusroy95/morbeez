@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
-import { CRM_INTERACTION_TYPES } from './crmInteractionTypes';
 import { MasterSelect } from './MasterSelect';
+import { InteractionTypePicker } from './InteractionTypePicker';
+import { FieldActivityTypePicker } from '../operations/field-activities/FieldActivityTypePicker';
+import type { FieldActivityType } from '../operations/field-activities/field-activity-utils';
+import { CRM_WORKFLOW_STATUSES, type CrmWorkflowStatus } from './crmInteractionTypes';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
+const operationsBase = '/morbeez-staff/api/v1/os/operations';
 
 export type CrmModalType =
   | 'block'
@@ -171,28 +175,88 @@ function AddInteractionModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [interactionType, setInteractionType] = useState(CRM_INTERACTION_TYPES[0]);
+  const [interactionType, setInteractionType] = useState('');
+  const [interactionTypeName, setInteractionTypeName] = useState('');
   const [blockId, setBlockId] = useState('');
-  const [notes, setNotes] = useState('');
-  const [followUp, setFollowUp] = useState('');
+  const [summary, setSummary] = useState('');
+  const [interactionDate, setInteractionDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [addFieldFinding, setAddFieldFinding] = useState(false);
+  const [fieldFindingText, setFieldFindingText] = useState('');
+  const [addFieldActivity, setAddFieldActivity] = useState(false);
+  const [fieldActivityTypeId, setFieldActivityTypeId] = useState('');
+  const [fieldActivityLabel, setFieldActivityLabel] = useState('');
+  const [fieldActivityDate, setFieldActivityDate] = useState('');
+  const [fieldActivityTypes, setFieldActivityTypes] = useState<FieldActivityType[]>([]);
+  const [escalate, setEscalate] = useState(false);
+  const [recommendationCompleted, setRecommendationCompleted] = useState(false);
+  const [recommendationSummary, setRecommendationSummary] = useState('');
+  const [outcomeId, setOutcomeId] = useState('');
+  const [outcome, setOutcome] = useState('');
+  const [nextActionId, setNextActionId] = useState('');
+  const [nextAction, setNextAction] = useState('');
+  const [nextActionAt, setNextActionAt] = useState('');
+  const [workflowStatus, setWorkflowStatus] = useState<CrmWorkflowStatus>('Closed');
   const { saving, error, run } = useSubmit(onSaved, onClose);
+
+  const selectedBlock = blocks.find((b) => b.id === blockId);
+
+  useEffect(() => {
+    if (!addFieldActivity || !blockId) {
+      setFieldActivityTypes([]);
+      return;
+    }
+    const cropType = selectedBlock?.cropName ?? '';
+    void api<{ ok: boolean; types: FieldActivityType[] }>(
+      `${operationsBase}/field-activity-types?cropType=${encodeURIComponent(cropType)}&activeOnly=true`
+    )
+      .then((res) => setFieldActivityTypes(res.types ?? []))
+      .catch(() => setFieldActivityTypes([]));
+  }, [addFieldActivity, blockId, selectedBlock?.cropName]);
 
   return (
     <Modal
-      title="Log interaction"
+      title="Add interaction"
       onClose={onClose}
       saving={saving}
       onSave={() =>
         run(async () => {
+          if (!interactionTypeName.trim()) throw new Error('Interaction type is required');
+          if (!summary.trim()) throw new Error('Summary is required');
+          if ((addFieldFinding || addFieldActivity) && !blockId) {
+            throw new Error('Select a block for field finding or activity');
+          }
+          if (addFieldActivity && !fieldActivityDate) {
+            throw new Error('Field activity date is required');
+          }
+          const effectiveWorkflow: CrmWorkflowStatus = escalate
+            ? 'Escalated'
+            : workflowStatus === 'Closed' && nextAction.trim()
+              ? 'Active'
+              : workflowStatus;
           await api(`${base}/leads/${leadId}/interactions`, {
             method: 'POST',
             body: JSON.stringify({
-              interactionType: interactionType.trim(),
+              interactionType: interactionTypeName.trim(),
               blockId: blockId || undefined,
-              notes: notes.trim(),
-              summary: notes.trim() || interactionType.trim(),
-              nextActionAt: followUp || undefined,
-              status: 'completed',
+              summary: summary.trim(),
+              interactionAt: interactionDate
+                ? new Date(`${interactionDate}T12:00:00`).toISOString()
+                : undefined,
+              outcome: outcome.trim() || undefined,
+              nextAction: nextAction.trim() || undefined,
+              nextActionAt: nextActionAt ? new Date(nextActionAt).toISOString() : undefined,
+              workflowStatus: effectiveWorkflow,
+              fieldFindingText: addFieldFinding ? fieldFindingText.trim() || undefined : undefined,
+              addFieldFinding,
+              fieldActivityLabel: addFieldActivity ? fieldActivityLabel.trim() || undefined : undefined,
+              fieldActivityTypeId: addFieldActivity ? fieldActivityTypeId || undefined : undefined,
+              fieldActivityDate: addFieldActivity ? fieldActivityDate : undefined,
+              addFieldActivity,
+              recommendationSummary: recommendationCompleted
+                ? recommendationSummary.trim() || summary.trim()
+                : undefined,
+              recommendationCompleted,
+              escalate,
             }),
           });
         })
@@ -200,18 +264,21 @@ function AddInteractionModal({
     >
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
-        <Field label="Interaction type">
-          <select
+        <InteractionTypePicker
+          value={interactionType}
+          onChange={(id, name) => {
+            setInteractionType(id);
+            setInteractionTypeName(name);
+          }}
+          required
+        />
+        <Field label="Interaction date">
+          <input
+            type="date"
             className={inputClass}
-            value={interactionType}
-            onChange={(e) => setInteractionType(e.target.value)}
-          >
-            {CRM_INTERACTION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+            value={interactionDate}
+            onChange={(e) => setInteractionDate(e.target.value)}
+          />
         </Field>
         <Field label="Block">
           <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
@@ -223,15 +290,138 @@ function AddInteractionModal({
             ))}
           </select>
         </Field>
-        <Field label="Notes">
-          <textarea className={inputClass} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <Field label="Summary">
+          <textarea
+            className={inputClass}
+            rows={3}
+            value={summary}
+            placeholder="Communication summary for this operational session…"
+            onChange={(e) => setSummary(e.target.value)}
+          />
         </Field>
-        <Field label="Next follow-up">
+
+        <div className="tc-ix-form-checks space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={addFieldFinding}
+              onChange={(e) => setAddFieldFinding(e.target.checked)}
+            />
+            Add field finding
+          </label>
+          {addFieldFinding ? (
+            <Field label="Field finding">
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={fieldFindingText}
+                onChange={(e) => setFieldFindingText(e.target.value)}
+              />
+            </Field>
+          ) : null}
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={addFieldActivity}
+              onChange={(e) => setAddFieldActivity(e.target.checked)}
+            />
+            Add field activity
+          </label>
+          {addFieldActivity ? (
+            <>
+              <FieldActivityTypePicker
+                label="Field activity"
+                types={fieldActivityTypes}
+                value={fieldActivityTypeId}
+                cropType={selectedBlock?.cropName}
+                apiBase={operationsBase}
+                onChange={(type) => {
+                  setFieldActivityTypeId(type?.id ?? '');
+                  setFieldActivityLabel(type?.activity_name ?? '');
+                }}
+                onTypeCreated={(type) => {
+                  setFieldActivityTypes((prev) => [...prev, type]);
+                  setFieldActivityTypeId(type.id);
+                  setFieldActivityLabel(type.activity_name);
+                }}
+              />
+              <Field label="Activity date (independent from interaction date)">
+                <input
+                  type="date"
+                  className={inputClass}
+                  value={fieldActivityDate}
+                  onChange={(e) => setFieldActivityDate(e.target.value)}
+                />
+              </Field>
+            </>
+          ) : null}
+
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={escalate} onChange={(e) => setEscalate(e.target.checked)} />
+            Escalate
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={recommendationCompleted}
+              onChange={(e) => setRecommendationCompleted(e.target.checked)}
+            />
+            Recommendation completed
+          </label>
+          {recommendationCompleted ? (
+            <Field label="Recommendation">
+              <textarea
+                className={inputClass}
+                rows={2}
+                value={recommendationSummary}
+                placeholder="Technical / product recommendation summary…"
+                onChange={(e) => setRecommendationSummary(e.target.value)}
+              />
+            </Field>
+          ) : null}
+        </div>
+
+        <MasterSelect
+          masterType="interaction_outcome"
+          label="Interaction outcome"
+          value={outcomeId}
+          onChange={(id, name) => {
+            setOutcomeId(id);
+            setOutcome(name);
+          }}
+        />
+        <MasterSelect
+          masterType="interaction_next_action"
+          label="Next action"
+          value={nextActionId}
+          onChange={(id, name) => {
+            setNextActionId(id);
+            setNextAction(name);
+            if (name.trim() && workflowStatus === 'Closed') setWorkflowStatus('Active');
+          }}
+        />
+        <Field label="Workflow status">
+          <select
+            className={inputClass}
+            value={escalate ? 'Escalated' : workflowStatus}
+            disabled={escalate}
+            onChange={(e) => setWorkflowStatus(e.target.value as CrmWorkflowStatus)}
+          >
+            {CRM_WORKFLOW_STATUSES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Next action due (optional — or auto from &quot;after N days&quot;)">
           <input
             type="datetime-local"
             className={inputClass}
-            value={followUp}
-            onChange={(e) => setFollowUp(e.target.value)}
+            value={nextActionAt}
+            onChange={(e) => setNextActionAt(e.target.value)}
           />
         </Field>
       </div>

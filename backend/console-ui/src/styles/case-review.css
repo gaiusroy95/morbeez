@@ -1250,3 +1250,38 @@
     overflow-x: auto;
   }
 }
+
+/* Dynamic diagnosis picker (Case Review) */
+.cr-field .fatp-root {
+  gap: 0;
+}
+
+.cr-field .fatp-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cr-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cr-field .fatp-trigger {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--cr-border);
+  border-radius: var(--cr-radius-sm);
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--cr-text);
+  background: var(--cr-surface);
+}
+
+.cr-field .fatp-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.cr-field .fatp-panel {
+  z-index: 80;
+}

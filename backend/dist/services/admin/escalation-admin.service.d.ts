@@ -1,4 +1,6 @@
 export type EscalationWorkflowStatus = 'pending' | 'agronomist_review' | 'completed';
+/** DB statuses that still need agronomist attention */
+export declare const OPEN_ESCALATION_DB_STATUSES: readonly ["pending", "assigned", "in_review"];
 declare function workflowFromDbStatus(dbStatus: string): {
     workflowStatus: EscalationWorkflowStatus;
     statusLabel: string;

@@ -131,7 +131,7 @@ function parseReviewAction(raw) {
 }
 export const agronomistCaseReviewService = {
     async listQueue(params) {
-        const status = params.status ?? 'pending';
+        const status = params.status ?? 'open';
         const limit = Math.min(params.limit ?? 24, 50);
         const page = params.page ?? 1;
         const { items, total } = await escalationAdminService.list({
@@ -635,6 +635,113 @@ export const agronomistCaseReviewService = {
                     : 'Submitted for Super Admin approval. Verified reuse is indexed after approval.'
                 : 'Review saved as draft.',
         };
+    },
+    async listDiagnosisLabels(params) {
+        const labels = new Set();
+        const crop = params.cropType?.trim().toLowerCase() || null;
+        const search = params.search?.trim().toLowerCase() || '';
+        const defaultLabels = [
+            'Pyricularia leaf blast',
+            'high humidity',
+            'rain-induced disease spread risk',
+            'Thrips damage',
+            'Heat stress',
+            'Leaf spot (fungal)',
+            'Nutrient deficiency',
+            'Root rot',
+            'Bacterial wilt',
+            'Compost comparison — vermi vs city',
+            'Organic matter / compost advisory',
+            'Fertigation scheduling',
+            'Weed management',
+        ];
+        for (const label of defaultLabels)
+            labels.add(label);
+        const { data: masters, error: mErr } = await supabase
+            .from('crm_masters')
+            .select('name, category')
+            .eq('master_type', 'disease')
+            .eq('active', true)
+            .order('sort_order', { ascending: true })
+            .order('name', { ascending: true })
+            .limit(300);
+        if (mErr)
+            throw mErr;
+        for (const row of masters ?? []) {
+            const name = String(row.name ?? '').trim();
+            if (!name)
+                continue;
+            const rowCrop = row.category ? String(row.category).trim().toLowerCase() : null;
+            if (!crop || !rowCrop || rowCrop === crop)
+                labels.add(name);
+        }
+        let rtq = supabase
+            .from('recommendation_templates')
+            .select('issue_label_en, crop_type')
+            .not('issue_label_en', 'is', null)
+            .neq('status', 'archived')
+            .limit(200);
+        if (crop)
+            rtq = rtq.eq('crop_type', crop);
+        const { data: templates, error: tErr } = await rtq;
+        if (tErr)
+            throw tErr;
+        for (const row of templates ?? []) {
+            const name = String(row.issue_label_en ?? '').trim();
+            if (name)
+                labels.add(name);
+        }
+        const { data: history, error: hErr } = await supabase
+            .from('disease_history')
+            .select('issue_label, crop_type')
+            .order('recorded_at', { ascending: false })
+            .limit(300);
+        if (hErr)
+            throw hErr;
+        for (const row of history ?? []) {
+            const name = String(row.issue_label ?? '').trim();
+            if (!name)
+                continue;
+            const rowCrop = row.crop_type ? String(row.crop_type).trim().toLowerCase() : null;
+            if (!crop || !rowCrop || rowCrop === crop)
+                labels.add(name);
+        }
+        let list = [...labels].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        if (search) {
+            list = list.filter((label) => label.toLowerCase().includes(search));
+        }
+        return list.slice(0, 120);
+    },
+    async createDiagnosisLabel(params) {
+        const name = params.label.trim();
+        if (!name)
+            throw new Error('Diagnosis label is required');
+        const crop = params.cropType?.trim().toLowerCase() || null;
+        const { data: existing, error: findErr } = await supabase
+            .from('crm_masters')
+            .select('id, name')
+            .eq('master_type', 'disease')
+            .ilike('name', name)
+            .maybeSingle();
+        if (findErr)
+            throw findErr;
+        if (existing?.id) {
+            return { id: String(existing.id), label: String(existing.name) };
+        }
+        const { data, error } = await supabase
+            .from('crm_masters')
+            .insert({
+            master_type: 'disease',
+            name,
+            category: crop,
+            active: true,
+            sort_order: 50,
+        })
+            .select('id, name')
+            .single();
+        if (error)
+            throw error;
+        return { id: String(data.id), label: String(data.name) };
     },
 };
 //# sourceMappingURL=agronomist-case-review.service.js.map

@@ -17,7 +17,7 @@ function extractCandidateTokens(message: string): string[] {
     const bare = w.replace(/[^\p{L}\p{N}]/gu, '');
     if (bare.length < 2 || bare.length > 24) continue;
     if (
-      /^(hi|hello|menu|yes|no|ok|aanu|aano|und|illa|varunnu|varilla|cheyy|check|yellow|weak|fine|good|bad)$/i.test(
+      /^(hi|hello|menu|yes|no|ok|did|done|have|was|i|we|the|aanu|aano|und|illa|varunnu|varilla|cheyy|check|yellow|weak|fine|good|bad)$/i.test(
         bare
       )
     ) {

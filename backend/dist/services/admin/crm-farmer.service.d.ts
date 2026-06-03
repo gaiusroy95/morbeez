@@ -1,4 +1,4 @@
-export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
+export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'interaction_outcome' | 'interaction_next_action' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
 export declare const crmFarmerService: {
     listMasters(type: MasterType, parentId?: string | null, search?: string): Promise<{
         id: any;
@@ -390,17 +390,17 @@ export declare const crmFarmerService: {
             pages: number;
         };
     }>;
-    /** Telecaller CRM tab — human/agronomist activity only (no raw WhatsApp chat logs). */
+    /** Telecaller CRM tab — operational workflow sessions only (no merged micro-events). */
     listHumanCrmInteractions(farmerId: string, leadId: string | null, page?: number, limit?: number): Promise<{
         interactions: {
+            typeKey: string;
+            typeIcon: string;
+            typeCategory: string;
             displayStatus: string;
             statusTone: string;
             nextActionLabel: string | null;
             blockName: string | null;
             blockId: string | null;
-            typeKey: string;
-            typeIcon: string;
-            typeCategory: string;
             id: string;
             at: string;
             interactionType: string;
@@ -418,6 +418,12 @@ export declare const crmFarmerService: {
             canEdit: boolean;
             nextAction?: string | null;
             nextActionAt?: string | null;
+            fieldFinding?: string | null;
+            fieldActivity?: string | null;
+            activityDateLabel?: string | null;
+            recommendation?: string | null;
+            outcome?: string | null;
+            workflowStatus?: string | null;
         }[];
         pagination: {
             page: number;
@@ -535,25 +541,55 @@ export declare const crmFarmerService: {
         blockId?: string;
         summary?: string;
         notes?: string;
+        interactionAt?: string;
+        outcome?: string;
         nextAction?: string;
         nextActionAt?: string;
+        workflowStatus?: string;
+        fieldFindingText?: string;
+        addFieldFinding?: boolean;
+        fieldActivityLabel?: string;
+        fieldActivityTypeId?: string;
+        fieldActivityDate?: string;
+        addFieldActivity?: boolean;
+        recommendationSummary?: string;
+        recommendationCompleted?: boolean;
+        escalate?: boolean;
         status?: string;
         doneBy?: string;
         doneByRole?: string;
     }): Promise<{
-        id: unknown;
-        atLabel: string | null;
-        type: string;
-        typeLabel: string;
-        icon: string;
-        by: {};
-        role: {};
-        summary: {};
-        nextAction: {};
-        nextDate: string;
-        status: string;
+        typeKey: string;
+        typeIcon: string;
+        typeCategory: string;
+        displayStatus: string;
         statusTone: string;
-        block: string;
+        nextActionLabel: string | null;
+        blockName: string | null;
+        blockId: string | null;
+        id: string;
+        at: string;
+        interactionType: string;
+        summary: string;
+        status: string;
+        completionStatus: "pending" | "completed" | null;
+        by: string;
+        role: string;
+        createdLabel: string;
+        dueLabel: string | null;
+        isDueToday: boolean;
+        taskId: string | null;
+        source: InteractionSource;
+        canArchive: boolean;
+        canEdit: boolean;
+        nextAction?: string | null;
+        nextActionAt?: string | null;
+        fieldFinding?: string | null;
+        fieldActivity?: string | null;
+        activityDateLabel?: string | null;
+        recommendation?: string | null;
+        outcome?: string | null;
+        workflowStatus?: string | null;
     }>;
     getAgronomist(farmerId: string): Promise<AgronomistProfile>;
     upsertAgronomist(farmerId: string, input: Partial<{

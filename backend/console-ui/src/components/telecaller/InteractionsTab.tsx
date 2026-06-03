@@ -16,6 +16,13 @@ export type InteractionRow = InteractionListRow & {
   blockId?: string | null;
   canArchive?: boolean;
   summary?: string;
+  fieldFinding?: string | null;
+  fieldActivity?: string | null;
+  activityDateLabel?: string | null;
+  recommendation?: string | null;
+  outcome?: string | null;
+  workflowStatus?: string | null;
+  nextAction?: string | null;
 };
 
 type BlockOption = { id: string; name: string; cropName?: string };
@@ -23,7 +30,7 @@ type BlockOption = { id: string; name: string; cropName?: string };
 type Filters = {
   typeKey: string;
   employee: string;
-  statusTone: string;
+  workflowStatus: string;
   blockId: string;
   dateFrom: string;
   dateTo: string;
@@ -31,29 +38,25 @@ type Filters = {
 
 const TYPE_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'call', label: 'Call' },
   { value: 'whatsapp', label: 'WhatsApp' },
-  { value: 'recommendation', label: 'Recommendation' },
   { value: 'follow_up', label: 'Follow-up' },
   { value: 'field_visit', label: 'Field visit' },
-  { value: 'order', label: 'Order' },
-  { value: 'ai_diagnosis', label: 'AI diagnosis' },
-  { value: 'note', label: 'Note' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'roi', label: 'ROI' },
+  { value: 'note', label: 'Other' },
 ];
 
-const STATUS_OPTIONS = [
+const WORKFLOW_OPTIONS = [
   { value: '', label: 'All' },
-  { value: 'success', label: 'Completed' },
-  { value: 'info', label: 'Sent / Active' },
-  { value: 'warning', label: 'Pending' },
-  { value: 'review', label: 'Under review' },
-  { value: 'purple', label: 'Active' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Closed', label: 'Closed' },
+  { value: 'Escalated', label: 'Escalated' },
 ];
 
 const EMPTY_FILTERS: Filters = {
   typeKey: '',
   employee: '',
-  statusTone: '',
+  workflowStatus: '',
   blockId: '',
   dateFrom: '',
   dateTo: '',
@@ -109,6 +112,10 @@ function statusClass(tone: string | undefined): string {
     default:
       return 'tc-ix-status tc-ix-status--success';
   }
+}
+
+function dash(value: string | null | undefined): string {
+  return value?.trim() ? value : '—';
 }
 
 function toListRow(r: InteractionRow): InteractionListRow {
@@ -199,7 +206,7 @@ export function InteractionsTab({
     return allItems.filter((r) => {
       if (filters.typeKey && r.typeKey !== filters.typeKey) return false;
       if (filters.employee && r.by !== filters.employee) return false;
-      if (filters.statusTone && r.statusTone !== filters.statusTone) return false;
+      if (filters.workflowStatus && r.workflowStatus !== filters.workflowStatus) return false;
       if (filters.blockId && r.blockId !== filters.blockId) return false;
       if (filters.dateFrom && r.at) {
         if (new Date(r.at) < new Date(filters.dateFrom)) return false;
@@ -232,7 +239,9 @@ export function InteractionsTab({
       <div className="tc-ix-header">
         <div>
           <h2 className="tc-ix-title">Interactions</h2>
-          <p className="tc-ix-subtitle">All activities and interactions with this farmer</p>
+          <p className="tc-ix-subtitle">
+            Operational crop story — meaningful workflow sessions, not system micro-events
+          </p>
         </div>
         <div className="tc-ix-header-actions">
           {canWrite ? (
@@ -312,15 +321,15 @@ export function InteractionsTab({
             </div>
           </label>
           <label className="tc-ix-filter-field">
-            <span>Status</span>
+            <span>Workflow</span>
             <select
-              value={filters.statusTone}
+              value={filters.workflowStatus}
               onChange={(e) => {
-                setFilters((f) => ({ ...f, statusTone: e.target.value }));
+                setFilters((f) => ({ ...f, workflowStatus: e.target.value }));
                 setPage(1);
               }}
             >
-              {STATUS_OPTIONS.map((o) => (
+              {WORKFLOW_OPTIONS.map((o) => (
                 <option key={o.value || 'all'} value={o.value}>
                   {o.label}
                 </option>
@@ -353,27 +362,80 @@ export function InteractionsTab({
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
-      <div className="tc-ix-table-wrap">
+      <div className="tc-ix-timeline-mobile">
+        {loading ? (
+          <p className="tc-ix-empty">Loading interactions…</p>
+        ) : pageItems.length === 0 ? (
+          <p className="tc-ix-empty">
+            No operational sessions yet. Add an interaction to log communication, findings, and next steps in one
+            session.
+          </p>
+        ) : (
+          pageItems.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              className={`tc-ix-timeline-card ${r.workflowStatus === 'Active' ? 'tc-ix-timeline-card--active' : ''}`}
+              onClick={() => onOpenDetail(toListRow(r))}
+            >
+              <div className="tc-ix-timeline-date">{r.createdLabel ?? '—'}</div>
+              <div className="tc-ix-timeline-head">
+                <span className="tc-ix-timeline-icon" aria-hidden>
+                  {r.typeIcon ?? '📝'}
+                </span>
+                <strong>{r.typeCategory ?? r.interactionType ?? 'Interaction'}</strong>
+              </div>
+              {r.summary ? <p className="tc-ix-timeline-summary">{String(r.summary).slice(0, 160)}</p> : null}
+              {r.fieldFinding ? (
+                <p className="tc-ix-timeline-meta">
+                  <span>Finding:</span> {r.fieldFinding}
+                </p>
+              ) : null}
+              {r.fieldActivity ? (
+                <p className="tc-ix-timeline-meta">
+                  <span>Activity:</span> {r.fieldActivity}
+                  {r.activityDateLabel ? ` · ${r.activityDateLabel}` : ''}
+                </p>
+              ) : null}
+              {r.outcome ? (
+                <p className="tc-ix-timeline-meta">
+                  <span>Outcome:</span> {r.outcome}
+                </p>
+              ) : null}
+              {r.nextAction ? (
+                <p className="tc-ix-timeline-meta">
+                  <span>Next:</span> {r.nextAction}
+                </p>
+              ) : null}
+              <span className={statusClass(r.statusTone)}>{r.displayStatus ?? r.workflowStatus ?? '—'}</span>
+            </button>
+          ))
+        )}
+      </div>
+
+      <div className="tc-ix-table-wrap tc-ix-table-wrap--desktop">
         {loading ? (
           <p className="tc-ix-empty">Loading interactions…</p>
         ) : (
-          <table className="tc-ix-table">
+          <table className="tc-ix-table tc-ix-table--sessions">
             <thead>
               <tr>
-                <th>Date &amp; time</th>
-                <th>Interaction type</th>
-                <th>Done by</th>
+                <th>Interaction date</th>
+                <th>Type</th>
                 <th>Summary</th>
+                <th>Field finding</th>
+                <th>Field activity</th>
+                <th>Activity date</th>
+                <th>Recommendation</th>
+                <th>Outcome</th>
                 <th>Next action</th>
-                <th>Status</th>
-                <th>Block</th>
+                <th>Workflow</th>
                 <th className="tc-ix-th-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
               {pageItems.map((r) => {
-                const rowClass =
-                  r.isDueToday && r.completionStatus === 'pending' ? 'tc-ix-row--due' : '';
+                const rowClass = r.workflowStatus === 'Active' ? 'tc-ix-row--due' : '';
                 return (
                   <tr
                     key={r.id}
@@ -389,27 +451,24 @@ export function InteractionsTab({
                         <span>{r.typeCategory ?? r.interactionType ?? '—'}</span>
                       </div>
                     </td>
-                    <td>
-                      <div className="tc-ix-by">
-                        <strong>{r.by ?? '—'}</strong>
-                        {r.role ? <span>{r.role}</span> : null}
-                      </div>
-                    </td>
-                    <td className="tc-ix-summary">{String(r.summary ?? '—').slice(0, 140)}</td>
+                    <td className="tc-ix-summary">{String(r.summary ?? '—').slice(0, 120)}</td>
+                    <td className="tc-ix-cell-compact">{dash(r.fieldFinding)}</td>
+                    <td className="tc-ix-cell-compact">{dash(r.fieldActivity)}</td>
+                    <td className="tc-ix-date">{dash(r.activityDateLabel)}</td>
+                    <td className="tc-ix-cell-compact">{dash(r.recommendation)}</td>
+                    <td className="tc-ix-cell-compact">{dash(r.outcome)}</td>
                     <td className="tc-ix-next">
-                      {r.nextActionLabel ? (
-                        <span className="tc-ix-next-pill">{r.nextActionLabel}</span>
+                      {r.nextAction ? (
+                        <span className="tc-ix-next-pill">{r.nextActionLabel ?? r.nextAction}</span>
                       ) : (
                         <span className="tc-ix-muted">—</span>
                       )}
                     </td>
                     <td>
                       <span className={statusClass(r.statusTone)}>
-                        {r.displayStatus ?? r.status ?? '—'}
-                        {r.isDueToday && r.completionStatus === 'pending' ? ' · today' : ''}
+                        {r.displayStatus ?? r.workflowStatus ?? '—'}
                       </span>
                     </td>
-                    <td className="tc-ix-block">{r.blockName ?? '—'}</td>
                     <td className="tc-ix-actions" onClick={(e) => e.stopPropagation()}>
                       <div className="tc-ix-menu-wrap">
                         <button
@@ -456,7 +515,8 @@ export function InteractionsTab({
         )}
         {!loading && pageItems.length === 0 ? (
           <p className="tc-ix-empty">
-            No interactions match your filters. Log a call, follow-up, or visit to get started.
+            No operational sessions yet. Add an interaction to log communication, findings, and next steps in one
+            session.
           </p>
         ) : null}
       </div>
@@ -464,8 +524,8 @@ export function InteractionsTab({
       {!loading && total > 0 ? (
         <div className="tc-ix-footer">
           <p className="tc-ix-footer-meta">
-            Showing {(safePage - 1) * rowsPerPage + 1} to {Math.min(safePage * rowsPerPage, total)}{' '}
-            of {total} interactions
+            Showing {(safePage - 1) * rowsPerPage + 1} to {Math.min(safePage * rowsPerPage, total)} of {total}{' '}
+            sessions
           </p>
           <div className="tc-ix-pagination">
             <button

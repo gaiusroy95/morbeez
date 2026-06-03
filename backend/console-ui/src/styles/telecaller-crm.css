@@ -21,6 +21,63 @@
   font-size: 14px;
 }
 
+.telecaller-page .tc-notification-escalation {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fbcfe8;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fdf2f8 0%, #fff 100%);
+}
+
+.telecaller-page .tc-notification-escalation-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #db2777;
+  color: #fff;
+  font-size: 14px;
+}
+
+.telecaller-page .tc-notification-escalation-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.telecaller-page .tc-notification-escalation-body strong {
+  display: block;
+  font-size: 13px;
+  color: #9d174d;
+}
+
+.telecaller-page .tc-notification-escalation-body p {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #831843;
+}
+
+.telecaller-page .tc-notification-escalation-btn {
+  border: none;
+  border-radius: 8px;
+  background: #db2777;
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.telecaller-page .tc-notification-escalation-btn:hover {
+  background: #be185d;
+}
+
 .telecaller-page .tc-notification-item {
   display: flex;
   justify-content: space-between;
@@ -1241,6 +1298,108 @@
 .tc-ix-status--purple {
   background: #f3e8ff;
   color: #7e22ce;
+}
+
+.tc-ix-cell-compact {
+  font-size: 0.75rem;
+  color: #475569;
+  max-width: 9rem;
+  vertical-align: top;
+}
+
+.tc-ix-table--sessions th,
+.tc-ix-table--sessions td {
+  font-size: 0.72rem;
+}
+
+.tc-ix-form-checks label {
+  cursor: pointer;
+  color: #334155;
+}
+
+.tc-ix-timeline-mobile {
+  display: none;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.tc-ix-timeline-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.875rem 1rem;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.tc-ix-timeline-card:hover {
+  border-color: #86efac;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.tc-ix-timeline-card--active {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+.tc-ix-timeline-date {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 0.35rem;
+}
+
+.tc-ix-timeline-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  margin-bottom: 0.35rem;
+}
+
+.tc-ix-timeline-icon {
+  font-size: 1rem;
+}
+
+.tc-ix-timeline-summary {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: #334155;
+  margin: 0 0 0.5rem;
+}
+
+.tc-ix-timeline-meta {
+  font-size: 0.75rem;
+  color: #475569;
+  margin: 0.15rem 0;
+}
+
+.tc-ix-timeline-meta span {
+  font-weight: 600;
+  color: #64748b;
+}
+
+@media (max-width: 960px) {
+  .tc-ix-table-wrap--desktop {
+    display: none;
+  }
+
+  .tc-ix-timeline-mobile {
+    display: flex;
+  }
+}
+
+@media (min-width: 961px) {
+  .tc-ix-timeline-mobile {
+    display: none;
+  }
 }
 
 .tc-ix-block {

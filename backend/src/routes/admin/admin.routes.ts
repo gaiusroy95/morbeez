@@ -1629,10 +1629,22 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .object({
         interactionType: z.string().min(1),
         blockId: z.string().uuid().optional(),
-        summary: z.string().optional(),
+        summary: z.string().min(1),
         notes: z.string().optional(),
+        interactionAt: z.string().optional(),
+        outcome: z.string().optional(),
         nextAction: z.string().optional(),
         nextActionAt: z.string().optional(),
+        workflowStatus: z.enum(['Active', 'Closed', 'Escalated']).optional(),
+        fieldFindingText: z.string().optional(),
+        addFieldFinding: z.boolean().optional(),
+        fieldActivityLabel: z.string().optional(),
+        fieldActivityTypeId: z.string().uuid().optional(),
+        fieldActivityDate: z.string().optional(),
+        addFieldActivity: z.boolean().optional(),
+        recommendationSummary: z.string().optional(),
+        recommendationCompleted: z.boolean().optional(),
+        escalate: z.boolean().optional(),
         status: z.string().optional(),
       })
       .parse(request.body);

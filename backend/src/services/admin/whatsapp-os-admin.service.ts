@@ -98,6 +98,63 @@ export const whatsappOsAdminService = {
     return data ?? [];
   },
 
+  async createFieldActivityType(params: {
+    activityName: string;
+    category?: string;
+    crop?: string | null;
+    icon?: string | null;
+    colorTag?: string | null;
+    followupDefaultDays?: number | null;
+  }) {
+    const activityName = params.activityName.trim();
+    if (!activityName) throw new Error('Activity name is required');
+    const crop = params.crop?.trim().toLowerCase() || null;
+    const category = (params.category?.trim() || 'operations').toLowerCase();
+
+    const { data: existing, error: findErr } = await (crop
+      ? supabase
+          .from('field_activity_types')
+          .select('*')
+          .eq('activity_name', activityName)
+          .eq('crop', crop)
+      : supabase
+          .from('field_activity_types')
+          .select('*')
+          .eq('activity_name', activityName)
+          .is('crop', null)
+    ).maybeSingle();
+    throwIfSupabaseError(findErr, 'Could not validate field activity type');
+    if (existing?.id) {
+      if (!existing.active_status) {
+        const { data: revived, error: reviveErr } = await supabase
+          .from('field_activity_types')
+          .update({ active_status: true, updated_at: new Date().toISOString() })
+          .eq('id', existing.id)
+          .select('*')
+          .single();
+        throwIfSupabaseError(reviveErr, 'Could not reactivate field activity type');
+        return revived;
+      }
+      return existing;
+    }
+
+    const { data, error } = await supabase
+      .from('field_activity_types')
+      .insert({
+        activity_name: activityName,
+        category,
+        crop,
+        icon: params.icon?.trim() || 'layers',
+        color_tag: params.colorTag?.trim() || 'emerald',
+        followup_default_days: params.followupDefaultDays ?? null,
+        active_status: true,
+      })
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Could not create field activity type');
+    return data;
+  },
+
   async listFieldPendingTasks(params: { blockId: string; limit?: number }) {
     const { data, error } = await supabase
       .from('pending_tasks')

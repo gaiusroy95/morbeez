@@ -204,9 +204,29 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       )
       .subscribe();
 
+    const escalationsChannel = realtimeClient
+      .channel('telecaller-escalations-live')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'agronomist_escalations' },
+        () => {
+          pushNotification('New escalation submitted for agronomist case review.');
+          void load({ silent: true });
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'agronomist_escalations' },
+        () => {
+          void load({ silent: true });
+        }
+      )
+      .subscribe();
+
     return () => {
       void realtimeClient.removeChannel(leadsChannel);
       void realtimeClient.removeChannel(tasksChannel);
+      void realtimeClient.removeChannel(escalationsChannel);
     };
   }, [realtimeClient, load, pushNotification]);
 
@@ -245,6 +265,11 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       onAddLead: () => setShowNewLead(true),
       selectedPhone: selectedLead?.phone ?? null,
       unreadNotifications,
+      pendingEscalations,
+      onViewEscalations: () => {
+        setShowNotifications(false);
+        setCrmView('escalations');
+      },
       notifications,
       showNotifications,
       setShowNotifications,
@@ -261,6 +286,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
     canWrite,
     selectedLead?.phone,
     unreadNotifications,
+    pendingEscalations,
     notifications,
     showNotifications,
   ]);
@@ -302,7 +328,33 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       {showNotifications ? (
         <div className="tc-notification-panel">
           <h4>Notifications</h4>
-          {notifications.length === 0 ? <p className="muted">No new notifications.</p> : null}
+          {pendingEscalations > 0 ? (
+            <div className="tc-notification-escalation">
+              <div className="tc-notification-escalation-icon" aria-hidden>
+                🔔
+              </div>
+              <div className="tc-notification-escalation-body">
+                <strong>
+                  {pendingEscalations > 9 ? '9+' : pendingEscalations} escalation review
+                  {pendingEscalations === 1 ? '' : 's'} pending
+                </strong>
+                <p>Agronomist case review has been requested. Open Escalations to track status.</p>
+                <button
+                  type="button"
+                  className="tc-notification-escalation-btn"
+                  onClick={() => {
+                    setShowNotifications(false);
+                    setCrmView('escalations');
+                  }}
+                >
+                  View escalations
+                </button>
+              </div>
+            </div>
+          ) : null}
+          {notifications.length === 0 && pendingEscalations === 0 ? (
+            <p className="muted">No new notifications.</p>
+          ) : null}
           {notifications.map((n) => (
             <div key={n.id} className="tc-notification-item">
               <strong>{n.message}</strong>

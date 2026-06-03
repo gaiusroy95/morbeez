@@ -572,6 +572,8 @@ export declare const telecallerAdminService: {
         dueAt?: string;
         notes?: string;
         taskType?: string;
+        blockId?: string;
+        interactionLogId?: string;
     }, agentEmail: string): Promise<any>;
     updateTask(taskId: string, input: {
         title?: string;

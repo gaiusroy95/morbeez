@@ -1,0 +1,166 @@
+.fatp-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.fatp-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #475569;
+}
+
+.fatp-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  text-align: left;
+  font-size: 0.875rem;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.fatp-trigger:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+.fatp-trigger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fatp-trigger-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fatp-trigger-text--placeholder {
+  color: #94a3b8;
+}
+
+.fatp-chevron {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.fatp-panel {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+}
+
+.fatp-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fatp-search-icon {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  padding-left: 0.15rem;
+}
+
+.fatp-search {
+  flex: 1;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+}
+
+.fatp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.fatp-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fatp-option:hover {
+  background: #f8fafc;
+}
+
+.fatp-option--selected {
+  background: #ecfdf5;
+}
+
+.fatp-option-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.fatp-option-meta {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.fatp-empty {
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.fatp-create {
+  border: none;
+  border-top: 1px solid #e2e8f0;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.65rem 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fatp-create:hover:not(:disabled) {
+  background: #dcfce7;
+}
+
+.fatp-create:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.fatp-error {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border-top: 1px solid #fecaca;
+}

@@ -383,6 +383,11 @@
   border: 2px solid var(--card);
 }
 
+.bell-badge--escalation {
+  background: #db2777;
+  box-shadow: 0 0 0 1px rgba(219, 39, 119, 0.25);
+}
+
 /* Page content under workspace topbar */
 .console-page-content,
 .route-telecaller .content {

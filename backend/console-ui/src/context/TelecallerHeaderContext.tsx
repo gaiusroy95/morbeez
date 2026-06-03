@@ -18,6 +18,8 @@ export type TelecallerHeaderState = {
   onAddLead: () => void;
   selectedPhone: string | null;
   unreadNotifications: number;
+  pendingEscalations: number;
+  onViewEscalations: () => void;
   notifications: CrmNotification[];
   showNotifications: boolean;
   setShowNotifications: Dispatch<SetStateAction<boolean>>;
@@ -31,6 +33,8 @@ const defaultState: TelecallerHeaderState = {
   onAddLead: () => {},
   selectedPhone: null,
   unreadNotifications: 0,
+  pendingEscalations: 0,
+  onViewEscalations: () => {},
   notifications: [],
   showNotifications: false,
   setShowNotifications: () => {},

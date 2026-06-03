@@ -51,7 +51,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     await assertModuleAccess(request, 'agronomist', 'read');
     const q = request.query as { status?: string; sort?: string; page?: string; limit?: string };
     const result = await agronomistCaseReviewService.listQueue({
-      status: q.status ?? 'pending',
+      status: q.status ?? 'open',
       sort: q.sort === 'newest' ? 'newest' : 'priority',
       page: q.page ? Number(q.page) : 1,
       limit: q.limit ? Number(q.limit) : 24,
@@ -86,6 +86,33 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
       role: admin.role,
     });
     return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/diagnosis-labels`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z
+      .object({
+        cropType: z.string().optional(),
+        search: z.string().optional(),
+      })
+      .parse(request.query ?? {});
+    const labels = await agronomistCaseReviewService.listDiagnosisLabels({
+      cropType: q.cropType,
+      search: q.search,
+    });
+    return reply.send({ ok: true, labels });
+  });
+
+  app.post(`${api}/diagnosis-labels`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const body = z
+      .object({
+        label: z.string().min(1).max(500),
+        cropType: z.string().max(80).nullable().optional(),
+      })
+      .parse(request.body);
+    const created = await agronomistCaseReviewService.createDiagnosisLabel(body);
+    return reply.status(201).send({ ok: true, ...created });
   });
 
   app.get(`${api}/queue`, async (request, reply) => {

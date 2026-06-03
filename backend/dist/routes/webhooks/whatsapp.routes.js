@@ -1,8 +1,8 @@
 import { env } from '../../config/env.js';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { createHmac, createHash, timingSafeEqual } from 'crypto';
 import { verifyWhatsAppWebhook } from '../../middleware/webhookVerify.js';
 import { WebhookVerificationError } from '../../lib/errors.js';
-import { isWebhookDuplicate, logWebhook } from '../../middleware/idempotency.js';
+import { isWebhookDuplicate, claimWebhook, finalizeWebhookClaim } from '../../middleware/idempotency.js';
 import { whatsappService } from '../../services/whatsapp/whatsapp.service.js';
 import { logger } from '../../lib/logger.js';
 import { metaWhatsAppIdempotencyKey, summarizeMetaWhatsAppValue, } from '../../lib/meta-whatsapp-webhook.js';
@@ -59,17 +59,20 @@ export async function whatsappWebhookRoutes(app) {
         const payload = JSON.parse(raw.toString());
         const idempotencyKey = (payload.id != null && String(payload.id)) ||
             (payload.message_id != null && String(payload.message_id)) ||
-            JSON.stringify(payload).slice(0, 128);
+            `adsgyani:${createHash('sha256').update(raw).digest('hex').slice(0, 32)}`;
         if (await isWebhookDuplicate('whatsapp_adsgyani', idempotencyKey)) {
+            return reply.code(200).send({ ok: true, duplicate: true });
+        }
+        if (!(await claimWebhook('whatsapp_adsgyani', idempotencyKey, payload))) {
             return reply.code(200).send({ ok: true, duplicate: true });
         }
         try {
             await whatsappService.handleAdsGyaniInbound(payload);
-            await logWebhook('whatsapp_adsgyani', 'messages', idempotencyKey, payload, 'processed');
+            await finalizeWebhookClaim('whatsapp_adsgyani', idempotencyKey, 'processed');
             return reply.code(200).send({ ok: true });
         }
         catch (err) {
-            await logWebhook('whatsapp_adsgyani', 'messages', idempotencyKey, payload, 'failed', String(err));
+            await finalizeWebhookClaim('whatsapp_adsgyani', idempotencyKey, 'failed', String(err));
             throw err;
         }
     });
@@ -98,13 +101,17 @@ export async function whatsappWebhookRoutes(app) {
             logger.info({ idempotencyKey, ...summary }, 'Meta WhatsApp webhook duplicate skipped');
             return reply.code(200).send({ ok: true, duplicate: true });
         }
+        if (!(await claimWebhook('whatsapp', idempotencyKey, payload))) {
+            logger.info({ idempotencyKey, ...summary }, 'Meta WhatsApp webhook concurrent duplicate skipped');
+            return reply.code(200).send({ ok: true, duplicate: true });
+        }
         try {
             await whatsappService.handleCloudInbound(payload);
-            await logWebhook('whatsapp', 'messages', idempotencyKey, payload, 'processed');
+            await finalizeWebhookClaim('whatsapp', idempotencyKey, 'processed');
             return reply.code(200).send({ ok: true });
         }
         catch (err) {
-            await logWebhook('whatsapp', 'messages', idempotencyKey, payload, 'failed', String(err));
+            await finalizeWebhookClaim('whatsapp', idempotencyKey, 'failed', String(err));
             throw err;
         }
     });
