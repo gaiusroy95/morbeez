@@ -27,7 +27,7 @@ import { extractInboundMedia } from './media-extract.service.js';
 import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
 import { whatsappConversationalService } from '../whatsapp-conversational.service.js';
 import { farmerService } from '../../farmer/farmer.service.js';
-import { advisoryImageStorageService } from '../../core/advisory-image-storage.service.js';
+import { advisoryImageStorageService, downloadAdvisoryImageBase64, } from '../../core/advisory-image-storage.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappScenarioRouter } from '../scenarios/whatsapp-scenario-router.service.js';
 import { nutrientSoilGateService, soilGatePreface, } from '../scenarios/nutrient-soil-gate.service.js';
@@ -53,7 +53,38 @@ import { responseComposerService } from './response-composer.service.js';
 import { assessmentPlaybookService } from '../scenarios/assessment-playbook.service.js';
 import { roiFlowService } from '../roi/roi-flow.service.js';
 import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
-const CROP_MEDIA_TYPES = new Set(['image', 'image_message', 'document']);
+import { hasInboundImageAttachment, withNormalizedMediaFields, } from './inbound-media-normalize.util.js';
+const CROP_MEDIA_TYPES = new Set([
+    'image',
+    'image_message',
+    'photo',
+    'picture',
+    'media',
+    'document',
+]);
+async function attachImageToInboundLog(params) {
+    if (!params.messageId?.trim())
+        return;
+    const { data: row } = await supabase
+        .from('interaction_logs')
+        .select('raw_payload')
+        .eq('external_message_id', params.messageId)
+        .maybeSingle();
+    const raw = row?.raw_payload ?? {};
+    await supabase
+        .from('interaction_logs')
+        .update({
+        message_type: 'image',
+        content: params.caption?.slice(0, 500) || String(raw.caption ?? 'image'),
+        raw_payload: {
+            ...raw,
+            storagePath: params.storagePath,
+            image_storage_path: params.storagePath,
+            caption: params.caption ?? raw.caption,
+        },
+    })
+        .eq('external_message_id', params.messageId);
+}
 const VOICE_TYPES = new Set(['audio', 'voice', 'audio_message']);
 async function askCropSelection(send, phone, language, farmerId) {
     await cropSelectionService.sendCropPicker({
@@ -264,6 +295,7 @@ export const whatsappInboundPipeline = {
             await send.text(msg.phone, ack);
             return;
         }
+        msg = withNormalizedMediaFields(msg);
         const captured = await leadCaptureService.captureAndIdentify(msg, 'en');
         // Conversation state + ownership (human takeover / pause AI)
         let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
@@ -301,7 +333,11 @@ export const whatsappInboundPipeline = {
             message_type: msg.msgType,
             content: msg.text || msg.msgType,
             external_message_id: msg.messageId,
-            raw_payload: msg.rawPayload,
+            raw_payload: {
+                ...(msg.rawPayload ?? {}),
+                message: msg.messageObject,
+                caption: msg.text || undefined,
+            },
             purge_after: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
         });
         const { farmerEventCaptureService } = await import('../../intelligence/farmer-event-capture.service.js');
@@ -404,15 +440,24 @@ export const whatsappInboundPipeline = {
             if (routeResult.welcomePrefix) {
                 await send.text(msg.phone, routeResult.welcomePrefix);
             }
-            if (routeResult.symptomsText) {
+            if (routeResult.symptomsText || routeResult.postIntake) {
+                const sessCtx = await conversationSessionService.getContext(captured.farmerId);
                 await this.runDiagnosis({
                     farmerId: captured.farmerId,
                     phone: msg.phone,
                     language: activeLang,
-                    symptomsText: routeResult.symptomsText,
+                    symptomsText: routeResult.postIntake?.enrichedSymptoms ?? routeResult.symptomsText,
+                    fieldInvestigation: routeResult.postIntake?.fieldInvestigation,
+                    issueLabelHint: routeResult.postIntake?.issueLabelHint,
+                    skipReuseCache: routeResult.postIntake?.skipReuseCache,
+                    imageStoragePath: sessCtx.pendingDiagnosisImagePath,
                     channel: 'whatsapp',
                     sendText: send.text,
                     send,
+                });
+                await conversationSessionService.patchContext(captured.farmerId, {
+                    pendingDiagnosisImagePath: undefined,
+                    pendingDiagnosisImageMime: undefined,
                 });
                 await eventBus.publish('whatsapp.message.received', { phone: msg.phone, farmerId: captured.farmerId, text: msg.text, messageType: msg.msgType }, 'whatsapp');
                 return;
@@ -468,7 +513,9 @@ export const whatsappInboundPipeline = {
             await eventBus.publish('whatsapp.message.received', { phone: msg.phone, farmerId: captured.farmerId, text: msg.text, messageType: msg.msgType }, 'whatsapp');
             return;
         }
-        const hasCropMedia = CROP_MEDIA_TYPES.has(msg.msgType) || VOICE_TYPES.has(msg.msgType);
+        const hasCropMedia = CROP_MEDIA_TYPES.has(msg.msgType) ||
+            hasInboundImageAttachment(msg) ||
+            VOICE_TYPES.has(msg.msgType);
         const guard = validateAgricultureIntent({ text: msg.text, hasCropMedia });
         if (!guard.allowed) {
             await send.text(msg.phone, guardRejectionMessage(captured.language));
@@ -589,6 +636,20 @@ export const whatsappInboundPipeline = {
             return;
         }
         await recordImageHash(captured.farmerId, quality.contentHash);
+        const earlyStored = await advisoryImageStorageService.uploadFromBase64(captured.farmerId, media.imageBase64, media.imageMimeType ?? 'image/jpeg');
+        if (earlyStored) {
+            await conversationSessionService.patchContext(captured.farmerId, {
+                pendingDiagnosisImagePath: earlyStored,
+                pendingDiagnosisImageMime: media.imageMimeType ?? 'image/jpeg',
+            });
+            if (msg.messageId) {
+                void attachImageToInboundLog({
+                    messageId: msg.messageId,
+                    storagePath: earlyStored,
+                    caption: msg.text?.trim(),
+                });
+            }
+        }
         if (await tryAssessmentPlaybook({
             farmerId: captured.farmerId,
             phone: captured.phone,
@@ -653,6 +714,7 @@ export const whatsappInboundPipeline = {
             imageMimeType: media.imageMimeType,
             symptomsText: msg.text || undefined,
             channel: 'whatsapp',
+            inboundMessageId: msg.messageId,
             sendText,
             send: senders,
         });
@@ -877,6 +939,16 @@ export const whatsappInboundPipeline = {
             const symptomsText = params.symptomsText?.trim() ||
                 sessCtx.pendingSymptomsText ||
                 undefined;
+            let imageBase64 = params.imageBase64;
+            let imageMimeType = params.imageMimeType;
+            const storagePath = params.imageStoragePath ?? sessCtx.pendingDiagnosisImagePath ?? undefined;
+            if (!imageBase64 && storagePath) {
+                const downloaded = await downloadAdvisoryImageBase64(storagePath);
+                if (downloaded) {
+                    imageBase64 = downloaded.base64;
+                    imageMimeType = downloaded.mimeType;
+                }
+            }
             const memory = await farmerMemoryService.build(params.farmerId, { symptomsText });
             const contextPack = await contextPackService.build(params.farmerId, {
                 cropType: memory.cropType,
@@ -885,11 +957,19 @@ export const whatsappInboundPipeline = {
                 blockId: memory.activePlotId,
             });
             const environmentalContext = contextPackService.formatForPrompt(contextPack);
-            let imageStoragePath;
-            if (params.imageBase64) {
-                const stored = await advisoryImageStorageService.uploadFromBase64(params.farmerId, params.imageBase64, params.imageMimeType ?? 'image/jpeg');
-                if (stored)
+            let imageStoragePath = storagePath;
+            if (imageBase64 && !imageStoragePath) {
+                const stored = await advisoryImageStorageService.uploadFromBase64(params.farmerId, imageBase64, imageMimeType ?? 'image/jpeg');
+                if (stored) {
                     imageStoragePath = stored;
+                    if (params.channel === 'whatsapp' && params.inboundMessageId) {
+                        void attachImageToInboundLog({
+                            messageId: params.inboundMessageId,
+                            storagePath: stored,
+                            caption: symptomsText,
+                        });
+                    }
+                }
             }
             const result = await cropDoctorService.diagnose({
                 farmerId: params.farmerId,
@@ -898,15 +978,18 @@ export const whatsappInboundPipeline = {
                 language: params.language,
                 symptomsText,
                 voiceTranscript: params.voiceTranscript,
-                imageBase64: params.imageBase64,
-                imageMimeType: params.imageMimeType,
+                imageBase64,
+                imageMimeType,
                 imageStoragePath,
+                fieldInvestigation: params.fieldInvestigation,
+                issueLabelHint: params.issueLabelHint,
+                skipReuseCache: params.skipReuseCache,
                 channel: params.channel ?? 'whatsapp',
                 compactHistory: farmerMemoryService.formatCompactHistory(memory),
                 contextPack,
                 environmentalContext,
             });
-            const hasImage = Boolean(params.imageBase64);
+            const hasImage = Boolean(imageBase64);
             const assessment = policyEngineService.evaluate(result.advisory, {
                 ...contextPack,
                 hasImage,

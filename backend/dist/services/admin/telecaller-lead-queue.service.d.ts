@@ -45,9 +45,13 @@ export declare const telecallerLeadQueueService: {
     listOperationalLeads(query: OperationalLeadListQuery, agentEmail: string): Promise<{
         leads: OperationalLeadRow[];
         counts: {
+            visible: number;
+            inScope: number;
+            scopeTotal: number;
             mine: number;
             all: number;
         };
+        filtersActive: boolean;
         pagination: {
             total: number;
             page: number;

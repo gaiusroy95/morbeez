@@ -1,6 +1,6 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { SessionContext } from '../scenarios/session-context.types.js';
-import { type InvestigationContext } from './diagnosis-follow-up-reasoning.engine.js';
+import { type InvestigationContext, type PostIntakeDiagnosisPayload } from './diagnosis-follow-up-reasoning.engine.js';
 export type SimilarLearnedCase = {
     reuseCaseId: string;
     issueLabel: string;
@@ -31,7 +31,7 @@ export declare const diagnosisFollowUpService: {
         cropType: string;
         hasPhoto: boolean;
     }): Promise<InvestigationContext>;
-    enrichedSymptoms(intake: IntakeContext): string;
+    buildPostIntakePayload(intake: IntakeContext, investigation: InvestigationContext): PostIntakeDiagnosisPayload;
     startIntake(params: {
         farmerId: string;
         phone: string;
@@ -61,7 +61,7 @@ export declare const diagnosisFollowUpService: {
     } | {
         handled: true;
         ready: true;
-        enrichedSymptoms: string;
+        postIntake: PostIntakeDiagnosisPayload;
         escalateHint?: boolean;
     } | {
         handled: false;

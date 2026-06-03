@@ -354,4 +354,99 @@ export const diagnosisFollowUpReasoningEngine = {
     if (ctx.dap != null) parts.push(`Crop stage: ${ctx.dap} DAP`);
     return parts.filter(Boolean).join('. ');
   },
+
+  formatFieldInvestigationSummary(
+    answers: Record<string, string>,
+    ctx: InvestigationContext
+  ): string {
+    const lines: string[] = [
+      'FIELD INVESTIGATION — farmer answered follow-up questions on WhatsApp.',
+      'You MUST base probableIssue, treatments, and farmerSummary on these answers.',
+      'Do NOT ignore them or return a generic template that contradicts them.',
+      '',
+    ];
+
+    const label: Record<string, string> = {
+      rain_recent: 'Rainfall increased in last 7 days',
+      after_rain: 'Spots increased after recent rain',
+      fungicide_after_rain: 'Fungicide spray after rain (follow-up)',
+      last_fungicide: 'Last fungicide spray timing',
+      spread_fast: 'Problem spreading quickly across plants',
+      field_percent: 'More than 20% of field affected',
+      round_spots: 'Spots are round with yellow-brown edges',
+      silver_streaks: 'Silvery streaks / scrape marks on leaves',
+      water_soaked: 'Water-soaked or burnt-looking leaf patches',
+      soft_rhizome: 'Soft or smelly rhizome',
+      drainage_poor: 'Poor drainage / standing water',
+      mulch_heat: 'Thick mulch (possible heat under mulch)',
+      new_growth_yellow: 'Young leaves more yellow than old',
+      photo_close: 'Close leaf photo provided',
+      photo_rhizome: 'Rhizome photo provided',
+    };
+
+    for (const [qid, ans] of Object.entries(answers)) {
+      if (ans === 'skip') continue;
+      const title = label[qid] ?? qid;
+      const human =
+        ans === 'yes'
+          ? 'Yes'
+          : ans === 'no'
+            ? 'No'
+            : ans === 'within_7d'
+              ? 'Within last 7 days'
+              : ans === 'over_14d'
+                ? '14+ days ago or never recently'
+                : ans === 'never'
+                  ? 'Not yet / no fungicide'
+                  : ans;
+      lines.push(`- ${title}: ${human}`);
+    }
+
+    const inferred = this.inferPrimaryIssueFromIntake(ctx.symptomsText, answers, ctx.bestIssueLabel);
+    lines.push('');
+    lines.push(`Investigation conclusion (use as probableIssue unless image strongly contradicts): ${inferred}`);
+    if (ctx.bestIssueLabel) {
+      lines.push(`Similar verified cases in Morbeez suggested: ${ctx.bestIssueLabel}`);
+    }
+
+    return lines.join('\n');
+  },
+
+  inferPrimaryIssueFromIntake(
+    initialSymptoms: string,
+    answers: Record<string, string>,
+    bestIssueLabel?: string
+  ): string {
+    const yes = (id: string) => answers[id] === 'yes';
+    const no = (id: string) => answers[id] === 'no';
+
+    if (yes('round_spots') && (yes('after_rain') || yes('rain_recent'))) {
+      return 'Fungal leaf spot (Phyllosticta / anthracnose) — confirmed round spots after rain';
+    }
+    if (yes('round_spots')) {
+      return 'Fungal leaf spot — farmer confirmed round lesions with yellow-brown edges';
+    }
+    if (yes('silver_streaks') && no('round_spots')) {
+      return 'Thrips damage — silvery streaks without typical round fungal spots';
+    }
+    if (/silver|streak/i.test(initialSymptoms) && yes('spread_fast') && !yes('round_spots')) {
+      return 'Thrips damage with possible secondary spots — prioritize thrips management';
+    }
+    if (yes('water_soaked') || yes('soft_rhizome')) {
+      return 'Foliar blast or rhizome rot risk — wet field / water-soaked lesions';
+    }
+    if (yes('mulch_heat') && yes('new_growth_yellow')) {
+      return 'Heat stress under mulch — not primary nutrient deficiency';
+    }
+
+    if (bestIssueLabel?.trim()) return bestIssueLabel.trim();
+    return 'Field issue — resolve using investigation answers and image';
+  },
+};
+
+export type PostIntakeDiagnosisPayload = {
+  enrichedSymptoms: string;
+  fieldInvestigation: string;
+  issueLabelHint: string;
+  skipReuseCache: true;
 };

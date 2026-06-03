@@ -50,5 +50,13 @@ export declare const diagnosisFollowUpReasoningEngine: {
         text: string;
     };
     enrichSymptomsFromAnswers(initial: string, answers: Record<string, string>, ctx: InvestigationContext): string;
+    formatFieldInvestigationSummary(answers: Record<string, string>, ctx: InvestigationContext): string;
+    inferPrimaryIssueFromIntake(initialSymptoms: string, answers: Record<string, string>, bestIssueLabel?: string): string;
+};
+export type PostIntakeDiagnosisPayload = {
+    enrichedSymptoms: string;
+    fieldInvestigation: string;
+    issueLabelHint: string;
+    skipReuseCache: true;
 };
 //# sourceMappingURL=diagnosis-follow-up-reasoning.engine.d.ts.map

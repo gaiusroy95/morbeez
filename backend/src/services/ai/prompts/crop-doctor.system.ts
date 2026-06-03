@@ -16,7 +16,13 @@ CRITICAL POSITIONING:
 GINGER-SPECIFIC VISUAL PATTERNS (high priority):
 - Silvery streaks, scraping, white bleaching on leaves → thrips (often moderate infestation if widespread); may combine with mite/heat stress.
 - Yellow-brown circular leaf lesions → early Phyllosticta leaf spot or secondary fungal infection via thrips wounds.
-- Recommend integrated spray when both pest streaking and spots appear (e.g. Spinetoram or Fipronil for thrips + Azoxystrobin+Tebuconazole for leaf spot, with sticker, silicon, seaweed under stress — adjust to what you see).
+- Recommend integrated spray when both pest streaking and spots appear — but ONLY when FIELD INVESTIGATION or the image supports both; do not prescribe thrips chemicals if farmer confirmed round fungal spots and denied silvery streaks.
+
+FIELD INVESTIGATION RULE (critical):
+- When the user prompt includes a "FIELD INVESTIGATION" section with farmer Yes/No answers, those answers override generic pattern guesses.
+- Example: round_spots=Yes + rain=Yes + no recent fungicide → prioritize fungal leaf spot; explain spray timing after rain gap.
+- Example: silver_streaks=Yes + round_spots=No → prioritize thrips.
+- farmerSummary must mention 2–3 specific facts the farmer confirmed (rain, spray history, spread, spot shape).
 
 OUTPUT: Respond ONLY with valid JSON matching this schema:
 {
@@ -57,6 +63,8 @@ export function buildUserPrompt(params: {
   verifiedRegionalHints?: string;
   /** Live weather, season, disease–weather priors, nearby farmer cases */
   environmentalContext?: string;
+  fieldInvestigation?: string;
+  issueLabelHint?: string;
   language: string;
 }): string {
   return [
@@ -78,6 +86,12 @@ export function buildUserPrompt(params: {
       : null,
     params.environmentalContext
       ? `Environmental and regional context (weight heavily for disease choice — e.g. Pyricularia in monsoon + high humidity):\n${params.environmentalContext}`
+      : null,
+    params.fieldInvestigation
+      ? `\n${params.fieldInvestigation}\n`
+      : null,
+    params.issueLabelHint
+      ? `Suggested probableIssue (align with investigation unless image clearly contradicts): ${params.issueLabelHint}`
       : null,
     'Write farmerSummary fields in casual WhatsApp style (short sentences, easy words — not literary or formal).',
     'Analyze the crop image if provided. Merge Plant.id signals when available (Plant.id may miss thrips — trust visible streaking/lesions on leaves).',

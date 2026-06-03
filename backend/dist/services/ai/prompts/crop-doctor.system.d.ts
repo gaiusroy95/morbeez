@@ -12,6 +12,8 @@ export declare function buildUserPrompt(params: {
     verifiedRegionalHints?: string;
     /** Live weather, season, disease–weather priors, nearby farmer cases */
     environmentalContext?: string;
+    fieldInvestigation?: string;
+    issueLabelHint?: string;
     language: string;
 }): string;
 //# sourceMappingURL=crop-doctor.system.d.ts.map

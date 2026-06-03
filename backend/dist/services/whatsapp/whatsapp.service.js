@@ -40,7 +40,14 @@ export function parseAdsGyaniWebhook(payload) {
         '').replace(/\D/g, '');
     if (!fromRaw)
         return null;
-    const msgType = String(message?.type ?? message?.message_type ?? payload.type ?? payload.message_type ?? 'text');
+    let msgType = String(message?.type ?? message?.message_type ?? payload.type ?? payload.message_type ?? 'text');
+    const hasImage = Boolean(message?.image?.url) ||
+        Boolean(message?.image?.id) ||
+        Boolean(message?.media_url) ||
+        Boolean(message?.header_image) ||
+        Boolean(payload.media_url);
+    if (hasImage && msgType === 'text')
+        msgType = 'image';
     const textObj = message?.text;
     const buttonObj = message?.button;
     const interactive = message?.interactive;

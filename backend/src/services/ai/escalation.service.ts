@@ -119,6 +119,7 @@ export const escalationService = {
     probableIssue?: string;
     confidence?: number;
     channel?: 'whatsapp' | 'api' | 'web';
+    imageStoragePath?: string | null;
   }): Promise<{ sessionId: string; escalationId: string } | null> {
     const text = params.symptomsText.trim();
     const summary = params.farmerSummary.trim();
@@ -139,6 +140,7 @@ export const escalationService = {
         crop_type: cropType,
         language: params.language,
         symptoms_text: text.slice(0, 2000),
+        image_storage_path: params.imageStoragePath ?? null,
         status: 'completed',
         confidence_score: confidence,
         escalation_recommended: false,

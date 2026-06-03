@@ -42,6 +42,7 @@ export declare const escalationService: {
         probableIssue?: string;
         confidence?: number;
         channel?: "whatsapp" | "api" | "web";
+        imageStoragePath?: string | null;
     }): Promise<{
         sessionId: string;
         escalationId: string;

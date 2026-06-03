@@ -407,6 +407,8 @@ export const telecallerLeadQueueService = {
       };
     });
 
+    const loadedInScope = rows.length;
+
     if (query.pendingTasks) {
       rows = rows.filter((r) => r.hasPendingTasks);
     }
@@ -447,12 +449,33 @@ export const telecallerLeadQueueService = {
 
     rows = sortRows(rows, query.sort ?? 'priority');
 
+    const scopeTotal = query.scope === 'mine' ? base.counts.mine : base.counts.all;
+    const visible = rows.length;
+    const filtersActive =
+      Boolean(query.pendingTasks) ||
+      Boolean(query.escalations) ||
+      Boolean(query.district?.trim()) ||
+      Boolean(query.pincode?.trim()) ||
+      Boolean(query.language?.trim()) ||
+      Boolean(query.crop?.trim()) ||
+      Boolean(query.owner?.trim()) ||
+      Boolean(query.opportunityLevel) ||
+      Boolean(query.smartFilter && query.smartFilter !== 'all') ||
+      Boolean(query.search?.trim()) ||
+      Boolean(query.stage && query.stage !== 'all');
+
     return {
       leads: rows,
-      counts: base.counts,
+      counts: {
+        ...base.counts,
+        visible,
+        inScope: loadedInScope,
+        scopeTotal,
+      },
+      filtersActive,
       pagination: {
         ...base.pagination,
-        total: rows.length,
+        total: visible,
       },
       priorityMeta: PRIORITY_META,
     };

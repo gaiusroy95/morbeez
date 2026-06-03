@@ -199,9 +199,9 @@ export const agronomistCaseReviewService = {
             .from('interaction_logs')
             .select('id, message_type, content, created_at, raw_payload')
             .eq('farmer_id', esc.farmerId)
-            .in('message_type', ['image', 'image_message', 'document'])
+            .eq('direction', 'inbound')
             .order('created_at', { ascending: false })
-            .limit(12);
+            .limit(20);
         const images = [];
         const mainPath = sessionRow?.image_storage_path ? String(sessionRow.image_storage_path) : null;
         if (mainPath) {
@@ -217,13 +217,21 @@ export const agronomistCaseReviewService = {
             if (images.length >= 6)
                 break;
             const payload = log.raw_payload ?? {};
+            const nestedMessage = payload.message;
             const path = payload.storagePath ||
                 payload.image_storage_path ||
                 payload.path ||
+                nestedMessage?.storagePath ||
                 null;
             let url = path ? await resolveAdvisoryImageUrl(path) : null;
             if (!url)
                 url = urlFromWhatsAppPayload(payload);
+            if (!url && nestedMessage)
+                url = urlFromWhatsAppPayload(nestedMessage);
+            const msgType = String(log.message_type ?? '');
+            const isMediaType = ['image', 'image_message', 'document', 'photo', 'media', 'picture'].includes(msgType);
+            if (!url && !path && !isMediaType)
+                continue;
             if (!url)
                 continue;
             const t = new Date(String(log.created_at)).getTime();

@@ -69,7 +69,12 @@ export declare const whatsappInboundPipeline: {
         voiceTranscript?: string;
         imageBase64?: string;
         imageMimeType?: string;
+        imageStoragePath?: string;
+        fieldInvestigation?: string;
+        issueLabelHint?: string;
+        skipReuseCache?: boolean;
         channel?: "whatsapp" | "api" | "web";
+        inboundMessageId?: string;
         sendText: (phone: string, text: string) => Promise<void>;
         send?: Senders;
     }): Promise<void>;

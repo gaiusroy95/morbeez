@@ -54,6 +54,9 @@ export interface SessionContext {
     /** Farmer Experience Learning — correction after AI diagnosis */
     farmerFeedbackId?: string;
     farmerFeedbackStep?: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+    /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
+    pendingDiagnosisImagePath?: string;
+    pendingDiagnosisImageMime?: string;
     /** Learned-case follow-up before Crop Doctor (sequential, reasoning-based) */
     diagnosisIntake?: {
         initialSymptoms: string;

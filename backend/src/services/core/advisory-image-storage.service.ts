@@ -38,6 +38,28 @@ export const advisoryImageStorageService = {
   },
 };
 
+export async function downloadAdvisoryImageBase64(
+  path: string | null | undefined
+): Promise<{ base64: string; mimeType: string } | null> {
+  if (!path?.trim()) return null;
+  const key = path.trim();
+
+  const { data, error } = await supabase.storage.from(BUCKET).download(key);
+  if (error || !data) {
+    logger.warn({ err: error, path: key }, 'Advisory image download failed');
+    return null;
+  }
+
+  const buffer = Buffer.from(await data.arrayBuffer());
+  if (!buffer.length) return null;
+
+  const ext = key.split('.').pop()?.toLowerCase();
+  const mimeType =
+    ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  return { base64: buffer.toString('base64'), mimeType };
+}
+
 export async function resolveAdvisoryImageUrl(path: string | null | undefined): Promise<string | null> {
   if (!path?.trim()) return null;
   const key = path.trim();
@@ -55,11 +77,22 @@ export async function resolveAdvisoryImageUrl(path: string | null | undefined): 
 
 export function urlFromWhatsAppPayload(payload: Record<string, unknown> | null | undefined): string | null {
   if (!payload) return null;
-  const image = payload.image as Record<string, string> | undefined;
-  if (image?.url?.startsWith('http')) return image.url;
-  const mediaUrl = payload.media_url;
-  if (typeof mediaUrl === 'string' && mediaUrl.startsWith('http')) return mediaUrl;
-  const headerImage = payload.header_image;
-  if (typeof headerImage === 'string' && headerImage.startsWith('http')) return headerImage;
+
+  const nested = payload.message as Record<string, unknown> | undefined;
+  const sources = [payload, nested].filter(Boolean) as Record<string, unknown>[];
+
+  for (const src of sources) {
+    const image = src.image as Record<string, string> | undefined;
+    if (image?.url?.startsWith('http')) return image.url;
+    const mediaUrl = src.media_url;
+    if (typeof mediaUrl === 'string' && mediaUrl.startsWith('http')) return mediaUrl;
+    const headerImage = src.header_image;
+    if (typeof headerImage === 'string' && headerImage.startsWith('http')) return headerImage;
+    const doc = src.document as Record<string, string> | undefined;
+    if (doc?.url?.startsWith('http') && String(doc.mime_type ?? '').startsWith('image/')) {
+      return doc.url;
+    }
+  }
+
   return null;
 }

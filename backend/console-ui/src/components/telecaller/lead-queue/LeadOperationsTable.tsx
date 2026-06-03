@@ -35,10 +35,18 @@ const STAGE_CLASS: Record<string, string> = {
 
 type TeamMember = { email: string; fullName: string; role: string };
 
+type LeadQueueCounts = {
+  mine: number;
+  all: number;
+  visible?: number;
+  inScope?: number;
+  scopeTotal?: number;
+};
+
 type Props = {
   canWrite: boolean;
   scope: 'mine' | 'all';
-  counts: { mine: number; all: number };
+  counts: LeadQueueCounts;
   onScopeChange: (scope: 'mine' | 'all') => void;
   selectedLeadId: string | null;
   onOpenLead: (leadId: string, lead: OperationalLead) => void;
@@ -106,6 +114,8 @@ export function LeadOperationsTable({
   tasksPanel,
 }: Props) {
   const [leads, setLeads] = useState<OperationalLead[]>([]);
+  const [queueCounts, setQueueCounts] = useState<LeadQueueCounts>(counts);
+  const [filtersActive, setFiltersActive] = useState(false);
   const [summary, setSummary] = useState<QueueSummary | null>(null);
   const [priorityMeta, setPriorityMeta] = useState<PriorityMeta>({});
   const [loading, setLoading] = useState(true);
@@ -336,12 +346,22 @@ export function LeadOperationsTable({
     try {
       const params = buildLeadQueueSearchParams(filterParams);
       const [leadRes, sumRes] = await Promise.all([
-        api<{ ok: boolean; leads: OperationalLead[]; priorityMeta: PriorityMeta }>(
-          `${BASE}/leads/operational?${params}`
-        ),
+        api<{
+          ok: boolean;
+          leads: OperationalLead[];
+          priorityMeta: PriorityMeta;
+          counts?: LeadQueueCounts;
+          filtersActive?: boolean;
+        }>(`${BASE}/leads/operational?${params}`),
         api<{ ok: boolean; summary: QueueSummary }>(`${BASE}/leads/queue-summary?scope=${scope}`),
       ]);
       setLeads(leadRes.leads ?? []);
+      if (leadRes.counts) {
+        setQueueCounts(leadRes.counts);
+      } else {
+        setQueueCounts(counts);
+      }
+      setFiltersActive(Boolean(leadRes.filtersActive));
       setPriorityMeta(leadRes.priorityMeta ?? {});
       setSummary(sumRes.summary ?? null);
       setSelected(new Set());
@@ -350,7 +370,54 @@ export function LeadOperationsTable({
     } finally {
       setLoading(false);
     }
-  }, [filterParams, scope]);
+  }, [filterParams, scope, counts]);
+
+  const scopeTabCount = useMemo(() => {
+    if (filtersActive && queueCounts.visible != null) {
+      return queueCounts.visible;
+    }
+    return scope === 'mine' ? queueCounts.mine : queueCounts.all;
+  }, [filtersActive, queueCounts, scope]);
+
+  const scopeTabHint = useMemo(() => {
+    const total = scope === 'mine' ? queueCounts.mine : queueCounts.all;
+    if (!filtersActive || queueCounts.visible == null) return null;
+    if (queueCounts.visible === total) return null;
+    return `${queueCounts.visible} of ${total}`;
+  }, [filtersActive, queueCounts, scope]);
+
+  const filterHint = useMemo(() => {
+    if (!filtersActive || leads.length === 0) return null;
+    const total = scope === 'mine' ? queueCounts.mine : queueCounts.all;
+    if (leads.length >= total) return null;
+    const parts: string[] = [];
+    if (opportunityLevel === 'high') parts.push('High opportunity (70+)');
+    else if (opportunityLevel === 'medium') parts.push('Medium opportunity (40–69)');
+    else if (opportunityLevel === 'low') parts.push('Low opportunity');
+    if (pendingTasks) parts.push('Pending tasks only');
+    if (escalationsOnly) parts.push('Escalations only');
+    if (smartFilter !== 'all') {
+      const chip = SMART_FILTERS.find((f) => f.id === smartFilter);
+      if (chip) parts.push(chip.label);
+    }
+    if (stage) parts.push(`Stage: ${stage}`);
+    if (district.trim()) parts.push(`District: ${district.trim()}`);
+    if (crop.trim()) parts.push(`Crop: ${crop.trim()}`);
+    const filterText = parts.length ? parts.join(' · ') : 'Active filters';
+    return `Showing ${leads.length} of ${total} leads. ${filterText}. Clear filters below to see all.`;
+  }, [
+    filtersActive,
+    leads.length,
+    queueCounts,
+    scope,
+    opportunityLevel,
+    pendingTasks,
+    escalationsOnly,
+    smartFilter,
+    stage,
+    district,
+    crop,
+  ]);
 
   const loadTeam = useCallback(async () => {
     try {
@@ -741,14 +808,20 @@ export function LeadOperationsTable({
                 className={`tc-scope-tab ${scope === 'mine' ? 'active' : ''}`}
                 onClick={() => onScopeChange('mine')}
               >
-                My leads <em>{counts.mine}</em>
+                My leads{' '}
+                <em title={scope === 'mine' ? scopeTabHint ?? undefined : undefined}>
+                  {scope === 'mine' && scopeTabHint ? scopeTabHint : queueCounts.mine}
+                </em>
               </button>
               <button
                 type="button"
                 className={`tc-scope-tab ${scope === 'all' ? 'active' : ''}`}
                 onClick={() => onScopeChange('all')}
               >
-                All leads <em>{counts.all}</em>
+                All leads{' '}
+                <em title={scope === 'all' ? scopeTabHint ?? undefined : undefined}>
+                  {scope === 'all' && scopeTabHint ? scopeTabHint : queueCounts.all}
+                </em>
               </button>
             </div>
             <div className="tc-lq-search-wrap">
@@ -914,6 +987,30 @@ export function LeadOperationsTable({
       ) : null}
 
       {error ? <p className="tc-lq-error">{error}</p> : null}
+
+      {filterHint ? (
+        <p className="tc-lq-filter-hint" role="status">
+          {filterHint}{' '}
+          <button
+            type="button"
+            className="tc-lq-filter-hint-clear"
+            onClick={() => {
+              setOpportunityLevel('');
+              setStage('');
+              setDistrict('');
+              setPincode('');
+              setLanguage('');
+              setCrop('');
+              setOwner('');
+              setEscalationsOnly(false);
+              setPendingTasks(false);
+              setSmartFilter('all');
+            }}
+          >
+            Clear filters
+          </button>
+        </p>
+      ) : null}
 
       {loading ? (
         <Loading label="Loading lead queue…" />

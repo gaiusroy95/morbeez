@@ -1,6 +1,7 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { InboundMessage } from '../pipeline/types.js';
 import { type ConversationSession } from '../conversation-session.service.js';
+import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
 export type ScenarioSenders = {
     text: (phone: string, text: string) => Promise<void>;
     list?: (params: {
@@ -40,6 +41,7 @@ export type ScenarioRouterResult = {
     runDiagnosis: true;
     welcomePrefix?: string;
     symptomsText?: string;
+    postIntake?: PostIntakeDiagnosisPayload;
 } | {
     handled: true;
     duplicateImage: true;

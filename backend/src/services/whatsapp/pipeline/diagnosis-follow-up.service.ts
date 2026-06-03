@@ -17,6 +17,7 @@ import { nearbyCasesService } from './nearby-cases.service.js';
 import {
   diagnosisFollowUpReasoningEngine,
   type InvestigationContext,
+  type PostIntakeDiagnosisPayload,
 } from './diagnosis-follow-up-reasoning.engine.js';
 
 const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
@@ -268,33 +269,32 @@ export const diagnosisFollowUpService = {
     };
   },
 
-  enrichedSymptoms(intake: IntakeContext): string {
-    const ctxStub = {
-      language: 'en' as AdvisoryLanguage,
-      cropType: '',
-      symptomsText: intake.initialSymptoms,
-      hasPhoto: true,
-      similarCases: [],
-      totalVerifiedCases: intake.totalVerifiedCases ?? 0,
-      matchConfidence: intake.matchConfidence ?? 0,
-      bestIssueLabel: intake.bestIssueLabel,
-      heavyRainLikely: false,
-      highHumidityLikely: false,
-      highHeatLikely: false,
-      weatherRiskScore: 0,
-      diseasePriors: [],
-      lastSprayKnown: true,
-      category: 'disease_stress',
-    };
+  buildPostIntakePayload(
+    intake: IntakeContext,
+    investigation: InvestigationContext
+  ): PostIntakeDiagnosisPayload {
     const answers: Record<string, string> = {};
     for (const [k, v] of Object.entries(intake.answers)) {
       answers[k] = String(v);
     }
-    return diagnosisFollowUpReasoningEngine.enrichSymptomsFromAnswers(
+    const issueLabelHint = diagnosisFollowUpReasoningEngine.inferPrimaryIssueFromIntake(
       intake.initialSymptoms,
       answers,
-      ctxStub
+      intake.bestIssueLabel
     );
+    return {
+      enrichedSymptoms: diagnosisFollowUpReasoningEngine.enrichSymptomsFromAnswers(
+        intake.initialSymptoms,
+        answers,
+        investigation
+      ),
+      fieldInvestigation: diagnosisFollowUpReasoningEngine.formatFieldInvestigationSummary(
+        answers,
+        investigation
+      ),
+      issueLabelHint,
+      skipReuseCache: true,
+    };
   },
 
   async startIntake(params: {
@@ -466,7 +466,7 @@ export const diagnosisFollowUpService = {
     hasPhoto: boolean;
   }): Promise<
     | { handled: true; ready: false }
-    | { handled: true; ready: true; enrichedSymptoms: string; escalateHint?: boolean }
+    | { handled: true; ready: true; postIntake: PostIntakeDiagnosisPayload; escalateHint?: boolean }
     | { handled: false }
   > {
     const ctx = await conversationSessionService.getContext(params.farmerId);
@@ -475,10 +475,17 @@ export const diagnosisFollowUpService = {
 
     const current = intake.questions[intake.currentIndex];
     if (!current) {
+      const investigation = await this.buildInvestigationContext({
+        farmerId: params.farmerId,
+        language: params.language,
+        symptomsText: intake.initialSymptoms,
+        cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
+        hasPhoto: params.hasPhoto || !intake.pendingPhoto,
+      });
       return {
         handled: true,
         ready: true,
-        enrichedSymptoms: this.enrichedSymptoms(intake),
+        postIntake: this.buildPostIntakePayload(intake, investigation),
         escalateHint: intake.confidenceBand === 'low',
       };
     }
@@ -541,13 +548,24 @@ export const diagnosisFollowUpService = {
     await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: intake });
 
     if (intake.currentIndex >= intake.questions.length) {
-      await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: undefined });
+      const sessCtx = await conversationSessionService.getContext(params.farmerId);
+      const investigation = await this.buildInvestigationContext({
+        farmerId: params.farmerId,
+        language: params.language,
+        symptomsText: intake.initialSymptoms,
+        cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
+        hasPhoto: params.hasPhoto || !intake.pendingPhoto || Boolean(sessCtx.pendingDiagnosisImagePath),
+      });
+      const postIntake = this.buildPostIntakePayload(intake, investigation);
+      await conversationSessionService.patchContext(params.farmerId, {
+        diagnosisIntake: undefined,
+      });
       await conversationSessionService.setState(params.farmerId, 'diagnosis');
-      const enriched = this.enrichedSymptoms(intake);
       logger.info(
         {
           farmerId: params.farmerId,
           bestIssue: intake.bestIssueLabel,
+          inferredIssue: postIntake.issueLabelHint,
           matchConfidence: intake.matchConfidence,
           confidenceBand: intake.confidenceBand,
           answerCount: Object.keys(intake.answers).length,
@@ -558,7 +576,7 @@ export const diagnosisFollowUpService = {
       return {
         handled: true,
         ready: true,
-        enrichedSymptoms: enriched,
+        postIntake,
         escalateHint: intake.confidenceBand === 'low' && (intake.matchConfidence ?? 0) < 0.7,
       };
     }

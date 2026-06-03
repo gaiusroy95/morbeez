@@ -35,13 +35,24 @@ export async function extractInboundMedia(params: {
 
   const isCloud = params.channel === 'whatsapp_cloud';
 
-  if (params.msgType === 'image' || params.msgType === 'image_message') {
+  const isImageType =
+    params.msgType === 'image' ||
+    params.msgType === 'image_message' ||
+    params.msgType === 'photo' ||
+    params.msgType === 'picture' ||
+    params.msgType === 'media';
+
+  if (isImageType) {
     const image = msg.image as Record<string, string> | undefined;
-    const mediaId = image?.id ?? (msg.media_id != null ? String(msg.media_id) : undefined);
+    const mediaId =
+      image?.id ??
+      (msg.media_id != null ? String(msg.media_id) : undefined) ??
+      (msg.attachment_id != null ? String(msg.attachment_id) : undefined);
     const mediaUrl =
       image?.url ??
       (msg.media_url as string | undefined) ??
-      (msg.header_image as string | undefined);
+      (msg.header_image as string | undefined) ??
+      (msg.attachment_url as string | undefined);
 
     if (isCloud) {
       const resolved = await resolveCloudMedia({

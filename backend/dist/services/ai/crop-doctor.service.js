@@ -88,7 +88,8 @@ export const cropDoctorService = {
                 eventId: sessionId,
             });
         })();
-        const reused = await aiReuseService.tryReuse(input, sessionId);
+        const skipReuse = input.skipReuseCache === true || Boolean(input.fieldInvestigation?.trim());
+        const reused = skipReuse ? null : await aiReuseService.tryReuse(input, sessionId);
         if (reused) {
             await persistRecommendations(sessionId, reused.productRecommendations);
             await supabase.from('disease_history').insert({
@@ -178,6 +179,8 @@ export const cropDoctorService = {
             whatsappContext: input.compactHistory,
             verifiedRegionalHints: verifiedRegionalHints ?? undefined,
             environmentalContext: input.environmentalContext,
+            fieldInvestigation: input.fieldInvestigation,
+            issueLabelHint: input.issueLabelHint,
             language: input.language,
         });
         let advisory;

@@ -63,6 +63,11 @@ export interface DiagnoseInput {
   contextPack?: Record<string, unknown>;
   /** Pre-formatted environmental block for the model prompt */
   environmentalContext?: string;
+  /** Farmer follow-up Q&A — when set, skip reuse cache and require model to honor answers */
+  fieldInvestigation?: string;
+  /** Hint from similar cases + intake reasoning */
+  issueLabelHint?: string;
+  skipReuseCache?: boolean;
 }
 
 export interface DiagnoseResult {

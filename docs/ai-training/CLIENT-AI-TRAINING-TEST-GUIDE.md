@@ -371,26 +371,27 @@ This step proves **live learning memory**, not the export file alone.
 
 - Morbeez team confirms on the server: Crop Doctor, reuse cache, and diagnosis follow-up are **enabled**.
 - Use **two real test phone numbers** (Farmer A and Farmer B).
-- Set **crop = ginger (ഇഞ്ചി)** on both farmers’ profiles.
+- Set **crop = ginger** on both farmers’ profiles.
+- For this test, farmers can use **English** on WhatsApp (Malayalam also works).
 
 ### Part 1 — Farmer A: build 3 learned cases
 
-Send **three separate** WhatsApp messages from Farmer A (same phone is fine). Each time: **text + leaf photo**, then agronomist **Submit for approval** and **send to farmer**.
+Send **three separate** WhatsApp messages from Farmer A (same phone is fine). Each time: **English text + leaf photo**, then agronomist **Submit for approval** and **send to farmer**.
 
-| # | Farmer A sends (Malayalam) | Agronomist approves as (example) |
-|---|----------------------------|----------------------------------|
-| 1 | `ഇഞ്ചി ഇലയിൽ മഞ്ഞ-തവിട്ട പുള്ളികൾ. മഴ കഴിഞ്ഞ് കൂടി.` + photo | Ginger leaf spot — fungicide + drainage |
-| 2 | `ഇഞ്ചി ഇലയിൽ വെള്ള പട്ടയുണ്ട്, ചെടി മുരടുന്നില്ല.` + photo | Thrips / silver streak damage |
-| 3 | `ഇഞ്ചി ഇല കരിച്ച പോലെ, നനഞ്ഞ സ്ഥലം.` + photo | Foliar blast / wet field risk |
+| # | Farmer A sends (English, copy-paste) | Agronomist approves as (example) |
+|---|--------------------------------------|----------------------------------|
+| 1 | `My ginger leaves have yellow-brown spots. It got worse after the recent rain.` + photo | Ginger leaf spot — fungicide + drainage |
+| 2 | `On my ginger I see silvery streaks on the leaves. The plant is not wilting.` + photo | Thrips / silver streak damage |
+| 3 | `Ginger leaves have burnt-looking patches. My field was wet after rain.` + photo | Foliar blast / wet field risk |
 
 **Pass for each case:** Portal says recommendation was **submitted and sent** (not left as draft only).
 
 ### Part 2 — Farmer B: trigger follow-up questions
 
-Farmer B sends (similar to case 1, **with text**):
+Farmer B sends (similar to case 1, **in English**, with text):
 
 ```text
-എന്റെ ഇഞ്ചി ഇലയിൽ പുള്ളികൾ വന്നിട്ടുണ്ട്, മഴ കഴിഞ്ഞതിന് ശേഷം കൂടുതലായി.
+My ginger leaves have spots. They increased after the recent rain.
 ```
 
 Add a **new leaf photo** in the same message if possible.

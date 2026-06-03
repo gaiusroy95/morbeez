@@ -52,9 +52,16 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   ).replace(/\D/g, '');
   if (!fromRaw) return null;
 
-  const msgType = String(
+  let msgType = String(
     message?.type ?? message?.message_type ?? payload.type ?? payload.message_type ?? 'text'
   );
+  const hasImage =
+    Boolean((message?.image as Record<string, unknown> | undefined)?.url) ||
+    Boolean((message?.image as Record<string, unknown> | undefined)?.id) ||
+    Boolean(message?.media_url) ||
+    Boolean(message?.header_image) ||
+    Boolean(payload.media_url);
+  if (hasImage && msgType === 'text') msgType = 'image';
 
   const textObj = message?.text as Record<string, string> | undefined;
   const buttonObj = message?.button as Record<string, string> | undefined;

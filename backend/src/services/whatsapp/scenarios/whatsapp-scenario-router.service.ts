@@ -55,6 +55,7 @@ import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
+import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
 
 const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 
@@ -103,7 +104,13 @@ export type ScenarioCapture = {
 export type ScenarioRouterResult =
   | { handled: true }
   | { handled: false }
-  | { handled: true; runDiagnosis: true; welcomePrefix?: string; symptomsText?: string }
+  | {
+      handled: true;
+      runDiagnosis: true;
+      welcomePrefix?: string;
+      symptomsText?: string;
+      postIntake?: PostIntakeDiagnosisPayload;
+    }
   | { handled: true; duplicateImage: true };
 
 /** Map typed or button titles to stable menu ids. */
@@ -386,7 +393,8 @@ export const whatsappScenarioRouter = {
           return {
             handled: true,
             runDiagnosis: true,
-            symptomsText: intakeResult.enrichedSymptoms,
+            symptomsText: intakeResult.postIntake.enrichedSymptoms,
+            postIntake: intakeResult.postIntake,
           };
         }
         return { handled: true };

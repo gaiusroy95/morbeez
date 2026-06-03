@@ -41,6 +41,7 @@ DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS=3
 DIAGNOSIS_FOLLOW_UP_STRONG_MATCH=0.9
 ```
 
-## Client test
+## Client test (English)
 
-See `CLIENT-AI-TRAINING-TEST-GUIDE.md` — section **Test diagnosis follow-up (Farmer A → Farmer B)**.
+See `CLIENT-AI-TRAINING-TEST-GUIDE.md` — section **Test diagnosis follow-up (Farmer A → Farmer B)**.  
+Use the **English** copy-paste messages for Farmer A (3 cases) and Farmer B.

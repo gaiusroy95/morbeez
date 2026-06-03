@@ -288,7 +288,8 @@ export const whatsappScenarioRouter = {
                     return {
                         handled: true,
                         runDiagnosis: true,
-                        symptomsText: intakeResult.enrichedSymptoms,
+                        symptomsText: intakeResult.postIntake.enrichedSymptoms,
+                        postIntake: intakeResult.postIntake,
                     };
                 }
                 return { handled: true };

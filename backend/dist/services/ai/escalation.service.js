@@ -97,6 +97,7 @@ export const escalationService = {
             crop_type: cropType,
             language: params.language,
             symptoms_text: text.slice(0, 2000),
+            image_storage_path: params.imageStoragePath ?? null,
             status: 'completed',
             confidence_score: confidence,
             escalation_recommended: false,
