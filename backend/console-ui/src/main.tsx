@@ -5,6 +5,8 @@ import './styles/admin.css';
 import './styles/console-topbar.css';
 import './styles/console-overrides.css';
 import './styles/telecaller-crm.css';
+import './styles/commerce-products.css';
+import './styles/product-wizard.css';
 import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(

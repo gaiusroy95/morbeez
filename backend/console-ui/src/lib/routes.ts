@@ -15,6 +15,8 @@ export const paths = {
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
+  commerceProductNew: 'commerce/products/new',
+  commerceProductEdit: 'commerce/products/:productId/edit',
   employees: 'employees',
   employeeDetail: 'employees/:employeeId',
   settings: 'settings',
@@ -65,6 +67,11 @@ export const ROUTE_META: Record<
   },
   [toPath(paths.analytics)]: { title: 'Analytics', module: 'analytics', pageKey: 'analytics' },
   [toPath(paths.commerce)]: { title: 'Commerce', module: 'commerce', pageKey: 'commerce' },
+  [toPath(paths.commerceProductNew)]: {
+    title: 'Add Product',
+    module: 'commerce',
+    pageKey: 'commerce',
+  },
   [toPath(paths.employees)]: { title: 'Employee Workspace', module: 'settings', pageKey: 'employees' },
   [toPath(paths.settings)]: { title: 'Settings', module: 'settings', pageKey: 'settings' },
 };
@@ -73,6 +80,12 @@ export function matchRouteMeta(pathname: string): { title: string; module: strin
   const key = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
   if (key.startsWith('/employees/') && key !== '/employees') {
     return { title: 'Employee Details', module: 'settings', pageKey: 'employees' };
+  }
+  if (key.includes('/commerce/products/') && key.endsWith('/edit')) {
+    return { title: 'Edit Product', module: 'commerce', pageKey: 'commerce' };
+  }
+  if (key.endsWith('/commerce/products/new')) {
+    return { title: 'Add Product', module: 'commerce', pageKey: 'commerce' };
   }
   return (
     ROUTE_META[key] ?? {

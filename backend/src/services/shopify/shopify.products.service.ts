@@ -6,7 +6,9 @@ export interface ProductListQuery {
   limit?: number;
   search?: string;
   category?: string;
+  brand?: string;
   status?: string;
+  stock?: 'low' | 'out' | 'in';
 }
 
 interface ShopifyVariant {
@@ -180,12 +182,26 @@ async function fetchAllProducts(search?: string): Promise<ShopifyProduct[]> {
 
 function applyListFilters(products: ShopifyProduct[], query: ProductListQuery): ShopifyProduct[] {
   let list = products;
-  if (query.category?.trim()) {
+  if (query.category?.trim() && query.category.trim() !== 'all') {
     const cat = query.category.trim().toLowerCase();
     list = list.filter((p) => (p.product_type?.trim() || 'Uncategorized').toLowerCase() === cat);
   }
-  if (query.status?.trim()) {
+  if (query.brand?.trim() && query.brand.trim() !== 'all') {
+    const brand = query.brand.trim().toLowerCase();
+    list = list.filter((p) => (p.vendor?.trim() || '').toLowerCase() === brand);
+  }
+  if (query.status?.trim() && query.status.trim() !== 'all') {
     list = list.filter((p) => p.status === query.status?.trim());
+  }
+  if (query.stock === 'low') {
+    list = list.filter((p) => {
+      const inv = totalInventory(p);
+      return inv > 0 && inv <= 10;
+    });
+  } else if (query.stock === 'out') {
+    list = list.filter((p) => totalInventory(p) === 0);
+  } else if (query.stock === 'in') {
+    list = list.filter((p) => totalInventory(p) > 10);
   }
   return list;
 }
@@ -203,8 +219,10 @@ function computeStats(products: ShopifyProduct[]) {
   return {
     total: products.length,
     active,
+    inactive: products.length - active,
     lowStock,
     outOfStock,
+    expiringSoon: 0,
   };
 }
 
@@ -212,6 +230,15 @@ function uniqueCategories(products: ShopifyProduct[]): string[] {
   const set = new Set<string>();
   for (const p of products) {
     set.add(p.product_type?.trim() || 'Uncategorized');
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+function uniqueBrands(products: ShopifyProduct[]): string[] {
+  const set = new Set<string>();
+  for (const p of products) {
+    const v = p.vendor?.trim();
+    if (v) set.add(v);
   }
   return [...set].sort((a, b) => a.localeCompare(b));
 }
@@ -235,6 +262,7 @@ export const shopifyProductsService = {
     const catalog = await fetchAllProducts(query.search);
     const stats = computeStats(catalog);
     const categories = uniqueCategories(catalog);
+    const brands = uniqueBrands(catalog);
     const filtered = applyListFilters(catalog, query);
     const total = filtered.length;
     const pages = Math.max(1, Math.ceil(total / limit));
@@ -246,6 +274,7 @@ export const shopifyProductsService = {
       products: slice.map(mapProduct),
       stats,
       categories,
+      brands,
       pagination: {
         page: safePage,
         limit,

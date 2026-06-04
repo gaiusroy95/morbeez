@@ -17,6 +17,7 @@ import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { AnalyticsHubPage } from '../pages/AnalyticsHubPage';
 import { CommerceHubPage } from '../pages/CommerceHubPage';
+import { ProductWizardPage } from '../pages/ProductWizardPage';
 import { EmployeesPage } from '../pages/EmployeesPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { useAuth } from '../context/AuthContext';
@@ -65,6 +66,11 @@ function EmployeesRoute() {
 function CommerceRoute() {
   const { can } = useAuth();
   return <CommerceHubPage canWrite={can('commerce', 'write')} />;
+}
+
+function ProductWizardRoute() {
+  const { can } = useAuth();
+  return <ProductWizardPage canWrite={can('commerce', 'write')} />;
 }
 
 export const appRouter = createBrowserRouter(
@@ -160,6 +166,22 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="commerce">
                   <CommerceRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.commerceProductNew,
+              element: (
+                <ProtectedPage module="commerce">
+                  <ProductWizardRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.commerceProductEdit,
+              element: (
+                <ProtectedPage module="commerce">
+                  <ProductWizardRoute />
                 </ProtectedPage>
               ),
             },

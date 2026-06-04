@@ -3,7 +3,9 @@ export interface ProductListQuery {
     limit?: number;
     search?: string;
     category?: string;
+    brand?: string;
     status?: string;
+    stock?: 'low' | 'out' | 'in';
 }
 export interface WizardVariantInput {
     id?: string;
@@ -102,10 +104,13 @@ export declare const shopifyProductsService: {
         stats: {
             total: number;
             active: number;
+            inactive: number;
             lowStock: number;
             outOfStock: number;
+            expiringSoon: number;
         };
         categories: string[];
+        brands: string[];
         pagination: {
             page: number;
             limit: number;

@@ -1771,12 +1771,15 @@ export async function adminRoutes(app) {
     app.get(`${api}/products`, async (request, reply) => {
         requireAdmin(request);
         const q = request.query;
+        const stock = q.stock === 'low' || q.stock === 'out' || q.stock === 'in' ? q.stock : undefined;
         const result = await shopifyProductsService.list({
             page: q.page ? Number(q.page) : 1,
             limit: q.limit ? Number(q.limit) : 8,
             search: q.search,
             category: q.category,
+            brand: q.brand,
             status: q.status,
+            stock,
         });
         return reply.send({ ok: true, ...result });
     });

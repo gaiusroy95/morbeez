@@ -12,6 +12,7 @@ import {
   TableWrap,
 } from '../components/ui';
 import { Modal } from '../components/Modal';
+import { CommerceAllProductsPanel } from '../components/commerce/CommerceAllProductsPanel';
 
 type Tab = 'orders' | 'farmers' | 'products' | 'inventory';
 
@@ -23,7 +24,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
 ];
 
 export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
-  const [tab, setTab] = useState<Tab>('orders');
+  const [tab, setTab] = useState<Tab>('products');
   const [search, setSearch] = useState('');
   const searchDefaults = defaultsForPage('commerce');
   useSyncConsoleSearch(
@@ -40,10 +41,13 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   } | null>(null);
   const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
   const [farmers, setFarmers] = useState<Array<Record<string, unknown>>>([]);
-  const [products, setProducts] = useState<Array<Record<string, unknown>>>([]);
   const [inventory, setInventory] = useState<Array<Record<string, unknown>>>([]);
 
   const load = useCallback(async () => {
+    if (tab === 'products') {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError('');
     const q = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
@@ -58,11 +62,6 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
           `/morbeez-staff/api/v1/farmers?limit=40${q}`
         );
         setFarmers(d.farmers ?? []);
-      } else if (tab === 'products') {
-        const d = await api<{ ok: boolean; products: Array<Record<string, unknown>> }>(
-          `/morbeez-staff/api/v1/products?limit=40${q}`
-        );
-        setProducts(d.products ?? []);
       } else {
         const d = await api<{ ok: boolean; rows: Array<Record<string, unknown>> }>(
           `/morbeez-staff/api/v1/inventory?limit=40${q}`
@@ -100,17 +99,6 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
     });
   }
 
-  async function archiveProduct(id: string) {
-    setConfirmModal({
-      title: 'Archive product',
-      body: 'Archive this product?',
-      action: async () => {
-        await api(`/morbeez-staff/api/v1/products/${id}`, { method: 'DELETE' });
-        await load();
-      },
-    });
-  }
-
   useEffect(() => {
     const t = setTimeout(load, 300);
     return () => clearTimeout(t);
@@ -119,8 +107,8 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   return (
     <div className="commerce-hub">
       <HubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {error ? <Alert tone="error">{error}</Alert> : null}
-      {loading ? <Loading /> : null}
+      {tab !== 'products' && error ? <Alert tone="error">{error}</Alert> : null}
+      {tab !== 'products' && loading ? <Loading /> : null}
 
       {!loading && tab === 'orders' ? (
         <Panel title="Orders">
@@ -214,42 +202,7 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
         </Panel>
       ) : null}
 
-      {!loading && tab === 'products' ? (
-        <Panel title="Products">
-          <TableWrap>
-            <DataTable>
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Status</th>
-                  <th>Stock</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((p) => (
-                  <tr key={String(p.id)}>
-                    <td>{String(p.title ?? '—')}</td>
-                    <td>{String(p.status ?? '—')}</td>
-                    <td>{String(p.inventory ?? 0)}</td>
-                    <td>
-                      {canWrite ? (
-                        <button
-                          type="button"
-                          className="text-xs text-red-600 hover:underline"
-                          onClick={() => archiveProduct(String(p.id))}
-                        >
-                          Archive
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </DataTable>
-          </TableWrap>
-        </Panel>
-      ) : null}
+      {tab === 'products' ? <CommerceAllProductsPanel canWrite={canWrite} /> : null}
 
       {!loading && tab === 'inventory' ? (
         <Panel title="Inventory">
