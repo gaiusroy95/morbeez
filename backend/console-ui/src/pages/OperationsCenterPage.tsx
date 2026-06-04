@@ -11,14 +11,12 @@ import {
 import { Alert, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
 import { Field, Modal, inputClass } from '../components/Modal';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
-import { FieldActivityPhase2Panel } from '../components/operations/field-activities/FieldActivityPhase2Panel';
 import { cropSlugFromName } from '../lib/master-picker-utils';
 
 type Tab =
   | 'messaging'
   | 'broadcasts'
   | 'prices'
-  | 'fieldActivity'
   | 'terminology'
   | 'weather'
   | 'quickReplies'
@@ -118,51 +116,6 @@ type FieldActivityBlock = {
   farmers?: { name: string | null; phone: string | null; district: string | null };
 };
 
-type FieldActivity = {
-  id: string;
-  farm_block_id: string | null;
-  activity_type: string;
-  activity_type_id?: string | null;
-  activity_label: string | null;
-  applied_at: string;
-  dap?: number | null;
-  notes: string | null;
-  cost_inr: number | null;
-  labour_cost_inr?: number | null;
-  spray_cost_inr?: number | null;
-  fertilizer_cost_inr?: number | null;
-  machinery_cost_inr?: number | null;
-  field_activity_types?: {
-    id: string;
-    activity_name: string;
-    category: string;
-    icon: string | null;
-    color_tag: string | null;
-    followup_default_days: number | null;
-  } | null;
-  follow_up_required: boolean;
-  follow_up_date: string | null;
-  activity_status: 'completed' | 'pending' | 'cancelled';
-  roi_activity_costs?: Array<{
-    roi_entry_id: string;
-    cost_type: string;
-    amount_inr: number;
-    link_status: string;
-  }>;
-  created_at: string;
-};
-
-type FieldActivityType = {
-  id: string;
-  activity_name: string;
-  category: string;
-  crop: string | null;
-  icon: string | null;
-  color_tag: string | null;
-  followup_default_days: number | null;
-  active_status: boolean;
-};
-
 const BROADCAST_KINDS = [
   'cultivation_schedule',
   'fertigation_reminder',
@@ -175,7 +128,6 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'messaging', label: 'Messaging' },
   { id: 'broadcasts', label: 'Broadcasts' },
   { id: 'prices', label: 'Daily prices' },
-  { id: 'fieldActivity', label: 'Field activity' },
   { id: 'terminology', label: 'Terminology' },
   { id: 'weather', label: 'Weather rules' },
   { id: 'quickReplies', label: 'Quick replies' },
@@ -219,9 +171,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
   const [priceYearView, setPriceYearView] = useState(new Date().getFullYear());
   const [districtWeather, setDistrictWeather] = useState<DistrictWeather | null>(null);
   const [fieldBlocks, setFieldBlocks] = useState<FieldActivityBlock[]>([]);
-  const [fieldActivities, setFieldActivities] = useState<FieldActivity[]>([]);
-  const [fieldActivityTypes, setFieldActivityTypes] = useState<FieldActivityType[]>([]);
-  const [selectedBlockId, setSelectedBlockId] = useState('');
   const [tasks, setTasks] = useState<TermTask[]>([]);
   const [termStatus, setTermStatus] = useState('open');
   const [weatherRules, setWeatherRules] = useState<WeatherRule[]>([]);
@@ -293,19 +242,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
   }>({
     blockId: '',
     selectedKeys: [],
-  });
-
-  const [fieldForm, setFieldForm] = useState({
-    activityTypeId: '',
-    activityType: 'other',
-    activityLabel: '',
-    activityDate: new Date().toISOString().slice(0, 10),
-    dap: '',
-    notes: '',
-    costInr: '',
-    followUpRequired: false,
-    followUpDate: '',
-    status: 'completed',
   });
 
   const [termForm, setTermForm] = useState({
@@ -444,51 +380,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
             setMarketPrefForm((f) => ({ ...f, selectedKeys: keys }));
           }
         }
-      } else if (tab === 'fieldActivity') {
-        const b = await api<{ ok: boolean; blocks: FieldActivityBlock[] }>(
-          `${base}/field-activities/blocks?limit=120`
-        );
-        const blocks = b.blocks ?? [];
-        setFieldBlocks(blocks);
-        const blockId = selectedBlockId || blocks[0]?.id || '';
-        if (blockId && blockId !== selectedBlockId) setSelectedBlockId(blockId);
-        const selected = blocks.find((x) => x.id === blockId);
-        const cropType = selected?.crop_type ?? '';
-        const [typesRes] = await Promise.all([
-          api<{ ok: boolean; types: FieldActivityType[] }>(
-            `${base}/field-activity-types?cropType=${encodeURIComponent(cropType)}&activeOnly=true`
-          ),
-        ]);
-        const types = typesRes.types ?? [];
-        setFieldActivityTypes(types);
-        if (types.length > 0) {
-          setFieldForm((f) => {
-            if (types.some((t) => t.id === f.activityTypeId)) return f;
-            const first = types[0];
-            const category = first.category?.toLowerCase() ?? '';
-            const activityType = category.includes('nutrition')
-              ? 'fertigation'
-              : category.includes('protection')
-                ? 'spray_applied'
-                : category.includes('observation')
-                  ? 'scouting'
-                  : 'other';
-            return {
-              ...f,
-              activityTypeId: first.id,
-              activityLabel: f.activityLabel || first.activity_name,
-              activityType,
-            };
-          });
-        }
-        if (blockId) {
-          const a = await api<{ ok: boolean; activities: FieldActivity[] }>(
-            `${base}/field-activities?blockId=${encodeURIComponent(blockId)}&limit=200`
-          );
-          setFieldActivities(a.activities ?? []);
-        } else {
-          setFieldActivities([]);
-        }
       } else if (tab === 'terminology') {
         const d = await api<{ ok: boolean; tasks: TermTask[] }>(
           `${base}/terminology/tasks?status=${encodeURIComponent(termStatus)}`
@@ -534,7 +425,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     tplStatus,
     jobStatus,
     jobType,
-    selectedBlockId,
     priceViewCrop,
     marketPrefForm.blockId,
   ]);
@@ -667,44 +557,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  async function saveFieldActivity(e: FormEvent): Promise<boolean> {
-    e.preventDefault();
-    if (!canWrite || !selectedBlockId) return false;
-    setError('');
-    try {
-      await api(`${base}/field-activities`, {
-        method: 'POST',
-        body: JSON.stringify({
-          blockId: selectedBlockId,
-          activityTypeId: fieldForm.activityTypeId || undefined,
-          activityType: fieldForm.activityType,
-          activityLabel: fieldForm.activityLabel.trim() || undefined,
-          activityDate: fieldForm.activityDate,
-          dap: fieldForm.dap ? Number(fieldForm.dap) : undefined,
-          notes: fieldForm.notes.trim() || undefined,
-          costInr: fieldForm.costInr ? Number(fieldForm.costInr) : undefined,
-          followUpRequired: fieldForm.followUpRequired,
-          followUpDate: fieldForm.followUpRequired ? fieldForm.followUpDate || undefined : undefined,
-          status: fieldForm.status,
-        }),
-      });
-      setFieldForm((f) => ({
-        ...f,
-        activityLabel: '',
-        notes: '',
-        costInr: '',
-        dap: '',
-        followUpRequired: false,
-        followUpDate: '',
-      }));
-      await loadTab();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save field activity');
-      return false;
-    }
-  }
-
   async function createTermTask(e: FormEvent) {
     e.preventDefault();
     if (!canWrite || !termForm.term.trim()) return;
@@ -792,7 +644,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
     });
   }
 
-  const selectedBlock = fieldBlocks.find((b) => b.id === selectedBlockId) ?? fieldBlocks[0] ?? null;
   const selectedPriceBlock =
     fieldBlocks.find((b) => b.id === marketPrefForm.blockId) ?? fieldBlocks[0] ?? null;
   const visiblePriceRows =
@@ -1290,22 +1141,6 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                 </section>
               </div>
             </div>
-          ) : null}
-
-          {tab === 'fieldActivity' ? (
-            <FieldActivityPhase2Panel
-              canWrite={canWrite}
-              apiBase={base}
-              blocks={fieldBlocks}
-              selectedBlockId={selectedBlock?.id ?? ''}
-              activities={fieldActivities}
-              activityTypes={fieldActivityTypes}
-              form={fieldForm}
-              onFormChange={setFieldForm}
-              onActivityTypesChange={setFieldActivityTypes}
-              onSave={saveFieldActivity}
-              onBlockChange={setSelectedBlockId}
-            />
           ) : null}
 
           {tab === 'terminology' ? (

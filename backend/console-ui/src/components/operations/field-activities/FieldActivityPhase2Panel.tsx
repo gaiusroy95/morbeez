@@ -16,6 +16,7 @@ import '../../../styles/field-activities.css';
 type Props = {
   canWrite: boolean;
   apiBase: string;
+  breadcrumbLabel?: string;
   blocks: FieldActivityBlock[];
   selectedBlockId: string;
   activities: FieldActivity[];
@@ -77,7 +78,9 @@ export function FieldActivityPhase2Panel(props: Props) {
   return (
     <div className="fa-page">
       <div className="fa-page-toolbar">
-        <p className="fa-page-breadcrumb">Operations / Field Activities</p>
+        <p className="fa-page-breadcrumb">
+          {props.breadcrumbLabel ?? 'Operations / Field Activities'}
+        </p>
         <div className="fa-page-controls">
           <select
             className="fa-block-select"

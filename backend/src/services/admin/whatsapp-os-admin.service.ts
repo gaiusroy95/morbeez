@@ -68,6 +68,32 @@ export const whatsappOsAdminService = {
     return data ?? [];
   },
 
+  async listFieldActivityBlocksForFarmer(farmerId: string, limit = 50) {
+    const { data, error } = await supabase
+      .from('farm_blocks')
+      .select(
+        'id, farmer_id, name, plot_label, crop_type, stage, acreage_decimal, planting_date, latitude, longitude, created_at, farmers(name, phone, district)'
+      )
+      .eq('farmer_id', farmerId)
+      .is('archived_at', null)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(Math.max(limit, 1), 100));
+    throwIfSupabaseError(error, 'Could not load farmer blocks');
+    return data ?? [];
+  },
+
+  async assertFarmBlockBelongsToFarmer(blockId: string, farmerId: string): Promise<void> {
+    const { data, error } = await supabase
+      .from('farm_blocks')
+      .select('id')
+      .eq('id', blockId)
+      .eq('farmer_id', farmerId)
+      .is('archived_at', null)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not verify farm block');
+    if (!data?.id) throw new Error('Farm block not found for this farmer');
+  },
+
   async listFieldActivities(params: { blockId: string; limit?: number }) {
     const { data, error } = await supabase
       .from('cultivation_activities')

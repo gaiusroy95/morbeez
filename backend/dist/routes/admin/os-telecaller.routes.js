@@ -1086,5 +1086,95 @@ export async function osTelecallerRoutes(app) {
         const escalation = await escalationAdminService.update(id, body, admin.email);
         return reply.send({ ok: true, escalation });
     });
+    app.get(`${api}/leads/:id/field-activities/blocks`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const blocks = await whatsappOsAdminService.listFieldActivityBlocksForFarmer(String(detail.lead.farmerId));
+        return reply.send({ ok: true, blocks });
+    });
+    app.get(`${api}/leads/:id/field-activities`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const q = z
+            .object({
+            blockId: z.string().uuid(),
+            limit: z.coerce.number().int().positive().max(300).optional(),
+        })
+            .parse(request.query ?? {});
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const farmerId = String(detail.lead.farmerId);
+        await whatsappOsAdminService.assertFarmBlockBelongsToFarmer(q.blockId, farmerId);
+        const activities = await whatsappOsAdminService.listFieldActivities({
+            blockId: q.blockId,
+            limit: q.limit,
+        });
+        return reply.send({ ok: true, activities });
+    });
+    app.get(`${api}/leads/:id/field-activity-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const q = z
+            .object({
+            cropType: z.string().optional(),
+            activeOnly: z.coerce.boolean().optional(),
+        })
+            .parse(request.query ?? {});
+        const types = await whatsappOsAdminService.listFieldActivityTypes({
+            cropType: q.cropType,
+            activeOnly: q.activeOnly,
+        });
+        return reply.send({ ok: true, types });
+    });
+    app.post(`${api}/leads/:id/field-activity-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const body = z
+            .object({
+            activityName: z.string().min(1).max(120),
+            category: z.string().max(40).optional(),
+            crop: z.string().max(40).nullable().optional(),
+            icon: z.string().max(40).nullable().optional(),
+            colorTag: z.string().max(40).nullable().optional(),
+            followupDefaultDays: z.number().int().min(0).max(365).nullable().optional(),
+        })
+            .parse(request.body);
+        const type = await whatsappOsAdminService.createFieldActivityType(body);
+        return reply.status(201).send({ ok: true, type });
+    });
+    app.post(`${api}/leads/:id/field-activities`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid(),
+            activityTypeId: z.string().uuid().optional(),
+            activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+            activityLabel: z.string().max(120).optional(),
+            activityDate: z.string().min(8).max(20),
+            dap: z.number().int().min(0).max(5000).optional(),
+            notes: z.string().max(1000).optional(),
+            costInr: z.number().min(0).max(10000000).optional(),
+            costBreakdown: z
+                .object({
+                labourCostInr: z.number().min(0).max(10000000).optional(),
+                sprayCostInr: z.number().min(0).max(10000000).optional(),
+                fertilizerCostInr: z.number().min(0).max(10000000).optional(),
+                machineryCostInr: z.number().min(0).max(10000000).optional(),
+            })
+                .optional(),
+            followUpRequired: z.boolean().optional(),
+            followUpDate: z.string().min(8).max(20).optional(),
+            status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+            assignedEmployee: z.string().max(160).optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(id);
+        const farmerId = String(detail.lead.farmerId);
+        await whatsappOsAdminService.assertFarmBlockBelongsToFarmer(body.blockId, farmerId);
+        const activity = await whatsappOsAdminService.createFieldActivity({
+            ...body,
+            assignedEmployee: body.assignedEmployee ?? admin.email,
+        });
+        return reply.status(201).send({ ok: true, activity });
+    });
 }
 //# sourceMappingURL=os-telecaller.routes.js.map

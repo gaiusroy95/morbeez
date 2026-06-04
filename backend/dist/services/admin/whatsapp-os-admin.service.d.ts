@@ -24,6 +24,25 @@ export declare const whatsappOsAdminService: {
             district: any;
         }[];
     }[]>;
+    listFieldActivityBlocksForFarmer(farmerId: string, limit?: number): Promise<{
+        id: any;
+        farmer_id: any;
+        name: any;
+        plot_label: any;
+        crop_type: any;
+        stage: any;
+        acreage_decimal: any;
+        planting_date: any;
+        latitude: any;
+        longitude: any;
+        created_at: any;
+        farmers: {
+            name: any;
+            phone: any;
+            district: any;
+        }[];
+    }[]>;
+    assertFarmBlockBelongsToFarmer(blockId: string, farmerId: string): Promise<void>;
     listFieldActivities(params: {
         blockId: string;
         limit?: number;

@@ -5,6 +5,7 @@ import { BlocksTab } from './BlocksTab';
 import { EditFarmerModal } from './EditFarmerModal';
 import { LeadExportMenu } from './LeadExportMenu';
 import { RoiTrackerTab } from './RoiTrackerTab';
+import { FieldActivitiesTab } from './FieldActivitiesTab';
 import { openWhatsAppShare } from '../../lib/crmExport';
 import { FarmerIntelligencePanel } from '../intelligence/FarmerIntelligencePanel';
 import {
@@ -51,7 +52,8 @@ type Tab =
   | 'escalations'
   | 'notes'
   | 'orders'
-  | 'roi_tracker';
+  | 'roi_tracker'
+  | 'field_activity';
 
 type LeadDetail = {
   lead: {
@@ -113,6 +115,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'notes', label: 'Notes' },
   { id: 'orders', label: 'Orders' },
   { id: 'roi_tracker', label: 'ROI tracker' },
+  { id: 'field_activity', label: 'Field activity' },
 ];
 
 const TAB_ICONS: Record<Tab, string> = {
@@ -127,6 +130,7 @@ const TAB_ICONS: Record<Tab, string> = {
   notes: '📝',
   orders: '🛒',
   roi_tracker: '📒',
+  field_activity: '🌿',
 };
 
 export function LeadDetailPanel({ leadId, canWrite }: Props) {
@@ -959,6 +963,14 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
         ) : null}
 
         {tab === 'roi_tracker' ? <RoiTrackerTab leadId={leadId} canWrite={canWrite} /> : null}
+
+        {tab === 'field_activity' && detail ? (
+          <FieldActivitiesTab
+            leadId={leadId}
+            farmerName={detail.lead.farmerName}
+            canWrite={canWrite}
+          />
+        ) : null}
 
         {tab === 'whatsapp' ? (
           <div className="tc-wa-layout">

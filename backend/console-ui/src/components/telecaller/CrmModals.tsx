@@ -15,7 +15,7 @@ import {
 } from './StructuredFieldFindingFields';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
-const operationsBase = '/morbeez-staff/api/v1/os/operations';
+const telecallerBase = '/morbeez-staff/api/v1/os/telecaller';
 
 export type CrmModalType =
   | 'block'
@@ -215,11 +215,11 @@ function AddInteractionModal({
     }
     const cropType = selectedBlock?.cropName ?? '';
     void api<{ ok: boolean; types: FieldActivityType[] }>(
-      `${operationsBase}/field-activity-types?cropType=${encodeURIComponent(cropType)}&activeOnly=true`
+      `${telecallerBase}/leads/${leadId}/field-activity-types?cropType=${encodeURIComponent(cropType)}&activeOnly=true`
     )
       .then((res) => setFieldActivityTypes(res.types ?? []))
       .catch(() => setFieldActivityTypes([]));
-  }, [addFieldActivity, blockId, selectedBlock?.cropName]);
+  }, [addFieldActivity, blockId, selectedBlock?.cropName, leadId]);
 
   return (
     <Modal
@@ -346,7 +346,7 @@ function AddInteractionModal({
                 types={fieldActivityTypes}
                 value={fieldActivityTypeId}
                 cropType={selectedBlock?.cropName}
-                apiBase={operationsBase}
+                apiBase={`${telecallerBase}/leads/${leadId}`}
                 onChange={(type) => {
                   setFieldActivityTypeId(type?.id ?? '');
                   setFieldActivityLabel(type?.activity_name ?? '');
