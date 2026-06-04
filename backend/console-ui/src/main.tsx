@@ -6,6 +6,8 @@ import './styles/console-topbar.css';
 import './styles/console-overrides.css';
 import './styles/telecaller-crm.css';
 import './styles/commerce-products.css';
+import './styles/commerce-inventory.css';
+import './styles/commerce-farmers.css';
 import './styles/product-wizard.css';
 import App from './App.tsx';
 
