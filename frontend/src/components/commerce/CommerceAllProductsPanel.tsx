@@ -141,6 +141,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   const [page, setPage] = useState(1);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleting, setBatchDeleting] = useState(false);
   const [statFilter, setStatFilter] = useState<'all' | 'low' | 'out' | 'expiring'>('all');
 
   const [viewProduct, setViewProduct] = useState<ProductRow | null>(null);
@@ -182,6 +183,10 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
 
   const allSelected =
     products.length > 0 && products.every((p) => selectedIds.has(p.id));
@@ -264,14 +269,56 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   }
 
   async function archiveProduct(id: string) {
-    if (!canWrite || !window.confirm('Archive this product?')) return;
+    if (!canWrite || !window.confirm('Archive this product? It will be hidden from the product list.')) return;
     setMenuId(null);
     try {
       await api(`/morbeez-staff/api/v1/products/${id}`, { method: 'DELETE' });
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not archive product');
     }
+  }
+
+  async function batchArchiveSelected() {
+    if (!canWrite || selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    if (
+      !window.confirm(
+        `Delete ${count} selected product${count === 1 ? '' : 's'}? They will be archived and hidden from this list.`
+      )
+    ) {
+      return;
+    }
+
+    setBatchDeleting(true);
+    setError('');
+    try {
+      const ids = [...selectedIds];
+      const res = await api<{ ok: boolean; archived: string[]; failed: string[] }>(
+        '/morbeez-staff/api/v1/products/batch-archive',
+        { method: 'POST', body: JSON.stringify({ ids }) }
+      );
+      setSelectedIds(new Set());
+      if (res.failed?.length) {
+        setError(
+          `Archived ${res.archived.length} product(s). ${res.failed.length} could not be archived.`
+        );
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not archive selected products');
+    } finally {
+      setBatchDeleting(false);
+    }
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
   }
 
   const rangeStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
@@ -461,6 +508,32 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
         </div>
       </div>
 
+      {selectedIds.size > 0 && canWrite ? (
+        <div className="commerce-products__batch-bar" role="toolbar" aria-label="Batch actions">
+          <span className="commerce-products__batch-count">
+            {selectedIds.size} selected
+          </span>
+          <div className="commerce-products__batch-actions">
+            <button
+              type="button"
+              className="commerce-products__btn commerce-products__btn--outline"
+              onClick={clearSelection}
+              disabled={batchDeleting}
+            >
+              Clear selection
+            </button>
+            <button
+              type="button"
+              className="commerce-products__btn commerce-products__btn--danger"
+              onClick={() => void batchArchiveSelected()}
+              disabled={batchDeleting}
+            >
+              {batchDeleting ? 'Deleting…' : 'Delete selected'}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="commerce-products__table-card">
         {loading ? (
           <p className="commerce-products__loading">Loading products…</p>
@@ -615,7 +688,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                                     style={{ display: 'block', width: '100%' }}
                                     onClick={() => void archiveProduct(p.id)}
                                   >
-                                    Archive
+                                    Delete
                                   </button>
                                 </div>
                               ) : null}

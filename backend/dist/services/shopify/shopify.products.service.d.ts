@@ -276,6 +276,10 @@ export declare const shopifyProductsService: {
         createdAt: string;
         updatedAt: string;
     }>;
+    archiveMany(ids: string[]): Promise<{
+        archived: string[];
+        failed: string[];
+    }>;
     uploadImage(productId: string, input: {
         fileName: string;
         mimeType: string;

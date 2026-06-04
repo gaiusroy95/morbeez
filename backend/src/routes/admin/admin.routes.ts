@@ -2216,6 +2216,23 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, product });
   });
 
+  app.post(`${api}/products/batch-archive`, async (request, reply) => {
+    requireAdminRole(request, 'super_admin', 'admin', 'manager');
+    const actor = requireAdmin(request);
+    const body = z.object({ ids: z.array(z.string().min(1)).min(1).max(100) }).parse(request.body);
+    const result = await shopifyProductsService.archiveMany(body.ids);
+    for (const id of result.archived) {
+      await logAdminMutation({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'archive',
+        resource: 'products',
+        resourceId: id,
+      });
+    }
+    return reply.send({ ok: true, ...result });
+  });
+
   app.post(`${api}/products/:id/images`, async (request, reply) => {
     requireAdminRole(request, 'admin', 'manager');
     const { id } = request.params as { id: string };

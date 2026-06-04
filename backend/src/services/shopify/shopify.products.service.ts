@@ -182,6 +182,10 @@ async function fetchAllProducts(search?: string): Promise<ShopifyProduct[]> {
 
 function applyListFilters(products: ShopifyProduct[], query: ProductListQuery): ShopifyProduct[] {
   let list = products;
+  const statusFilter = query.status?.trim();
+  if (!statusFilter || statusFilter === 'all') {
+    list = list.filter((p) => p.status !== 'archived');
+  }
   if (query.category?.trim() && query.category.trim() !== 'all') {
     const cat = query.category.trim().toLowerCase();
     list = list.filter((p) => (p.product_type?.trim() || 'Uncategorized').toLowerCase() === cat);
@@ -190,8 +194,8 @@ function applyListFilters(products: ShopifyProduct[], query: ProductListQuery): 
     const brand = query.brand.trim().toLowerCase();
     list = list.filter((p) => (p.vendor?.trim() || '').toLowerCase() === brand);
   }
-  if (query.status?.trim() && query.status.trim() !== 'all') {
-    list = list.filter((p) => p.status === query.status?.trim());
+  if (statusFilter && statusFilter !== 'all') {
+    list = list.filter((p) => p.status === statusFilter);
   }
   if (query.stock === 'low') {
     list = list.filter((p) => {
@@ -260,9 +264,10 @@ export const shopifyProductsService = {
     const page = Math.max(1, query.page ?? 1);
 
     const catalog = await fetchAllProducts(query.search);
-    const stats = computeStats(catalog);
-    const categories = uniqueCategories(catalog);
-    const brands = uniqueBrands(catalog);
+    const statsSource = catalog.filter((p) => p.status !== 'archived');
+    const stats = computeStats(statsSource);
+    const categories = uniqueCategories(statsSource);
+    const brands = uniqueBrands(statsSource);
     const filtered = applyListFilters(catalog, query);
     const total = filtered.length;
     const pages = Math.max(1, Math.ceil(total / limit));
@@ -440,6 +445,26 @@ export const shopifyProductsService = {
     });
     clearProductListCache();
     return mapProduct(res.product);
+  },
+
+  async archiveMany(ids: string[]): Promise<{ archived: string[]; failed: string[] }> {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+    const archived: string[] = [];
+    const failed: string[] = [];
+
+    await Promise.all(
+      unique.map(async (id) => {
+        try {
+          await this.update(id, { status: 'archived' });
+          archived.push(id);
+        } catch {
+          failed.push(id);
+        }
+      })
+    );
+
+    clearProductListCache();
+    return { archived, failed };
   },
 
   async uploadImage(
