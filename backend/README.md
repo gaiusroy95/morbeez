@@ -2,6 +2,8 @@
 
 Production operational backend for M2: Shopify · Razorpay · Shiprocket · WhatsApp · Supabase.
 
+The **staff console UI** lives in [`../frontend`](../frontend) and deploys separately (e.g. Vercel). This service exposes APIs at `/morbeez-staff/api/v1` and still serves the **field PWA** at `/field/` when built.
+
 ## Quick start
 
 ```bash
@@ -12,18 +14,26 @@ npm install
 npm run dev
 ```
 
+For the console UI, see [`../frontend/README.md`](../frontend/README.md).
+
 ## Deploy on Render
 
 | Setting | Value |
 |---------|--------|
-| **Root directory** | `backend` (not `console-ui`) |
+| **Root directory** | `backend` |
 | **Build command** | `npm install && npm run build` |
 | **Start command** | `npm start` |
 
-Set **`NPM_CONFIG_PRODUCTION=false`** (or use `backend/render.yaml`) so Vite/Tailwind install during build.  
-The build runs `install:ui` for `console-ui` and `field-pwa`, then compiles the API and both frontends.
+Set **`NPM_CONFIG_PRODUCTION=false`** (or use `backend/render.yaml`) so field-pwa devDependencies install during build.
 
-Health: `GET http://localhost:3000/health`
+**Environment (staff console on Vercel):**
+
+```env
+CONSOLE_PUBLIC_URL=https://your-staff-app.vercel.app
+ADMIN_UI_ORIGIN=https://your-staff-app.vercel.app
+```
+
+Health: `GET http://localhost:10000/health`
 
 ## API folder structure
 

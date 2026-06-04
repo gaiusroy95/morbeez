@@ -8,7 +8,7 @@ Replace free-text field findings in telecaller flows with **structured operation
 
 ### Structured field finding form
 
-Shared component: `backend/console-ui/src/components/telecaller/StructuredFieldFindingFields.tsx`
+Shared component: `frontend/src/components/telecaller/StructuredFieldFindingFields.tsx`
 
 | Field | Required | Source |
 |-------|----------|--------|

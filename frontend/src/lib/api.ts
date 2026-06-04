@@ -1,4 +1,4 @@
-import { STAFF_API_V1 } from './staff-portal';
+import { STAFF_API_V1, resolveStaffApiUrl } from './staff-portal';
 
 const TOKEN_KEY = 'morbeez_admin_token';
 
@@ -47,7 +47,7 @@ export async function api<T = unknown>(
   }
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(path, { ...options, headers });
+  const res = await fetch(resolveStaffApiUrl(path), { ...options, headers });
   const data = (await res.json().catch(() => ({}))) as T & {
     message?: string;
     error?: string;

@@ -6,24 +6,31 @@ The vanilla JS console under `admin/js/` is **deprecated** as of Phase 8.
 
 | Old | New |
 |-----|-----|
-| `/console/` (legacy HTML/JS) | `/console/` — React app (`backend/console-ui/`) |
+| `/console/` (legacy HTML/JS) | Staff console React app (`frontend/`) |
 | Field visits (manual CRM only) | `/field/` — Field PWA (`backend/field-pwa/`) |
 
 ## Build & run
 
-From `backend/`:
+**API** (Render):
 
 ```bash
-npm run build    # compiles API + console-ui + field-pwa
+cd backend
+npm run build    # API + field-pwa only
 npm start
 ```
 
-The API **only** serves the React build from `backend/console-ui/dist/`.  
-If the build is missing, `/console/` returns a clear error instead of falling back to this folder.
+**Staff console** (Vercel or local):
+
+```bash
+cd frontend
+npm run dev      # http://localhost:5173
+```
+
+The API **does not** serve the React console build. Set `CONSOLE_PUBLIC_URL` and `ADMIN_UI_ORIGIN` to your frontend deployment.
 
 ## APIs unchanged
 
-All `/console/api/v1/*` routes remain. Legacy UI called the same endpoints; the React app uses them directly.
+Staff REST routes remain at `/morbeez-staff/api/v1/*`.
 
 ## This folder
 

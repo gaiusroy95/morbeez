@@ -21,6 +21,7 @@ import { ProductWizardPage } from '../pages/ProductWizardPage';
 import { EmployeesPage } from '../pages/EmployeesPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { useAuth } from '../context/AuthContext';
+import { STAFF_PORTAL_BASENAME } from '../lib/staff-portal';
 
 function TelecallerRoute() {
   const { can } = useAuth();
@@ -215,7 +216,7 @@ export const appRouter = createBrowserRouter(
     },
     { path: '*', element: <Navigate to={`/${paths.dashboard}`} replace /> },
   ],
-  { basename: '/morbeez-staff' }
+  { basename: STAFF_PORTAL_BASENAME }
 );
 
 export function AppRouter() {

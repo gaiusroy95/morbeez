@@ -23,20 +23,37 @@ import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
 import { adminRoutes } from './routes/admin/admin.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
-import { LEGACY_CONSOLE_PATH, STAFF_API_V1, STAFF_PORTAL_PATH, STAFF_PORTAL_PREFIX, } from './lib/staff-portal.js';
+import { LEGACY_CONSOLE_PATH, STAFF_API_V1, STAFF_PORTAL_PATH, } from './lib/staff-portal.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const reactConsoleStaticRoot = path.join(__dirname, '../console-ui/dist');
 const fieldPwaStaticRoot = path.join(__dirname, '../field-pwa/dist');
-const CONSOLE_BUILD_HINT = 'React console not built. From backend/: run npm run build:console (or npm run build).';
+function buildCorsOrigin() {
+    if (env.NODE_ENV !== 'production')
+        return true;
+    const origins = [
+        /morbeez\.in$/i,
+        /\.myshopify\.com$/i,
+        /onrender\.com$/i,
+        /\.vercel\.app$/i,
+    ];
+    if (env.ADMIN_UI_ORIGIN) {
+        for (const part of env.ADMIN_UI_ORIGIN.split(',')) {
+            const trimmed = part.trim();
+            if (trimmed)
+                origins.push(trimmed);
+        }
+    }
+    return origins;
+}
+function staffConsoleRedirectUrl() {
+    const base = env.CONSOLE_PUBLIC_URL?.replace(/\/$/, '');
+    return base || null;
+}
 export async function buildApp() {
     const app = Fastify({
         logger: false,
         trustProxy: true,
     });
-    const corsOrigins = env.NODE_ENV === 'production'
-        ? [/morbeez\.in$/, /\.myshopify\.com$/, /onrender\.com$/]
-        : true;
-    await app.register(cors, { origin: corsOrigins });
+    await app.register(cors, { origin: buildCorsOrigin() });
     await app.register(helmet, { contentSecurityPolicy: false });
     await app.register(rateLimit, {
         max: env.RATE_LIMIT_MAX,
@@ -62,44 +79,21 @@ export async function buildApp() {
     await app.register(authRoutes);
     await app.register(checkoutRoutes);
     await app.register(adminRoutes);
-    const staffPrefix = STAFF_PORTAL_PREFIX;
-    const consoleIndexPath = path.join(reactConsoleStaticRoot, 'index.html');
-    const consoleBuilt = fs.existsSync(consoleIndexPath);
-    if (consoleBuilt) {
-        await app.register(fastifyStatic, {
-            root: reactConsoleStaticRoot,
-            prefix: staffPrefix,
-            decorateReply: true,
+    const consoleUrl = staffConsoleRedirectUrl();
+    const portalMovedHandler = async (_request, reply) => {
+        if (consoleUrl)
+            return reply.redirect(consoleUrl);
+        return reply.code(410).send({
+            error: 'CONSOLE_MOVED',
+            message: 'Staff console UI is no longer served from this API. Set CONSOLE_PUBLIC_URL (e.g. your Vercel deployment) or use the separate frontend app.',
         });
-    }
-    else {
-        logger.warn({ path: reactConsoleStaticRoot }, CONSOLE_BUILD_HINT);
-    }
-    app.get(STAFF_PORTAL_PATH, async (_request, reply) => {
-        if (!consoleBuilt) {
-            return reply.code(503).type('text/html').send(buildMissingConsoleHtml());
-        }
-        return reply.redirect(staffPrefix);
-    });
-    if (!consoleBuilt) {
-        app.get(STAFF_PORTAL_PREFIX, async (_request, reply) => reply.code(503).type('text/html').send(buildMissingConsoleHtml()));
-    }
-    /* Legacy /console bookmarks → morbeez-staff */
-    app.get(LEGACY_CONSOLE_PATH, async (_request, reply) => {
-        if (!consoleBuilt) {
-            return reply.code(503).type('text/html').send(buildMissingConsoleHtml());
-        }
-        return reply.redirect(staffPrefix);
-    });
-    app.get(`${LEGACY_CONSOLE_PATH}/`, async (_request, reply) => {
-        if (!consoleBuilt) {
-            return reply.code(503).type('text/html').send(buildMissingConsoleHtml());
-        }
-        return reply.redirect(staffPrefix);
-    });
-    /* Shopify store owners often hit /admin — send them to Morbeez staff portal */
-    app.get('/admin', async (_request, reply) => reply.redirect(staffPrefix));
-    app.get('/admin/', async (_request, reply) => reply.redirect(staffPrefix));
+    };
+    app.get(STAFF_PORTAL_PATH, portalMovedHandler);
+    app.get(`${STAFF_PORTAL_PATH}/*`, portalMovedHandler);
+    app.get(LEGACY_CONSOLE_PATH, portalMovedHandler);
+    app.get(`${LEGACY_CONSOLE_PATH}/*`, portalMovedHandler);
+    app.get('/admin', portalMovedHandler);
+    app.get('/admin/', portalMovedHandler);
     const fieldIndexPath = path.join(fieldPwaStaticRoot, 'index.html');
     const fieldBuilt = fs.existsSync(fieldIndexPath);
     const fieldPrefix = '/field/';
@@ -120,25 +114,11 @@ export async function buildApp() {
         if (url.startsWith(`${STAFF_API_V1}/`) || url === STAFF_API_V1) {
             return reply.code(404).send({ error: 'NOT_FOUND', message: 'API route not found' });
         }
-        if (url.startsWith(STAFF_PORTAL_PATH) || url.startsWith(LEGACY_CONSOLE_PATH)) {
-            if (!consoleBuilt) {
-                return reply.code(503).type('text/html').send(buildMissingConsoleHtml());
-            }
-            return reply.sendFile('index.html', reactConsoleStaticRoot);
-        }
         if (url.startsWith('/field') && fieldBuilt) {
             return reply.sendFile('index.html', fieldPwaStaticRoot);
         }
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found' });
     });
     return app;
-}
-function buildMissingConsoleHtml() {
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Morbeez Console</title></head>
-<body style="font-family:system-ui;padding:2rem;max-width:40rem">
-<h1>Console build required</h1>
-<p>${CONSOLE_BUILD_HINT}</p>
-<p>Legacy <code>admin/js</code> is no longer served (Phase 8 cutover).</p>
-</body></html>`;
 }
 //# sourceMappingURL=app.js.map

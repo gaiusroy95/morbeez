@@ -64,8 +64,9 @@ const envSchema = z.object({
   INTERNAL_API_KEY: z.string().min(16),
   FARMER_JWT_SECRET: z.string().min(32),
   ADMIN_JWT_SECRET: z.string().min(32),
+  /** Comma-separated browser origins allowed for CORS (Vercel staff console) */
   ADMIN_UI_ORIGIN: z.string().optional(),
-  /** Public URL of the staff portal SPA (no trailing slash), e.g. https://api.example.com/morbeez-staff */
+  /** Public URL of the staff console SPA (no trailing slash), e.g. https://staff.example.com */
   CONSOLE_PUBLIC_URL: z.string().url().optional(),
   /** @deprecated No longer used — staff set individual passwords */
   CONSOLE_SHARED_PASSWORD: z.string().min(8).max(128).optional(),

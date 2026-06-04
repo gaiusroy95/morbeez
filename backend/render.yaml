@@ -1,4 +1,4 @@
-# Render Blueprint — Morbeez API + React console
+# Render Blueprint — Morbeez API (staff console UI deploys separately, e.g. Vercel)
 # https://render.com/docs/blueprint-spec
 
 services:

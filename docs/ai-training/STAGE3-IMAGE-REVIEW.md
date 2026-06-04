@@ -46,7 +46,7 @@ Build a **supervised visual disease dataset** by labeling every crop photo with 
 - Right: AI prediction, diagnosis label picker, severity, Confirm / Correct / Skip / Exclude
 - **Confirm AI & next** — batch review flow
 
-Component: `console-ui/src/components/agronomist/ImageReviewPanel.tsx`
+Component: `frontend/src/components/agronomist/ImageReviewPanel.tsx`
 
 ## Training loop
 

@@ -1,4 +1,4 @@
-/** App routes are relative to React Router basename `/morbeez-staff` → full URL `/morbeez-staff/dashboard`, etc. */
+/** App routes are relative to React Router basename (default `/` on Vercel). */
 
 export const paths = {
   login: 'login',
@@ -22,7 +22,7 @@ export const paths = {
   settings: 'settings',
 } as const;
 
-/** Absolute in-app path (relative to basename `/morbeez-staff`). */
+/** Absolute in-app path (relative to router basename). */
 export function toPath(segment: string): string {
   return segment.startsWith('/') ? segment : `/${segment}`;
 }

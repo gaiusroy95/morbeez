@@ -53,8 +53,9 @@ declare const envSchema: z.ZodObject<{
     INTERNAL_API_KEY: z.ZodString;
     FARMER_JWT_SECRET: z.ZodString;
     ADMIN_JWT_SECRET: z.ZodString;
+    /** Comma-separated browser origins allowed for CORS (Vercel staff console) */
     ADMIN_UI_ORIGIN: z.ZodOptional<z.ZodString>;
-    /** Public URL of the staff portal SPA (no trailing slash), e.g. https://api.example.com/morbeez-staff */
+    /** Public URL of the staff console SPA (no trailing slash), e.g. https://staff.example.com */
     CONSOLE_PUBLIC_URL: z.ZodOptional<z.ZodString>;
     /** @deprecated No longer used — staff set individual passwords */
     CONSOLE_SHARED_PASSWORD: z.ZodOptional<z.ZodString>;

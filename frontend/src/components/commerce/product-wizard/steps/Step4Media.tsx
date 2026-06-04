@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import type { ReactNode } from 'react';
 import { WizardField, pwInputClass } from '../WizardField';
 import type { WizardFormState } from '../types';
 

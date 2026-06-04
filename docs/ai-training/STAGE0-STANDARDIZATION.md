@@ -25,7 +25,7 @@ Full field-level map: `backend/src/domain/ai-training/schema-map.ts`.
 
 ## Canonical enums
 
-Defined in `backend/src/domain/ai-training/enums.ts` and mirrored in `backend/console-ui/src/lib/ai-training-enums.ts`.
+Defined in `backend/src/domain/ai-training/enums.ts` and mirrored in `frontend/src/lib/ai-training-enums.ts`.
 
 | Enum | Values | Used by |
 |------|--------|---------|

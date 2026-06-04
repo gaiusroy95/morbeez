@@ -1,15 +1,15 @@
 # Morbeez Operations Console
 
-Enterprise-style **agriculture commerce control center** — products, farmers, orders, and extended product intelligence (agri + AI + SEO). Served as a static SPA from the Fastify API at `/morbeez-staff/`.
+Enterprise-style **agriculture commerce control center** — products, farmers, orders, and extended product intelligence (agri + AI + SEO). The React app lives in **`frontend/`** and deploys separately (e.g. Vercel at `/`). The API remains on Render at **`/morbeez-staff/api/v1`**.
 
-> **Do not use `/admin` in the URL.** Shopify redirects paths containing “admin” to Shopify Admin. Use **`/morbeez-staff`**.
+> **Do not use `/admin` in the storefront URL.** Shopify redirects paths containing “admin” to Shopify Admin.
 
 ## URLs
 
-| Environment | Console |
-|-------------|---------|
-| Production | **https://morbeez-api.onrender.com/morbeez-staff/** |
-| Local | `http://localhost:10000/morbeez-staff/` |
+| Environment | Console UI | API |
+|-------------|------------|-----|
+| Production | Vercel (`CONSOLE_PUBLIC_URL`) | `https://morbeez-api.onrender.com/morbeez-staff/api/v1` |
+| Local | `http://localhost:5173/` | `http://localhost:3000` (Vite proxies `/morbeez-staff/api`) |
 
 ## Modules
 
@@ -55,9 +55,10 @@ npm run admin:create-user -- --email admin@morbeez.in --password "YourSecurePass
 
 ```powershell
 cd backend && npm run dev
+cd frontend && npm run dev
 ```
 
-Open **http://localhost:10000/morbeez-staff/**
+Open **http://localhost:5173/** (see `frontend/README.md`).
 
 ## Product import / intelligence columns
 
