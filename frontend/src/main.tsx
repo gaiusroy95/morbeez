@@ -8,6 +8,8 @@ import './styles/telecaller-crm.css';
 import './styles/commerce-products.css';
 import './styles/commerce-inventory.css';
 import './styles/commerce-farmers.css';
+import './styles/commerce-promotions.css';
+import './styles/commerce-promo-pages.css';
 import './styles/product-wizard.css';
 import App from './App.tsx';
 

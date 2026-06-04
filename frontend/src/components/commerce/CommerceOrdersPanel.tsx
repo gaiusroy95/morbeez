@@ -1,0 +1,389 @@
+import { useCallback, useEffect, useState } from 'react';
+import { api } from '../../lib/api';
+import { Modal } from '../Modal';
+import {
+  Alert,
+  Btn,
+  DataTable,
+  EmptyState,
+  Loading,
+  Panel,
+  TableWrap,
+  inputClass,
+  selectClass,
+} from '../ui';
+
+type OrderRow = {
+  id: string;
+  source?: string;
+  displayOrderId: string;
+  farmerName: string;
+  phone: string | null;
+  amount: number;
+  status: string;
+  paymentLabel: string;
+  createdAt: string;
+};
+
+type OrderTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+
+type TimelineStep = {
+  key: string;
+  label: string;
+  at: string | null;
+  done: boolean;
+  pending?: boolean;
+};
+
+type OrderDetail = {
+  id: string;
+  source?: string;
+  displayOrderId: string;
+  orderDate: string;
+  status: string;
+  statusLabel: string;
+  paymentStatus: string;
+  paymentLabel: string;
+  farmerName: string;
+  customer: {
+    name: string;
+    phone: string | null;
+    email: string | null;
+    addressShort: string;
+  };
+  shipping: {
+    name: string;
+    addressLines: string[];
+    courier: string;
+    trackingId: string;
+  };
+  lineItems: Array<{
+    product: string;
+    variant: string;
+    qty: number;
+    price: number;
+    total: number;
+  }>;
+  totals: { subtotal: number; shipping: number; discount: number; total: number };
+  timeline: TimelineStep[];
+  notes: string;
+};
+
+const STATUS_TABS: Array<{ id: OrderTab; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'pending', label: 'Pending' },
+  { id: 'processing', label: 'Processing' },
+  { id: 'shipped', label: 'Shipped' },
+  { id: 'delivered', label: 'Delivered' },
+  { id: 'cancelled', label: 'Cancelled' },
+];
+
+const PAGE_SIZE = 10;
+
+type Props = {
+  canWrite: boolean;
+  onArchive: (id: string, source?: string) => void;
+  /** Increment after archive so the list refetches */
+  reloadToken?: number;
+};
+
+export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Props) {
+  const [tab, setTab] = useState<OrderTab>('all');
+  const [payment, setPayment] = useState<'' | 'cod' | 'paid'>('');
+  const [search, setSearch] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
+  const [tabCounts, setTabCounts] = useState<Record<OrderTab, number>>({
+    all: 0,
+    pending: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+  });
+  const [pages, setPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('limit', String(PAGE_SIZE));
+    if (tab !== 'all') params.set('status', tab);
+    if (payment) params.set('payment', payment);
+    if (appliedSearch.trim()) params.set('search', appliedSearch.trim());
+    try {
+      const d = await api<{
+        ok: boolean;
+        orders: OrderRow[];
+        tabCounts: Record<OrderTab, number>;
+        pagination: { pages: number };
+      }>(`/morbeez-staff/api/v1/orders?${params}`);
+      setOrders(
+        (d.orders ?? []).map((o) => ({
+          ...o,
+          displayOrderId: String(o.displayOrderId ?? o.id),
+          farmerName: String(o.farmerName ?? 'Guest'),
+          amount: Number(o.amount ?? 0),
+        }))
+      );
+      if (d.tabCounts) setTabCounts(d.tabCounts);
+      setPages(d.pagination?.pages ?? 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  }, [tab, payment, appliedSearch, page]);
+
+  useEffect(() => {
+    void load();
+  }, [load, reloadToken]);
+
+  async function openDetail(order: OrderRow) {
+    setDetailLoading(true);
+    setDetail(null);
+    try {
+      const d = await api<{ ok: boolean; order: OrderDetail }>(
+        `/morbeez-staff/api/v1/orders/${order.id}`
+      );
+      setDetail(d.order);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load order');
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  return (
+    <>
+      {error ? <Alert tone="error">{error}</Alert> : null}
+
+      <div className="commerce-orders-filters">
+        <input
+          type="search"
+          className={`${inputClass} commerce-promo-search`}
+          placeholder="Search order ID, farmer, phone…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setAppliedSearch(search);
+              setPage(1);
+            }
+          }}
+        />
+        <select
+          className={selectClass}
+          value={payment}
+          onChange={(e) => {
+            setPayment(e.target.value as '' | 'cod' | 'paid');
+            setPage(1);
+          }}
+        >
+          <option value="">All payments</option>
+          <option value="paid">Paid</option>
+          <option value="cod">COD</option>
+        </select>
+        <Btn
+          variant="secondary"
+          onClick={() => {
+            setAppliedSearch(search);
+            setPage(1);
+          }}
+        >
+          Search
+        </Btn>
+      </div>
+
+      <div className="commerce-subtabs">
+        {STATUS_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`commerce-subtab ${tab === t.id ? 'commerce-subtab--active' : ''}`}
+            onClick={() => {
+              setTab(t.id);
+              setPage(1);
+            }}
+          >
+            {t.label} ({tabCounts[t.id] ?? 0})
+          </button>
+        ))}
+      </div>
+
+      {loading ? <Loading /> : null}
+
+      {!loading ? (
+        <Panel title="Orders & dispatch" description="Click a row for shipping and timeline details.">
+          <TableWrap>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Farmer</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Payment</th>
+                  <th>Date</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {orders.length ? (
+                  orders.map((o) => (
+                    <tr
+                      key={o.id}
+                      className="commerce-order-row"
+                      onClick={() => void openDetail(o)}
+                    >
+                      <td>{o.displayOrderId}</td>
+                      <td>
+                        {o.farmerName}
+                        <br />
+                        <small className="muted">{o.phone ?? ''}</small>
+                      </td>
+                      <td>₹{o.amount.toLocaleString('en-IN')}</td>
+                      <td>{o.status}</td>
+                      <td>{o.paymentLabel}</td>
+                      <td>
+                        <small className="muted">
+                          {o.createdAt
+                            ? new Date(o.createdAt).toLocaleDateString('en-IN')
+                            : '—'}
+                        </small>
+                      </td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {canWrite && o.status !== 'cancelled' ? (
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 hover:underline"
+                            onClick={() => onArchive(o.id, o.source)}
+                          >
+                            Archive
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={7}>
+                      <EmptyState>No orders found.</EmptyState>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </DataTable>
+          </TableWrap>
+          {pages > 1 ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 px-4 py-3">
+              <Btn variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                Previous
+              </Btn>
+              <span className="text-sm text-slate-600">
+                Page {page} of {pages}
+              </span>
+              <Btn variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+                Next
+              </Btn>
+            </div>
+          ) : null}
+        </Panel>
+      ) : null}
+
+      {(detailLoading || detail) && (
+        <Modal
+          title={detail ? `Order ${detail.displayOrderId}` : 'Order details'}
+          onClose={() => {
+            setDetail(null);
+            setDetailLoading(false);
+          }}
+          wide
+        >
+          {detailLoading && !detail ? <Loading label="Loading order…" /> : null}
+          {detail ? (
+            <div className="order-detail-modal order-detail-grid">
+              <div className="order-detail-section">
+                <h4>Status</h4>
+                <p>
+                  <strong>{detail.statusLabel}</strong> · {detail.paymentStatus}
+                </p>
+                <p className="text-sm text-slate-600">{detail.orderDate}</p>
+                <ul className="order-timeline mt-4">
+                  {detail.timeline.map((step) => (
+                    <li
+                      key={step.key}
+                      className={step.done ? 'done' : step.pending ? 'pending' : ''}
+                    >
+                      <span className="order-timeline-label">{step.label}</span>
+                      <span className="order-timeline-at">{step.at ?? '—'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="order-detail-section">
+                <h4>Dispatch & shipping</h4>
+                <p>
+                  <strong>Courier:</strong> {detail.shipping.courier}
+                </p>
+                <p>
+                  <strong>Tracking:</strong> {detail.shipping.trackingId}
+                </p>
+                <p className="mt-2 text-sm text-slate-700">
+                  {detail.shipping.addressLines.map((line, i) => (
+                    <span key={i}>
+                      {line}
+                      <br />
+                    </span>
+                  ))}
+                </p>
+              </div>
+              <div className="order-detail-section" style={{ gridColumn: '1 / -1' }}>
+                <h4>Line items</h4>
+                <TableWrap>
+                  <DataTable>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Variant</th>
+                        <th>Qty</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.lineItems.map((li, i) => (
+                        <tr key={i}>
+                          <td>{li.product}</td>
+                          <td>{li.variant}</td>
+                          <td>{li.qty}</td>
+                          <td>₹{li.total.toLocaleString('en-IN')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </DataTable>
+                </TableWrap>
+                <p className="mt-3 text-sm text-slate-600">
+                  Subtotal ₹{detail.totals.subtotal.toLocaleString('en-IN')} · Shipping ₹
+                  {detail.totals.shipping.toLocaleString('en-IN')} · Discount ₹
+                  {detail.totals.discount.toLocaleString('en-IN')} ·{' '}
+                  <strong>Total ₹{detail.totals.total.toLocaleString('en-IN')}</strong>
+                </p>
+                {detail.notes ? (
+                  <p className="mt-2 text-sm">
+                    <strong>Notes:</strong> {detail.notes}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </Modal>
+      )}
+    </>
+  );
+}

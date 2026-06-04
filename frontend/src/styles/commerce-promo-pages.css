@@ -1,0 +1,288 @@
+/* Commerce — Offers, Combos, Flash sales (reference layouts) */
+
+.commerce-promo {
+  --cp-green: #1b5e20;
+  --cp-green-hover: #2e7d32;
+  --cp-border: #e5e7eb;
+  --cp-muted: #6b7280;
+  font-size: 14px;
+  color: #111827;
+}
+
+.commerce-promo__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.commerce-promo__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.commerce-promo__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--cp-muted);
+}
+
+.commerce-promo__btn-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--cp-green);
+  color: #fff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.commerce-promo__btn-primary:hover {
+  background: var(--cp-green-hover);
+}
+
+.commerce-promo__tabs {
+  display: flex;
+  gap: 28px;
+  border-bottom: 1px solid var(--cp-border);
+  margin-bottom: 0;
+}
+
+.commerce-promo__tab {
+  position: relative;
+  padding: 12px 0;
+  margin-bottom: -1px;
+  border: none;
+  background: none;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--cp-muted);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.commerce-promo__tab:hover {
+  color: #111827;
+}
+
+.commerce-promo__tab--active {
+  color: var(--cp-green);
+}
+
+.commerce-promo__tab--active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--cp-green);
+  border-radius: 2px 2px 0 0;
+}
+
+.commerce-promo__table-card {
+  background: #fff;
+  border: 1px solid var(--cp-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.commerce-promo__table-card .table-wrap {
+  border: none;
+  border-radius: 0;
+}
+
+.commerce-promo__table-card table {
+  width: 100%;
+}
+
+.commerce-promo__table-card thead th {
+  padding: 14px 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cp-muted);
+  background: #fafafa;
+  border-bottom: 1px solid var(--cp-border);
+  text-align: left;
+}
+
+.commerce-promo__table-card tbody td {
+  padding: 16px 20px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: middle;
+}
+
+.commerce-promo__table-card tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.commerce-promo__name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.commerce-promo__discount {
+  font-weight: 600;
+}
+
+.commerce-promo__validity {
+  color: var(--cp-muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.commerce-promo__status-pill {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.commerce-promo__status-pill--active {
+  background: #e8f5ec;
+  color: #166534;
+}
+
+.commerce-promo__status-pill--upcoming {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.commerce-promo__status-pill--live {
+  background: #e8f5ec;
+  color: #166534;
+}
+
+.commerce-promo__status-pill--expired {
+  background: #f3f4f6;
+  color: #9ca3af;
+}
+
+.commerce-promo__status-pill--inactive {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.commerce-promo__edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--cp-muted);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.commerce-promo__edit-btn:hover {
+  background: #f3f4f6;
+  color: var(--cp-green);
+}
+
+.commerce-promo__combo-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.commerce-promo__thumb {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid var(--cp-border);
+  background: linear-gradient(135deg, #e8f5ec 0%, #c8e6c9 100%);
+}
+
+.commerce-promo__thumb--placeholder {
+  display: block;
+}
+
+.commerce-promo__combo-sub {
+  margin: 2px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--cp-muted);
+}
+
+.commerce-promo__price-green {
+  font-weight: 700;
+  color: var(--cp-green);
+}
+
+.commerce-promo__product-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 200px;
+}
+
+.commerce-promo__product-cell .commerce-promo__thumb {
+  width: 44px;
+  height: 44px;
+}
+
+.commerce-promo__flash-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.commerce-promo__countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+}
+
+.commerce-promo__countdown-icon {
+  font-size: 14px;
+}
+
+.commerce-promo__coupons-section {
+  margin-top: 32px;
+}
+
+.commerce-promo__coupons-title {
+  margin: 0 0 12px;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.commerce-promo__registry {
+  margin-bottom: 16px;
+}
+
+.commerce-promo__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--cp-border);
+}
+
+.commerce-promo__empty {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--cp-muted);
+}

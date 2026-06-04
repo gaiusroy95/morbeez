@@ -117,6 +117,20 @@ export const whatsappService = {
             throw err;
         }
     },
+    async sendImage(to, imageUrl, caption) {
+        const provider = getProvider();
+        if (!provider.sendImage) {
+            throw new Error('Current WhatsApp provider does not support image messages');
+        }
+        try {
+            await provider.sendImage(to, imageUrl, caption);
+            logger.info({ to: to.replace(/\d(?=\d{4})/g, '*') }, 'WhatsApp image sent');
+        }
+        catch (err) {
+            logger.error({ err, to }, 'WhatsApp image send failed');
+            throw err;
+        }
+    },
     async sendButtons(params) {
         const provider = getProvider();
         if (!provider.sendButtons) {

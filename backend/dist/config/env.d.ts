@@ -76,6 +76,11 @@ declare const envSchema: z.ZodObject<{
     ENABLE_ADVISORY_FOLLOW_UPS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_ADVISORY_AUTOMATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_WHATSAPP_BROADCASTS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Fetch mandi prices + copy via OpenAI per pincode/day (cached). */
+    ENABLE_MARKET_INSIGHT_OPENAI: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    MARKET_INSIGHT_BUILD_HOUR_IST: z.ZodDefault<z.ZodNumber>;
+    MARKET_INSIGHT_SEND_HOUR_IST: z.ZodDefault<z.ZodNumber>;
     WHATSAPP_BROADCAST_MAX_PER_DAY: z.ZodDefault<z.ZodNumber>;
     WHATSAPP_BROADCAST_KIND_COOLDOWN_HOURS: z.ZodDefault<z.ZodNumber>;
     ENABLE_WHATSAPP_ORDER_ALERTS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
@@ -145,6 +150,10 @@ declare const envSchema: z.ZodObject<{
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
+    ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
+    ENABLE_MARKET_INSIGHT_OPENAI: boolean;
+    MARKET_INSIGHT_BUILD_HOUR_IST: number;
+    MARKET_INSIGHT_SEND_HOUR_IST: number;
     WHATSAPP_BROADCAST_MAX_PER_DAY: number;
     WHATSAPP_BROADCAST_KIND_COOLDOWN_HOURS: number;
     ENABLE_WHATSAPP_ORDER_ALERTS: boolean;
@@ -274,6 +283,10 @@ declare const envSchema: z.ZodObject<{
     ENABLE_ADVISORY_FOLLOW_UPS?: string | undefined;
     ENABLE_ADVISORY_AUTOMATION?: string | undefined;
     ENABLE_WHATSAPP_BROADCASTS?: string | undefined;
+    ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST?: string | undefined;
+    ENABLE_MARKET_INSIGHT_OPENAI?: string | undefined;
+    MARKET_INSIGHT_BUILD_HOUR_IST?: number | undefined;
+    MARKET_INSIGHT_SEND_HOUR_IST?: number | undefined;
     WHATSAPP_BROADCAST_MAX_PER_DAY?: number | undefined;
     WHATSAPP_BROADCAST_KIND_COOLDOWN_HOURS?: number | undefined;
     ENABLE_WHATSAPP_ORDER_ALERTS?: string | undefined;
@@ -337,6 +350,10 @@ export declare const env: {
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
+    ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
+    ENABLE_MARKET_INSIGHT_OPENAI: boolean;
+    MARKET_INSIGHT_BUILD_HOUR_IST: number;
+    MARKET_INSIGHT_SEND_HOUR_IST: number;
     WHATSAPP_BROADCAST_MAX_PER_DAY: number;
     WHATSAPP_BROADCAST_KIND_COOLDOWN_HOURS: number;
     ENABLE_WHATSAPP_ORDER_ALERTS: boolean;

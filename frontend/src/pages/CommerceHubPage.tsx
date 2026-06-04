@@ -1,28 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api } from '../lib/api';
+import { useState } from 'react';
 import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
-import {
-  Alert,
-  DataTable,
-  EmptyState,
-  HubTabs,
-  Loading,
-  Panel,
-  TableWrap,
-} from '../components/ui';
+import { HubTabs } from '../components/ui';
 import { Modal } from '../components/Modal';
+import { api } from '../lib/api';
 import { CommerceAllProductsPanel } from '../components/commerce/CommerceAllProductsPanel';
 import { CommerceInventoryPanel } from '../components/commerce/CommerceInventoryPanel';
 import { CommerceFarmersPanel } from '../components/commerce/CommerceFarmersPanel';
+import { CommerceOrdersPanel } from '../components/commerce/CommerceOrdersPanel';
+import { CommerceOffersPanel } from '../components/commerce/CommerceOffersPanel';
+import { CommerceCombosPanel } from '../components/commerce/CommerceCombosPanel';
+import { CommerceFlashSalesPanel } from '../components/commerce/CommerceFlashSalesPanel';
+import { CommerceLogisticsPanel } from '../components/commerce/CommerceLogisticsPanel';
+import { CommerceBannersPanel } from '../components/commerce/CommerceBannersPanel';
 
-type Tab = 'orders' | 'farmers' | 'products' | 'inventory';
+type Tab =
+  | 'products'
+  | 'inventory'
+  | 'farmers'
+  | 'orders'
+  | 'logistics'
+  | 'offers'
+  | 'combos'
+  | 'flash'
+  | 'banners';
 
 const TABS: Array<{ id: Tab; label: string }> = [
-  { id: 'orders', label: 'Orders' },
-  { id: 'farmers', label: 'Farmers' },
   { id: 'products', label: 'Products' },
   { id: 'inventory', label: 'Inventory' },
+  { id: 'farmers', label: 'Farmers' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'logistics', label: 'Logistics' },
+  { id: 'offers', label: 'Offers' },
+  { id: 'combos', label: 'Combos' },
+  { id: 'flash', label: 'Flash sales' },
+  { id: 'banners', label: 'Banners' },
 ];
 
 export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
@@ -34,35 +46,13 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
     setSearch,
     searchDefaults.placeholder ?? 'Search orders, farmers, products…'
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [confirmModal, setConfirmModal] = useState<{
     title: string;
     body: string;
     action: () => Promise<void>;
   } | null>(null);
-  const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
-  const load = useCallback(async () => {
-    if (tab === 'products' || tab === 'inventory' || tab === 'farmers') {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    const q = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
-    try {
-      if (tab === 'orders') {
-        const d = await api<{ ok: boolean; orders: Array<Record<string, unknown>> }>(
-          `/morbeez-staff/api/v1/orders?limit=40${q}`
-        );
-        setOrders(d.orders ?? []);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
-    } finally {
-      setLoading(false);
-    }
-  }, [tab, search]);
+  const [archiveError, setArchiveError] = useState('');
+  const [ordersReload, setOrdersReload] = useState(0);
 
   async function archiveOrder(id: string, source?: string) {
     setConfirmModal({
@@ -72,94 +62,47 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
         await api(`/morbeez-staff/api/v1/orders/${id}?source=${encodeURIComponent(source ?? 'shopify')}`, {
           method: 'DELETE',
         });
-        await load();
       },
     });
   }
 
-  useEffect(() => {
-    const t = setTimeout(load, 300);
-    return () => clearTimeout(t);
-  }, [load]);
-
   return (
     <div className="commerce-hub">
       <HubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab !== 'products' && tab !== 'inventory' && tab !== 'farmers' && error ? (
-        <Alert tone="error">{error}</Alert>
+      {archiveError ? (
+        <p className="mb-3 text-sm text-red-600" role="alert">
+          {archiveError}
+        </p>
       ) : null}
-      {tab !== 'products' && tab !== 'inventory' && tab !== 'farmers' && loading ? (
-        <Loading />
-      ) : null}
-
-      {!loading && tab === 'orders' ? (
-        <Panel title="Orders">
-          <TableWrap>
-            <DataTable>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Farmer</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Payment</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {orders.length ? (
-                  orders.map((o) => (
-                    <tr key={String(o.id)}>
-                      <td>{String(o.displayOrderId ?? o.id)}</td>
-                      <td>
-                        {String(o.farmerName ?? '—')}
-                        <br />
-                        <small className="muted">{String(o.phone ?? '')}</small>
-                      </td>
-                      <td>₹{String(o.totalAmount ?? 0)}</td>
-                      <td>{String(o.status ?? '—')}</td>
-                      <td>{String(o.paymentLabel ?? '—')}</td>
-                      <td>
-                        {canWrite ? (
-                          <button
-                            type="button"
-                            className="text-xs text-red-600 hover:underline"
-                            onClick={() => archiveOrder(String(o.id), String(o.source ?? 'shopify'))}
-                          >
-                            Archive
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6}>
-                      <EmptyState>No orders found.</EmptyState>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </DataTable>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'farmers' ? <CommerceFarmersPanel /> : null}
 
       {tab === 'products' ? <CommerceAllProductsPanel canWrite={canWrite} /> : null}
-
       {tab === 'inventory' ? <CommerceInventoryPanel /> : null}
+      {tab === 'farmers' ? <CommerceFarmersPanel /> : null}
+      {tab === 'orders' ? (
+        <CommerceOrdersPanel
+          canWrite={canWrite}
+          onArchive={archiveOrder}
+          reloadToken={ordersReload}
+        />
+      ) : null}
+      {tab === 'offers' ? <CommerceOffersPanel canWrite={canWrite} /> : null}
+      {tab === 'combos' ? <CommerceCombosPanel canWrite={canWrite} /> : null}
+      {tab === 'flash' ? <CommerceFlashSalesPanel canWrite={canWrite} /> : null}
+      {tab === 'logistics' ? <CommerceLogisticsPanel canWrite={canWrite} /> : null}
+      {tab === 'banners' ? <CommerceBannersPanel canWrite={canWrite} /> : null}
+
       {confirmModal ? (
         <Modal
           title={confirmModal.title}
           onClose={() => setConfirmModal(null)}
           onSave={async () => {
             try {
+              setArchiveError('');
               await confirmModal.action();
               setConfirmModal(null);
+              setOrdersReload((n) => n + 1);
             } catch (e) {
-              setError(e instanceof Error ? e.message : 'Action failed');
+              setArchiveError(e instanceof Error ? e.message : 'Action failed');
             }
           }}
           saveLabel="Confirm"

@@ -8,6 +8,8 @@ import { inventoryAdminService } from '../../services/admin/inventory-admin.serv
 import { offersAdminService } from '../../services/admin/offers-admin.service.js';
 import { combosAdminService } from '../../services/admin/combos-admin.service.js';
 import { flashSalesAdminService } from '../../services/admin/flash-sales-admin.service.js';
+import { shiprocketAdminService } from '../../services/admin/shiprocket-admin.service.js';
+import { bannersAdminService } from '../../services/admin/banners-admin.service.js';
 import { aiAdvisoryAdminService } from '../../services/admin/ai-advisory-admin.service.js';
 import { aiMappingAdminService } from '../../services/admin/ai-mapping-admin.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
@@ -18,6 +20,7 @@ import { productIntelligenceService } from '../../services/admin/product-intelli
 import { shopifyProductsService } from '../../services/shopify/shopify.products.service.js';
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
+import { marketInsightAdminService } from '../../services/admin/market-insight-admin.service.js';
 import { crmInternalNotesService } from '../../services/admin/crm-internal-notes.service.js';
 import { osFoundationRoutes } from './os-foundation.routes.js';
 import { osOperationsRoutes } from './os-operations.routes.js';
@@ -180,6 +183,22 @@ const flashSaleCreateSchema = z.object({
   description: z.string().max(500).optional(),
   shopifyProductId: z.string().max(50).optional(),
 });
+
+const bannerCreateSchema = z.object({
+  title: z.string().min(1).max(160),
+  badge: z.string().max(80).optional(),
+  description: z.string().max(600).optional(),
+  imageUrl: z.string().max(500).optional(),
+  ctaLabel: z.string().max(60).optional(),
+  ctaUrl: z.string().max(500).optional(),
+  placement: z.enum(['home_hero', 'collection_top', 'promo_strip']).optional(),
+  startsAt: z.string().min(1),
+  endsAt: z.string().min(1),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+  active: z.boolean().optional(),
+});
+
+const bannerUpdateSchema = bannerCreateSchema.partial();
 
 async function assertCanDeactivateSuperAdmin(userId: string): Promise<void> {
   const { data, error } = await supabase
@@ -499,6 +518,91 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       imageUrl: body.imageUrl || undefined,
     });
     return reply.status(201).send({ ok: true, sale });
+  });
+
+  app.get(`${api}/logistics/overview`, async (request, reply) => {
+    requireAdmin(request);
+    const overview = shiprocketAdminService.getOverview();
+    const [pendingResult, eventsResult] = await Promise.all([
+      shiprocketAdminService.listPending(50),
+      shiprocketAdminService.listRecentEvents(5),
+    ]);
+    return reply.send({
+      ok: true,
+      ...overview,
+      pendingCount: pendingResult.total,
+      latestEventAt: eventsResult.events[0]?.createdAt ?? null,
+    });
+  });
+
+  app.get(`${api}/logistics/pending`, async (request, reply) => {
+    requireAdmin(request);
+    const q = request.query as { limit?: string };
+    const result = await shiprocketAdminService.listPending(
+      q.limit ? Number(q.limit) : 25
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/logistics/events`, async (request, reply) => {
+    requireAdmin(request);
+    const q = request.query as { limit?: string };
+    const result = await shiprocketAdminService.listRecentEvents(
+      q.limit ? Number(q.limit) : 30
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/logistics/shipments/:shopifyOrderId/retry`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager', 'operations');
+    const { shopifyOrderId } = request.params as { shopifyOrderId: string };
+    const result = await shiprocketAdminService.retryCreateShipment(shopifyOrderId);
+    return reply.send(result);
+  });
+
+  app.get(`${api}/banners`, async (request, reply) => {
+    requireAdmin(request);
+    const q = request.query as { tab?: string; placement?: string };
+    const tab =
+      q.tab === 'active' || q.tab === 'upcoming' || q.tab === 'expired' ? q.tab : 'all';
+    const placement =
+      q.placement === 'home_hero' ||
+      q.placement === 'collection_top' ||
+      q.placement === 'promo_strip'
+        ? q.placement
+        : 'all';
+    const result = await bannersAdminService.list({ tab, placement });
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/banners/:id`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const banner = await bannersAdminService.get(id);
+    return reply.send({ ok: true, banner });
+  });
+
+  app.post(`${api}/banners`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager');
+    const body = bannerCreateSchema.parse(request.body);
+    const banner = await bannersAdminService.create({
+      ...body,
+      imageUrl: body.imageUrl || undefined,
+      ctaUrl: body.ctaUrl || undefined,
+    });
+    return reply.status(201).send({ ok: true, banner });
+  });
+
+  app.patch(`${api}/banners/:id`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager');
+    const { id } = request.params as { id: string };
+    const body = bannerUpdateSchema.parse(request.body);
+    const banner = await bannersAdminService.update(id, {
+      ...body,
+      imageUrl: body.imageUrl || undefined,
+      ctaUrl: body.ctaUrl || undefined,
+    });
+    return reply.send({ ok: true, banner });
   });
 
   app.get(`${api}/ai-advisory/overview`, async (request, reply) => {
@@ -1351,6 +1455,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(request.body ?? {});
     const result = await whatsappBroadcastAdminService.runBroadcasts(body);
+    return reply.send({ ok: true, result });
+  });
+
+  app.post(`${api}/whatsapp/market-insights/run`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager');
+    const body = z
+      .object({
+        farmerId: z.string().uuid().optional(),
+        dryRun: z.boolean().optional(),
+        phase: z.enum(['build', 'send', 'both']).optional(),
+        insightDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      })
+      .parse(request.body ?? {});
+    const result = await marketInsightAdminService.run(body);
     return reply.send({ ok: true, result });
   });
 

@@ -23,7 +23,10 @@ Enterprise-style **agriculture commerce control center** — products, farmers, 
 | **Farmer CRM** | Live | Search, edit profiles |
 | **Staff** | Live | List admin users (admin role only) |
 | **Settings** | Live | Integrations overview |
-| Offers, Combos, Flash sales | Planned | UI placeholders |
+| Offers, Combos, Flash sales | Live | Registry in Supabase (not auto-applied on Shopify yet) |
+| Orders (dispatch detail) | Live | List + detail drawer with timeline & tracking |
+| Logistics (Shiprocket) | Live | Pending queue, retry shipment, tracking events |
+| Banners | Live | Scheduled storefront banner registry (theme sync follow-up) |
 | AI advisory rules | Planned | Symptom/crop logic panel |
 | WhatsApp campaigns | Planned | Uses existing backend webhooks |
 | Content CMS, Analytics | Planned | |

@@ -98,6 +98,7 @@ export function ProductWizardPage({ canWrite }: Props) {
     if (!payload.variants.length) {
       payload.variants = [
         {
+          ...emptyVariant(),
           packSize: '1',
           unit: 'L',
           mrp: '0',

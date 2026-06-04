@@ -1,5 +1,6 @@
 export interface WhatsAppProvider {
   sendText(to: string, text: string): Promise<void>;
+  sendImage?: (to: string, imageUrl: string, caption?: string) => Promise<void>;
   sendTemplate(to: string, name: string, params: { body: string[] }): Promise<void>;
   /** Optional: WhatsApp interactive list (Cloud API supports). */
   sendList?: (params: {

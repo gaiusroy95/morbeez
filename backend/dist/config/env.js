@@ -115,6 +115,17 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    /** Fetch mandi prices + copy via OpenAI per pincode/day (cached). */
+    ENABLE_MARKET_INSIGHT_OPENAI: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    MARKET_INSIGHT_BUILD_HOUR_IST: z.coerce.number().min(0).max(23).default(11),
+    MARKET_INSIGHT_SEND_HOUR_IST: z.coerce.number().min(0).max(23).default(12),
     WHATSAPP_BROADCAST_MAX_PER_DAY: z.coerce.number().default(2),
     WHATSAPP_BROADCAST_KIND_COOLDOWN_HOURS: z.coerce.number().default(72),
     ENABLE_WHATSAPP_ORDER_ALERTS: z

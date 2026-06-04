@@ -159,4 +159,34 @@ export const cloudWhatsAppProvider = {
       throw new AppError('WhatsApp buttons send failed', res.status, 'WHATSAPP_BUTTONS_FAILED', err);
     }
   },
+
+  /** Image by public HTTPS URL (Market Insights daily card). */
+  async sendImage(to: string, imageUrl: string, caption?: string): Promise<void> {
+    if (!env.WHATSAPP_PHONE_NUMBER_ID || !env.WHATSAPP_ACCESS_TOKEN) {
+      throw new AppError('WhatsApp Cloud API not configured', 503, 'WHATSAPP_NOT_CONFIGURED');
+    }
+
+    const phone = to.replace(/\D/g, '');
+    const image: Record<string, string> = { link: imageUrl };
+    if (caption?.trim()) image.caption = caption.trim().slice(0, 1024);
+
+    const res = await fetch(`${GRAPH}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: phone,
+        type: 'image',
+        image,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new AppError('WhatsApp image send failed', res.status, 'WHATSAPP_IMAGE_FAILED', err);
+    }
+  },
 };

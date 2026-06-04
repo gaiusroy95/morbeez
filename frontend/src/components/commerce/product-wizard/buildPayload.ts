@@ -33,14 +33,14 @@ export function buildWizardPayload(
     status,
     skuPrefix: state.basic.skuPrefix || '',
     variants: state.basic.variants.map((v) => ({
-      id: v.id,
       packSize: String(v.packSize || '1'),
       unit: v.unit || 'ml',
       mrp: String(v.mrp || '0'),
       sellingPrice: String(v.sellingPrice || '0'),
       dealerPrice: String(v.dealerPrice || ''),
       stock: Number(v.stock) || 0,
-      sku: v.sku,
+      ...(v.id ? { id: v.id } : {}),
+      ...(v.sku ? { sku: v.sku } : {}),
     })),
     intelligence: {
       basic: {

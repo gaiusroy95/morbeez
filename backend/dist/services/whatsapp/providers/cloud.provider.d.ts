@@ -27,5 +27,7 @@ export declare const cloudWhatsAppProvider: {
             title: string;
         }>;
     }): Promise<void>;
+    /** Image by public HTTPS URL (Market Insights daily card). */
+    sendImage(to: string, imageUrl: string, caption?: string): Promise<void>;
 };
 //# sourceMappingURL=cloud.provider.d.ts.map
