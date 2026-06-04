@@ -4,7 +4,7 @@ import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
-import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
+import type { AdvisoryLanguage, DiagnoseInput, StructuredAdvisory } from '../../ai/types.js';
 import { leadCaptureService } from './lead-capture.service.js';
 import { normalizeLanguage } from './language-detection.service.js';
 import { isStructuredSystemMessage } from './system-message.util.js';
@@ -607,6 +607,7 @@ export const whatsappInboundPipeline = {
           fieldInvestigation: routeResult.postIntake?.fieldInvestigation,
           issueLabelHint: routeResult.postIntake?.issueLabelHint,
           skipReuseCache: routeResult.postIntake?.skipReuseCache,
+          investigationPattern: routeResult.postIntake?.investigationPattern,
           imageStoragePath: sessCtx.pendingDiagnosisImagePath,
           channel: 'whatsapp',
           sendText: send.text,
@@ -1232,6 +1233,7 @@ export const whatsappInboundPipeline = {
     fieldInvestigation?: string;
     issueLabelHint?: string;
     skipReuseCache?: boolean;
+    investigationPattern?: DiagnoseInput['investigationPattern'];
     channel?: 'whatsapp' | 'api' | 'web';
     inboundMessageId?: string;
     sendText: (phone: string, text: string) => Promise<void>;
@@ -1296,6 +1298,7 @@ export const whatsappInboundPipeline = {
         fieldInvestigation: params.fieldInvestigation,
         issueLabelHint: params.issueLabelHint,
         skipReuseCache: params.skipReuseCache,
+        investigationPattern: params.investigationPattern,
         channel: params.channel ?? 'whatsapp',
         compactHistory: farmerMemoryService.formatCompactHistory(memory),
         contextPack,

@@ -13,9 +13,49 @@ import { contextPackService } from './context-pack.service.js';
 import { farmerMemoryService } from './farmer-memory.service.js';
 import { nearbyCasesService } from './nearby-cases.service.js';
 import { diagnosisFollowUpReasoningEngine, } from './diagnosis-follow-up-reasoning.engine.js';
+import { diagnosisFollowUpQuestionGenerator, } from './diagnosis-follow-up-question.generator.js';
+import { expertFollowUpLearningService } from '../../core/expert-follow-up-learning.service.js';
+import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
+import { localizeChoice, YES_NO_CHOICES, } from './follow-up-question.types.js';
 const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
 const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 1);
 const STRONG_MATCH_SCORE = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_STRONG_MATCH ?? 0.9);
+function choiceButtonId(optionId, questionId) {
+    if (optionId === 'yes' || optionId === 'no')
+        return `dfq.${optionId}.${questionId}`;
+    return `dfq.choice.${optionId}.${questionId}`;
+}
+function attachQuestionToIntake(intake, q) {
+    intake.questionTexts = intake.questionTexts ?? {};
+    intake.questionKinds = intake.questionKinds ?? {};
+    intake.questionChoices = intake.questionChoices ?? {};
+    intake.questionTexts[q.id] = q.text;
+    intake.questionKinds[q.id] = q.kind;
+    intake.questionChoices[q.id] = q.choices;
+}
+async function sendStructuredChoices(params) {
+    const buttons = params.choices.map((c) => ({
+        id: choiceButtonId(c.id, params.questionId),
+        title: localizeChoice(c, params.language),
+    }));
+    if (buttons.length <= 3) {
+        await whatsappService.sendButtons({
+            to: params.phone,
+            body: params.body,
+            buttons,
+        });
+        return;
+    }
+    await sendReplyButtonMenu({
+        to: params.phone,
+        body: params.body,
+        options: buttons,
+        continuationBody: params.language === 'ml'
+            ? 'കൂടുതൽ选项 — താഴെ ബട്ടൺ തിരഞ്ഞെടുക്കൂ:'
+            : 'More options — tap a button below:',
+        sendButtons: (p) => whatsappService.sendButtons(p),
+    });
+}
 function tokenSet(text) {
     return new Set(text
         .toLowerCase()
@@ -73,6 +113,36 @@ async function countVerifiedCasesForCrop(cropType) {
         .eq('crop_type', cropType.toLowerCase())
         .eq('outcome_ok', true);
     return count ?? 0;
+}
+function patternsFromSnapshot(snap) {
+    if (!snap)
+        return [];
+    if (Array.isArray(snap.investigationPatterns) && snap.investigationPatterns.length) {
+        return snap.investigationPatterns.filter((p) => p.qa?.length);
+    }
+    if (snap.investigationPattern?.qa?.length)
+        return [snap.investigationPattern];
+    return [];
+}
+async function loadLearnedInvestigationPatterns(reuseCaseIds) {
+    const ids = [...new Set(reuseCaseIds.filter(Boolean))].slice(0, 12);
+    if (!ids.length)
+        return [];
+    const { data: rows } = await supabase
+        .from('advisory_reuse_cases')
+        .select('id, issue_label, advisory_snapshot')
+        .in('id', ids);
+    const patterns = [];
+    for (const row of rows ?? []) {
+        const snap = row.advisory_snapshot;
+        for (const p of patternsFromSnapshot(snap)) {
+            patterns.push({
+                ...p,
+                issueLabel: p.issueLabel || String(row.issue_label ?? ''),
+            });
+        }
+    }
+    return patterns;
 }
 export const diagnosisFollowUpService = {
     enabled() {
@@ -176,6 +246,7 @@ export const diagnosisFollowUpService = {
         const totalVerified = Math.max(nearby.verifiedReuseHits, await countVerifiedCasesForCrop(params.cropType));
         const classified = inputClassifierService.classifyText(params.symptomsText);
         const best = similar[0];
+        const learnedPatterns = await loadLearnedInvestigationPatterns(similar.slice(0, 8).map((c) => c.reuseCaseId));
         return {
             language: params.language,
             cropType: params.cropType,
@@ -193,6 +264,50 @@ export const diagnosisFollowUpService = {
             diseasePriors: contextPack.diseasePriors,
             lastSprayKnown: Boolean(memory.lastSpray?.trim()),
             category: classified.category,
+            learnedPatterns,
+        };
+    },
+    async planNextQuestionForIntake(investigation, intake) {
+        const maxQuestions = intake.maxQuestions ?? MAX_QUESTIONS();
+        const questionsAsked = intake.questionsAsked ?? Object.keys(intake.answers).length;
+        if (questionsAsked >= maxQuestions) {
+            return { intakeComplete: true };
+        }
+        const pending = intake.pendingSavedQuestions ?? [];
+        while (pending.length) {
+            const saved = pending[0];
+            if (intake.answers[saved.id] !== undefined) {
+                pending.shift();
+                continue;
+            }
+            pending.shift();
+            intake.pendingSavedQuestions = pending;
+            if (saved.libraryId) {
+                void expertFollowUpLearningService.recordHit(saved.libraryId);
+            }
+            return { intakeComplete: false, question: saved };
+        }
+        const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
+            ctx: investigation,
+            priorAnswers: intake.answers,
+            questionTexts: intake.questionTexts ?? {},
+            questionsAsked,
+            maxQuestions,
+            learnedPatterns: investigation.learnedPatterns,
+        });
+        if (result.intakeComplete || !result.question) {
+            return { intakeComplete: true };
+        }
+        return {
+            intakeComplete: false,
+            question: {
+                id: result.question.id,
+                kind: result.question.kind,
+                text: result.question.text,
+                choices: result.question.choices,
+                purpose: result.question.purpose,
+                fromExpertLibrary: false,
+            },
         };
     },
     buildPostIntakePayload(intake, investigation) {
@@ -200,12 +315,23 @@ export const diagnosisFollowUpService = {
         for (const [k, v] of Object.entries(intake.answers)) {
             answers[k] = String(v);
         }
-        const issueLabelHint = diagnosisFollowUpReasoningEngine.inferPrimaryIssueFromIntake(intake.initialSymptoms, answers, intake.bestIssueLabel);
+        const issueLabelHint = diagnosisFollowUpReasoningEngine.inferPrimaryIssueFromIntake(intake.initialSymptoms, answers, intake.questionTexts ?? {}, intake.questionChoices ?? {}, investigation);
+        const investigationPattern = Object.keys(answers).length > 0
+            ? diagnosisFollowUpQuestionGenerator.buildInvestigationPattern({
+                initialSymptoms: intake.initialSymptoms,
+                issueLabel: issueLabelHint,
+                answers,
+                questionTexts: intake.questionTexts ?? {},
+                questionKinds: intake.questionKinds ?? {},
+                questionChoices: intake.questionChoices ?? {},
+            })
+            : undefined;
         return {
-            enrichedSymptoms: diagnosisFollowUpReasoningEngine.enrichSymptomsFromAnswers(intake.initialSymptoms, answers, investigation),
-            fieldInvestigation: diagnosisFollowUpReasoningEngine.formatFieldInvestigationSummary(answers, investigation),
+            enrichedSymptoms: diagnosisFollowUpReasoningEngine.enrichSymptomsFromAnswers(intake.initialSymptoms, answers, intake.questionTexts ?? {}, intake.questionChoices ?? {}, investigation),
+            fieldInvestigation: diagnosisFollowUpReasoningEngine.formatFieldInvestigationSummary(answers, intake.questionTexts ?? {}, intake.questionChoices ?? {}, investigation),
             issueLabelHint,
             skipReuseCache: true,
+            investigationPattern,
         };
     },
     async startIntake(params) {
@@ -218,9 +344,25 @@ export const diagnosisFollowUpService = {
             return { started: false };
         }
         const hasLearnedPool = ctx.totalVerifiedCases >= MIN_SIMILAR_CASES() || ctx.similarCases.length >= MIN_SIMILAR_CASES();
+        const { data: farmerRow } = await supabase
+            .from('farmers')
+            .select('district')
+            .eq('id', params.farmerId)
+            .maybeSingle();
+        const district = farmerRow?.district ? String(farmerRow.district).trim().toLowerCase() : null;
+        const savedLibrary = await expertFollowUpLearningService.findForFarmer({
+            cropType: params.cropType,
+            district,
+            symptomsText: params.symptomsText,
+            issueLabelHint: ctx.bestIssueLabel,
+            language: params.language,
+            max: MAX_QUESTIONS(),
+        });
+        const hasSavedQuestions = savedLibrary.length > 0;
         const evidenceMode = !hasLearnedPool &&
+            !hasSavedQuestions &&
             diagnosisFollowUpReasoningEngine.needsMoreEvidence(ctx);
-        if (!hasLearnedPool && !evidenceMode) {
+        if (!hasLearnedPool && !hasSavedQuestions && !evidenceMode) {
             logger.info({
                 farmerId: params.farmerId,
                 verified: ctx.totalVerifiedCases,
@@ -234,15 +376,26 @@ export const diagnosisFollowUpService = {
             !evidenceMode) {
             return { started: false };
         }
-        const planned = diagnosisFollowUpReasoningEngine.planQuestionSequence(ctx, MAX_QUESTIONS());
-        const questions = planned.map((q) => diagnosisFollowUpReasoningEngine.toWhatsAppQuestion(q, params.language));
-        if (!questions.length)
-            return { started: false };
-        const intake = {
+        const pendingSavedQuestions = savedLibrary.map((s) => ({
+            id: s.id,
+            kind: s.kind,
+            text: expertFollowUpLearningService.localize(s, params.language),
+            choices: s.choices,
+            purpose: s.purpose,
+            libraryId: s.libraryId,
+            fromExpertLibrary: true,
+        }));
+        const draftIntake = {
             initialSymptoms: params.symptomsText,
-            questions,
+            questions: [],
             currentIndex: 0,
             answers: {},
+            questionTexts: {},
+            questionKinds: {},
+            questionChoices: {},
+            questionsAsked: 0,
+            maxQuestions: MAX_QUESTIONS(),
+            pendingSavedQuestions: [...pendingSavedQuestions],
             similarCases: ctx.similarCases.slice(0, 5).map((c) => ({
                 issueLabel: c.issueLabel,
                 score: c.score,
@@ -253,68 +406,65 @@ export const diagnosisFollowUpService = {
             totalVerifiedCases: ctx.totalVerifiedCases,
             confidenceBand: band,
             pendingPhoto: !params.hasPhoto,
-            evidenceMode,
+            evidenceMode: evidenceMode && !hasSavedQuestions,
         };
+        const planned = await this.planNextQuestionForIntake(ctx, draftIntake);
+        if (planned.intakeComplete || !planned.question)
+            return { started: false };
+        const intake = {
+            ...draftIntake,
+            questions: [planned.question],
+        };
+        attachQuestionToIntake(intake, planned.question);
         await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: intake });
         await conversationSessionService.setState(params.farmerId, 'diagnosis_intake');
         const intro = diagnosisFollowUpReasoningEngine.buildIntro(ctx);
         await this.sendCurrentQuestion(params.phone, params.language, intake, intro);
-        return { started: true, mode: evidenceMode ? 'evidence' : 'learned' };
+        return { started: true, mode: hasSavedQuestions ? 'learned' : evidenceMode ? 'evidence' : 'learned' };
     },
     async sendCurrentQuestion(phone, language, intake, prefix) {
         const q = intake.questions[intake.currentIndex];
         if (!q)
             return;
-        const step = intake.questions.length > 1
+        const step = intake.maxQuestions && intake.maxQuestions > 1
             ? language === 'ml'
-                ? `(ചോദ്യം ${intake.currentIndex + 1}/${intake.questions.length})\n\n`
-                : `(Question ${intake.currentIndex + 1} of ${intake.questions.length})\n\n`
+                ? `(ചോദ്യം ${intake.currentIndex + 1} / ${intake.maxQuestions} വരെ)\n\n`
+                : `(Question ${intake.currentIndex + 1} of up to ${intake.maxQuestions})\n\n`
             : '';
         const body = prefix ? `${prefix}\n\n${step}${q.text}` : `${step}${q.text}`;
-        if (q.kind === 'yes_no') {
-            try {
-                await whatsappService.sendButtons({
-                    to: phone,
-                    body,
-                    buttons: [
-                        { id: `dfq.yes.${q.id}`, title: language === 'ml' ? 'അതെ' : 'Yes' },
-                        { id: `dfq.no.${q.id}`, title: language === 'ml' ? 'ഇല്ല' : 'No' },
-                    ],
-                });
-                return;
-            }
-            catch {
-                /* fall through */
-            }
+        if (q.kind === 'photo') {
+            await whatsappService.sendText(phone, language === 'ml'
+                ? `${body}\n\n(അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" ടൈപ്പ് ചെയ്യൂ.)`
+                : `${body}\n\n(Send a close photo, or type skip.)`);
+            return;
         }
-        if (q.kind === 'spray_timing') {
-            try {
-                await whatsappService.sendButtons({
-                    to: phone,
-                    body,
-                    buttons: [
-                        { id: `dfq.spray.7d.${q.id}`, title: language === 'ml' ? '7 ദിവസം' : 'Last 7 days' },
-                        { id: `dfq.spray.14d.${q.id}`, title: language === 'ml' ? '14+ ദിവസം' : '14+ days ago' },
-                        { id: `dfq.spray.never.${q.id}`, title: language === 'ml' ? 'ഇല്ല' : 'Not yet' },
-                    ],
-                });
-                return;
-            }
-            catch {
-                /* fall through */
-            }
+        const choices = q.choices?.length
+            ? q.choices
+            : intake.questionChoices?.[q.id]?.length
+                ? intake.questionChoices[q.id]
+                : YES_NO_CHOICES;
+        try {
+            await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
+            return;
         }
-        await whatsappService.sendText(phone, body);
+        catch {
+            const labels = choices.map((c) => localizeChoice(c, language)).join(' / ');
+            await whatsappService.sendText(phone, `${body}\n\nReply: ${labels}`);
+        }
     },
     parseButtonReply(text) {
         const yesNo = text.match(/^dfq\.(yes|no)\.(.+)$/);
         if (yesNo) {
-            return { questionId: yesNo[2], answer: yesNo[1] === 'yes' ? 'yes' : 'no' };
+            return { questionId: yesNo[2], answer: yesNo[1] };
+        }
+        const choice = text.match(/^dfq\.choice\.([^.]+)\.(.+)$/);
+        if (choice) {
+            return { questionId: choice[2], answer: choice[1] };
         }
         const spray = text.match(/^dfq\.spray\.(7d|14d|never)\.(.+)$/);
         if (spray) {
             const map = { '7d': 'within_7d', '14d': 'over_14d', never: 'never' };
-            return { questionId: spray[2], answer: map[spray[1]] };
+            return { questionId: spray[2], answer: map[spray[1]] ?? spray[1] };
         }
         return null;
     },
@@ -356,8 +506,21 @@ export const diagnosisFollowUpService = {
         const isPhotoQ = current.kind === 'photo';
         if (isPhotoQ && params.hasPhoto) {
             intake.answers[current.id] = 'yes';
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
             intake.currentIndex += 1;
             intake.pendingPhoto = false;
+            const investigation = await this.buildInvestigationContext({
+                farmerId: params.farmerId,
+                language: params.language,
+                symptomsText: intake.initialSymptoms,
+                cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
+                hasPhoto: true,
+            });
+            const next = await this.planNextQuestionForIntake(investigation, intake);
+            if (!next.intakeComplete && next.question) {
+                intake.questions.push(next.question);
+                attachQuestionToIntake(intake, next.question);
+            }
         }
         else if (isPhotoQ) {
             const skip = /skip/i.test(params.text);
@@ -368,19 +531,46 @@ export const diagnosisFollowUpService = {
                 return { handled: true, ready: false };
             }
             intake.answers[current.id] = skip ? 'skip' : 'yes';
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
             intake.currentIndex += 1;
             if (!skip)
                 intake.pendingPhoto = false;
+            const investigation = await this.buildInvestigationContext({
+                farmerId: params.farmerId,
+                language: params.language,
+                symptomsText: intake.initialSymptoms,
+                cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
+                hasPhoto: !skip && (params.hasPhoto || !intake.pendingPhoto),
+            });
+            const next = await this.planNextQuestionForIntake(investigation, intake);
+            if (!next.intakeComplete && next.question) {
+                intake.questions.push(next.question);
+                attachQuestionToIntake(intake, next.question);
+            }
         }
         else {
+            const choices = current.choices?.length
+                ? current.choices
+                : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+            const choiceIds = new Set(choices.map((c) => c.id));
             const btn = this.parseButtonReply(params.text);
-            const ans = btn?.answer ?? this.parseTextAnswer(params.text);
-            const valid = ['yes', 'no', 'skip', 'within_7d', 'over_14d', 'never', 'unsure'];
-            if (!ans || !valid.includes(ans)) {
-                await whatsappService.sendText(params.phone, params.language === 'ml' ? 'ബട്ടൺ തിരഞ്ഞെടുക്കൂ അല്ലെങ്കിൽ അതെ/ഇല്ല.' : 'Please use the buttons or reply Yes/No.');
+            let answer = btn?.questionId === current.id ? btn.answer : undefined;
+            if (!answer) {
+                const typed = this.parseTextAnswer(params.text);
+                if (typed && choiceIds.has(typed))
+                    answer = typed;
+                else if (typed === 'yes' || typed === 'no')
+                    answer = typed;
+            }
+            if (!answer || !choiceIds.has(answer)) {
+                await whatsappService.sendText(params.phone, params.language === 'ml'
+                    ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ.'
+                    : 'Please tap one of the option buttons.');
                 return { handled: true, ready: false };
             }
-            intake.answers[current.id] = btn?.answer ?? ans;
+            intake.answers[current.id] = answer;
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+            intake.currentIndex += 1;
             const investigation = await this.buildInvestigationContext({
                 farmerId: params.farmerId,
                 language: params.language,
@@ -388,14 +578,11 @@ export const diagnosisFollowUpService = {
                 cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
                 hasPhoto: params.hasPhoto || !intake.pendingPhoto,
             });
-            const branch = diagnosisFollowUpReasoningEngine.branchAfterAnswer(current.id, ans === 'skip' ? 'skip' : ans, investigation);
-            for (const bq of branch) {
-                const wq = diagnosisFollowUpReasoningEngine.toWhatsAppQuestion(bq, params.language);
-                if (!intake.questions.some((q) => q.id === wq.id)) {
-                    intake.questions.splice(intake.currentIndex + 1, 0, wq);
-                }
+            const next = await this.planNextQuestionForIntake(investigation, intake);
+            if (!next.intakeComplete && next.question) {
+                intake.questions.push(next.question);
+                attachQuestionToIntake(intake, next.question);
             }
-            intake.currentIndex += 1;
         }
         await conversationSessionService.patchContext(params.farmerId, { diagnosisIntake: intake });
         if (intake.currentIndex >= intake.questions.length) {

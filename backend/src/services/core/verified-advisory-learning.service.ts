@@ -57,6 +57,12 @@ export type PromoteVerifiedAnswerInput = {
   extraSymptomSources?: (string | undefined | null)[];
   /** When true, index under district '' so all regions get this answer for the same question. */
   global?: boolean;
+  /** WhatsApp intake Q&A — indexed so AI can plan follow-ups for similar cases. */
+  investigationPattern?: {
+    initialSymptoms: string;
+    issueLabel: string;
+    qa: Array<{ question: string; answer: string; kind?: string }>;
+  };
 };
 
 function uniqueSymptomKeys(sources: (string | undefined | null)[]): string[] {
@@ -109,17 +115,20 @@ export const verifiedAdvisoryLearningService = {
     cropType: string;
     symptomsText: string | null;
     voiceTranscript: string | null;
+    investigationPattern?: PromoteVerifiedAnswerInput['investigationPattern'];
   } | null> {
     const { data } = await supabase
       .from('ai_advisory_sessions')
-      .select('crop_type, symptoms_text, voice_transcript')
+      .select('crop_type, symptoms_text, voice_transcript, metadata')
       .eq('id', sessionId)
       .maybeSingle();
     if (!data) return null;
+    const meta = data.metadata as { investigationPattern?: PromoteVerifiedAnswerInput['investigationPattern'] } | null;
     return {
       cropType: String(data.crop_type ?? 'ginger').toLowerCase(),
       symptomsText: data.symptoms_text ? String(data.symptoms_text) : null,
       voiceTranscript: data.voice_transcript ? String(data.voice_transcript) : null,
+      investigationPattern: meta?.investigationPattern,
     };
   },
 
@@ -175,7 +184,21 @@ export const verifiedAdvisoryLearningService = {
       farmerSummaryMl: input.farmerSummaryMl,
       confidence: input.confidence,
       products: input.products,
-    });
+    }) as StructuredAdvisory & {
+      staffVerified: true;
+      investigationPatterns?: PromoteVerifiedAnswerInput['investigationPattern'][];
+    };
+
+    const pattern =
+      input.investigationPattern ?? session?.investigationPattern;
+    if (pattern?.qa?.length) {
+      advisory.investigationPatterns = [
+        {
+          ...pattern,
+          issueLabel: pattern.issueLabel || input.issueLabel,
+        },
+      ];
+    }
 
     for (const symptomKey of symptomKeys) {
       for (const d of districts) {
@@ -410,6 +433,9 @@ export const verifiedAdvisoryLearningService = {
         rec.issue_detected ? String(rec.issue_detected) : undefined,
       ],
       global: true,
+      investigationPattern: (
+        await this.loadSessionQuestionSources(String(rec.ai_session_id))
+      )?.investigationPattern,
     });
   },
 };

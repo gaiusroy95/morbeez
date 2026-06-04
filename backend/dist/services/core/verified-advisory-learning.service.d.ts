@@ -14,6 +14,16 @@ export type PromoteVerifiedAnswerInput = {
     extraSymptomSources?: (string | undefined | null)[];
     /** When true, index under district '' so all regions get this answer for the same question. */
     global?: boolean;
+    /** WhatsApp intake Q&A — indexed so AI can plan follow-ups for similar cases. */
+    investigationPattern?: {
+        initialSymptoms: string;
+        issueLabel: string;
+        qa: Array<{
+            question: string;
+            answer: string;
+            kind?: string;
+        }>;
+    };
 };
 declare function uniqueSymptomKeys(sources: (string | undefined | null)[]): string[];
 /**
@@ -27,6 +37,7 @@ export declare const verifiedAdvisoryLearningService: {
         cropType: string;
         symptomsText: string | null;
         voiceTranscript: string | null;
+        investigationPattern?: PromoteVerifiedAnswerInput["investigationPattern"];
     } | null>;
     /**
      * Index agronomist-verified answer for reuse (regional + optional global district '').

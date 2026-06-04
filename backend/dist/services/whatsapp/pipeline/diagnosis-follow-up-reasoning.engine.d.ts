@@ -1,20 +1,8 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { DiseaseWeatherPrior } from './disease-weather-rules.service.js';
 import type { SimilarLearnedCase } from './diagnosis-follow-up.service.js';
-export type FollowUpQuestionKind = 'yes_no' | 'photo' | 'photo_close' | 'photo_rhizome' | 'spray_timing';
-export type PlannedFollowUpQuestion = {
-    id: string;
-    kind: FollowUpQuestionKind;
-    textEn: string;
-    textMl: string;
-    /** Skip asking when farmer message already implies the answer */
-    skipHint?: RegExp;
-    /** Ask only when prior answer matches */
-    afterAnswer?: {
-        questionId: string;
-        answer: 'yes' | 'no';
-    };
-};
+import type { LearnedInvestigationPattern } from './diagnosis-follow-up-question.generator.js';
+import { type FollowUpChoiceOption } from './follow-up-question.types.js';
 export type InvestigationContext = {
     language: AdvisoryLanguage;
     cropType: string;
@@ -32,6 +20,7 @@ export type InvestigationContext = {
     diseasePriors: DiseaseWeatherPrior[];
     lastSprayKnown: boolean;
     category: string;
+    learnedPatterns: LearnedInvestigationPattern[];
 };
 export type ConfidenceBand = 'high' | 'medium' | 'low';
 export declare function resolveMatchConfidenceBand(score: number): ConfidenceBand;
@@ -42,23 +31,16 @@ export declare const diagnosisFollowUpReasoningEngine: {
     shouldSkipFollowUpIntake: typeof shouldSkipFollowUpIntake;
     needsMoreEvidence: typeof needsMoreEvidence;
     buildIntro(ctx: InvestigationContext): string;
-    planQuestionSequence(ctx: InvestigationContext, maxQuestions: number): PlannedFollowUpQuestion[];
-    branchAfterAnswer(questionId: string, answer: "yes" | "no" | "skip", ctx: InvestigationContext): PlannedFollowUpQuestion[];
-    toWhatsAppQuestion(q: PlannedFollowUpQuestion, lang: AdvisoryLanguage): {
-        id: string;
-        kind: "yes_no" | "photo" | "spray_timing";
-        text: string;
-    };
-    enrichSymptomsFromAnswers(initial: string, answers: Record<string, string>, ctx: InvestigationContext): string;
-    formatFieldInvestigationSummary(answers: Record<string, string>, ctx: InvestigationContext): string;
-    inferPrimaryIssueFromIntake(initialSymptoms: string, answers: Record<string, string>, bestIssueLabel?: string): string;
-    /** Single paragraph synthesizing every follow-up answer (not just one rule). */
-    synthesizeAllAnswersConclusion(initialSymptoms: string, answers: Record<string, string>, ctx: InvestigationContext): string;
+    enrichSymptomsFromAnswers(initial: string, answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
+    formatFieldInvestigationSummary(answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
+    inferPrimaryIssueFromIntake(initialSymptoms: string, answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
+    synthesizeAllAnswersConclusion(initialSymptoms: string, answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
 };
 export type PostIntakeDiagnosisPayload = {
     enrichedSymptoms: string;
     fieldInvestigation: string;
     issueLabelHint: string;
     skipReuseCache: true;
+    investigationPattern?: LearnedInvestigationPattern;
 };
 //# sourceMappingURL=diagnosis-follow-up-reasoning.engine.d.ts.map

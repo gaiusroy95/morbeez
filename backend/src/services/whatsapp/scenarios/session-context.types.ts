@@ -59,12 +59,34 @@ export interface SessionContext {
   /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
   pendingDiagnosisImagePath?: string;
   pendingDiagnosisImageMime?: string;
-  /** Learned-case follow-up before Crop Doctor (sequential, reasoning-based) */
+  /** AI-planned follow-up before Crop Doctor (one question at a time, no hardcoded bank). */
   diagnosisIntake?: {
     initialSymptoms: string;
-    questions: Array<{ id: string; kind: 'yes_no' | 'photo' | 'spray_timing'; text: string }>;
+    questions: Array<{
+      id: string;
+      kind: 'yes_no' | 'multiple_choice' | 'photo';
+      text: string;
+      choices: Array<{ id: string; labelEn: string; labelMl: string }>;
+      purpose?: string;
+      libraryId?: string;
+      fromExpertLibrary?: boolean;
+    }>;
     currentIndex: number;
-    answers: Record<string, 'yes' | 'no' | 'skip' | 'within_7d' | 'over_14d' | 'never' | 'unsure'>;
+    answers: Record<string, string>;
+    questionTexts: Record<string, string>;
+    questionKinds: Record<string, 'yes_no' | 'multiple_choice' | 'photo'>;
+    questionChoices: Record<string, Array<{ id: string; labelEn: string; labelMl: string }>>;
+    questionsAsked: number;
+    maxQuestions: number;
+    pendingSavedQuestions?: Array<{
+      id: string;
+      kind: 'yes_no' | 'multiple_choice' | 'photo';
+      text: string;
+      choices: Array<{ id: string; labelEn: string; labelMl: string }>;
+      purpose?: string;
+      libraryId?: string;
+      fromExpertLibrary?: boolean;
+    }>;
     similarCases: Array<{ issueLabel: string; score: number; reuseCaseId?: string }>;
     bestIssueLabel?: string;
     matchConfidence?: number;

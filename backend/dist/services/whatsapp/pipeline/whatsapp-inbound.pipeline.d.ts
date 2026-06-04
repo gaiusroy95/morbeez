@@ -1,4 +1,4 @@
-import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { AdvisoryLanguage, DiagnoseInput } from '../../ai/types.js';
 import { type MorbeezReplyModule, type ReplyAttributionMeta } from './reply-attribution.service.js';
 import type { InboundMessage } from './types.js';
 type Senders = {
@@ -73,6 +73,7 @@ export declare const whatsappInboundPipeline: {
         fieldInvestigation?: string;
         issueLabelHint?: string;
         skipReuseCache?: boolean;
+        investigationPattern?: DiagnoseInput["investigationPattern"];
         channel?: "whatsapp" | "api" | "web";
         inboundMessageId?: string;
         sendText: (phone: string, text: string) => Promise<void>;

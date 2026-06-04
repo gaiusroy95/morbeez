@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase.js';
+import { logger } from '../../lib/logger.js';
 import { escalationAdminService } from './escalation-admin.service.js';
 import { blockService } from '../core/block.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
@@ -635,6 +636,35 @@ export const agronomistCaseReviewService = {
             await verifiedAdvisoryLearningService
                 .promoteFromRecommendationRecord(recommendationId, agentEmail)
                 .catch(() => { });
+            const { expertFollowUpLearningService } = await import('../core/expert-follow-up-learning.service.js');
+            let farmerSymptoms = detail.inquiry.farmerQuestion?.trim() ?? '';
+            if (!farmerSymptoms && esc.sessionId) {
+                const { data: sessRow } = await supabase
+                    .from('ai_advisory_sessions')
+                    .select('symptoms_text, crop_type')
+                    .eq('id', esc.sessionId)
+                    .maybeSingle();
+                farmerSymptoms = sessRow?.symptoms_text ? String(sessRow.symptoms_text).trim() : '';
+            }
+            const intakeQa = esc.sessionId
+                ? await expertFollowUpLearningService.loadIntakeQaFromSession(esc.sessionId)
+                : [];
+            void expertFollowUpLearningService
+                .onCaseReviewApproved({
+                sessionId: esc.sessionId,
+                recommendationId,
+                farmerId: esc.farmerId,
+                cropType: String(detail.block?.cropType ?? 'ginger').toLowerCase(),
+                district: detail.location.district
+                    ? String(detail.location.district).trim().toLowerCase()
+                    : null,
+                symptomsText: farmerSymptoms || issue,
+                issueLabel: issue,
+                expertNotes: body.notesForLearning ?? detail.review.notesForLearning ?? null,
+                verifiedBy: agentEmail,
+                intakeQa,
+            })
+                .catch((err) => logger.warn({ err, escalationId }, 'Expert follow-up save failed'));
         }
         if (detail.farmerFeedback &&
             (body.action === 'approve_ai' || body.action === 'partial_match' || body.action === 'correct_ai')) {

@@ -1,0 +1,75 @@
+export const YES_NO_CHOICES = [
+    { id: 'yes', labelEn: 'Yes', labelMl: 'അതെ' },
+    { id: 'no', labelEn: 'No', labelMl: 'ഇല്ല' },
+];
+export const SPRAY_TIMING_CHOICES = [
+    { id: 'within_7d', labelEn: 'Last 7 days', labelMl: '7 ദിവസം' },
+    { id: 'over_14d', labelEn: '14+ days ago', labelMl: '14+ ദിവസം' },
+    { id: 'never', labelEn: 'Not yet', labelMl: 'ഇല്ല' },
+];
+export function normalizeFollowUpKind(raw) {
+    const k = String(raw ?? 'yes_no');
+    if (k === 'photo')
+        return 'photo';
+    if (k === 'multiple_choice' || k === 'spray_timing' || k === 'open_text')
+        return 'multiple_choice';
+    return 'yes_no';
+}
+export function defaultChoicesForKind(kind) {
+    if (kind === 'yes_no')
+        return YES_NO_CHOICES;
+    return [];
+}
+export function localizeChoice(option, lang) {
+    if (lang === 'ml' && option.labelMl.trim())
+        return option.labelMl.trim();
+    return option.labelEn.trim() || option.labelMl.trim();
+}
+export function normalizeChoiceOptions(raw, kind) {
+    if (kind === 'photo')
+        return [];
+    if (kind === 'yes_no')
+        return YES_NO_CHOICES;
+    const rows = Array.isArray(raw) ? raw : [];
+    const out = [];
+    const seen = new Set();
+    for (const row of rows) {
+        if (!row || typeof row !== 'object')
+            continue;
+        const r = row;
+        const id = String(r.id ?? r.optionId ?? '')
+            .toLowerCase()
+            .replace(/[^a-z0-9_]+/g, '_')
+            .slice(0, 32);
+        const labelEn = String(r.labelEn ?? r.label ?? r.title ?? '').trim();
+        const labelMl = String(r.labelMl ?? labelEn).trim();
+        if (!id || !labelEn || seen.has(id))
+            continue;
+        seen.add(id);
+        out.push({ id, labelEn, labelMl });
+        if (out.length >= 10)
+            break;
+    }
+    if (out.length >= 2)
+        return out;
+    return SPRAY_TIMING_CHOICES;
+}
+export function formatChoiceAnswerLabel(answerId, choices, lang = 'en') {
+    const hit = choices.find((c) => c.id === answerId);
+    if (hit)
+        return localizeChoice(hit, lang);
+    if (answerId === 'yes')
+        return lang === 'ml' ? 'അതെ' : 'Yes';
+    if (answerId === 'no')
+        return lang === 'ml' ? 'ഇല്ല' : 'No';
+    if (answerId === 'skip')
+        return lang === 'ml' ? 'Skip' : 'Skipped';
+    if (answerId === 'within_7d')
+        return lang === 'ml' ? '7 ദിവസം' : 'Last 7 days';
+    if (answerId === 'over_14d')
+        return lang === 'ml' ? '14+ ദിവസം' : '14+ days ago';
+    if (answerId === 'never')
+        return lang === 'ml' ? 'ഇല്ല' : 'Not yet';
+    return answerId;
+}
+//# sourceMappingURL=follow-up-question.types.js.map

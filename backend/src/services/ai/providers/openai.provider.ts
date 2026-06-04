@@ -148,3 +148,46 @@ export async function openaiTextAdvisory(
   const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   return parseStructuredJson(data.choices?.[0]?.message?.content ?? '{}');
 }
+
+function extractJsonObject(content: string): Record<string, unknown> {
+  const trimmed = content.trim();
+  const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new AppError('Invalid AI JSON response', 502, 'AI_PARSE_ERROR');
+  }
+  return JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+}
+
+/** Generic JSON completion for planners / classifiers (not crop-doctor advisory shape). */
+export async function openaiJsonCompletion<T extends Record<string, unknown>>(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens = 1024
+): Promise<T> {
+  const model = env.OPENAI_TEXT_MODEL;
+  const res = await openaiFetch('/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      ...openaiTokenLimitBody(model, maxTokens),
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    const quota = parseOpenAiHttpError(res.status, text);
+    if (quota.isQuotaIssue) {
+      logOpenAiQuotaInsufficient('openai-json', quota);
+    }
+    throw new AppError('OpenAI JSON completion failed', res.status, 'OPENAI_JSON_FAILED', text);
+  }
+
+  const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return extractJsonObject(data.choices?.[0]?.message?.content ?? '{}') as T;
+}

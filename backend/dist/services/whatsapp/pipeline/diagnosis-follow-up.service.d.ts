@@ -1,6 +1,8 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { SessionContext } from '../scenarios/session-context.types.js';
 import { type InvestigationContext, type PostIntakeDiagnosisPayload } from './diagnosis-follow-up-reasoning.engine.js';
+import { type FollowUpQuestionKind } from './diagnosis-follow-up-question.generator.js';
+import { type FollowUpChoiceOption } from './follow-up-question.types.js';
 export type SimilarLearnedCase = {
     reuseCaseId: string;
     issueLabel: string;
@@ -12,8 +14,12 @@ export type SimilarLearnedCase = {
 };
 export type FollowUpQuestion = {
     id: string;
-    kind: 'yes_no' | 'photo' | 'spray_timing';
+    kind: FollowUpQuestionKind;
     text: string;
+    choices: FollowUpChoiceOption[];
+    purpose?: string;
+    libraryId?: string;
+    fromExpertLibrary?: boolean;
 };
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
 export declare const diagnosisFollowUpService: {
@@ -31,6 +37,10 @@ export declare const diagnosisFollowUpService: {
         cropType: string;
         hasPhoto: boolean;
     }): Promise<InvestigationContext>;
+    planNextQuestionForIntake(investigation: InvestigationContext, intake: IntakeContext): Promise<{
+        intakeComplete: boolean;
+        question?: FollowUpQuestion;
+    }>;
     buildPostIntakePayload(intake: IntakeContext, investigation: InvestigationContext): PostIntakeDiagnosisPayload;
     startIntake(params: {
         farmerId: string;
@@ -46,7 +56,7 @@ export declare const diagnosisFollowUpService: {
     sendCurrentQuestion(phone: string, language: AdvisoryLanguage, intake: IntakeContext, prefix?: string): Promise<void>;
     parseButtonReply(text: string): {
         questionId: string;
-        answer: "yes" | "no" | "within_7d" | "over_14d" | "never";
+        answer: string;
     } | null;
     parseTextAnswer(text: string): "yes" | "no" | "skip" | "within_7d" | "over_14d" | "never" | "unsure" | null;
     handleIntakeMessage(params: {

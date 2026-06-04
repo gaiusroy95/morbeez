@@ -67,15 +67,17 @@ export const verifiedAdvisoryLearningService = {
     async loadSessionQuestionSources(sessionId) {
         const { data } = await supabase
             .from('ai_advisory_sessions')
-            .select('crop_type, symptoms_text, voice_transcript')
+            .select('crop_type, symptoms_text, voice_transcript, metadata')
             .eq('id', sessionId)
             .maybeSingle();
         if (!data)
             return null;
+        const meta = data.metadata;
         return {
             cropType: String(data.crop_type ?? 'ginger').toLowerCase(),
             symptomsText: data.symptoms_text ? String(data.symptoms_text) : null,
             voiceTranscript: data.voice_transcript ? String(data.voice_transcript) : null,
+            investigationPattern: meta?.investigationPattern,
         };
     },
     /**
@@ -116,6 +118,15 @@ export const verifiedAdvisoryLearningService = {
             confidence: input.confidence,
             products: input.products,
         });
+        const pattern = input.investigationPattern ?? session?.investigationPattern;
+        if (pattern?.qa?.length) {
+            advisory.investigationPatterns = [
+                {
+                    ...pattern,
+                    issueLabel: pattern.issueLabel || input.issueLabel,
+                },
+            ];
+        }
         for (const symptomKey of symptomKeys) {
             for (const d of districts) {
                 await aiReuseService.indexSuccessfulCase({
@@ -303,6 +314,7 @@ export const verifiedAdvisoryLearningService = {
                 rec.issue_detected ? String(rec.issue_detected) : undefined,
             ],
             global: true,
+            investigationPattern: (await this.loadSessionQuestionSources(String(rec.ai_session_id)))?.investigationPattern,
         });
     },
 };

@@ -67,6 +67,16 @@ export interface DiagnoseInput {
     /** Hint from similar cases + intake reasoning */
     issueLabelHint?: string;
     skipReuseCache?: boolean;
+    /** Follow-up Q&A from WhatsApp intake — stored for learning loop on approval */
+    investigationPattern?: {
+        initialSymptoms: string;
+        issueLabel: string;
+        qa: Array<{
+            question: string;
+            answer: string;
+            kind?: string;
+        }>;
+    };
 }
 export interface DiagnoseResult {
     sessionId: string;

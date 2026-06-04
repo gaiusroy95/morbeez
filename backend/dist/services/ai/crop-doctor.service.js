@@ -71,7 +71,10 @@ export const cropDoctorService = {
             voice_transcript: input.voiceTranscript ?? null,
             image_storage_path: input.imageStoragePath ?? null,
             status: 'processing',
-            metadata: input.contextPack ?? {},
+            metadata: {
+                ...(input.contextPack ?? {}),
+                investigationPattern: input.investigationPattern ?? undefined,
+            },
         })
             .select()
             .single();
