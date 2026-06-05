@@ -36,6 +36,7 @@ interface NormalizedOrder {
   isCod: boolean;
   paymentLabel: string;
   status: Exclude<OrderStatusTab, 'all'>;
+  omsStatus: string | null;
   createdAt: string;
   rawPayload?: Record<string, unknown> | null;
 }
@@ -150,6 +151,7 @@ function mapCommerceOrder(row: Record<string, unknown>): NormalizedOrder {
     currency: row.currency ? String(row.currency) : 'INR',
     razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
     isCod: Boolean(row.is_cod),
+    omsStatus: row.oms_status ? String(row.oms_status) : null,
     createdAt: String(row.created_at),
     rawPayload: raw,
   };
@@ -180,6 +182,7 @@ function mapCheckoutSession(row: Record<string, unknown>): NormalizedOrder {
     currency: row.currency ? String(row.currency) : 'INR',
     razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
     isCod: false,
+    omsStatus: null,
     createdAt: String(row.created_at),
     rawPayload: null,
   };
@@ -244,6 +247,7 @@ function toPublicOrder(o: NormalizedOrder) {
     status: o.status,
     financialStatus: o.financialStatus,
     fulfillmentStatus: o.fulfillmentStatus,
+    omsStatus: o.source === 'shopify' ? o.omsStatus : null,
     createdAt: o.createdAt,
   };
 }

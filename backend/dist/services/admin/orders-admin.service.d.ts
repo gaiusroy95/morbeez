@@ -32,6 +32,7 @@ export declare const ordersAdminService: {
             status: "processing" | "pending" | "cancelled" | "delivered" | "shipped";
             financialStatus: string | null;
             fulfillmentStatus: string | null;
+            omsStatus: string | null;
             createdAt: string;
         }[];
         tabCounts: {
@@ -94,6 +95,7 @@ export declare const ordersAdminService: {
         status: "processing" | "pending" | "cancelled" | "delivered" | "shipped";
         financialStatus: string | null;
         fulfillmentStatus: string | null;
+        omsStatus: string | null;
         createdAt: string;
     }>;
 };

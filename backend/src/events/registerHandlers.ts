@@ -7,6 +7,7 @@ import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
 import { orderWhatsappService } from '../services/whatsapp/orders/order-whatsapp.service.js';
 import { farmerEventCaptureService } from '../services/intelligence/farmer-event-capture.service.js';
+import { omsWorkflowService } from '../services/oms/workflow.service.js';
 
 /** Wire domain reactions — keep thin; logic lives in services */
 export function registerEventHandlers(): void {
@@ -16,7 +17,7 @@ export function registerEventHandlers(): void {
 
     const { data: orderRow } = await supabase
       .from('commerce_orders')
-      .select('farmer_id, phone')
+      .select('id, farmer_id, phone, oms_status')
       .eq('shopify_order_id', orderId)
       .maybeSingle();
 
@@ -37,7 +38,13 @@ export function registerEventHandlers(): void {
       });
     }
 
-    if (env.ENABLE_SHIPROCKET_AUTO_SHIP) {
+    if (orderRow && orderRow.oms_status === 'pending') {
+      await omsWorkflowService.confirmOrder(String(orderRow.id)).catch((err) => {
+        logger.error({ err, orderId }, 'OMS confirm on paid failed');
+      });
+    }
+
+    if (env.ENABLE_SHIPROCKET_AUTO_SHIP && env.ENABLE_SHIPROCKET_AFTER_PACK === false) {
       await shiprocketService.createShipmentForShopifyOrder(orderId).catch((err) => {
         logger.error({ err, orderId }, 'Auto-shipment failed');
       });
@@ -172,6 +179,19 @@ export function registerEventHandlers(): void {
       intent: (event.payload.intent as string) ?? 'general',
       assignedTo: (event.payload.assignedTo as string | null) ?? null,
     });
+  });
+
+  eventBus.on('shipment.delivered', async (event) => {
+    const shopifyOrderId = event.payload.shopifyOrderId as string | undefined;
+    if (!shopifyOrderId) return;
+    const { data: order } = await supabase
+      .from('commerce_orders')
+      .select('id')
+      .eq('shopify_order_id', shopifyOrderId)
+      .maybeSingle();
+    if (order) {
+      await omsWorkflowService.updateStatus(String(order.id), 'delivered');
+    }
   });
 
   eventBus.on('callback.requested', async (event) => {

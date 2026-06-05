@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { type AdminRequest } from '../middleware/adminAuth.js';
-export type ConsoleModule = 'dashboard' | 'telecaller_crm' | 'operations' | 'intelligence' | 'agronomist' | 'commerce' | 'automation' | 'analytics' | 'settings' | 'approve_recommendations';
+export type ConsoleModule = 'dashboard' | 'telecaller_crm' | 'operations' | 'intelligence' | 'agronomist' | 'commerce' | 'warehouse' | 'seo' | 'automation' | 'analytics' | 'settings' | 'approve_recommendations';
 export { canApproveRecommendations, canManageStaff, canAssignSuperAdmin, getRoleHomePath } from './console-roles.js';
 export { CONSOLE_ROLES, type ConsoleRole } from './console-roles.js';
 export declare function getModulesForRole(role: string): Promise<Array<{

@@ -1,0 +1,75 @@
+<section class="morbeez-section bg-[var(--color-surface)]" id="MorbeezSeoHub-{{ section.id }}" data-seo-agronomy-hub data-page-type="{{ section.settings.page_type_filter }}">
+  <div class="morbeez-container">
+    {%- render 'morbeez-section-header',
+      heading: section.settings.heading,
+      subheading: section.settings.subheading,
+      link_url: section.settings.view_all_url,
+      link_label: section.settings.view_all_label
+    -%}
+
+    <div class="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-seo-hub-grid>
+      <p class="text-sm text-[var(--color-muted)] col-span-full" data-seo-hub-loading>{{ section.settings.loading_text }}</p>
+    </div>
+  </div>
+</section>
+
+<script src="{{ 'agronomy-page.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Crop guides hub (SEO)",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Crop problem guides"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Expert advice for ginger and horticulture — from Morbeez agronomy"
+    },
+    {
+      "type": "select",
+      "id": "page_type_filter",
+      "label": "Page type filter",
+      "default": "crop_problem",
+      "options": [
+        { "value": "", "label": "All published" },
+        { "value": "crop_problem", "label": "Crop problems" },
+        { "value": "advisory", "label": "Advisory" },
+        { "value": "article", "label": "Articles" }
+      ]
+    },
+    {
+      "type": "text",
+      "id": "loading_text",
+      "label": "Loading text",
+      "default": "Loading guides…"
+    },
+    {
+      "type": "url",
+      "id": "view_all_url",
+      "label": "View all link"
+    },
+    {
+      "type": "text",
+      "id": "view_all_label",
+      "label": "View all label",
+      "default": "View all guides"
+    }
+  ],
+  "presets": [
+    {
+      "name": "Crop guides hub (SEO)",
+      "settings": {
+        "heading": "Crop problem guides",
+        "subheading": "Organic traffic from real farmer questions"
+      }
+    }
+  ]
+}
+{% endschema %}

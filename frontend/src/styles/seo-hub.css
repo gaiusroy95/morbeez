@@ -1,0 +1,93 @@
+.seo-hub-intro {
+  margin-bottom: 1rem;
+}
+
+.seo-kpi-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.seo-kpi-card {
+  padding: 1rem 1.1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle, #e2e8f0);
+  background: #fff;
+}
+
+.seo-kpi-card strong {
+  display: block;
+  font-size: 1.5rem;
+  color: var(--brand-700, #1b5e20);
+  margin-bottom: 0.25rem;
+}
+
+.seo-kpi-card span {
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.seo-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.seo-form-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 160px;
+}
+
+.seo-status-pill {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.seo-status-pill--ok {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.seo-status-pill--warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.seo-status-pill--draft {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.seo-editor-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 900px) {
+  .seo-editor-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.seo-char-count {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.seo-char-count--over {
+  color: #dc2626;
+  font-weight: 600;
+}

@@ -132,6 +132,20 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
         module: 'commerce',
       },
       {
+        id: 'warehouse',
+        path: toPath(paths.warehouse),
+        label: 'Warehouse',
+        icon: 'warehouse',
+        module: 'warehouse',
+      },
+      {
+        id: 'seo',
+        path: toPath(paths.seo),
+        label: 'SEO',
+        icon: 'seo',
+        module: 'seo',
+      },
+      {
         id: 'settings',
         path: toPath(paths.settings),
         label: 'Settings',
@@ -163,6 +177,8 @@ export function filterNav(modules: ApiModule[]): typeof NAV_GROUPS {
 export function defaultExpandedGroups(pathname: string): string[] {
   const base = ['telecaller', 'ops', 'intel', 'agro'];
   if (pathname.startsWith(toPath(paths.commerce))) base.push('commerce');
+  if (pathname.startsWith(toPath(paths.warehouse))) base.push('more');
+  if (pathname.startsWith(toPath(paths.seo))) base.push('more');
   if (pathname.startsWith(toPath(paths.employees))) base.push('more');
   return base;
 }

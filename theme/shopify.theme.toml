@@ -2,13 +2,16 @@
 #   npm run theme:dev
 #   npm run theme:push
 #
-# Pinned theme: Development (157069279431) — safe for daily pushes.
-# Live published theme "Morbeez" is #157075734727 — use npm run theme:push:live only when intentional.
+# Store: morbeez-india.myshopify.com
+# Preview: https://morbeez-india.myshopify.com?preview_theme_id=186108281150
+#
+# development — safe for daily pushes (unpublished preview theme)
+# live — published storefront theme (same ID until you duplicate a separate dev theme)
 
 [environments.development]
-store = "morbeez.myshopify.com"
-theme = "157069279431"
+store = "morbeez-india.myshopify.com"
+theme = "186108281150"
 
 [environments.live]
-store = "morbeez.myshopify.com"
-theme = "157075734727"
+store = "morbeez-india.myshopify.com"
+theme = "186108281150"

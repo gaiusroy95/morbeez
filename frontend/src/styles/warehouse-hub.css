@@ -1,0 +1,112 @@
+.warehouse-hub-intro {
+  margin-bottom: 1rem;
+}
+
+.warehouse-hub-focus {
+  margin: -0.5rem 0 1rem;
+  font-size: 0.85rem;
+}
+
+.warehouse-row--focus td {
+  background: #ecfdf5;
+}
+
+.warehouse-kpi-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.warehouse-kpi-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.warehouse-kpi-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.warehouse-kpi-list strong {
+  font-size: 1.05rem;
+  color: var(--brand-700, #1b5e20);
+}
+
+.warehouse-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
+}
+
+.warehouse-form-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 200px;
+}
+
+.warehouse-batch-table {
+  width: 100%;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+}
+
+.warehouse-batch-table th,
+.warehouse-batch-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+
+.warehouse-pack-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.warehouse-scan-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.warehouse-scan-row .scan-msg {
+  font-size: 0.85rem;
+  color: #1b5e20;
+  font-weight: 600;
+}
+
+.warehouse-exception-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.badge-warn {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+}

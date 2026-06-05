@@ -107,6 +107,7 @@ function mapCommerceOrder(row) {
         currency: row.currency ? String(row.currency) : 'INR',
         razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
         isCod: Boolean(row.is_cod),
+        omsStatus: row.oms_status ? String(row.oms_status) : null,
         createdAt: String(row.created_at),
         rawPayload: raw,
     };
@@ -136,6 +137,7 @@ function mapCheckoutSession(row) {
         currency: row.currency ? String(row.currency) : 'INR',
         razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
         isCod: false,
+        omsStatus: null,
         createdAt: String(row.created_at),
         rawPayload: null,
     };
@@ -195,6 +197,7 @@ function toPublicOrder(o) {
         status: o.status,
         financialStatus: o.financialStatus,
         fulfillmentStatus: o.fulfillmentStatus,
+        omsStatus: o.source === 'shopify' ? o.omsStatus : null,
         createdAt: o.createdAt,
     };
 }

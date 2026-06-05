@@ -35,6 +35,14 @@ export const PAGE_SEARCH_DEFAULTS: Record<string, PageSearchDefaults> = {
     placeholder: 'Search farmer, issue, recommendation…',
   },
   analytics: { mode: 'none' },
+  warehouse: {
+    mode: 'local',
+    placeholder: 'Search SKU, batch, order…',
+  },
+  seo: {
+    mode: 'local',
+    placeholder: 'Search product, keyword, crop page…',
+  },
   commerce: {
     mode: 'local',
     placeholder: 'Search orders, farmers, products…',

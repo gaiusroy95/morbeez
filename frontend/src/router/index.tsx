@@ -17,6 +17,8 @@ import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { AnalyticsHubPage } from '../pages/AnalyticsHubPage';
 import { CommerceHubPage } from '../pages/CommerceHubPage';
+import { WarehouseHubPage } from '../pages/WarehouseHubPage';
+import { SeoHubPage } from '../pages/SeoHubPage';
 import { ProductWizardPage } from '../pages/ProductWizardPage';
 import { EmployeesPage } from '../pages/EmployeesPage';
 import { SettingsPage } from '../pages/SettingsPage';
@@ -67,6 +69,16 @@ function EmployeesRoute() {
 function CommerceRoute() {
   const { can } = useAuth();
   return <CommerceHubPage canWrite={can('commerce', 'write')} />;
+}
+
+function WarehouseRoute() {
+  const { can } = useAuth();
+  return <WarehouseHubPage canWrite={can('warehouse', 'write')} />;
+}
+
+function SeoRoute() {
+  const { can } = useAuth();
+  return <SeoHubPage canWrite={can('seo', 'write')} />;
 }
 
 function ProductWizardRoute() {
@@ -167,6 +179,22 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="commerce">
                   <CommerceRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.warehouse,
+              element: (
+                <ProtectedPage module="warehouse">
+                  <WarehouseRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.seo,
+              element: (
+                <ProtectedPage module="seo">
+                  <SeoRoute />
                 </ProtectedPage>
               ),
             },

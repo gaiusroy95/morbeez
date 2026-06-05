@@ -15,6 +15,8 @@ export const paths = {
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
+  warehouse: 'warehouse',
+  seo: 'seo',
   commerceProductNew: 'commerce/products/new',
   commerceProductEdit: 'commerce/products/:productId/edit',
   employees: 'employees',
@@ -67,6 +69,8 @@ export const ROUTE_META: Record<
   },
   [toPath(paths.analytics)]: { title: 'Analytics', module: 'analytics', pageKey: 'analytics' },
   [toPath(paths.commerce)]: { title: 'Commerce', module: 'commerce', pageKey: 'commerce' },
+  [toPath(paths.warehouse)]: { title: 'Warehouse & OMS', module: 'warehouse', pageKey: 'warehouse' },
+  [toPath(paths.seo)]: { title: 'SEO Control Panel', module: 'seo', pageKey: 'seo' },
   [toPath(paths.commerceProductNew)]: {
     title: 'Add Product',
     module: 'commerce',

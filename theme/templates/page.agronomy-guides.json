@@ -1,0 +1,13 @@
+{
+  "sections": {
+    "hub": {
+      "type": "seo-agronomy-hub",
+      "settings": {
+        "heading": "All crop & soil guides",
+        "subheading": "Problem pages, advisories, and agronomy articles from Morbeez",
+        "page_type_filter": ""
+      }
+    }
+  },
+  "order": ["hub"]
+}

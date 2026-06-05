@@ -13,6 +13,8 @@ export async function getModulesForRole(role) {
             'intelligence',
             'agronomist',
             'commerce',
+            'warehouse',
+            'seo',
             'automation',
             'analytics',
             'settings',

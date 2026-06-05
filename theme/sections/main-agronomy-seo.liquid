@@ -1,0 +1,130 @@
+{%- liquid
+  assign crop = page.metafields.morbeez.crop
+  assign problem = page.metafields.morbeez.problem
+  assign page_type = page.metafields.morbeez.page_type
+  assign faq_items = page.metafields.morbeez.faq.value
+-%}
+
+<article class="morbeez-section" id="MorbeezAgronomy-{{ section.id }}" data-agronomy-page data-page-handle="{{ page.handle }}">
+  <div class="morbeez-container max-w-4xl">
+    {%- render 'morbeez-breadcrumbs' -%}
+
+    <header class="mt-4">
+      {%- if crop != blank or problem != blank -%}
+        <p class="morbeez-eyebrow mb-2">
+          {%- if crop != blank -%}{{ crop }}{%- endif -%}
+          {%- if problem != blank -%} · {{ problem }}{%- endif -%}
+        </p>
+      {%- endif -%}
+      <h1 class="font-heading text-3xl font-bold tracking-tight text-[var(--color-trust)] md:text-4xl">
+        {{ page.title }}
+      </h1>
+      {%- if section.settings.show_expert_note -%}
+        <p class="mt-3 text-sm text-[var(--color-muted)]">{{ section.settings.expert_note }}</p>
+      {%- endif -%}
+    </header>
+
+    <div class="agronomy-content mt-8 prose prose-sm max-w-none text-[var(--color-trust)]">
+      {{ page.content }}
+    </div>
+
+    {%- if faq_items and faq_items.size > 0 -%}
+      <section class="mt-12" aria-labelledby="agronomy-faq-heading">
+        <h2 id="agronomy-faq-heading" class="font-heading text-2xl font-bold text-[var(--color-trust)]">
+          {{ section.settings.faq_heading }}
+        </h2>
+        <div class="mt-6 divide-y divide-[var(--color-border)] rounded-2xl border border-[var(--color-border)] bg-white">
+          {%- for item in faq_items -%}
+            <details class="group px-5 py-4">
+              <summary class="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold text-[var(--color-trust)]">
+                {{ item.q }}
+                {%- render 'morbeez-icon', name: 'chevron-down', class: 'h-4 w-4 shrink-0 transition group-open:rotate-180' -%}
+              </summary>
+              <div class="mt-3 pb-2 text-sm leading-relaxed text-[var(--color-muted)]">{{ item.a }}</div>
+            </details>
+          {%- endfor -%}
+        </div>
+      </section>
+    {%- endif -%}
+
+    <section class="mt-12" id="agronomy-related-products" hidden>
+      <h2 class="font-heading text-2xl font-bold text-[var(--color-trust)]">{{ section.settings.products_heading }}</h2>
+      <div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3" data-related-products-grid></div>
+    </section>
+
+    {%- if section.settings.show_crop_doctor_cta -%}
+      <div class="morbeez-panel mt-12 text-center">
+        <h3 class="font-heading text-xl font-bold">{{ section.settings.cta_heading }}</h3>
+        <p class="mt-2 text-sm text-[var(--color-muted)]">{{ section.settings.cta_body }}</p>
+        <a href="{{ section.settings.cta_url | default: '/pages/crop-doctor' }}" class="morbeez-btn-primary mt-4 inline-flex">
+          {{ section.settings.cta_label }}
+        </a>
+      </div>
+    {%- endif -%}
+  </div>
+</article>
+
+{%- render 'schema-seo-page' -%}
+<script src="{{ 'agronomy-page.js' | asset_url }}" defer></script>
+
+{% schema %}
+{
+  "name": "Agronomy SEO page",
+  "tag": "section",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_expert_note",
+      "label": "Show expert note",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "expert_note",
+      "label": "Expert note",
+      "default": "Morbeez agronomy guidance for Indian farmers — verify with local conditions and follow label directions."
+    },
+    {
+      "type": "text",
+      "id": "faq_heading",
+      "label": "FAQ heading",
+      "default": "Frequently asked questions"
+    },
+    {
+      "type": "text",
+      "id": "products_heading",
+      "label": "Related products heading",
+      "default": "Recommended Morbeez products"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_crop_doctor_cta",
+      "label": "Show Crop Doctor CTA",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "cta_heading",
+      "label": "CTA heading",
+      "default": "Still unsure? Ask Crop Doctor"
+    },
+    {
+      "type": "textarea",
+      "id": "cta_body",
+      "label": "CTA body",
+      "default": "Upload a photo and describe symptoms for AI-assisted guidance from Morbeez agronomy."
+    },
+    {
+      "type": "text",
+      "id": "cta_label",
+      "label": "CTA button",
+      "default": "Open Crop Doctor"
+    },
+    {
+      "type": "url",
+      "id": "cta_url",
+      "label": "CTA URL"
+    }
+  ]
+}
+{% endschema %}

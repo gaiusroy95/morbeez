@@ -67,7 +67,20 @@ const envSchema = z.object({
     ENABLE_SHIPROCKET_AUTO_SHIP: z
         .string()
         .transform((v) => v === 'true')
+        .default('false'),
+    /** Ship only after warehouse pack verification (recommended with WMS). */
+    ENABLE_SHIPROCKET_AFTER_PACK: z
+        .string()
+        .transform((v) => v !== 'false')
         .default('true'),
+    /** Auto-confirm orders and reserve stock on create/paid. */
+    ENABLE_OMS_AUTO_CONFIRM: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    COMPANY_GSTIN: z.string().optional(),
+    COMPANY_STATE: z.string().default('Karnataka'),
+    COMPANY_LEGAL_NAME: z.string().optional(),
     ENABLE_RAZORPAY_PAYMENT_LINKS: z
         .string()
         .transform((v) => v === 'true')
@@ -185,6 +198,10 @@ const envSchema = z.object({
     AI_DAILY_VOICE_LIMIT_PREMIUM: z.coerce.number().default(30),
     AI_MAX_VOICE_DURATION_SEC: z.coerce.number().default(60),
     AI_MIN_REQUEST_INTERVAL_SEC: z.coerce.number().default(30),
+    GSC_SITE_URL: z.string().url().optional(),
+    GSC_CLIENT_ID: z.string().optional(),
+    GSC_CLIENT_SECRET: z.string().optional(),
+    GSC_REFRESH_TOKEN: z.string().optional(),
 });
 function loadEnv() {
     const parsed = envSchema.safeParse(process.env);

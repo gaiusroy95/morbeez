@@ -62,6 +62,13 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX: z.ZodDefault<z.ZodNumber>;
     RATE_LIMIT_WINDOW_MS: z.ZodDefault<z.ZodNumber>;
     ENABLE_SHIPROCKET_AUTO_SHIP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Ship only after warehouse pack verification (recommended with WMS). */
+    ENABLE_SHIPROCKET_AFTER_PACK: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Auto-confirm orders and reserve stock on create/paid. */
+    ENABLE_OMS_AUTO_CONFIRM: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    COMPANY_GSTIN: z.ZodOptional<z.ZodString>;
+    COMPANY_STATE: z.ZodDefault<z.ZodString>;
+    COMPANY_LEGAL_NAME: z.ZodOptional<z.ZodString>;
     ENABLE_RAZORPAY_PAYMENT_LINKS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_RAZORPAY_CHECKOUT: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     CHECKOUT_SUCCESS_PATH: z.ZodDefault<z.ZodString>;
@@ -113,6 +120,10 @@ declare const envSchema: z.ZodObject<{
     AI_DAILY_VOICE_LIMIT_PREMIUM: z.ZodDefault<z.ZodNumber>;
     AI_MAX_VOICE_DURATION_SEC: z.ZodDefault<z.ZodNumber>;
     AI_MIN_REQUEST_INTERVAL_SEC: z.ZodDefault<z.ZodNumber>;
+    GSC_SITE_URL: z.ZodOptional<z.ZodString>;
+    GSC_CLIENT_ID: z.ZodOptional<z.ZodString>;
+    GSC_CLIENT_SECRET: z.ZodOptional<z.ZodString>;
+    GSC_REFRESH_TOKEN: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     NODE_ENV: "development" | "staging" | "production" | "test";
     PORT: number;
@@ -138,6 +149,9 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
+    ENABLE_SHIPROCKET_AFTER_PACK: boolean;
+    ENABLE_OMS_AUTO_CONFIRM: boolean;
+    COMPANY_STATE: string;
     ENABLE_RAZORPAY_PAYMENT_LINKS: boolean;
     ENABLE_RAZORPAY_CHECKOUT: boolean;
     CHECKOUT_SUCCESS_PATH: string;
@@ -212,6 +226,12 @@ declare const envSchema: z.ZodObject<{
     ADMIN_UI_ORIGIN?: string | undefined;
     CONSOLE_PUBLIC_URL?: string | undefined;
     CONSOLE_SHARED_PASSWORD?: string | undefined;
+    COMPANY_GSTIN?: string | undefined;
+    COMPANY_LEGAL_NAME?: string | undefined;
+    GSC_SITE_URL?: string | undefined;
+    GSC_CLIENT_ID?: string | undefined;
+    GSC_CLIENT_SECRET?: string | undefined;
+    GSC_REFRESH_TOKEN?: string | undefined;
 }, {
     SUPABASE_URL: string;
     SUPABASE_SERVICE_ROLE_KEY: string;
@@ -271,6 +291,11 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX?: number | undefined;
     RATE_LIMIT_WINDOW_MS?: number | undefined;
     ENABLE_SHIPROCKET_AUTO_SHIP?: string | undefined;
+    ENABLE_SHIPROCKET_AFTER_PACK?: string | undefined;
+    ENABLE_OMS_AUTO_CONFIRM?: string | undefined;
+    COMPANY_GSTIN?: string | undefined;
+    COMPANY_STATE?: string | undefined;
+    COMPANY_LEGAL_NAME?: string | undefined;
     ENABLE_RAZORPAY_PAYMENT_LINKS?: string | undefined;
     ENABLE_RAZORPAY_CHECKOUT?: string | undefined;
     CHECKOUT_SUCCESS_PATH?: string | undefined;
@@ -311,6 +336,10 @@ declare const envSchema: z.ZodObject<{
     AI_DAILY_VOICE_LIMIT_PREMIUM?: number | undefined;
     AI_MAX_VOICE_DURATION_SEC?: number | undefined;
     AI_MIN_REQUEST_INTERVAL_SEC?: number | undefined;
+    GSC_SITE_URL?: string | undefined;
+    GSC_CLIENT_ID?: string | undefined;
+    GSC_CLIENT_SECRET?: string | undefined;
+    GSC_REFRESH_TOKEN?: string | undefined;
 }>;
 export type Env = z.infer<typeof envSchema>;
 export declare const env: {
@@ -338,6 +367,9 @@ export declare const env: {
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
+    ENABLE_SHIPROCKET_AFTER_PACK: boolean;
+    ENABLE_OMS_AUTO_CONFIRM: boolean;
+    COMPANY_STATE: string;
     ENABLE_RAZORPAY_PAYMENT_LINKS: boolean;
     ENABLE_RAZORPAY_CHECKOUT: boolean;
     CHECKOUT_SUCCESS_PATH: string;
@@ -412,6 +444,12 @@ export declare const env: {
     ADMIN_UI_ORIGIN?: string | undefined;
     CONSOLE_PUBLIC_URL?: string | undefined;
     CONSOLE_SHARED_PASSWORD?: string | undefined;
+    COMPANY_GSTIN?: string | undefined;
+    COMPANY_LEGAL_NAME?: string | undefined;
+    GSC_SITE_URL?: string | undefined;
+    GSC_CLIENT_ID?: string | undefined;
+    GSC_CLIENT_SECRET?: string | undefined;
+    GSC_REFRESH_TOKEN?: string | undefined;
 };
 export {};
 //# sourceMappingURL=env.d.ts.map

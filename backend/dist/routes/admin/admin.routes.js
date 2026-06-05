@@ -29,6 +29,7 @@ import { osAgronomistRoutes } from './os-agronomist.routes.js';
 import { osFieldRoutes } from './os-field.routes.js';
 import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
+import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { getModulesForRole, canApproveRecommendations, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
 import { CONSOLE_ROLES } from '../../lib/console-roles.js';
 import { requireAdmin, requireAdminRole } from '../../middleware/adminAuth.js';
@@ -2003,5 +2004,8 @@ export async function adminRoutes(app) {
     await app.register(osFieldRoutes);
     await app.register(osAnalyticsRoutes);
     await app.register(osSettingsRoutes);
+    await app.register(osWarehouseRoutes);
+    const { osSeoRoutes } = await import('./os-seo.routes.js');
+    await app.register(osSeoRoutes);
 }
 //# sourceMappingURL=admin.routes.js.map

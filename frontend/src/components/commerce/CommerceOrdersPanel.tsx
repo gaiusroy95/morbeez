@@ -3,6 +3,7 @@ import { api } from '../../lib/api';
 import { Modal } from '../Modal';
 import {
   Alert,
+  Badge,
   Btn,
   DataTable,
   EmptyState,
@@ -12,6 +13,8 @@ import {
   inputClass,
   selectClass,
 } from '../ui';
+import { WarehouseOrderLink } from '../warehouse/WarehouseOrderLink';
+import { useAuth } from '../../context/AuthContext';
 
 type OrderRow = {
   id: string;
@@ -22,6 +25,7 @@ type OrderRow = {
   amount: number;
   status: string;
   paymentLabel: string;
+  omsStatus?: string | null;
   createdAt: string;
 };
 
@@ -67,6 +71,7 @@ type OrderDetail = {
   totals: { subtotal: number; shipping: number; discount: number; total: number };
   timeline: TimelineStep[];
   notes: string;
+  omsStatus?: string | null;
 };
 
 const STATUS_TABS: Array<{ id: OrderTab; label: string }> = [
@@ -88,6 +93,8 @@ type Props = {
 };
 
 export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Props) {
+  const { can } = useAuth();
+  const canWarehouse = can('warehouse', 'read');
   const [tab, setTab] = useState<OrderTab>('all');
   const [payment, setPayment] = useState<'' | 'cod' | 'paid'>('');
   const [search, setSearch] = useState('');
@@ -220,7 +227,10 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
       {loading ? <Loading /> : null}
 
       {!loading ? (
-        <Panel title="Orders & dispatch" description="Click a row for shipping and timeline details.">
+        <Panel
+          title="Orders & dispatch"
+          description="Click a row for shipping and timeline details. Shopify orders link to Warehouse for pick, pack, and COD."
+        >
           <TableWrap>
             <DataTable>
               <thead>
@@ -231,6 +241,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   <th>Status</th>
                   <th>Payment</th>
                   <th>Date</th>
+                  {canWarehouse ? <th>Warehouse</th> : null}
                   <th />
                 </tr>
               </thead>
@@ -258,6 +269,19 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                             : '—'}
                         </small>
                       </td>
+                      {canWarehouse ? (
+                        <td onClick={(e) => e.stopPropagation()}>
+                          {o.source === 'shopify' ? (
+                            <WarehouseOrderLink
+                              orderId={o.id}
+                              omsStatus={o.omsStatus}
+                              compact
+                            />
+                          ) : (
+                            <span className="muted">—</span>
+                          )}
+                        </td>
+                      ) : null}
                       <td onClick={(e) => e.stopPropagation()}>
                         {canWrite && o.status !== 'cancelled' ? (
                           <button
@@ -273,7 +297,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={canWarehouse ? 8 : 7}>
                       <EmptyState>No orders found.</EmptyState>
                     </td>
                   </tr>
@@ -327,6 +351,21 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   ))}
                 </ul>
               </div>
+              {detail.source === 'shopify' && canWarehouse ? (
+                <div className="order-detail-section">
+                  <h4>Warehouse fulfillment</h4>
+                  {detail.omsStatus ? (
+                    <p>
+                      OMS status: <Badge tone="role">{detail.omsStatus}</Badge>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-slate-600">Not synced to warehouse yet.</p>
+                  )}
+                  <p className="mt-2">
+                    <WarehouseOrderLink orderId={detail.id} omsStatus={detail.omsStatus} />
+                  </p>
+                </div>
+              ) : null}
               <div className="order-detail-section">
                 <h4>Dispatch & shipping</h4>
                 <p>

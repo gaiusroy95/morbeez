@@ -121,6 +121,16 @@
         "subheading": "Guides for Indian agriculture"
       }
     },
+    "crop_guides_seo": {
+      "type": "seo-agronomy-hub",
+      "settings": {
+        "heading": "Crop problem guides",
+        "subheading": "SEO agronomy pages — symptoms, treatment & Morbeez recommendations",
+        "page_type_filter": "crop_problem",
+        "view_all_url": "/pages/crop-guides",
+        "view_all_label": "All guides"
+      }
+    },
     "testimonials": {
       "type": "testimonials",
       "settings": {
@@ -171,6 +181,7 @@
     "seasonal",
     "flash",
     "advisory",
+    "crop_guides_seo",
     "testimonials",
     "blog",
     "crop_doctor",

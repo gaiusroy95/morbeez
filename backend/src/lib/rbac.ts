@@ -11,6 +11,8 @@ export type ConsoleModule =
   | 'intelligence'
   | 'agronomist'
   | 'commerce'
+  | 'warehouse'
+  | 'seo'
   | 'automation'
   | 'analytics'
   | 'settings'
@@ -30,6 +32,8 @@ export async function getModulesForRole(role: string): Promise<
       'intelligence',
       'agronomist',
       'commerce',
+      'warehouse',
+      'seo',
       'automation',
       'analytics',
       'settings',

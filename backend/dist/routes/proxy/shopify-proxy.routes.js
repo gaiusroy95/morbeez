@@ -72,6 +72,23 @@ export async function shopifyProxyRoutes(app) {
         });
     });
     app.get('/proxy/health', async () => ({ ok: true, proxy: 'morbeez' }));
+    /** Published agronomy / crop-problem SEO pages for storefront hub + enhancements */
+    app.get('/proxy/seo/pages', async (request, reply) => {
+        const q = request.query;
+        const { seoStorefrontService } = await import('../../services/seo/seo-storefront.service.js');
+        const pages = await seoStorefrontService.listPublished({
+            pageType: q.pageType,
+            crop: q.crop,
+            limit: q.limit ? Number(q.limit) : 24,
+        });
+        return reply.send({ ok: true, pages });
+    });
+    app.get('/proxy/seo/pages/:slug', async (request, reply) => {
+        const { slug } = request.params;
+        const { seoStorefrontService } = await import('../../services/seo/seo-storefront.service.js');
+        const page = await seoStorefrontService.getBySlug(slug);
+        return reply.send({ ok: true, page });
+    });
     const signupSchema = z.object({
         email: z.string().email().max(255),
         firstName: z.string().min(1).max(80),

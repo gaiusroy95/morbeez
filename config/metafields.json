@@ -181,6 +181,39 @@
       "type": "url"
     }
   ],
+  "page": [
+    {
+      "namespace": "morbeez",
+      "key": "faq",
+      "name": "Agronomy FAQ (JSON)",
+      "type": "json",
+      "description": "Array of { \"q\": \"\", \"a\": \"\" } for SEO pages"
+    },
+    {
+      "namespace": "morbeez",
+      "key": "crop",
+      "name": "Crop",
+      "type": "single_line_text_field"
+    },
+    {
+      "namespace": "morbeez",
+      "key": "problem",
+      "name": "Problem",
+      "type": "single_line_text_field"
+    },
+    {
+      "namespace": "morbeez",
+      "key": "page_type",
+      "name": "SEO page type",
+      "type": "single_line_text_field"
+    },
+    {
+      "namespace": "morbeez",
+      "key": "related_product_ids",
+      "name": "Related Shopify product IDs",
+      "type": "json"
+    }
+  ],
   "customer": [
     {
       "namespace": "morbeez",

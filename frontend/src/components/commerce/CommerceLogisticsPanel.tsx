@@ -9,6 +9,8 @@ import {
   Panel,
   TableWrap,
 } from '../ui';
+import { WarehouseOrderLink } from '../warehouse/WarehouseOrderLink';
+import { useAuth } from '../../context/AuthContext';
 
 type Overview = {
   configured: boolean;
@@ -45,6 +47,8 @@ type ShipmentEvent = {
 type Props = { canWrite: boolean };
 
 export function CommerceLogisticsPanel({ canWrite }: Props) {
+  const { can } = useAuth();
+  const canWarehouse = can('warehouse', 'read');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [pending, setPending] = useState<PendingOrder[]>([]);
   const [events, setEvents] = useState<ShipmentEvent[]>([]);
@@ -150,7 +154,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
 
       <Panel
         title="Pending dispatch queue"
-        description="Paid Shopify orders without an AWB yet."
+        description="Paid Shopify orders without an AWB yet. With Ship-after-pack enabled, fulfill in Warehouse first."
         actions={
           <Btn variant="secondary" onClick={() => void load()}>
             Refresh
@@ -166,6 +170,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
                 <th>Phone</th>
                 <th>Amount</th>
                 <th>Created</th>
+                {canWarehouse ? <th>Warehouse</th> : null}
                 <th />
               </tr>
             </thead>
@@ -185,6 +190,11 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
                         {new Date(o.createdAt).toLocaleString('en-IN')}
                       </small>
                     </td>
+                    {canWarehouse ? (
+                      <td>
+                        <WarehouseOrderLink orderId={o.id} tab="pack" compact />
+                      </td>
+                    ) : null}
                     <td>
                       {canWrite && overview?.configured ? (
                         <Btn
@@ -200,7 +210,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5}>
+                  <td colSpan={canWarehouse ? 6 : 5}>
                     <EmptyState>No orders waiting for shipment.</EmptyState>
                   </td>
                 </tr>

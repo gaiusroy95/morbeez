@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js';
 import { farmerService } from '../farmer/farmer.service.js';
 import { orderWhatsappService } from '../whatsapp/orders/order-whatsapp.service.js';
 import { logger } from '../../lib/logger.js';
+import { omsWorkflowService } from '../oms/workflow.service.js';
 export const shopifyWebhookService = {
     async handleOrderCreate(order) {
         await this.syncOrder(order);
@@ -90,8 +91,13 @@ export const shopifyWebhookService = {
         }, { onConflict: 'shopify_order_id' });
         if (error)
             logger.error({ error, orderId: order.id }, 'Order sync failed');
-        else if (order.phone) {
-            await orderWhatsappService.linkOrderToFarmer(String(order.id), order.phone);
+        else {
+            if (order.phone) {
+                await orderWhatsappService.linkOrderToFarmer(String(order.id), order.phone);
+            }
+            await omsWorkflowService.onOrderPlaced(String(order.id), order).catch((err) => {
+                logger.error({ err, orderId: order.id }, 'OMS workflow on order create failed');
+            });
         }
     },
 };

@@ -1,3 +1,8 @@
+.commerce-hub-warehouse-bridge {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
 .commerce-hub {
   display: flex;
   flex-direction: column;
@@ -90,6 +95,26 @@
 
 .commerce-order-row {
   cursor: pointer;
+}
+
+.commerce-warehouse-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-700, #1b5e20);
+  text-decoration: none;
+}
+
+.commerce-warehouse-link:hover {
+  text-decoration: underline;
+}
+
+.commerce-warehouse-link--compact {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
 }
 
 .commerce-order-row:hover td {

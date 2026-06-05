@@ -21,8 +21,8 @@ shopify theme dev
 
 | Command | Target | When |
 |---------|--------|------|
-| `npm run theme:push` | Development `#157069279431` | Daily work (preview URL) |
-| `npm run theme:push:live` | Live Morbeez `#157075734727` | Only when publishing to the live store |
+| `npm run theme:push` | Development `#186108281150` on `morbeez-india.myshopify.com` | Daily work (preview URL) |
+| `npm run theme:push:live` | Live theme on `morbeez-india.myshopify.com` | Only when publishing to the live store |
 
 Both use `--path theme` and `--nodelete` so Shopify will not try to remove remote-only files.
 

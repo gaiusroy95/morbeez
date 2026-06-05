@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js';
 import { getOrder } from '../shopify/shopify.client.js';
 import { shiprocketRequest } from './shiprocket.client.js';
 import { logger } from '../../lib/logger.js';
+import { ndrRtoService } from '../oms/ndr-rto.service.js';
 /** Delhivery is assigned via Shiprocket courier rules — no separate API in M2 */
 export const shiprocketService = {
     async createShipmentForShopifyOrder(shopifyOrderId) {
@@ -102,6 +103,9 @@ export const shiprocketService = {
         if (statusLower.includes('delivered')) {
             await eventBus.publish('shipment.delivered', { awb, status, shopifyOrderId: orderId }, 'shiprocket');
         }
+        await ndrRtoService
+            .detectFromTrackingStatus(orderId, status, body)
+            .catch((err) => logger.error({ err, orderId, status }, 'NDR/RTO detection failed'));
     },
 };
 //# sourceMappingURL=shiprocket.service.js.map
