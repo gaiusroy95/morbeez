@@ -547,6 +547,10 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
         <CreateEstimateModal
           leadId={leadId}
           estimateId={editingEstimateId ?? undefined}
+          farmerName={detail?.lead.farmerName ?? 'Farmer'}
+          farmerPhone={detail?.lead.phone}
+          farmerDistrict={detail?.lead.district}
+          farmerState={detail?.lead.state}
           onClose={() => {
             setShowCreateEstimate(false);
             setEditingEstimateId(null);

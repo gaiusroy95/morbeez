@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { Modal, Field, inputClass } from '../Modal';
+import { openQuoteSendLinks } from '../../lib/quoteSend';
+import { Modal, inputClass } from '../Modal';
 import { Alert, Btn, Loading } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -29,6 +30,10 @@ type QuoteLine = {
 type Props = {
   leadId: string;
   estimateId?: string;
+  farmerName: string;
+  farmerPhone?: string | null;
+  farmerDistrict?: string | null;
+  farmerState?: string | null;
   onClose: () => void;
   onCreated: () => void;
 };
@@ -41,28 +46,33 @@ function lineTotal(line: QuoteLine) {
   return line.qty * line.price * (1 + line.gstPercent / 100);
 }
 
-import { openQuoteSendLinks } from '../../lib/quoteSend';
-
-export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: Props) {
+export function CreateEstimateModal({
+  leadId,
+  estimateId,
+  farmerName,
+  farmerPhone,
+  farmerDistrict,
+  farmerState,
+  onClose,
+  onCreated,
+}: Props) {
   const { admin } = useAuth();
   const isEdit = Boolean(estimateId);
 
   const [lines, setLines] = useState<QuoteLine[]>([]);
   const [prepaidAmount, setPrepaidAmount] = useState('');
-  const [preparedBy, setPreparedBy] = useState('');
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(isEdit);
   const [error, setError] = useState('');
 
-  const [showAddSearch, setShowAddSearch] = useState(false);
   const [addSearch, setAddSearch] = useState('');
   const [searchResults, setSearchResults] = useState<CatalogItem[]>([]);
   const [searching, setSearching] = useState(false);
 
-  useEffect(() => {
-    const name = admin?.fullName?.trim() || admin?.email?.split('@')[0] || '';
-    setPreparedBy(name);
-  }, [admin]);
+  const preparedByName =
+    admin?.fullName?.trim() || admin?.email?.split('@')[0]?.trim() || 'Telecaller';
+
+  const farmerLocation = [farmerDistrict, farmerState].filter(Boolean).join(', ');
 
   useEffect(() => {
     if (!estimateId) return;
@@ -71,7 +81,6 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
       ok: boolean;
       quote: {
         prepaidAmount: number;
-        preparedByName: string | null;
         lineItems: Array<{
           variantId?: number;
           productId?: number;
@@ -87,7 +96,6 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
       .then((d) => {
         const q = d.quote;
         setPrepaidAmount(q.prepaidAmount > 0 ? String(q.prepaidAmount) : '');
-        if (q.preparedByName) setPreparedBy(q.preparedByName);
         setLines(
           (q.lineItems ?? []).map((li, i) => ({
             key: `edit-${i}-${li.variantId ?? li.title}`,
@@ -108,7 +116,7 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
 
   useEffect(() => {
     const term = addSearch.trim();
-    if (!showAddSearch || term.length < 2) {
+    if (term.length < 2) {
       setSearchResults([]);
       return;
     }
@@ -122,7 +130,7 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
         .finally(() => setSearching(false));
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [addSearch, showAddSearch]);
+  }, [addSearch]);
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + lineTotal(l), 0), [lines]);
   const prepaid = Number(prepaidAmount) || 0;
@@ -155,7 +163,6 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
       ]);
       setAddSearch('');
       setSearchResults([]);
-      setShowAddSearch(false);
       setError('');
     },
     [existingVariantIds]
@@ -174,12 +181,11 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
     setError('');
     try {
       if (!lines.length) throw new Error('Add at least one product');
-      if (!preparedBy.trim()) throw new Error('Prepared by is required');
 
       const payload = {
         prepaidAmount: prepaid > 0 ? prepaid : 0,
         paymentType: 'advance' as const,
-        preparedByName: preparedBy.trim(),
+        preparedByName,
         send: true,
         sendChannels: ['whatsapp', 'email'] as const,
         lines: lines.map((l) => ({
@@ -234,78 +240,25 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
       }
     >
       {error ? <Alert tone="error">{error}</Alert> : null}
-      <p className="mb-3 text-sm text-slate-600">
-        Farmer details are filled automatically from this lead. Use <strong>Add item</strong> to search
-        and add products one at a time.
-      </p>
 
-      <Field label="Prepared by">
-        <input
-          className={inputClass}
-          value={preparedBy}
-          onChange={(e) => setPreparedBy(e.target.value)}
-          placeholder="Your name"
-        />
-      </Field>
+      <div className="quote-farmer-banner">
+        <div className="quote-farmer-avatar" aria-hidden>
+          {farmerName.trim().charAt(0).toUpperCase() || 'F'}
+        </div>
+        <div className="quote-farmer-info">
+          <span className="quote-farmer-label">Quote for</span>
+          <strong className="quote-farmer-name">{farmerName}</strong>
+          <div className="quote-farmer-meta">
+            {farmerPhone ? <span>{farmerPhone}</span> : null}
+            {farmerLocation ? <span>{farmerLocation}</span> : null}
+          </div>
+        </div>
+      </div>
 
       {loadingQuote ? <Loading label="Loading quote…" /> : null}
 
       {!loadingQuote ? (
         <>
-          <div className="quote-lines-toolbar">
-            <button
-              type="button"
-              className="quote-add-btn"
-              onClick={() => {
-                setShowAddSearch(true);
-                setAddSearch('');
-                setSearchResults([]);
-              }}
-            >
-              + Add item
-            </button>
-          </div>
-
-          {showAddSearch ? (
-            <div className="quote-add-search">
-              <input
-                className={inputClass}
-                autoFocus
-                placeholder="Search product name or SKU…"
-                value={addSearch}
-                onChange={(e) => setAddSearch(e.target.value)}
-              />
-              {searching ? <p className="quote-add-hint">Searching…</p> : null}
-              {!searching && addSearch.trim().length >= 2 && searchResults.length === 0 ? (
-                <p className="quote-add-hint">No products found</p>
-              ) : null}
-              {searchResults.length > 0 ? (
-                <ul className="quote-add-results">
-                  {searchResults.map((item) => (
-                    <li key={String(item.variantId ?? item.title)}>
-                      <button type="button" onClick={() => addProduct(item)}>
-                        <span>{item.title}</span>
-                        {item.sku ? <small>{item.sku}</small> : null}
-                        <strong>{formatInr(Number(item.price))}</strong>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              <button
-                type="button"
-                className="quote-add-cancel"
-                onClick={() => {
-                  setShowAddSearch(false);
-                  setAddSearch('');
-                  setSearchResults([]);
-                }}
-              >
-                Cancel search
-              </button>
-            </div>
-          ) : null}
-
           <div className="quote-lines-wrap">
             <table className="quote-items-table">
               <thead>
@@ -321,9 +274,9 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
               </thead>
               <tbody>
                 {lines.length === 0 ? (
-                  <tr>
+                  <tr className="quote-empty-hint-row">
                     <td colSpan={7} className="quote-empty-row">
-                      No items yet — click <strong>Add item</strong> to search and add products.
+                      Search below to add products to this quote.
                     </td>
                   </tr>
                 ) : (
@@ -363,6 +316,36 @@ export function CreateEstimateModal({ leadId, estimateId, onClose, onCreated }: 
                     </tr>
                   ))
                 )}
+                <tr className="quote-search-row">
+                  <td className="quote-sno quote-sno--add">+</td>
+                  <td colSpan={6} className="quote-search-cell">
+                    <div className="quote-inline-search">
+                      <input
+                        className={inputClass}
+                        placeholder="Search product name or SKU to add…"
+                        value={addSearch}
+                        onChange={(e) => setAddSearch(e.target.value)}
+                      />
+                      {searching ? <p className="quote-add-hint">Searching…</p> : null}
+                      {!searching && addSearch.trim().length >= 2 && searchResults.length === 0 ? (
+                        <p className="quote-add-hint">No products found</p>
+                      ) : null}
+                      {searchResults.length > 0 ? (
+                        <ul className="quote-add-results">
+                          {searchResults.map((item) => (
+                            <li key={String(item.variantId ?? item.title)}>
+                              <button type="button" onClick={() => addProduct(item)}>
+                                <span>{item.title}</span>
+                                {item.sku ? <small>{item.sku}</small> : null}
+                                <strong>{formatInr(Number(item.price))}</strong>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
