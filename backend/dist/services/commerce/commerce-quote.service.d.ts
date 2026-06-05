@@ -18,6 +18,8 @@ export type CommerceQuote = {
     id: string;
     quoteNumber: string;
     status: string;
+    leadId: string | null;
+    farmerId: string | null;
     customerName: string;
     customerPhone: string | null;
     customerEmail: string | null;
@@ -49,15 +51,48 @@ export declare const commerceQuoteService: {
     list(): Promise<CommerceQuote[]>;
     get(id: string): Promise<CommerceQuote>;
     getByToken(token: string): Promise<CommerceQuote>;
+    listByLead(leadId: string): Promise<CommerceQuote[]>;
+    getEstimateDetail(id: string, leadId?: string): Promise<{
+        quote: CommerceQuote;
+        company: import("../admin/company-settings.service.js").CompanySettings;
+        document: {
+            title: string;
+            quotationId: string;
+            dateLabel: string;
+            validUntilLabel: string;
+            billTo: string[];
+            shipTo: string[];
+            paymentTypeLabel: string;
+            subtotal: number;
+            totalInclGst: number;
+        };
+    }>;
+    createFromLead(leadId: string, input: {
+        lines: Array<{
+            variantId?: number;
+            productId?: number;
+            sku?: string;
+            title: string;
+            variantTitle?: string;
+            hsnCode?: string;
+            qty: number;
+            unitPrice: number;
+            gstPercent?: number;
+        }>;
+        prepaidAmount?: number;
+        paymentType?: "full" | "partial" | "advance";
+    }, adminId?: string): Promise<CommerceQuote>;
     create(input: {
         customerName: string;
         customerPhone?: string;
         customerEmail?: string;
         customerState: string;
         customerGstin?: string;
-        shippingAddress?: Record<string, string>;
+        shippingAddress?: Record<string, string | undefined>;
         paymentType?: "full" | "partial" | "advance";
         prepaidAmount?: number;
+        leadId?: string;
+        farmerId?: string;
         lines: Array<{
             variantId?: number;
             productId?: number;

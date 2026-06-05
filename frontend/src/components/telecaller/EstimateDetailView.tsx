@@ -1,0 +1,235 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { api } from '../../lib/api';
+import { paths, toPath } from '../../lib/routes';
+import { Loading } from '../ui';
+
+const base = '/morbeez-staff/api/v1/os/telecaller';
+
+type QuoteLine = {
+  title: string;
+  sku?: string;
+  hsnCode?: string;
+  qty: number;
+  unitPrice: number;
+  gstPercent: number;
+  amountInclGst: number;
+};
+
+type Company = {
+  companyName: string;
+  addressLine: string;
+  district: string;
+  state: string;
+  country: string;
+  pincode: string;
+  gstin: string;
+  customerCareNumber: string;
+  whatsappNumber: string;
+  formattedAddress: string;
+};
+
+type EstimateDetail = {
+  quote: {
+    id: string;
+    quoteNumber: string;
+    status: string;
+    customerName: string;
+    customerPhone: string | null;
+    customerEmail: string | null;
+    lineItems: QuoteLine[];
+    total: number;
+    prepaidAmount: number;
+    codAmount: number;
+    paymentType: string;
+    createdAt: string;
+    expiresAt: string;
+  };
+  company: Company;
+  document: {
+    quotationId: string;
+    dateLabel: string;
+    validUntilLabel: string;
+    billTo: string[];
+    shipTo: string[];
+    paymentTypeLabel: string;
+    subtotal: number;
+    totalInclGst: number;
+  };
+};
+
+type Props = {
+  leadId: string;
+  estimateId: string;
+  onBack: () => void;
+};
+
+function formatInr(n: number) {
+  return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
+  const navigate = useNavigate();
+  const [data, setData] = useState<EstimateDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<EstimateDetail & { ok: boolean }>(
+      `${base}/leads/${leadId}/estimates/${estimateId}`
+    )
+      .then((d) => setData(d))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load quote'))
+      .finally(() => setLoading(false));
+  }, [leadId, estimateId]);
+
+  if (loading) return <Loading label="Loading quotation…" />;
+  if (error || !data) {
+    return (
+      <div>
+        <button type="button" className="est-detail-back" onClick={onBack}>
+          ← Back to orders
+        </button>
+        <p className="text-sm text-red-600">{error || 'Quote not found'}</p>
+      </div>
+    );
+  }
+
+  const { quote, company, document: doc } = data;
+  const canCheckout = quote.status === 'pending' || quote.status === 'checkout';
+
+  return (
+    <div>
+      <button type="button" className="est-detail-back" onClick={onBack}>
+        ← Back to orders
+      </button>
+
+      <article className="est-doc">
+        <header className="est-doc-header">
+          <div className="est-doc-brand">{company.companyName}</div>
+          <div className="est-doc-title-wrap">
+            <h1>Quotation</h1>
+            <p>{company.companyName}</p>
+          </div>
+        </header>
+
+        <div className="est-doc-meta-row">
+          <div>
+            <label>DATE</label>
+            {doc.dateLabel}
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <label>VALID UNTIL</label>
+            {doc.validUntilLabel}
+          </div>
+        </div>
+
+        <div className="est-doc-company-bar">
+          {company.formattedAddress ? (
+            <span>📍 {company.formattedAddress}</span>
+          ) : null}
+          {company.customerCareNumber ? <span>📞 {company.customerCareNumber}</span> : null}
+          {company.whatsappNumber ? <span>💬 WhatsApp {company.whatsappNumber}</span> : null}
+          {company.gstin ? <span>🧾 GSTIN: {company.gstin}</span> : null}
+        </div>
+
+        <p className="est-doc-id">Quotation ID: {doc.quotationId}</p>
+
+        <div className="est-doc-addresses">
+          <div className="est-doc-address-block">
+            <h3>✉ Bill To:</h3>
+            {doc.billTo.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+          <div className="est-doc-address-block">
+            <h3>📍 Ship To:</h3>
+            {doc.shipTo.map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </div>
+
+        <section className="est-doc-items">
+          <h3>🛒 Items:</h3>
+          <div className="est-table-wrap">
+            <table className="est-doc-table">
+              <thead>
+                <tr>
+                  <th>Description / SKU</th>
+                  <th>Qty</th>
+                  <th>Unit Price</th>
+                  <th>GST%</th>
+                  <th>Amount (incl. GST)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quote.lineItems.map((li, i) => (
+                  <tr key={i}>
+                    <td>
+                      <div>{li.title}</div>
+                      {(li.sku || li.hsnCode) && (
+                        <div className="est-sku">
+                          {[li.sku, li.hsnCode ? `HSN: ${li.hsnCode}` : null]
+                            .filter(Boolean)
+                            .join(' | ')}
+                        </div>
+                      )}
+                    </td>
+                    <td>{li.qty}</td>
+                    <td>{formatInr(li.unitPrice)}</td>
+                    <td>{li.gstPercent}%</td>
+                    <td>{formatInr(li.amountInclGst)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <div className="est-doc-summary">
+          <div className="est-doc-summary-row">
+            <span>Subtotal</span>
+            <span>{formatInr(doc.subtotal)}</span>
+          </div>
+          <div className="est-doc-summary-row est-doc-summary-total">
+            <span>Total Amount (incl. GST)</span>
+            <span>{formatInr(doc.totalInclGst)}</span>
+          </div>
+          <div className="est-doc-summary-row">
+            <span>Payment Type</span>
+            <span>{doc.paymentTypeLabel}</span>
+          </div>
+          {quote.prepaidAmount > 0 ? (
+            <>
+              <div className="est-doc-summary-row">
+                <span>Prepaid Amount</span>
+                <span>{formatInr(quote.prepaidAmount)}</span>
+              </div>
+              <div className="est-doc-summary-row">
+                <span>COD Amount</span>
+                <span>{formatInr(quote.codAmount)}</span>
+              </div>
+            </>
+          ) : null}
+        </div>
+
+        {canCheckout ? (
+          <button
+            type="button"
+            className="est-doc-checkout"
+            onClick={() =>
+              navigate(toPath(paths.commerceQuoteCheckout.replace(':quoteId', quote.id)))
+            }
+          >
+            Proceed to Checkout →
+          </button>
+        ) : quote.status === 'paid' ? (
+          <p className="px-6 pb-6 text-center text-sm font-semibold text-emerald-700">
+            Payment received — converted to order.
+          </p>
+        ) : null}
+      </article>
+    </div>
+  );
+}

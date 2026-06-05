@@ -20,35 +20,77 @@ type OrderRow = OrderListRow & {
   blockId?: string | null;
 };
 
+type EstimateRow = {
+  id: string;
+  quotationId: string;
+  status: string;
+  amount: number;
+  prepaidAmount: number;
+  codAmount: number;
+  paymentType: string;
+  createdAt: string;
+  expiresAt: string;
+  hoursLeft?: number;
+};
+
+type UnifiedRow =
+  | {
+      kind: 'estimate';
+      id: string;
+      displayId: string;
+      createdAt: string;
+      expiresAt: string;
+      hoursLeft?: number;
+      amount: number;
+      paymentLabel: string;
+      status: string;
+    }
+  | {
+      kind: 'order';
+      id: string;
+      displayId: string;
+      createdAt: string;
+      amount: number;
+      paymentLabel: string;
+      status: string;
+      order: OrderRow;
+    };
+
 type BlockOption = { id: string; name: string };
 
 type Filters = {
   status: string;
-  paymentTone: string;
-  blockId: string;
+  type: '' | 'estimate' | 'order';
   dateFrom: string;
   dateTo: string;
 };
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'processing', label: 'Processing' },
-  { value: 'shipped', label: 'Shipped' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
-];
-
 const EMPTY_FILTERS: Filters = {
   status: '',
-  paymentTone: '',
-  blockId: '',
+  type: '',
   dateFrom: '',
   dateTo: '',
 };
 
-function statusClass(tone: string | undefined): string {
-  return `tc-ord-status tc-ord-status--${tone ?? 'warning'}`;
+function formatDate(iso: string) {
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
+}
+
+function estimateStatusClass(status: string) {
+  if (status === 'paid') return 'est-status est-status--paid';
+  if (status === 'checkout') return 'est-status est-status--checkout';
+  return 'est-status est-status--pending';
 }
 
 type Props = {
@@ -56,35 +98,38 @@ type Props = {
   canWrite: boolean;
   blocks: BlockOption[];
   refreshKey: number;
-  onNewOrder: () => void;
+  onCreateEstimate: () => void;
+  onOpenEstimate: (id: string) => void;
   onOpenDetail: (row: OrderListRow) => void;
 };
 
 export function OrdersTab({
   leadId,
   canWrite,
-  blocks,
   refreshKey,
-  onNewOrder,
+  onCreateEstimate,
+  onOpenEstimate,
   onOpenDetail,
 }: Props) {
-  const [allItems, setAllItems] = useState<OrderRow[]>([]);
+  const [estimates, setEstimates] = useState<EstimateRow[]>([]);
+  const [orders, setOrders] = useState<OrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await api<{ ok: boolean; orders: OrderRow[] }>(
-        `${base}/leads/${leadId}/orders`
-      );
-      setAllItems(data.orders ?? []);
+      const [estData, ordData] = await Promise.all([
+        api<{ ok: boolean; estimates: EstimateRow[] }>(`${base}/leads/${leadId}/estimates`),
+        api<{ ok: boolean; orders: OrderRow[] }>(`${base}/leads/${leadId}/orders`),
+      ]);
+      setEstimates(estData.estimates ?? []);
+      setOrders(ordData.orders ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load orders');
     } finally {
@@ -96,22 +141,54 @@ export function OrdersTab({
     void load();
   }, [load, refreshKey]);
 
+  const unified = useMemo((): UnifiedRow[] => {
+    const estRows: UnifiedRow[] = estimates.map((e) => ({
+      kind: 'estimate',
+      id: e.id,
+      displayId: e.quotationId,
+      createdAt: e.createdAt,
+      expiresAt: e.expiresAt,
+      hoursLeft: e.hoursLeft,
+      amount: e.amount,
+      paymentLabel:
+        e.prepaidAmount > 0
+          ? `Advance ₹${e.prepaidAmount.toLocaleString('en-IN')}${e.codAmount > 0 ? ` + COD ₹${e.codAmount.toLocaleString('en-IN')}` : ''}`
+          : '—',
+      status: e.status,
+    }));
+    const ordRows: UnifiedRow[] = orders.map((o) => ({
+      kind: 'order',
+      id: o.id,
+      displayId: o.orderId,
+      createdAt: o.createdAt ?? '',
+      amount: Number(o.amount ?? 0),
+      paymentLabel: [o.paymentLabel, o.paymentSubtext].filter(Boolean).join(' · '),
+      status: o.statusLabel ?? o.status ?? '—',
+      order: o,
+    }));
+    return [...estRows, ...ordRows].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  }, [estimates, orders]);
+
   const filtered = useMemo(() => {
-    return allItems.filter((o) => {
-      if (filters.status && o.status !== filters.status) return false;
-      if (filters.paymentTone && o.paymentTone !== filters.paymentTone) return false;
-      if (filters.blockId && o.blockId !== filters.blockId) return false;
-      if (filters.dateFrom && o.createdAt && new Date(o.createdAt) < new Date(filters.dateFrom)) {
+    return unified.filter((row) => {
+      if (filters.type && row.kind !== filters.type) return false;
+      if (filters.status) {
+        const st = row.kind === 'estimate' ? row.status : row.order.status ?? '';
+        if (st !== filters.status && row.status !== filters.status) return false;
+      }
+      if (filters.dateFrom && row.createdAt && new Date(row.createdAt) < new Date(filters.dateFrom)) {
         return false;
       }
-      if (filters.dateTo && o.createdAt) {
+      if (filters.dateTo && row.createdAt) {
         const end = new Date(filters.dateTo);
         end.setHours(23, 59, 59, 999);
-        if (new Date(o.createdAt) > end) return false;
+        if (new Date(row.createdAt) > end) return false;
       }
       return true;
     });
-  }, [allItems, filters]);
+  }, [unified, filters]);
 
   const total = filtered.length;
   const pages = Math.max(1, Math.ceil(total / rowsPerPage));
@@ -122,39 +199,20 @@ export function OrdersTab({
     if (page > pages) setPage(pages);
   }, [page, pages]);
 
-  function exportCsv() {
-    const headers = [
-      'Order ID',
-      'Date',
-      'Product',
-      'Qty',
-      'Amount',
-      'Status',
-      'Payment',
-      'Delivery',
-      'Block',
-    ];
-    const rows = filtered.map((o) => [
-      o.orderId,
-      o.dateLabel,
-      o.productTitle,
-      o.qty,
-      o.amount,
-      o.statusLabel,
-      `${o.paymentLabel} ${o.paymentSubtext ?? ''}`.trim(),
-      o.deliveryDateLabel,
-      o.blockName ?? '',
-    ]);
-    const csv = [headers, ...rows]
-      .map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `orders-${leadId.slice(0, 8)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function handleRowClick(row: UnifiedRow) {
+    if (row.kind === 'estimate') {
+      onOpenEstimate(row.id);
+      return;
+    }
+    onOpenDetail({
+      id: row.order.id,
+      orderId: row.order.orderId,
+      dateLabel: row.order.dateLabel,
+      productTitle: row.order.productTitle,
+      qty: row.order.qty,
+      amount: row.order.amount,
+      statusLabel: row.order.statusLabel,
+    });
   }
 
   return (
@@ -162,7 +220,10 @@ export function OrdersTab({
       <div className="tc-ord-header">
         <div>
           <h2 className="tc-ord-title">Orders</h2>
-          <p className="tc-ord-subtitle">Purchase history and order tracking for this farmer</p>
+          <p className="tc-ord-subtitle">
+            Create quotes for this farmer — click a row for quotation details or order history.
+            Quotations expire in 48 hours if unpaid.
+          </p>
         </div>
         <div className="tc-ord-header-actions">
           <button
@@ -172,12 +233,9 @@ export function OrdersTab({
           >
             Filter
           </button>
-          <button type="button" className="tc-ord-btn-secondary" onClick={exportCsv} disabled={!filtered.length}>
-            Export
-          </button>
           {canWrite ? (
-            <button type="button" className="tc-ord-btn-primary" onClick={onNewOrder}>
-              + New Order
+            <button type="button" className="tc-ord-btn-primary" onClick={onCreateEstimate}>
+              + Create quote
             </button>
           ) : null}
         </div>
@@ -185,6 +243,20 @@ export function OrdersTab({
 
       {showFilters ? (
         <div className="tc-ord-filters">
+          <label className="tc-ord-filter-field">
+            <span>Type</span>
+            <select
+              value={filters.type}
+              onChange={(e) => {
+                setFilters((f) => ({ ...f, type: e.target.value as Filters['type'] }));
+                setPage(1);
+              }}
+            >
+              <option value="">All</option>
+              <option value="estimate">Quotation</option>
+              <option value="order">Order</option>
+            </select>
+          </label>
           <label className="tc-ord-filter-field">
             <span>Status</span>
             <select
@@ -194,26 +266,13 @@ export function OrdersTab({
                 setPage(1);
               }}
             >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="tc-ord-filter-field">
-            <span>Payment</span>
-            <select
-              value={filters.paymentTone}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, paymentTone: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              <option value="success">Paid</option>
-              <option value="warning">Pending</option>
-              <option value="purple">Refunded</option>
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="checkout">Checkout</option>
+              <option value="paid">Paid</option>
+              <option value="processing">Processing</option>
+              <option value="shipped">Shipped</option>
+              <option value="delivered">Delivered</option>
             </select>
           </label>
           <label className="tc-ord-filter-field">
@@ -238,23 +297,6 @@ export function OrdersTab({
               }}
             />
           </label>
-          <label className="tc-ord-filter-field">
-            <span>Block</span>
-            <select
-              value={filters.blockId}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, blockId: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All blocks</option>
-              {blocks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
           <button
             type="button"
             className="tc-ord-btn-reset"
@@ -273,161 +315,86 @@ export function OrdersTab({
       <div className="tc-ord-table-wrap">
         {loading ? (
           <p className="tc-ord-empty">Loading orders…</p>
+        ) : pageItems.length === 0 ? (
+          <p className="tc-ord-empty">
+            No orders yet. Create a quote to send a quotation to this farmer.
+          </p>
         ) : (
-          <table className="tc-ord-table">
-            <thead>
-              <tr>
-                <th>Order ID</th>
-                <th>Order date</th>
-                <th>Products</th>
-                <th>Qty</th>
-                <th>Amount (₹)</th>
-                <th>Status</th>
-                <th>Payment status</th>
-                <th>Delivery date</th>
-                <th>Delivery by</th>
-                <th>Block</th>
-                <th className="tc-ord-th-actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((o) => (
-                <tr
-                  key={o.id}
-                  className="tc-ord-row"
-                  onClick={() =>
-                    onOpenDetail({
-                      id: o.id,
-                      orderId: o.orderId,
-                      dateLabel: o.dateLabel,
-                      productTitle: o.productTitle,
-                      qty: o.qty,
-                      amount: o.amount,
-                      statusLabel: o.statusLabel,
-                    })
-                  }
-                >
-                  <td>
-                    <button
-                      type="button"
-                      className="tc-ord-order-link"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenDetail({ id: o.id, orderId: o.orderId });
-                      }}
-                    >
-                      {o.orderId}
-                    </button>
-                  </td>
-                  <td className="tc-ord-date">{o.dateLabel}</td>
-                  <td>
-                    <div className="tc-ord-product-cell">
-                      <div className="tc-ord-product-thumb">
-                        {o.productImageUrl ? (
-                          <img src={o.productImageUrl} alt="" />
-                        ) : (
-                          <span>📦</span>
-                        )}
-                      </div>
-                      <span className="tc-ord-product-name">{o.productTitle}</span>
-                    </div>
-                  </td>
-                  <td>{o.qty}</td>
-                  <td className="tc-ord-amount">₹{Number(o.amount ?? 0).toLocaleString('en-IN')}</td>
-                  <td>
-                    <span className={statusClass(o.statusTone)}>{o.statusLabel}</span>
-                  </td>
-                  <td>
-                    <span className={statusClass(o.paymentTone)}>
-                      {o.paymentLabel}
-                    </span>
-                    {o.paymentSubtext ? (
-                      <span className="tc-ord-payment-sub">{o.paymentSubtext}</span>
-                    ) : null}
-                  </td>
-                  <td className="tc-ord-date">{o.deliveryDateLabel}</td>
-                  <td>{o.deliveryBy}</td>
-                  <td className="tc-ord-block">{o.blockName ?? '—'}</td>
-                  <td className="tc-ord-actions" onClick={(e) => e.stopPropagation()}>
-                    <div className="tc-ord-action-btns">
-                      <button
-                        type="button"
-                        className="tc-ord-icon-btn"
-                        title="View details"
-                        onClick={() => onOpenDetail({ id: o.id, orderId: o.orderId })}
-                      >
-                        👁
-                      </button>
-                      <div className="tc-ord-menu-wrap">
-                        <button
-                          type="button"
-                          className="tc-ord-icon-btn"
-                          aria-label="More"
-                          onClick={() => setOpenMenuId(openMenuId === o.id ? null : o.id)}
-                        >
-                          ⋮
-                        </button>
-                        {openMenuId === o.id ? (
-                          <div className="tc-ord-menu">
-                            <button type="button" onClick={() => onOpenDetail({ id: o.id })}>
-                              View details
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </td>
+          <div className="est-table-wrap">
+            <table className="est-list-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>ID</th>
+                  <th>Created</th>
+                  <th>Valid until</th>
+                  <th>Amount (₹)</th>
+                  <th>Payment</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {pageItems.map((row) => (
+                  <tr key={`${row.kind}-${row.id}`} onClick={() => handleRowClick(row)}>
+                    <td>{row.kind === 'estimate' ? 'Quotation' : 'Order'}</td>
+                    <td>
+                      <span className={row.kind === 'estimate' ? 'est-list-id' : 'tc-ord-order-link'}>
+                        {row.displayId}
+                      </span>
+                    </td>
+                    <td>{row.createdAt ? formatDate(row.createdAt) : '—'}</td>
+                    <td>
+                      {row.kind === 'estimate' ? (
+                        <>
+                          {formatDate(row.expiresAt)}
+                          {row.hoursLeft != null && row.status !== 'paid' ? (
+                            <small className="block text-slate-500">{row.hoursLeft}h left</small>
+                          ) : null}
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td>₹{Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td>{row.paymentLabel}</td>
+                    <td>
+                      {row.kind === 'estimate' ? (
+                        <span className={estimateStatusClass(row.status)}>{row.status}</span>
+                      ) : (
+                        <span className="tc-ord-status tc-ord-status--success">{row.status}</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-        {!loading && pageItems.length === 0 ? (
-          <p className="tc-ord-empty">No orders for this farmer yet.</p>
-        ) : null}
       </div>
 
-      {!loading && total > 0 ? (
-        <div className="tc-ord-footer">
-          <p className="tc-ord-footer-meta">
-            Showing {(safePage - 1) * rowsPerPage + 1} to {Math.min(safePage * rowsPerPage, total)} of{' '}
-            {total} orders
-          </p>
-          <div className="tc-ord-pagination">
-            <button
-              type="button"
-              disabled={safePage <= 1}
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-            >
-              ‹
-            </button>
-            {Array.from({ length: Math.min(pages, 5) }, (_, i) => {
-              let p = i + 1;
-              if (pages > 5 && safePage > 3) {
-                p = safePage - 2 + i;
-                if (p > pages) p = pages - (4 - i);
-              }
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  className={p === safePage ? 'active' : ''}
-                  onClick={() => setPage(p)}
-                >
-                  {p}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              disabled={safePage >= pages}
-              onClick={() => setPage((p) => Math.min(pages, p + 1))}
-            >
-              ›
-            </button>
-          </div>
-          <label className="tc-ord-rows">
-            Rows per page
+      {!loading && total > rowsPerPage ? (
+        <div className="tc-ord-pagination">
+          <button
+            type="button"
+            className="tc-ord-page-btn"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => p - 1)}
+          >
+            Previous
+          </button>
+          <span>
+            Page {safePage} of {pages} · {total} rows
+          </span>
+          <button
+            type="button"
+            className="tc-ord-page-btn"
+            disabled={safePage >= pages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next
+          </button>
+          <label className="tc-ord-rows-select">
+            Rows
             <select
               value={rowsPerPage}
               onChange={(e) => {

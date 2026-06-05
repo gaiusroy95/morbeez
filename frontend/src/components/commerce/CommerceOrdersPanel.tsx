@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
-import { AddQuoteModal } from './AddQuoteModal';
 import {
   Alert,
   Badge,
@@ -134,7 +133,6 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
-  const [showAddQuote, setShowAddQuote] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -228,9 +226,6 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
         >
           Search
         </Btn>
-        {canWrite ? (
-          <Btn onClick={() => setShowAddQuote(true)}>+ Add quote</Btn>
-        ) : null}
       </div>
 
       <div className="commerce-subtabs">
@@ -253,8 +248,8 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
 
       {!loading ? (
         <Panel
-          title="Orders & quotes"
-          description="Quotes appear as pending for 48 hours. After payment they convert to Shopify orders automatically."
+          title="Orders & dispatch"
+          description="Click a row for shipping and timeline details. Create estimates from Telecaller CRM → lead → Estimates tab."
         >
           <TableWrap>
             <DataTable>
@@ -530,16 +525,6 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
           ) : null}
         </Modal>
       )}
-      {showAddQuote ? (
-        <AddQuoteModal
-          onClose={() => setShowAddQuote(false)}
-          onCreated={() => {
-            setTab('pending');
-            setPage(1);
-            void load();
-          }}
-        />
-      ) : null}
     </>
   );
 }

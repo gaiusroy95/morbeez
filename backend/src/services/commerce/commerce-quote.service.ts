@@ -32,6 +32,8 @@ export type CommerceQuote = {
   id: string;
   quoteNumber: string;
   status: string;
+  leadId: string | null;
+  farmerId: string | null;
   customerName: string;
   customerPhone: string | null;
   customerEmail: string | null;
@@ -60,7 +62,23 @@ export type CommerceQuote = {
 };
 
 function quoteNumber(): string {
-  return `QUO${Date.now().toString().slice(-10)}`;
+  const seq = String(Date.now()).slice(-5);
+  return `QT-${seq}`;
+}
+
+function formatDocDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  } catch {
+    return iso;
+  }
 }
 
 function mapRow(row: Record<string, unknown>): CommerceQuote {
@@ -73,6 +91,8 @@ function mapRow(row: Record<string, unknown>): CommerceQuote {
     id: String(row.id),
     quoteNumber: String(row.quote_number),
     status: String(row.status),
+    leadId: row.lead_id ? String(row.lead_id) : null,
+    farmerId: row.farmer_id ? String(row.farmer_id) : null,
     customerName: String(row.customer_name),
     customerPhone: row.customer_phone ? String(row.customer_phone) : null,
     customerEmail: row.customer_email ? String(row.customer_email) : null,
@@ -236,6 +256,123 @@ export const commerceQuoteService = {
     return mapRow(data as Record<string, unknown>);
   },
 
+  async listByLead(leadId: string): Promise<CommerceQuote[]> {
+    await this.purgeExpired();
+    const { data, error } = await supabase
+      .from('commerce_quotes')
+      .select('*')
+      .eq('lead_id', leadId)
+      .in('status', ['pending', 'checkout', 'paid'])
+      .order('created_at', { ascending: false });
+    throwIfSupabaseError(error, 'List lead estimates');
+    return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+  },
+
+  async getEstimateDetail(id: string, leadId?: string) {
+    const quote = await this.get(id);
+    if (leadId && quote.leadId && quote.leadId !== leadId) {
+      throw new NotFoundError('Estimate not found for this lead');
+    }
+    const company = await companySettingsService.get();
+    const ship = quote.shippingAddress;
+    const billToLines = [
+      quote.customerName,
+      quote.customerEmail,
+      quote.customerPhone ? `+91 ${quote.customerPhone.replace(/\D/g, '').slice(-10)}` : null,
+      [ship.address1 ?? ship.address, ship.city, ship.state, ship.pincode, 'India']
+        .filter(Boolean)
+        .join(', '),
+    ].filter(Boolean) as string[];
+
+    const paymentTypeLabel =
+      quote.paymentType === 'full'
+        ? 'Full payment'
+        : quote.paymentType === 'partial'
+          ? 'Partial'
+          : 'Advance';
+
+    return {
+      quote,
+      company,
+      document: {
+        title: 'Quotation',
+        quotationId: quote.quoteNumber,
+        dateLabel: formatDocDate(quote.createdAt),
+        validUntilLabel: formatDocDate(quote.expiresAt),
+        billTo: billToLines,
+        shipTo: billToLines,
+        paymentTypeLabel,
+        subtotal: quote.lineItems.reduce((s, l) => s + l.amountInclGst, 0),
+        totalInclGst: quote.total,
+      },
+    };
+  },
+
+  async createFromLead(
+    leadId: string,
+    input: {
+      lines: Array<{
+        variantId?: number;
+        productId?: number;
+        sku?: string;
+        title: string;
+        variantTitle?: string;
+        hsnCode?: string;
+        qty: number;
+        unitPrice: number;
+        gstPercent?: number;
+      }>;
+      prepaidAmount?: number;
+      paymentType?: 'full' | 'partial' | 'advance';
+    },
+    adminId?: string
+  ): Promise<CommerceQuote> {
+    const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
+    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const lead = detail.lead as {
+      farmerId: string;
+      farmerName: string;
+      phone: string | null;
+      district: string | null;
+      state: string | null;
+      pincode?: string | null;
+    };
+    const farmer = detail.farmer as {
+      state?: string | null;
+      village?: string | null;
+      shippingAddress?: string | null;
+      deliveryPincode?: string | null;
+      email?: string | null;
+    };
+    const shipLine =
+      farmer.shippingAddress ??
+      [farmer.village, lead.district, lead.state, farmer.deliveryPincode].filter(Boolean).join(', ');
+
+    return this.create(
+      {
+        customerName: String(lead.farmerName || 'Customer'),
+        customerPhone: lead.phone ? String(lead.phone) : undefined,
+        customerEmail: farmer.email ? String(farmer.email) : undefined,
+        customerState: String(lead.state ?? farmer.state ?? 'Karnataka'),
+        shippingAddress: {
+          address: shipLine || undefined,
+          address1: shipLine || undefined,
+          city: lead.district ? String(lead.district) : undefined,
+          state: lead.state ? String(lead.state) : undefined,
+          pincode: (farmer.deliveryPincode ?? lead.pincode)
+            ? String(farmer.deliveryPincode ?? lead.pincode)
+            : undefined,
+        },
+        paymentType: input.paymentType ?? 'advance',
+        prepaidAmount: input.prepaidAmount ?? 0,
+        lines: input.lines,
+        leadId,
+        farmerId: String(lead.farmerId),
+      },
+      adminId
+    );
+  },
+
   async create(
     input: {
       customerName: string;
@@ -243,9 +380,11 @@ export const commerceQuoteService = {
       customerEmail?: string;
       customerState: string;
       customerGstin?: string;
-      shippingAddress?: Record<string, string>;
+      shippingAddress?: Record<string, string | undefined>;
       paymentType?: 'full' | 'partial' | 'advance';
       prepaidAmount?: number;
+      leadId?: string;
+      farmerId?: string;
       lines: Array<{
         variantId?: number;
         productId?: number;
@@ -291,6 +430,8 @@ export const commerceQuoteService = {
         prepaid_amount: prepaidAmount,
         cod_amount: codAmount,
         expires_at: expiresAt.toISOString(),
+        lead_id: input.leadId ?? null,
+        farmer_id: input.farmerId ?? null,
         created_by: adminId ?? null,
       })
       .select('*')

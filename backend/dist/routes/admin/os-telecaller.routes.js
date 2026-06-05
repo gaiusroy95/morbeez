@@ -7,6 +7,7 @@ import { telecallerAdminService } from '../../services/admin/telecaller-admin.se
 import { opportunityIntelligenceDashboardService } from '../../services/intelligence/opportunity-intelligence-dashboard.service.js';
 import { telecallerIntelligenceService } from '../../services/intelligence/telecaller-intelligence.service.js';
 import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
+import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 import { escalationAdminService } from '../../services/admin/escalation-admin.service.js';
 import { farmerRoiAdminService } from '../../services/admin/farmer-roi-admin.service.js';
@@ -846,6 +847,57 @@ export async function osTelecallerRoutes(app) {
             assignedTo: admin.email,
         });
         return reply.status(201).send({ ok: true, ...result });
+    });
+    app.get(`${api}/leads/:id/estimates`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const estimates = await commerceQuoteService.listByLead(id);
+        return reply.send({
+            ok: true,
+            estimates: estimates.map((e) => ({
+                id: e.id,
+                quotationId: e.quoteNumber,
+                status: e.status,
+                amount: e.total,
+                prepaidAmount: e.prepaidAmount,
+                codAmount: e.codAmount,
+                paymentType: e.paymentType,
+                createdAt: e.createdAt,
+                expiresAt: e.expiresAt,
+                hoursLeft: e.hoursLeft,
+            })),
+        });
+    });
+    app.get(`${api}/leads/:leadId/estimates/:estimateId`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { leadId, estimateId } = request.params;
+        const detail = await commerceQuoteService.getEstimateDetail(estimateId, leadId);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/leads/:id/estimates`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            prepaidAmount: z.number().min(0).optional(),
+            paymentType: z.enum(['full', 'partial', 'advance']).optional(),
+            lines: z
+                .array(z.object({
+                variantId: z.number().optional(),
+                productId: z.number().optional(),
+                sku: z.string().optional(),
+                title: z.string().min(1),
+                variantTitle: z.string().optional(),
+                hsnCode: z.string().optional(),
+                qty: z.number().int().positive(),
+                unitPrice: z.number().positive(),
+                gstPercent: z.number().optional(),
+            }))
+                .min(1),
+        })
+            .parse(request.body);
+        const quote = await commerceQuoteService.createFromLead(id, body, admin.id);
+        return reply.status(201).send({ ok: true, estimate: quote });
     });
     app.get(`${api}/leads/:id/orders`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');

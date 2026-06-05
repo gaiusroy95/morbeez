@@ -16,6 +16,8 @@ import { NoteDetailModal, type NoteListRow } from './NoteDetailModal';
 import { EscalationDetailModal, type EscalationListRow } from './EscalationDetailModal';
 import { InteractionsTab } from './InteractionsTab';
 import { OrdersTab } from './OrdersTab';
+import { EstimateDetailView } from './EstimateDetailView';
+import { CreateEstimateModal } from './CreateEstimateModal';
 import { OrderDetailModal, type OrderListRow } from './OrderDetailModal';
 import { FieldFindingsTab } from './FieldFindingsTab';
 import { FieldFindingDetailModal, type FieldFindingListRow } from './FieldFindingDetailModal';
@@ -156,6 +158,8 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [selectedNote, setSelectedNote] = useState<NoteListRow | null>(null);
   const [selectedEscalation, setSelectedEscalation] = useState<EscalationListRow | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<OrderListRow | null>(null);
+  const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
+  const [showCreateEstimate, setShowCreateEstimate] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState<FieldFindingListRow | null>(null);
   const [selectedAgActivity, setSelectedAgActivity] = useState<AgronomistActivityRow | null>(null);
   const [archiveModal, setArchiveModal] = useState<{ path: string; label: string } | null>(null);
@@ -482,8 +486,8 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
             <button type="button" className="tc-action-btn" onClick={() => setModal('visit')}>
               Schedule visit
             </button>
-            <button type="button" className="tc-action-btn" onClick={() => setModal('order')}>
-              New order
+            <button type="button" className="tc-action-btn" onClick={() => setShowCreateEstimate(true)}>
+              Create quote
             </button>
           </div>
         ) : null}
@@ -535,6 +539,14 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
           canWrite={canWrite}
           onSaved={bumpData}
           onClose={() => setSelectedEscalation(null)}
+        />
+      ) : null}
+
+      {showCreateEstimate ? (
+        <CreateEstimateModal
+          leadId={leadId}
+          onClose={() => setShowCreateEstimate(false)}
+          onCreated={bumpData}
         />
       ) : null}
 
@@ -952,14 +964,23 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
         ) : null}
 
         {tab === 'orders' ? (
-          <OrdersTab
-            leadId={leadId}
-            canWrite={canWrite}
-            blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
-            refreshKey={dataVersion}
-            onNewOrder={() => setModal('order')}
-            onOpenDetail={setSelectedOrder}
-          />
+          selectedEstimateId ? (
+            <EstimateDetailView
+              leadId={leadId}
+              estimateId={selectedEstimateId}
+              onBack={() => setSelectedEstimateId(null)}
+            />
+          ) : (
+            <OrdersTab
+              leadId={leadId}
+              canWrite={canWrite}
+              blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
+              refreshKey={dataVersion}
+              onCreateEstimate={() => setShowCreateEstimate(true)}
+              onOpenEstimate={setSelectedEstimateId}
+              onOpenDetail={setSelectedOrder}
+            />
+          )
         ) : null}
 
         {tab === 'roi_tracker' ? <RoiTrackerTab leadId={leadId} canWrite={canWrite} /> : null}
