@@ -10,9 +10,10 @@ type Props = {
   saveLabel?: string;
   saving?: boolean;
   wide?: boolean;
+  footer?: ReactNode;
 };
 
-export function Modal({ title, children, onClose, onSave, saveLabel = 'Save', saving, wide }: Props) {
+export function Modal({ title, children, onClose, onSave, saveLabel = 'Save', saving, wide, footer }: Props) {
   return (
     <div
       className="fixed inset-0 z-[500] flex items-end justify-center bg-slate-900/50 p-0 sm:items-center sm:p-4"
@@ -41,14 +42,18 @@ export function Modal({ title, children, onClose, onSave, saveLabel = 'Save', sa
         </header>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
         <footer className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
-          <Btn variant="secondary" onClick={onClose}>
-            Cancel
-          </Btn>
-          {onSave ? (
-            <Btn variant="primary" disabled={saving} onClick={onSave}>
-              {saving ? 'Saving…' : saveLabel}
-            </Btn>
-          ) : null}
+          {footer ?? (
+            <>
+              <Btn variant="secondary" onClick={onClose}>
+                Cancel
+              </Btn>
+              {onSave ? (
+                <Btn variant="primary" disabled={saving} onClick={onSave}>
+                  {saving ? 'Saving…' : saveLabel}
+                </Btn>
+              ) : null}
+            </>
+          )}
         </footer>
       </div>
     </div>

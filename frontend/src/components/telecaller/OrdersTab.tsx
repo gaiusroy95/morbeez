@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { api } from '../../lib/api';
+import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
 import type { OrderListRow } from './OrderDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -28,6 +29,10 @@ type EstimateRow = {
   prepaidAmount: number;
   codAmount: number;
   paymentType: string;
+  preparedByName: string | null;
+  sentAt: string | null;
+  whatsappSentAt: string | null;
+  emailSentAt: string | null;
   createdAt: string;
   expiresAt: string;
   hoursLeft?: number;
@@ -44,6 +49,10 @@ type UnifiedRow =
       amount: number;
       paymentLabel: string;
       status: string;
+      preparedByName: string | null;
+      sentAt: string | null;
+      whatsappSentAt: string | null;
+      emailSentAt: string | null;
     }
   | {
       kind: 'order';
@@ -99,6 +108,7 @@ type Props = {
   blocks: BlockOption[];
   refreshKey: number;
   onCreateEstimate: () => void;
+  onEditEstimate: (id: string) => void;
   onOpenEstimate: (id: string) => void;
   onOpenDetail: (row: OrderListRow) => void;
 };
@@ -108,6 +118,7 @@ export function OrdersTab({
   canWrite,
   refreshKey,
   onCreateEstimate,
+  onEditEstimate,
   onOpenEstimate,
   onOpenDetail,
 }: Props) {
@@ -119,6 +130,7 @@ export function OrdersTab({
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -141,6 +153,26 @@ export function OrdersTab({
     void load();
   }, [load, refreshKey]);
 
+  async function handleSend(
+    e: MouseEvent,
+    estimateId: string,
+    channels: Array<'whatsapp' | 'email'>,
+    resend?: boolean
+  ) {
+    e.stopPropagation();
+    setSendingId(estimateId);
+    setError('');
+    try {
+      const result = await sendQuoteToFarmer(leadId, estimateId, channels);
+      openQuoteSendLinks(result);
+      if (resend) void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send quote');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
   const unified = useMemo((): UnifiedRow[] => {
     const estRows: UnifiedRow[] = estimates.map((e) => ({
       kind: 'estimate',
@@ -155,6 +187,10 @@ export function OrdersTab({
           ? `Advance ₹${e.prepaidAmount.toLocaleString('en-IN')}${e.codAmount > 0 ? ` + COD ₹${e.codAmount.toLocaleString('en-IN')}` : ''}`
           : '—',
       status: e.status,
+      preparedByName: e.preparedByName,
+      sentAt: e.sentAt,
+      whatsappSentAt: e.whatsappSentAt,
+      emailSentAt: e.emailSentAt,
     }));
     const ordRows: UnifiedRow[] = orders.map((o) => ({
       kind: 'order',
@@ -321,16 +357,18 @@ export function OrdersTab({
           </p>
         ) : (
           <div className="est-table-wrap">
-            <table className="est-list-table">
+            <table className="est-list-table est-list-table--actions">
               <thead>
                 <tr>
                   <th>Type</th>
                   <th>ID</th>
                   <th>Created</th>
                   <th>Valid until</th>
+                  <th>Prepared by</th>
                   <th>Amount (₹)</th>
                   <th>Payment</th>
                   <th>Status</th>
+                  {canWrite ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -355,6 +393,12 @@ export function OrdersTab({
                         '—'
                       )}
                     </td>
+                    <td>
+                      {row.kind === 'estimate' ? row.preparedByName ?? '—' : '—'}
+                      {row.kind === 'estimate' && row.sentAt ? (
+                        <small className="block text-slate-500">Sent</small>
+                      ) : null}
+                    </td>
                     <td>₹{Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                     <td>{row.paymentLabel}</td>
                     <td>
@@ -364,6 +408,53 @@ export function OrdersTab({
                         <span className="tc-ord-status tc-ord-status--success">{row.status}</span>
                       )}
                     </td>
+                    {canWrite && row.kind === 'estimate' ? (
+                      <td className="est-list-actions" onClick={(e) => e.stopPropagation()}>
+                        {row.status === 'pending' ? (
+                          <button
+                            type="button"
+                            className="est-action-btn"
+                            title="Edit quote"
+                            onClick={() => onEditEstimate(row.id)}
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="est-action-btn est-action-btn--wa"
+                          title="Send via WhatsApp"
+                          disabled={sendingId === row.id}
+                          onClick={(e) => void handleSend(e, row.id, ['whatsapp'], Boolean(row.sentAt))}
+                        >
+                          WhatsApp
+                        </button>
+                        <button
+                          type="button"
+                          className="est-action-btn est-action-btn--mail"
+                          title="Send via email"
+                          disabled={sendingId === row.id}
+                          onClick={(e) => void handleSend(e, row.id, ['email'], Boolean(row.sentAt))}
+                        >
+                          Mail
+                        </button>
+                        {row.sentAt ? (
+                          <button
+                            type="button"
+                            className="est-action-btn est-action-btn--resend"
+                            title="Resend quote"
+                            disabled={sendingId === row.id}
+                            onClick={(e) =>
+                              void handleSend(e, row.id, ['whatsapp', 'email'], true)
+                            }
+                          >
+                            Resend
+                          </button>
+                        ) : null}
+                      </td>
+                    ) : canWrite ? (
+                      <td>—</td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

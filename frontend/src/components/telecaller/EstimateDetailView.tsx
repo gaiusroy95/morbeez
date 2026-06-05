@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
+import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
 import { Loading } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -53,6 +54,7 @@ type EstimateDetail = {
     billTo: string[];
     shipTo: string[];
     paymentTypeLabel: string;
+    preparedByName: string | null;
     subtotal: number;
     totalInclGst: number;
   };
@@ -61,18 +63,21 @@ type EstimateDetail = {
 type Props = {
   leadId: string;
   estimateId: string;
+  canWrite?: boolean;
   onBack: () => void;
+  onEdit?: (id: string) => void;
 };
 
 function formatInr(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
+export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdit }: Props) {
   const navigate = useNavigate();
   const [data, setData] = useState<EstimateDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     api<EstimateDetail & { ok: boolean }>(
@@ -97,12 +102,62 @@ export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
 
   const { quote, company, document: doc } = data;
   const canCheckout = quote.status === 'pending' || quote.status === 'checkout';
+  const canEdit = canWrite && quote.status === 'pending';
+
+  async function handleSend(channels: Array<'whatsapp' | 'email'>) {
+    setSending(true);
+    setError('');
+    try {
+      const result = await sendQuoteToFarmer(leadId, estimateId, channels);
+      openQuoteSendLinks(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send quote');
+    } finally {
+      setSending(false);
+    }
+  }
 
   return (
     <div>
       <button type="button" className="est-detail-back" onClick={onBack}>
         ← Back to orders
       </button>
+
+      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+
+      {canWrite ? (
+        <div className="est-detail-actions">
+          {canEdit && onEdit ? (
+            <button type="button" className="est-action-btn" onClick={() => onEdit(estimateId)}>
+              Edit quote
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="est-action-btn est-action-btn--wa"
+            disabled={sending}
+            onClick={() => void handleSend(['whatsapp'])}
+          >
+            WhatsApp
+          </button>
+          <button
+            type="button"
+            className="est-action-btn est-action-btn--mail"
+            disabled={sending}
+            onClick={() => void handleSend(['email'])}
+          >
+            Mail
+          </button>
+          <button
+            type="button"
+            className="est-action-btn est-action-btn--resend"
+            disabled={sending}
+            onClick={() => void handleSend(['whatsapp', 'email'])}
+          >
+            Resend
+          </button>
+        </div>
+      ) : null}
 
       <article className="est-doc">
         <header className="est-doc-header">
@@ -117,6 +172,10 @@ export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
           <div>
             <label>DATE</label>
             {doc.dateLabel}
+          </div>
+          <div>
+            <label>PREPARED BY</label>
+            {doc.preparedByName ?? '—'}
           </div>
           <div style={{ textAlign: 'right' }}>
             <label>VALID UNTIL</label>
@@ -156,6 +215,7 @@ export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
             <table className="est-doc-table">
               <thead>
                 <tr>
+                  <th style={{ width: 48 }}>S.No</th>
                   <th>Description / SKU</th>
                   <th>Qty</th>
                   <th>Unit Price</th>
@@ -166,6 +226,7 @@ export function EstimateDetailView({ leadId, estimateId, onBack }: Props) {
               <tbody>
                 {quote.lineItems.map((li, i) => (
                   <tr key={i}>
+                    <td>{i + 1}</td>
                     <td>
                       <div>{li.title}</div>
                       {(li.sku || li.hsnCode) && (

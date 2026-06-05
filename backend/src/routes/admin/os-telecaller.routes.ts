@@ -1037,6 +1037,10 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         prepaidAmount: e.prepaidAmount,
         codAmount: e.codAmount,
         paymentType: e.paymentType,
+        preparedByName: e.preparedByName,
+        sentAt: e.sentAt,
+        whatsappSentAt: e.whatsappSentAt,
+        emailSentAt: e.emailSentAt,
         createdAt: e.createdAt,
         expiresAt: e.expiresAt,
         hoursLeft: e.hoursLeft,
@@ -1058,6 +1062,9 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       .object({
         prepaidAmount: z.coerce.number().min(0).optional(),
         paymentType: z.enum(['full', 'partial', 'advance']).optional(),
+        preparedByName: z.string().optional(),
+        send: z.boolean().optional(),
+        sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
         lines: z
           .array(
             z.object({
@@ -1076,7 +1083,82 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       })
       .parse(request.body);
     const quote = await commerceQuoteService.createFromLead(id, body, admin.id);
-    return reply.status(201).send({ ok: true, estimate: quote });
+    let sendResult = null;
+    if (body.send) {
+      const channels = body.sendChannels?.length ? body.sendChannels : (['whatsapp'] as const);
+      sendResult = await commerceQuoteService.sendQuote(
+        quote.id,
+        id,
+        [...channels],
+        admin.email
+      );
+    }
+    return reply.status(201).send({ ok: true, estimate: quote, send: sendResult });
+  });
+
+  app.put(`${api}/leads/:leadId/estimates/:estimateId`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { leadId, estimateId } = request.params as { leadId: string; estimateId: string };
+    const body = z
+      .object({
+        prepaidAmount: z.coerce.number().min(0).optional(),
+        paymentType: z.enum(['full', 'partial', 'advance']).optional(),
+        preparedByName: z.string().optional(),
+        send: z.boolean().optional(),
+        sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
+        lines: z
+          .array(
+            z.object({
+              variantId: z.coerce.number().optional(),
+              productId: z.coerce.number().optional(),
+              sku: z.string().optional(),
+              title: z.string().min(1),
+              variantTitle: z.string().optional(),
+              hsnCode: z.string().optional(),
+              qty: z.coerce.number().int().positive(),
+              unitPrice: z.coerce.number().positive(),
+              gstPercent: z.coerce.number().optional(),
+            })
+          )
+          .min(1),
+      })
+      .parse(request.body);
+    const quote = await commerceQuoteService.updateFromLead(estimateId, leadId, body);
+    let sendResult = null;
+    if (body.send) {
+      const channels = body.sendChannels?.length ? body.sendChannels : (['whatsapp'] as const);
+      sendResult = await commerceQuoteService.sendQuote(
+        quote.id,
+        leadId,
+        [...channels],
+        admin.email
+      );
+    }
+    return reply.send({ ok: true, estimate: quote, send: sendResult });
+  });
+
+  app.post(`${api}/leads/:leadId/estimates/:estimateId/send`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { leadId, estimateId } = request.params as { leadId: string; estimateId: string };
+    const body = z
+      .object({
+        channels: z.array(z.enum(['whatsapp', 'email'])).min(1),
+      })
+      .parse(request.body);
+    const result = await commerceQuoteService.sendQuote(
+      estimateId,
+      leadId,
+      body.channels,
+      admin.email
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/leads/:leadId/estimates/:estimateId/share`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { leadId, estimateId } = request.params as { leadId: string; estimateId: string };
+    const links = await commerceQuoteService.getShareLinks(estimateId, leadId);
+    return reply.send({ ok: true, ...links });
   });
 
   app.get(`${api}/leads/:id/orders`, async (request, reply) => {

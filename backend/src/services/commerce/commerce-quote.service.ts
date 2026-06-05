@@ -56,6 +56,10 @@ export type CommerceQuote = {
   razorpayOrderId: string | null;
   shopifyOrderId: string | null;
   shopifyOrderName: string | null;
+  preparedByName: string | null;
+  sentAt: string | null;
+  whatsappSentAt: string | null;
+  emailSentAt: string | null;
   createdAt: string;
   updatedAt: string;
   hoursLeft?: number;
@@ -115,10 +119,122 @@ function mapRow(row: Record<string, unknown>): CommerceQuote {
     razorpayOrderId: row.razorpay_order_id ? String(row.razorpay_order_id) : null,
     shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
     shopifyOrderName: row.shopify_order_name ? String(row.shopify_order_name) : null,
+    preparedByName: row.prepared_by_name ? String(row.prepared_by_name) : null,
+    sentAt: row.sent_at ? String(row.sent_at) : null,
+    whatsappSentAt: row.whatsapp_sent_at ? String(row.whatsapp_sent_at) : null,
+    emailSentAt: row.email_sent_at ? String(row.email_sent_at) : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     hoursLeft,
   };
+}
+
+function quoteCheckoutUrl(quoteId: string): string {
+  const base = (env.CONSOLE_PUBLIC_URL ?? 'https://morbeez.vercel.app').replace(/\/$/, '');
+  return `${base}/commerce/quotes/${quoteId}/checkout`;
+}
+
+function buildQuoteShareText(quote: CommerceQuote): string {
+  const lineText = quote.lineItems
+    .map(
+      (l, i) =>
+        `${i + 1}. ${l.title} × ${l.qty} — ₹${l.amountInclGst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    )
+    .join('\n');
+  const parts = [
+    `🧾 *Quotation ${quote.quoteNumber}*`,
+    '',
+    `Dear ${quote.customerName},`,
+    '',
+    lineText,
+    '',
+    `*Total (incl. GST):* ₹${quote.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+  ];
+  if (quote.prepaidAmount > 0) {
+    parts.push(
+      `*Advance:* ₹${quote.prepaidAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      `*COD balance:* ₹${quote.codAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    );
+  }
+  parts.push(
+    '',
+    `Valid until: ${formatDocDate(quote.expiresAt)}`,
+    '',
+    `Checkout: ${quoteCheckoutUrl(quote.id)}`
+  );
+  if (quote.preparedByName) {
+    parts.push('', `Prepared by: ${quote.preparedByName}`);
+  }
+  parts.push('', '— Morbeez Agri Sciences');
+  return parts.join('\n');
+}
+
+function buildMailtoUrl(email: string, quote: CommerceQuote): string {
+  const subject = encodeURIComponent(`Quotation ${quote.quoteNumber} — Morbeez`);
+  const body = encodeURIComponent(buildQuoteShareText(quote));
+  return `mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`;
+}
+
+function buildWhatsAppUrl(phone: string, quote: CommerceQuote): string | null {
+  const digits = phone.replace(/\D/g, '').slice(-10);
+  if (!digits) return null;
+  return `https://wa.me/91${digits}?text=${encodeURIComponent(buildQuoteShareText(quote))}`;
+}
+
+type QuoteLineInput = {
+  variantId?: number;
+  productId?: number;
+  sku?: string;
+  title: string;
+  variantTitle?: string;
+  hsnCode?: string;
+  qty: number;
+  unitPrice: number;
+  gstPercent?: number;
+};
+
+async function persistQuoteLines(
+  quoteId: string,
+  customerState: string,
+  input: {
+    lines: QuoteLineInput[];
+    paymentType?: 'full' | 'partial' | 'advance';
+    prepaidAmount?: number;
+    preparedByName?: string;
+  }
+): Promise<CommerceQuote> {
+  if (!input.lines.length) throw new ValidationError('Add at least one product');
+
+  const totals = await computeLines(input.lines, customerState);
+  const paymentType = input.paymentType ?? 'advance';
+  const prepaidAmount = input.prepaidAmount ?? 0;
+  const codAmount = Math.max(0, totals.total - prepaidAmount);
+  const now = new Date().toISOString();
+
+  const patch: Record<string, unknown> = {
+    line_items: totals.lineItems,
+    subtotal: totals.subtotal,
+    cgst: totals.cgst,
+    sgst: totals.sgst,
+    igst: totals.igst,
+    total: totals.total,
+    payment_type: paymentType,
+    prepaid_amount: prepaidAmount,
+    cod_amount: codAmount,
+    updated_at: now,
+  };
+  if (input.preparedByName !== undefined) {
+    patch.prepared_by_name = input.preparedByName.trim() || null;
+  }
+
+  const { data, error } = await supabase
+    .from('commerce_quotes')
+    .update(patch)
+    .eq('id', quoteId)
+    .select('*')
+    .single();
+  throwIfSupabaseError(error, 'Update quote');
+  return mapRow(data as Record<string, unknown>);
 }
 
 function splitName(full: string): { firstName: string; lastName: string } {
@@ -302,6 +418,7 @@ export const commerceQuoteService = {
         billTo: billToLines,
         shipTo: billToLines,
         paymentTypeLabel,
+        preparedByName: quote.preparedByName,
         subtotal: quote.lineItems.reduce((s, l) => s + l.amountInclGst, 0),
         totalInclGst: quote.total,
       },
@@ -324,6 +441,7 @@ export const commerceQuoteService = {
       }>;
       prepaidAmount?: number;
       paymentType?: 'full' | 'partial' | 'advance';
+      preparedByName?: string;
     },
     adminId?: string
   ): Promise<CommerceQuote> {
@@ -368,9 +486,106 @@ export const commerceQuoteService = {
         lines: input.lines,
         leadId,
         farmerId: String(lead.farmerId),
+        preparedByName: input.preparedByName,
       },
       adminId
     );
+  },
+
+  async updateFromLead(
+    quoteId: string,
+    leadId: string,
+    input: {
+      lines: QuoteLineInput[];
+      prepaidAmount?: number;
+      paymentType?: 'full' | 'partial' | 'advance';
+      preparedByName?: string;
+    }
+  ): Promise<CommerceQuote> {
+    const quote = await this.get(quoteId);
+    if (quote.leadId && quote.leadId !== leadId) {
+      throw new NotFoundError('Estimate not found for this lead');
+    }
+    if (quote.status !== 'pending') {
+      throw new ValidationError('Only pending quotes can be edited');
+    }
+    return persistQuoteLines(quoteId, quote.customerState, input);
+  },
+
+  async getShareLinks(quoteId: string, leadId?: string) {
+    const quote = await this.get(quoteId);
+    if (leadId && quote.leadId && quote.leadId !== leadId) {
+      throw new NotFoundError('Estimate not found for this lead');
+    }
+    const phone = quote.customerPhone ?? '';
+    const text = buildQuoteShareText(quote);
+    return {
+      text,
+      checkoutUrl: quoteCheckoutUrl(quote.id),
+      whatsappUrl: buildWhatsAppUrl(phone, quote),
+      mailtoUrl: quote.customerEmail ? buildMailtoUrl(quote.customerEmail, quote) : null,
+    };
+  },
+
+  async sendQuote(
+    quoteId: string,
+    leadId: string,
+    channels: Array<'whatsapp' | 'email'>,
+    agentEmail?: string
+  ) {
+    const quote = await this.get(quoteId);
+    if (quote.leadId && quote.leadId !== leadId) {
+      throw new NotFoundError('Estimate not found for this lead');
+    }
+    if (quote.status === 'expired' || quote.status === 'cancelled') {
+      throw new ValidationError('Quote is no longer active');
+    }
+
+    const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
+    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const farmerId = String(detail.lead.farmerId);
+    const phone = String(detail.lead.phone ?? quote.customerPhone ?? '');
+    const text = buildQuoteShareText(quote);
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = { sent_at: now, updated_at: now };
+    const result: {
+      text: string;
+      whatsappUrl: string | null;
+      mailtoUrl: string | null;
+      whatsappSent: boolean;
+      emailSent: boolean;
+    } = {
+      text,
+      whatsappUrl: buildWhatsAppUrl(phone, quote),
+      mailtoUrl: quote.customerEmail ? buildMailtoUrl(quote.customerEmail, quote) : null,
+      whatsappSent: false,
+      emailSent: false,
+    };
+
+    if (channels.includes('whatsapp')) {
+      if (phone.replace(/\D/g, '').length >= 10) {
+        try {
+          await telecallerAdminService.sendWhatsAppMessage(
+            farmerId,
+            text,
+            agentEmail ?? 'Telecaller'
+          );
+          result.whatsappSent = true;
+          patch.whatsapp_sent_at = now;
+        } catch {
+          /* fall back to wa.me link on client */
+        }
+      }
+    }
+
+    if (channels.includes('email')) {
+      patch.email_sent_at = now;
+      result.emailSent = Boolean(result.mailtoUrl);
+    }
+
+    await supabase.from('commerce_quotes').update(patch).eq('id', quoteId);
+
+    return result;
   },
 
   async create(
@@ -385,6 +600,7 @@ export const commerceQuoteService = {
       prepaidAmount?: number;
       leadId?: string;
       farmerId?: string;
+      preparedByName?: string;
       lines: Array<{
         variantId?: number;
         productId?: number;
@@ -432,6 +648,7 @@ export const commerceQuoteService = {
         expires_at: expiresAt.toISOString(),
         lead_id: input.leadId ?? null,
         farmer_id: input.farmerId ?? null,
+        prepared_by_name: input.preparedByName?.trim() ?? null,
         created_by: adminId ?? null,
       })
       .select('*')

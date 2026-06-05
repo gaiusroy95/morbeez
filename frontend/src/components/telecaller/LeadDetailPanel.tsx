@@ -160,6 +160,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [selectedOrder, setSelectedOrder] = useState<OrderListRow | null>(null);
   const [selectedEstimateId, setSelectedEstimateId] = useState<string | null>(null);
   const [showCreateEstimate, setShowCreateEstimate] = useState(false);
+  const [editingEstimateId, setEditingEstimateId] = useState<string | null>(null);
   const [selectedFinding, setSelectedFinding] = useState<FieldFindingListRow | null>(null);
   const [selectedAgActivity, setSelectedAgActivity] = useState<AgronomistActivityRow | null>(null);
   const [archiveModal, setArchiveModal] = useState<{ path: string; label: string } | null>(null);
@@ -542,10 +543,14 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
         />
       ) : null}
 
-      {showCreateEstimate ? (
+      {showCreateEstimate || editingEstimateId ? (
         <CreateEstimateModal
           leadId={leadId}
-          onClose={() => setShowCreateEstimate(false)}
+          estimateId={editingEstimateId ?? undefined}
+          onClose={() => {
+            setShowCreateEstimate(false);
+            setEditingEstimateId(null);
+          }}
           onCreated={bumpData}
         />
       ) : null}
@@ -968,7 +973,12 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
             <EstimateDetailView
               leadId={leadId}
               estimateId={selectedEstimateId}
+              canWrite={canWrite}
               onBack={() => setSelectedEstimateId(null)}
+              onEdit={(id) => {
+                setSelectedEstimateId(null);
+                setEditingEstimateId(id);
+              }}
             />
           ) : (
             <OrdersTab
@@ -977,6 +987,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
               blocks={blocks.map((b) => ({ id: b.id, name: b.name }))}
               refreshKey={dataVersion}
               onCreateEstimate={() => setShowCreateEstimate(true)}
+              onEditEstimate={(id) => setEditingEstimateId(id)}
               onOpenEstimate={setSelectedEstimateId}
               onOpenDetail={setSelectedOrder}
             />

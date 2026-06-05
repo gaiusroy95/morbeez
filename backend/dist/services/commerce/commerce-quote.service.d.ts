@@ -42,9 +42,24 @@ export type CommerceQuote = {
     razorpayOrderId: string | null;
     shopifyOrderId: string | null;
     shopifyOrderName: string | null;
+    preparedByName: string | null;
+    sentAt: string | null;
+    whatsappSentAt: string | null;
+    emailSentAt: string | null;
     createdAt: string;
     updatedAt: string;
     hoursLeft?: number;
+};
+type QuoteLineInput = {
+    variantId?: number;
+    productId?: number;
+    sku?: string;
+    title: string;
+    variantTitle?: string;
+    hsnCode?: string;
+    qty: number;
+    unitPrice: number;
+    gstPercent?: number;
 };
 export declare const commerceQuoteService: {
     purgeExpired(): Promise<number>;
@@ -63,6 +78,7 @@ export declare const commerceQuoteService: {
             billTo: string[];
             shipTo: string[];
             paymentTypeLabel: string;
+            preparedByName: string | null;
             subtotal: number;
             totalInclGst: number;
         };
@@ -81,7 +97,27 @@ export declare const commerceQuoteService: {
         }>;
         prepaidAmount?: number;
         paymentType?: "full" | "partial" | "advance";
+        preparedByName?: string;
     }, adminId?: string): Promise<CommerceQuote>;
+    updateFromLead(quoteId: string, leadId: string, input: {
+        lines: QuoteLineInput[];
+        prepaidAmount?: number;
+        paymentType?: "full" | "partial" | "advance";
+        preparedByName?: string;
+    }): Promise<CommerceQuote>;
+    getShareLinks(quoteId: string, leadId?: string): Promise<{
+        text: string;
+        checkoutUrl: string;
+        whatsappUrl: string | null;
+        mailtoUrl: string | null;
+    }>;
+    sendQuote(quoteId: string, leadId: string, channels: Array<"whatsapp" | "email">, agentEmail?: string): Promise<{
+        text: string;
+        whatsappUrl: string | null;
+        mailtoUrl: string | null;
+        whatsappSent: boolean;
+        emailSent: boolean;
+    }>;
     create(input: {
         customerName: string;
         customerPhone?: string;
@@ -93,6 +129,7 @@ export declare const commerceQuoteService: {
         prepaidAmount?: number;
         leadId?: string;
         farmerId?: string;
+        preparedByName?: string;
         lines: Array<{
             variantId?: number;
             productId?: number;
@@ -142,4 +179,5 @@ export declare const commerceQuoteService: {
     cancel(id: string): Promise<void>;
     delete(id: string): Promise<void>;
 };
+export {};
 //# sourceMappingURL=commerce-quote.service.d.ts.map
