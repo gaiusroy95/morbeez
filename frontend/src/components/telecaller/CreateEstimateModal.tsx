@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { openQuoteSendLinks } from '../../lib/quoteSend';
@@ -68,6 +69,10 @@ export function CreateEstimateModal({
   const [addSearch, setAddSearch] = useState('');
   const [searchResults, setSearchResults] = useState<CatalogItem[]>([]);
   const [searching, setSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [resultsPos, setResultsPos] = useState<{ top: number; left: number; width: number } | null>(
+    null
+  );
 
   const preparedByName =
     admin?.fullName?.trim() || admin?.email?.split('@')[0]?.trim() || 'Telecaller';
@@ -131,6 +136,36 @@ export function CreateEstimateModal({
     }, 300);
     return () => window.clearTimeout(timer);
   }, [addSearch]);
+
+  useLayoutEffect(() => {
+    const input = searchInputRef.current;
+    if (!input || searchResults.length === 0) {
+      setResultsPos(null);
+      return;
+    }
+    const rect = input.getBoundingClientRect();
+    setResultsPos({
+      top: rect.bottom + 4,
+      left: rect.left,
+      width: rect.width,
+    });
+  }, [searchResults, addSearch]);
+
+  useEffect(() => {
+    if (!searchResults.length) return;
+    function reposition() {
+      const input = searchInputRef.current;
+      if (!input) return;
+      const rect = input.getBoundingClientRect();
+      setResultsPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('resize', reposition);
+    return () => {
+      window.removeEventListener('scroll', reposition, true);
+      window.removeEventListener('resize', reposition);
+    };
+  }, [searchResults.length]);
 
   const subtotal = useMemo(() => lines.reduce((s, l) => s + lineTotal(l), 0), [lines]);
   const prepaid = Number(prepaidAmount) || 0;
@@ -259,96 +294,134 @@ export function CreateEstimateModal({
 
       {!loadingQuote ? (
         <>
-          <div className="quote-lines-wrap">
-            <table className="quote-items-table">
+          <div className="quote-table-shell">
+            <table className="quote-items-table quote-items-table--head">
+              <colgroup>
+                <col className="quote-col-sno" />
+                <col className="quote-col-desc" />
+                <col className="quote-col-qty" />
+                <col className="quote-col-price" />
+                <col className="quote-col-gst" />
+                <col className="quote-col-amount" />
+                <col className="quote-col-action" />
+              </colgroup>
               <thead>
                 <tr>
-                  <th style={{ width: 48 }}>S.No</th>
+                  <th>S.No</th>
                   <th>Description / SKU</th>
                   <th>Qty</th>
                   <th>Unit price</th>
                   <th>GST%</th>
                   <th>Amount (incl. GST)</th>
-                  <th style={{ width: 40 }} />
+                  <th aria-label="Remove" />
                 </tr>
               </thead>
-              <tbody>
-                {lines.length === 0 ? (
-                  <tr className="quote-empty-hint-row">
-                    <td colSpan={7} className="quote-empty-row">
-                      Search below to add products to this quote.
-                    </td>
-                  </tr>
-                ) : (
-                  lines.map((line, index) => (
-                    <tr key={line.key}>
-                      <td className="quote-sno">{index + 1}</td>
-                      <td>
-                        <div>{line.title}</div>
-                        {line.sku ? <div className="sku">{line.sku}</div> : null}
-                        <div className="hsn">HSN: {line.hsnCode}</div>
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          min={1}
-                          className={inputClass}
-                          style={{ width: 72 }}
-                          value={line.qty}
-                          onChange={(e) =>
-                            updateLine(line.key, { qty: Math.max(1, Number(e.target.value) || 1) })
-                          }
-                        />
-                      </td>
-                      <td>{formatInr(line.price)}</td>
-                      <td>{line.gstPercent}%</td>
-                      <td>{formatInr(lineTotal(line))}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="quote-remove-btn"
-                          title="Remove"
-                          onClick={() => removeLine(line.key)}
-                        >
-                          ×
-                        </button>
+            </table>
+
+            <div className="quote-lines-scroll">
+              <table className="quote-items-table quote-items-table--body">
+                <colgroup>
+                  <col className="quote-col-sno" />
+                  <col className="quote-col-desc" />
+                  <col className="quote-col-qty" />
+                  <col className="quote-col-price" />
+                  <col className="quote-col-gst" />
+                  <col className="quote-col-amount" />
+                  <col className="quote-col-action" />
+                </colgroup>
+                <tbody>
+                  {lines.length === 0 ? (
+                    <tr className="quote-empty-hint-row">
+                      <td colSpan={7} className="quote-empty-row">
+                        No items yet — search below to add products.
                       </td>
                     </tr>
-                  ))
-                )}
-                <tr className="quote-search-row">
-                  <td className="quote-sno quote-sno--add">+</td>
-                  <td colSpan={6} className="quote-search-cell">
-                    <div className="quote-inline-search">
-                      <input
-                        className={inputClass}
-                        placeholder="Search product name or SKU to add…"
-                        value={addSearch}
-                        onChange={(e) => setAddSearch(e.target.value)}
-                      />
-                      {searching ? <p className="quote-add-hint">Searching…</p> : null}
-                      {!searching && addSearch.trim().length >= 2 && searchResults.length === 0 ? (
-                        <p className="quote-add-hint">No products found</p>
-                      ) : null}
-                      {searchResults.length > 0 ? (
-                        <ul className="quote-add-results">
-                          {searchResults.map((item) => (
-                            <li key={String(item.variantId ?? item.title)}>
-                              <button type="button" onClick={() => addProduct(item)}>
-                                <span>{item.title}</span>
-                                {item.sku ? <small>{item.sku}</small> : null}
-                                <strong>{formatInr(Number(item.price))}</strong>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  ) : (
+                    lines.map((line, index) => (
+                      <tr key={line.key}>
+                        <td className="quote-sno">{index + 1}</td>
+                        <td>
+                          <div>{line.title}</div>
+                          {line.sku ? <div className="sku">{line.sku}</div> : null}
+                          <div className="hsn">HSN: {line.hsnCode}</div>
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={1}
+                            className={inputClass}
+                            style={{ width: 72 }}
+                            value={line.qty}
+                            onChange={(e) =>
+                              updateLine(line.key, {
+                                qty: Math.max(1, Number(e.target.value) || 1),
+                              })
+                            }
+                          />
+                        </td>
+                        <td>{formatInr(line.price)}</td>
+                        <td>{line.gstPercent}%</td>
+                        <td>{formatInr(lineTotal(line))}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="quote-remove-btn"
+                            title="Remove"
+                            onClick={() => removeLine(line.key)}
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="quote-table-search-foot" role="row">
+              <div className="quote-table-search-sno quote-sno--add" aria-hidden>
+                +
+              </div>
+              <div className="quote-table-search-field">
+                <input
+                  ref={searchInputRef}
+                  className={`${inputClass} quote-table-search-input`}
+                  placeholder="Search product name or SKU to add…"
+                  value={addSearch}
+                  onChange={(e) => setAddSearch(e.target.value)}
+                />
+                {searching ? <p className="quote-add-hint">Searching…</p> : null}
+                {!searching && addSearch.trim().length >= 2 && searchResults.length === 0 ? (
+                  <p className="quote-add-hint">No products found</p>
+                ) : null}
+              </div>
+            </div>
           </div>
+
+          {searchResults.length > 0 && resultsPos
+            ? createPortal(
+                <ul
+                  className="quote-add-results quote-add-results--portal"
+                  style={{
+                    top: resultsPos.top,
+                    left: resultsPos.left,
+                    width: resultsPos.width,
+                  }}
+                >
+                  {searchResults.map((item) => (
+                    <li key={String(item.variantId ?? item.title)}>
+                      <button type="button" onClick={() => addProduct(item)}>
+                        <span>{item.title}</span>
+                        {item.sku ? <small>{item.sku}</small> : null}
+                        <strong>{formatInr(Number(item.price))}</strong>
+                      </button>
+                    </li>
+                  ))}
+                </ul>,
+                document.body
+              )
+            : null}
 
           <div className="quote-summary">
             <div className="quote-summary-row">

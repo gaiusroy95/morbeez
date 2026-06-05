@@ -2,6 +2,108 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  table-layout: fixed;
+}
+
+.quote-table-shell {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  overflow: visible;
+  background: #fff;
+}
+
+.quote-items-table--head {
+  border-bottom: none;
+}
+
+.quote-items-table--head th {
+  border-top: none;
+}
+
+.quote-items-table--head th:first-child,
+.quote-items-table--body td:first-child {
+  border-left: none;
+}
+
+.quote-items-table--head th:last-child,
+.quote-items-table--body td:last-child {
+  border-right: none;
+}
+
+.quote-col-sno {
+  width: 48px;
+}
+
+.quote-col-qty {
+  width: 88px;
+}
+
+.quote-col-price {
+  width: 96px;
+}
+
+.quote-col-gst {
+  width: 56px;
+}
+
+.quote-col-amount {
+  width: 120px;
+}
+
+.quote-col-action {
+  width: 40px;
+}
+
+.quote-lines-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.quote-table-search-foot {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  align-items: start;
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  border-top: 2px dashed #cbd5e1;
+  min-height: 52px;
+}
+
+.quote-table-search-sno {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 0;
+  border-right: 1px solid #e2e8f0;
+  font-weight: 700;
+}
+
+.quote-table-search-field {
+  padding: 0.55rem 0.65rem;
+  min-width: 0;
+}
+
+.quote-table-search-input {
+  width: 100%;
+  background: #fff;
+  border-color: #86efac;
+  box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.08);
+}
+
+.quote-table-search-input:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15);
+}
+
+.quote-add-results--portal {
+  position: fixed;
+  z-index: 10050;
+  margin: 0;
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
 }
 
 .quote-items-table th,
@@ -188,12 +290,9 @@
   position: relative;
 }
 
-.quote-inline-search .quote-add-results {
-  position: absolute;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  margin-top: 0.35rem;
+.quote-lines-wrap {
+  max-height: 320px;
+  overflow: auto;
 }
 
 .quote-sno--add {
@@ -287,11 +386,6 @@
   font-size: 0.8rem;
   cursor: pointer;
   text-decoration: underline;
-}
-
-.quote-lines-wrap {
-  max-height: 320px;
-  overflow: auto;
 }
 
 .quote-empty-row {
