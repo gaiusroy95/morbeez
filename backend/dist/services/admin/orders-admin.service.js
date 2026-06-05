@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 function normalizePhone(phone) {
     if (!phone)
         return null;
@@ -176,12 +177,60 @@ async function attachFarmerNames(orders) {
         }
     }
 }
-function mergeOrders(commerce, checkouts) {
+function mapQuote(row) {
+    const status = String(row.status);
+    const orderStatus = status === 'paid' ? 'processing' : status === 'cancelled' ? 'cancelled' : 'pending';
+    const total = Number(row.total) || 0;
+    const paymentType = String(row.payment_type ?? 'advance');
+    const prepaid = Number(row.prepaid_amount) || 0;
+    const cod = Number(row.cod_amount) || 0;
+    let paymentLabel = 'Quote (pending)';
+    if (status === 'checkout')
+        paymentLabel = 'Awaiting payment';
+    else if (status === 'paid')
+        paymentLabel = 'Paid';
+    else if (paymentType === 'advance' && prepaid > 0) {
+        paymentLabel = `Advance ₹${prepaid.toLocaleString('en-IN')} + COD ₹${cod.toLocaleString('en-IN')}`;
+    }
+    return {
+        id: String(row.id),
+        source: 'quote',
+        shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
+        orderName: row.quote_number ? String(row.quote_number) : null,
+        email: row.customer_email ? String(row.customer_email) : null,
+        phone: row.customer_phone ? String(row.customer_phone) : null,
+        financialStatus: status === 'paid' ? 'paid' : 'pending',
+        fulfillmentStatus: null,
+        paymentStatus: status,
+        totalAmount: total,
+        currency: 'INR',
+        razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
+        isCod: cod > 0,
+        omsStatus: null,
+        createdAt: String(row.created_at),
+        rawPayload: {
+            quote_number: row.quote_number,
+            expires_at: row.expires_at,
+            payment_type: row.payment_type,
+            prepaid_amount: row.prepaid_amount,
+            cod_amount: row.cod_amount,
+            hours_left: row.expires_at
+                ? Math.max(0, Math.round((new Date(String(row.expires_at)).getTime() - Date.now()) / (1000 * 60 * 60)))
+                : 0,
+        },
+        displayOrderId: String(row.quote_number ?? row.id),
+        farmerName: String(row.customer_name ?? 'Guest'),
+        paymentLabel,
+        status: orderStatus,
+    };
+}
+function mergeOrders(commerce, checkouts, quotes = []) {
     const seenShopify = new Set(commerce.map((o) => o.shopifyOrderId).filter(Boolean));
     const extra = checkouts.filter((c) => !c.shopifyOrderId || !seenShopify.has(c.shopifyOrderId));
-    return [...commerce, ...extra].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return [...quotes, ...commerce, ...extra].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }
 function toPublicOrder(o) {
+    const raw = o.rawPayload ?? {};
     return {
         id: o.id,
         source: o.source,
@@ -199,6 +248,11 @@ function toPublicOrder(o) {
         fulfillmentStatus: o.fulfillmentStatus,
         omsStatus: o.source === 'shopify' ? o.omsStatus : null,
         createdAt: o.createdAt,
+        quoteExpiresAt: o.source === 'quote' ? raw.expires_at : undefined,
+        quoteHoursLeft: o.source === 'quote' ? raw.hours_left : undefined,
+        quotePaymentType: o.source === 'quote' ? raw.payment_type : undefined,
+        prepaidAmount: o.source === 'quote' ? Number(raw.prepaid_amount) || 0 : undefined,
+        codAmount: o.source === 'quote' ? Number(raw.cod_amount) || 0 : undefined,
     };
 }
 function parseMoney(v) {
@@ -447,7 +501,8 @@ export const ordersAdminService = {
         const page = Math.max(1, query.page ?? 1);
         const limit = Math.min(50, Math.max(8, query.limit ?? 8));
         const statusFilter = query.status ?? 'all';
-        const [commerce, checkouts] = await Promise.all([
+        await commerceQuoteService.purgeExpired();
+        const [commerce, checkouts, quotes] = await Promise.all([
             supabase
                 .from('commerce_orders')
                 .select('*')
@@ -459,10 +514,17 @@ export const ordersAdminService = {
                 .in('status', ['paid', 'pending', 'failed'])
                 .order('created_at', { ascending: false })
                 .limit(500),
+            supabase
+                .from('commerce_quotes')
+                .select('*')
+                .in('status', ['pending', 'checkout'])
+                .order('created_at', { ascending: false })
+                .limit(500),
         ]);
         throwIfSupabaseError(commerce.error, 'Could not load orders');
         throwIfSupabaseError(checkouts.error, 'Could not load checkout orders');
-        let orders = mergeOrders((commerce.data ?? []).map(mapCommerceOrder), (checkouts.data ?? []).map(mapCheckoutSession));
+        throwIfSupabaseError(quotes.error, 'Could not load quotes');
+        let orders = mergeOrders((commerce.data ?? []).map(mapCommerceOrder), (checkouts.data ?? []).map(mapCheckoutSession), (quotes.data ?? []).map((r) => mapQuote(r)));
         await attachFarmerNames(orders);
         if (query.search?.trim()) {
             const term = query.search.trim().toLowerCase();
@@ -510,6 +572,75 @@ export const ordersAdminService = {
         };
     },
     async get(id) {
+        const { data: quoteRow, error: quoteErr } = await supabase
+            .from('commerce_quotes')
+            .select('*')
+            .eq('id', id)
+            .maybeSingle();
+        throwIfSupabaseError(quoteErr, 'Could not load quote');
+        if (quoteRow) {
+            const q = mapQuote(quoteRow);
+            const lineItems = (quoteRow.line_items ?? []).map((li) => ({
+                product: String(li.title ?? 'Product'),
+                variant: String(li.sku ?? li.variantTitle ?? '—'),
+                mrp: Number(li.unitPrice) || 0,
+                price: Number(li.unitPrice) || 0,
+                qty: Number(li.qty) || 1,
+                total: Number(li.amountInclGst) || 0,
+                isFree: false,
+                hsnCode: li.hsnCode ? String(li.hsnCode) : undefined,
+                gstPercent: Number(li.gstPercent) || 18,
+                sku: li.sku ? String(li.sku) : undefined,
+            }));
+            const subtotal = Number(quoteRow.subtotal) || 0;
+            const cgst = Number(quoteRow.cgst) || 0;
+            const sgst = Number(quoteRow.sgst) || 0;
+            const igst = Number(quoteRow.igst) || 0;
+            const total = Number(quoteRow.total) || 0;
+            const ship = quoteRow.shipping_address ?? {};
+            const shipLines = [
+                ship.address1 ?? ship.address,
+                ship.address2,
+                [ship.city, ship.state, ship.pincode].filter(Boolean).join(', '),
+            ].filter(Boolean);
+            return {
+                ...toPublicOrder(q),
+                orderDate: formatOrderDateTime(q.createdAt),
+                paymentStatus: q.paymentLabel,
+                statusLabel: q.status.charAt(0).toUpperCase() + q.status.slice(1),
+                customer: {
+                    name: q.farmerName,
+                    phone: q.phone,
+                    email: q.email,
+                    addressShort: shipLines.join(', ') || '—',
+                },
+                shipping: {
+                    name: q.farmerName,
+                    addressLines: shipLines.length ? shipLines : ['—'],
+                    courier: '—',
+                    trackingId: '—',
+                },
+                lineItems,
+                totals: {
+                    subtotal,
+                    shipping: 0,
+                    discount: 0,
+                    total,
+                    cgst,
+                    sgst,
+                    igst,
+                    prepaidAmount: Number(quoteRow.prepaid_amount) || 0,
+                    codAmount: Number(quoteRow.cod_amount) || 0,
+                },
+                timeline: buildTimeline(q, q.rawPayload ?? null),
+                notes: q.source === 'quote'
+                    ? `Quote · expires ${formatOrderDateTime(String(quoteRow.expires_at))}`
+                    : '',
+                isQuote: true,
+                quoteStatus: String(quoteRow.status),
+                checkoutToken: String(quoteRow.checkout_token),
+            };
+        }
         const { data, error } = await supabase.from('commerce_orders').select('*').eq('id', id).maybeSingle();
         throwIfSupabaseError(error, 'Could not load order');
         if (data) {

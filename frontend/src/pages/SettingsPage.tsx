@@ -15,6 +15,7 @@ import {
   ReadOnlyBanner,
   TableWrap,
 } from '../components/ui';
+import { CompanySettingsPanel } from '../components/settings/CompanySettingsPanel';
 
 type Staff = {
   id: string;
@@ -57,8 +58,9 @@ export function SettingsPage({ canRead, canWrite }: { canRead: boolean; canWrite
   }
 
   return (
-    <div>
-      <p className="muted" style={{ marginBottom: 16 }}>
+    <div className="space-y-6">
+      <CompanySettingsPanel canWrite={canWrite} />
+      <p className="muted">
         Staff accounts and RBAC. For full employee workspace, use <strong>Employees</strong> in the sidebar.
       </p>
       {error ? <Alert tone="error">{error}</Alert> : null}

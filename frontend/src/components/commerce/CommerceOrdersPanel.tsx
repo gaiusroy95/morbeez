@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
+import { AddQuoteModal } from './AddQuoteModal';
 import {
   Alert,
   Badge,
@@ -27,6 +30,7 @@ type OrderRow = {
   paymentLabel: string;
   omsStatus?: string | null;
   createdAt: string;
+  quoteHoursLeft?: number;
 };
 
 type OrderTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -67,11 +71,27 @@ type OrderDetail = {
     qty: number;
     price: number;
     total: number;
+    hsnCode?: string;
+    gstPercent?: number;
+    sku?: string;
   }>;
-  totals: { subtotal: number; shipping: number; discount: number; total: number };
+  totals: {
+    subtotal: number;
+    shipping: number;
+    discount: number;
+    total: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+    prepaidAmount?: number;
+    codAmount?: number;
+  };
   timeline: TimelineStep[];
   notes: string;
   omsStatus?: string | null;
+  isQuote?: boolean;
+  quoteStatus?: string;
+  checkoutToken?: string;
 };
 
 const STATUS_TABS: Array<{ id: OrderTab; label: string }> = [
@@ -114,6 +134,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showAddQuote, setShowAddQuote] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -137,6 +158,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
           displayOrderId: String(o.displayOrderId ?? o.id),
           farmerName: String(o.farmerName ?? 'Guest'),
           amount: Number(o.amount ?? 0),
+          quoteHoursLeft: (o as OrderRow & { quoteHoursLeft?: number }).quoteHoursLeft,
         }))
       );
       if (d.tabCounts) setTabCounts(d.tabCounts);
@@ -206,6 +228,9 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
         >
           Search
         </Btn>
+        {canWrite ? (
+          <Btn onClick={() => setShowAddQuote(true)}>+ Add quote</Btn>
+        ) : null}
       </div>
 
       <div className="commerce-subtabs">
@@ -228,8 +253,8 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
 
       {!loading ? (
         <Panel
-          title="Orders & dispatch"
-          description="Click a row for shipping and timeline details. Shopify orders link to Warehouse for pick, pack, and COD."
+          title="Orders & quotes"
+          description="Quotes appear as pending for 48 hours. After payment they convert to Shopify orders automatically."
         >
           <TableWrap>
             <DataTable>
@@ -253,14 +278,27 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                       className="commerce-order-row"
                       onClick={() => void openDetail(o)}
                     >
-                      <td>{o.displayOrderId}</td>
+                      <td>
+                        {o.displayOrderId}
+                        {o.source === 'quote' ? (
+                          <>
+                            <br />
+                            <Badge tone="warn">Quote</Badge>
+                          </>
+                        ) : null}
+                      </td>
                       <td>
                         {o.farmerName}
                         <br />
                         <small className="muted">{o.phone ?? ''}</small>
                       </td>
                       <td>₹{o.amount.toLocaleString('en-IN')}</td>
-                      <td>{o.status}</td>
+                      <td>
+                        {o.status}
+                        {o.source === 'quote' && o.quoteHoursLeft != null ? (
+                          <small className="muted block">{o.quoteHoursLeft}h left</small>
+                        ) : null}
+                      </td>
                       <td>{o.paymentLabel}</td>
                       <td>
                         <small className="muted">
@@ -323,7 +361,13 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
 
       {(detailLoading || detail) && (
         <Modal
-          title={detail ? `Order ${detail.displayOrderId}` : 'Order details'}
+          title={
+            detail
+              ? detail.isQuote
+                ? `Quote ${detail.displayOrderId}`
+                : `Order ${detail.displayOrderId}`
+              : 'Order details'
+          }
           onClose={() => {
             setDetail(null);
             setDetailLoading(false);
@@ -383,36 +427,99 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   ))}
                 </p>
               </div>
+              {detail.isQuote && detail.quoteStatus !== 'paid' && canWrite ? (
+                <div className="order-detail-section">
+                  <h4>Checkout</h4>
+                  <p className="text-sm text-slate-600">
+                    Process to checkout, then pay via Razorpay. On success the quote becomes a real order.
+                  </p>
+                  <Link
+                    to={toPath(`commerce/quotes/${detail.id}/checkout`)}
+                    className="mt-2 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                  >
+                    Process to Checkout
+                  </Link>
+                </div>
+              ) : null}
               <div className="order-detail-section" style={{ gridColumn: '1 / -1' }}>
-                <h4>Line items</h4>
-                <TableWrap>
-                  <DataTable>
+                <h4>{detail.isQuote ? 'Items' : 'Line items'}</h4>
+                {detail.isQuote ? (
+                  <table className="quote-items-table">
                     <thead>
                       <tr>
-                        <th>Product</th>
-                        <th>Variant</th>
+                        <th>Description / SKU</th>
                         <th>Qty</th>
-                        <th>Total</th>
+                        <th>Unit price</th>
+                        <th>GST%</th>
+                        <th>Amount (incl. GST)</th>
                       </tr>
                     </thead>
                     <tbody>
                       {detail.lineItems.map((li, i) => (
                         <tr key={i}>
-                          <td>{li.product}</td>
-                          <td>{li.variant}</td>
+                          <td>
+                            <div>{li.product}</div>
+                            {li.sku ? <div className="sku">{li.sku}</div> : null}
+                            {li.hsnCode ? <div className="hsn">HSN: {li.hsnCode}</div> : null}
+                          </td>
                           <td>{li.qty}</td>
+                          <td>₹{li.price.toLocaleString('en-IN')}</td>
+                          <td>{li.gstPercent ?? 18}%</td>
                           <td>₹{li.total.toLocaleString('en-IN')}</td>
                         </tr>
                       ))}
                     </tbody>
-                  </DataTable>
-                </TableWrap>
-                <p className="mt-3 text-sm text-slate-600">
-                  Subtotal ₹{detail.totals.subtotal.toLocaleString('en-IN')} · Shipping ₹
-                  {detail.totals.shipping.toLocaleString('en-IN')} · Discount ₹
-                  {detail.totals.discount.toLocaleString('en-IN')} ·{' '}
-                  <strong>Total ₹{detail.totals.total.toLocaleString('en-IN')}</strong>
-                </p>
+                  </table>
+                ) : (
+                  <TableWrap>
+                    <DataTable>
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Variant</th>
+                          <th>Qty</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {detail.lineItems.map((li, i) => (
+                          <tr key={i}>
+                            <td>{li.product}</td>
+                            <td>{li.variant}</td>
+                            <td>{li.qty}</td>
+                            <td>₹{li.total.toLocaleString('en-IN')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </DataTable>
+                  </TableWrap>
+                )}
+                <div className="quote-summary">
+                  <div className="quote-summary-row">
+                    <span>Subtotal</span>
+                    <span>₹{detail.totals.subtotal.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="quote-summary-row quote-summary-total">
+                    <span>Total Amount (incl. GST)</span>
+                    <span>₹{detail.totals.total.toLocaleString('en-IN')}</span>
+                  </div>
+                  {detail.isQuote && (detail.totals.prepaidAmount ?? 0) > 0 ? (
+                    <>
+                      <div className="quote-summary-row">
+                        <span>Payment type</span>
+                        <span>Advance</span>
+                      </div>
+                      <div className="quote-summary-row">
+                        <span>Prepaid amount</span>
+                        <span>₹{(detail.totals.prepaidAmount ?? 0).toLocaleString('en-IN')}</span>
+                      </div>
+                      <div className="quote-summary-row">
+                        <span>COD amount</span>
+                        <span>₹{(detail.totals.codAmount ?? 0).toLocaleString('en-IN')}</span>
+                      </div>
+                    </>
+                  ) : null}
+                </div>
                 {detail.notes ? (
                   <p className="mt-2 text-sm">
                     <strong>Notes:</strong> {detail.notes}
@@ -423,6 +530,16 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
           ) : null}
         </Modal>
       )}
+      {showAddQuote ? (
+        <AddQuoteModal
+          onClose={() => setShowAddQuote(false)}
+          onCreated={() => {
+            setTab('pending');
+            setPage(1);
+            void load();
+          }}
+        />
+      ) : null}
     </>
   );
 }

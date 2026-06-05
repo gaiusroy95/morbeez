@@ -19,7 +19,7 @@ export declare const ordersAdminService: {
     list(query: OrdersListQuery): Promise<{
         orders: {
             id: string;
-            source: "shopify" | "razorpay_checkout";
+            source: "shopify" | "razorpay_checkout" | "quote";
             shopifyOrderId: string | null;
             orderName: string | null;
             displayOrderId: string;
@@ -34,6 +34,11 @@ export declare const ordersAdminService: {
             fulfillmentStatus: string | null;
             omsStatus: string | null;
             createdAt: string;
+            quoteExpiresAt: string | undefined;
+            quoteHoursLeft: number | undefined;
+            quotePaymentType: string | undefined;
+            prepaidAmount: number | undefined;
+            codAmount: number | undefined;
         }[];
         tabCounts: {
             all: number;
@@ -82,7 +87,7 @@ export declare const ordersAdminService: {
         }[];
         notes: string;
         id: string;
-        source: "shopify" | "razorpay_checkout";
+        source: "shopify" | "razorpay_checkout" | "quote";
         shopifyOrderId: string | null;
         orderName: string | null;
         displayOrderId: string;
@@ -97,6 +102,82 @@ export declare const ordersAdminService: {
         fulfillmentStatus: string | null;
         omsStatus: string | null;
         createdAt: string;
+        quoteExpiresAt: string | undefined;
+        quoteHoursLeft: number | undefined;
+        quotePaymentType: string | undefined;
+        prepaidAmount: number | undefined;
+        codAmount: number | undefined;
+    } | {
+        orderDate: string;
+        paymentStatus: string;
+        statusLabel: string;
+        customer: {
+            name: string;
+            phone: string | null;
+            email: string | null;
+            addressShort: string;
+        };
+        shipping: {
+            name: string;
+            addressLines: string[];
+            courier: string;
+            trackingId: string;
+        };
+        lineItems: {
+            product: string;
+            variant: string;
+            mrp: number;
+            price: number;
+            qty: number;
+            total: number;
+            isFree: boolean;
+            hsnCode: string | undefined;
+            gstPercent: number;
+            sku: string | undefined;
+        }[];
+        totals: {
+            subtotal: number;
+            shipping: number;
+            discount: number;
+            total: number;
+            cgst: number;
+            sgst: number;
+            igst: number;
+            prepaidAmount: number;
+            codAmount: number;
+        };
+        timeline: {
+            key: string;
+            label: string;
+            at: string | null;
+            done: boolean;
+            pending: boolean;
+        }[];
+        notes: string;
+        isQuote: boolean;
+        quoteStatus: string;
+        checkoutToken: string;
+        id: string;
+        source: "shopify" | "razorpay_checkout" | "quote";
+        shopifyOrderId: string | null;
+        orderName: string | null;
+        displayOrderId: string;
+        farmerName: string;
+        email: string | null;
+        phone: string | null;
+        amount: number;
+        currency: string;
+        paymentLabel: string;
+        status: "processing" | "pending" | "cancelled" | "delivered" | "shipped";
+        financialStatus: string | null;
+        fulfillmentStatus: string | null;
+        omsStatus: string | null;
+        createdAt: string;
+        quoteExpiresAt: string | undefined;
+        quoteHoursLeft: number | undefined;
+        quotePaymentType: string | undefined;
+        prepaidAmount: number | undefined;
+        codAmount: number | undefined;
     }>;
 };
 export {};

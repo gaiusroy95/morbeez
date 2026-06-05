@@ -12,6 +12,7 @@ import './styles/commerce-promotions.css';
 import './styles/warehouse-hub.css';
 import './styles/seo-hub.css';
 import './styles/commerce-promo-pages.css';
+import './styles/commerce-quotes.css';
 import './styles/product-wizard.css';
 import App from './App.tsx';
 

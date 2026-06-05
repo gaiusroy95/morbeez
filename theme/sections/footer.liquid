@@ -1,4 +1,4 @@
-<footer class="mt-auto border-t border-[var(--color-border)] bg-[var(--color-trust)] text-white morbeez-section--tight" role="contentinfo">
+<footer class="mt-auto border-t border-[var(--color-border)] bg-[var(--color-trust)] text-white morbeez-section--tight" role="contentinfo" data-morbeez-company>
   <div class="morbeez-container">
     <div class="grid gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-8">
       <div class="lg:col-span-3">
@@ -65,17 +65,19 @@
             {%- assign addr = section.settings.contact_address | default: settings.store_address -%}
             {%- assign phone = section.settings.contact_phone | default: settings.store_phone -%}
             {%- assign email = section.settings.contact_email | default: settings.store_email -%}
-            {%- if addr != blank -%}
-              <li>{{ addr }}</li>
-            {%- endif -%}
-            {%- if phone != blank -%}
-              <li><a href="tel:{{ phone | remove: ' ' }}" class="hover:text-[var(--color-accent)]">{{ phone }}</a></li>
-            {%- endif -%}
+            <li data-company-address {% if addr == blank %}hidden{% endif %}>{{ addr }}</li>
+            <li data-company-phone {% if phone == blank %}hidden{% endif %}>
+              {%- if phone != blank -%}
+                <a href="tel:{{ phone | remove: ' ' }}" class="hover:text-[var(--color-accent)]">{{ phone }}</a>
+              {%- endif -%}
+            </li>
+            <li data-company-whatsapp hidden></li>
             {%- if email != blank -%}
               <li><a href="mailto:{{ email }}" class="hover:text-[var(--color-accent)]">{{ email }}</a></li>
             {%- endif -%}
             <li><a href="/pages/contact" class="font-medium text-[var(--color-accent)] hover:underline">{{ 'header.menu_contact' | t }}</a></li>
           </ul>
+          <p class="mt-4 text-xs text-white/50" data-company-legal hidden></p>
           {%- if section.settings.show_app_promo and section.settings.app_promo_text != blank -%}
             <p class="mt-5 rounded-xl bg-white/5 px-4 py-3 text-xs text-white/60">{{ section.settings.app_promo_text }}</p>
           {%- endif -%}
@@ -95,7 +97,10 @@
     {%- endif -%}
 
     <div class="mt-12 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
-      <p class="text-xs text-white/50">&copy; {{ 'now' | date: '%Y' }} {{ shop.name }}. All rights reserved.</p>
+      <p class="text-xs text-white/50">
+        &copy; {{ 'now' | date: '%Y' }}
+        <span data-company-name>{{ shop.name }}</span>. All rights reserved.
+      </p>
       <div class="text-white/80">
         {%- render 'morbeez-language-switcher' -%}
       </div>

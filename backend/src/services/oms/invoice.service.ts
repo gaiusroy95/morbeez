@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { computeGstBreakup, normalizeIndianState } from '../../lib/gst.js';
+import { companySettingsService } from '../admin/company-settings.service.js';
 
 function invoiceNumber(prefix: string): string {
   return `${prefix}-${Date.now()}`;
@@ -28,7 +29,8 @@ export const invoiceService = {
     validityDays?: number;
     razorpayPaymentLinkUrl?: string;
   }) {
-    const companyState = normalizeIndianState(env.COMPANY_STATE);
+    const company = await companySettingsService.snapshot();
+    const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
     const validity = new Date();
     validity.setDate(validity.getDate() + (input.validityDays ?? 7));
 
@@ -77,7 +79,7 @@ export const invoiceService = {
         customer_gstin: input.customerGstin ?? null,
         customer_state: input.customerState,
         place_of_supply: input.customerState,
-        company_gstin: env.COMPANY_GSTIN ?? null,
+        company_gstin: company.gstin || env.COMPANY_GSTIN || null,
         company_state: companyState,
         subtotal,
         cgst,
@@ -87,6 +89,7 @@ export const invoiceService = {
         total,
         validity_date: validity.toISOString().slice(0, 10),
         razorpay_payment_link_url: input.razorpayPaymentLinkUrl ?? null,
+        metadata: { company: company.companySnapshot },
         issued_at: new Date().toISOString(),
       })
       .select('*')
@@ -102,11 +105,10 @@ export const invoiceService = {
 
   async generateDeliveryChallan(commerceOrderId: string, purpose = 'stock_transfer') {
     const inv = await this.generateDocument(commerceOrderId, 'delivery_challan');
-    await supabase
-      .from('invoices')
-      .update({ metadata: { purpose } })
-      .eq('id', inv.id);
-    return inv;
+    const existingMeta = (inv.metadata as Record<string, unknown> | null) ?? {};
+    const metadata = { ...existingMeta, purpose };
+    await supabase.from('invoices').update({ metadata }).eq('id', inv.id);
+    return { ...inv, metadata };
   },
 
   async generateDocument(
@@ -127,7 +129,8 @@ export const invoiceService = {
       .eq('commerce_order_id', commerceOrderId);
     throwIfSupabaseError(lineErr, 'Invoice lines');
 
-    const companyState = normalizeIndianState(env.COMPANY_STATE);
+    const company = await companySettingsService.snapshot();
+    const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
     const customerState = normalizeIndianState(order.customer_state);
     const prefix = documentType === 'tax_invoice' ? 'INV' : 'DC';
 
@@ -181,13 +184,14 @@ export const invoiceService = {
         customer_gstin: order.customer_gstin,
         customer_state: customerState,
         place_of_supply: customerState,
-        company_gstin: env.COMPANY_GSTIN ?? null,
+        company_gstin: company.gstin || env.COMPANY_GSTIN || null,
         company_state: companyState,
         subtotal,
         cgst,
         sgst,
         igst,
         total,
+        metadata: { company: company.companySnapshot },
         issued_at: new Date().toISOString(),
       })
       .select('*')

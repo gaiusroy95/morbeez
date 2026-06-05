@@ -4,6 +4,7 @@ import { adminAuthService } from '../../services/auth/admin-auth.service.js';
 import { adminDashboardService } from '../../services/admin/admin-dashboard.service.js';
 import { farmersAdminService } from '../../services/admin/farmers-admin.service.js';
 import { ordersAdminService } from '../../services/admin/orders-admin.service.js';
+import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
 import { inventoryAdminService } from '../../services/admin/inventory-admin.service.js';
 import { offersAdminService } from '../../services/admin/offers-admin.service.js';
 import { combosAdminService } from '../../services/admin/combos-admin.service.js';
@@ -366,12 +367,122 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, order });
   });
 
+  app.get(`${api}/quotes/catalog`, async (request, reply) => {
+    requireAdmin(request);
+    const q = request.query as { search?: string };
+    const items = await crmFarmerService.getOrderCatalog(q.search);
+    return reply.send({ ok: true, items });
+  });
+
+  app.post(`${api}/quotes`, async (request, reply) => {
+    requireAdminRole(request, 'super_admin', 'admin', 'manager', 'operations');
+    const actor = requireAdmin(request);
+    const body = z
+      .object({
+        customerName: z.string().min(1).max(120),
+        customerPhone: z.string().max(20).optional(),
+        customerEmail: z.string().email().max(255).optional(),
+        customerState: z.string().min(1).max(80),
+        customerGstin: z.string().max(20).optional(),
+        paymentType: z.enum(['full', 'partial', 'advance']).optional(),
+        prepaidAmount: z.number().min(0).optional(),
+        shippingAddress: z
+          .object({
+            address: z.string().optional(),
+            address1: z.string().optional(),
+            address2: z.string().optional(),
+            city: z.string().optional(),
+            state: z.string().optional(),
+            pincode: z.string().optional(),
+            zip: z.string().optional(),
+          })
+          .optional(),
+        lines: z
+          .array(
+            z.object({
+              variantId: z.number().optional(),
+              productId: z.number().optional(),
+              sku: z.string().optional(),
+              title: z.string().min(1),
+              variantTitle: z.string().optional(),
+              hsnCode: z.string().optional(),
+              qty: z.number().int().positive(),
+              unitPrice: z.number().positive(),
+              gstPercent: z.number().optional(),
+            })
+          )
+          .min(1),
+      })
+      .parse(request.body);
+    const quote = await commerceQuoteService.create(body, actor.id);
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'create',
+      resource: 'commerce_quotes',
+      resourceId: quote.id,
+    });
+    return reply.status(201).send({ ok: true, quote });
+  });
+
+  app.get(`${api}/quotes/:id`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const quote = await commerceQuoteService.get(id);
+    return reply.send({ ok: true, quote });
+  });
+
+  app.post(`${api}/quotes/:id/checkout`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        paymentType: z.enum(['full', 'partial']),
+        prepaidAmount: z.number().min(0).optional(),
+      })
+      .parse(request.body);
+    const quote = await commerceQuoteService.startCheckout(id, body);
+    return reply.send({ ok: true, quote });
+  });
+
+  app.post(`${api}/quotes/:id/pay`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const payment = await commerceQuoteService.createPayment(id);
+    return reply.send({ ok: true, ...payment });
+  });
+
+  app.post(`${api}/quotes/:id/verify`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        razorpayOrderId: z.string().min(1),
+        razorpayPaymentId: z.string().min(1),
+        razorpaySignature: z.string().min(1),
+      })
+      .parse(request.body);
+    const result = await commerceQuoteService.verifyPayment(id, body);
+    return reply.send({ ok: true, ...result });
+  });
+
   app.delete(`${api}/orders/:id`, async (request, reply) => {
     requireAdminRole(request, 'super_admin', 'admin', 'manager');
     const actor = requireAdmin(request);
     const { id } = request.params as { id: string };
     const q = request.query as { source?: string };
     const now = new Date().toISOString();
+    if (q.source === 'quote') {
+      await commerceQuoteService.delete(id);
+      await logAdminMutation({
+        actorId: actor.id,
+        actorEmail: actor.email,
+        action: 'archive',
+        resource: 'commerce_quotes',
+        resourceId: id,
+      });
+      return reply.send({ ok: true });
+    }
     if (q.source === 'razorpay_checkout') {
       const { error } = await supabase
         .from('checkout_sessions')

@@ -21,6 +21,7 @@ import { advisoryRoutes } from './routes/api/advisory.routes.js';
 import { authRoutes } from './routes/api/auth.routes.js';
 import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
+import { quotesRoutes } from './routes/api/quotes.routes.js';
 import { adminRoutes } from './routes/admin/admin.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
 import { LEGACY_CONSOLE_PATH, STAFF_API_V1, STAFF_PORTAL_PATH, } from './lib/staff-portal.js';
@@ -78,6 +79,7 @@ export async function buildApp() {
     await app.register(whatsappWebhookRoutes);
     await app.register(authRoutes);
     await app.register(checkoutRoutes);
+    await app.register(quotesRoutes);
     await app.register(adminRoutes);
     const consoleUrl = staffConsoleRedirectUrl();
     const portalMovedHandler = async (_request, reply) => {

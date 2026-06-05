@@ -5,8 +5,42 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { logAdminMutation } from '../../lib/admin-mutation-audit.js';
 import { assertSuperAdminDeactivationAllowed } from '../../lib/admin-guards.js';
+import { companySettingsService } from '../../services/admin/company-settings.service.js';
 export async function osSettingsRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/settings';
+    app.get(`${api}/company`, async (request, reply) => {
+        await assertModuleAccess(request, 'settings', 'read');
+        const company = await companySettingsService.get();
+        return reply.send({ ok: true, company });
+    });
+    app.put(`${api}/company`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'settings', 'write');
+        const body = z
+            .object({
+            companyName: z.string().max(200).optional(),
+            addressLine: z.string().max(500).optional(),
+            district: z.string().max(120).optional(),
+            state: z.string().max(80).optional(),
+            country: z.string().max(80).optional(),
+            pincode: z.string().max(12).optional(),
+            cin: z.string().max(40).optional(),
+            gstin: z.string().max(20).optional(),
+            licenceNumber: z.string().max(80).optional(),
+            customerCareNumber: z.string().max(20).optional(),
+            whatsappNumber: z.string().max(20).optional(),
+        })
+            .parse(request.body);
+        const company = await companySettingsService.update(body, actor.id);
+        await logAdminMutation({
+            actorId: actor.id,
+            actorEmail: actor.email,
+            action: 'update',
+            resource: 'company_settings',
+            resourceId: 'default',
+            details: body,
+        });
+        return reply.send({ ok: true, company });
+    });
     app.get(`${api}/staff`, async (request, reply) => {
         await assertModuleAccess(request, 'settings', 'read');
         const { data, error } = await supabase

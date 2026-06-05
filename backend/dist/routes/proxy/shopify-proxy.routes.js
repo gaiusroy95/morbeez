@@ -72,6 +72,12 @@ export async function shopifyProxyRoutes(app) {
         });
     });
     app.get('/proxy/health', async () => ({ ok: true, proxy: 'morbeez' }));
+    /** Company profile for footer, invoices reference, contact pages */
+    app.get('/proxy/company', async (_request, reply) => {
+        const { companySettingsService } = await import('../../services/admin/company-settings.service.js');
+        const company = await companySettingsService.get();
+        return reply.send({ ok: true, company });
+    });
     /** Published agronomy / crop-problem SEO pages for storefront hub + enhancements */
     app.get('/proxy/seo/pages', async (request, reply) => {
         const q = request.query;

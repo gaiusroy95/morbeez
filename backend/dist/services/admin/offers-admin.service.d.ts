@@ -30,7 +30,7 @@ export declare const offersAdminService: {
             validity: string;
             startsAt: string;
             endsAt: string;
-            status: "active" | "upcoming" | "expired";
+            status: "active" | "expired" | "upcoming";
             description: string | null;
         }[];
         tabCounts: {
@@ -50,7 +50,7 @@ export declare const offersAdminService: {
         validity: string;
         startsAt: string;
         endsAt: string;
-        status: "active" | "upcoming" | "expired";
+        status: "active" | "expired" | "upcoming";
         description: string | null;
     }>;
     createOffer(input: CreateOfferInput): Promise<{
@@ -63,7 +63,7 @@ export declare const offersAdminService: {
         validity: string;
         startsAt: string;
         endsAt: string;
-        status: "active" | "upcoming" | "expired";
+        status: "active" | "expired" | "upcoming";
         description: string | null;
     }>;
     listCoupons(): Promise<{

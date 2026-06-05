@@ -15,6 +15,7 @@ export const paths = {
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
+  commerceQuoteCheckout: 'commerce/quotes/:quoteId/checkout',
   warehouse: 'warehouse',
   seo: 'seo',
   commerceProductNew: 'commerce/products/new',
