@@ -137,6 +137,7 @@ export const safePriceEngineService = {
       recommendedMin: tiers.recommendedPrice,
       recommendedMax: tiers.listedPrice,
       hardFloorPrice: tiers.hardFloorPrice,
+      safePrice: tiers.safePrice,
     };
   },
 };

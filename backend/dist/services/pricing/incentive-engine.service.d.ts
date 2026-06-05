@@ -1,5 +1,4 @@
-import { pricingConfigService } from './pricing-config.service.js';
-import { type ProductPricingTiers } from './safe-price-engine.service.js';
+import { type RetailOrBulk } from './incentive-formulas.js';
 export type IncentiveLineResult = {
     variantId?: number;
     sku?: string;
@@ -8,39 +7,35 @@ export type IncentiveLineResult = {
     listedPrice: number;
     sellingPrice: number;
     recommendedPrice: number;
+    safePrice: number;
     hardFloorPrice: number;
     realizationPct: number;
     incentivePerUnit: number;
     incentiveTotal: number;
     grossProfitPerUnit: number;
     grossProfitTotal: number;
-    netProfitPerUnit: number;
-    netProfitTotal: number;
     warningLevel: 'none' | 'low_margin' | 'critical' | 'blocked';
     warningMessage: string | null;
     allowed: boolean;
 };
 export type IncentivePreviewResult = {
     lines: IncentiveLineResult[];
-    subtotalIncentive: number;
-    subtotalGrossProfit: number;
-    subtotalNetProfit: number;
-    avgRealizationPct: number;
-    bulkOrderBonus: number;
-    totalIncentive: number;
+    retailOrBulk: RetailOrBulk;
     orderTotal: number;
+    subtotalGrossProfit: number;
+    avgRealizationPct: number;
+    totalIncentive: number;
+    baseIncentivePct: number;
+    realizationMultiplier: number;
+    monthlyAchievementPct: number;
+    monthlyMtdSalesInr: number;
+    bulkGrossMarginPct: number | null;
     performanceHint: 'excellent' | 'good' | 'warning' | 'critical';
     warnings: string[];
+    needsOwnerReview: boolean;
+    hardFloorBlocked: boolean;
 };
 export declare const incentiveEngineService: {
-    computeLine(input: {
-        tiers: ProductPricingTiers;
-        sellingPrice: number;
-        qty: number;
-        incentiveFactor?: number;
-        config: Awaited<ReturnType<typeof pricingConfigService.getConfig>>;
-    }): IncentiveLineResult;
-    computeBulkBonus(orderTotal: number, config: Awaited<ReturnType<typeof pricingConfigService.getConfig>>): number;
     previewQuote(input: {
         lines: Array<{
             variantId?: number;
@@ -69,5 +64,9 @@ export declare const incentiveEngineService: {
         }>;
     }): Promise<void>;
     validateHardFloors(preview: IncentivePreviewResult): void;
+    validateBulkMargin(preview: IncentivePreviewResult, opts?: {
+        approved?: boolean;
+        requestReview?: boolean;
+    }): void;
 };
 //# sourceMappingURL=incentive-engine.service.d.ts.map

@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { pricingConfigService } from './pricing-config.service.js';
+import { employeeKpiService } from './employee-kpi.service.js';
 function statusFromRealization(avgPct, netProfit, config) {
     if (avgPct >= config.realizationExcellent && netProfit > 0)
         return 'excellent';
@@ -81,6 +82,8 @@ export const employeePerformanceService = {
             })
                 .eq('employee_profile_id', employeeProfileId);
         }
+        const monthYear = date.slice(0, 7);
+        await employeeKpiService.recomputeMonthlyKpi(employeeProfileId, monthYear).catch(() => { });
         return snapshot;
     },
     async getDashboard(opts) {

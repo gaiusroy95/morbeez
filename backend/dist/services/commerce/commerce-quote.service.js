@@ -67,6 +67,9 @@ function mapRow(row) {
         createdAt: String(row.created_at),
         updatedAt: String(row.updated_at),
         hoursLeft,
+        bulkMarginReviewStatus: row.bulk_margin_review_status
+            ? String(row.bulk_margin_review_status)
+            : null,
     };
 }
 function quoteViewUrl(quoteId) {
@@ -113,6 +116,7 @@ function buildWhatsAppUrl(phone, quote) {
 }
 async function applyQuotePricing(input) {
     const { incentiveEngineService } = await import('../pricing/incentive-engine.service.js');
+    const { bulkMarginReviewService } = await import('../pricing/bulk-margin-review.service.js');
     const preview = await incentiveEngineService.previewQuote({
         lines: input.lines.map((l) => ({
             variantId: l.variantId,
@@ -125,6 +129,32 @@ async function applyQuotePricing(input) {
         adminUserId: input.adminUserId ?? undefined,
     });
     incentiveEngineService.validateHardFloors(preview);
+    const bulkApproved = await bulkMarginReviewService.isApprovedForQuote(input.quoteId);
+    incentiveEngineService.validateBulkMargin(preview, {
+        approved: bulkApproved,
+        requestReview: input.requestBulkReview,
+    });
+    if (preview.needsOwnerReview && input.requestBulkReview && !bulkApproved) {
+        let employeeProfileId = null;
+        if (input.adminUserId) {
+            const { data: profile } = await supabase
+                .from('employee_profiles')
+                .select('id')
+                .eq('admin_user_id', input.adminUserId)
+                .maybeSingle();
+            employeeProfileId = profile?.id ? String(profile.id) : null;
+        }
+        await bulkMarginReviewService.createRequest({
+            quoteId: input.quoteId,
+            leadId: input.leadId,
+            adminUserId: input.adminUserId,
+            employeeProfileId,
+            orderValueInr: preview.orderTotal,
+            grossProfitInr: preview.subtotalGrossProfit,
+            grossMarginPct: preview.bulkGrossMarginPct ?? 0,
+            requestedByName: input.preparedByName,
+        });
+    }
     await incentiveEngineService.recordQuoteLedger({
         quoteId: input.quoteId,
         leadId: input.leadId,
@@ -357,6 +387,7 @@ export const commerceQuoteService = {
             farmerId: String(lead.farmerId),
             preparedByName: input.preparedByName,
             orderType: input.orderType,
+            requestBulkReview: input.requestBulkReview,
         }, adminId);
     },
     async updateFromLead(quoteId, leadId, input, adminId) {
@@ -375,6 +406,8 @@ export const commerceQuoteService = {
                 adminUserId: adminId,
                 lines: input.lines,
                 orderType: input.orderType,
+                requestBulkReview: input.requestBulkReview,
+                preparedByName: input.preparedByName,
             });
         }
         return updated;
@@ -401,6 +434,17 @@ export const commerceQuoteService = {
         }
         if (quote.status === 'expired' || quote.status === 'cancelled') {
             throw new ValidationError('Quote is no longer active');
+        }
+        const { data: quoteRow } = await supabase
+            .from('commerce_quotes')
+            .select('bulk_margin_review_status')
+            .eq('id', quoteId)
+            .maybeSingle();
+        if (quoteRow?.bulk_margin_review_status === 'pending') {
+            throw new ValidationError('Quote pending owner approval for bulk margin — cannot send yet');
+        }
+        if (quoteRow?.bulk_margin_review_status === 'rejected') {
+            throw new ValidationError('Bulk margin review was rejected — revise pricing before sending');
         }
         const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
         const detail = await telecallerAdminService.getLeadDetail(leadId);
@@ -505,6 +549,8 @@ export const commerceQuoteService = {
                 adminUserId: adminId,
                 lines: input.lines,
                 orderType: input.orderType,
+                requestBulkReview: input.requestBulkReview,
+                preparedByName: input.preparedByName,
             });
         }
         return quote;

@@ -366,6 +366,30 @@
   color: #065f46;
 }
 
+.est-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.est-bulk-review-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.est-bulk-review-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #78350f;
+}
+
 .est-doc-checkout--accept {
   background: #0d9488;
 }

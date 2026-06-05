@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Badge, Loading, Panel, TableWrap, DataTable } from '../ui';
+import { Badge, Btn, Loading, Panel, TableWrap, DataTable } from '../ui';
 
 const pricingApi = '/morbeez-staff/api/v1/os/pricing';
 
@@ -10,45 +10,76 @@ type Row = {
   employeeCode: string;
   salesVolumeInr: number;
   avgRealizationPct: number;
-  netProfitInr: number;
+  grossProfitInr: number;
+  totalScore: number;
+  grade: string;
+  profitLabel: string;
+  salesAchievementPct: number;
   incentiveEarnedInr: number;
-  status: 'excellent' | 'good' | 'warning' | 'critical' | 'restricted';
-  actionStage: number;
 };
-
-function statusTone(s: Row['status']) {
-  if (s === 'excellent') return 'success';
-  if (s === 'good') return 'info';
-  if (s === 'warning') return 'warning';
-  return 'error';
-}
 
 function formatInr(n: number) {
   if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L`;
   return `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 }
 
+function gradeTone(g: string) {
+  if (g === 'A+') return 'success';
+  if (g === 'A') return 'info';
+  if (g === 'B') return 'neutral';
+  if (g === 'C') return 'warning';
+  return 'error';
+}
+
 export function EmployeePricingDashboard() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [monthYear, setMonthYear] = useState('');
   const [loading, setLoading] = useState(true);
+  const [recomputing, setRecomputing] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    api<{ ok: boolean; employees: Row[] }>(`${pricingApi}/performance/dashboard`)
-      .then((d) => setRows(d.employees ?? []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load pricing KPIs'))
+  function load() {
+    setLoading(true);
+    api<{ ok: boolean; monthYear: string; employees: Row[] }>(`${pricingApi}/kpi/dashboard`)
+      .then((d) => {
+        setMonthYear(d.monthYear);
+        setRows(d.employees ?? []);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load KPIs'))
       .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    load();
   }, []);
+
+  async function recompute() {
+    setRecomputing(true);
+    try {
+      await api(`${pricingApi}/kpi/recompute`, { method: 'POST', body: JSON.stringify({}) });
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Recompute failed');
+    } finally {
+      setRecomputing(false);
+    }
+  }
 
   return (
     <Panel
-      title="Sales realization & profit"
-      description="Avg realization %, net profit, incentive — ranked by profit contribution"
+      title="Sales performance & incentives"
+      description="Monthly KPI score (100 pts) · Target ₹6L · Retail realization + bulk profit rules"
+      actions={
+        <Btn size="sm" variant="secondary" disabled={recomputing} onClick={() => void recompute()}>
+          {recomputing ? 'Updating…' : 'Refresh KPIs'}
+        </Btn>
+      }
     >
-      {loading ? <Loading label="Loading pricing KPIs…" /> : null}
+      {loading ? <Loading label="Loading KPI dashboard…" /> : null}
       {error ? <p className="pricing-dash-error">{error}</p> : null}
+      {monthYear ? <p className="muted text-xs mb-2">Period: {monthYear}</p> : null}
       {!loading && !error && rows.length === 0 ? (
-        <p className="muted">No sales data yet — quotes with pricing will appear here.</p>
+        <p className="muted">No KPI data yet — save quotes/orders to populate scores.</p>
       ) : null}
       {!loading && rows.length > 0 ? (
         <TableWrap>
@@ -57,10 +88,10 @@ export function EmployeePricingDashboard() {
               <tr>
                 <th>Employee</th>
                 <th>Sales</th>
-                <th>Avg realization</th>
-                <th>Net profit</th>
-                <th>Incentive</th>
-                <th>Status</th>
+                <th>Realization</th>
+                <th>Profit</th>
+                <th>Score</th>
+                <th>Grade</th>
               </tr>
             </thead>
             <tbody>
@@ -70,15 +101,18 @@ export function EmployeePricingDashboard() {
                     <strong>{r.fullName}</strong>
                     <div className="muted text-xs">{r.employeeCode}</div>
                   </td>
-                  <td>{formatInr(r.salesVolumeInr)}</td>
-                  <td>{r.avgRealizationPct.toFixed(1)}%</td>
-                  <td>{formatInr(r.netProfitInr)}</td>
-                  <td>{formatInr(r.incentiveEarnedInr)}</td>
                   <td>
-                    <Badge tone={statusTone(r.status)}>{r.status}</Badge>
-                    {r.actionStage > 0 ? (
-                      <span className="pricing-action-stage">Stage {r.actionStage}</span>
-                    ) : null}
+                    {formatInr(r.salesVolumeInr)}
+                    <div className="muted text-xs">{r.salesAchievementPct.toFixed(0)}% of target</div>
+                  </td>
+                  <td>{r.avgRealizationPct.toFixed(1)}%</td>
+                  <td>
+                    {formatInr(r.grossProfitInr)}
+                    <div className="muted text-xs">{r.profitLabel}</div>
+                  </td>
+                  <td>{r.totalScore.toFixed(0)}</td>
+                  <td>
+                    <Badge tone={gradeTone(r.grade)}>{r.grade}</Badge>
                   </td>
                 </tr>
               ))}

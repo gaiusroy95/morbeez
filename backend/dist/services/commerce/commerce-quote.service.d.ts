@@ -50,6 +50,7 @@ export type CommerceQuote = {
     createdAt: string;
     updatedAt: string;
     hoursLeft?: number;
+    bulkMarginReviewStatus?: 'pending' | 'approved' | 'rejected' | null;
 };
 type QuoteLineInput = {
     variantId?: number;
@@ -100,6 +101,7 @@ export declare const commerceQuoteService: {
         paymentType?: "full" | "partial" | "advance";
         preparedByName?: string;
         orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
+        requestBulkReview?: boolean;
     }, adminId?: string): Promise<CommerceQuote>;
     updateFromLead(quoteId: string, leadId: string, input: {
         lines: QuoteLineInput[];
@@ -107,6 +109,7 @@ export declare const commerceQuoteService: {
         paymentType?: "full" | "partial" | "advance";
         preparedByName?: string;
         orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
+        requestBulkReview?: boolean;
     }, adminId?: string): Promise<CommerceQuote>;
     getShareLinks(quoteId: string, leadId?: string): Promise<{
         text: string;
@@ -135,6 +138,7 @@ export declare const commerceQuoteService: {
         farmerId?: string;
         preparedByName?: string;
         orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
+        requestBulkReview?: boolean;
         lines: Array<{
             variantId?: number;
             productId?: number;

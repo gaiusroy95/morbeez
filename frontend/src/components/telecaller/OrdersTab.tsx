@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
+import {
+  BulkMarginReviewBadge,
+  type BulkMarginReviewStatus,
+} from './BulkMarginReviewBadge';
 import { QuoteActionsDropdown } from './QuoteActionsDropdown';
 import type { OrderListRow } from './OrderDetailModal';
 
@@ -37,6 +41,7 @@ type EstimateRow = {
   createdAt: string;
   expiresAt: string;
   hoursLeft?: number;
+  bulkMarginReviewStatus?: BulkMarginReviewStatus;
 };
 
 type UnifiedRow =
@@ -54,6 +59,7 @@ type UnifiedRow =
       sentAt: string | null;
       whatsappSentAt: string | null;
       emailSentAt: string | null;
+      bulkMarginReviewStatus?: BulkMarginReviewStatus;
     }
   | {
       kind: 'order';
@@ -200,6 +206,7 @@ export function OrdersTab({
       sentAt: e.sentAt,
       whatsappSentAt: e.whatsappSentAt,
       emailSentAt: e.emailSentAt,
+      bulkMarginReviewStatus: e.bulkMarginReviewStatus ?? null,
     }));
     const ordRows: UnifiedRow[] = orders.map((o) => ({
       kind: 'order',
@@ -412,7 +419,12 @@ export function OrdersTab({
                     <td>{row.paymentLabel}</td>
                     <td>
                       {row.kind === 'estimate' ? (
-                        <span className={estimateStatusClass(row.status)}>{row.status}</span>
+                        <div className="est-status-stack">
+                          <span className={estimateStatusClass(row.status)}>{row.status}</span>
+                          {row.bulkMarginReviewStatus ? (
+                            <BulkMarginReviewBadge status={row.bulkMarginReviewStatus} />
+                          ) : null}
+                        </div>
                       ) : (
                         <span className="tc-ord-status tc-ord-status--success">{row.status}</span>
                       )}
@@ -421,6 +433,7 @@ export function OrdersTab({
                       <td className="est-list-actions" onClick={(e) => e.stopPropagation()}>
                         <QuoteActionsDropdown
                           status={row.status}
+                          bulkMarginReviewStatus={row.bulkMarginReviewStatus}
                           busy={sendingId === row.id}
                           onView={() => onOpenEstimate(row.id)}
                           onEdit={() => onEditEstimate(row.id)}

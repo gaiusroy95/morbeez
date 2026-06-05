@@ -5,6 +5,11 @@ import { useAuth } from '../../context/AuthContext';
 import { openQuoteSendLinks } from '../../lib/quoteSend';
 import { Modal, inputClass } from '../Modal';
 import { Alert, Btn, Loading } from '../ui';
+import {
+  BulkMarginReviewBadge,
+  bulkReviewHint,
+  type BulkMarginReviewStatus,
+} from './BulkMarginReviewBadge';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 const pricingApi = '/morbeez-staff/api/v1/os/pricing';
@@ -46,10 +51,18 @@ type PricingLinePreview = {
 
 type PricingPreview = {
   lines: PricingLinePreview[];
+  retailOrBulk: 'retail' | 'bulk';
   totalIncentive: number;
   avgRealizationPct: number;
+  baseIncentivePct: number;
+  realizationMultiplier: number;
+  monthlyAchievementPct: number;
+  orderTotal: number;
+  bulkGrossMarginPct: number | null;
   performanceHint: 'excellent' | 'good' | 'warning' | 'critical';
   warnings: string[];
+  needsOwnerReview?: boolean;
+  hardFloorBlocked?: boolean;
 };
 
 type Props = {
@@ -106,6 +119,7 @@ export function CreateEstimateModal({
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(isEdit);
   const [error, setError] = useState('');
+  const [savedBulkReviewStatus, setSavedBulkReviewStatus] = useState<BulkMarginReviewStatus>(null);
 
   const [addSearch, setAddSearch] = useState('');
   const [searchResults, setSearchResults] = useState<CatalogItem[]>([]);
@@ -127,6 +141,7 @@ export function CreateEstimateModal({
       ok: boolean;
       quote: {
         prepaidAmount: number;
+        bulkMarginReviewStatus?: BulkMarginReviewStatus;
         lineItems: Array<{
           variantId?: number;
           productId?: number;
@@ -141,6 +156,7 @@ export function CreateEstimateModal({
     }>(`${base}/leads/${leadId}/estimates/${estimateId}`)
       .then((d) => {
         const q = d.quote;
+        setSavedBulkReviewStatus(q.bulkMarginReviewStatus ?? null);
         setPrepaidAmount(q.prepaidAmount > 0 ? String(q.prepaidAmount) : '');
         setLines(
           (q.lineItems ?? []).map((li, i) => ({
@@ -240,7 +256,11 @@ export function CreateEstimateModal({
   const subtotal = useMemo(() => lines.reduce((s, l) => s + lineTotal(l), 0), [lines]);
   const prepaid = Number(prepaidAmount) || 0;
   const codAmount = Math.max(0, subtotal - prepaid);
-  const hasBlocked = pricingPreview?.lines.some((l) => !l.allowed) ?? false;
+  const hasHardFloorBlocked = pricingPreview?.hardFloorBlocked ?? pricingPreview?.lines.some((l) => !l.allowed) ?? false;
+  const needsOwnerReview = pricingPreview?.needsOwnerReview ?? false;
+  const needsApprovalFlow = needsOwnerReview && savedBulkReviewStatus !== 'approved';
+  const bulkReviewStatus = savedBulkReviewStatus;
+  const reviewHint = bulkReviewHint(bulkReviewStatus);
 
   const previewByIndex = useMemo(() => pricingPreview?.lines ?? [], [pricingPreview]);
 
@@ -286,20 +306,24 @@ export function CreateEstimateModal({
     setLines((prev) => prev.filter((l) => l.key !== key));
   }
 
-  async function saveAndSend() {
+  async function saveQuote(send: boolean, requestBulkReview = false) {
     setSaving(true);
     setError('');
     try {
       if (!lines.length) throw new Error('Add at least one product');
-      if (hasBlocked) throw new Error('One or more rates are below the hard floor — adjust pricing');
+      if (hasHardFloorBlocked) throw new Error('One or more rates are below the hard floor — adjust pricing');
+      if (send && needsApprovalFlow) {
+        throw new Error('Bulk margin below minimum — save for owner approval first');
+      }
 
       const payload = {
         prepaidAmount: prepaid > 0 ? prepaid : 0,
         paymentType: 'advance' as const,
         preparedByName,
         orderType,
-        send: true,
-        sendChannels: ['whatsapp', 'email'] as const,
+        send,
+        requestBulkReview: requestBulkReview || (needsApprovalFlow && !send),
+        sendChannels: send ? (['whatsapp', 'email'] as const) : undefined,
         lines: lines.map((l) => ({
           variantId: l.variantId,
           productId: l.productId,
@@ -345,19 +369,41 @@ export function CreateEstimateModal({
           <Btn variant="secondary" onClick={onClose}>
             Cancel
           </Btn>
-          <Btn
-            variant="primary"
-            disabled={saving || loadingQuote || hasBlocked}
-            onClick={() => void saveAndSend()}
-          >
-            {saving ? 'Sending…' : 'Save and Send'}
-          </Btn>
+          {needsApprovalFlow ? (
+            <Btn
+              variant="primary"
+              disabled={saving || loadingQuote || hasHardFloorBlocked}
+              onClick={() => void saveQuote(false, true)}
+            >
+              {saving ? 'Saving…' : 'Save for owner approval'}
+            </Btn>
+          ) : (
+            <Btn
+              variant="primary"
+              disabled={saving || loadingQuote || hasHardFloorBlocked}
+              onClick={() => void saveQuote(true)}
+            >
+              {saving ? 'Sending…' : savedBulkReviewStatus === 'approved' ? 'Send quote' : 'Save and Send'}
+            </Btn>
+          )}
         </>
       }
     >
       {error ? <Alert tone="error">{error}</Alert> : null}
-      {pricingPreview?.warnings.length ? (
-        <Alert tone="warning">{pricingPreview.warnings.join(' · ')}</Alert>
+      {bulkReviewStatus ? (
+        <div className="quote-bulk-review-banner">
+          <BulkMarginReviewBadge status={bulkReviewStatus} />
+          {reviewHint ? <span className="quote-bulk-review-hint">{reviewHint}</span> : null}
+        </div>
+      ) : null}
+      {needsApprovalFlow && !bulkReviewStatus ? (
+        <Alert tone="warn">
+          {pricingPreview?.warnings?.length
+            ? `${pricingPreview.warnings.join(' · ')} — use "Save for owner approval" to submit.`
+            : 'Bulk margin below minimum — save for owner approval before sending.'}
+        </Alert>
+      ) : pricingPreview?.warnings?.length ? (
+        <Alert tone="warn">{pricingPreview.warnings.join(' · ')}</Alert>
       ) : null}
 
       <div className="quote-farmer-banner">
@@ -373,16 +419,21 @@ export function CreateEstimateModal({
           </div>
         </div>
         <label className="quote-order-type">
-          <span>Order type</span>
+          <span>Order mode</span>
           <select
             className={inputClass}
             value={orderType}
             onChange={(e) => setOrderType(e.target.value as 'standard' | 'bulk')}
           >
-            <option value="standard">Standard</option>
-            <option value="bulk">Bulk</option>
+            <option value="standard">Auto (≤₹25k retail / bulk above)</option>
+            <option value="bulk">Force bulk</option>
           </select>
         </label>
+        {pricingPreview ? (
+          <span className={`quote-mode-badge quote-mode-badge--${pricingPreview.retailOrBulk}`}>
+            {pricingPreview.retailOrBulk === 'bulk' ? 'Bulk order' : 'Retail order'}
+          </span>
+        ) : null}
       </div>
 
       {loadingQuote ? <Loading label="Loading quote…" /> : null}
@@ -557,6 +608,16 @@ export function CreateEstimateModal({
                   {hintLabel(pricingPreview.performanceHint)}
                 </span>
                 <span>Avg realization {pricingPreview.avgRealizationPct}%</span>
+                {pricingPreview.retailOrBulk === 'retail' ? (
+                  <span>
+                    Base {(pricingPreview.baseIncentivePct * 100).toFixed(0)}% ×{' '}
+                    {pricingPreview.realizationMultiplier} mult
+                  </span>
+                ) : (
+                  <span>
+                    Bulk margin {pricingPreview.bulkGrossMarginPct ?? 0}% (min 12%)
+                  </span>
+                )}
                 <strong>Incentive {formatInr(pricingPreview.totalIncentive)}</strong>
                 {pricingLoading ? <span className="quote-pricing-loading">Updating…</span> : null}
               </div>

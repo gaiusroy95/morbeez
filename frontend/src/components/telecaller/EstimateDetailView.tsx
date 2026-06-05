@@ -4,6 +4,12 @@ import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
 import { Loading } from '../ui';
+import {
+  BulkMarginReviewBadge,
+  bulkReviewHint,
+  canSendQuoteWithBulkReview,
+  type BulkMarginReviewStatus,
+} from './BulkMarginReviewBadge';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -47,6 +53,7 @@ type EstimateDetail = {
     paymentType: string;
     createdAt: string;
     expiresAt: string;
+    bulkMarginReviewStatus?: BulkMarginReviewStatus;
   };
   company: Company;
   document: {
@@ -104,9 +111,15 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
 
   const { quote, company, document: doc } = data;
   const canCheckout = quote.status === 'pending' || quote.status === 'checkout';
-  const canEdit = canWrite && quote.status === 'pending';
+  const canEdit = canWrite && quote.status === 'pending' && quote.bulkMarginReviewStatus !== 'pending';
+  const canSend = canWrite && canSendQuoteWithBulkReview(quote.bulkMarginReviewStatus);
+  const reviewHint = bulkReviewHint(quote.bulkMarginReviewStatus);
 
   async function handleSend(channels: Array<'whatsapp' | 'email'>) {
+    if (!canSend) {
+      setError(reviewHint ?? 'Cannot send this quote yet');
+      return;
+    }
     setSending(true);
     setError('');
     try {
@@ -127,6 +140,13 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
 
+      {quote.bulkMarginReviewStatus ? (
+        <div className="est-bulk-review-banner">
+          <BulkMarginReviewBadge status={quote.bulkMarginReviewStatus} />
+          {reviewHint ? <p className="est-bulk-review-hint">{reviewHint}</p> : null}
+        </div>
+      ) : null}
+
       {canWrite ? (
         <div className="est-detail-actions">
           {canEdit && onEdit ? (
@@ -137,7 +157,8 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
           <button
             type="button"
             className="est-action-btn est-action-btn--wa"
-            disabled={sending}
+            disabled={sending || !canSend}
+            title={!canSend ? reviewHint ?? undefined : undefined}
             onClick={() => void handleSend(['whatsapp'])}
           >
             WhatsApp
@@ -145,7 +166,8 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
           <button
             type="button"
             className="est-action-btn est-action-btn--mail"
-            disabled={sending}
+            disabled={sending || !canSend}
+            title={!canSend ? reviewHint ?? undefined : undefined}
             onClick={() => void handleSend(['email'])}
           >
             Mail
@@ -153,10 +175,11 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
           <button
             type="button"
             className="est-action-btn est-action-btn--resend"
-            disabled={sending}
+            disabled={sending || !canSend}
+            title={!canSend ? reviewHint ?? undefined : undefined}
             onClick={() => void handleSend(['whatsapp', 'email'])}
           >
-            Resend
+            {quote.bulkMarginReviewStatus === 'approved' && !quote.sentAt ? 'Send quote' : 'Resend'}
           </button>
         </div>
       ) : null}

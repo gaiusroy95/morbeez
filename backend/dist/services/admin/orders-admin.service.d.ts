@@ -19,7 +19,7 @@ export declare const ordersAdminService: {
     list(query: OrdersListQuery): Promise<{
         orders: {
             id: string;
-            source: "shopify" | "razorpay_checkout" | "quote";
+            source: "shopify" | "quote" | "razorpay_checkout";
             shopifyOrderId: string | null;
             orderName: string | null;
             displayOrderId: string;
@@ -90,7 +90,7 @@ export declare const ordersAdminService: {
         }[];
         notes: string;
         id: string;
-        source: "shopify" | "razorpay_checkout" | "quote";
+        source: "shopify" | "quote" | "razorpay_checkout";
         shopifyOrderId: string | null;
         orderName: string | null;
         displayOrderId: string;
@@ -164,7 +164,7 @@ export declare const ordersAdminService: {
         quoteStatus: string;
         checkoutToken: string;
         id: string;
-        source: "shopify" | "razorpay_checkout" | "quote";
+        source: "shopify" | "quote" | "razorpay_checkout";
         shopifyOrderId: string | null;
         orderName: string | null;
         displayOrderId: string;

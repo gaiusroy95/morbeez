@@ -45,6 +45,7 @@ export declare const safePriceEngineService: {
         recommendedMin: number;
         recommendedMax: number;
         hardFloorPrice: number;
+        safePrice: number;
     };
 };
 //# sourceMappingURL=safe-price-engine.service.d.ts.map

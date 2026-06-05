@@ -1,8 +1,10 @@
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { canSendQuoteWithBulkReview, type BulkMarginReviewStatus } from './BulkMarginReviewBadge';
 
 type Props = {
   status: string;
+  bulkMarginReviewStatus?: BulkMarginReviewStatus;
   busy?: boolean;
   onView: () => void;
   onEdit: () => void;
@@ -13,6 +15,7 @@ type Props = {
 
 export function QuoteActionsDropdown({
   status,
+  bulkMarginReviewStatus,
   busy,
   onView,
   onEdit,
@@ -23,7 +26,8 @@ export function QuoteActionsDropdown({
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const canEdit = status === 'pending';
+  const canEdit = status === 'pending' && bulkMarginReviewStatus !== 'pending';
+  const canSend = canSendQuoteWithBulkReview(bulkMarginReviewStatus);
 
   useLayoutEffect(() => {
     if (!open || !anchor) {
@@ -97,10 +101,22 @@ export function QuoteActionsDropdown({
               >
                 Edit
               </button>
-              <button type="button" role="menuitem" onClick={() => run(onSendWhatsApp)}>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canSend}
+                title={!canSend ? 'Waiting for bulk margin approval' : undefined}
+                onClick={() => canSend && run(onSendWhatsApp)}
+              >
                 Send WhatsApp
               </button>
-              <button type="button" role="menuitem" onClick={() => run(onSendMail)}>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!canSend}
+                title={!canSend ? 'Waiting for bulk margin approval' : undefined}
+                onClick={() => canSend && run(onSendMail)}
+              >
                 Send mail
               </button>
               <button type="button" role="menuitem" className="danger" onClick={() => run(onDelete)}>

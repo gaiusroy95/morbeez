@@ -120,6 +120,12 @@ export const orderWhatsappService = {
             order?.tracking_url ??
             resolveTrackingUrl({ trackingId, courier: 'Delhivery' }) ??
             undefined;
+        if (trackingUrl && order?.id && !order.tracking_url) {
+            await supabase
+                .from('commerce_orders')
+                .update({ tracking_url: trackingUrl, updated_at: new Date().toISOString() })
+                .eq('id', order.id);
+        }
         const body = dispatchedMessage({
             lang: language,
             orderName,

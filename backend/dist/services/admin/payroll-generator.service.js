@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { incentiveCalculatorService } from './incentive-calculator.service.js';
 import { attendanceCalculatorService } from './attendance-calculator.service.js';
+import { salesPayrollService } from '../pricing/sales-payroll.service.js';
 export const payrollGeneratorService = {
     async generateCycle(year, month, actorId) {
         const { data: cycle, error: cycleErr } = await supabase
@@ -29,18 +29,22 @@ export const payrollGeneratorService = {
                 .select('*')
                 .eq('employee_profile_id', employeeId)
                 .maybeSingle();
-            const fixedSalary = Number(comp?.fixed_salary ?? 0);
-            const allowances = Number(comp?.travel_allowance ?? 0) +
-                (comp?.km_allowance_enabled ? Number(comp?.rate_per_km ?? 0) * 100 : 0);
-            const incentive = await incentiveCalculatorService.estimateMonthlyIncentive(employeeId, 300000, 55);
+            const fixedSalary = Number(comp?.fixed_salary ?? 30000);
+            const kmAllowance = comp?.km_allowance_enabled ? Number(comp?.rate_per_km ?? 0) * 100 : 0;
+            const travelAllowance = Number(comp?.travel_allowance ?? 0);
+            const allowances = travelAllowance + kmAllowance;
+            const sales = await salesPayrollService.getMonthlyTotals(employeeId, year, month);
+            const salesIncentive = sales.incentiveEarnedInr;
+            const quarterlyBonus = sales.quarterlyBonusInr;
+            const totalIncentive = salesIncentive + quarterlyBonus;
             const deductions = summary.salary_eligibility ? 0 : fixedSalary * 0.15;
-            const finalSalary = fixedSalary + allowances + incentive.totalBonus - deductions;
+            const finalSalary = fixedSalary + allowances + totalIncentive - deductions;
             const { error: entryErr } = await supabase.from('payroll_entries').upsert({
                 payroll_cycle_id: cycle.id,
                 employee_profile_id: employeeId,
                 fixed_salary: fixedSalary,
-                estimated_incentive: incentive.estimatedIncentive,
-                bonuses: incentive.totalBonus,
+                estimated_incentive: salesIncentive,
+                bonuses: quarterlyBonus,
                 km_allowance: allowances,
                 deductions,
                 final_salary: finalSalary,
@@ -52,7 +56,20 @@ export const payrollGeneratorService = {
                         workedDays: summary.worked_days,
                         salaryEligibility: summary.salary_eligibility,
                     },
-                    rules: { monthlySales: 300000, conversionRatePct: 55, conversionBonusAt: '>50%' },
+                    sales: {
+                        salesVolumeInr: sales.salesVolumeInr,
+                        grossProfitInr: sales.grossProfitInr,
+                        avgRealizationPct: sales.avgRealizationPct,
+                        salesAchievementPct: sales.salesAchievementPct,
+                        orderCount: sales.orderCount,
+                        kpiGrade: sales.kpiGrade,
+                        kpiScore: sales.kpiScore,
+                    },
+                    incentive: {
+                        salesIncentiveInr: salesIncentive,
+                        quarterlyBonusInr: quarterlyBonus,
+                        totalIncentiveInr: totalIncentive,
+                    },
                 },
                 updated_at: new Date().toISOString(),
             });

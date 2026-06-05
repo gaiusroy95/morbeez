@@ -23,6 +23,7 @@ import {
 } from '../components/ui';
 import { StatIcon } from '../components/NavIcon';
 import { EmployeePricingDashboard } from '../components/employees/EmployeePricingDashboard';
+import { BulkMarginReviewPanel } from '../components/employees/BulkMarginReviewPanel';
 
 type Employee = {
   id: string;
@@ -682,6 +683,10 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
 
       <div className="mb-4">
         <EmployeePricingDashboard />
+      </div>
+
+      <div className="mb-4">
+        <BulkMarginReviewPanel />
       </div>
 
       <div className="stat-grid">

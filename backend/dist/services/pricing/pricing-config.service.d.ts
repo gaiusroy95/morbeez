@@ -13,6 +13,21 @@ export type PricingEngineConfig = {
     bulkBonus25k: number;
     bulkBonus50k: number;
     bulkBonus100k: number;
+    monthlySalesTargetInr: number;
+    bulkOrderThresholdInr: number;
+    bulkProfitBonusPct: number;
+    bulkMinGrossMarginPct: number;
+    retailBaseIncentive0_50: number;
+    retailBaseIncentive50_80: number;
+    retailBaseIncentive80_100: number;
+    retailBaseIncentive100Plus: number;
+    realizationMult95Plus: number;
+    realizationMult90_95: number;
+    realizationMult85_90: number;
+    realizationMultBelow85: number;
+    quarterlyBonusAPlus: number;
+    quarterlyBonusA: number;
+    aPlusMinRealizationPct: number;
 };
 export declare const pricingConfigService: {
     getConfig(): Promise<PricingEngineConfig>;
@@ -31,6 +46,21 @@ export declare const pricingConfigService: {
         bulkBonus25k: number;
         bulkBonus50k: number;
         bulkBonus100k: number;
+        monthlySalesTargetInr: number;
+        bulkOrderThresholdInr: number;
+        bulkProfitBonusPct: number;
+        bulkMinGrossMarginPct: number;
+        retailBaseIncentive0_50: number;
+        retailBaseIncentive50_80: number;
+        retailBaseIncentive80_100: number;
+        retailBaseIncentive100Plus: number;
+        realizationMult95Plus: number;
+        realizationMult90_95: number;
+        realizationMult85_90: number;
+        realizationMultBelow85: number;
+        quarterlyBonusAPlus: number;
+        quarterlyBonusA: number;
+        aPlusMinRealizationPct: number;
     }>;
 };
 //# sourceMappingURL=pricing-config.service.d.ts.map

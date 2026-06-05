@@ -16,6 +16,21 @@ export type PricingEngineConfig = {
   bulkBonus25k: number;
   bulkBonus50k: number;
   bulkBonus100k: number;
+  monthlySalesTargetInr: number;
+  bulkOrderThresholdInr: number;
+  bulkProfitBonusPct: number;
+  bulkMinGrossMarginPct: number;
+  retailBaseIncentive0_50: number;
+  retailBaseIncentive50_80: number;
+  retailBaseIncentive80_100: number;
+  retailBaseIncentive100Plus: number;
+  realizationMult95Plus: number;
+  realizationMult90_95: number;
+  realizationMult85_90: number;
+  realizationMultBelow85: number;
+  quarterlyBonusAPlus: number;
+  quarterlyBonusA: number;
+  aPlusMinRealizationPct: number;
 };
 
 const DEFAULTS: PricingEngineConfig = {
@@ -33,6 +48,21 @@ const DEFAULTS: PricingEngineConfig = {
   bulkBonus25k: 300,
   bulkBonus50k: 700,
   bulkBonus100k: 1500,
+  monthlySalesTargetInr: 600_000,
+  bulkOrderThresholdInr: 25_000,
+  bulkProfitBonusPct: 10,
+  bulkMinGrossMarginPct: 12,
+  retailBaseIncentive0_50: 0.01,
+  retailBaseIncentive50_80: 0.02,
+  retailBaseIncentive80_100: 0.03,
+  retailBaseIncentive100Plus: 0.05,
+  realizationMult95Plus: 1.0,
+  realizationMult90_95: 0.7,
+  realizationMult85_90: 0.4,
+  realizationMultBelow85: 0.0,
+  quarterlyBonusAPlus: 5000,
+  quarterlyBonusA: 3000,
+  aPlusMinRealizationPct: 90,
 };
 
 function mapRow(row: Record<string, unknown>): PricingEngineConfig {
@@ -52,6 +82,21 @@ function mapRow(row: Record<string, unknown>): PricingEngineConfig {
     bulkBonus25k: Number(row.bulk_bonus_25k) || DEFAULTS.bulkBonus25k,
     bulkBonus50k: Number(row.bulk_bonus_50k) || DEFAULTS.bulkBonus50k,
     bulkBonus100k: Number(row.bulk_bonus_100k) || DEFAULTS.bulkBonus100k,
+    monthlySalesTargetInr: Number(row.monthly_sales_target_inr) || DEFAULTS.monthlySalesTargetInr,
+    bulkOrderThresholdInr: Number(row.bulk_order_threshold_inr) || DEFAULTS.bulkOrderThresholdInr,
+    bulkProfitBonusPct: Number(row.bulk_profit_bonus_pct) || DEFAULTS.bulkProfitBonusPct,
+    bulkMinGrossMarginPct: Number(row.bulk_min_gross_margin_pct) || DEFAULTS.bulkMinGrossMarginPct,
+    retailBaseIncentive0_50: Number(row.retail_base_incentive_0_50) || DEFAULTS.retailBaseIncentive0_50,
+    retailBaseIncentive50_80: Number(row.retail_base_incentive_50_80) || DEFAULTS.retailBaseIncentive50_80,
+    retailBaseIncentive80_100: Number(row.retail_base_incentive_80_100) || DEFAULTS.retailBaseIncentive80_100,
+    retailBaseIncentive100Plus: Number(row.retail_base_incentive_100_plus) || DEFAULTS.retailBaseIncentive100Plus,
+    realizationMult95Plus: Number(row.realization_mult_95_plus) ?? DEFAULTS.realizationMult95Plus,
+    realizationMult90_95: Number(row.realization_mult_90_95) ?? DEFAULTS.realizationMult90_95,
+    realizationMult85_90: Number(row.realization_mult_85_90) ?? DEFAULTS.realizationMult85_90,
+    realizationMultBelow85: Number(row.realization_mult_below_85) ?? DEFAULTS.realizationMultBelow85,
+    quarterlyBonusAPlus: Number(row.quarterly_bonus_a_plus) || DEFAULTS.quarterlyBonusAPlus,
+    quarterlyBonusA: Number(row.quarterly_bonus_a) || DEFAULTS.quarterlyBonusA,
+    aPlusMinRealizationPct: Number(row.a_plus_min_realization_pct) || DEFAULTS.aPlusMinRealizationPct,
   };
 }
 
@@ -81,6 +126,21 @@ export const pricingConfigService = {
       bulk_bonus_25k: merged.bulkBonus25k,
       bulk_bonus_50k: merged.bulkBonus50k,
       bulk_bonus_100k: merged.bulkBonus100k,
+      monthly_sales_target_inr: merged.monthlySalesTargetInr,
+      bulk_order_threshold_inr: merged.bulkOrderThresholdInr,
+      bulk_profit_bonus_pct: merged.bulkProfitBonusPct,
+      bulk_min_gross_margin_pct: merged.bulkMinGrossMarginPct,
+      retail_base_incentive_0_50: merged.retailBaseIncentive0_50,
+      retail_base_incentive_50_80: merged.retailBaseIncentive50_80,
+      retail_base_incentive_80_100: merged.retailBaseIncentive80_100,
+      retail_base_incentive_100_plus: merged.retailBaseIncentive100Plus,
+      realization_mult_95_plus: merged.realizationMult95Plus,
+      realization_mult_90_95: merged.realizationMult90_95,
+      realization_mult_85_90: merged.realizationMult85_90,
+      realization_mult_below_85: merged.realizationMultBelow85,
+      quarterly_bonus_a_plus: merged.quarterlyBonusAPlus,
+      quarterly_bonus_a: merged.quarterlyBonusA,
+      a_plus_min_realization_pct: merged.aPlusMinRealizationPct,
       updated_at: new Date().toISOString(),
     };
     if (existing?.id) {

@@ -5,6 +5,8 @@ import { pricingConfigService } from '../../services/pricing/pricing-config.serv
 import { safePriceEngineService } from '../../services/pricing/safe-price-engine.service.js';
 import { incentiveEngineService } from '../../services/pricing/incentive-engine.service.js';
 import { employeePerformanceService } from '../../services/pricing/employee-performance.service.js';
+import { employeeKpiService } from '../../services/pricing/employee-kpi.service.js';
+import { bulkMarginReviewService } from '../../services/pricing/bulk-margin-review.service.js';
 
 export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   const api = '/morbeez-staff/api/v1/os/pricing';
@@ -17,25 +19,8 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
 
   app.put(`${api}/config`, async (request, reply) => {
     await assertModuleAccess(request, 'commerce', 'write');
-    const body = z
-      .object({
-        targetGrossMarginPct: z.number().optional(),
-        recommendedPctOfListed: z.number().optional(),
-        safeMarginPctOfGross: z.number().optional(),
-        hardFloorMarginPctOfGross: z.number().optional(),
-        incentiveFactor: z.number().optional(),
-        platformCostPct: z.number().optional(),
-        adAllocationPct: z.number().optional(),
-        returnRiskPct: z.number().optional(),
-        realizationExcellent: z.number().optional(),
-        realizationGood: z.number().optional(),
-        realizationWarning: z.number().optional(),
-        bulkBonus25k: z.number().optional(),
-        bulkBonus50k: z.number().optional(),
-        bulkBonus100k: z.number().optional(),
-      })
-      .parse(request.body);
-    const config = await pricingConfigService.updateConfig(body);
+    const body = z.record(z.union([z.number(), z.string(), z.boolean()])).parse(request.body);
+    const config = await pricingConfigService.updateConfig(body as Parameters<typeof pricingConfigService.updateConfig>[0]);
     return reply.send({ ok: true, config });
   });
 
@@ -79,45 +64,83 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
       adminUserId: admin.id,
     });
 
-    const employeeLines = preview.lines.map((l) => ({
-      variantId: l.variantId,
-      sku: l.sku,
-      title: l.title,
-      qty: l.qty,
-      listedPrice: l.listedPrice,
-      sellingPrice: l.sellingPrice,
-      recommendedPrice: l.recommendedPrice,
-      hardFloorPrice: l.hardFloorPrice,
-      realizationPct: l.realizationPct,
-      incentiveTotal: l.incentiveTotal,
-      warningLevel: l.warningLevel,
-      warningMessage: l.warningMessage,
-      allowed: l.allowed,
-    }));
-
     return reply.send({
       ok: true,
       preview: {
-        lines: employeeLines,
-        subtotalIncentive: preview.subtotalIncentive,
+        lines: preview.lines.map((l) => ({
+          variantId: l.variantId,
+          sku: l.sku,
+          title: l.title,
+          qty: l.qty,
+          listedPrice: l.listedPrice,
+          sellingPrice: l.sellingPrice,
+          recommendedPrice: l.recommendedPrice,
+          safePrice: l.safePrice,
+          hardFloorPrice: l.hardFloorPrice,
+          realizationPct: l.realizationPct,
+          incentiveTotal: l.incentiveTotal,
+          warningLevel: l.warningLevel,
+          warningMessage: l.warningMessage,
+          allowed: l.allowed,
+        })),
+        retailOrBulk: preview.retailOrBulk,
+        orderTotal: preview.orderTotal,
         totalIncentive: preview.totalIncentive,
-        bulkOrderBonus: preview.bulkOrderBonus,
         avgRealizationPct: preview.avgRealizationPct,
+        baseIncentivePct: preview.baseIncentivePct,
+        realizationMultiplier: preview.realizationMultiplier,
+        monthlyAchievementPct: preview.monthlyAchievementPct,
+        monthlyMtdSalesInr: preview.monthlyMtdSalesInr,
+        bulkGrossMarginPct: preview.bulkGrossMarginPct,
         performanceHint: preview.performanceHint,
         warnings: preview.warnings,
-        orderTotal: preview.orderTotal,
+        needsOwnerReview: preview.needsOwnerReview,
+        hardFloorBlocked: preview.hardFloorBlocked,
       },
     });
   });
 
+  app.get(`${api}/bulk-reviews/pending`, async (request, reply) => {
+    assertStaffManagement(request);
+    const reviews = await bulkMarginReviewService.listPending();
+    return reply.send({ ok: true, reviews });
+  });
+
+  app.post(`${api}/bulk-reviews/:id/approve`, async (request, reply) => {
+    const admin = assertStaffManagement(request);
+    const { id } = request.params as { id: string };
+    const body = z.object({ notes: z.string().optional() }).parse(request.body ?? {});
+    const review = await bulkMarginReviewService.approve(id, admin.id, body.notes);
+    return reply.send({ ok: true, review });
+  });
+
+  app.post(`${api}/bulk-reviews/:id/reject`, async (request, reply) => {
+    const admin = assertStaffManagement(request);
+    const { id } = request.params as { id: string };
+    const body = z.object({ notes: z.string().optional() }).parse(request.body ?? {});
+    const review = await bulkMarginReviewService.reject(id, admin.id, body.notes);
+    return reply.send({ ok: true, review });
+  });
+
+  app.get(`${api}/kpi/dashboard`, async (request, reply) => {
+    assertStaffManagement(request);
+    const q = request.query as { monthYear?: string };
+    const dashboard = await employeeKpiService.getDashboard(q.monthYear);
+    return reply.send({ ok: true, ...dashboard });
+  });
+
+  app.post(`${api}/kpi/recompute`, async (request, reply) => {
+    assertStaffManagement(request);
+    const body = z.object({ monthYear: z.string().optional() }).parse(request.body ?? {});
+    await employeeKpiService.recomputeAllForMonth(body.monthYear);
+    return reply.send({ ok: true });
+  });
+
   app.get(`${api}/performance/dashboard`, async (request, reply) => {
     assertStaffManagement(request);
-    const q = request.query as { date?: string; period?: 'daily' | 'weekly' };
-    const dashboard = await employeePerformanceService.getDashboard({
-      date: q.date,
-      period: q.period,
-    });
-    return reply.send({ ok: true, ...dashboard });
+    const q = request.query as { monthYear?: string };
+    const kpi = await employeeKpiService.getDashboard(q.monthYear);
+    return reply.send({ ok: true, ...kpi });
   });
 
   app.get(`${api}/performance/me`, async (request, reply) => {

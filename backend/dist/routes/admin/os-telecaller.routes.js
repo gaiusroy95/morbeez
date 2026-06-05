@@ -869,6 +869,7 @@ export async function osTelecallerRoutes(app) {
                 createdAt: e.createdAt,
                 expiresAt: e.expiresAt,
                 hoursLeft: e.hoursLeft,
+                bulkMarginReviewStatus: e.bulkMarginReviewStatus ?? null,
             })),
         });
     });
@@ -889,6 +890,7 @@ export async function osTelecallerRoutes(app) {
             send: z.boolean().optional(),
             sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
             orderType: z.enum(['standard', 'bulk', 'clearance', 'strategic', 'liquidation']).optional(),
+            requestBulkReview: z.boolean().optional(),
             lines: z
                 .array(z.object({
                 variantId: z.coerce.number().optional(),
@@ -923,6 +925,7 @@ export async function osTelecallerRoutes(app) {
             send: z.boolean().optional(),
             sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
             orderType: z.enum(['standard', 'bulk', 'clearance', 'strategic', 'liquidation']).optional(),
+            requestBulkReview: z.boolean().optional(),
             lines: z
                 .array(z.object({
                 variantId: z.coerce.number().optional(),
