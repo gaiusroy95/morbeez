@@ -99,13 +99,15 @@ export declare const commerceQuoteService: {
         prepaidAmount?: number;
         paymentType?: "full" | "partial" | "advance";
         preparedByName?: string;
+        orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
     }, adminId?: string): Promise<CommerceQuote>;
     updateFromLead(quoteId: string, leadId: string, input: {
         lines: QuoteLineInput[];
         prepaidAmount?: number;
         paymentType?: "full" | "partial" | "advance";
         preparedByName?: string;
-    }): Promise<CommerceQuote>;
+        orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
+    }, adminId?: string): Promise<CommerceQuote>;
     getShareLinks(quoteId: string, leadId?: string): Promise<{
         text: string;
         checkoutUrl: string;
@@ -132,6 +134,7 @@ export declare const commerceQuoteService: {
         leadId?: string;
         farmerId?: string;
         preparedByName?: string;
+        orderType?: "standard" | "bulk" | "clearance" | "strategic" | "liquidation";
         lines: Array<{
             variantId?: number;
             productId?: number;

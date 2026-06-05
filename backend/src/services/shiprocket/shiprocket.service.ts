@@ -4,6 +4,7 @@ import { getOrder } from '../shopify/shopify.client.js';
 import { shiprocketRequest } from './shiprocket.client.js';
 import { logger } from '../../lib/logger.js';
 import { ndrRtoService } from '../oms/ndr-rto.service.js';
+import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
 
 /** Delhivery is assigned via Shiprocket courier rules — no separate API in M2 */
 export const shiprocketService = {
@@ -93,19 +94,23 @@ export const shiprocketService = {
     });
 
     if (orderId) {
+      const trackUrl = awb ? resolveTrackingUrl({ trackingId: awb, courier: 'Delhivery' }) : null;
       await supabase
         .from('commerce_orders')
         .update({
           tracking_awb: awb || undefined,
+          tracking_url: trackUrl ?? undefined,
           fulfillment_status: status,
           updated_at: new Date().toISOString(),
         })
         .eq('shopify_order_id', orderId);
     } else if (awb) {
+      const trackUrl = resolveTrackingUrl({ trackingId: awb, courier: 'Delhivery' });
       await supabase
         .from('commerce_orders')
         .update({
           tracking_awb: awb,
+          tracking_url: trackUrl ?? undefined,
           fulfillment_status: status,
           updated_at: new Date().toISOString(),
         })

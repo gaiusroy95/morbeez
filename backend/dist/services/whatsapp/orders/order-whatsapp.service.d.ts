@@ -63,6 +63,7 @@ export declare const orderWhatsappService: {
         awb?: string;
         trackingUrl?: string;
         fulfillmentStatus?: string;
+        courier?: string;
     }): Promise<void>;
 };
 export {};

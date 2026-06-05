@@ -7,6 +7,7 @@ import { Modal, inputClass } from '../Modal';
 import { Alert, Btn, Loading } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
+const pricingApi = '/morbeez-staff/api/v1/os/pricing';
 
 type CatalogItem = {
   productId?: number;
@@ -22,10 +23,33 @@ type QuoteLine = {
   productId?: number;
   title: string;
   sku?: string;
+  listedPrice: number;
   price: number;
   qty: number;
   gstPercent: number;
   hsnCode: string;
+};
+
+type PricingLinePreview = {
+  variantId?: number;
+  sku?: string;
+  listedPrice: number;
+  sellingPrice: number;
+  recommendedPrice: number;
+  hardFloorPrice: number;
+  realizationPct: number;
+  incentiveTotal: number;
+  warningLevel: 'none' | 'low_margin' | 'critical' | 'blocked';
+  warningMessage: string | null;
+  allowed: boolean;
+};
+
+type PricingPreview = {
+  lines: PricingLinePreview[];
+  totalIncentive: number;
+  avgRealizationPct: number;
+  performanceHint: 'excellent' | 'good' | 'warning' | 'critical';
+  warnings: string[];
 };
 
 type Props = {
@@ -47,6 +71,20 @@ function lineTotal(line: QuoteLine) {
   return line.qty * line.price * (1 + line.gstPercent / 100);
 }
 
+function hintLabel(h: PricingPreview['performanceHint']) {
+  if (h === 'excellent') return 'Excellent';
+  if (h === 'good') return 'Good';
+  if (h === 'warning') return 'Warning';
+  return 'Critical';
+}
+
+function hintClass(h: PricingPreview['performanceHint']) {
+  if (h === 'excellent') return 'quote-hint--excellent';
+  if (h === 'good') return 'quote-hint--good';
+  if (h === 'warning') return 'quote-hint--warning';
+  return 'quote-hint--critical';
+}
+
 export function CreateEstimateModal({
   leadId,
   estimateId,
@@ -61,7 +99,10 @@ export function CreateEstimateModal({
   const isEdit = Boolean(estimateId);
 
   const [lines, setLines] = useState<QuoteLine[]>([]);
+  const [orderType, setOrderType] = useState<'standard' | 'bulk'>('standard');
   const [prepaidAmount, setPrepaidAmount] = useState('');
+  const [pricingPreview, setPricingPreview] = useState<PricingPreview | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadingQuote, setLoadingQuote] = useState(isEdit);
   const [error, setError] = useState('');
@@ -108,6 +149,7 @@ export function CreateEstimateModal({
             productId: li.productId,
             title: li.title,
             sku: li.sku,
+            listedPrice: li.unitPrice,
             price: li.unitPrice,
             qty: li.qty,
             gstPercent: li.gstPercent ?? 18,
@@ -118,6 +160,34 @@ export function CreateEstimateModal({
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load quote'))
       .finally(() => setLoadingQuote(false));
   }, [estimateId, leadId]);
+
+  useEffect(() => {
+    if (!lines.length) {
+      setPricingPreview(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setPricingLoading(true);
+      api<{ ok: boolean; preview: PricingPreview }>(`${pricingApi}/preview`, {
+        method: 'POST',
+        body: JSON.stringify({
+          orderType,
+          lines: lines.map((l) => ({
+            variantId: l.variantId,
+            sku: l.sku,
+            title: l.title,
+            qty: l.qty,
+            unitPrice: l.price,
+            catalogListedPrice: l.listedPrice,
+          })),
+        }),
+      })
+        .then((d) => setPricingPreview(d.preview))
+        .catch(() => setPricingPreview(null))
+        .finally(() => setPricingLoading(false));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [lines, orderType]);
 
   useEffect(() => {
     const term = addSearch.trim();
@@ -170,6 +240,9 @@ export function CreateEstimateModal({
   const subtotal = useMemo(() => lines.reduce((s, l) => s + lineTotal(l), 0), [lines]);
   const prepaid = Number(prepaidAmount) || 0;
   const codAmount = Math.max(0, subtotal - prepaid);
+  const hasBlocked = pricingPreview?.lines.some((l) => !l.allowed) ?? false;
+
+  const previewByIndex = useMemo(() => pricingPreview?.lines ?? [], [pricingPreview]);
 
   const existingVariantIds = useMemo(
     () => new Set(lines.map((l) => l.variantId).filter(Boolean)),
@@ -182,6 +255,7 @@ export function CreateEstimateModal({
         setError('This product is already in the quote');
         return;
       }
+      const listed = Number(item.price);
       setLines((prev) => [
         ...prev,
         {
@@ -190,7 +264,8 @@ export function CreateEstimateModal({
           productId: item.productId != null ? Number(item.productId) : undefined,
           title: item.title,
           sku: item.sku,
-          price: Number(item.price),
+          listedPrice: listed,
+          price: listed,
           qty: 1,
           gstPercent: 18,
           hsnCode: '382499',
@@ -216,11 +291,13 @@ export function CreateEstimateModal({
     setError('');
     try {
       if (!lines.length) throw new Error('Add at least one product');
+      if (hasBlocked) throw new Error('One or more rates are below the hard floor — adjust pricing');
 
       const payload = {
         prepaidAmount: prepaid > 0 ? prepaid : 0,
         paymentType: 'advance' as const,
         preparedByName,
+        orderType,
         send: true,
         sendChannels: ['whatsapp', 'email'] as const,
         lines: lines.map((l) => ({
@@ -268,13 +345,20 @@ export function CreateEstimateModal({
           <Btn variant="secondary" onClick={onClose}>
             Cancel
           </Btn>
-          <Btn variant="primary" disabled={saving || loadingQuote} onClick={() => void saveAndSend()}>
+          <Btn
+            variant="primary"
+            disabled={saving || loadingQuote || hasBlocked}
+            onClick={() => void saveAndSend()}
+          >
             {saving ? 'Sending…' : 'Save and Send'}
           </Btn>
         </>
       }
     >
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {pricingPreview?.warnings.length ? (
+        <Alert tone="warning">{pricingPreview.warnings.join(' · ')}</Alert>
+      ) : null}
 
       <div className="quote-farmer-banner">
         <div className="quote-farmer-avatar" aria-hidden>
@@ -288,6 +372,17 @@ export function CreateEstimateModal({
             {farmerLocation ? <span>{farmerLocation}</span> : null}
           </div>
         </div>
+        <label className="quote-order-type">
+          <span>Order type</span>
+          <select
+            className={inputClass}
+            value={orderType}
+            onChange={(e) => setOrderType(e.target.value as 'standard' | 'bulk')}
+          >
+            <option value="standard">Standard</option>
+            <option value="bulk">Bulk</option>
+          </select>
+        </label>
       </div>
 
       {loadingQuote ? <Loading label="Loading quote…" /> : null}
@@ -310,7 +405,7 @@ export function CreateEstimateModal({
                   <th>S.No</th>
                   <th>Description / SKU</th>
                   <th>Qty</th>
-                  <th>Unit price</th>
+                  <th>Rate</th>
                   <th>GST%</th>
                   <th>Amount (incl. GST)</th>
                   <th aria-label="Remove" />
@@ -337,43 +432,75 @@ export function CreateEstimateModal({
                       </td>
                     </tr>
                   ) : (
-                    lines.map((line, index) => (
-                      <tr key={line.key}>
-                        <td className="quote-sno">{index + 1}</td>
-                        <td>
-                          <div>{line.title}</div>
-                          {line.sku ? <div className="sku">{line.sku}</div> : null}
-                          <div className="hsn">HSN: {line.hsnCode}</div>
-                        </td>
-                        <td>
-                          <input
-                            type="number"
-                            min={1}
-                            className={inputClass}
-                            style={{ width: 72 }}
-                            value={line.qty}
-                            onChange={(e) =>
-                              updateLine(line.key, {
-                                qty: Math.max(1, Number(e.target.value) || 1),
-                              })
-                            }
-                          />
-                        </td>
-                        <td>{formatInr(line.price)}</td>
-                        <td>{line.gstPercent}%</td>
-                        <td>{formatInr(lineTotal(line))}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="quote-remove-btn"
-                            title="Remove"
-                            onClick={() => removeLine(line.key)}
-                          >
-                            ×
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    lines.map((line, index) => {
+                      const p = previewByIndex[index];
+                      return (
+                        <tr key={line.key} className={p && !p.allowed ? 'quote-row--blocked' : ''}>
+                          <td className="quote-sno">{index + 1}</td>
+                          <td>
+                            <div>{line.title}</div>
+                            {line.sku ? <div className="sku">{line.sku}</div> : null}
+                            <div className="hsn">HSN: {line.hsnCode}</div>
+                            {p ? (
+                              <div className="quote-line-pricing">
+                                <span>Listed {formatInr(p.listedPrice)}</span>
+                                <span>Rec. {formatInr(p.recommendedPrice)}</span>
+                                <span>Floor {formatInr(p.hardFloorPrice)}</span>
+                              </div>
+                            ) : null}
+                            {p?.warningMessage ? (
+                              <div className={`quote-line-warn quote-line-warn--${p.warningLevel}`}>
+                                {p.warningMessage}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={1}
+                              className={`${inputClass} quote-qty-input`}
+                              value={line.qty}
+                              onChange={(e) =>
+                                updateLine(line.key, {
+                                  qty: Math.max(1, Number(e.target.value) || 1),
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0.01}
+                              step={0.01}
+                              className={`${inputClass} quote-price-input`}
+                              value={line.price}
+                              onChange={(e) =>
+                                updateLine(line.key, {
+                                  price: Math.max(0.01, Number(e.target.value) || 0.01),
+                                })
+                              }
+                            />
+                            {p ? (
+                              <div className="quote-line-incentive">
+                                {p.realizationPct}% · +{formatInr(p.incentiveTotal)}
+                              </div>
+                            ) : null}
+                          </td>
+                          <td>{line.gstPercent}%</td>
+                          <td>{formatInr(lineTotal(line))}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="quote-remove-btn"
+                              title="Remove"
+                              onClick={() => removeLine(line.key)}
+                            >
+                              ×
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -424,6 +551,16 @@ export function CreateEstimateModal({
             : null}
 
           <div className="quote-summary">
+            {pricingPreview ? (
+              <div className="quote-incentive-strip">
+                <span className={`quote-hint-badge ${hintClass(pricingPreview.performanceHint)}`}>
+                  {hintLabel(pricingPreview.performanceHint)}
+                </span>
+                <span>Avg realization {pricingPreview.avgRealizationPct}%</span>
+                <strong>Incentive {formatInr(pricingPreview.totalIncentive)}</strong>
+                {pricingLoading ? <span className="quote-pricing-loading">Updating…</span> : null}
+              </div>
+            ) : null}
             <div className="quote-summary-row">
               <span>Total (incl. GST)</span>
               <span className="quote-summary-total" style={{ border: 0, margin: 0, padding: 0 }}>

@@ -23,6 +23,9 @@ export type TelecallerOrderRow = {
     paymentTone: string;
     deliveryDateLabel: string;
     deliveryBy: string;
+    trackingAwb?: string | null;
+    trackingUrl?: string | null;
+    courier?: string | null;
     blockName: string | null;
     blockId: string | null;
     source: 'crm_manual' | 'commerce';

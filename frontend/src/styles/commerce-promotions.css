@@ -141,6 +141,17 @@
   color: #64748b;
 }
 
+.order-tracking-link {
+  color: #059669;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.order-tracking-link:hover {
+  text-decoration: underline;
+  color: #047857;
+}
+
 .order-timeline {
   list-style: none;
   margin: 0;

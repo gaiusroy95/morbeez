@@ -22,6 +22,7 @@ import {
   TableWrap,
 } from '../components/ui';
 import { StatIcon } from '../components/NavIcon';
+import { EmployeePricingDashboard } from '../components/employees/EmployeePricingDashboard';
 
 type Employee = {
   id: string;
@@ -678,6 +679,10 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
   return (
     <div className="emp-page">
       {error ? <Alert tone="error">{error}</Alert> : null}
+
+      <div className="mb-4">
+        <EmployeePricingDashboard />
+      </div>
 
       <div className="stat-grid">
         <article className="stat-card">

@@ -29,6 +29,11 @@ export declare const purchaseService: {
             mfgDate?: string;
             expiryDate?: string;
             locationId?: string;
+            supplierCost?: number;
+            freightCost?: number;
+            customsCost?: number;
+            packagingCost?: number;
+            miscCost?: number;
         }>;
     }): Promise<any>;
     listPurchaseOrders(limit?: number): Promise<any[]>;

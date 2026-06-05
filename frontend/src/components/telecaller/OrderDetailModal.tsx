@@ -31,6 +31,9 @@ type OrderDetail = {
   deliveryAddress?: string | null;
   createdBy?: string | null;
   source: string;
+  trackingAwb?: string | null;
+  trackingUrl?: string | null;
+  courier?: string | null;
 };
 
 type Props = {
@@ -112,6 +115,30 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
               </div>
             ) : null}
           </dl>
+
+          {detail.trackingAwb || detail.trackingUrl ? (
+            <section className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                Dispatch & tracking
+              </h3>
+              {detail.trackingAwb ? (
+                <p className="text-sm text-slate-700">
+                  <strong>AWB:</strong> {detail.trackingAwb}
+                  {detail.courier ? ` · ${detail.courier}` : ''}
+                </p>
+              ) : null}
+              {detail.trackingUrl ? (
+                <a
+                  href={detail.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="order-tracking-link mt-2 inline-block text-sm font-semibold"
+                >
+                  Open tracking page ↗
+                </a>
+              ) : null}
+            </section>
+          ) : null}
 
           <section>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">

@@ -42,6 +42,12 @@ export declare const inventoryService: {
         expiryDate?: string | null;
         qty: number;
         createdBy?: string;
+        supplierCost?: number | null;
+        freightCost?: number;
+        customsCost?: number;
+        packagingCost?: number;
+        miscCost?: number;
+        landedUnitCost?: number | null;
     }): Promise<any>;
     /** FEFO: allocate from earliest expiry batches with available qty */
     reserveStock(input: {

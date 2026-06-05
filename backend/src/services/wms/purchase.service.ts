@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { inventoryService } from './inventory.service.js';
+import { computeLandedUnitCost, costingService } from '../pricing/costing.service.js';
 
 function nextDocNumber(prefix: string): string {
   const d = new Date();
@@ -79,6 +80,11 @@ export const purchaseService = {
       mfgDate?: string;
       expiryDate?: string;
       locationId?: string;
+      supplierCost?: number;
+      freightCost?: number;
+      customsCost?: number;
+      packagingCost?: number;
+      miscCost?: number;
     }>;
   }) {
     const grnNumber = nextDocNumber('GRN');
@@ -96,6 +102,17 @@ export const purchaseService = {
     throwIfSupabaseError(error, 'Create GRN');
 
     for (const line of input.lines) {
+      const landedUnitCost =
+        line.supplierCost != null
+          ? computeLandedUnitCost({
+              supplierCost: line.supplierCost,
+              freightCost: line.freightCost,
+              customsCost: line.customsCost,
+              packagingCost: line.packagingCost,
+              miscCost: line.miscCost,
+            })
+          : null;
+
       await inventoryService.createBatchFromGrn({
         inventoryItemId: line.inventoryItemId,
         warehouseId: input.warehouseId,
@@ -107,7 +124,17 @@ export const purchaseService = {
         expiryDate: line.expiryDate ?? null,
         qty: line.qty,
         createdBy: input.receivedBy,
+        supplierCost: line.supplierCost ?? null,
+        freightCost: line.freightCost,
+        customsCost: line.customsCost,
+        packagingCost: line.packagingCost,
+        miscCost: line.miscCost,
+        landedUnitCost,
       });
+
+      if (landedUnitCost != null && landedUnitCost > 0) {
+        await costingService.updateWeightedAverageCost(line.inventoryItemId, line.qty, landedUnitCost);
+      }
 
       if (input.purchaseOrderId) {
         const { data: poLine } = await supabase

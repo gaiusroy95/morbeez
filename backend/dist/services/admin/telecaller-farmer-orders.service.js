@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
 function formatDt(iso) {
     if (!iso)
         return '—';
@@ -178,6 +179,13 @@ function mapCommerceRow(r) {
     const internalId = String(r.id);
     const orderName = r.order_name ? String(r.order_name) : null;
     const expected = r.expected_delivery_at ? formatDt(String(r.expected_delivery_at)) : null;
+    const trackingAwb = r.tracking_awb ? String(r.tracking_awb) : null;
+    const courier = trackingAwb ? 'Delhivery' : null;
+    const trackingUrl = resolveTrackingUrl({
+        trackingId: trackingAwb,
+        trackingUrl: r.tracking_url ? String(r.tracking_url) : null,
+        courier,
+    });
     return {
         id: internalId,
         orderId: formatDisplayOrderId(orderName, internalId),
@@ -198,7 +206,10 @@ function mapCommerceRow(r) {
         deliveryDateLabel: status === 'delivered'
             ? formatDt(r.updated_at ?? createdAt)
             : expected ?? '—',
-        deliveryBy: r.tracking_awb ? 'Indian Logistics' : 'Morbeez Delivery',
+        deliveryBy: trackingAwb ? 'Delhivery' : 'Morbeez Delivery',
+        trackingAwb,
+        trackingUrl,
+        courier,
         blockName: null,
         blockId: null,
         source: 'commerce',

@@ -138,6 +138,11 @@ export async function osWarehouseRoutes(app) {
                 mfgDate: z.string().optional(),
                 expiryDate: z.string().optional(),
                 locationId: z.string().uuid().optional(),
+                supplierCost: z.number().min(0).optional(),
+                freightCost: z.number().min(0).optional(),
+                customsCost: z.number().min(0).optional(),
+                packagingCost: z.number().min(0).optional(),
+                miscCost: z.number().min(0).optional(),
             })),
         })
             .parse(request.body);

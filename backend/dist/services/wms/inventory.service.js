@@ -129,6 +129,14 @@ export const inventoryService = {
             .eq('warehouse_id', input.warehouseId)
             .maybeSingle();
         let batch;
+        const costFields = {
+            supplier_cost: input.supplierCost ?? null,
+            freight_cost: input.freightCost ?? 0,
+            customs_cost: input.customsCost ?? 0,
+            packaging_cost: input.packagingCost ?? 0,
+            misc_cost: input.miscCost ?? 0,
+            landed_unit_cost: input.landedUnitCost ?? input.supplierCost ?? null,
+        };
         if (existing) {
             const { data, error } = await supabase
                 .from('inventory_batches')
@@ -137,6 +145,7 @@ export const inventoryService = {
                 location_id: input.locationId ?? existing.location_id,
                 status: 'active',
                 updated_at: new Date().toISOString(),
+                ...(input.landedUnitCost != null ? costFields : {}),
             })
                 .eq('id', existing.id)
                 .select('*')
@@ -158,6 +167,7 @@ export const inventoryService = {
                 expiry_date: input.expiryDate ?? null,
                 qty_on_hand: input.qty,
                 status: 'active',
+                ...costFields,
             })
                 .select('*')
                 .single();

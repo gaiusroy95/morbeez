@@ -2,8 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Alert, Btn, DataTable, Loading, Panel, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
+import {
+  WarehouseLocationPickers,
+  emptyWarehouseLocation,
+  type WarehouseLocationValue,
+} from './WarehouseLocationPickers';
 
-type Warehouse = { id: string; code: string; name: string };
 type StockRow = { inventoryItemId: string; sku: string; productTitle: string };
 
 type GrnLine = {
@@ -12,15 +16,39 @@ type GrnLine = {
   qty: number;
   expiryDate: string;
   mfgDate: string;
+  supplierCost: string;
+  freightCost: string;
+  customsCost: string;
+  packagingCost: string;
+  miscCost: string;
 };
 
+function landedCost(line: GrnLine): number {
+  const supplier = Number(line.supplierCost) || 0;
+  const freight = Number(line.freightCost) || 0;
+  const customs = Number(line.customsCost) || 0;
+  const packaging = Number(line.packagingCost) || 0;
+  const misc = Number(line.miscCost) || 0;
+  return Math.round((supplier + freight + customs + packaging + misc) * 100) / 100;
+}
+
+const emptyGrnLine = (): GrnLine => ({
+  inventoryItemId: '',
+  batchCode: '',
+  qty: 1,
+  expiryDate: '',
+  mfgDate: '',
+  supplierCost: '',
+  freightCost: '',
+  customsCost: '',
+  packagingCost: '',
+  miscCost: '',
+});
+
 export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [items, setItems] = useState<StockRow[]>([]);
-  const [warehouseId, setWarehouseId] = useState('');
-  const [lines, setLines] = useState<GrnLine[]>([
-    { inventoryItemId: '', batchCode: '', qty: 1, expiryDate: '', mfgDate: '' },
-  ]);
+  const [location, setLocation] = useState<WarehouseLocationValue>(emptyWarehouseLocation);
+  const [lines, setLines] = useState<GrnLine[]>([emptyGrnLine()]);
   const [newSku, setNewSku] = useState({ sku: '', title: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -30,13 +58,8 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [wh, stock] = await Promise.all([
-        api<{ ok: boolean; warehouses: Warehouse[] }>(`${WMS_API}/warehouses`),
-        api<{ ok: boolean; stock: StockRow[] }>(`${WMS_API}/stock`),
-      ]);
-      setWarehouses(wh.warehouses ?? []);
+      const stock = await api<{ ok: boolean; stock: StockRow[] }>(`${WMS_API}/stock`);
       setItems(stock.stock ?? []);
-      if (!warehouseId && wh.warehouses?.[0]) setWarehouseId(wh.warehouses[0].id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -78,7 +101,10 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
   }
 
   async function submitGrn() {
-    if (!warehouseId) return;
+    if (!location.warehouseId) {
+      setError('Select a warehouse');
+      return;
+    }
     setSaving(true);
     setError('');
     setSuccess('');
@@ -88,18 +114,24 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
       await api(`${WMS_API}/goods-receipts`, {
         method: 'POST',
         body: JSON.stringify({
-          warehouseId,
+          warehouseId: location.warehouseId,
           lines: valid.map((l) => ({
             inventoryItemId: l.inventoryItemId,
             batchCode: l.batchCode,
             qty: l.qty,
             expiryDate: l.expiryDate || undefined,
             mfgDate: l.mfgDate || undefined,
+            locationId: location.locationId || undefined,
+            supplierCost: Number(l.supplierCost) || undefined,
+            freightCost: Number(l.freightCost) || undefined,
+            customsCost: Number(l.customsCost) || undefined,
+            packagingCost: Number(l.packagingCost) || undefined,
+            miscCost: Number(l.miscCost) || undefined,
           })),
         }),
       });
-      setSuccess('Goods received — stock updated');
-      setLines([{ inventoryItemId: '', batchCode: '', qty: 1, expiryDate: '', mfgDate: '' }]);
+      setSuccess('Goods received — stock & weighted cost updated');
+      setLines([emptyGrnLine()]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'GRN failed');
@@ -137,24 +169,15 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
         </Panel>
       ) : null}
 
-      <Panel title="Goods received (GRN)" description="Purchase order → goods in → batch → rack → stock">
-        <div className="warehouse-form-row">
-          <label>
-            Warehouse
-            <select
-              className={inputClass}
-              value={warehouseId}
-              onChange={(e) => setWarehouseId(e.target.value)}
-              disabled={!canWrite}
-            >
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name} ({w.code})
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+      <Panel
+        title="Goods received (GRN)"
+        description="Purchase → landed cost → weighted average → safe price recalculation"
+      >
+        <WarehouseLocationPickers
+          value={location}
+          onChange={setLocation}
+          disabled={!canWrite}
+        />
         <TableWrap>
           <DataTable>
             <thead>
@@ -162,6 +185,12 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
                 <th>Product</th>
                 <th>Batch</th>
                 <th>Qty</th>
+                <th>Supplier ₹</th>
+                <th>Freight</th>
+                <th>Customs</th>
+                <th>Pack</th>
+                <th>Misc</th>
+                <th>Landed</th>
                 <th>MFG</th>
                 <th>Expiry</th>
               </tr>
@@ -212,6 +241,27 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
                       }
                     />
                   </td>
+                  {(['supplierCost', 'freightCost', 'customsCost', 'packagingCost', 'miscCost'] as const).map(
+                    (field) => (
+                      <td key={field}>
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className={inputClass}
+                          placeholder="0"
+                          value={line[field]}
+                          disabled={!canWrite}
+                          onChange={(e) =>
+                            setLines((prev) =>
+                              prev.map((l, j) => (j === i ? { ...l, [field]: e.target.value } : l))
+                            )
+                          }
+                        />
+                      </td>
+                    )
+                  )}
+                  <td className="warehouse-landed-cell">₹{landedCost(line).toFixed(2)}</td>
                   <td>
                     <input
                       type="date"
@@ -248,12 +298,7 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
             <Btn
               size="sm"
               variant="secondary"
-              onClick={() =>
-                setLines((prev) => [
-                  ...prev,
-                  { inventoryItemId: '', batchCode: '', qty: 1, expiryDate: '', mfgDate: '' },
-                ])
-              }
+              onClick={() => setLines((prev) => [...prev, emptyGrnLine()])}
             >
               Add line
             </Btn>

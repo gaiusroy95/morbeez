@@ -366,6 +366,39 @@ body.route-product-wizard .page-header {
   margin-top: 28px;
 }
 
+.pw-subsection > h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pw-subsection-hint {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.pw-field-error {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+.pw-location-code {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.warehouse-location-grid--wizard {
+  margin-bottom: 0;
+}
+
+.warehouse-location-grid--wizard .warehouse-location-field select {
+  min-height: 38px;
+}
+
 .pw-subsection-head {
   display: flex;
   align-items: center;

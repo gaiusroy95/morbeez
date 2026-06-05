@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, inputClass } from '../Modal';
 import { Alert, Btn, Loading, Panel } from '../ui';
+import { QuotationLogoField } from './QuotationLogoField';
+import { TermsConditionsEditor } from './TermsConditionsEditor';
 
 export type CompanySettings = {
   companyName: string;
@@ -15,6 +17,8 @@ export type CompanySettings = {
   licenceNumber: string;
   customerCareNumber: string;
   whatsappNumber: string;
+  termsAndConditions: string;
+  quotationLogoUrl: string;
   formattedAddress: string;
   updatedAt: string | null;
 };
@@ -31,6 +35,8 @@ const EMPTY: CompanySettings = {
   licenceNumber: '',
   customerCareNumber: '',
   whatsappNumber: '',
+  termsAndConditions: '',
+  quotationLogoUrl: '',
   formattedAddress: '',
   updatedAt: null,
 };
@@ -75,6 +81,8 @@ export function CompanySettingsPanel({ canWrite }: { canWrite?: boolean }) {
             licenceNumber: form.licenceNumber,
             customerCareNumber: form.customerCareNumber,
             whatsappNumber: form.whatsappNumber,
+            termsAndConditions: form.termsAndConditions,
+            quotationLogoUrl: form.quotationLogoUrl || null,
           }),
         }
       );
@@ -202,6 +210,23 @@ export function CompanySettingsPanel({ canWrite }: { canWrite?: boolean }) {
             />
           </Field>
         </div>
+
+        <div className="settings-section-gap">
+          <QuotationLogoField
+            value={form.quotationLogoUrl}
+            onChange={(v) => set('quotationLogoUrl', v)}
+            disabled={!canWrite}
+          />
+        </div>
+
+        <div className="settings-section-gap">
+          <TermsConditionsEditor
+            value={form.termsAndConditions}
+            onChange={(v) => set('termsAndConditions', v)}
+            disabled={!canWrite}
+          />
+        </div>
+
         {form.formattedAddress ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
             <p className="font-medium text-slate-700">Preview (invoices &amp; materials)</p>

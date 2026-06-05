@@ -5,14 +5,16 @@ export function dispatchedMessage(params: {
   orderName: string;
   trackingId: string;
   expectedDelivery: string;
+  trackingUrl?: string;
 }): string {
-  const { lang, orderName, trackingId, expectedDelivery } = params;
+  const { lang, orderName, trackingId, expectedDelivery, trackingUrl } = params;
+  const trackLine = trackingUrl ? `\n\nTrack your package:\n${trackingUrl}` : '';
   const map: Record<AdvisoryLanguage, string> = {
-    en: `✅ *Order dispatched successfully*\n\nOrder: ${orderName}\nTracking ID: *${trackingId}*\nExpected delivery: *${expectedDelivery}*`,
-    ml: `✅ *ഓർഡർ അയച്ചു*\n\nഓർഡർ: ${orderName}\nട്രാക്കിംഗ് ID: *${trackingId}*\nഡെലിവറി: *${expectedDelivery}*`,
-    ta: `✅ *ஆர்டர் அனுப்பப்பட்டது*\n\nஆர்டர்: ${orderName}\nTracking ID: *${trackingId}*\nடெலிவரி: *${expectedDelivery}*`,
-    kn: `✅ *ಆರ್ಡರ್ ರವಾನಿಸಲಾಗಿದೆ*\n\nಆರ್ಡರ್: ${orderName}\nTracking ID: *${trackingId}*\nಡೆಲಿವರಿ: *${expectedDelivery}*`,
-    hi: `✅ *ऑर्डर भेज दिया गया*\n\nऑर्डर: ${orderName}\nTracking ID: *${trackingId}*\nडिलीवरी: *${expectedDelivery}*`,
+    en: `✅ *Order dispatched successfully*\n\nOrder: ${orderName}\nTracking ID: *${trackingId}*\nExpected delivery: *${expectedDelivery}*${trackLine}`,
+    ml: `✅ *ഓർഡർ അയച്ചു*\n\nഓർഡർ: ${orderName}\nട്രാക്കിംഗ് ID: *${trackingId}*\nഡെലിവറി: *${expectedDelivery}*${trackLine}`,
+    ta: `✅ *ஆர்டர் அனுப்பப்பட்டது*\n\nஆர்டர்: ${orderName}\nTracking ID: *${trackingId}*\nடெலிவரி: *${expectedDelivery}*${trackLine}`,
+    kn: `✅ *ಆರ್ಡರ್ ರವಾನಿಸಲಾಗಿದೆ*\n\nಆರ್ಡರ್: ${orderName}\nTracking ID: *${trackingId}*\nಡೆಲಿವರಿ: *${expectedDelivery}*${trackLine}`,
+    hi: `✅ *ऑर्डर भेज दिया गया*\n\nऑर्डर: ${orderName}\nTracking ID: *${trackingId}*\nडिलीवरी: *${expectedDelivery}*${trackLine}`,
   };
   return map[lang] ?? map.en;
 }

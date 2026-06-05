@@ -111,6 +111,31 @@ function buildWhatsAppUrl(phone, quote) {
         return null;
     return `https://wa.me/91${digits}?text=${encodeURIComponent(buildQuoteShareText(quote))}`;
 }
+async function applyQuotePricing(input) {
+    const { incentiveEngineService } = await import('../pricing/incentive-engine.service.js');
+    const preview = await incentiveEngineService.previewQuote({
+        lines: input.lines.map((l) => ({
+            variantId: l.variantId,
+            sku: l.sku,
+            title: l.title,
+            qty: l.qty,
+            unitPrice: l.unitPrice,
+        })),
+        orderType: input.orderType,
+        adminUserId: input.adminUserId ?? undefined,
+    });
+    incentiveEngineService.validateHardFloors(preview);
+    await incentiveEngineService.recordQuoteLedger({
+        quoteId: input.quoteId,
+        leadId: input.leadId,
+        adminUserId: input.adminUserId,
+        orderType: input.orderType,
+        salesSource: 'telecaller',
+        preview,
+        lineItems: input.lines,
+    });
+    return preview;
+}
 async function persistQuoteLines(quoteId, customerState, input) {
     if (!input.lines.length)
         throw new ValidationError('Add at least one product');
@@ -133,6 +158,9 @@ async function persistQuoteLines(quoteId, customerState, input) {
     };
     if (input.preparedByName !== undefined) {
         patch.prepared_by_name = input.preparedByName.trim() || null;
+    }
+    if (input.orderType) {
+        patch.order_type = input.orderType;
     }
     const { data, error } = await supabase
         .from('commerce_quotes')
@@ -328,9 +356,10 @@ export const commerceQuoteService = {
             leadId,
             farmerId: String(lead.farmerId),
             preparedByName: input.preparedByName,
+            orderType: input.orderType,
         }, adminId);
     },
-    async updateFromLead(quoteId, leadId, input) {
+    async updateFromLead(quoteId, leadId, input, adminId) {
         const quote = await this.get(quoteId);
         if (quote.leadId && quote.leadId !== leadId) {
             throw new NotFoundError('Estimate not found for this lead');
@@ -338,7 +367,17 @@ export const commerceQuoteService = {
         if (quote.status !== 'pending') {
             throw new ValidationError('Only pending quotes can be edited');
         }
-        return persistQuoteLines(quoteId, quote.customerState, input);
+        const updated = await persistQuoteLines(quoteId, quote.customerState, input);
+        if (adminId) {
+            await applyQuotePricing({
+                quoteId,
+                leadId,
+                adminUserId: adminId,
+                lines: input.lines,
+                orderType: input.orderType,
+            });
+        }
+        return updated;
     },
     async getShareLinks(quoteId, leadId) {
         const quote = await this.get(quoteId);
@@ -429,6 +468,7 @@ export const commerceQuoteService = {
             lead_id: input.leadId ?? null,
             farmer_id: input.farmerId ?? null,
             prepared_by_name: input.preparedByName?.trim() ?? null,
+            order_type: input.orderType ?? 'standard',
             created_by: adminId ?? null,
         })
             .select('*')
@@ -457,6 +497,15 @@ export const commerceQuoteService = {
         }
         catch {
             /* GST quotation optional if warehouse env missing */
+        }
+        if (adminId) {
+            await applyQuotePricing({
+                quoteId: quote.id,
+                leadId: input.leadId,
+                adminUserId: adminId,
+                lines: input.lines,
+                orderType: input.orderType,
+            });
         }
         return quote;
     },
@@ -633,6 +682,28 @@ export const commerceQuoteService = {
                 shopify_order_id: shopifyOrder.shopifyOrderId,
             },
         });
+        await supabase
+            .from('employee_sales_ledger')
+            .update({ status: 'paid', commerce_order_id: commerceOrder?.id ?? null })
+            .eq('commerce_quote_id', id);
+        if (quote.leadId) {
+            const { data: quoteRow } = await supabase
+                .from('commerce_quotes')
+                .select('created_by')
+                .eq('id', id)
+                .maybeSingle();
+            if (quoteRow?.created_by) {
+                const { employeePerformanceService } = await import('../pricing/employee-performance.service.js');
+                const { data: profile } = await supabase
+                    .from('employee_profiles')
+                    .select('id')
+                    .eq('admin_user_id', quoteRow.created_by)
+                    .maybeSingle();
+                if (profile?.id) {
+                    await employeePerformanceService.recomputeDailySnapshot(String(profile.id), new Date().toISOString().slice(0, 10));
+                }
+            }
+        }
         return {
             alreadyCompleted: false,
             shopifyOrderId: shopifyOrder.shopifyOrderId,

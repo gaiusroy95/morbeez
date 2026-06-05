@@ -39,6 +39,8 @@ export declare const ordersAdminService: {
             quotePaymentType: string | undefined;
             prepaidAmount: number | undefined;
             codAmount: number | undefined;
+            isQuote: boolean;
+            quoteStatus: string | undefined;
         }[];
         tabCounts: {
             all: number;
@@ -70,6 +72,7 @@ export declare const ordersAdminService: {
             addressLines: string[];
             courier: string;
             trackingId: string;
+            trackingUrl: string | null;
         };
         lineItems: DetailLineItem[];
         totals: {
@@ -107,6 +110,8 @@ export declare const ordersAdminService: {
         quotePaymentType: string | undefined;
         prepaidAmount: number | undefined;
         codAmount: number | undefined;
+        isQuote: boolean;
+        quoteStatus: string | undefined;
     } | {
         orderDate: string;
         paymentStatus: string;
@@ -122,6 +127,7 @@ export declare const ordersAdminService: {
             addressLines: string[];
             courier: string;
             trackingId: string;
+            trackingUrl: null;
         };
         lineItems: {
             product: string;

@@ -11,6 +11,7 @@ import {
   SUB_CATEGORIES,
 } from '../constants';
 import { WizardField, pwInputClass, pwSelectClass, pwTextareaClass } from '../WizardField';
+import { WarehouseLocationFields } from '../WarehouseLocationFields';
 import type { WizardFormState } from '../types';
 import { readFileAsBase64 } from '../../../../lib/readFileAsBase64';
 
@@ -401,6 +402,25 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
         </section>
+
+        <WarehouseLocationFields
+          value={{
+            warehouseId: b.warehouseId,
+            warehouseName: b.warehouseName,
+            rackId: b.rackId,
+            rackRow: b.rackRow,
+            locationId: b.locationId,
+          }}
+          onChange={(loc) =>
+            patchBasic({
+              warehouseId: loc.warehouseId,
+              warehouseName: loc.warehouseName,
+              rackId: loc.rackId,
+              rackRow: loc.rackRow,
+              locationId: loc.locationId,
+            })
+          }
+        />
       </div>
 
       <aside className="pw-step1-aside">

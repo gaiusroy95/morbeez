@@ -7,6 +7,7 @@ import { callbackFlowService } from '../scenarios/callback-flow.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { cultivationLoggingService } from '../cultivation/cultivation-logging.service.js';
 import { codHint, dispatchedMessage, noOrderFound, paymentFailedMessage, retryPaymentHint, trackOrderDetail, } from './order-whatsapp-copy.js';
+import { resolveTrackingUrl } from '../../../lib/shipment-tracking.js';
 function normalizePhone(phone) {
     const d = phone.replace(/\D/g, '');
     if (d.length === 10)
@@ -115,11 +116,16 @@ export const orderWhatsappService = {
         const trackingId = params.trackingAwb ?? order?.tracking_awb ?? displayTrackingId(order ?? { shopify_order_id: params.shopifyOrderId, order_name: params.orderName });
         const expectedDelivery = formatExpectedDelivery(params.expectedDeliveryAt ?? order?.expected_delivery_at);
         const orderName = params.orderName ?? order?.order_name ?? `#${params.shopifyOrderId}`;
+        const trackingUrl = params.trackingUrl ??
+            order?.tracking_url ??
+            resolveTrackingUrl({ trackingId, courier: 'Delhivery' }) ??
+            undefined;
         const body = dispatchedMessage({
             lang: language,
             orderName,
             trackingId,
             expectedDelivery,
+            trackingUrl,
         });
         try {
             await whatsappService.sendButtons({
@@ -140,7 +146,7 @@ export const orderWhatsappService = {
             phone,
             farmerId,
             commerceOrderId: order?.id,
-            metadata: { shopifyOrderId: params.shopifyOrderId, trackingId },
+            metadata: { shopifyOrderId: params.shopifyOrderId, trackingId, trackingUrl },
         });
         if (farmerId) {
             await farmerService
@@ -235,7 +241,12 @@ export const orderWhatsappService = {
                 orderName: order.order_name ?? 'Your order',
                 status,
                 trackingId: order.tracking_awb ?? displayTrackingId(order),
-                trackingUrl: order.tracking_url ?? undefined,
+                trackingUrl: order.tracking_url ??
+                    resolveTrackingUrl({
+                        trackingId: order.tracking_awb ?? displayTrackingId(order),
+                        courier: 'Delhivery',
+                    }) ??
+                    undefined,
                 expectedDelivery: order.expected_delivery_at
                     ? formatExpectedDelivery(order.expected_delivery_at)
                     : undefined,
@@ -302,11 +313,17 @@ export const orderWhatsappService = {
     async updateOrderTracking(params) {
         const expected = new Date();
         expected.setDate(expected.getDate() + 1);
+        const trackingUrl = params.trackingUrl ??
+            resolveTrackingUrl({
+                trackingId: params.awb,
+                courier: params.courier ?? 'Delhivery',
+            }) ??
+            undefined;
         await supabase
             .from('commerce_orders')
             .update({
             tracking_awb: params.awb ?? undefined,
-            tracking_url: params.trackingUrl ?? undefined,
+            tracking_url: trackingUrl,
             fulfillment_status: params.fulfillmentStatus ?? undefined,
             expected_delivery_at: expected.toISOString(),
             updated_at: new Date().toISOString(),

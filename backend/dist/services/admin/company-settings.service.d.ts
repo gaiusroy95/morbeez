@@ -10,6 +10,8 @@ export type CompanySettings = {
     licenceNumber: string;
     customerCareNumber: string;
     whatsappNumber: string;
+    termsAndConditions: string;
+    quotationLogoUrl: string;
     formattedAddress: string;
     updatedAt: string | null;
 };
@@ -27,6 +29,8 @@ export declare const companySettingsService: {
         licenceNumber: string;
         customerCareNumber: string;
         whatsappNumber: string;
+        termsAndConditions: string;
+        quotationLogoUrl: string | null;
     }>, adminId?: string): Promise<CompanySettings>;
     /** Snapshot stored on invoices and exposed to storefront */
     snapshot(): Promise<CompanySettings & {

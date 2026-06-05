@@ -30,6 +30,8 @@ type OrderRow = {
   omsStatus?: string | null;
   createdAt: string;
   quoteHoursLeft?: number;
+  isQuote?: boolean;
+  quoteStatus?: string;
 };
 
 type OrderTab = 'all' | 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
@@ -63,6 +65,7 @@ type OrderDetail = {
     addressLines: string[];
     courier: string;
     trackingId: string;
+    trackingUrl: string | null;
   };
   lineItems: Array<{
     product: string;
@@ -101,6 +104,20 @@ const STATUS_TABS: Array<{ id: OrderTab; label: string }> = [
   { id: 'delivered', label: 'Delivered' },
   { id: 'cancelled', label: 'Cancelled' },
 ];
+
+function quoteStatusClass(status?: string) {
+  if (status === 'checkout') return 'est-status est-status--checkout';
+  if (status === 'paid') return 'est-status est-status--paid';
+  if (status === 'pending') return 'est-status est-status--pending';
+  return 'est-status est-status--pending';
+}
+
+function displayOrderStatus(o: OrderRow) {
+  if (o.source === 'quote' && o.quoteStatus) {
+    return o.quoteStatus;
+  }
+  return o.status;
+}
 
 const PAGE_SIZE = 10;
 
@@ -289,8 +306,12 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                       </td>
                       <td>₹{o.amount.toLocaleString('en-IN')}</td>
                       <td>
-                        {o.status}
-                        {o.source === 'quote' && o.quoteHoursLeft != null ? (
+                        {o.source === 'quote' ? (
+                          <span className={quoteStatusClass(o.quoteStatus)}>{displayOrderStatus(o)}</span>
+                        ) : (
+                          o.status
+                        )}
+                        {o.source === 'quote' && o.quoteHoursLeft != null && o.quoteStatus !== 'paid' ? (
                           <small className="muted block">{o.quoteHoursLeft}h left</small>
                         ) : null}
                       </td>
@@ -411,8 +432,21 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   <strong>Courier:</strong> {detail.shipping.courier}
                 </p>
                 <p>
-                  <strong>Tracking:</strong> {detail.shipping.trackingId}
+                  <strong>Tracking:</strong>{' '}
+                  {detail.shipping.trackingId !== '—' ? detail.shipping.trackingId : '—'}
                 </p>
+                {detail.shipping.trackingUrl ? (
+                  <p className="mt-2">
+                    <a
+                      href={detail.shipping.trackingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="order-tracking-link"
+                    >
+                      Open tracking page ↗
+                    </a>
+                  </p>
+                ) : null}
                 <p className="mt-2 text-sm text-slate-700">
                   {detail.shipping.addressLines.map((line, i) => (
                     <span key={i}>

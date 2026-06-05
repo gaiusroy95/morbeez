@@ -18,6 +18,7 @@ import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
 import { consoleSearchService } from '../../services/admin/console-search.service.js';
 import { productIntelligenceService } from '../../services/admin/product-intelligence.service.js';
 import { shopifyProductsService } from '../../services/shopify/shopify.products.service.js';
+import { warehouseService } from '../../services/wms/warehouse.service.js';
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
 import { marketInsightAdminService } from '../../services/admin/market-insight-admin.service.js';
@@ -31,6 +32,7 @@ import { osFieldRoutes } from './os-field.routes.js';
 import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
+import { osPricingRoutes } from './os-pricing.routes.js';
 import { getModulesForRole, canApproveRecommendations, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
 import { CONSOLE_ROLES } from '../../lib/console-roles.js';
 import { requireAdmin, requireAdminRole } from '../../middleware/adminAuth.js';
@@ -1991,6 +1993,34 @@ export async function adminRoutes(app) {
         });
         return reply.send({ ok: true, ...result });
     });
+    app.get(`${api}/products/warehouse-options/warehouses`, async (request, reply) => {
+        requireAdmin(request);
+        const rows = await warehouseService.listWarehouses();
+        return reply.send({
+            ok: true,
+            warehouses: rows.map((w) => ({
+                id: String(w.id),
+                name: String(w.name ?? w.code ?? 'Warehouse'),
+                code: w.code ? String(w.code) : undefined,
+            })),
+        });
+    });
+    app.get(`${api}/products/warehouse-options/:warehouseId/locations`, async (request, reply) => {
+        requireAdmin(request);
+        const { warehouseId } = request.params;
+        const rows = await warehouseService.listLocations(warehouseId);
+        return reply.send({
+            ok: true,
+            locations: rows.map((l) => ({
+                id: String(l.id),
+                rack: String(l.rack ?? ''),
+                shelf: l.shelf ? String(l.shelf) : null,
+                bin: l.bin ? String(l.bin) : null,
+                zone: l.zone ? String(l.zone) : null,
+                location_code: l.location_code ? String(l.location_code) : null,
+            })),
+        });
+    });
     app.get(`${api}/products`, async (request, reply) => {
         requireAdmin(request);
         const q = request.query;
@@ -2126,6 +2156,7 @@ export async function adminRoutes(app) {
     await app.register(osAnalyticsRoutes);
     await app.register(osSettingsRoutes);
     await app.register(osWarehouseRoutes);
+    await app.register(osPricingRoutes);
     const { osSeoRoutes } = await import('./os-seo.routes.js');
     await app.register(osSeoRoutes);
 }

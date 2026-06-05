@@ -79,6 +79,7 @@ export const shopifyWebhookService = {
         awb: fulfillment.tracking_number,
         trackingUrl: fulfillment.tracking_url,
         fulfillmentStatus: fulfillment.status,
+        courier: fulfillment.tracking_company ?? 'Delhivery',
       });
     }
 

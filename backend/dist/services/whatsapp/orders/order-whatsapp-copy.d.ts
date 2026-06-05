@@ -4,6 +4,7 @@ export declare function dispatchedMessage(params: {
     orderName: string;
     trackingId: string;
     expectedDelivery: string;
+    trackingUrl?: string;
 }): string;
 export declare function paymentFailedMessage(params: {
     lang: AdvisoryLanguage;

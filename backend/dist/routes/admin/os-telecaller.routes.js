@@ -888,6 +888,7 @@ export async function osTelecallerRoutes(app) {
             preparedByName: z.string().optional(),
             send: z.boolean().optional(),
             sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
+            orderType: z.enum(['standard', 'bulk', 'clearance', 'strategic', 'liquidation']).optional(),
             lines: z
                 .array(z.object({
                 variantId: z.coerce.number().optional(),
@@ -921,6 +922,7 @@ export async function osTelecallerRoutes(app) {
             preparedByName: z.string().optional(),
             send: z.boolean().optional(),
             sendChannels: z.array(z.enum(['whatsapp', 'email'])).optional(),
+            orderType: z.enum(['standard', 'bulk', 'clearance', 'strategic', 'liquidation']).optional(),
             lines: z
                 .array(z.object({
                 variantId: z.coerce.number().optional(),
@@ -936,7 +938,7 @@ export async function osTelecallerRoutes(app) {
                 .min(1),
         })
             .parse(request.body);
-        const quote = await commerceQuoteService.updateFromLead(estimateId, leadId, body);
+        const quote = await commerceQuoteService.updateFromLead(estimateId, leadId, body, admin.id);
         let sendResult = null;
         if (body.send) {
             const channels = body.sendChannels?.length ? body.sendChannels : ['whatsapp'];

@@ -15,6 +15,8 @@ export type CompanySettings = {
   licenceNumber: string;
   customerCareNumber: string;
   whatsappNumber: string;
+  termsAndConditions: string;
+  quotationLogoUrl: string;
   formattedAddress: string;
   updatedAt: string | null;
 };
@@ -33,6 +35,8 @@ function mapRow(row: Record<string, unknown> | null): CompanySettings {
   const licenceNumber = String(row?.licence_number ?? '').trim();
   const customerCareNumber = String(row?.customer_care_number ?? '').trim();
   const whatsappNumber = String(row?.whatsapp_number ?? '').trim();
+  const termsAndConditions = String(row?.terms_and_conditions ?? '').trim();
+  const quotationLogoUrl = String(row?.quotation_logo_url ?? '').trim();
 
   const locality = [district, state, country].filter(Boolean).join(', ');
   const formattedAddress = [addressLine, locality, pincode ? `PIN ${pincode}` : '']
@@ -51,6 +55,8 @@ function mapRow(row: Record<string, unknown> | null): CompanySettings {
     licenceNumber,
     customerCareNumber,
     whatsappNumber,
+    termsAndConditions,
+    quotationLogoUrl,
     formattedAddress,
     updatedAt: row?.updated_at ? String(row.updated_at) : null,
   };
@@ -80,6 +86,8 @@ export const companySettingsService = {
       licenceNumber: string;
       customerCareNumber: string;
       whatsappNumber: string;
+      termsAndConditions: string;
+      quotationLogoUrl: string | null;
     }>,
     adminId?: string
   ): Promise<CompanySettings> {
@@ -98,6 +106,12 @@ export const companySettingsService = {
     if (input.licenceNumber !== undefined) patch.licence_number = input.licenceNumber.trim();
     if (input.customerCareNumber !== undefined) patch.customer_care_number = input.customerCareNumber.trim();
     if (input.whatsappNumber !== undefined) patch.whatsapp_number = input.whatsappNumber.trim();
+    if (input.termsAndConditions !== undefined) {
+      patch.terms_and_conditions = input.termsAndConditions.trim() || null;
+    }
+    if (input.quotationLogoUrl !== undefined) {
+      patch.quotation_logo_url = input.quotationLogoUrl?.trim() || null;
+    }
 
     const { data, error } = await supabase
       .from('company_settings')
@@ -125,6 +139,8 @@ export const companySettingsService = {
         licenceNumber: s.licenceNumber,
         customerCareNumber: s.customerCareNumber,
         whatsappNumber: s.whatsappNumber,
+        termsAndConditions: s.termsAndConditions,
+        quotationLogoUrl: s.quotationLogoUrl,
         formattedAddress: s.formattedAddress,
       },
     };

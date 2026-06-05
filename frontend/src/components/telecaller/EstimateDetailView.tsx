@@ -28,6 +28,8 @@ type Company = {
   customerCareNumber: string;
   whatsappNumber: string;
   formattedAddress: string;
+  termsAndConditions?: string;
+  quotationLogoUrl?: string;
 };
 
 type EstimateDetail = {
@@ -161,7 +163,17 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
 
       <article className="est-doc">
         <header className="est-doc-header">
-          <div className="est-doc-brand">{company.companyName}</div>
+          <div className="est-doc-brand">
+            {company.quotationLogoUrl ? (
+              <img
+                src={company.quotationLogoUrl}
+                alt={company.companyName}
+                className="est-doc-logo"
+              />
+            ) : (
+              company.companyName
+            )}
+          </div>
           <div className="est-doc-title-wrap">
             <h1>Quotation</h1>
             <p>{company.companyName}</p>
@@ -274,6 +286,13 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
             </>
           ) : null}
         </div>
+
+        {company.termsAndConditions ? (
+          <div className="est-doc-terms">
+            <h4>Terms &amp; Conditions</h4>
+            <div dangerouslySetInnerHTML={{ __html: company.termsAndConditions }} />
+          </div>
+        ) : null}
 
         {canCheckout ? (
           <button

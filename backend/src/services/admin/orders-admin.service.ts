@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
+import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
 
 export type OrderStatusTab =
   | 'all'
@@ -40,6 +41,8 @@ interface NormalizedOrder {
   omsStatus: string | null;
   createdAt: string;
   rawPayload?: Record<string, unknown> | null;
+  trackingAwb?: string | null;
+  trackingUrl?: string | null;
 }
 
 function normalizePhone(phone: string | null | undefined): string | null {
@@ -155,6 +158,8 @@ function mapCommerceOrder(row: Record<string, unknown>): NormalizedOrder {
     omsStatus: row.oms_status ? String(row.oms_status) : null,
     createdAt: String(row.created_at),
     rawPayload: raw,
+    trackingAwb: row.tracking_awb ? String(row.tracking_awb) : null,
+    trackingUrl: row.tracking_url ? String(row.tracking_url) : null,
   };
   const farmerName = nameFromRaw(raw) || 'Guest';
   const status = resolveStatus(base);
@@ -222,18 +227,20 @@ async function attachFarmerNames(orders: NormalizedOrder[]): Promise<void> {
 }
 
 function mapQuote(row: Record<string, unknown>): NormalizedOrder {
-  const status = String(row.status);
+  const quoteStatus = String(row.status);
   const orderStatus: Exclude<OrderStatusTab, 'all'> =
-    status === 'paid' ? 'processing' : status === 'cancelled' ? 'cancelled' : 'pending';
+    quoteStatus === 'paid' || quoteStatus === 'checkout'
+      ? 'processing'
+      : quoteStatus === 'cancelled'
+        ? 'cancelled'
+        : 'pending';
   const total = Number(row.total) || 0;
-  const paymentType = String(row.payment_type ?? 'advance');
   const prepaid = Number(row.prepaid_amount) || 0;
   const cod = Number(row.cod_amount) || 0;
   let paymentLabel = 'Quote (pending)';
-  if (status === 'checkout') paymentLabel = 'Awaiting payment';
-  else if (status === 'paid') paymentLabel = 'Paid';
-  else if (paymentType === 'advance' && prepaid > 0) {
-    paymentLabel = `Advance ₹${prepaid.toLocaleString('en-IN')} + COD ₹${cod.toLocaleString('en-IN')}`;
+  if (quoteStatus === 'paid') paymentLabel = 'Paid';
+  else if (prepaid > 0) {
+    paymentLabel = `Advance ₹${prepaid.toLocaleString('en-IN')}${cod > 0 ? ` + COD ₹${cod.toLocaleString('en-IN')}` : ''}`;
   }
 
   return {
@@ -243,9 +250,9 @@ function mapQuote(row: Record<string, unknown>): NormalizedOrder {
     orderName: row.quote_number ? String(row.quote_number) : null,
     email: row.customer_email ? String(row.customer_email) : null,
     phone: row.customer_phone ? String(row.customer_phone) : null,
-    financialStatus: status === 'paid' ? 'paid' : 'pending',
+    financialStatus: quoteStatus === 'paid' ? 'paid' : 'pending',
     fulfillmentStatus: null,
-    paymentStatus: status,
+    paymentStatus: quoteStatus,
     totalAmount: total,
     currency: 'INR',
     razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
@@ -310,6 +317,8 @@ function toPublicOrder(o: NormalizedOrder) {
     quotePaymentType: o.source === 'quote' ? (raw.payment_type as string | undefined) : undefined,
     prepaidAmount: o.source === 'quote' ? Number(raw.prepaid_amount) || 0 : undefined,
     codAmount: o.source === 'quote' ? Number(raw.cod_amount) || 0 : undefined,
+    isQuote: o.source === 'quote',
+    quoteStatus: o.source === 'quote' ? String(o.paymentStatus ?? '') : undefined,
   };
 }
 
@@ -479,11 +488,16 @@ function buildTimeline(o: NormalizedOrder, raw: Record<string, unknown> | null) 
   }));
 }
 
-function extractShippingMeta(raw: Record<string, unknown> | null, status: string) {
+function extractShippingMeta(
+  raw: Record<string, unknown> | null,
+  status: string,
+  db?: { awb?: string | null; url?: string | null }
+) {
   const fulfillments = (raw?.fulfillments as Record<string, unknown>[]) ?? [];
   const last = fulfillments[fulfillments.length - 1];
   let courier = '—';
   let trackingId = '—';
+  let shopifyTrackingUrl: string | null = null;
 
   if (last) {
     const company = last.tracking_company ?? last.company;
@@ -491,8 +505,12 @@ function extractShippingMeta(raw: Record<string, unknown> | null, status: string
     const track = last.tracking_number ?? last.tracking_numbers;
     if (Array.isArray(track) && track[0]) trackingId = String(track[0]);
     else if (track) trackingId = String(track);
+    const urls = last.tracking_urls ?? last.tracking_url;
+    if (Array.isArray(urls) && urls[0]) shopifyTrackingUrl = String(urls[0]);
+    else if (urls && typeof urls === 'string') shopifyTrackingUrl = urls;
   }
 
+  if (db?.awb) trackingId = db.awb;
   if (courier === '—' && (status === 'shipped' || status === 'delivered')) {
     courier = 'Delhivery';
     if (trackingId === '—' && raw?.id) {
@@ -500,7 +518,13 @@ function extractShippingMeta(raw: Record<string, unknown> | null, status: string
     }
   }
 
-  return { courier, trackingId };
+  const trackingUrl = resolveTrackingUrl({
+    trackingId: trackingId !== '—' ? trackingId : null,
+    trackingUrl: db?.url ?? shopifyTrackingUrl,
+    courier,
+  });
+
+  return { courier, trackingId, trackingUrl };
 }
 
 function buildOrderDetail(o: NormalizedOrder, sessionRow?: Record<string, unknown>) {
@@ -554,7 +578,10 @@ function buildOrderDetail(o: NormalizedOrder, sessionRow?: Record<string, unknow
     discount = Math.round((subtotal + shipping - total) * 100) / 100;
   }
 
-  const { courier, trackingId } = extractShippingMeta(raw, o.status);
+  const { courier, trackingId, trackingUrl } = extractShippingMeta(raw, o.status, {
+    awb: o.trackingAwb,
+    url: o.trackingUrl,
+  });
   const shipLines = formatAddressLines(shippingAddr);
   const customerShort = shortAddress(shippingAddr);
 
@@ -578,6 +605,7 @@ function buildOrderDetail(o: NormalizedOrder, sessionRow?: Record<string, unknow
       addressLines: shipLines.length ? shipLines : [customerShort],
       courier,
       trackingId,
+      trackingUrl,
     },
     lineItems,
     totals: {
@@ -722,7 +750,8 @@ export const ordersAdminService = {
         ...toPublicOrder(q),
         orderDate: formatOrderDateTime(q.createdAt),
         paymentStatus: q.paymentLabel,
-        statusLabel: q.status.charAt(0).toUpperCase() + q.status.slice(1),
+        statusLabel:
+          String(quoteRow.status).charAt(0).toUpperCase() + String(quoteRow.status).slice(1),
         customer: {
           name: q.farmerName,
           phone: q.phone,
@@ -734,6 +763,7 @@ export const ordersAdminService = {
           addressLines: shipLines.length ? shipLines : ['—'],
           courier: '—',
           trackingId: '—',
+          trackingUrl: null,
         },
         lineItems,
         totals: {

@@ -7,7 +7,7 @@ import { LeadExportMenu } from './LeadExportMenu';
 import { RoiTrackerTab } from './RoiTrackerTab';
 import { FieldActivitiesTab } from './FieldActivitiesTab';
 import { openWhatsAppShare } from '../../lib/crmExport';
-import { FarmerIntelligencePanel } from '../intelligence/FarmerIntelligencePanel';
+import { FarmerIntelligencePanel, useFarmerIntelligenceProfile } from '../intelligence/FarmerIntelligencePanel';
 import {
   InteractionDetailModal,
   type InteractionListRow,
@@ -71,6 +71,8 @@ type LeadDetail = {
     stageLabel: string;
     leadScore: number;
     notes: string | null;
+    assignedTo?: string | null;
+    lastInteractionLabel?: string | null;
   };
   farmer: {
     pincode?: string | null;
@@ -105,19 +107,22 @@ type Props = {
   canWrite: boolean;
 };
 
-const TABS: Array<{ id: Tab; label: string }> = [
+const PRIMARY_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'interactions', label: 'Interactions' },
   { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'blocks', label: 'Blocks' },
-  { id: 'findings', label: 'Field findings' },
-  { id: 'agronomist', label: 'Agronomist' },
-  { id: 'pending_tasks', label: 'Pending Tasks' },
-  { id: 'escalations', label: 'Escalations' },
   { id: 'notes', label: 'Notes' },
   { id: 'orders', label: 'Orders' },
   { id: 'roi_tracker', label: 'ROI tracker' },
   { id: 'field_activity', label: 'Field activity' },
+];
+
+const MORE_TABS: Array<{ id: Tab; label: string }> = [
+  { id: 'blocks', label: 'Blocks' },
+  { id: 'findings', label: 'Field findings' },
+  { id: 'agronomist', label: 'Agronomist' },
+  { id: 'pending_tasks', label: 'Pending tasks' },
+  { id: 'escalations', label: 'Escalations' },
 ];
 
 const TAB_ICONS: Record<Tab, string> = {
@@ -152,6 +157,9 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [loading, setLoading] = useState(true);
   const [showEditFarmer, setShowEditFarmer] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [moreTabsOpen, setMoreTabsOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [escalationCount, setEscalationCount] = useState(0);
   const [selectedInteraction, setSelectedInteraction] = useState<InteractionListRow | null>(
     null
   );
@@ -164,6 +172,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [selectedFinding, setSelectedFinding] = useState<FieldFindingListRow | null>(null);
   const [selectedAgActivity, setSelectedAgActivity] = useState<AgronomistActivityRow | null>(null);
   const [archiveModal, setArchiveModal] = useState<{ path: string; label: string } | null>(null);
+  const { profile: intelProfile, loading: intelLoading } = useFarmerIntelligenceProfile(leadId);
 
   const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -234,6 +243,32 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
     loadDetail();
     setTab('overview');
   }, [loadDetail]);
+
+  useEffect(() => {
+    if (!detail) return;
+    let cancelled = false;
+    Promise.all([
+      api<{ ok: boolean; tasks: Array<{ status?: string }> }>(`${base}/leads/${leadId}/tasks`).catch(
+        () => ({ ok: false, tasks: [] as Array<{ status?: string }> })
+      ),
+      api<{ ok: boolean; escalations: Array<{ status?: string }> }>(
+        `${base}/leads/${leadId}/escalations`
+      ).catch(() => ({ ok: false, escalations: [] as Array<{ status?: string }> })),
+    ]).then(([tasksRes, escRes]) => {
+      if (cancelled) return;
+      const openTasks = (tasksRes.tasks ?? []).filter(
+        (t) => String(t.status ?? 'pending') === 'pending'
+      );
+      const openEsc = (escRes.escalations ?? []).filter(
+        (e) => !['resolved', 'closed'].includes(String(e.status ?? '').toLowerCase())
+      );
+      setPendingCount(openTasks.length);
+      setEscalationCount(openEsc.length);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [leadId, detail, dataVersion]);
 
   useEffect(() => {
     if (detail && tab !== 'overview') loadTabData();
@@ -327,12 +362,20 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const timeline = Array.isArray(detail.timeline) ? detail.timeline : [];
   const recentOrders = Array.isArray(detail.orders) ? detail.orders : [];
   const overviewBlocks = Array.isArray(detail.farmOverview?.blocks) ? detail.farmOverview.blocks : [];
+  const customerSince =
+    timeline.length > 0 ? timeline[timeline.length - 1]?.atLabel ?? '—' : '—';
+  const lastContacted = l.lastInteractionLabel ?? timeline[0]?.atLabel ?? '—';
+  const assignedLabel = l.assignedTo ? String(l.assignedTo).split('@')[0] : 'Unassigned';
+  const isMoreTabActive = MORE_TABS.some((t) => t.id === tab);
+  const callCount = timeline.filter((x) => String(x.type).toLowerCase().includes('call')).length;
+  const waCount = timeline.filter((x) => String(x.type).toLowerCase().includes('whatsapp')).length;
+  const recCount = timeline.filter((x) => String(x.type).toLowerCase().includes('recommend')).length;
 
   return (
     <div className="tc-detail-root">
       <header className="tc-detail-header">
         <div className="tc-detail-identity-row">
-          <span className="tc-avatar-lg">{l.farmerInitials}</span>
+          <span className="tc-avatar-lg tc-avatar-lg--live">{l.farmerInitials}</span>
           <div className="min-w-0 flex-1">
             <div className="tc-detail-topline">
               <h2>{l.farmerName}</h2>
@@ -436,13 +479,24 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
               <LeadExportMenu leadId={leadId} canShare={Boolean(l.phone)} />
             </div>
             <p className="tc-detail-subline">
-              <strong>{l.phone ?? '—'}</strong> <span className="mx-2">•</span> {f.territory}{' '}
+              <strong>{l.phone ?? '—'}</strong>
+              <span className="tc-detail-dot">•</span>
+              {f.territory}
               {l.pincode ? (
                 <>
-                  <span className="mx-2">•</span> Pincode: {l.pincode}
+                  <span className="tc-detail-dot">•</span>
+                  Pincode {l.pincode}
                 </>
               ) : null}
             </p>
+            <div className="tc-detail-meta-row">
+              <span>
+                Last contacted: <strong>{lastContacted}</strong>
+              </span>
+              <span>
+                Assigned to: <strong>{assignedLabel}</strong>
+              </span>
+            </div>
             {canWrite ? (
               <select
                 className="tc-stage-select"
@@ -462,19 +516,52 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
           </div>
         </div>
         <nav className="tc-detail-tabs" role="tablist">
-          {TABS.map((t) => (
+          {PRIMARY_TABS.map((t) => (
             <button
               key={t.id}
               type="button"
               role="tab"
               aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
+              onClick={() => {
+                setTab(t.id);
+                setMoreTabsOpen(false);
+              }}
               className={`tc-detail-tab ${tab === t.id ? 'active' : ''}`}
             >
               <span className="tc-tab-icon">{TAB_ICONS[t.id]}</span>
               {t.label}
             </button>
           ))}
+          <div className="tc-header-menu-wrap">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isMoreTabActive}
+              className={`tc-detail-tab tc-detail-tab--more ${isMoreTabActive ? 'active' : ''}`}
+              onClick={() => setMoreTabsOpen((v) => !v)}
+            >
+              More ▾
+            </button>
+            {moreTabsOpen ? (
+              <div className="tc-header-dropdown tc-more-tabs-menu" role="menu">
+                {MORE_TABS.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="menuitem"
+                    className={tab === t.id ? 'is-active' : ''}
+                    onClick={() => {
+                      setTab(t.id);
+                      setMoreTabsOpen(false);
+                    }}
+                  >
+                    <span className="tc-tab-icon">{TAB_ICONS[t.id]}</span>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </nav>
         {canWrite ? (
           <div className="tc-detail-actions">
@@ -490,6 +577,26 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
             <button type="button" className="tc-action-btn" onClick={() => setShowCreateEstimate(true)}>
               Create quote
             </button>
+            <div className="tc-detail-alert-badges">
+              {pendingCount > 0 ? (
+                <button
+                  type="button"
+                  className="tc-alert-pill tc-alert-pill--tasks"
+                  onClick={() => setTab('pending_tasks')}
+                >
+                  Pending tasks ({pendingCount})
+                </button>
+              ) : null}
+              {escalationCount > 0 ? (
+                <button
+                  type="button"
+                  className="tc-alert-pill tc-alert-pill--esc"
+                  onClick={() => setTab('escalations')}
+                >
+                  Escalations ({escalationCount})
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </header>
@@ -605,86 +712,107 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
 
       <div className="tc-detail-body">
         {tab === 'overview' ? (
-          <div className="tc-farmer-dashboard">
-            <section className="tc-profile-summary">
-              <article className="tc-profile-metric">
-                <span>Total acres</span>
-                <strong>{f.acreage || '—'}</strong>
+          <div className="tc-farmer-dashboard tc-farmer-dashboard--v2">
+            <section className="tc-kpi-strip">
+              <article className="tc-kpi-card">
+                <span className="tc-kpi-label">Total acres</span>
+                <strong className="tc-kpi-value">{f.acreage || '—'}</strong>
               </article>
-              <article className="tc-profile-metric">
-                <span>Primary crop</span>
-                <strong>{f.crop || '—'}</strong>
+              <article className="tc-kpi-card">
+                <span className="tc-kpi-label">Primary crop</span>
+                <strong className="tc-kpi-value">{f.crop || detail.farmOverview?.primaryCrop || '—'}</strong>
               </article>
-              <FarmerIntelligencePanel leadId={leadId} fallbackLeadScore={Number(l.leadScore)} />
-              <article className="tc-profile-metric">
-                <span>Customer since</span>
-                <strong>{timeline.length ? timeline[timeline.length - 1]?.atLabel ?? '—' : '—'}</strong>
-              </article>
-              <article className="tc-profile-metric">
-                <span>Next follow-up</span>
-                <strong>
-                  {detail.nextFollowUp?.dueLabel ?? 'None'}
-                  <em className="tc-badge-due">In 1 day</em>
-                </strong>
-              </article>
+              <FarmerIntelligencePanel
+                leadId={leadId}
+                fallbackLeadScore={Number(l.leadScore)}
+                variant="kpis"
+                profile={intelProfile}
+                loading={intelLoading}
+              />
             </section>
 
-            <section className="tc-dashboard-main-grid">
-              <article className="tc-dashboard-card">
-                <h3>Farmer overview</h3>
-                <dl>
-                  <Row label="Full Name" value={l.farmerName} />
-                  <Row label="Territory" value={f.territory || '—'} />
-                  <Row label="Pincode" value={f.pincode ?? l.pincode ?? '—'} />
-                  <Row label="Language" value={f.language || '—'} />
-                  <Row label="Phone" value={l.phone ?? '—'} />
-                  <Row label="Irrigation" value={f.irrigation || '—'} />
-                  <Row label="Soil" value={f.soilType || '—'} />
-                </dl>
-              </article>
+            <p className="tc-farmer-facts-line">
+              {[f.territory, l.pincode ? `PIN ${l.pincode}` : null, f.language, f.irrigation, f.soilType]
+                .filter(Boolean)
+                .join(' · ')}
+            </p>
 
-              <article className="tc-dashboard-card">
-                <h3>Recent orders</h3>
-                <ul className="tc-compact-list">
-                  {recentOrders.slice(0, 3).map((o, idx) => (
-                    <li key={`${o.label}-${o.date}-${idx}`}>
-                      <strong>{o.label || `Order ${idx + 1}`}</strong>
-                      <span>₹{Number(o.amount ?? 0)}</span>
-                    </li>
-                  ))}
-                  {recentOrders.length === 0 ? <li className="tc-empty-row">No recent orders</li> : null}
-                </ul>
-              </article>
-
-              <article className="tc-dashboard-card">
-                <h3>Upcoming follow-ups</h3>
-                {detail.nextFollowUp ? (
-                  <div className="tc-followup-block">
-                    <p className="tc-followup-title">{detail.nextFollowUp.title}</p>
-                    <p className="tc-followup-time">{detail.nextFollowUp.dueLabel}</p>
+            <section className="tc-overview-split">
+              <div className="tc-overview-primary">
+                <FarmerIntelligencePanel
+                  leadId={leadId}
+                  fallbackLeadScore={Number(l.leadScore)}
+                  variant="detail"
+                  profile={intelProfile}
+                  loading={intelLoading}
+                />
+                <footer className="tc-overview-timeline-footer">
+                  <div>
+                    <span>Customer since</span>
+                    <strong>{customerSince}</strong>
                   </div>
-                ) : (
-                  <p className="tc-empty-row">No follow-up scheduled</p>
-                )}
+                  <div>
+                    <span>Next follow-up</span>
+                    <strong>
+                      {detail.nextFollowUp?.dueLabel ?? 'None scheduled'}
+                      {detail.nextFollowUp ? <em className="tc-badge-due">Due soon</em> : null}
+                    </strong>
+                  </div>
+                </footer>
+              </div>
+
+              <aside className="tc-overview-sidebar">
+                <article className="tc-sidebar-card tc-sidebar-card--accent">
+                  <h3>Upcoming follow-ups</h3>
+                  {detail.nextFollowUp ? (
+                    <div className="tc-followup-block">
+                      <p className="tc-followup-title">{detail.nextFollowUp.title}</p>
+                      <p className="tc-followup-time">{detail.nextFollowUp.dueLabel}</p>
+                    </div>
+                  ) : (
+                    <p className="tc-empty-row">No follow-up scheduled</p>
+                  )}
+                </article>
+
                 {canWrite ? (
-                  <form onSubmit={addNote} className="mt-3 border-t border-slate-100 pt-3">
-                    <label className="text-xs text-slate-600">Internal note</label>
-                    <textarea
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
-                      rows={2}
-                      value={noteText}
-                      onChange={(e) => setNoteText(e.target.value)}
-                      placeholder="Call summary, farmer concern…"
-                    />
-                    <button
-                      type="submit"
-                      className="mt-2 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-                    >
-                      Save note
-                    </button>
-                  </form>
+                  <article className="tc-sidebar-card">
+                    <h3>Internal note</h3>
+                    <form onSubmit={addNote}>
+                      <textarea
+                        className="tc-note-input"
+                        rows={3}
+                        value={noteText}
+                        onChange={(e) => setNoteText(e.target.value)}
+                        placeholder="Call summary, farmer concern…"
+                      />
+                      <button type="submit" className="tc-note-save-btn">
+                        Save note
+                      </button>
+                    </form>
+                  </article>
                 ) : null}
-              </article>
+
+                <article className="tc-sidebar-card">
+                  <h3>Recent orders</h3>
+                  {recentOrders.length > 0 ? (
+                    <ul className="tc-compact-list">
+                      {recentOrders.slice(0, 3).map((o, idx) => (
+                        <li key={`${o.label}-${o.date}-${idx}`}>
+                          <strong>{o.label || `Order ${idx + 1}`}</strong>
+                          <span>₹{Number(o.amount ?? 0).toLocaleString('en-IN')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="tc-empty-orders">
+                      <span className="tc-empty-orders-icon" aria-hidden>
+                        🛒
+                      </span>
+                      <p>No recent orders</p>
+                    </div>
+                  )}
+                </article>
+              </aside>
             </section>
 
             <section className="tc-dashboard-card tc-blocks-summary">
@@ -695,27 +823,27 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
                 </button>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <table className="tc-blocks-table">
+                  <thead>
                     <tr>
-                      <th className="px-3 py-2">Block</th>
-                      <th className="px-3 py-2">Crop</th>
-                      <th className="px-3 py-2">Area</th>
-                      <th className="px-3 py-2">Stage</th>
+                      <th>Block</th>
+                      <th>Crop</th>
+                      <th>Area</th>
+                      <th>Stage</th>
                     </tr>
                   </thead>
                   <tbody>
                     {overviewBlocks.map((b) => (
-                      <tr key={b.id} className="border-t border-slate-100">
-                        <td className="px-3 py-2">{b.name}</td>
-                        <td className="px-3 py-2">{b.cropType || '—'}</td>
-                        <td className="px-3 py-2">{String(b.acreage ?? '—')}</td>
-                        <td className="px-3 py-2">{b.isPrimary ? 'Primary' : 'Secondary'}</td>
+                      <tr key={b.id}>
+                        <td>{b.name}</td>
+                        <td>{b.cropType || '—'}</td>
+                        <td>{String(b.acreage ?? '—')}</td>
+                        <td>{b.isPrimary ? 'Primary' : 'Secondary'}</td>
                       </tr>
                     ))}
                     {overviewBlocks.length === 0 ? (
                       <tr>
-                        <td className="px-3 py-4 text-slate-500" colSpan={4}>
+                        <td colSpan={4} className="tc-empty-row">
                           No blocks found
                         </td>
                       </tr>
@@ -725,37 +853,46 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
               </div>
             </section>
 
-            <section className="tc-dashboard-footer-grid">
-              <article className="tc-dashboard-card">
+            <section className="tc-overview-bottom">
+              <article className="tc-bottom-card">
                 <h3>Interaction summary</h3>
                 <div className="tc-mini-kpis">
                   <div>
                     <span>Calls</span>
-                    <strong>{timeline.filter((x) => String(x.type).toLowerCase().includes('call')).length}</strong>
+                    <strong>{callCount}</strong>
                   </div>
                   <div>
                     <span>WhatsApp</span>
-                    <strong>{timeline.filter((x) => String(x.type).toLowerCase().includes('whatsapp')).length}</strong>
+                    <strong>{waCount}</strong>
                   </div>
                   <div>
                     <span>Recommendations</span>
-                    <strong>{timeline.filter((x) => String(x.type).toLowerCase().includes('recommend')).length}</strong>
+                    <strong>{recCount}</strong>
                   </div>
                 </div>
               </article>
-              <article className="tc-dashboard-card">
+              <article className="tc-bottom-card tc-bottom-card--insight">
                 <h3>AI insight</h3>
-                <p className="text-sm text-slate-600">
+                <p>
                   {timeline[0]?.detail ??
                     'Keep follow-up cadence weekly and convert latest recommendation into order after confirmation.'}
                 </p>
               </article>
-              <article className="tc-dashboard-card">
+              <article className="tc-bottom-card">
                 <h3>Suggested next action</h3>
-                <ul className="tc-compact-list">
-                  <li><strong>Call farmer for confirmation</strong><span>Today</span></li>
-                  <li><strong>Share recommendation on WhatsApp</strong><span>Today</span></li>
-                  <li><strong>Schedule field visit if needed</strong><span>This week</span></li>
+                <ul className="tc-action-list">
+                  <li>
+                    <strong>Call farmer for confirmation</strong>
+                    <span>Today</span>
+                  </li>
+                  <li>
+                    <strong>Share recommendation on WhatsApp</strong>
+                    <span>Today</span>
+                  </li>
+                  <li>
+                    <strong>Schedule field visit if needed</strong>
+                    <span>This week</span>
+                  </li>
                 </ul>
               </article>
             </section>
@@ -1105,15 +1242,6 @@ function ActionBtn({ children, onClick }: { children: ReactNode; onClick: () => 
     <button type="button" className="tc-action-btn" onClick={onClick}>
       {children}
     </button>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <dt className="text-slate-600">{label}</dt>
-      <dd className="font-medium text-slate-900">{value}</dd>
-    </div>
   );
 }
 

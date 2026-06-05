@@ -54,6 +54,63 @@
   min-width: 200px;
 }
 
+.warehouse-location-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.warehouse-location-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 0.25rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.warehouse-location-error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.8rem;
+  color: #b91c1c;
+}
+
+.warehouse-location-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.warehouse-location-field select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  background: #fff;
+}
+
+.warehouse-location-field select:disabled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.warehouse-location-code {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.warehouse-landed-cell {
+  font-weight: 600;
+  color: #0f766e;
+  white-space: nowrap;
+}
+
 .warehouse-batch-table {
   width: 100%;
   font-size: 0.85rem;

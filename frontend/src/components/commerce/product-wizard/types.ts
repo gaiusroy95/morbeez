@@ -55,6 +55,11 @@ export type WizardFormState = {
     packMaterial: string;
     safetyInstructions: string;
     skuPrefix: string;
+    warehouseId: string;
+    warehouseName: string;
+    rackId: string;
+    rackRow: string;
+    locationId: string;
     variants: WizardVariant[];
     publishOn: string;
   };
