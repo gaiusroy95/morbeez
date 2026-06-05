@@ -35,7 +35,7 @@ export declare const employeeKpiService: {
         notes: string | null;
         computed_at: string;
     } | null>;
-    getDashboard(monthYear?: string): Promise<{
+    getDashboard(monthYear?: string, filter?: "all" | "top" | "under" | "risk"): Promise<{
         monthYear: string;
         employees: {
             employeeProfileId: string;
@@ -50,7 +50,16 @@ export declare const employeeKpiService: {
             grade: string;
             salesAchievementPct: number;
             profitLabel: string;
+            rank: number;
+            isTopPerformer: boolean;
+            isUnderPerformer: boolean;
         }[];
+        summary: {
+            total: number;
+            topCount: number;
+            underCount: number;
+            avgScore: number;
+        };
     }>;
     recomputeAllForMonth(monthYear?: string): Promise<void>;
 };

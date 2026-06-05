@@ -6,7 +6,6 @@ import { EditFarmerModal } from './EditFarmerModal';
 import { LeadExportMenu } from './LeadExportMenu';
 import { RoiTrackerTab } from './RoiTrackerTab';
 import { FieldActivitiesTab } from './FieldActivitiesTab';
-import { openWhatsAppShare } from '../../lib/crmExport';
 import { FarmerIntelligencePanel, useFarmerIntelligenceProfile } from '../intelligence/FarmerIntelligencePanel';
 import {
   InteractionDetailModal,

@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { adminAuthService } from '../../services/auth/admin-auth.service.js';
 import { adminDashboardService } from '../../services/admin/admin-dashboard.service.js';
+import { superAdminMonitorService } from '../../services/admin/super-admin-monitor.service.js';
 import { farmersAdminService } from '../../services/admin/farmers-admin.service.js';
 import { ordersAdminService } from '../../services/admin/orders-admin.service.js';
 import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
@@ -332,6 +333,56 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     requireAdmin(request);
     const overview = await adminDashboardService.getOverview();
     return reply.send({ ok: true, ...overview });
+  });
+
+  app.get(`${api}/dashboard/super-admin-monitor`, async (request, reply) => {
+    assertStaffManagement(request);
+    const q = request.query as { date?: string; monthYear?: string };
+    const monitor = await superAdminMonitorService.getMonitor({
+      date: q.date,
+      monthYear: q.monthYear,
+    });
+    return reply.send({ ok: true, monitor });
+  });
+
+  app.post(`${api}/dashboard/super-admin-monitor/refresh`, async (request, reply) => {
+    assertStaffManagement(request);
+    const body = z
+      .object({ date: z.string().optional(), monthYear: z.string().optional() })
+      .parse(request.body ?? {});
+    const monitor = await superAdminMonitorService.refreshMonitor(body);
+    return reply.send({ ok: true, monitor });
+  });
+
+  app.get(`${api}/dashboard/marketing-spend`, async (request, reply) => {
+    assertStaffManagement(request);
+    const q = request.query as { monthYear?: string };
+    const monthYear = q.monthYear ?? new Date().toISOString().slice(0, 7);
+    const { marketingSpendService } = await import('../../services/admin/marketing-spend.service.js');
+    const entries = await marketingSpendService.listByMonth(monthYear);
+    const total = entries.reduce((s, e) => s + Number(e.amount_inr), 0);
+    return reply.send({ ok: true, monthYear, total, entries });
+  });
+
+  app.post(`${api}/dashboard/marketing-spend`, async (request, reply) => {
+    const admin = assertStaffManagement(request);
+    const body = z
+      .object({
+        monthYear: z.string(),
+        channel: z.enum(['meta', 'google', 'whatsapp', 'field', 'general', 'other']).default('general'),
+        amountInr: z.coerce.number().positive(),
+        notes: z.string().optional(),
+      })
+      .parse(request.body);
+    const { marketingSpendService } = await import('../../services/admin/marketing-spend.service.js');
+    const entry = await marketingSpendService.addEntry({
+      monthYear: body.monthYear,
+      channel: body.channel,
+      amountInr: body.amountInr,
+      notes: body.notes,
+      recordedBy: admin.id,
+    });
+    return reply.status(201).send({ ok: true, entry });
   });
 
   app.get(`${api}/orders`, async (request, reply) => {

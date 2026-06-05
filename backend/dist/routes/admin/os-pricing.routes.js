@@ -6,6 +6,7 @@ import { incentiveEngineService } from '../../services/pricing/incentive-engine.
 import { employeePerformanceService } from '../../services/pricing/employee-performance.service.js';
 import { employeeKpiService } from '../../services/pricing/employee-kpi.service.js';
 import { bulkMarginReviewService } from '../../services/pricing/bulk-margin-review.service.js';
+import { employeeEarningsService } from '../../services/pricing/employee-earnings.service.js';
 export async function osPricingRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/pricing';
     app.get(`${api}/config`, async (request, reply) => {
@@ -111,7 +112,7 @@ export async function osPricingRoutes(app) {
     app.get(`${api}/kpi/dashboard`, async (request, reply) => {
         assertStaffManagement(request);
         const q = request.query;
-        const dashboard = await employeeKpiService.getDashboard(q.monthYear);
+        const dashboard = await employeeKpiService.getDashboard(q.monthYear, q.filter ?? 'all');
         return reply.send({ ok: true, ...dashboard });
     });
     app.post(`${api}/kpi/recompute`, async (request, reply) => {
@@ -123,8 +124,16 @@ export async function osPricingRoutes(app) {
     app.get(`${api}/performance/dashboard`, async (request, reply) => {
         assertStaffManagement(request);
         const q = request.query;
-        const kpi = await employeeKpiService.getDashboard(q.monthYear);
+        const kpi = await employeeKpiService.getDashboard(q.monthYear, q.filter ?? 'all');
         return reply.send({ ok: true, ...kpi });
+    });
+    app.get(`${api}/earnings/me`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const earnings = await employeeEarningsService.getMyEarnings(admin.id);
+        if (!earnings) {
+            return reply.status(404).send({ ok: false, error: 'No employee profile linked to this account' });
+        }
+        return reply.send({ ok: true, earnings });
     });
     app.get(`${api}/performance/me`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');

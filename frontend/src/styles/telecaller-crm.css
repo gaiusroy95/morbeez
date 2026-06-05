@@ -3152,6 +3152,58 @@
   padding: 10px 12px;
 }
 
+.tc-earnings-bar {
+  margin-bottom: 10px;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 100%);
+  padding: 10px 12px;
+}
+
+.tc-earnings-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 8px;
+}
+
+.tc-earnings-bar-head h3 {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: #14532d;
+}
+
+.tc-earnings-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tc-earnings-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.65rem;
+}
+
+.tc-earnings-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tc-earnings-total {
+  color: #059669;
+}
+
+.tc-earnings-panel-inner {
+  margin-top: 0.65rem;
+  box-shadow: none;
+}
+
 .tc-intel-bar-head {
   display: flex;
   align-items: center;

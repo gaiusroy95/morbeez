@@ -6,6 +6,7 @@ import { LeadOperationsTable } from '../components/telecaller/lead-queue/LeadOpe
 import type { OperationalLead } from '../components/telecaller/lead-queue/lead-queue-types';
 import { EscalationsPanel } from '../components/telecaller/EscalationsPanel';
 import { TelecallerIntelligenceBar } from '../components/telecaller/TelecallerIntelligenceBar';
+import { MyEarningsPanel } from '../components/telecaller/MyEarningsPanel';
 import { Field, Modal, inputClass } from '../components/Modal';
 import {
   CROP_PRESETS,
@@ -436,7 +437,10 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       ) : null}
 
       {crmView === 'workspace' ? (
-        <TelecallerIntelligenceBar onSelectLead={(id) => openLeadWorkspace(id)} />
+        <>
+          <MyEarningsPanel />
+          <TelecallerIntelligenceBar onSelectLead={(id) => openLeadWorkspace(id)} />
+        </>
       ) : null}
 
       {crmView === 'workspace' ? (

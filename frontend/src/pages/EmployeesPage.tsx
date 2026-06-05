@@ -685,7 +685,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
         <EmployeePricingDashboard />
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4" id="bulk-margin-reviews">
         <BulkMarginReviewPanel />
       </div>
 

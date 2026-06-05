@@ -1,0 +1,268 @@
+.sam-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sam-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.sam-inline-error {
+  margin-bottom: 0.5rem;
+}
+
+.sam-emp-link {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.sam-emp-link:hover strong {
+  color: #059669;
+  text-decoration: underline;
+}
+
+.sam-click-row {
+  cursor: default;
+}
+
+.sam-widget-link {
+  margin-top: 0.65rem;
+}
+
+.sam-ad-spend-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.sam-ad-spend-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sam-ad-spend-form select,
+.sam-ad-spend-form input {
+  padding: 0.3rem 0.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.sam-ad-spend-form input {
+  width: 100px;
+}
+
+.sam-alert-list button.sam-alert {
+  width: 100%;
+  text-align: left;
+  cursor: default;
+}
+
+.sam-alert--clickable {
+  cursor: pointer;
+}
+
+.sam-alert--clickable:hover {
+  filter: brightness(0.98);
+}
+
+.sam-alert-action {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #059669;
+  margin-top: 0.15rem;
+}
+
+.sam-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.sam-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sam-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+.sam-month-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.sam-month-picker input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.sam-row {
+  display: grid;
+  gap: 1rem;
+}
+
+.sam-row-top {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.sam-row-mid {
+  grid-template-columns: 1.4fr 1fr;
+}
+
+.sam-row-bottom {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.sam-widget-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sam-widget-wide {
+  min-height: 280px;
+}
+
+.sam-kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.sam-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.sam-kpi-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.sam-kpi-sub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+.sam-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.sam-inv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.sam-row-risk {
+  background: #fffbeb;
+}
+
+.sam-row-top-performer {
+  background: #ecfdf5;
+}
+
+.sam-alerts {
+  grid-column: span 1;
+}
+
+.sam-alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sam-alert {
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sam-alert strong {
+  font-size: 0.8125rem;
+  color: #0f172a;
+}
+
+.sam-alert span {
+  font-size: 0.75rem;
+  color: #64748b;
+}
+
+.sam-alert--critical {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.sam-alert--warning {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.sam-all-clear {
+  margin: 0;
+  padding: 1rem 0;
+  text-align: center;
+}
+
+@media (max-width: 1200px) {
+  .sam-row-top,
+  .sam-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sam-row-mid,
+  .sam-row-bottom {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .sam-row-top,
+  .sam-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}

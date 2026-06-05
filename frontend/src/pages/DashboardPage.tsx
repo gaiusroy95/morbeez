@@ -11,8 +11,11 @@ import {
 } from 'chart.js';
 import { PageShell } from '../components/ui';
 import { api } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
+import { canManageStaff } from '../lib/role-home';
 import { formatInr, formatInrFull, formatTrend } from '../lib/format';
 import { StatIcon } from '../components/NavIcon';
+import { SuperAdminMonitorDashboard } from '../components/dashboard/SuperAdminMonitorDashboard';
 
 Chart.register(
   LineController,
@@ -102,6 +105,8 @@ function AlertCard({
 }
 
 export function DashboardPage() {
+  const { admin } = useAuth();
+  const showSuperAdminMonitor = canManageStaff(admin?.role);
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -109,11 +114,15 @@ export function DashboardPage() {
   const chartRef = useRef<Chart | null>(null);
 
   useEffect(() => {
+    if (showSuperAdminMonitor) {
+      setLoading(false);
+      return;
+    }
     api<{ ok: boolean } & Dashboard>('/morbeez-staff/api/v1/dashboard')
       .then((d) => setData(d))
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [showSuperAdminMonitor]);
 
   useEffect(() => {
     if (!data?.salesChart || !canvasRef.current) return;
@@ -178,8 +187,12 @@ export function DashboardPage() {
     };
   }, [data]);
 
-  if (loading) {
+  if (loading && !showSuperAdminMonitor) {
     return <PageShell loading loadingLabel="Loading dashboard…" />;
+  }
+
+  if (showSuperAdminMonitor) {
+    return <SuperAdminMonitorDashboard />;
   }
 
   if (error) {

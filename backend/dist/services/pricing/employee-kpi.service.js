@@ -190,7 +190,7 @@ export const employeeKpiService = {
         throwIfSupabaseError(error, 'Upsert quarterly bonus');
         return row;
     },
-    async getDashboard(monthYear) {
+    async getDashboard(monthYear, filter) {
         const my = monthYear ?? monthYearFromDate(new Date());
         const { data: scores, error } = await supabase
             .from('employee_monthly_kpi_scores')
@@ -198,29 +198,58 @@ export const employeeKpiService = {
             .eq('month_year', my)
             .order('total_score', { ascending: false });
         throwIfSupabaseError(error, 'Load KPI dashboard');
+        let employees = (scores ?? []).map((s) => {
+            const prof = s.employee_profiles;
+            return {
+                employeeProfileId: String(s.employee_profile_id),
+                fullName: String(prof?.full_name ?? 'Unknown'),
+                employeeCode: String(prof?.employee_code ?? '—'),
+                salesVolumeInr: Number(s.sales_volume_inr) || 0,
+                avgRealizationPct: Number(s.avg_realization_pct) || 0,
+                grossProfitInr: Number(s.gross_profit_inr) || 0,
+                netProfitInr: Number(s.net_profit_inr) || 0,
+                incentiveEarnedInr: Number(s.incentive_earned_inr) || 0,
+                totalScore: Number(s.total_score) || 0,
+                grade: String(s.grade),
+                salesAchievementPct: Number(s.sales_achievement_pct) || 0,
+                profitLabel: Number(s.gross_profit_inr) >= 50000
+                    ? 'High'
+                    : Number(s.gross_profit_inr) >= 15000
+                        ? 'Moderate'
+                        : 'Weak',
+                rank: 0,
+                isTopPerformer: false,
+                isUnderPerformer: false,
+            };
+        });
+        employees = employees.map((e, i) => ({
+            ...e,
+            rank: i + 1,
+            isTopPerformer: i < 3,
+            isUnderPerformer: e.grade === 'Risk' || e.grade === 'C' || e.salesAchievementPct < 80,
+        }));
+        const allEmployees = employees;
+        const underCountAll = allEmployees.filter((e) => e.isUnderPerformer).length;
+        if (filter === 'top') {
+            employees = employees.filter((e) => e.isTopPerformer || e.grade === 'A+' || e.grade === 'A');
+        }
+        else if (filter === 'under') {
+            employees = employees.filter((e) => e.isUnderPerformer);
+        }
+        else if (filter === 'risk') {
+            employees = employees.filter((e) => e.grade === 'Risk' || e.grade === 'C');
+        }
         return {
             monthYear: my,
-            employees: (scores ?? []).map((s) => {
-                const prof = s.employee_profiles;
-                return {
-                    employeeProfileId: String(s.employee_profile_id),
-                    fullName: String(prof?.full_name ?? 'Unknown'),
-                    employeeCode: String(prof?.employee_code ?? '—'),
-                    salesVolumeInr: Number(s.sales_volume_inr) || 0,
-                    avgRealizationPct: Number(s.avg_realization_pct) || 0,
-                    grossProfitInr: Number(s.gross_profit_inr) || 0,
-                    netProfitInr: Number(s.net_profit_inr) || 0,
-                    incentiveEarnedInr: Number(s.incentive_earned_inr) || 0,
-                    totalScore: Number(s.total_score) || 0,
-                    grade: String(s.grade),
-                    salesAchievementPct: Number(s.sales_achievement_pct) || 0,
-                    profitLabel: Number(s.gross_profit_inr) >= 50000
-                        ? 'High'
-                        : Number(s.gross_profit_inr) >= 15000
-                            ? 'Moderate'
-                            : 'Weak',
-                };
-            }),
+            employees,
+            summary: {
+                total: allEmployees.length,
+                topCount: Math.min(3, allEmployees.length),
+                underCount: underCountAll,
+                avgScore: allEmployees.length > 0
+                    ? allEmployees.reduce((s, r) => s + r.totalScore, 0) / allEmployees.length
+                    : 0,
+            },
         };
     },
     async recomputeAllForMonth(monthYear) {
