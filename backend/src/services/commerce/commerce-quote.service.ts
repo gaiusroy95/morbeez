@@ -60,6 +60,7 @@ export type CommerceQuote = {
   sentAt: string | null;
   whatsappSentAt: string | null;
   emailSentAt: string | null;
+  acceptedAt: string | null;
   createdAt: string;
   updatedAt: string;
   hoursLeft?: number;
@@ -123,10 +124,16 @@ function mapRow(row: Record<string, unknown>): CommerceQuote {
     sentAt: row.sent_at ? String(row.sent_at) : null,
     whatsappSentAt: row.whatsapp_sent_at ? String(row.whatsapp_sent_at) : null,
     emailSentAt: row.email_sent_at ? String(row.email_sent_at) : null,
+    acceptedAt: row.accepted_at ? String(row.accepted_at) : null,
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     hoursLeft,
   };
+}
+
+function quoteViewUrl(quoteId: string): string {
+  const base = (env.CONSOLE_PUBLIC_URL ?? 'https://morbeez.vercel.app').replace(/\/$/, '');
+  return `${base}/commerce/quotes/${quoteId}`;
 }
 
 function quoteCheckoutUrl(quoteId: string): string {
@@ -160,7 +167,7 @@ function buildQuoteShareText(quote: CommerceQuote): string {
     '',
     `Valid until: ${formatDocDate(quote.expiresAt)}`,
     '',
-    `Checkout: ${quoteCheckoutUrl(quote.id)}`
+    `View quotation: ${quoteViewUrl(quote.id)}`
   );
   if (quote.preparedByName) {
     parts.push('', `Prepared by: ${quote.preparedByName}`);
@@ -522,6 +529,7 @@ export const commerceQuoteService = {
     return {
       text,
       checkoutUrl: quoteCheckoutUrl(quote.id),
+      viewUrl: quoteViewUrl(quote.id),
       whatsappUrl: buildWhatsAppUrl(phone, quote),
       mailtoUrl: quote.customerEmail ? buildMailtoUrl(quote.customerEmail, quote) : null,
     };
@@ -897,6 +905,27 @@ export const commerceQuoteService = {
     };
   },
 
+  async acceptQuote(id: string): Promise<CommerceQuote> {
+    const quote = await this.get(id);
+    if (quote.status === 'paid') {
+      throw new ValidationError('Quote is already paid');
+    }
+    if (quote.status === 'expired' || quote.status === 'cancelled') {
+      throw new ValidationError('Quote is no longer active');
+    }
+    if (quote.acceptedAt) return quote;
+
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('commerce_quotes')
+      .update({ accepted_at: now, updated_at: now })
+      .eq('id', id)
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Accept quote');
+    return mapRow(data as Record<string, unknown>);
+  },
+
   async cancel(id: string): Promise<void> {
     const { error } = await supabase
       .from('commerce_quotes')
@@ -908,5 +937,16 @@ export const commerceQuoteService = {
   async delete(id: string): Promise<void> {
     const { error } = await supabase.from('commerce_quotes').delete().eq('id', id);
     throwIfSupabaseError(error, 'Delete quote');
+  },
+
+  async deleteFromLead(id: string, leadId: string): Promise<void> {
+    const quote = await this.get(id);
+    if (quote.leadId && quote.leadId !== leadId) {
+      throw new NotFoundError('Estimate not found for this lead');
+    }
+    if (quote.status === 'paid') {
+      throw new ValidationError('Paid quotes cannot be deleted');
+    }
+    await this.delete(id);
   },
 };

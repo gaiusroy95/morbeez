@@ -432,6 +432,27 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, quote });
   });
 
+  app.get(`${api}/quotes/:id/document`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const detail = await commerceQuoteService.getEstimateDetail(id);
+    return reply.send({ ok: true, ...detail });
+  });
+
+  app.get(`${api}/quotes/:id/share`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const links = await commerceQuoteService.getShareLinks(id);
+    return reply.send({ ok: true, ...links });
+  });
+
+  app.post(`${api}/quotes/:id/accept`, async (request, reply) => {
+    requireAdmin(request);
+    const { id } = request.params as { id: string };
+    const quote = await commerceQuoteService.acceptQuote(id);
+    return reply.send({ ok: true, quote });
+  });
+
   app.post(`${api}/quotes/:id/checkout`, async (request, reply) => {
     requireAdmin(request);
     const { id } = request.params as { id: string };

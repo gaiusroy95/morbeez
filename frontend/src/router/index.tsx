@@ -18,6 +18,7 @@ import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { AnalyticsHubPage } from '../pages/AnalyticsHubPage';
 import { CommerceHubPage } from '../pages/CommerceHubPage';
 import { QuoteCheckoutPage } from '../pages/QuoteCheckoutPage';
+import { QuoteViewPage } from '../pages/QuoteViewPage';
 import { WarehouseHubPage } from '../pages/WarehouseHubPage';
 import { SeoHubPage } from '../pages/SeoHubPage';
 import { ProductWizardPage } from '../pages/ProductWizardPage';
@@ -180,6 +181,14 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="commerce">
                   <CommerceRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.commerceQuoteView,
+              element: (
+                <ProtectedPage module="commerce">
+                  <QuoteViewPage />
                 </ProtectedPage>
               ),
             },

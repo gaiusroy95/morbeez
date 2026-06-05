@@ -30,6 +30,7 @@ type Quote = {
   paymentType: string;
   prepaidAmount: number;
   codAmount: number;
+  acceptedAt: string | null;
   hoursLeft?: number;
 };
 
@@ -68,10 +69,19 @@ export function QuoteCheckoutPage() {
 
   useEffect(() => {
     api<{ ok: boolean; quote: Quote }>(`/morbeez-staff/api/v1/quotes/${quoteId}`)
-      .then((d) => setQuote(d.quote))
+      .then((d) => {
+        const q = d.quote;
+        const accepted =
+          Boolean(q.acceptedAt) || q.status === 'checkout' || q.status === 'paid';
+        if (!accepted && q.status === 'pending') {
+          navigate(toPath(paths.commerceQuoteView.replace(':quoteId', quoteId)), { replace: true });
+          return;
+        }
+        setQuote(q);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Quote not found'))
       .finally(() => setLoading(false));
-  }, [quoteId]);
+  }, [quoteId, navigate]);
 
   const prepaid = paymentType === 'full' ? quote?.total ?? 0 : Number(prepaidAmount) || 0;
   const payNowAmount =
@@ -189,8 +199,11 @@ export function QuoteCheckoutPage() {
 
   return (
     <div className="max-w-5xl mx-auto p-4">
-      <Link to={toPath(paths.commerce)} className="text-sm text-emerald-700 hover:underline">
-        ← Back to orders
+      <Link
+        to={toPath(paths.commerceQuoteView.replace(':quoteId', quote.id))}
+        className="text-sm text-emerald-700 hover:underline"
+      >
+        ← View quotation
       </Link>
       <h1 className="mt-3 text-xl font-bold text-slate-900">Checkout — {quote.quoteNumber}</h1>
       <p className="text-sm text-slate-600">

@@ -961,6 +961,12 @@ export async function osTelecallerRoutes(app) {
         const links = await commerceQuoteService.getShareLinks(estimateId, leadId);
         return reply.send({ ok: true, ...links });
     });
+    app.delete(`${api}/leads/:leadId/estimates/:estimateId`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { leadId, estimateId } = request.params;
+        await commerceQuoteService.deleteFromLead(estimateId, leadId);
+        return reply.send({ ok: true });
+    });
     app.get(`${api}/leads/:id/orders`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');
         const { id } = request.params;

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
+import { QuoteActionsDropdown } from './QuoteActionsDropdown';
 import type { OrderListRow } from './OrderDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -153,21 +154,29 @@ export function OrdersTab({
     void load();
   }, [load, refreshKey]);
 
-  async function handleSend(
-    e: MouseEvent,
-    estimateId: string,
-    channels: Array<'whatsapp' | 'email'>,
-    resend?: boolean
-  ) {
-    e.stopPropagation();
+  async function handleSend(estimateId: string, channels: Array<'whatsapp' | 'email'>) {
     setSendingId(estimateId);
     setError('');
     try {
       const result = await sendQuoteToFarmer(leadId, estimateId, channels);
       openQuoteSendLinks(result);
-      if (resend) void load();
+      void load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not send quote');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  async function handleDelete(estimateId: string, displayId: string) {
+    if (!window.confirm(`Delete quotation ${displayId}? This cannot be undone.`)) return;
+    setSendingId(estimateId);
+    setError('');
+    try {
+      await api(`${base}/leads/${leadId}/estimates/${estimateId}`, { method: 'DELETE' });
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete quote');
     } finally {
       setSendingId(null);
     }
@@ -410,47 +419,15 @@ export function OrdersTab({
                     </td>
                     {canWrite && row.kind === 'estimate' ? (
                       <td className="est-list-actions" onClick={(e) => e.stopPropagation()}>
-                        {row.status === 'pending' ? (
-                          <button
-                            type="button"
-                            className="est-action-btn"
-                            title="Edit quote"
-                            onClick={() => onEditEstimate(row.id)}
-                          >
-                            Edit
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="est-action-btn est-action-btn--wa"
-                          title="Send via WhatsApp"
-                          disabled={sendingId === row.id}
-                          onClick={(e) => void handleSend(e, row.id, ['whatsapp'], Boolean(row.sentAt))}
-                        >
-                          WhatsApp
-                        </button>
-                        <button
-                          type="button"
-                          className="est-action-btn est-action-btn--mail"
-                          title="Send via email"
-                          disabled={sendingId === row.id}
-                          onClick={(e) => void handleSend(e, row.id, ['email'], Boolean(row.sentAt))}
-                        >
-                          Mail
-                        </button>
-                        {row.sentAt ? (
-                          <button
-                            type="button"
-                            className="est-action-btn est-action-btn--resend"
-                            title="Resend quote"
-                            disabled={sendingId === row.id}
-                            onClick={(e) =>
-                              void handleSend(e, row.id, ['whatsapp', 'email'], true)
-                            }
-                          >
-                            Resend
-                          </button>
-                        ) : null}
+                        <QuoteActionsDropdown
+                          status={row.status}
+                          busy={sendingId === row.id}
+                          onView={() => onOpenEstimate(row.id)}
+                          onEdit={() => onEditEstimate(row.id)}
+                          onSendWhatsApp={() => void handleSend(row.id, ['whatsapp'])}
+                          onSendMail={() => void handleSend(row.id, ['email'])}
+                          onDelete={() => void handleDelete(row.id, row.displayId)}
+                        />
                       </td>
                     ) : canWrite ? (
                       <td>—</td>

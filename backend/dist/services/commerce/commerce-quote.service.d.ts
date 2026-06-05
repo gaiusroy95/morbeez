@@ -46,6 +46,7 @@ export type CommerceQuote = {
     sentAt: string | null;
     whatsappSentAt: string | null;
     emailSentAt: string | null;
+    acceptedAt: string | null;
     createdAt: string;
     updatedAt: string;
     hoursLeft?: number;
@@ -108,6 +109,7 @@ export declare const commerceQuoteService: {
     getShareLinks(quoteId: string, leadId?: string): Promise<{
         text: string;
         checkoutUrl: string;
+        viewUrl: string;
         whatsappUrl: string | null;
         mailtoUrl: string | null;
     }>;
@@ -176,8 +178,10 @@ export declare const commerceQuoteService: {
         orderStatusUrl: string | null;
         commerceOrderId: any;
     }>;
+    acceptQuote(id: string): Promise<CommerceQuote>;
     cancel(id: string): Promise<void>;
     delete(id: string): Promise<void>;
+    deleteFromLead(id: string, leadId: string): Promise<void>;
 };
 export {};
 //# sourceMappingURL=commerce-quote.service.d.ts.map

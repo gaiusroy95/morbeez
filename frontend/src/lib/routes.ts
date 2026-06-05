@@ -15,6 +15,7 @@ export const paths = {
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
+  commerceQuoteView: 'commerce/quotes/:quoteId',
   commerceQuoteCheckout: 'commerce/quotes/:quoteId/checkout',
   warehouse: 'warehouse',
   seo: 'seo',
@@ -91,6 +92,12 @@ export function matchRouteMeta(pathname: string): { title: string; module: strin
   }
   if (key.endsWith('/commerce/products/new')) {
     return { title: 'Add Product', module: 'commerce', pageKey: 'commerce' };
+  }
+  if (key.includes('/commerce/quotes/') && key.endsWith('/checkout')) {
+    return { title: 'Quote Checkout', module: 'commerce', pageKey: 'commerce' };
+  }
+  if (key.includes('/commerce/quotes/') && !key.endsWith('/checkout')) {
+    return { title: 'View Quotation', module: 'commerce', pageKey: 'commerce' };
   }
   return (
     ROUTE_META[key] ?? {

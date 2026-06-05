@@ -429,7 +429,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                     Process to checkout, then pay via Razorpay. On success the quote becomes a real order.
                   </p>
                   <Link
-                    to={toPath(`commerce/quotes/${detail.id}/checkout`)}
+                    to={toPath(`commerce/quotes/${detail.id}`)}
                     className="mt-2 inline-flex rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
                   >
                     Process to Checkout

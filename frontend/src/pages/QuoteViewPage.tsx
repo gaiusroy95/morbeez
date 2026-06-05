@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../../lib/api';
-import { paths, toPath } from '../../lib/routes';
-import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
-import { Loading } from '../ui';
-
-const base = '/morbeez-staff/api/v1/os/telecaller';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { api } from '../lib/api';
+import { paths, toPath } from '../lib/routes';
+import { Alert, Loading } from '../components/ui';
 
 type QuoteLine = {
   title: string;
@@ -19,32 +16,24 @@ type QuoteLine = {
 
 type Company = {
   companyName: string;
-  addressLine: string;
-  district: string;
-  state: string;
-  country: string;
-  pincode: string;
-  gstin: string;
+  formattedAddress: string;
   customerCareNumber: string;
   whatsappNumber: string;
-  formattedAddress: string;
+  gstin: string;
 };
 
-type EstimateDetail = {
+type QuoteDocument = {
   quote: {
     id: string;
     quoteNumber: string;
     status: string;
     customerName: string;
-    customerPhone: string | null;
-    customerEmail: string | null;
     lineItems: QuoteLine[];
     total: number;
     prepaidAmount: number;
     codAmount: number;
-    paymentType: string;
-    createdAt: string;
-    expiresAt: string;
+    acceptedAt: string | null;
+    hoursLeft?: number;
   };
   company: Company;
   document: {
@@ -60,104 +49,95 @@ type EstimateDetail = {
   };
 };
 
-type Props = {
-  leadId: string;
-  estimateId: string;
-  canWrite?: boolean;
-  onBack: () => void;
-  onEdit?: (id: string) => void;
-};
-
 function formatInr(n: number) {
   return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdit }: Props) {
+export function QuoteViewPage() {
+  const { quoteId = '' } = useParams();
   const navigate = useNavigate();
-  const [data, setData] = useState<EstimateDetail | null>(null);
+  const [data, setData] = useState<QuoteDocument | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [sending, setSending] = useState(false);
+  const [accepting, setAccepting] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
-  useEffect(() => {
-    api<EstimateDetail & { ok: boolean }>(
-      `${base}/leads/${leadId}/estimates/${estimateId}`
-    )
+  function load() {
+    setLoading(true);
+    api<QuoteDocument & { ok: boolean }>(`/morbeez-staff/api/v1/quotes/${quoteId}/document`)
       .then((d) => setData(d))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Could not load quote'))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Quote not found'))
       .finally(() => setLoading(false));
-  }, [leadId, estimateId]);
-
-  if (loading) return <Loading label="Loading quotation…" />;
-  if (error || !data) {
-    return (
-      <div>
-        <button type="button" className="est-detail-back" onClick={onBack}>
-          ← Back to orders
-        </button>
-        <p className="text-sm text-red-600">{error || 'Quote not found'}</p>
-      </div>
-    );
   }
 
-  const { quote, company, document: doc } = data;
-  const canCheckout = quote.status === 'pending' || quote.status === 'checkout';
-  const canEdit = canWrite && quote.status === 'pending';
+  useEffect(() => {
+    load();
+  }, [quoteId]);
 
-  async function handleSend(channels: Array<'whatsapp' | 'email'>) {
-    setSending(true);
+  async function acceptQuote() {
+    if (!data) return;
+    setAccepting(true);
     setError('');
     try {
-      const result = await sendQuoteToFarmer(leadId, estimateId, channels);
-      openQuoteSendLinks(result);
+      await api(`/morbeez-staff/api/v1/quotes/${data.quote.id}/accept`, { method: 'POST' });
+      load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send quote');
+      setError(e instanceof Error ? e.message : 'Could not accept quote');
     } finally {
-      setSending(false);
+      setAccepting(false);
     }
   }
 
+  async function shareWhatsApp() {
+    if (!data) return;
+    setSharing(true);
+    setError('');
+    try {
+      const res = await api<{ ok: boolean; whatsappUrl?: string | null; text?: string }>(
+        `/morbeez-staff/api/v1/quotes/${data.quote.id}/share`
+      );
+      if (res.whatsappUrl) {
+        window.open(res.whatsappUrl, '_blank', 'noopener');
+      } else if (res.text) {
+        window.open(`https://wa.me/?text=${encodeURIComponent(res.text)}`, '_blank', 'noopener');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open WhatsApp');
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  if (loading) return <Loading label="Loading quotation…" />;
+  if (error && !data) return <Alert tone="error">{error || 'Quote not found'}</Alert>;
+  if (!data) return <Alert tone="error">Quote not found</Alert>;
+
+  const { quote, company, document: doc } = data;
+  const isPaid = quote.status === 'paid';
+  const isActive = quote.status === 'pending' || quote.status === 'checkout';
+  const accepted = Boolean(quote.acceptedAt) || quote.status === 'checkout' || isPaid;
+  const canAccept = isActive && !accepted && !isPaid;
+  const canCheckout = accepted && isActive && !isPaid;
+
   return (
-    <div>
-      <button type="button" className="est-detail-back" onClick={onBack}>
-        ← Back to orders
-      </button>
-
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
-
-      {canWrite ? (
-        <div className="est-detail-actions">
-          {canEdit && onEdit ? (
-            <button type="button" className="est-action-btn" onClick={() => onEdit(estimateId)}>
-              Edit quote
-            </button>
-          ) : null}
+    <div className="max-w-4xl mx-auto p-4 pb-10">
+      <div className="est-view-toolbar">
+        <Link to={toPath(paths.commerce)} className="est-detail-back">
+          ← Back to orders
+        </Link>
+        <div className="est-view-toolbar-actions">
           <button
             type="button"
             className="est-action-btn est-action-btn--wa"
-            disabled={sending}
-            onClick={() => void handleSend(['whatsapp'])}
+            disabled={sharing}
+            onClick={() => void shareWhatsApp()}
           >
-            WhatsApp
-          </button>
-          <button
-            type="button"
-            className="est-action-btn est-action-btn--mail"
-            disabled={sending}
-            onClick={() => void handleSend(['email'])}
-          >
-            Mail
-          </button>
-          <button
-            type="button"
-            className="est-action-btn est-action-btn--resend"
-            disabled={sending}
-            onClick={() => void handleSend(['whatsapp', 'email'])}
-          >
-            Resend
+            {sharing ? 'Opening…' : 'WhatsApp'}
           </button>
         </div>
-      ) : null}
+      </div>
+
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
       <article className="est-doc">
         <header className="est-doc-header">
@@ -173,10 +153,12 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
             <label>DATE</label>
             {doc.dateLabel}
           </div>
-          <div>
-            <label>PREPARED BY</label>
-            {doc.preparedByName ?? '—'}
-          </div>
+          {doc.preparedByName ? (
+            <div>
+              <label>PREPARED BY</label>
+              {doc.preparedByName}
+            </div>
+          ) : null}
           <div style={{ textAlign: 'right' }}>
             <label>VALID UNTIL</label>
             {doc.validUntilLabel}
@@ -184,9 +166,7 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
         </div>
 
         <div className="est-doc-company-bar">
-          {company.formattedAddress ? (
-            <span>📍 {company.formattedAddress}</span>
-          ) : null}
+          {company.formattedAddress ? <span>📍 {company.formattedAddress}</span> : null}
           {company.customerCareNumber ? <span>📞 {company.customerCareNumber}</span> : null}
           {company.whatsappNumber ? <span>💬 WhatsApp {company.whatsappNumber}</span> : null}
           {company.gstin ? <span>🧾 GSTIN: {company.gstin}</span> : null}
@@ -275,21 +255,35 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
           ) : null}
         </div>
 
-        {canCheckout ? (
+        {isPaid ? (
+          <p className="px-6 pb-6 text-center text-sm font-semibold text-emerald-700">
+            Payment received — converted to order.
+          </p>
+        ) : canAccept ? (
+          <button
+            type="button"
+            className="est-doc-checkout est-doc-checkout--accept"
+            disabled={accepting}
+            onClick={() => void acceptQuote()}
+          >
+            {accepting ? 'Accepting…' : 'Accept quote'}
+          </button>
+        ) : canCheckout ? (
           <button
             type="button"
             className="est-doc-checkout"
             onClick={() =>
-              navigate(toPath(paths.commerceQuoteView.replace(':quoteId', quote.id)))
+              navigate(toPath(paths.commerceQuoteCheckout.replace(':quoteId', quote.id)))
             }
           >
-            View quotation →
+            Proceed to Checkout →
           </button>
-        ) : quote.status === 'paid' ? (
-          <p className="px-6 pb-6 text-center text-sm font-semibold text-emerald-700">
-            Payment received — converted to order.
+        ) : (
+          <p className="px-6 pb-6 text-center text-sm text-slate-500">
+            This quotation is no longer available.
+            {quote.hoursLeft != null ? ` (${quote.hoursLeft}h left)` : null}
           </p>
-        ) : null}
+        )}
       </article>
     </div>
   );

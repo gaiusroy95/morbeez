@@ -254,6 +254,42 @@
   white-space: nowrap;
 }
 
+.est-quote-actions-trigger {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.4rem;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.est-quote-actions-trigger:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.est-quote-actions-trigger.is-open {
+  background: #f1f5f9;
+  border-color: #64748b;
+}
+
+.est-quote-actions-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.est-quote-actions-menu button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.est-quote-actions-menu button:disabled:hover {
+  background: transparent;
+}
+
 .est-action-btn {
   padding: 0.2rem 0.45rem;
   border: 1px solid #cbd5e1;
@@ -328,6 +364,29 @@
 .est-status--paid {
   background: #d1fae5;
   color: #065f46;
+}
+
+.est-doc-checkout--accept {
+  background: #0d9488;
+}
+
+.est-doc-checkout--accept:hover:not(:disabled) {
+  background: #0f766e;
+}
+
+.est-view-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.est-view-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .est-detail-back {
