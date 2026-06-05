@@ -29,6 +29,10 @@ npm run dev            # http://localhost:5173
 
 Open **http://localhost:5173/** (dashboard, login, etc. at `/`, not `/morbeez-staff`).
 
+## Mobile app (Expo)
+
+A separate React Native client lives in **`../mobile`**. It uses the same API but does **not** replace or alter this web deploy. See [`../mobile/README.md`](../mobile/README.md) and [`../docs/MOBILE-DEVELOPMENT.md`](../docs/MOBILE-DEVELOPMENT.md).
+
 Set in `backend/.env`:
 
 ```env

@@ -19,6 +19,7 @@
     "setup:menu": "node scripts/setup-shopify-menu.mjs",
     "dev:console": "npm run dev --prefix frontend",
     "build:console": "npm run build --prefix frontend",
+    "dev:mobile": "npm run start --prefix mobile",
     "verify:api": "node scripts/verify-render-api.mjs",
     "prepare:logos": "python scripts/prepare-logos.py",
     "admin:create-user": "node scripts/create-admin-user.mjs",
