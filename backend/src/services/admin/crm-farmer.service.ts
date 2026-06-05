@@ -1738,8 +1738,8 @@ export const crmFarmerService = {
     const catalog = await shopifyProductsService.getInventoryCatalog(search);
     return catalog.slice(0, 80).flatMap((p) =>
       (p.variants ?? []).map((v) => ({
-        productId: p.id,
-        variantId: v.id,
+        productId: Number(p.id) || undefined,
+        variantId: Number(v.id) || undefined,
         title: `${p.title} — ${v.title}`,
         sku: v.sku,
         price: Number(v.price) || 0,

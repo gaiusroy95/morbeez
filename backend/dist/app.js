@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
+import { ZodError } from 'zod';
 import { AppError } from './lib/errors.js';
 import { healthRoutes } from './routes/health.js';
 import { shopifyWebhookRoutes } from './routes/webhooks/shopify.routes.js';
@@ -66,6 +67,12 @@ export async function buildApp() {
                 error: error.code,
                 message: error.message,
             });
+        }
+        if (error instanceof ZodError) {
+            const message = error.errors
+                .map((e) => (e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message))
+                .join('; ');
+            return reply.code(400).send({ error: 'VALIDATION_ERROR', message });
         }
         logger.error({ err: error }, 'Unhandled error');
         return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });

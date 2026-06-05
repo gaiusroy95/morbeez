@@ -959,8 +959,8 @@ export declare const crmFarmerService: {
         source: string;
     }[]>;
     getOrderCatalog(search?: string): Promise<{
-        productId: string;
-        variantId: string;
+        productId: number | undefined;
+        variantId: number | undefined;
         title: string;
         sku: string;
         price: number;

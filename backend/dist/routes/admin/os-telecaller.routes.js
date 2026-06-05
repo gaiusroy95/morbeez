@@ -879,19 +879,19 @@ export async function osTelecallerRoutes(app) {
         const { id } = request.params;
         const body = z
             .object({
-            prepaidAmount: z.number().min(0).optional(),
+            prepaidAmount: z.coerce.number().min(0).optional(),
             paymentType: z.enum(['full', 'partial', 'advance']).optional(),
             lines: z
                 .array(z.object({
-                variantId: z.number().optional(),
-                productId: z.number().optional(),
+                variantId: z.coerce.number().optional(),
+                productId: z.coerce.number().optional(),
                 sku: z.string().optional(),
                 title: z.string().min(1),
                 variantTitle: z.string().optional(),
                 hsnCode: z.string().optional(),
-                qty: z.number().int().positive(),
-                unitPrice: z.number().positive(),
-                gstPercent: z.number().optional(),
+                qty: z.coerce.number().int().positive(),
+                unitPrice: z.coerce.number().positive(),
+                gstPercent: z.coerce.number().optional(),
             }))
                 .min(1),
         })
