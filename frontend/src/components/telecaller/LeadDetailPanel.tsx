@@ -106,22 +106,19 @@ type Props = {
   canWrite: boolean;
 };
 
-const PRIMARY_TABS: Array<{ id: Tab; label: string }> = [
+const LEAD_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'interactions', label: 'Interactions' },
   { id: 'whatsapp', label: 'WhatsApp' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'orders', label: 'Orders' },
-  { id: 'roi_tracker', label: 'ROI tracker' },
-  { id: 'field_activity', label: 'Field activity' },
-];
-
-const MORE_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'blocks', label: 'Blocks' },
   { id: 'findings', label: 'Field findings' },
   { id: 'agronomist', label: 'Agronomist' },
   { id: 'pending_tasks', label: 'Pending tasks' },
   { id: 'escalations', label: 'Escalations' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'roi_tracker', label: 'ROI tracker' },
+  { id: 'field_activity', label: 'Field activity' },
 ];
 
 const TAB_ICONS: Record<Tab, string> = {
@@ -156,7 +153,6 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [loading, setLoading] = useState(true);
   const [showEditFarmer, setShowEditFarmer] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
-  const [moreTabsOpen, setMoreTabsOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [escalationCount, setEscalationCount] = useState(0);
   const [selectedInteraction, setSelectedInteraction] = useState<InteractionListRow | null>(
@@ -365,7 +361,6 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
     timeline.length > 0 ? timeline[timeline.length - 1]?.atLabel ?? '—' : '—';
   const lastContacted = l.lastInteractionLabel ?? timeline[0]?.atLabel ?? '—';
   const assignedLabel = l.assignedTo ? String(l.assignedTo).split('@')[0] : 'Unassigned';
-  const isMoreTabActive = MORE_TABS.some((t) => t.id === tab);
   const callCount = timeline.filter((x) => String(x.type).toLowerCase().includes('call')).length;
   const waCount = timeline.filter((x) => String(x.type).toLowerCase().includes('whatsapp')).length;
   const recCount = timeline.filter((x) => String(x.type).toLowerCase().includes('recommend')).length;
@@ -515,52 +510,19 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
           </div>
         </div>
         <nav className="tc-detail-tabs" role="tablist">
-          {PRIMARY_TABS.map((t) => (
+          {LEAD_TABS.map((t) => (
             <button
               key={t.id}
               type="button"
               role="tab"
               aria-selected={tab === t.id}
-              onClick={() => {
-                setTab(t.id);
-                setMoreTabsOpen(false);
-              }}
+              onClick={() => setTab(t.id)}
               className={`tc-detail-tab ${tab === t.id ? 'active' : ''}`}
             >
               <span className="tc-tab-icon">{TAB_ICONS[t.id]}</span>
               {t.label}
             </button>
           ))}
-          <div className="tc-header-menu-wrap">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={isMoreTabActive}
-              className={`tc-detail-tab tc-detail-tab--more ${isMoreTabActive ? 'active' : ''}`}
-              onClick={() => setMoreTabsOpen((v) => !v)}
-            >
-              More ▾
-            </button>
-            {moreTabsOpen ? (
-              <div className="tc-header-dropdown tc-more-tabs-menu" role="menu">
-                {MORE_TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="menuitem"
-                    className={tab === t.id ? 'is-active' : ''}
-                    onClick={() => {
-                      setTab(t.id);
-                      setMoreTabsOpen(false);
-                    }}
-                  >
-                    <span className="tc-tab-icon">{TAB_ICONS[t.id]}</span>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
         </nav>
         {canWrite ? (
           <div className="tc-detail-actions">

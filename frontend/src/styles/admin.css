@@ -4228,11 +4228,11 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
 }
 
 .tc-detail-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 4px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 14px;
-  overflow-x: auto;
 }
 
 .tc-detail-tab {
