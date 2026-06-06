@@ -3,7 +3,7 @@ import { api } from '../../lib/api';
 import { CrmModals, type CrmModalType } from './CrmModals';
 import { BlocksTab } from './BlocksTab';
 import { EditFarmerModal } from './EditFarmerModal';
-import { LeadExportMenu } from './LeadExportMenu';
+import { LeadExportMenuItems } from './LeadExportMenu';
 import { RoiTrackerTab } from './RoiTrackerTab';
 import { FieldActivitiesTab } from './FieldActivitiesTab';
 import { FarmerIntelligencePanel, useFarmerIntelligenceProfile } from '../intelligence/FarmerIntelligencePanel';
@@ -153,6 +153,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   const [loading, setLoading] = useState(true);
   const [showEditFarmer, setShowEditFarmer] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [overflowMenuOpen, setOverflowMenuOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [escalationCount, setEscalationCount] = useState(0);
   const [selectedInteraction, setSelectedInteraction] = useState<InteractionListRow | null>(
@@ -361,6 +362,15 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
     timeline.length > 0 ? timeline[timeline.length - 1]?.atLabel ?? '—' : '—';
   const lastContacted = l.lastInteractionLabel ?? timeline[0]?.atLabel ?? '—';
   const assignedLabel = l.assignedTo ? String(l.assignedTo).split('@')[0] : 'Unassigned';
+  const assignInitials =
+    assignedLabel === 'Unassigned'
+      ? '?'
+      : assignedLabel
+          .split(/[\s._-]+/)
+          .filter(Boolean)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() ?? '')
+          .join('') || assignedLabel.slice(0, 2).toUpperCase();
   const callCount = timeline.filter((x) => String(x.type).toLowerCase().includes('call')).length;
   const waCount = timeline.filter((x) => String(x.type).toLowerCase().includes('whatsapp')).length;
   const recCount = timeline.filter((x) => String(x.type).toLowerCase().includes('recommend')).length;
@@ -368,145 +378,189 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
   return (
     <div className="tc-detail-root">
       <header className="tc-detail-header">
-        <div className="tc-detail-identity-row">
-          <span className="tc-avatar-lg tc-avatar-lg--live">{l.farmerInitials}</span>
-          <div className="min-w-0 flex-1">
-            <div className="tc-detail-topline">
-              <h2>{l.farmerName}</h2>
-              <span className="tc-customer-chip">Customer</span>
-              <div className="tc-header-quick-actions">
-                <a
-                  className="tc-icon-btn"
-                  aria-label="WhatsApp"
-                  href={l.phone ? `https://wa.me/${String(l.phone).replace(/\D/g, '')}` : undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  🟢
-                </a>
-                <a
-                  className="tc-icon-btn"
-                  aria-label="Call"
-                  href={l.phone ? `tel:${String(l.phone).replace(/\s+/g, '')}` : undefined}
-                >
-                  📞
-                </a>
-                <div className="tc-header-menu-wrap">
-                  <button
-                    type="button"
-                    className="tc-note-btn"
-                    aria-label="Actions"
-                    aria-expanded={headerMenuOpen}
-                    onClick={() => setHeaderMenuOpen((v) => !v)}
-                  >
-                    Actions ▾
-                  </button>
-                  {headerMenuOpen ? (
-                    <div className="tc-header-dropdown" role="menu">
-                      {canWrite ? (
-                        <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setHeaderMenuOpen(false);
-                              setShowEditFarmer(true);
-                            }}
-                          >
-                            Edit farmer profile
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setHeaderMenuOpen(false);
-                              setModal('task');
-                            }}
-                          >
-                            Create follow-up
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setHeaderMenuOpen(false);
-                              setModal('recommendation');
-                            }}
-                          >
-                            Add recommendation
-                          </button>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            onClick={() => {
-                              setHeaderMenuOpen(false);
-                              setModal('visit');
-                            }}
-                          >
-                            Schedule site visit
-                          </button>
-                        </>
-                      ) : null}
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setHeaderMenuOpen(false);
-                          setTab('roi_tracker');
-                        }}
-                      >
-                        Open ROI tracker
-                      </button>
-                    </div>
-                  ) : null}
+        <div className="tc-detail-header-layout">
+          <div className="tc-detail-header-left">
+            <div className="tc-detail-identity-row">
+              <span className="tc-avatar-lg tc-avatar-lg--live">{l.farmerInitials}</span>
+              <div className="tc-detail-identity-text">
+                <div className="tc-detail-name-row">
+                  <h2>{l.farmerName}</h2>
+                  <span className="tc-customer-chip">
+                    Customer
+                    <span className="tc-customer-chip-dot" aria-hidden />
+                  </span>
                 </div>
+                <p className="tc-detail-subline">
+                  {l.phone ?? '—'}
+                  <span className="tc-detail-dot">•</span>
+                  {f.territory}
+                  {l.pincode ? (
+                    <>
+                      <span className="tc-detail-dot">•</span>
+                      Pincode: {l.pincode}
+                    </>
+                  ) : null}
+                </p>
+                {canWrite ? (
+                  <select
+                    className="tc-stage-select"
+                    value={l.stage}
+                    onChange={(e) => changeStage(e.target.value)}
+                    aria-label="Lead stage"
+                  >
+                    {STAGES.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className={`tc-stage ${STAGE_CLASS[l.stage] ?? 'stage-new'}`}>{l.stageLabel}</span>
+                )}
               </div>
+            </div>
+          </div>
+
+          <div className="tc-detail-header-right">
+            <div className="tc-detail-header-actions">
               <a
                 className="tc-call-btn"
                 href={l.phone ? `tel:${String(l.phone).replace(/\s+/g, '')}` : undefined}
               >
                 📞 Call
               </a>
-              <button type="button" className="tc-note-btn" onClick={() => canWrite && setModal('task')}>
+              <button
+                type="button"
+                className="tc-note-btn"
+                onClick={() => canWrite && setModal('note')}
+              >
                 ⊕ Add Note
               </button>
-              <LeadExportMenu leadId={leadId} canShare={Boolean(l.phone)} />
+              <div className="tc-header-menu-wrap">
+                <button
+                  type="button"
+                  className="tc-note-btn"
+                  aria-label="Actions"
+                  aria-expanded={headerMenuOpen}
+                  onClick={() => {
+                    setOverflowMenuOpen(false);
+                    setHeaderMenuOpen((v) => !v);
+                  }}
+                >
+                  Actions ▾
+                </button>
+                {headerMenuOpen ? (
+                  <div className="tc-header-dropdown" role="menu">
+                    {canWrite ? (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setShowEditFarmer(true);
+                          }}
+                        >
+                          Edit farmer profile
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setModal('task');
+                          }}
+                        >
+                          Create follow-up
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setModal('recommendation');
+                          }}
+                        >
+                          Add recommendation
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setModal('visit');
+                          }}
+                        >
+                          Schedule site visit
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setTab('roi_tracker');
+                      }}
+                    >
+                      Open ROI tracker
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              <div className="tc-header-menu-wrap">
+                <button
+                  type="button"
+                  className="tc-more-btn"
+                  aria-label="More options"
+                  aria-expanded={overflowMenuOpen}
+                  onClick={() => {
+                    setHeaderMenuOpen(false);
+                    setOverflowMenuOpen((v) => !v);
+                  }}
+                >
+                  ⋮
+                </button>
+                {overflowMenuOpen ? (
+                  <div className="tc-header-dropdown" role="menu">
+                    {l.phone ? (
+                      <a
+                        className="tc-header-dropdown-link"
+                        role="menuitem"
+                        href={`https://wa.me/${String(l.phone).replace(/\D/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setOverflowMenuOpen(false)}
+                      >
+                        Open WhatsApp
+                      </a>
+                    ) : null}
+                    <LeadExportMenuItems
+                      leadId={leadId}
+                      canShare={Boolean(l.phone)}
+                      onClose={() => setOverflowMenuOpen(false)}
+                    />
+                  </div>
+                ) : null}
+              </div>
             </div>
-            <p className="tc-detail-subline">
-              <strong>{l.phone ?? '—'}</strong>
-              <span className="tc-detail-dot">•</span>
-              {f.territory}
-              {l.pincode ? (
-                <>
-                  <span className="tc-detail-dot">•</span>
-                  Pincode {l.pincode}
-                </>
-              ) : null}
-            </p>
-            <div className="tc-detail-meta-row">
-              <span>
-                Last contacted: <strong>{lastContacted}</strong>
-              </span>
-              <span>
-                Assigned to: <strong>{assignedLabel}</strong>
-              </span>
+
+            <div className="tc-detail-header-meta">
+              <div className="tc-detail-meta-item">
+                <span className="tc-detail-meta-label">Last contacted</span>
+                <strong className="tc-detail-meta-value">{lastContacted}</strong>
+              </div>
+              <div className="tc-detail-meta-item tc-detail-meta-item--assign">
+                <span className="tc-detail-meta-label">Assigned to</span>
+                <div className="tc-assign-chip">
+                  <span className="tc-assign-avatar">{assignInitials}</span>
+                  <span>{assignedLabel}</span>
+                  <span className="tc-assign-chevron" aria-hidden>
+                    ▾
+                  </span>
+                </div>
+              </div>
             </div>
-            {canWrite ? (
-              <select
-                className="tc-stage-select"
-                value={l.stage}
-                onChange={(e) => changeStage(e.target.value)}
-                aria-label="Lead stage"
-              >
-                {STAGES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className={`tc-stage ${STAGE_CLASS[l.stage] ?? 'stage-new'}`}>{l.stageLabel}</span>
-            )}
           </div>
         </div>
         <nav className="tc-detail-tabs" role="tablist">

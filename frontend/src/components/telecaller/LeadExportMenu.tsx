@@ -4,14 +4,14 @@ import { openLeadExport, openWhatsAppShare, type ExportType } from '../../lib/cr
 type Props = {
   leadId: string;
   canShare?: boolean;
+  onClose?: () => void;
 };
 
-export function LeadExportMenu({ leadId, canShare = true }: Props) {
-  const [open, setOpen] = useState(false);
+export function LeadExportMenuItems({ leadId, canShare = true, onClose }: Props) {
   const [error, setError] = useState('');
 
   async function exportAs(type: ExportType) {
-    setOpen(false);
+    onClose?.();
     setError('');
     try {
       await openLeadExport(leadId, type);
@@ -21,7 +21,7 @@ export function LeadExportMenu({ leadId, canShare = true }: Props) {
   }
 
   async function share() {
-    setOpen(false);
+    onClose?.();
     setError('');
     try {
       await openWhatsAppShare(leadId, { type: 'lead' });
@@ -29,6 +29,33 @@ export function LeadExportMenu({ leadId, canShare = true }: Props) {
       setError(e instanceof Error ? e.message : 'Share failed');
     }
   }
+
+  return (
+    <>
+      <button type="button" role="menuitem" onClick={() => exportAs('lead')}>
+        Print farmer profile
+      </button>
+      <button type="button" role="menuitem" onClick={() => exportAs('recommendations')}>
+        Print recommendations
+      </button>
+      <button type="button" role="menuitem" onClick={() => exportAs('interactions')}>
+        Print interactions
+      </button>
+      <button type="button" role="menuitem" onClick={() => exportAs('findings')}>
+        Print field findings
+      </button>
+      {canShare ? (
+        <button type="button" role="menuitem" onClick={share}>
+          Share on WhatsApp
+        </button>
+      ) : null}
+      {error ? <p className="tc-header-dropdown-error">{error}</p> : null}
+    </>
+  );
+}
+
+export function LeadExportMenu({ leadId, canShare = true }: Props) {
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="relative">
@@ -43,50 +70,10 @@ export function LeadExportMenu({ leadId, canShare = true }: Props) {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
           <div className="absolute right-0 z-20 mt-1 w-48 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-              onClick={() => exportAs('lead')}
-            >
-              Print farmer profile
-            </button>
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-              onClick={() => exportAs('recommendations')}
-            >
-              Print recommendations
-            </button>
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-              onClick={() => exportAs('interactions')}
-            >
-              Print interactions
-            </button>
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-xs hover:bg-slate-50"
-              onClick={() => exportAs('findings')}
-            >
-              Print field findings
-            </button>
-            {canShare ? (
-              <>
-                <hr className="my-1 border-slate-100" />
-                <button
-                  type="button"
-                  className="block w-full px-3 py-2 text-left text-xs text-emerald-800 hover:bg-emerald-50"
-                  onClick={share}
-                >
-                  Share on WhatsApp
-                </button>
-              </>
-            ) : null}
+            <LeadExportMenuItems leadId={leadId} canShare={canShare} onClose={() => setOpen(false)} />
           </div>
         </>
       ) : null}
-      {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
     </div>
   );
 }
