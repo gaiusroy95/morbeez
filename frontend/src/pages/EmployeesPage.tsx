@@ -291,6 +291,12 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     await loadWorkspace();
   }
 
+  function openEmployee(id: string) {
+    setError('');
+    setDetailTab('overview');
+    navigate(toPath(`${paths.employees}/${id}`));
+  }
+
   async function sendResetLink(id: string): Promise<string | null> {
     const d = await api<{
       ok: boolean;
@@ -303,11 +309,30 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     return d.reset?.resetUrl ?? null;
   }
 
-  if (employeeId && detailLoading && !detail) {
-    return <Loading label="Loading employee…" />;
-  }
-  if (employeeId && error && !detail) {
-    return <Alert tone="error">{error}</Alert>;
+  if (employeeId) {
+    if (detailLoading && !detail?.employee) {
+      return <Loading label="Loading employee…" />;
+    }
+    if (error && !detail?.employee) {
+      return (
+        <div className="emp-page">
+          <Alert tone="error">{error}</Alert>
+          <Btn className="mt-4" onClick={() => navigate(toPath(paths.employees))}>
+            Back to employees
+          </Btn>
+        </div>
+      );
+    }
+    if (!detail?.employee) {
+      return (
+        <div className="emp-page">
+          <Alert tone="error">Employee not found</Alert>
+          <Btn className="mt-4" onClick={() => navigate(toPath(paths.employees))}>
+            Back to employees
+          </Btn>
+        </div>
+      );
+    }
   }
 
   if (!employeeId) {
@@ -316,7 +341,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     if (!workspace) return null;
   }
 
-  if (employeeId && detail) {
+  if (employeeId && detail?.employee) {
     const e = detail.employee;
     const roi = e.turnoverInr > 0 ? Math.round((e.performanceScore / 70) * 100) : 0;
 
@@ -810,7 +835,11 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
             <tbody>
               {filtered.length ? (
                 filtered.map((e) => (
-                  <tr key={e.id}>
+                  <tr
+                    key={e.id}
+                    className="emp-table-row--clickable"
+                    onClick={() => openEmployee(e.id)}
+                  >
                     <td>
                       <div className="emp-table-user">
                         <span className="emp-table-avatar">{initials(e.fullName)}</span>
@@ -849,8 +878,8 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                         {e.statusOnline ? 'Online' : 'Offline'}
                       </span>
                     </td>
-                    <td>
-                      <details className="relative">
+                    <td onClick={(ev) => ev.stopPropagation()}>
+                      <details className="relative emp-row-actions">
                         <summary className="cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
                           Actions ▾
                         </summary>
@@ -858,7 +887,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                           <button
                             type="button"
                             className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
-                            onClick={() => navigate(toPath(`${paths.employees}/${e.id}`))}
+                            onClick={() => openEmployee(e.id)}
                           >
                             View
                           </button>

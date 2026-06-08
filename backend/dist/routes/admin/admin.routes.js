@@ -35,7 +35,7 @@ import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
-import { getModulesForRole, canApproveRecommendations, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
+import { getModulesForRole, canApproveRecommendations, assertModuleAccess, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
 import { CONSOLE_ROLES } from '../../lib/console-roles.js';
 import { requireAdmin, requireAdminRole } from '../../middleware/adminAuth.js';
 import { supabase } from '../../lib/supabase.js';
@@ -921,14 +921,10 @@ export async function adminRoutes(app) {
         return reply.send({ ok: true, ...workspace });
     });
     app.get(`${api}/staff/:id`, async (request, reply) => {
-        requireAdmin(request);
+        await assertModuleAccess(request, 'settings', 'read');
         const { staffAdminService } = await import('../../services/admin/staff-admin.service.js');
         const { AppError } = await import('../../lib/errors.js');
         const { id } = request.params;
-        if (id === 'workspace') {
-            const workspace = await staffAdminService.getWorkspace();
-            return reply.send({ ok: true, ...workspace });
-        }
         const detail = await staffAdminService.getEmployeeDetail(id);
         if (!detail) {
             throw new AppError('Employee not found', 404, 'NOT_FOUND');

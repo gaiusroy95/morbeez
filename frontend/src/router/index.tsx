@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider, useParams } from 'react-router-dom';
 import { AppLayout } from '../components/Layout';
 import { RequireAuth, RequireGuest, RoleHomeRedirect } from './guards';
 import { ProtectedPage } from './ProtectedPage';
@@ -66,7 +66,13 @@ function SettingsRoute() {
 
 function EmployeesRoute() {
   const { can } = useAuth();
-  return <EmployeesPage canWrite={can('settings', 'write')} />;
+  const { employeeId } = useParams<{ employeeId?: string }>();
+  return (
+    <EmployeesPage
+      key={employeeId ?? 'list'}
+      canWrite={can('settings', 'write')}
+    />
+  );
 }
 
 function CommerceRoute() {

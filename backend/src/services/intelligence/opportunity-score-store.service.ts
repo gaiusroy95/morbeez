@@ -124,7 +124,12 @@ export const opportunityScoreStoreService = {
       .eq('employee_profile_id', employeeProfileId)
       .maybeSingle();
 
-    throwIfSupabaseError(error, 'Could not load employee score');
+    if (error) {
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        return null;
+      }
+      throwIfSupabaseError(error, 'Could not load employee score');
+    }
     if (!data) return null;
 
     return {

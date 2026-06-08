@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { logger } from '../../lib/logger.js';
 import { opportunityScoreStoreService } from '../intelligence/opportunity-score-store.service.js';
 import {
   MIN_ATTRIBUTED_FARMERS_FOR_LEADERBOARD,
@@ -371,19 +372,39 @@ export const staffAdminService = {
       workspace.employees.find((e) => e.adminUserId === id);
     if (!employee) return null;
 
-    const { data: recentLeads } = await supabase
+    const { data: recentLeads, error: leadsErr } = await supabase
       .from('leads')
-      .select('id, stage, updated_at, farmers(name, phone, district)')
+      .select('id, stage, updated_at, farmer_id')
       .eq('assigned_to', employee.email)
       .order('updated_at', { ascending: false })
       .limit(5);
+    if (leadsErr) {
+      logger.warn({ err: leadsErr, employeeId: id }, 'staff detail: could not load recent leads');
+    }
 
-    const { data: recentTasks } = await supabase
+    const farmerIds = [
+      ...new Set((recentLeads ?? []).map((l) => l.farmer_id).filter(Boolean)),
+    ] as string[];
+    const farmerById = new Map<string, { name?: string; district?: string }>();
+    if (farmerIds.length) {
+      const { data: farmers } = await supabase
+        .from('farmers')
+        .select('id, name, district')
+        .in('id', farmerIds);
+      for (const f of farmers ?? []) {
+        farmerById.set(String(f.id), { name: f.name ?? undefined, district: f.district ?? undefined });
+      }
+    }
+
+    const { data: recentTasks, error: tasksErr } = await supabase
       .from('crm_tasks')
       .select('id, title, status, due_at')
       .eq('assigned_to', employee.email)
       .order('due_at', { ascending: true })
       .limit(5);
+    if (tasksErr) {
+      logger.warn({ err: tasksErr, employeeId: id }, 'staff detail: could not load recent tasks');
+    }
 
     let performanceBreakdown = [
       { label: 'Conversion rate', pct: Math.min(95, employee.performanceScore - 5) },
@@ -394,10 +415,14 @@ export const staffAdminService = {
     let performanceFactors: unknown[] = [];
 
     if (employee.hasProfile) {
-      const engineScore = await opportunityScoreStoreService.getEmployeeScore(employee.id);
-      if (engineScore) {
-        performanceBreakdown = performanceBreakdownFromComponents(engineScore.components);
-        performanceFactors = engineScore.factors;
+      try {
+        const engineScore = await opportunityScoreStoreService.getEmployeeScore(employee.id);
+        if (engineScore) {
+          performanceBreakdown = performanceBreakdownFromComponents(engineScore.components);
+          performanceFactors = engineScore.factors;
+        }
+      } catch {
+        /* score table optional — use estimated breakdown */
       }
     }
 
@@ -421,7 +446,7 @@ export const staffAdminService = {
       performanceBreakdown,
       performanceFactors,
       recentLeads: (recentLeads ?? []).map((l) => {
-        const f = l.farmers as { name?: string; phone?: string; district?: string } | null;
+        const f = l.farmer_id ? farmerById.get(String(l.farmer_id)) : undefined;
         return {
           id: l.id,
           name: f?.name ?? 'Farmer',

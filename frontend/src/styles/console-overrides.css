@@ -256,6 +256,14 @@
   gap: 12px;
 }
 
+.emp-table-row--clickable {
+  cursor: pointer;
+}
+
+.emp-table-row--clickable:hover td {
+  background: #f4faf6;
+}
+
 .emp-table-user small {
   display: block;
   color: var(--text-muted);
