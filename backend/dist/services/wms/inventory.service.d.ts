@@ -57,6 +57,26 @@ export declare const inventoryService: {
         orderLineId: string;
     }): Promise<Record<string, unknown>[]>;
     findByBarcode(code: string): Promise<any>;
+    findBatchByCode(batchCode: string, inventoryItemId?: string): Promise<any>;
+    releaseOrderAllocations(commerceOrderId: string, actorEmail?: string): Promise<void>;
+    processReturnStock(input: {
+        commerceOrderId: string;
+        stockAction: "resalable" | "damaged" | "quarantine" | "writeoff";
+        lines: Array<{
+            sku?: string;
+            productTitle: string;
+            qty: number;
+            batchCode?: string;
+        }>;
+        actorEmail?: string;
+    }): Promise<void>;
+    adjustBatchStock(input: {
+        batchId: string;
+        adjustment: number;
+        reason: string;
+        actorEmail?: string;
+    }): Promise<any>;
+    setBatchStatus(batchId: string, status: "active" | "quarantine" | "expired" | "depleted"): Promise<any>;
     pickAllocation(allocationId: string, qty: number): Promise<any>;
     finalizePack(allocationId: string): Promise<void>;
 };

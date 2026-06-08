@@ -1,0 +1,117 @@
+.warehouse-print-page {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.warehouse-print-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.warehouse-print-doc {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.warehouse-print-header {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #166534;
+}
+
+.warehouse-print-header h1 {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+}
+
+.warehouse-print-logo {
+  max-height: 56px;
+  max-width: 140px;
+  object-fit: contain;
+}
+
+.warehouse-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.warehouse-print-table th,
+.warehouse-print-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.warehouse-print-table th {
+  background: #f8fafc;
+  font-weight: 700;
+}
+
+.warehouse-print-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 12px;
+}
+
+.warehouse-print-totals {
+  margin-top: 16px;
+  text-align: right;
+  font-size: 14px;
+}
+
+.warehouse-print-grand {
+  font-size: 1.1rem;
+  margin-top: 8px;
+}
+
+.warehouse-print-courier {
+  text-align: center;
+  padding: 24px;
+  border: 2px dashed #334155;
+  border-radius: 8px;
+}
+
+.warehouse-print-awb {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin-bottom: 12px;
+}
+
+.warehouse-print-cod {
+  margin-top: 16px;
+  font-size: 1.1rem;
+}
+
+.warehouse-print-terms {
+  margin-top: 24px;
+  font-size: 11px;
+  color: #64748b;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .warehouse-print-page {
+    padding: 0;
+    max-width: none;
+  }
+
+  .warehouse-print-doc {
+    border: none;
+    border-radius: 0;
+    padding: 0;
+  }
+}

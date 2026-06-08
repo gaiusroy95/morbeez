@@ -12,7 +12,7 @@ export const shiprocketService = {
         const addr = order.shipping_address;
         if (!addr) {
             logger.warn({ shopifyOrderId }, 'No shipping address — skip shipment');
-            return;
+            return null;
         }
         const payload = {
             order_id: order.name,
@@ -63,6 +63,7 @@ export const shiprocketService = {
             phone: orderRow?.phone ?? order.phone,
             orderName: orderRow?.order_name ?? order.name,
         }, 'shiprocket');
+        return { awb, courier: 'Shiprocket' };
     },
     async handleTrackingWebhook(body) {
         const awb = String(body.awb ?? '');

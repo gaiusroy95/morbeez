@@ -1686,6 +1686,8 @@ export const crmFarmerService = {
       .select()
       .single();
     throwIfSupabaseError(error, 'Could not create order');
+    const { manualOrderOmsService } = await import('../oms/manual-order-oms.service.js');
+    await manualOrderOmsService.tryPushOnCreate(String(data.id), input.createdBy);
     const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
     return telecallerFarmerOrdersService.getDetail(farmerId, String(data.id));
   },

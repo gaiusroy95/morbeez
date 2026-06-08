@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { paths, toPath } from '../../lib/routes';
 import { Alert, Btn, DataTable, EmptyState, Loading, Panel, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
+import { BarcodeScanInput } from './BarcodeScanInput';
+
+function printUrl(type: string, id: string) {
+  return toPath(`${paths.warehouse}/print/${type}/${id}`);
+}
 
 type PickList = {
   id: string;
@@ -104,9 +111,8 @@ export function WarehousePackPanel({
     setError('');
     try {
       await api(`${WMS_API}/pick-lists/${selectedId}/complete-pack`, { method: 'POST' });
-      setSuccess('Packed — invoice generated, Shiprocket queued if enabled');
-      setDetail(null);
-      setSelectedId('');
+      setSuccess('Packed — invoice generated. Print docs & scan AWB in Orders tab to dispatch.');
+      await loadDetail(selectedId);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Pack failed');
@@ -141,17 +147,13 @@ export function WarehousePackPanel({
       {detail ? (
         <Panel title="Pack & verify">
           {canWrite ? (
-            <div className="warehouse-scan-row">
-              <input
-                className={inputClass}
-                placeholder="Scan barcode / SKU"
+            <div className="warehouse-scan-block">
+              <BarcodeScanInput
                 value={scanCode}
-                onChange={(e) => setScanCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && void scan()}
+                onChange={setScanCode}
+                onScan={() => void scan()}
+                placeholder="Scan barcode, SKU, or batch code"
               />
-              <Btn size="sm" onClick={() => void scan()}>
-                Scan
-              </Btn>
               {scanMsg ? <span className="scan-msg">{scanMsg}</span> : null}
             </div>
           ) : null}
@@ -187,9 +189,34 @@ export function WarehousePackPanel({
               </tbody>
             </DataTable>
           </TableWrap>
+          <div className="warehouse-pack-print-row">
+            <Link
+              className="btn btn-secondary btn-sm"
+              to={printUrl('packing_slip', selectedId)}
+              target="_blank"
+            >
+              Packing slip
+            </Link>
+            <Link
+              className="btn btn-secondary btn-sm"
+              to={printUrl('picking_slip', selectedId)}
+              target="_blank"
+            >
+              Picking slip
+            </Link>
+            {detail.commerce_order_id ? (
+              <Link
+                className="btn btn-secondary btn-sm"
+                to={printUrl('courier_label', detail.commerce_order_id)}
+                target="_blank"
+              >
+                Courier label
+              </Link>
+            ) : null}
+          </div>
           {canWrite ? (
             <Btn className="mt-4" onClick={() => void completePack()} disabled={busy}>
-              {busy ? 'Packing…' : 'Complete pack → invoice & ship'}
+              {busy ? 'Packing…' : 'Complete pack → invoice & courier label'}
             </Btn>
           ) : null}
         </Panel>

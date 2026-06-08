@@ -6,11 +6,13 @@ export declare const packService: {
         line?: undefined;
         productTitle?: undefined;
         sku?: undefined;
+        batchCode?: undefined;
     } | {
         ok: boolean;
         line: any;
         productTitle: any;
         sku: any;
+        batchCode: any;
         error?: undefined;
     }>;
     logScan(packSessionId: string, code: string, itemId: string | null, batchId: string | null, result: string, message: string): Promise<void>;

@@ -1,6 +1,13 @@
 import { paths, toPath } from './routes';
 
-export type WarehouseDeepTab = 'overview' | 'stock' | 'inbound' | 'orders' | 'pack' | 'finance';
+export type WarehouseDeepTab =
+  | 'overview'
+  | 'stock'
+  | 'inbound'
+  | 'orders'
+  | 'pack'
+  | 'returns'
+  | 'finance';
 
 const WAREHOUSE_TABS = new Set<WarehouseDeepTab>([
   'overview',
@@ -8,6 +15,7 @@ const WAREHOUSE_TABS = new Set<WarehouseDeepTab>([
   'inbound',
   'orders',
   'pack',
+  'returns',
   'finance',
 ]);
 

@@ -77,6 +77,13 @@ export const shopifyWebhookService = {
     async syncOrder(order) {
         const isCod = order.tags?.toLowerCase().includes('cod') ||
             order.financial_status === 'pending';
+        const tags = (order.tags ?? '').toLowerCase();
+        const orderSource = tags.includes('telecaller') || tags.includes('commerce_quote')
+            ? 'telecaller_quote'
+            : tags.includes('commerce_hub')
+                ? 'commerce_hub'
+                : 'website';
+        const paymentMethod = isCod ? 'COD' : order.financial_status === 'paid' ? 'Prepaid' : 'Pending';
         const { error } = await supabase.from('commerce_orders').upsert({
             shopify_order_id: String(order.id),
             order_name: order.name,
@@ -87,6 +94,8 @@ export const shopifyWebhookService = {
             total_amount: parseFloat(order.total_price),
             currency: order.currency,
             is_cod: isCod,
+            order_source: orderSource,
+            payment_method: paymentMethod,
             raw_payload: order,
             updated_at: new Date().toISOString(),
         }, { onConflict: 'shopify_order_id' });

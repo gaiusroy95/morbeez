@@ -264,6 +264,140 @@ export const inventoryService = {
         throwIfSupabaseError(error, 'Find by barcode');
         return data;
     },
+    async findBatchByCode(batchCode, inventoryItemId) {
+        let q = supabase.from('inventory_batches').select('*').eq('batch_code', batchCode.trim());
+        if (inventoryItemId)
+            q = q.eq('inventory_item_id', inventoryItemId);
+        const { data, error } = await q.limit(1).maybeSingle();
+        throwIfSupabaseError(error, 'Find batch');
+        return data;
+    },
+    async releaseOrderAllocations(commerceOrderId, actorEmail) {
+        const { data: lines } = await supabase
+            .from('commerce_order_lines')
+            .select('id')
+            .eq('commerce_order_id', commerceOrderId);
+        for (const line of lines ?? []) {
+            const { data: allocs } = await supabase
+                .from('order_line_allocations')
+                .select('*, inventory_batches(*)')
+                .eq('order_line_id', line.id);
+            for (const alloc of allocs ?? []) {
+                const batch = alloc.inventory_batches;
+                const reserved = Number(batch.qty_reserved) || 0;
+                const qty = Number(alloc.qty_allocated) - Number(alloc.qty_packed);
+                if (qty <= 0)
+                    continue;
+                await supabase
+                    .from('inventory_batches')
+                    .update({
+                    qty_reserved: Math.max(0, reserved - qty),
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', alloc.batch_id);
+                await supabase.from('stock_movements').insert({
+                    movement_type: 'release',
+                    inventory_item_id: batch.inventory_item_id,
+                    batch_id: alloc.batch_id,
+                    warehouse_id: batch.warehouse_id,
+                    location_id: alloc.location_id,
+                    qty: qty,
+                    ref_type: 'commerce_order',
+                    ref_id: commerceOrderId,
+                    created_by: actorEmail ?? null,
+                });
+            }
+        }
+    },
+    async processReturnStock(input) {
+        const warehouse = await warehouseService.getDefaultWarehouse();
+        for (const line of input.lines) {
+            if (!line.batchCode || !line.sku)
+                continue;
+            const { data: item } = await supabase
+                .from('inventory_items')
+                .select('id')
+                .eq('sku', line.sku)
+                .maybeSingle();
+            if (!item)
+                continue;
+            const batch = await this.findBatchByCode(line.batchCode, String(item.id));
+            if (!batch)
+                continue;
+            const movementType = input.stockAction === 'writeoff'
+                ? 'return_writeoff'
+                : input.stockAction === 'damaged'
+                    ? 'damage'
+                    : 'return_restock';
+            const patch = { updated_at: new Date().toISOString() };
+            if (input.stockAction === 'resalable') {
+                patch.qty_on_hand = Number(batch.qty_on_hand) + line.qty;
+                patch.qty_returned = Number(batch.qty_returned) + line.qty;
+                patch.status = 'active';
+            }
+            else if (input.stockAction === 'damaged') {
+                patch.qty_damaged = Number(batch.qty_damaged) + line.qty;
+                patch.status = 'active';
+            }
+            else if (input.stockAction === 'quarantine') {
+                patch.qty_on_hand = Number(batch.qty_on_hand) + line.qty;
+                patch.status = 'quarantine';
+            }
+            else {
+                patch.qty_returned = Number(batch.qty_returned) + line.qty;
+            }
+            await supabase.from('inventory_batches').update(patch).eq('id', batch.id);
+            await supabase.from('stock_movements').insert({
+                movement_type: movementType,
+                inventory_item_id: item.id,
+                batch_id: batch.id,
+                warehouse_id: warehouse.id,
+                location_id: batch.location_id,
+                qty: line.qty,
+                ref_type: 'return',
+                ref_id: input.commerceOrderId,
+                notes: input.stockAction,
+                created_by: input.actorEmail ?? null,
+            });
+        }
+    },
+    async adjustBatchStock(input) {
+        const { data: batch, error } = await supabase
+            .from('inventory_batches')
+            .select('*')
+            .eq('id', input.batchId)
+            .single();
+        throwIfSupabaseError(error, 'Batch adjust');
+        if (!batch)
+            throw new NotFoundError('Batch not found');
+        const next = Math.max(0, Number(batch.qty_on_hand) + input.adjustment);
+        await supabase
+            .from('inventory_batches')
+            .update({ qty_on_hand: next, updated_at: new Date().toISOString() })
+            .eq('id', input.batchId);
+        await supabase.from('stock_movements').insert({
+            movement_type: 'adjust',
+            inventory_item_id: batch.inventory_item_id,
+            batch_id: batch.id,
+            warehouse_id: batch.warehouse_id,
+            location_id: batch.location_id,
+            qty: input.adjustment,
+            ref_type: 'manual_adjust',
+            notes: input.reason,
+            created_by: input.actorEmail ?? null,
+        });
+        return { ...batch, qty_on_hand: next };
+    },
+    async setBatchStatus(batchId, status) {
+        const { data, error } = await supabase
+            .from('inventory_batches')
+            .update({ status, updated_at: new Date().toISOString() })
+            .eq('id', batchId)
+            .select('*')
+            .single();
+        throwIfSupabaseError(error, 'Batch status');
+        return data;
+    },
     async pickAllocation(allocationId, qty) {
         const { data: alloc, error } = await supabase
             .from('order_line_allocations')

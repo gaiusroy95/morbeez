@@ -114,10 +114,23 @@ export const omsWorkflowService = {
       (order.financial_status === 'paid' || order.is_cod);
 
     if (shouldShip) {
-      await shiprocketService.createShipmentForShopifyOrder(String(order.shopify_order_id)).catch((err) => {
-        logger.error({ err, commerceOrderId }, 'Shiprocket after pack failed');
-      });
-      await this.updateStatus(commerceOrderId, 'shipped');
+      const shipment = await shiprocketService
+        .createShipmentForShopifyOrder(String(order.shopify_order_id))
+        .catch((err) => {
+          logger.error({ err, commerceOrderId }, 'Shiprocket after pack failed');
+          return null;
+        });
+      if (shipment?.awb) {
+        await supabase
+          .from('commerce_orders')
+          .update({
+            tracking_awb: shipment.awb,
+            courier_name: shipment.courier ?? 'Shiprocket',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', commerceOrderId);
+      }
+      // Status moves to shipped after dispatch scan verification
     }
 
     return { invoice, pickListId };

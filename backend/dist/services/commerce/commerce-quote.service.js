@@ -704,6 +704,16 @@ export const commerceQuoteService = {
             .select('id')
             .eq('shopify_order_id', shopifyOrder.shopifyOrderId)
             .maybeSingle();
+        if (commerceOrder?.id) {
+            await supabase
+                .from('commerce_orders')
+                .update({
+                order_source: 'telecaller_quote',
+                payment_method: quote.paymentType === 'cod' ? 'COD' : 'Prepaid',
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', commerceOrder.id);
+        }
         await supabase
             .from('commerce_quotes')
             .update({

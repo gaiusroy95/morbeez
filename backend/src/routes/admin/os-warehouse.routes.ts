@@ -11,6 +11,11 @@ import { invoiceService } from '../../services/oms/invoice.service.js';
 import { ndrRtoService } from '../../services/oms/ndr-rto.service.js';
 import { codService } from '../../services/oms/cod.service.js';
 import { financeService } from '../../services/oms/finance.service.js';
+import { printableDocumentService } from '../../services/oms/printable-document.service.js';
+import { returnWorkflowService } from '../../services/oms/return-workflow.service.js';
+import { dispatchService } from '../../services/oms/dispatch.service.js';
+import { employeeActionLogService } from '../../services/oms/employee-action-log.service.js';
+import { manualOrderOmsService } from '../../services/oms/manual-order-oms.service.js';
 
 export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
   const api = '/morbeez-staff/api/v1/os/warehouse';
@@ -232,6 +237,41 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, pickList });
   });
 
+  app.post(`${api}/pick-lists/:id/assign-picker`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ pickerId: z.string().min(1) }).parse(request.body);
+    const pickList = await pickListService.assignPicker(id, body.pickerId);
+    const actor = (request as { adminEmail?: string }).adminEmail;
+    if (actor) {
+      await employeeActionLogService.log({
+        actorEmail: actor,
+        actionType: 'picker_assigned',
+        entityType: 'pick_list',
+        entityId: id,
+        details: { pickerId: body.pickerId },
+      });
+    }
+    return reply.send({ ok: true, pickList });
+  });
+
+  app.get(`${api}/documents/:type/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const { type, id } = request.params as { type: string; id: string };
+    const doc = await printableDocumentService.getDocument(
+      type as 'picking_slip' | 'packing_slip' | 'tax_invoice' | 'courier_label' | 'return_inspection',
+      id
+    );
+    return reply.send({ ok: true, ...doc });
+  });
+
+  app.get(`${api}/orders/:id/documents`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const { id } = request.params as { id: string };
+    const documents = await printableDocumentService.getDocumentsForOrder(id);
+    return reply.send({ ok: true, ...documents });
+  });
+
   // ─── Pack & barcode scan ──────────────────────────────────────────────────
   app.post(`${api}/pick-lists/:id/pack-session`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
@@ -252,11 +292,46 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
   app.post(`${api}/pick-lists/:id/complete-pack`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const { id } = request.params as { id: string };
-    const result = await omsWorkflowService.completePacking(
+    const actor = (request as { adminEmail?: string }).adminEmail;
+    const result = await omsWorkflowService.completePacking(id, actor);
+    if (actor) {
+      await employeeActionLogService.log({
+        actorEmail: actor,
+        actionType: 'pack_completed',
+        entityType: 'pick_list',
+        entityId: id,
+      });
+    }
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/orders/:id/dispatch-session`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const session = await dispatchService.startSession(id);
+    return reply.send({ ok: true, session });
+  });
+
+  app.post(`${api}/dispatch-sessions/:id/scan`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ code: z.string().min(1) }).parse(request.body);
+    const result = await dispatchService.scanAwb(
+      id,
+      body.code,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send(result);
+  });
+
+  app.post(`${api}/orders/:id/confirm-dispatch`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const result = await dispatchService.confirmDispatch(
       id,
       (request as { adminEmail?: string }).adminEmail
     );
-    return reply.send({ ok: true, ...result });
+    return reply.send(result);
   });
 
   // ─── Invoices & quotations ────────────────────────────────────────────────
@@ -346,6 +421,170 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const row = await codService.updateRemittance({ commerceOrderId, ...body });
     return reply.send({ ok: true, row });
+  });
+
+  app.post(`${api}/manual-orders/:id/push-to-oms`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const result = await manualOrderOmsService.pushToOms(
+      id,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  // ─── Returns & refunds ────────────────────────────────────────────────────
+  app.get(`${api}/returns`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const q = request.query as { status?: string };
+    const returns = await returnWorkflowService.list({ status: q.status });
+    return reply.send({ ok: true, returns });
+  });
+
+  app.get(`${api}/returns/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const { id } = request.params as { id: string };
+    const returnRequest = await returnWorkflowService.get(id);
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/orders/:id/returns`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        reason: z.string().min(1),
+        customerComplaint: z.string().optional(),
+        lines: z
+          .array(
+            z.object({
+              productTitle: z.string(),
+              sku: z.string().optional(),
+              qty: z.number().int().positive(),
+              batchCode: z.string().optional(),
+            })
+          )
+          .optional(),
+      })
+      .parse(request.body);
+    const returnRequest = await returnWorkflowService.createRequest({
+      commerceOrderId: id,
+      ...body,
+      createdBy: (request as { adminEmail?: string }).adminEmail,
+    });
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/verify-call`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const returnRequest = await returnWorkflowService.markVerificationPending(
+      id,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/approve`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        refundType: z.enum(['full', 'partial', 'none']),
+        refundAmount: z.number().optional(),
+      })
+      .parse(request.body);
+    const returnRequest = await returnWorkflowService.approveReturn(id, {
+      ...body,
+      approvedBy: (request as { adminEmail?: string }).adminEmail,
+    });
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/reject`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ reason: z.string().min(1) }).parse(request.body);
+    const returnRequest = await returnWorkflowService.rejectReturn(
+      id,
+      body.reason,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/received`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const returnRequest = await returnWorkflowService.markReceived(
+      id,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/inspect`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        productCondition: z.enum(['resalable', 'damaged', 'quarantine', 'unknown']),
+        inspectionNotes: z.string().optional(),
+        stockAction: z.enum(['resalable', 'damaged', 'quarantine', 'writeoff']),
+      })
+      .parse(request.body);
+    const returnRequest = await returnWorkflowService.inspectReturn(id, {
+      ...body,
+      inspectedBy: (request as { adminEmail?: string }).adminEmail,
+    });
+    return reply.send({ ok: true, returnRequest });
+  });
+
+  app.post(`${api}/returns/:id/refund`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const result = await returnWorkflowService.processRefund(
+      id,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, ...result });
+  });
+
+  // ─── Inventory adjustments ────────────────────────────────────────────────
+  app.post(`${api}/batches/:id/adjust`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        adjustment: z.number().int(),
+        reason: z.string().min(1),
+      })
+      .parse(request.body);
+    const batch = await inventoryService.adjustBatchStock({
+      batchId: id,
+      ...body,
+      actorEmail: (request as { adminEmail?: string }).adminEmail,
+    });
+    return reply.send({ ok: true, batch });
+  });
+
+  app.post(`${api}/batches/:id/status`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        status: z.enum(['active', 'quarantine', 'expired', 'depleted']),
+      })
+      .parse(request.body);
+    const batch = await inventoryService.setBatchStatus(id, body.status);
+    return reply.send({ ok: true, batch });
+  });
+
+  app.get(`${api}/action-logs`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const q = request.query as { entityType: string; entityId: string };
+    const logs = await employeeActionLogService.listForEntity(q.entityType, q.entityId);
+    return reply.send({ ok: true, logs });
   });
 
   // ─── Finance dashboard ────────────────────────────────────────────────────

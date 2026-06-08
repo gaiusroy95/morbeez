@@ -8,12 +8,14 @@ import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
 
 /** Delhivery is assigned via Shiprocket courier rules — no separate API in M2 */
 export const shiprocketService = {
-  async createShipmentForShopifyOrder(shopifyOrderId: string): Promise<void> {
+  async createShipmentForShopifyOrder(
+    shopifyOrderId: string
+  ): Promise<{ awb: string | null; courier: string } | null> {
     const { order } = await getOrder(shopifyOrderId);
     const addr = order.shipping_address;
     if (!addr) {
       logger.warn({ shopifyOrderId }, 'No shipping address — skip shipment');
-      return;
+      return null;
     }
 
     const payload = {
@@ -77,6 +79,8 @@ export const shiprocketService = {
       },
       'shiprocket'
     );
+
+    return { awb, courier: 'Shiprocket' };
   },
 
   async handleTrackingWebhook(body: Record<string, unknown>): Promise<void> {

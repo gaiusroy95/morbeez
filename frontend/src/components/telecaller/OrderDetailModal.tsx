@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { buildWarehouseOrderUrl } from '../../lib/warehouse-links';
 import { Modal } from '../Modal';
 
 export type OrderListRow = {
@@ -31,6 +33,7 @@ type OrderDetail = {
   deliveryAddress?: string | null;
   createdBy?: string | null;
   source: string;
+  commerceOrderId?: string | null;
   trackingAwb?: string | null;
   trackingUrl?: string | null;
   courier?: string | null;
@@ -50,6 +53,8 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [pushing, setPushing] = useState(false);
+  const [pushMsg, setPushMsg] = useState('');
 
   const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -73,6 +78,24 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
       cancelled = true;
     };
   }, [leadId, row.id]);
+
+  async function pushToWarehouse() {
+    setPushing(true);
+    setPushMsg('');
+    setError('');
+    try {
+      const r = await api<{ ok: boolean; commerceOrderId: string }>(
+        `${base}/leads/${leadId}/orders/${encodeURIComponent(row.id)}/push-to-oms`,
+        { method: 'POST' }
+      );
+      setPushMsg('Sent to warehouse — pick list created.');
+      setDetail((d) => (d ? { ...d, commerceOrderId: r.commerceOrderId } : d));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not push to warehouse');
+    } finally {
+      setPushing(false);
+    }
+  }
 
   return (
     <Modal title={detail?.orderId ?? row.orderId ?? 'Order details'} onClose={onClose} wide>
@@ -115,6 +138,43 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
               </div>
             ) : null}
           </dl>
+
+          {detail.source === 'crm_manual' ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Warehouse fulfillment
+              </h3>
+              {detail.commerceOrderId ? (
+                <Link
+                  to={buildWarehouseOrderUrl(detail.commerceOrderId)}
+                  className="order-tracking-link text-sm font-semibold"
+                >
+                  Open in Warehouse Hub ↗
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
+                  disabled={pushing}
+                  onClick={() => void pushToWarehouse()}
+                >
+                  {pushing ? 'Sending…' : 'Push to warehouse'}
+                </button>
+              )}
+              {pushMsg ? <p className="mt-2 text-sm text-emerald-700">{pushMsg}</p> : null}
+            </section>
+          ) : null}
+
+          {detail.commerceOrderId && detail.source === 'commerce' ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <Link
+                to={buildWarehouseOrderUrl(detail.commerceOrderId)}
+                className="order-tracking-link text-sm font-semibold"
+              >
+                Open in Warehouse Hub ↗
+              </Link>
+            </section>
+          ) : null}
 
           {detail.trackingAwb || detail.trackingUrl ? (
             <section className="rounded-xl border border-emerald-100 bg-emerald-50/60 p-4">

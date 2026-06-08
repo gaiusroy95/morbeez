@@ -176,4 +176,18 @@ export const pickListService = {
       .eq('id', pickListId);
     return this.getPickList(pickListId);
   },
+
+  async assignPicker(pickListId: string, pickerId: string) {
+    const { data, error } = await supabase
+      .from('pick_lists')
+      .update({
+        picker_id: pickerId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', pickListId)
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Assign picker');
+    return data;
+  },
 };

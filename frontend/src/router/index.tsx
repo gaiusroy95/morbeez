@@ -20,6 +20,7 @@ import { CommerceHubPage } from '../pages/CommerceHubPage';
 import { QuoteCheckoutPage } from '../pages/QuoteCheckoutPage';
 import { QuoteViewPage } from '../pages/QuoteViewPage';
 import { WarehouseHubPage } from '../pages/WarehouseHubPage';
+import { WarehousePrintPage } from '../pages/WarehousePrintPage';
 import { SeoHubPage } from '../pages/SeoHubPage';
 import { ProductWizardPage } from '../pages/ProductWizardPage';
 import { EmployeesPage } from '../pages/EmployeesPage';
@@ -205,6 +206,14 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="warehouse">
                   <WarehouseRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.warehousePrint,
+              element: (
+                <ProtectedPage module="warehouse">
+                  <WarehousePrintPage />
                 </ProtectedPage>
               ),
             },

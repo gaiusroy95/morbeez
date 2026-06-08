@@ -1226,6 +1226,14 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send({ ok: true, order });
   });
 
+  app.post(`${api}/leads/:id/orders/:orderId/push-to-oms`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { orderId } = request.params as { id: string; orderId: string };
+    const { manualOrderOmsService } = await import('../../services/oms/manual-order-oms.service.js');
+    const result = await manualOrderOmsService.pushToOms(orderId, admin.email);
+    return reply.send({ ok: true, ...result });
+  });
+
   app.post(`${api}/leads/:id/recommendations/:recId/convert-order`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
     const { id, recId } = request.params as { id: string; recId: string };

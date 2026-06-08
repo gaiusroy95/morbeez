@@ -18,6 +18,7 @@ export const paths = {
   commerceQuoteView: 'commerce/quotes/:quoteId',
   commerceQuoteCheckout: 'commerce/quotes/:quoteId/checkout',
   warehouse: 'warehouse',
+  warehousePrint: 'warehouse/print/:docType/:entityId',
   seo: 'seo',
   commerceProductNew: 'commerce/products/new',
   commerceProductEdit: 'commerce/products/:productId/edit',

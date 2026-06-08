@@ -8,5 +8,6 @@ export declare const pickListService: {
     markLinePicked(pickListLineId: string, qty?: number): Promise<any>;
     manualVerifyLine(pickListLineId: string): Promise<any>;
     completePicking(pickListId: string): Promise<any>;
+    assignPicker(pickListId: string, pickerId: string): Promise<any>;
 };
 //# sourceMappingURL=pick-list.service.d.ts.map

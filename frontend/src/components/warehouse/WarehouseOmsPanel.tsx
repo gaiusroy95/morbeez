@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
+import { paths, toPath } from '../../lib/routes';
 import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
+import { BarcodeScanInput } from './BarcodeScanInput';
 
 type OmsOrder = {
   id: string;
@@ -18,6 +21,7 @@ type PickList = {
   id: string;
   commerce_order_id: string;
   status: string;
+  picker_id: string | null;
   commerce_orders: { order_name: string | null; shopify_order_id: string; oms_status: string };
   pick_list_lines: Array<{
     id: string;
@@ -31,6 +35,12 @@ type PickList = {
   }>;
 };
 
+type PrintableLink = { type: string; id: string; label: string };
+
+function printUrl(type: string, id: string) {
+  return toPath(`${paths.warehouse}/print/${type}/${id}`);
+}
+
 export function WarehouseOmsPanel({
   canWrite,
   focusOrderId,
@@ -42,8 +52,14 @@ export function WarehouseOmsPanel({
   const [orders, setOrders] = useState<OmsOrder[]>([]);
   const [pickLists, setPickLists] = useState<PickList[]>([]);
   const [selectedPick, setSelectedPick] = useState<PickList | null>(null);
+  const [printables, setPrintables] = useState<PrintableLink[]>([]);
+  const [pickerId, setPickerId] = useState('');
+  const [dispatchCode, setDispatchCode] = useState('');
+  const [dispatchSessionId, setDispatchSessionId] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const autoOpenedPick = useRef(false);
 
   const load = useCallback(async () => {
@@ -80,6 +96,18 @@ export function WarehouseOmsPanel({
   async function openPick(id: string) {
     const d = await api<{ ok: boolean; pickList: PickList }>(`${WMS_API}/pick-lists/${id}`);
     setSelectedPick(d.pickList);
+    setPickerId(d.pickList.picker_id ?? '');
+    const docs = await api<{ ok: boolean; printables: PrintableLink[] }>(
+      `${WMS_API}/orders/${d.pickList.commerce_order_id}/documents`
+    );
+    setPrintables(docs.printables ?? []);
+    if (d.pickList.commerce_orders?.oms_status === 'packed') {
+      const sess = await api<{ ok: boolean; session: { id: string } }>(
+        `${WMS_API}/orders/${d.pickList.commerce_order_id}/dispatch-session`,
+        { method: 'POST' }
+      ).catch(() => null);
+      if (sess?.session?.id) setDispatchSessionId(sess.session.id);
+    }
   }
 
   async function confirmOrder(id: string) {
@@ -87,11 +115,116 @@ export function WarehouseOmsPanel({
     await load();
   }
 
-  const OMS_STATUSES = ['', 'pending', 'confirmed', 'picking', 'packed', 'shipped', 'delivered'];
+  async function pickLine(lineId: string) {
+    if (!selectedPick || !canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/pick-lists/${selectedPick.id}/lines/${lineId}/pick`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      await openPick(selectedPick.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Pick failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verifyLine(lineId: string) {
+    if (!selectedPick || !canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/pick-lists/${selectedPick.id}/lines/${lineId}/verify`, {
+        method: 'POST',
+      });
+      await openPick(selectedPick.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Verify failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completePicking() {
+    if (!selectedPick || !canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/pick-lists/${selectedPick.id}/complete-picking`, { method: 'POST' });
+      setSuccess('Picking complete — ready for pack');
+      await load();
+      await openPick(selectedPick.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Complete picking failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function assignPicker() {
+    if (!selectedPick || !canWrite || !pickerId.trim()) return;
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/pick-lists/${selectedPick.id}/assign-picker`, {
+        method: 'POST',
+        body: JSON.stringify({ pickerId: pickerId.trim() }),
+      });
+      setSuccess('Picker assigned');
+      await openPick(selectedPick.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Assign failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanDispatch() {
+    if (!dispatchSessionId || !dispatchCode.trim() || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ ok: boolean; error?: string }>(
+        `${WMS_API}/dispatch-sessions/${dispatchSessionId}/scan`,
+        { method: 'POST', body: JSON.stringify({ code: dispatchCode.trim() }) }
+      );
+      if (r.ok) {
+        setSuccess('Dispatch verified — order shipped');
+        setDispatchCode('');
+        await load();
+      } else {
+        setError(r.error ?? 'Dispatch scan failed');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Dispatch scan failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createReturn() {
+    if (!selectedPick || !canWrite) return;
+    const reason = window.prompt('Return reason?');
+    if (!reason?.trim()) return;
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/orders/${selectedPick.commerce_order_id}/returns`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      setSuccess('Return request created');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Return request failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const OMS_STATUSES = ['', 'pending', 'confirmed', 'picking', 'packed', 'shipped', 'delivered', 'returned'];
 
   return (
     <div className="warehouse-oms">
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {success ? <Alert tone="success">{success}</Alert> : null}
       {loading ? <Loading /> : null}
 
       <Panel
@@ -138,7 +271,7 @@ export function WarehouseOmsPanel({
                     <td>
                       {canWrite && o.oms_status === 'pending' ? (
                         <Btn size="sm" onClick={() => void confirmOrder(o.id)}>
-                          Confirm
+                          Confirm → pick list
                         </Btn>
                       ) : null}
                     </td>
@@ -159,6 +292,7 @@ export function WarehouseOmsPanel({
                 <tr>
                   <th>Order</th>
                   <th>Pick status</th>
+                  <th>Picker</th>
                   <th>Lines</th>
                   <th />
                 </tr>
@@ -170,10 +304,11 @@ export function WarehouseOmsPanel({
                     <td>
                       <Badge tone="active">{p.status}</Badge>
                     </td>
+                    <td>{p.picker_id ?? '—'}</td>
                     <td>{p.pick_list_lines?.length ?? 0}</td>
                     <td>
                       <Btn size="sm" variant="secondary" onClick={() => void openPick(p.id)}>
-                        View
+                        Open
                       </Btn>
                     </td>
                   </tr>
@@ -193,6 +328,58 @@ export function WarehouseOmsPanel({
             </Btn>
           }
         >
+          {canWrite ? (
+            <div className="warehouse-pick-toolbar">
+              <input
+                className={inputClass}
+                placeholder="Assign picker (email/name)"
+                value={pickerId}
+                onChange={(e) => setPickerId(e.target.value)}
+              />
+              <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void assignPicker()}>
+                Assign picker
+              </Btn>
+              <Link
+                className="btn btn-secondary btn-sm"
+                to={printUrl('picking_slip', selectedPick.id)}
+                target="_blank"
+              >
+                Print picking slip
+              </Link>
+              {['picked', 'packed', 'verified'].includes(selectedPick.status) ? (
+                <Link
+                  className="btn btn-secondary btn-sm"
+                  to={printUrl('packing_slip', selectedPick.id)}
+                  target="_blank"
+                >
+                  Print packing slip
+                </Link>
+              ) : null}
+              {printables
+                .filter((p) => p.type === 'tax_invoice')
+                .map((p) => (
+                  <Link
+                    key={p.id}
+                    className="btn btn-secondary btn-sm"
+                    to={printUrl('tax_invoice', p.id)}
+                    target="_blank"
+                  >
+                    {p.label}
+                  </Link>
+                ))}
+              <Link
+                className="btn btn-secondary btn-sm"
+                to={printUrl('courier_label', selectedPick.commerce_order_id)}
+                target="_blank"
+              >
+                Courier label
+              </Link>
+              <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void createReturn()}>
+                Create return
+              </Btn>
+            </div>
+          ) : null}
+
           <TableWrap>
             <DataTable>
               <thead>
@@ -202,6 +389,7 @@ export function WarehouseOmsPanel({
                   <th>Rack</th>
                   <th>Qty</th>
                   <th>Picked</th>
+                  {canWrite ? <th /> : null}
                 </tr>
               </thead>
               <tbody>
@@ -214,12 +402,49 @@ export function WarehouseOmsPanel({
                     <td>{l.batch_code ?? '—'}</td>
                     <td className="mono">{l.rack_location ?? '—'}</td>
                     <td>{l.qty_required}</td>
-                    <td>{l.qty_picked}</td>
+                    <td>{l.manually_verified ? '✓' : l.qty_picked}</td>
+                    {canWrite ? (
+                      <td className="warehouse-pick-actions">
+                        {l.qty_picked < l.qty_required && !l.manually_verified ? (
+                          <>
+                            <Btn size="sm" disabled={busy} onClick={() => void pickLine(l.id)}>
+                              Pick
+                            </Btn>
+                            <Btn
+                              size="sm"
+                              variant="secondary"
+                              disabled={busy}
+                              onClick={() => void verifyLine(l.id)}
+                            >
+                              Verify batch
+                            </Btn>
+                          </>
+                        ) : null}
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>
             </DataTable>
           </TableWrap>
+
+          {canWrite && ['picking', 'pending'].includes(selectedPick.status) ? (
+            <Btn className="mt-4" disabled={busy} onClick={() => void completePicking()}>
+              Complete picking → pack queue
+            </Btn>
+          ) : null}
+
+          {canWrite && selectedPick.commerce_orders?.oms_status === 'packed' && dispatchSessionId ? (
+            <div className="warehouse-scan-block mt-4">
+              <BarcodeScanInput
+                value={dispatchCode}
+                onChange={setDispatchCode}
+                onScan={() => void scanDispatch()}
+                placeholder="Scan AWB barcode for dispatch"
+                disabled={busy}
+              />
+            </div>
+          ) : null}
         </Panel>
       ) : null}
     </div>

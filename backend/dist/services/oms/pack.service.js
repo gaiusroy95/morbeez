@@ -33,9 +33,21 @@ export const packService = {
         throwIfSupabaseError(sessErr, 'Pack session');
         if (!session)
             throw new NotFoundError('Pack session not found');
-        const item = await inventoryService.findByBarcode(scannedCode);
+        const trimmed = scannedCode.trim();
+        const batch = await inventoryService.findBatchByCode(trimmed);
+        let item = batch
+            ? await supabase
+                .from('inventory_items')
+                .select('*')
+                .eq('id', batch.inventory_item_id)
+                .single()
+                .then((r) => r.data)
+            : null;
         if (!item) {
-            await this.logScan(packSessionId, scannedCode, null, null, 'unknown', 'Unknown barcode');
+            item = await inventoryService.findByBarcode(trimmed);
+        }
+        if (!item) {
+            await this.logScan(packSessionId, trimmed, null, null, 'unknown', 'Unknown barcode');
             return { ok: false, error: 'Unknown barcode — product not found' };
         }
         const { data: lines } = await supabase
@@ -44,12 +56,32 @@ export const packService = {
             .eq('pick_list_id', session.pick_list_id)
             .eq('inventory_item_id', item.id);
         if (!lines?.length) {
-            await this.logScan(packSessionId, scannedCode, String(item.id), null, 'wrong_product', 'Scanned product is not on this pick list');
+            await this.logScan(packSessionId, trimmed, String(item.id), null, 'wrong_product', 'Scanned product is not on this pick list');
             return { ok: false, error: 'Wrong product — not on pick list' };
         }
         const line = lines[0];
-        await this.logScan(packSessionId, scannedCode, String(item.id), line.batch_id ? String(line.batch_id) : null, 'ok', 'Scan verified');
-        return { ok: true, line, productTitle: item.product_title, sku: item.sku };
+        if (batch && line.batch_id && String(batch.id) !== String(line.batch_id)) {
+            await this.logScan(packSessionId, trimmed, String(item.id), String(batch.id), 'wrong_batch', `Expected batch ${line.batch_code ?? line.batch_id}`);
+            return {
+                ok: false,
+                error: `Wrong batch — expected ${line.batch_code ?? 'allocated batch'}`,
+            };
+        }
+        if (!batch && line.batch_code) {
+            const expectedBatch = await inventoryService.findBatchByCode(String(line.batch_code), String(item.id));
+            if (expectedBatch && line.batch_id && String(expectedBatch.id) !== String(line.batch_id)) {
+                await this.logScan(packSessionId, trimmed, String(item.id), null, 'wrong_batch', 'Batch verification required — scan batch barcode');
+                return { ok: false, error: 'Scan batch barcode to verify allocation' };
+            }
+        }
+        await this.logScan(packSessionId, trimmed, String(item.id), line.batch_id ? String(line.batch_id) : batch?.id ? String(batch.id) : null, 'ok', batch ? 'Batch verified' : 'Product scan verified');
+        return {
+            ok: true,
+            line,
+            productTitle: item.product_title,
+            sku: item.sku,
+            batchCode: line.batch_code ?? batch?.batch_code ?? null,
+        };
     },
     async logScan(packSessionId, code, itemId, batchId, result, message) {
         await supabase.from('pack_scan_logs').insert({

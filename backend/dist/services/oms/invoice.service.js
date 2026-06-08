@@ -95,9 +95,14 @@ export const invoiceService = {
             throw new NotFoundError('Order not found');
         const { data: lines, error: lineErr } = await supabase
             .from('commerce_order_lines')
-            .select('*, pick_list_lines(batch_code)')
+            .select('*')
             .eq('commerce_order_id', commerceOrderId);
         throwIfSupabaseError(lineErr, 'Invoice lines');
+        const { data: pickLines } = await supabase
+            .from('pick_list_lines')
+            .select('order_line_id, batch_code')
+            .in('order_line_id', (lines ?? []).map((l) => l.id));
+        const batchByLine = new Map((pickLines ?? []).map((pl) => [String(pl.order_line_id), pl.batch_code]));
         const company = await companySettingsService.snapshot();
         const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
         const customerState = normalizeIndianState(order.customer_state);
@@ -134,10 +139,11 @@ export const invoiceService = {
                 cgst: breakup.cgst,
                 sgst: breakup.sgst,
                 igst: breakup.igst,
-                batch_code: null,
+                batch_code: batchByLine.get(String(line.id)) ?? null,
             });
         }
         const total = subtotal + cgst + sgst + igst;
+        const paymentMethod = order.is_cod ? 'COD' : order.payment_method ?? 'Prepaid';
         const { data: inv, error } = await supabase
             .from('invoices')
             .insert({
@@ -156,7 +162,11 @@ export const invoiceService = {
             sgst,
             igst,
             total,
-            metadata: { company: company.companySnapshot },
+            metadata: {
+                company: company.companySnapshot,
+                orderSource: order.order_source ?? 'website',
+                paymentMethod,
+            },
             issued_at: new Date().toISOString(),
         })
             .select('*')
@@ -185,6 +195,52 @@ export const invoiceService = {
         if (!data)
             throw new NotFoundError('Invoice not found');
         return data;
+    },
+    async generateCreditNote(commerceOrderId, refundAmount, reason) {
+        const { data: order, error: orderErr } = await supabase
+            .from('commerce_orders')
+            .select('*')
+            .eq('id', commerceOrderId)
+            .single();
+        throwIfSupabaseError(orderErr, 'Order for credit note');
+        if (!order)
+            throw new NotFoundError('Order not found');
+        const company = await companySettingsService.snapshot();
+        const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
+        const customerState = normalizeIndianState(order.customer_state);
+        const { data: inv, error } = await supabase
+            .from('invoices')
+            .insert({
+            commerce_order_id: commerceOrderId,
+            invoice_number: invoiceNumber('CN'),
+            document_type: 'credit_note',
+            status: 'issued',
+            customer_name: order.order_name,
+            customer_gstin: order.customer_gstin,
+            customer_state: customerState,
+            place_of_supply: customerState,
+            company_gstin: company.gstin || env.COMPANY_GSTIN || null,
+            company_state: companyState,
+            subtotal: refundAmount,
+            total: refundAmount,
+            metadata: { company: company.companySnapshot, reason },
+            issued_at: new Date().toISOString(),
+        })
+            .select('*')
+            .single();
+        throwIfSupabaseError(error, 'Credit note');
+        await supabase.from('invoice_lines').insert({
+            invoice_id: inv.id,
+            description: reason,
+            qty: 1,
+            unit_price: refundAmount,
+            taxable_amount: refundAmount,
+            gst_percent: 0,
+            cgst: 0,
+            sgst: 0,
+            igst: 0,
+        });
+        return inv;
     },
 };
 //# sourceMappingURL=invoice.service.js.map

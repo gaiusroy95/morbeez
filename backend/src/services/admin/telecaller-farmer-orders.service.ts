@@ -35,6 +35,7 @@ export type TelecallerOrderRow = {
   blockName: string | null;
   blockId: string | null;
   source: 'crm_manual' | 'commerce';
+  commerceOrderId?: string | null;
   notes?: string | null;
   deliveryAddress?: string | null;
   createdBy?: string | null;
@@ -204,6 +205,7 @@ function mapManualRow(r: Record<string, unknown>): TelecallerOrderRow {
     blockName: block?.name ?? null,
     blockId: r.block_id ? String(r.block_id) : null,
     source: 'crm_manual',
+    commerceOrderId: r.commerce_order_id ? String(r.commerce_order_id) : null,
     notes: r.notes ? String(r.notes) : null,
     deliveryAddress: r.delivery_address ? String(r.delivery_address) : null,
     createdBy: r.created_by ? String(r.created_by) : null,
@@ -256,6 +258,7 @@ function mapCommerceRow(r: Record<string, unknown>): TelecallerOrderRow {
     blockName: null,
     blockId: null,
     source: 'commerce',
+    commerceOrderId: String(r.id),
     notes: null,
     deliveryAddress: null,
     createdBy: null,

@@ -167,3 +167,84 @@
   font-family: ui-monospace, monospace;
   font-size: 0.85em;
 }
+
+.warehouse-pick-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+  align-items: center;
+}
+
+.warehouse-pick-toolbar input {
+  min-width: 200px;
+  flex: 1;
+}
+
+.warehouse-pick-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.warehouse-pack-print-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.warehouse-return-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.barcode-scan-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.barcode-scan-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.barcode-scan-row input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.barcode-scan-video-wrap {
+  margin-top: 8px;
+  max-width: 320px;
+}
+
+.barcode-scan-video {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #0f172a;
+}
+
+.barcode-scan-error {
+  color: #dc2626;
+  font-size: 12px;
+  margin: 0;
+}
+
+.barcode-scan-hint {
+  font-size: 12px;
+  margin: 0;
+}
+
+.warehouse-scan-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

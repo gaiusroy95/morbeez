@@ -29,6 +29,7 @@ export type TelecallerOrderRow = {
     blockName: string | null;
     blockId: string | null;
     source: 'crm_manual' | 'commerce';
+    commerceOrderId?: string | null;
     notes?: string | null;
     deliveryAddress?: string | null;
     createdBy?: string | null;
