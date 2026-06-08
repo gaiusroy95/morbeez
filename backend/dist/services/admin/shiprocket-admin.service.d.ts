@@ -7,6 +7,7 @@ export declare const shiprocketAdminService: {
         webhookPath: string;
         webhookUrl: string | null;
         webhookTokenConfigured: boolean;
+        webhookReady: boolean;
     };
     getAuthStatus(): Promise<import("../shiprocket/shiprocket.client.js").ShiprocketAuthStatus>;
     listPending(limit?: number): Promise<{

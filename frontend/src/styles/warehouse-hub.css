@@ -93,6 +93,15 @@
   color: #b91c1c;
 }
 
+.warehouse-location-grid .warehouse-dmp {
+  position: relative;
+  z-index: 1;
+}
+
+.warehouse-location-grid .warehouse-dmp.dmp-root--open {
+  z-index: 45;
+}
+
 .warehouse-location-field {
   display: flex;
   flex-direction: column;

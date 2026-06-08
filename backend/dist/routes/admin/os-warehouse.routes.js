@@ -42,6 +42,36 @@ export async function osWarehouseRoutes(app) {
         const warehouses = await warehouseService.listWarehouses();
         return reply.send({ ok: true, warehouses });
     });
+    app.post(`${api}/warehouses`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            code: z.string().min(1).max(32),
+            name: z.string().min(1).max(120),
+            state: z.string().optional(),
+        })
+            .parse(request.body);
+        const warehouse = await warehouseService.createWarehouse(body);
+        return reply.send({ ok: true, warehouse });
+    });
+    app.patch(`${api}/warehouses/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            code: z.string().min(1).max(32).optional(),
+            name: z.string().min(1).max(120).optional(),
+        })
+            .parse(request.body);
+        const warehouse = await warehouseService.updateWarehouse(id, body);
+        return reply.send({ ok: true, warehouse });
+    });
+    app.delete(`${api}/warehouses/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        await warehouseService.deactivateWarehouse(id);
+        return reply.send({ ok: true });
+    });
     app.get(`${api}/warehouses/:id/locations`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'read');
         const { id } = request.params;
@@ -61,6 +91,39 @@ export async function osWarehouseRoutes(app) {
             .parse(request.body);
         const location = await warehouseService.createLocation(body);
         return reply.send({ ok: true, location });
+    });
+    app.patch(`${api}/locations/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            rack: z.string().min(1).optional(),
+            shelf: z.string().optional(),
+            bin: z.string().optional(),
+            zone: z.string().optional(),
+        })
+            .parse(request.body);
+        const location = await warehouseService.updateLocation(id, body);
+        return reply.send({ ok: true, location });
+    });
+    app.delete(`${api}/locations/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        await warehouseService.deactivateLocation(id);
+        return reply.send({ ok: true });
+    });
+    app.patch(`${api}/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { warehouseId, rackName } = request.params;
+        const body = z.object({ newRack: z.string().min(1) }).parse(request.body);
+        await warehouseService.renameRack(warehouseId, decodeURIComponent(rackName), body.newRack);
+        return reply.send({ ok: true });
+    });
+    app.delete(`${api}/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { warehouseId, rackName } = request.params;
+        await warehouseService.deactivateRack(warehouseId, decodeURIComponent(rackName));
+        return reply.send({ ok: true });
     });
     // ─── Stock & inventory ────────────────────────────────────────────────────
     app.get(`${api}/stock`, async (request, reply) => {

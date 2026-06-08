@@ -20,6 +20,7 @@ type Overview = {
   webhookPath: string;
   webhookUrl: string | null;
   webhookTokenConfigured?: boolean;
+  webhookReady?: boolean;
   pendingCount: number;
   latestEventAt: string | null;
   authOk?: boolean;
@@ -161,24 +162,31 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
         </Alert>
       ) : null}
 
-      <Alert tone="info">
-        Webhook URL for Shiprocket dashboard:{' '}
-        <code>{overview?.webhookUrl ?? overview?.webhookPath ?? '/webhooks/tracking'}</code>
-        {' '}
-        with <code>x-api-key</code> header = <code>SHIPROCKET_WEBHOOK_TOKEN</code> on Render.
-        {overview?.webhookTokenConfigured === false ? (
-          <>
-            {' '}
-            <strong>Warning:</strong> webhook token is not set on the API server — tracking updates will
-            be rejected.
-          </>
-        ) : null}{' '}
-        {overview?.dashboardUrl ? (
-          <a href={overview.dashboardUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
-            Open Shiprocket dashboard
-          </a>
-        ) : null}
-      </Alert>
+      {!overview?.webhookReady ? (
+        <Alert tone={overview?.webhookTokenConfigured === false ? 'warn' : 'info'}>
+          Webhook URL for Shiprocket dashboard:{' '}
+          <code>{overview?.webhookUrl ?? overview?.webhookPath ?? '/webhooks/tracking'}</code>
+          {' '}
+          with <code>x-api-key</code> header = <code>SHIPROCKET_WEBHOOK_TOKEN</code> on Render.
+          {overview?.webhookTokenConfigured === false ? (
+            <>
+              {' '}
+              <strong>Warning:</strong> webhook token is not set on the API server — tracking updates
+              will be rejected.
+            </>
+          ) : null}{' '}
+          {overview?.dashboardUrl ? (
+            <a
+              href={overview.dashboardUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold underline"
+            >
+              Open Shiprocket dashboard
+            </a>
+          ) : null}
+        </Alert>
+      ) : null}
 
       <Panel
         title="Pending dispatch queue"

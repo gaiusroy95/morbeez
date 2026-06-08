@@ -43,6 +43,7 @@ export const shiprocketAdminService = {
             webhookPath,
             webhookUrl: apiBase ? `${apiBase}${webhookPath}` : null,
             webhookTokenConfigured: Boolean(env.SHIPROCKET_WEBHOOK_TOKEN?.trim()),
+            webhookReady: Boolean(env.SHIPROCKET_WEBHOOK_TOKEN?.trim() && apiBase),
         };
     },
     async getAuthStatus() {
