@@ -114,7 +114,17 @@ export async function shiprocketRequest(path, init = {}, retried = false) {
     if (!res.ok) {
         const text = await res.text();
         logger.error({ status: res.status, path, text }, 'Shiprocket API error');
-        throw new AppError(`Shiprocket API ${res.status}`, res.status, 'SHIPROCKET_API_ERROR', text);
+        const detail = await (async () => {
+            try {
+                const parsed = JSON.parse(text);
+                return parsed.message?.trim() || text.slice(0, 200);
+            }
+            catch {
+                return text.slice(0, 200);
+            }
+        })();
+        const suffix = detail ? ` — ${detail}` : '';
+        throw new AppError(`Shiprocket API ${res.status} on ${path}${suffix}`, res.status, 'SHIPROCKET_API_ERROR', text);
     }
     return res.json();
 }

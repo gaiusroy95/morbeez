@@ -94,28 +94,43 @@ async function loadOrderLines(commerceOrderId: string) {
     .filter((l) => l.qty_ordered > 0);
 }
 
-async function pickCourier(shipmentId: number, pincode: string, weight: number, isCod: boolean) {
-  const serviceability = await shiprocketRequest<{
-    data?: {
-      available_courier_companies?: Array<{
-        courier_company_id: number;
-        courier_name: string;
-        rate: number;
-        etd: string;
-      }>;
-    };
-  }>('/v1/external/courier/serviceability/', {
-    method: 'POST',
-    body: JSON.stringify({
-      shipment_id: shipmentId,
-      pickup_postcode: process.env.SHIPROCKET_PICKUP_PINCODE ?? '560001',
-      delivery_postcode: pincode,
-      cod: isCod ? 1 : 0,
-      weight,
-    }),
-  });
+type CourierOption = {
+  courier_company_id: number;
+  courier_name: string;
+  rate: number;
+  etd?: string;
+};
 
-  const couriers = serviceability.data?.available_courier_companies ?? [];
+function parseServiceableCouriers(payload: Record<string, unknown>): CourierOption[] {
+  const data = payload.data as Record<string, unknown> | undefined;
+  const list =
+    (data?.available_courier_companies as CourierOption[] | undefined) ??
+    (payload.available_courier_companies as CourierOption[] | undefined) ??
+    [];
+  return Array.isArray(list) ? list : [];
+}
+
+/** Shiprocket serviceability is GET with query params — POST returns 405. */
+async function pickCourier(
+  shiprocketOrderId: number | undefined,
+  pincode: string,
+  weight: number,
+  isCod: boolean
+) {
+  const params = new URLSearchParams({
+    pickup_postcode: process.env.SHIPROCKET_PICKUP_PINCODE ?? '560001',
+    delivery_postcode: pincode,
+    cod: String(isCod ? 1 : 0),
+    weight: String(Math.max(0.1, weight)),
+  });
+  if (shiprocketOrderId) params.set('order_id', String(shiprocketOrderId));
+
+  const serviceability = await shiprocketRequest<Record<string, unknown>>(
+    `/v1/external/courier/serviceability/?${params.toString()}`,
+    { method: 'GET' }
+  );
+
+  const couriers = parseServiceableCouriers(serviceability);
   if (!couriers.length) return null;
 
   const sorted = [...couriers].sort((a, b) => Number(a.rate) - Number(b.rate));
@@ -222,14 +237,22 @@ export const shiprocketService = {
     let courier = created.courier_name ?? null;
 
     if (!awb) {
-      const best = await pickCourier(shipmentId, addr.pincode, weight, paymentMethod === 'COD');
-      if (best) {
-        const assigned = await assignAwb(shipmentId, best.courier_company_id);
-        awb =
-          assigned.response?.data?.awb_code ??
-          assigned.awb_code ??
-          null;
-        courier = assigned.response?.data?.courier_name ?? assigned.courier_name ?? best.courier_name;
+      const best = await pickCourier(created.order_id, addr.pincode, weight, paymentMethod === 'COD');
+      if (!best) {
+        throw new AppError(
+          `No courier serviceable for pincode ${addr.pincode} — check Shiprocket pickup pincode and dashboard rules`,
+          409,
+          'SHIPROCKET_NO_COURIER'
+        );
+      }
+      const assigned = await assignAwb(shipmentId, best.courier_company_id);
+      awb =
+        assigned.response?.data?.awb_code ??
+        assigned.awb_code ??
+        null;
+      courier = assigned.response?.data?.courier_name ?? assigned.courier_name ?? best.courier_name;
+      if (!awb) {
+        throw new AppError('Shiprocket assigned courier but returned no AWB', 502, 'SHIPROCKET_NO_AWB');
       }
     }
 
