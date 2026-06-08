@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { formatInr } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, TableWrap } from '../ui';
+import { Alert, Badge, Btn, EmptyState, Loading, Panel } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
 
@@ -17,24 +18,59 @@ type Stats = {
 type QueueRow = {
   id: string;
   orderName: string;
+  customerName?: string | null;
   courier: string;
   itemCount: number;
+  orderItemCount?: number;
+  stockIssue?: 'no_order_lines' | 'no_stock_reserved' | null;
   priority: string;
   omsStatus: string;
   awb: string | null;
   pickListId: string | null;
   shiprocketError: string | null;
+  isCod?: boolean;
+  totalAmount?: number;
 };
 
-type PickLine = {
+type RackLine = {
+  row: number;
   id: string;
-  product_title: string;
+  productTitle: string;
   sku: string | null;
-  batch_code: string | null;
-  rack_location: string | null;
-  qty_required: number;
-  qty_picked: number;
-  manually_verified: boolean;
+  batchCode: string | null;
+  qtyRequired: number;
+  qtyPicked: number;
+  remaining: number;
+  complete: boolean;
+};
+
+type RackProgress = {
+  rack: string;
+  lineCount: number;
+  totalQty: number;
+  pickedQty: number;
+  complete: boolean;
+  active: boolean;
+};
+
+type Workflow = {
+  stage: 'picking' | 'print';
+  step: number;
+  currentRack: string | null;
+  racks: RackProgress[];
+  currentRackLines: RackLine[];
+  printEnabled: boolean;
+};
+
+type PickLookup = {
+  lineId: string;
+  productTitle: string;
+  sku: string | null;
+  batchCode: string | null;
+  qtyRequired: number;
+  qtyPicked: number;
+  remaining: number;
+  defaultQty: number;
 };
 
 type OrderDetail = {
@@ -48,20 +84,21 @@ type OrderDetail = {
     dispatch_rack: string | null;
     shiprocket_error: string | null;
   };
-  pickList: {
-    id: string;
-    pick_list_lines: PickLine[];
-  } | null;
-  packSession: {
-    id: string;
-    verified_rack: string | null;
-    scan_complete: boolean;
-    line_scan_counts: Record<string, number>;
-  } | null;
+  pickList: { id: string } | null;
+  packSession: { id: string } | null;
   invoice: { id: string; invoice_number: string } | null;
   suggestedDispatchRack: string | null;
   printEnabled: boolean;
+  workflow: Workflow | null;
+  customerSummary?: {
+    phone: string | null;
+    address: string | null;
+    isCod: boolean;
+    totalAmount: number;
+  };
 };
+
+const STEPS = ['Pick', 'Verify', 'Print', 'Packed'] as const;
 
 const EXCEPTIONS = [
   { type: 'stock_missing', label: 'Stock missing' },
@@ -78,7 +115,85 @@ function printUrl(type: string, id: string) {
 function priorityBadge(p: string) {
   if (p === 'high') return <Badge tone="warn">High</Badge>;
   if (p === 'low') return <Badge tone="muted">Low</Badge>;
-  return <Badge tone="info">Normal</Badge>;
+  return null;
+}
+
+function PickConfirmModal({
+  lookup,
+  onClose,
+  onConfirm,
+  busy,
+}: {
+  lookup: PickLookup;
+  onClose: () => void;
+  onConfirm: (qty: number) => void;
+  busy: boolean;
+}) {
+  const [qty, setQty] = useState(lookup.defaultQty);
+
+  useEffect(() => {
+    setQty(lookup.defaultQty);
+  }, [lookup]);
+
+  return (
+    <div className="ff-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="ff-modal">
+        <h3 className="ff-modal-title">{lookup.productTitle}</h3>
+        {lookup.sku ? <p className="muted">SKU: {lookup.sku}</p> : null}
+        <div className="ff-modal-stats">
+          <div>
+            <span>Required</span>
+            <strong>{lookup.qtyRequired}</strong>
+          </div>
+          <div>
+            <span>Picked</span>
+            <strong>{lookup.qtyPicked}</strong>
+          </div>
+          <div>
+            <span>Remaining</span>
+            <strong>{lookup.remaining}</strong>
+          </div>
+        </div>
+        <div className="ff-qty-controls">
+          <Btn
+            size="sm"
+            variant="secondary"
+            disabled={qty <= 1 || busy}
+            onClick={() => setQty((q) => Math.max(1, q - 1))}
+          >
+            −
+          </Btn>
+          <input
+            className="ff-qty-input"
+            type="number"
+            min={1}
+            max={lookup.remaining}
+            value={qty}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              if (Number.isFinite(n)) setQty(Math.min(lookup.remaining, Math.max(1, n)));
+            }}
+          />
+          <Btn
+            size="sm"
+            variant="secondary"
+            disabled={qty >= lookup.remaining || busy}
+            onClick={() => setQty((q) => Math.min(lookup.remaining, q + 1))}
+          >
+            +
+          </Btn>
+        </div>
+        <div className="ff-modal-actions">
+          <Btn size="sm" variant="secondary" disabled={busy} onClick={onClose}>
+            Cancel
+          </Btn>
+          <Btn size="sm" variant="primary" disabled={busy} onClick={() => onConfirm(qty)}>
+            {busy ? 'Saving…' : 'Confirm pick'}
+          </Btn>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function WarehouseFulfillmentPanel({
@@ -94,8 +209,9 @@ export function WarehouseFulfillmentPanel({
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [scanCode, setScanCode] = useState('');
+  const [scanOpen, setScanOpen] = useState(false);
   const [scanMsg, setScanMsg] = useState('');
-  const [scanPhase, setScanPhase] = useState<'rack' | 'product'>('rack');
+  const [pickLookup, setPickLookup] = useState<PickLookup | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -111,27 +227,33 @@ export function WarehouseFulfillmentPanel({
     setQueue(q.queue ?? []);
   }, []);
 
-  const loadDetail = useCallback(async (orderId: string, startSession = false) => {
-    setSelectedId(orderId);
-    setScanMsg('');
-    setSuccess('');
-    const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
-    setDetail(d);
-    setScanPhase(d.packSession?.verified_rack ? 'product' : 'rack');
+  const loadDetail = useCallback(
+    async (orderId: string, startSession = false) => {
+      setSelectedId(orderId);
+      setScanMsg('');
+      setSuccess('');
+      setPickLookup(null);
+      const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
+      setDetail(d);
 
-    if (d.packSession?.id) {
-      setSessionId(d.packSession.id);
-    } else if (canWrite && startSession && d.pickList) {
-      const sess = await api<{ ok: boolean; session: { id: string } }>(
-        `${WMS_API}/fulfillment/orders/${orderId}/pack-session`,
-        { method: 'POST' }
-      );
-      setSessionId(sess.session.id);
-      setScanPhase('rack');
-    } else {
-      setSessionId('');
-    }
-  }, [canWrite]);
+      if (d.packSession?.id) {
+        setSessionId(d.packSession.id);
+      } else if (canWrite && startSession && d.pickList) {
+        const sess = await api<{ ok: boolean; session: { id: string } }>(
+          `${WMS_API}/fulfillment/orders/${orderId}/pack-session`,
+          { method: 'POST' }
+        );
+        setSessionId(sess.session.id);
+        const refreshed = await api<{ ok: boolean } & OrderDetail>(
+          `${WMS_API}/fulfillment/orders/${orderId}`
+        );
+        setDetail(refreshed);
+      } else {
+        setSessionId('');
+      }
+    },
+    [canWrite]
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,42 +277,64 @@ export function WarehouseFulfillmentPanel({
     void loadDetail(focusOrderId, true);
   }, [focusOrderId, loading, selectedId, loadDetail]);
 
-  async function scan() {
-    if (!sessionId || !scanCode.trim()) return;
+  async function lookupBarcode(code: string) {
+    if (!sessionId || !code.trim()) return;
     setScanMsg('');
-    const r = await api<{
-      ok: boolean;
-      error?: string;
-      phase?: string;
-      message?: string;
-      scanComplete?: boolean;
-      printEnabled?: boolean;
-    }>(`${WMS_API}/fulfillment/pack-sessions/${sessionId}/scan`, {
-      method: 'POST',
-      body: JSON.stringify({ code: scanCode.trim() }),
-    });
-    if (r.ok) {
-      setScanMsg(r.message ?? 'OK');
-      if (r.phase === 'rack') setScanPhase('product');
-      if (selectedId) await loadDetail(selectedId);
+    setError('');
+    const r = await api<{ ok: boolean; error?: string } & Partial<PickLookup>>(
+      `${WMS_API}/fulfillment/pack-sessions/${sessionId}/lookup-barcode`,
+      { method: 'POST', body: JSON.stringify({ code: code.trim() }) }
+    );
+    if (r.ok && r.lineId) {
+      setPickLookup({
+        lineId: r.lineId,
+        productTitle: r.productTitle ?? code,
+        sku: r.sku ?? null,
+        batchCode: r.batchCode ?? null,
+        qtyRequired: r.qtyRequired ?? 1,
+        qtyPicked: r.qtyPicked ?? 0,
+        remaining: r.remaining ?? 1,
+        defaultQty: r.defaultQty ?? 1,
+      });
+      setScanOpen(false);
+      setScanCode('');
     } else {
       setScanMsg(r.error ?? 'Scan failed');
     }
-    setScanCode('');
   }
 
-  async function runAction(
-    path: string,
-    okMsg: string,
-    method: 'POST' = 'POST',
-    body?: Record<string, unknown>
-  ) {
+  async function confirmPick(qty: number) {
+    if (!sessionId || !pickLookup) return;
+    setBusy(true);
+    setError('');
+    try {
+      const r = await api<{ ok: boolean; message?: string; stage?: string }>(
+        `${WMS_API}/fulfillment/pack-sessions/${sessionId}/confirm-pick`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ lineId: pickLookup.lineId, qty }),
+        }
+      );
+      setPickLookup(null);
+      setSuccess(r.message ?? 'Picked');
+      if (selectedId) await loadDetail(selectedId);
+      if (r.stage === 'print') {
+        setSuccess('All racks complete — print label & invoice');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Confirm pick failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runAction(path: string, okMsg: string, body?: Record<string, unknown>) {
     if (!selectedId || !canWrite) return;
     setBusy(true);
     setError('');
     try {
       await api(`${WMS_API}/fulfillment/orders/${selectedId}${path}`, {
-        method,
+        method: 'POST',
         body: body ? JSON.stringify(body) : undefined,
       });
       setSuccess(okMsg);
@@ -203,14 +347,18 @@ export function WarehouseFulfillmentPanel({
     }
   }
 
-  async function reportException(type: string) {
-    await runAction('/exception', `Logged: ${type}`, 'POST', { type });
-  }
-
-  const printEnabled = Boolean(detail?.printEnabled || detail?.packSession?.scan_complete);
+  const workflow = detail?.workflow;
   const order = detail?.order;
-  const lines = detail?.pickList?.pick_list_lines ?? [];
-  const counts = detail?.packSession?.line_scan_counts ?? {};
+  const printStage = workflow?.stage === 'print' || detail?.printEnabled;
+  const activeStep = printStage ? 3 : workflow?.step ?? 1;
+  const selectedQueue = queue.find((r) => r.id === selectedId);
+  const customer = detail?.customerSummary;
+
+  function formatItems(row: QueueRow) {
+    const ordered = row.orderItemCount ?? 0;
+    if (row.itemCount === 0 && ordered > 0) return `0 / ${ordered}`;
+    return String(row.itemCount);
+  }
 
   if (loading && !stats) return <Loading label="Loading fulfillment…" />;
 
@@ -245,205 +393,243 @@ export function WarehouseFulfillmentPanel({
       ) : null}
 
       <div className="fulfillment-layout">
+        {/* LEFT — Order queue */}
         <Panel title="Order queue" className="fulfillment-col fulfillment-col--queue">
           {queue.length === 0 ? <EmptyState>No orders in fulfillment.</EmptyState> : null}
-          <TableWrap>
-            <DataTable>
-              <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Courier</th>
-                  <th>Items</th>
-                  <th>Priority</th>
-                </tr>
-              </thead>
-              <tbody>
-                {queue.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={selectedId === row.id ? 'fulfillment-row--active' : ''}
-                    onClick={() => void loadDetail(row.id, true)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') void loadDetail(row.id, true);
-                    }}
-                  >
-                    <td>
-                      <span className="mono">{row.orderName}</span>
-                      {row.shiprocketError ? (
-                        <span className="fulfillment-err-hint" title={row.shiprocketError}>
-                          ⚠
-                        </span>
-                      ) : null}
-                    </td>
-                    <td>{row.courier}</td>
-                    <td>{row.itemCount}</td>
-                    <td>{priorityBadge(row.priority)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </DataTable>
-          </TableWrap>
+          <ul className="ff-order-list">
+            {queue.map((row) => (
+              <li key={row.id}>
+                <button
+                  type="button"
+                  className={`ff-order-card${selectedId === row.id ? ' ff-order-card--active' : ''}`}
+                  onClick={() => void loadDetail(row.id, true)}
+                >
+                  <div className="ff-order-card-top">
+                    <span className="ff-order-id mono">{row.orderName}</span>
+                    {priorityBadge(row.priority)}
+                    {row.shiprocketError ? <span className="fulfillment-err-hint" title={row.shiprocketError}>⚠</span> : null}
+                  </div>
+                  {row.customerName ? <span className="ff-order-customer">{row.customerName}</span> : null}
+                  <div className="ff-order-card-meta">
+                    <span>{formatItems(row)} items</span>
+                    {row.totalAmount != null ? <span>{formatInr(row.totalAmount)}</span> : null}
+                    <span>{row.courier}</span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
         </Panel>
 
-        <Panel title="Picking instructions" className="fulfillment-col fulfillment-col--pick">
+        {/* CENTER — Rack picking */}
+        <Panel title="Pick + pack" className="fulfillment-col fulfillment-col--pick">
           {!detail ? (
             <EmptyState>Select an order from the queue.</EmptyState>
           ) : (
             <>
-              <p className="fulfillment-order-meta muted">
-                {order?.order_name ?? selectedId.slice(0, 8)} · {order?.oms_status}
-                {order?.tracking_awb ? (
-                  <>
-                    {' '}
-                    · AWB <span className="mono">{order.tracking_awb}</span>
-                  </>
-                ) : null}
-              </p>
-              {canWrite ? (
-                <div className="warehouse-scan-block">
-                  <p className="muted">
-                    {scanPhase === 'rack'
-                      ? 'Step 1 — scan rack location'
-                      : 'Step 2 — scan product / batch barcode'}
-                  </p>
-                  <BarcodeScanInput
-                    value={scanCode}
-                    onChange={setScanCode}
-                    onScan={() => void scan()}
-                    placeholder={
-                      scanPhase === 'rack' ? 'Scan rack (e.g. A-02)' : 'Scan product or batch'
-                    }
-                  />
-                  {scanMsg ? <span className="scan-msg">{scanMsg}</span> : null}
-                </div>
+              <div className="ff-stepper">
+                {STEPS.map((label, i) => {
+                  const n = i + 1;
+                  const active = n === activeStep;
+                  const done = n < activeStep;
+                  return (
+                    <div
+                      key={label}
+                      className={`ff-step${active ? ' ff-step--active' : ''}${done ? ' ff-step--done' : ''}`}
+                    >
+                      <span className="ff-step-num">{n}</span>
+                      <span>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {!workflow?.currentRackLines.length && selectedQueue?.stockIssue === 'no_stock_reserved' ? (
+                <Alert tone="warn">
+                  No stock reserved — add stock via <strong>Purchase &amp; GRN</strong>, then{' '}
+                  {canWrite ? (
+                    <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void runAction('/rebuild-pick-list', 'Pick list rebuilt')}>
+                      Rebuild pick list
+                    </Btn>
+                  ) : null}
+                </Alert>
               ) : null}
-              <TableWrap>
-                <DataTable>
-                  <thead>
-                    <tr>
-                      <th>Rack</th>
-                      <th>Product</th>
-                      <th>Qty</th>
-                      <th>Scan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((l) => {
-                      const scanned = counts[l.id] ?? 0;
-                      const done = l.manually_verified || scanned >= l.qty_required;
-                      return (
-                        <tr key={l.id}>
-                          <td className="mono">{l.rack_location ?? '—'}</td>
+
+              {printStage ? (
+                <Alert tone="success">
+                  All racks picked. Use the print panel on the right to generate AWB, print label &amp; invoice, then mark packed.
+                </Alert>
+              ) : workflow?.currentRack ? (
+                <>
+                  <div className="ff-rack-banner">
+                    <span className="ff-rack-label">Current rack</span>
+                    <strong className="ff-rack-code">{workflow.currentRack}</strong>
+                  </div>
+                  <p className="muted ff-rack-hint">Scan product barcode — qty popup opens on match.</p>
+
+                  <table className="ff-pick-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Qty</th>
+                        <th>Picked</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {workflow.currentRackLines.map((l) => (
+                        <tr key={l.id} className={l.complete ? 'ff-pick-row--done' : ''}>
+                          <td>{l.row}</td>
                           <td>
-                            {l.product_title}
-                            {l.batch_code ? (
-                              <span className="muted"> · {l.batch_code}</span>
-                            ) : null}
+                            <strong>{l.productTitle}</strong>
+                            {l.sku ? <span className="muted"> · {l.sku}</span> : null}
                           </td>
-                          <td>{l.qty_required}</td>
-                          <td>{done ? '✅' : `${scanned}/${l.qty_required}`}</td>
+                          <td>{l.qtyRequired}</td>
+                          <td>
+                            <span className={l.complete ? 'ff-picked-done' : l.qtyPicked > 0 ? 'ff-picked-partial' : ''}>
+                              {l.qtyPicked}/{l.qtyRequired}
+                            </span>
+                          </td>
+                          <td>{l.complete ? '✅ Picked' : 'Pending'}</td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </DataTable>
-              </TableWrap>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {canWrite ? (
+                    <div className="ff-scan-area">
+                      {!scanOpen ? (
+                        <Btn variant="primary" onClick={() => setScanOpen(true)}>
+                          Scan barcode
+                        </Btn>
+                      ) : (
+                        <>
+                          <BarcodeScanInput
+                            value={scanCode}
+                            onChange={setScanCode}
+                            onScan={(c) => void lookupBarcode(c)}
+                            placeholder="Scan or enter product / batch barcode"
+                          />
+                          <Btn size="sm" variant="secondary" onClick={() => setScanOpen(false)}>
+                            Close scanner
+                          </Btn>
+                        </>
+                      )}
+                      {scanMsg ? <p className="scan-msg">{scanMsg}</p> : null}
+                    </div>
+                  ) : null}
+                </>
+              ) : null}
             </>
           )}
         </Panel>
 
-        <Panel title="Shipping actions" className="fulfillment-col fulfillment-col--ship">
+        {/* RIGHT — Summary + printables */}
+        <Panel title="Order & print" className="fulfillment-col fulfillment-col--ship">
           {!detail || !order ? (
-            <EmptyState>Select an order to ship.</EmptyState>
+            <EmptyState>Select an order.</EmptyState>
           ) : (
             <div className="fulfillment-actions">
-              {order.shiprocket_error ? (
-                <Alert tone="warn">{order.shiprocket_error}</Alert>
-              ) : null}
-              {order.dispatch_rack ? (
-                <p>
-                  Dispatch rack: <strong>{order.dispatch_rack}</strong>
-                  {detail.suggestedDispatchRack && !order.dispatch_rack ? (
-                    <span className="muted"> (suggested {detail.suggestedDispatchRack})</span>
+              {order.shiprocket_error ? <Alert tone="warn">{order.shiprocket_error}</Alert> : null}
+
+              {customer ? (
+                <div className="ff-order-summary">
+                  <p>
+                    <strong>{selectedQueue?.customerName ?? order.order_name}</strong>
+                  </p>
+                  {customer.phone ? <p className="muted">{customer.phone}</p> : null}
+                  {customer.address ? <p className="muted">{customer.address}</p> : null}
+                  <p className="muted">
+                    {customer.isCod ? 'COD' : 'Prepaid'}
+                    {customer.totalAmount != null ? ` · ${formatInr(customer.totalAmount)}` : ''}
+                  </p>
+                  {order.tracking_awb ? (
+                    <p>
+                      AWB <span className="mono">{order.tracking_awb}</span>
+                      {order.courier_name ? ` · ${order.courier_name}` : ''}
+                    </p>
                   ) : null}
-                </p>
-              ) : detail.suggestedDispatchRack ? (
-                <p className="muted">Suggested rack: {detail.suggestedDispatchRack}</p>
+                </div>
               ) : null}
 
-              <div className="fulfillment-btn-stack">
-                {canWrite ? (
-                  <Btn
-                    size="sm"
-                    variant="secondary"
-                    disabled={busy || Boolean(order.tracking_awb)}
-                    onClick={() => void runAction('/generate-awb', 'AWB generated')}
-                  >
-                    Generate AWB
-                  </Btn>
-                ) : null}
-                {order.label_url ? (
-                  <a
-                    className="btn btn-secondary btn-sm"
-                    href={order.label_url}
+              {workflow?.racks.length ? (
+                <div className="ff-rack-progress">
+                  <p className="muted">Rack progress</p>
+                  <ol className="ff-rack-progress-list">
+                    {workflow.racks.map((r) => (
+                      <li
+                        key={r.rack}
+                        className={`ff-rack-progress-item${r.active ? ' ff-rack-progress-item--active' : ''}${r.complete ? ' ff-rack-progress-item--done' : ''}`}
+                      >
+                        <span className="mono">{r.rack}</span>
+                        <span>
+                          {r.pickedQty}/{r.totalQty}
+                        </span>
+                        {r.complete ? <span>✓</span> : r.active ? <span>→</span> : null}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : null}
+
+              <div className={`ff-print-stage${printStage ? ' ff-print-stage--active' : ''}`}>
+                <p className="ff-print-stage-title">
+                  {printStage ? 'Printables ready' : 'Printables locked'}
+                </p>
+                <div className="fulfillment-btn-stack">
+                  {canWrite ? (
+                    <Btn
+                      size="sm"
+                      variant={printStage ? 'primary' : 'secondary'}
+                      disabled={busy || !printStage || Boolean(order.tracking_awb)}
+                      onClick={() => void runAction('/generate-awb', 'AWB generated')}
+                    >
+                      Generate AWB
+                    </Btn>
+                  ) : null}
+                  {order.label_url ? (
+                    <a className="btn btn-secondary btn-sm" href={order.label_url} target="_blank" rel="noreferrer">
+                      Shiprocket PDF
+                    </a>
+                  ) : null}
+                  <Link
+                    className={`btn btn-secondary btn-sm${printStage ? '' : ' btn--disabled'}`}
+                    to={printStage ? printUrl('courier_label', order.id) : '#'}
                     target="_blank"
-                    rel="noreferrer"
+                    onClick={(e) => { if (!printStage) e.preventDefault(); }}
                   >
-                    Shiprocket label PDF
-                  </a>
-                ) : null}
-                <Link
-                  className={`btn btn-secondary btn-sm${printEnabled ? '' : ' btn--disabled'}`}
-                  to={printEnabled ? printUrl('courier_label', order.id) : '#'}
-                  target="_blank"
-                  onClick={(e) => {
-                    if (!printEnabled) e.preventDefault();
-                  }}
-                >
-                  Print label
-                </Link>
-                <Link
-                  className={`btn btn-secondary btn-sm${printEnabled && detail.invoice ? '' : ' btn--disabled'}`}
-                  to={
-                    printEnabled && detail.invoice
-                      ? printUrl('tax_invoice', detail.invoice.id)
-                      : '#'
-                  }
-                  target="_blank"
-                  onClick={(e) => {
-                    if (!printEnabled || !detail.invoice) e.preventDefault();
-                  }}
-                >
-                  Print invoice
-                </Link>
-                {canWrite ? (
-                  <>
-                    <Btn
-                      size="sm"
-                      disabled={busy || !printEnabled}
-                      onClick={() => void runAction('/mark-label-printed', 'Label printed — ready dispatch')}
-                    >
-                      Label printed
-                    </Btn>
-                    <Btn
-                      size="sm"
-                      variant="primary"
-                      disabled={busy || !printEnabled}
-                      onClick={() => void runAction('/mark-packed', 'Order packed')}
-                    >
-                      Mark packed
-                    </Btn>
-                  </>
-                ) : null}
+                    Print label
+                  </Link>
+                  <Link
+                    className={`btn btn-secondary btn-sm${printStage && detail.invoice ? '' : ' btn--disabled'}`}
+                    to={printStage && detail.invoice ? printUrl('tax_invoice', detail.invoice.id) : '#'}
+                    target="_blank"
+                    onClick={(e) => { if (!printStage || !detail.invoice) e.preventDefault(); }}
+                  >
+                    Print invoice
+                  </Link>
+                  {canWrite ? (
+                    <>
+                      <Btn
+                        size="sm"
+                        disabled={busy || !printStage}
+                        onClick={() => void runAction('/mark-label-printed', 'Label printed')}
+                      >
+                        Label printed
+                      </Btn>
+                      <Btn
+                        size="sm"
+                        variant="primary"
+                        disabled={busy || !printStage}
+                        onClick={() => void runAction('/mark-packed', 'Order packed')}
+                      >
+                        Mark packed
+                      </Btn>
+                    </>
+                  ) : null}
+                </div>
               </div>
-
-              {!printEnabled && canWrite ? (
-                <p className="muted fulfillment-hint">
-                  Complete rack + product scans to enable print and pack.
-                </p>
-              ) : null}
 
               {canWrite ? (
                 <div className="fulfillment-exceptions">
@@ -455,7 +641,7 @@ export function WarehouseFulfillmentPanel({
                         size="sm"
                         variant="secondary"
                         disabled={busy}
-                        onClick={() => void reportException(ex.type)}
+                        onClick={() => void runAction('/exception', `Logged: ${ex.type}`, { type: ex.type })}
                       >
                         {ex.label}
                       </Btn>
@@ -463,23 +649,19 @@ export function WarehouseFulfillmentPanel({
                   </div>
                 </div>
               ) : null}
-
-              {order.oms_status === 'ready_dispatch' || order.oms_status === 'packed' ? (
-                <div className="fulfillment-dispatch">
-                  <p className="muted">After packing, move to dispatch rack. Scan AWB at courier pickup.</p>
-                  <Link
-                    className="btn btn-secondary btn-sm"
-                    to={printUrl('courier_label', order.id)}
-                    target="_blank"
-                  >
-                    Reprint label
-                  </Link>
-                </div>
-              ) : null}
             </div>
           )}
         </Panel>
       </div>
+
+      {pickLookup ? (
+        <PickConfirmModal
+          lookup={pickLookup}
+          busy={busy}
+          onClose={() => setPickLookup(null)}
+          onConfirm={(qty) => void confirmPick(qty)}
+        />
+      ) : null}
     </div>
   );
 }

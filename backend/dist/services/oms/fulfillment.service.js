@@ -5,6 +5,8 @@ import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { shiprocketService } from '../shiprocket/shiprocket.service.js';
 import { packService } from './pack.service.js';
+import { pickListService } from './pick-list.service.js';
+import { rackPickService } from './rack-pick.service.js';
 import { omsWorkflowService } from './workflow.service.js';
 import { invoiceService } from './invoice.service.js';
 import { employeeActionLogService } from './employee-action-log.service.js';
@@ -68,8 +70,9 @@ export const fulfillmentService = {
         const { data, error } = await supabase
             .from('commerce_orders')
             .select(`id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
-         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error,
-         pick_lists(id, status, pick_list_lines(id))`)
+         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
+         pick_lists(id, status, pick_list_lines(id)),
+         commerce_order_lines(id, qty_ordered, qty_cancelled)`)
             .in('oms_status', [...FULFILLMENT_STATUSES])
             .order('fulfillment_priority', { ascending: false })
             .order('created_at', { ascending: true })
@@ -77,13 +80,29 @@ export const fulfillmentService = {
         throwIfSupabaseError(error, 'Fulfillment queue');
         return (data ?? []).map((row) => {
             const pickLists = (row.pick_lists ?? []);
+            const orderLines = (row.commerce_order_lines ?? []);
             const pick = pickLists[0];
-            const itemCount = pick?.pick_list_lines?.length ?? 0;
+            const pickItemCount = pick?.pick_list_lines?.length ?? 0;
+            const orderItemCount = orderLines.reduce((sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)), 0);
+            const stockIssue = orderItemCount === 0
+                ? 'no_order_lines'
+                : pickItemCount === 0
+                    ? 'no_stock_reserved'
+                    : null;
+            const shipAddr = row.shipping_address;
+            const customerName = shipAddr?.name
+                ? String(shipAddr.name)
+                : shipAddr?.first_name
+                    ? String(shipAddr.first_name)
+                    : null;
             return {
                 id: row.id,
                 orderName: row.order_name ?? row.shopify_order_id ?? row.id.slice(0, 8),
+                customerName,
                 courier: row.courier_name ?? '—',
-                itemCount,
+                itemCount: pickItemCount,
+                orderItemCount,
+                stockIssue,
                 priority: row.fulfillment_priority ?? 'normal',
                 omsStatus: row.oms_status,
                 awb: row.tracking_awb,
@@ -115,6 +134,12 @@ export const fulfillmentService = {
             .eq('document_type', 'tax_invoice')
             .order('created_at', { ascending: false })
             .limit(1);
+        let workflow = null;
+        if (packSession?.id && pickList) {
+            const ctx = await rackPickService.loadSessionContext(String(packSession.id));
+            workflow = rackPickService.buildWorkflowPayload(ctx);
+        }
+        const shipAddr = order.shipping_address;
         return {
             order,
             pickList,
@@ -122,6 +147,23 @@ export const fulfillmentService = {
             invoice: invoices?.[0] ?? null,
             suggestedDispatchRack: suggestDispatchRack(order.courier_name),
             printEnabled: Boolean(packSession?.scan_complete),
+            workflow,
+            customerSummary: {
+                phone: order.phone ?? shipAddr?.phone ?? null,
+                address: shipAddr
+                    ? [
+                        shipAddr.name ?? shipAddr.first_name,
+                        shipAddr.line1 ?? shipAddr.address1,
+                        shipAddr.city,
+                        shipAddr.state ?? shipAddr.province,
+                        shipAddr.pincode ?? shipAddr.zip,
+                    ]
+                        .filter(Boolean)
+                        .join(', ')
+                    : null,
+                isCod: Boolean(order.is_cod),
+                totalAmount: order.total_amount,
+            },
         };
     },
     async provisionShipment(commerceOrderId, actorEmail) {
@@ -285,6 +327,18 @@ export const fulfillmentService = {
         }
         return { ok: true, type, note: note ?? null };
     },
+    async rebuildPickListForOrder(commerceOrderId, actorEmail) {
+        try {
+            const pickListId = await this.getPickListIdForOrder(commerceOrderId);
+            return pickListService.rebuildPickList(pickListId, actorEmail);
+        }
+        catch (err) {
+            if (err instanceof NotFoundError) {
+                return pickListService.generateForOrder(commerceOrderId, actorEmail);
+            }
+            throw err;
+        }
+    },
     async getPickListIdForOrder(commerceOrderId) {
         const { data, error } = await supabase
             .from('pick_lists')
@@ -297,11 +351,20 @@ export const fulfillmentService = {
         return String(data.id);
     },
     async ensurePackSession(pickListId) {
-        return packService.startSession(pickListId, 'barcode');
+        const session = await packService.startSession(pickListId, 'barcode');
+        await rackPickService.initSessionRack(String(session.id));
+        const ctx = await rackPickService.loadSessionContext(String(session.id));
+        return ctx.session;
     },
     async ensurePackSessionForOrder(commerceOrderId) {
         const pickListId = await this.getPickListIdForOrder(commerceOrderId);
         return this.ensurePackSession(pickListId);
+    },
+    async lookupBarcode(packSessionId, code) {
+        return rackPickService.lookupBarcode(packSessionId, code);
+    },
+    async confirmPick(packSessionId, lineId, qty) {
+        return rackPickService.confirmPick(packSessionId, lineId, qty);
     },
     async scan(packSessionId, code) {
         return packService.scanFulfillment(packSessionId, code);

@@ -37,7 +37,7 @@
 .fulfillment-layout {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.4fr) minmax(240px, 1fr);
+  grid-template-columns: minmax(200px, 0.9fr) minmax(320px, 1.5fr) minmax(240px, 1fr);
   align-items: start;
 }
 
@@ -47,22 +47,240 @@
   }
 }
 
-.fulfillment-col--queue tbody tr {
-  cursor: pointer;
-}
-
-.fulfillment-row--active td {
-  background: #ecfdf5;
-}
-
 .fulfillment-err-hint {
-  margin-left: 0.35rem;
   color: #b45309;
 }
 
-.fulfillment-order-meta {
+/* Order queue cards */
+.ff-order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ff-order-card {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border-muted, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.ff-order-card:hover {
+  border-color: #86efac;
+}
+
+.ff-order-card--active {
+  border-color: #16a34a;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 1px #16a34a;
+}
+
+.ff-order-card-top {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.ff-order-id {
+  font-weight: 600;
+}
+
+.ff-order-customer {
+  font-size: 0.85rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.ff-order-card-meta {
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #6b7280);
+}
+
+/* Workflow stepper */
+.ff-stepper {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.ff-step {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: var(--text-muted, #9ca3af);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.ff-step--active {
+  color: #166534;
+  background: #ecfdf5;
+  border-color: #86efac;
+  font-weight: 600;
+}
+
+.ff-step--done {
+  color: #166534;
+}
+
+.ff-step-num {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  background: #e5e7eb;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+}
+
+.ff-step--active .ff-step-num,
+.ff-step--done .ff-step-num {
+  background: #16a34a;
+  color: #fff;
+}
+
+/* Current rack */
+.ff-rack-banner {
+  background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+.ff-rack-label {
+  font-size: 0.8rem;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ff-rack-code {
+  font-size: 1.75rem;
+  color: #14532d;
+  font-family: ui-monospace, monospace;
+}
+
+.ff-rack-hint {
   margin: 0 0 0.75rem;
   font-size: 0.85rem;
+}
+
+/* Pick table */
+.ff-pick-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.ff-pick-table th,
+.ff-pick-table td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.ff-pick-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+}
+
+.ff-pick-row--done {
+  background: #f0fdf4;
+}
+
+.ff-picked-done {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.ff-picked-partial {
+  color: #d97706;
+  font-weight: 600;
+}
+
+.ff-scan-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e5e7eb;
+}
+
+/* Right panel */
+.ff-order-summary {
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.9rem;
+}
+
+.ff-rack-progress {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.ff-rack-progress-list {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.ff-rack-progress-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+}
+
+.ff-rack-progress-item--active {
+  background: #ecfdf5;
+  font-weight: 600;
+}
+
+.ff-rack-progress-item--done {
+  color: #16a34a;
+}
+
+.ff-print-stage {
+  opacity: 0.55;
+  pointer-events: none;
+  padding: 0.75rem 0;
+}
+
+.ff-print-stage--active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ff-print-stage-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
 }
 
 .fulfillment-actions {
@@ -82,11 +300,6 @@
   pointer-events: none;
 }
 
-.fulfillment-hint {
-  font-size: 0.85rem;
-  margin: 0;
-}
-
 .fulfillment-exceptions {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
@@ -99,7 +312,69 @@
   gap: 0.4rem;
 }
 
-.fulfillment-dispatch {
-  padding-top: 0.5rem;
-  border-top: 1px dashed var(--border-muted, #e5e7eb);
+/* Pick confirm modal */
+.ff-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 1rem;
+}
+
+.ff-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  width: min(100%, 360px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+.ff-modal-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.1rem;
+}
+
+.ff-modal-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 1rem 0;
+  text-align: center;
+}
+
+.ff-modal-stats span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.ff-modal-stats strong {
+  font-size: 1.25rem;
+}
+
+.ff-qty-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.ff-qty-input {
+  width: 4rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 600;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 0.35rem;
+}
+
+.ff-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }

@@ -13,8 +13,11 @@ export declare const fulfillmentService: {
     }): Promise<{
         id: any;
         orderName: any;
+        customerName: string | null;
         courier: any;
         itemCount: number;
+        orderItemCount: number;
+        stockIssue: string | null;
         priority: any;
         omsStatus: any;
         awb: any;
@@ -34,6 +37,37 @@ export declare const fulfillmentService: {
         } | null;
         suggestedDispatchRack: string | null;
         printEnabled: boolean;
+        workflow: {
+            stage: "picking" | "print";
+            step: number;
+            currentRack: string | null;
+            racks: {
+                rack: string;
+                lineCount: number;
+                totalQty: number;
+                pickedQty: number;
+                complete: boolean;
+                active: boolean;
+            }[];
+            currentRackLines: {
+                row: number;
+                id: string;
+                productTitle: string;
+                sku: string | null;
+                batchCode: string | null;
+                qtyRequired: number;
+                qtyPicked: number;
+                remaining: number;
+                complete: boolean;
+            }[];
+            printEnabled: boolean;
+        } | null;
+        customerSummary: {
+            phone: any;
+            address: string | null;
+            isCod: boolean;
+            totalAmount: any;
+        };
     }>;
     provisionShipment(commerceOrderId: string, actorEmail?: string): Promise<import("../shiprocket/shiprocket.service.js").ShiprocketProvisionResult>;
     markPackedForOrder(commerceOrderId: string, actorEmail?: string): Promise<{
@@ -64,9 +98,79 @@ export declare const fulfillmentService: {
         retried?: undefined;
         awb?: undefined;
     }>;
+    rebuildPickListForOrder(commerceOrderId: string, actorEmail?: string): Promise<any>;
     getPickListIdForOrder(commerceOrderId: string): Promise<string>;
-    ensurePackSession(pickListId: string): Promise<any>;
-    ensurePackSessionForOrder(commerceOrderId: string): Promise<any>;
+    ensurePackSession(pickListId: string): Promise<Record<string, unknown> & {
+        id: string;
+        pick_lists?: {
+            commerce_order_id?: string;
+            pick_list_lines?: import("./rack-pick.service.js").RackPickLine[];
+        };
+    }>;
+    ensurePackSessionForOrder(commerceOrderId: string): Promise<Record<string, unknown> & {
+        id: string;
+        pick_lists?: {
+            commerce_order_id?: string;
+            pick_list_lines?: import("./rack-pick.service.js").RackPickLine[];
+        };
+    }>;
+    lookupBarcode(packSessionId: string, code: string): Promise<{
+        ok: boolean;
+        error: string;
+        lineId?: undefined;
+        productTitle?: undefined;
+        sku?: undefined;
+        batchCode?: undefined;
+        qtyRequired?: undefined;
+        qtyPicked?: undefined;
+        remaining?: undefined;
+        defaultQty?: undefined;
+    } | {
+        ok: boolean;
+        lineId: string;
+        productTitle: string;
+        sku: string | null;
+        batchCode: any;
+        qtyRequired: number;
+        qtyPicked: number;
+        remaining: number;
+        defaultQty: number;
+        error?: undefined;
+    }>;
+    confirmPick(packSessionId: string, lineId: string, qty: number): Promise<{
+        ok: boolean;
+        lineComplete: boolean;
+        rackComplete: boolean;
+        advancedToRack: string | null;
+        stage: "picking" | "print";
+        printEnabled: boolean;
+        workflow: {
+            stage: "picking" | "print";
+            step: number;
+            currentRack: string | null;
+            racks: {
+                rack: string;
+                lineCount: number;
+                totalQty: number;
+                pickedQty: number;
+                complete: boolean;
+                active: boolean;
+            }[];
+            currentRackLines: {
+                row: number;
+                id: string;
+                productTitle: string;
+                sku: string | null;
+                batchCode: string | null;
+                qtyRequired: number;
+                qtyPicked: number;
+                remaining: number;
+                complete: boolean;
+            }[];
+            printEnabled: boolean;
+        };
+        message: string;
+    }>;
     scan(packSessionId: string, code: string): Promise<{
         ok: boolean;
         phase: string;

@@ -511,6 +511,16 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...detail });
   });
 
+  app.post(`${api}/fulfillment/orders/:id/rebuild-pick-list`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const pickList = await fulfillmentService.rebuildPickListForOrder(
+      id,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, pickList });
+  });
+
   app.post(`${api}/fulfillment/orders/:id/generate-awb`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const { id } = request.params as { id: string };
@@ -533,6 +543,27 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const body = z.object({ code: z.string().min(1) }).parse(request.body);
     const result = await fulfillmentService.scan(id, body.code);
+    return reply.send(result);
+  });
+
+  app.post(`${api}/fulfillment/pack-sessions/:id/lookup-barcode`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ code: z.string().min(1) }).parse(request.body);
+    const result = await fulfillmentService.lookupBarcode(id, body.code);
+    return reply.send(result);
+  });
+
+  app.post(`${api}/fulfillment/pack-sessions/:id/confirm-pick`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        lineId: z.string().uuid(),
+        qty: z.number().int().positive(),
+      })
+      .parse(request.body);
+    const result = await fulfillmentService.confirmPick(id, body.lineId, body.qty);
     return reply.send(result);
   });
 

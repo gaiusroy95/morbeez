@@ -443,6 +443,12 @@ export async function osWarehouseRoutes(app) {
         const detail = await fulfillmentService.getOrderDetail(id);
         return reply.send({ ok: true, ...detail });
     });
+    app.post(`${api}/fulfillment/orders/:id/rebuild-pick-list`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const pickList = await fulfillmentService.rebuildPickListForOrder(id, request.adminEmail);
+        return reply.send({ ok: true, pickList });
+    });
     app.post(`${api}/fulfillment/orders/:id/generate-awb`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
@@ -460,6 +466,25 @@ export async function osWarehouseRoutes(app) {
         const { id } = request.params;
         const body = z.object({ code: z.string().min(1) }).parse(request.body);
         const result = await fulfillmentService.scan(id, body.code);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/pack-sessions/:id/lookup-barcode`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ code: z.string().min(1) }).parse(request.body);
+        const result = await fulfillmentService.lookupBarcode(id, body.code);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/pack-sessions/:id/confirm-pick`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            lineId: z.string().uuid(),
+            qty: z.number().int().positive(),
+        })
+            .parse(request.body);
+        const result = await fulfillmentService.confirmPick(id, body.lineId, body.qty);
         return reply.send(result);
     });
     app.post(`${api}/fulfillment/orders/:id/mark-packed`, async (request, reply) => {
