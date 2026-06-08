@@ -434,8 +434,15 @@ export async function osWarehouseRoutes(app) {
         const q = request.query;
         const queue = await fulfillmentService.getQueue({
             limit: q.limit ? Number(q.limit) : undefined,
+            repair: q.repair !== '0' && q.repair !== 'false',
         });
         return reply.send({ ok: true, queue });
+    });
+    app.post(`${api}/fulfillment/sync-inventory`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const result = await fulfillmentService.repairStalePickLists();
+        const queue = await fulfillmentService.getQueue({ repair: false });
+        return reply.send({ ok: true, ...result, queue });
     });
     app.get(`${api}/fulfillment/orders/:id`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'read');

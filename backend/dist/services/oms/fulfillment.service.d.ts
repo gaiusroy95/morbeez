@@ -8,8 +8,16 @@ export declare const fulfillmentService: {
         courierPending: number;
         failedAwb: number;
     }>;
+    repairStalePickLists(): Promise<{
+        repaired: number;
+        failed: number;
+        syncedVariants: number;
+        syncedQty: number;
+        variantCount: number;
+    }>;
     getQueue(opts?: {
         limit?: number;
+        repair?: boolean;
     }): Promise<{
         id: any;
         orderName: any;

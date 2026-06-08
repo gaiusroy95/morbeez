@@ -1,6 +1,8 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { AppError, NotFoundError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
+import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
 import { warehouseService } from './warehouse.service.js';
 
 export type StockSummaryRow = {
@@ -650,9 +652,97 @@ export const inventoryService = {
     });
   },
 
+  async applyCommerceBatchToWarehouse(
+    inventoryItemId: string,
+    warehouseId: string,
+    cb: Record<string, unknown>
+  ) {
+    const commerceQty = Number(cb.qty) || 0;
+    if (commerceQty <= 0) return 0;
+
+    const batchCode = String(cb.batch_code);
+    const { data: whBatch } = await supabase
+      .from('inventory_batches')
+      .select('*')
+      .eq('inventory_item_id', inventoryItemId)
+      .eq('warehouse_id', warehouseId)
+      .eq('batch_code', batchCode)
+      .maybeSingle();
+
+    const whOnHand = Number(whBatch?.qty_on_hand) || 0;
+    const shortfall = commerceQty - whOnHand;
+    if (shortfall <= 0) return 0;
+
+    if (!whBatch) {
+      await this.createBatchFromGrn({
+        inventoryItemId,
+        warehouseId,
+        batchCode,
+        mfgDate: cb.mfg_date ? String(cb.mfg_date) : null,
+        expiryDate: cb.expiry_date ? String(cb.expiry_date) : null,
+        qty: commerceQty,
+      });
+      return commerceQty;
+    }
+
+    await supabase
+      .from('inventory_batches')
+      .update({
+        qty_on_hand: whOnHand + shortfall,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', whBatch.id);
+
+    await supabase.from('stock_movements').insert({
+      movement_type: 'adjust',
+      inventory_item_id: inventoryItemId,
+      batch_id: whBatch.id,
+      warehouse_id: warehouseId,
+      location_id: whBatch.location_id,
+      qty: shortfall,
+      ref_type: 'commerce_stock_sync',
+      ref_id: String(cb.id),
+      notes: 'Synced from commerce inventory',
+    });
+    return shortfall;
+  },
+
+  async loadCommerceBatchesForItem(item: {
+    id: string;
+    sku: string | null;
+    shopify_variant_id: string | null;
+  }) {
+    const variantIds = new Set<string>();
+    if (item.shopify_variant_id) variantIds.add(String(item.shopify_variant_id).trim());
+
+    if (item.sku?.trim()) {
+      const { data: peers } = await supabase
+        .from('inventory_items')
+        .select('shopify_variant_id')
+        .eq('sku', item.sku.trim())
+        .eq('active', true)
+        .not('shopify_variant_id', 'is', null);
+      for (const peer of peers ?? []) {
+        if (peer.shopify_variant_id) variantIds.add(String(peer.shopify_variant_id).trim());
+      }
+    }
+
+    const batches: Array<Record<string, unknown>> = [];
+    for (const variantId of variantIds) {
+      const { data, error } = await supabase
+        .from('commerce_stock_batches')
+        .select('*')
+        .eq('shopify_variant_id', variantId);
+      throwIfSupabaseError(error, 'Commerce stock batches');
+      batches.push(...((data ?? []) as Array<Record<string, unknown>>));
+    }
+
+    return { batches, variantIds: [...variantIds] };
+  },
+
   /**
-   * Mirror commerce_stock_batches into WMS inventory_batches so fulfillment can reserve stock.
-   * Commerce "Add stock" and Shopify counts live separately from warehouse batches until synced.
+   * Mirror commerce_stock_batches (and Shopify catalog qty as fallback) into WMS inventory_batches.
    */
   async syncCommerceBatchesToWarehouse(inventoryItemId: string) {
     const { data: item, error: itemErr } = await supabase
@@ -662,68 +752,100 @@ export const inventoryService = {
       .eq('active', true)
       .maybeSingle();
     throwIfSupabaseError(itemErr, 'Inventory item for commerce sync');
-    if (!item?.shopify_variant_id) return { syncedQty: 0 };
+    if (!item) return { syncedQty: 0 };
 
     const warehouse = await warehouseService.getDefaultWarehouse();
-    const { data: commerceBatches, error: cbErr } = await supabase
-      .from('commerce_stock_batches')
-      .select('*')
-      .eq('shopify_variant_id', item.shopify_variant_id);
-    throwIfSupabaseError(cbErr, 'Commerce stock batches');
+    const { batches: commerceBatches, variantIds } = await this.loadCommerceBatchesForItem(item);
 
     let syncedQty = 0;
-    for (const cb of commerceBatches ?? []) {
-      const commerceQty = Number(cb.qty) || 0;
-      if (commerceQty <= 0) continue;
+    for (const cb of commerceBatches) {
+      syncedQty += await this.applyCommerceBatchToWarehouse(
+        inventoryItemId,
+        String(warehouse.id),
+        cb
+      );
+    }
 
-      const batchCode = String(cb.batch_code);
-      const { data: whBatch } = await supabase
-        .from('inventory_batches')
-        .select('*')
-        .eq('inventory_item_id', inventoryItemId)
-        .eq('warehouse_id', warehouse.id)
-        .eq('batch_code', batchCode)
-        .maybeSingle();
-
-      const whOnHand = Number(whBatch?.qty_on_hand) || 0;
-      const shortfall = commerceQty - whOnHand;
-      if (shortfall <= 0) continue;
-
-      if (!whBatch) {
-        await this.createBatchFromGrn({
-          inventoryItemId,
-          warehouseId: warehouse.id,
-          batchCode,
-          mfgDate: cb.mfg_date ? String(cb.mfg_date) : null,
-          expiryDate: cb.expiry_date ? String(cb.expiry_date) : null,
-          qty: commerceQty,
-        });
-        syncedQty += commerceQty;
-      } else {
-        await supabase
-          .from('inventory_batches')
-          .update({
-            qty_on_hand: whOnHand + shortfall,
-            status: 'active',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', whBatch.id);
-
-        await supabase.from('stock_movements').insert({
-          movement_type: 'adjust',
-          inventory_item_id: inventoryItemId,
-          batch_id: whBatch.id,
-          warehouse_id: warehouse.id,
-          location_id: whBatch.location_id,
-          qty: shortfall,
-          ref_type: 'commerce_stock_sync',
-          ref_id: String(cb.id),
-          notes: 'Synced from commerce inventory',
-        });
-        syncedQty += shortfall;
+    if (!commerceBatches.length) {
+      const variantId = variantIds[0] ?? item.shopify_variant_id;
+      const variantNum = variantId ? Number(variantId) : NaN;
+      if (Number.isFinite(variantNum) && variantNum > 0) {
+        try {
+          const shopifyQty = await shopifyInventoryService.getVariantStock(variantNum);
+          if (shopifyQty > 0) {
+            const batchCode = `CATALOG-${variantId}`;
+            syncedQty += await this.applyCommerceBatchToWarehouse(inventoryItemId, String(warehouse.id), {
+              id: `shopify-${variantId}`,
+              batch_code: batchCode,
+              qty: shopifyQty,
+              mfg_date: null,
+              expiry_date: null,
+            });
+          }
+        } catch (err) {
+          logger.debug({ err, inventoryItemId, variantId }, 'Shopify stock fallback skipped');
+        }
       }
     }
 
+    if (!item.shopify_variant_id && variantIds[0]) {
+      await supabase
+        .from('inventory_items')
+        .update({
+          shopify_variant_id: variantIds[0],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', inventoryItemId);
+    }
+
     return { syncedQty };
+  },
+
+  /** Push all commerce_stock_batches into the default warehouse (one-time / queue repair). */
+  async syncAllCommerceStockToWarehouse() {
+    const { data: batches, error } = await supabase
+      .from('commerce_stock_batches')
+      .select('shopify_variant_id');
+    throwIfSupabaseError(error, 'Load commerce batches');
+
+    const variantIds = [
+      ...new Set((batches ?? []).map((b) => String(b.shopify_variant_id).trim()).filter(Boolean)),
+    ];
+
+    let syncedVariants = 0;
+    let syncedQty = 0;
+
+    for (const variantId of variantIds) {
+      const { data: item } = await supabase
+        .from('inventory_items')
+        .select('id')
+        .eq('shopify_variant_id', variantId)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (!item?.id) continue;
+
+      const result = await this.syncCommerceBatchesToWarehouse(String(item.id));
+      if (result.syncedQty > 0) {
+        syncedVariants += 1;
+        syncedQty += result.syncedQty;
+      }
+    }
+
+    const { data: orderItems } = await supabase
+      .from('commerce_order_lines')
+      .select('inventory_item_id')
+      .not('inventory_item_id', 'is', null);
+
+    const seen = new Set<string>();
+    for (const row of orderItems ?? []) {
+      const id = String(row.inventory_item_id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const result = await this.syncCommerceBatchesToWarehouse(id);
+      if (result.syncedQty > 0) syncedQty += result.syncedQty;
+    }
+
+    return { syncedVariants, syncedQty, variantCount: variantIds.length };
   },
 };

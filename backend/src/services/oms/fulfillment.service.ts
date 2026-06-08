@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, AppError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
+import { inventoryService } from '../wms/inventory.service.js';
 import { shiprocketService } from '../shiprocket/shiprocket.service.js';
 import { packService } from './pack.service.js';
 import { pickListService } from './pick-list.service.js';
@@ -74,7 +75,47 @@ export const fulfillmentService = {
     };
   },
 
-  async getQueue(opts?: { limit?: number }) {
+  async repairStalePickLists() {
+    const sync = await inventoryService.syncAllCommerceStockToWarehouse();
+
+    const { data: orders, error } = await supabase
+      .from('commerce_orders')
+      .select('id, pick_lists(id, pick_list_lines(id))')
+      .in('oms_status', [...FULFILLMENT_STATUSES]);
+    throwIfSupabaseError(error, 'Fulfillment repair list');
+
+    let repaired = 0;
+    let failed = 0;
+
+    for (const order of orders ?? []) {
+      const pickLists = (order.pick_lists ?? []) as Array<{
+        id: string;
+        pick_list_lines: Array<{ id: string }>;
+      }>;
+      const lineCount = pickLists[0]?.pick_list_lines?.length ?? 0;
+      if (lineCount > 0) continue;
+
+      try {
+        await this.rebuildPickListForOrder(String(order.id));
+        repaired += 1;
+      } catch (err) {
+        failed += 1;
+        logger.warn({ err, orderId: order.id }, 'Auto-repair pick list failed');
+      }
+    }
+
+    return { ...sync, repaired, failed };
+  },
+
+  async getQueue(opts?: { limit?: number; repair?: boolean }) {
+    if (opts?.repair !== false) {
+      try {
+        await this.repairStalePickLists();
+      } catch (err) {
+        logger.error({ err }, 'Fulfillment queue auto-repair failed');
+      }
+    }
+
     const { data, error } = await supabase
       .from('commerce_orders')
       .select(

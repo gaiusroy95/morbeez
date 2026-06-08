@@ -191,9 +191,9 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
 
       {canWarehouseWrite ? (
         <p className="commerce-inventory__intro muted">
-          <strong>Add Stock</strong> updates Shopify catalog stock.{' '}
-          <strong>Purchase Order → Receive GRN</strong> records warehouse batches, landed cost, and
-          weighted average pricing.
+          <strong>Add Stock</strong> updates Shopify catalog stock and syncs batches to warehouse
+          fulfillment. <strong>Purchase Order → Receive GRN</strong> also records warehouse batches,
+          landed cost, and weighted average pricing.
         </p>
       ) : null}
 

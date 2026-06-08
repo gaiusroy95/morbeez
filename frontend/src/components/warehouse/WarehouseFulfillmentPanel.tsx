@@ -218,14 +218,39 @@ export function WarehouseFulfillmentPanel({
   const [busy, setBusy] = useState(false);
   const autoOpened = useRef(false);
 
-  const loadQueue = useCallback(async () => {
+  const loadQueue = useCallback(async (opts?: { repair?: boolean }) => {
+    const repairQs = opts?.repair === false ? '?repair=0' : '';
     const [s, q] = await Promise.all([
       api<{ ok: boolean; stats: Stats }>(`${WMS_API}/fulfillment/stats`),
-      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue`),
+      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue${repairQs}`),
     ]);
     setStats(s.stats);
     setQueue(q.queue ?? []);
   }, []);
+
+  async function syncInventoryAndRepair() {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const r = await api<{
+        ok: boolean;
+        syncedQty?: number;
+        repaired?: number;
+        failed?: number;
+        queue: QueueRow[];
+      }>(`${WMS_API}/fulfillment/sync-inventory`, { method: 'POST' });
+      setQueue(r.queue ?? []);
+      const parts: string[] = [];
+      if (r.syncedQty) parts.push(`${r.syncedQty} units synced to warehouse`);
+      if (r.repaired) parts.push(`${r.repaired} pick lists rebuilt`);
+      setSuccess(parts.length ? parts.join(' · ') : 'Inventory sync complete');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Sync failed');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const loadDetail = useCallback(
     async (orderId: string, startSession = false) => {
@@ -366,6 +391,18 @@ export function WarehouseFulfillmentPanel({
     <div className="warehouse-fulfillment">
       {error ? <Alert tone="error">{error}</Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}
+
+      {canWrite ? (
+        <div className="fulfillment-sync-row">
+          <p className="muted fulfillment-sync-hint">
+            Commerce inventory stock is synced to the warehouse automatically when this page loads. If orders still show{' '}
+            <strong>0 / N</strong>, run sync now.
+          </p>
+          <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void syncInventoryAndRepair()}>
+            Sync inventory &amp; rebuild picks
+          </Btn>
+        </div>
+      ) : null}
 
       {stats ? (
         <div className="fulfillment-kpi-row">
