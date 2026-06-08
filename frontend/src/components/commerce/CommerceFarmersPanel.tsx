@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
+import { SearchSelect } from '../ui';
 import '../../styles/commerce-farmers.css';
 
 type FarmerRow = {
@@ -175,28 +176,25 @@ export function CommerceFarmersPanel() {
 
       {filtersOpen ? (
         <div className="commerce-farmers__filter-panel">
-          <label>
-            State
-            <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)}>
-              <option value="">All states</option>
-              {states.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Status
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </label>
+          <SearchSelect
+            label="State"
+            value={stateFilter}
+            onChange={setStateFilter}
+            options={[
+              { value: '', label: 'All states' },
+              ...states.map((s) => ({ value: s, label: s })),
+            ]}
+          />
+          <SearchSelect
+            label="Status"
+            value={statusFilter}
+            onChange={(value) => setStatusFilter(value as StatusFilter)}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'active', label: 'Active' },
+              { value: 'inactive', label: 'Inactive' },
+            ]}
+          />
           <button type="button" className="commerce-farmers__filter-btn" onClick={resetFilters}>
             Reset
           </button>

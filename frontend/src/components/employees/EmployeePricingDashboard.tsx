@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { Badge, Btn, Loading, Panel, TableWrap, DataTable } from '../ui';
+import { Badge, Btn, DataTable, Loading, Panel, SearchSelect, TableWrap } from '../ui';
 
 const pricingApi = '/morbeez-staff/api/v1/os/pricing';
 
@@ -104,16 +104,17 @@ export function EmployeePricingDashboard() {
               onChange={(e) => setMonthYear(e.target.value)}
             />
           </label>
-          <select
+          <SearchSelect
             className="pricing-dash-filter"
             value={filter}
-            onChange={(e) => setFilter(e.target.value as Filter)}
-          >
-            <option value="all">All employees</option>
-            <option value="top">Top performers</option>
-            <option value="under">Under target (&lt;80%)</option>
-            <option value="risk">At risk (C / Risk)</option>
-          </select>
+            onChange={(value) => setFilter(value as Filter)}
+            options={[
+              { value: 'all', label: 'All employees' },
+              { value: 'top', label: 'Top performers' },
+              { value: 'under', label: 'Under target (<80%)' },
+              { value: 'risk', label: 'At risk (C / Risk)' },
+            ]}
+          />
           <Btn size="sm" variant="secondary" disabled={recomputing} onClick={() => void recompute()}>
             {recomputing ? 'Updating…' : 'Refresh KPIs'}
           </Btn>

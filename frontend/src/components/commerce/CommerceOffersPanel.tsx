@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
-import { Alert, DataTable, EmptyState, Loading, TableWrap, inputClass, selectClass } from '../ui';
+import { Alert, DataTable, EmptyState, Loading, SearchSelect, TableWrap, inputClass } from '../ui';
 import { CommerceRegistryBanner } from './CommerceRegistryBanner';
 import { CommercePromoHeader } from './CommercePromoHeader';
 import { CommercePromoTabs } from './CommercePromoTabs';
@@ -303,20 +303,21 @@ export function CommerceOffersPanel({ canWrite }: Props) {
             </label>
             <label className="text-sm font-medium text-slate-700">
               Type
-              <select
-                className={selectClass}
+              <SearchSelect
+                className={inputClass}
                 value={offerForm.offerType}
-                onChange={(e) =>
+                onChange={(value) =>
                   setOfferForm((f) => ({
                     ...f,
-                    offerType: e.target.value as 'percentage' | 'combo' | 'flat',
+                    offerType: value as 'percentage' | 'combo' | 'flat',
                   }))
                 }
-              >
-                <option value="percentage">Percentage</option>
-                <option value="flat">Flat</option>
-                <option value="combo">Combo</option>
-              </select>
+                options={[
+                  { value: 'percentage', label: 'Percentage' },
+                  { value: 'flat', label: 'Flat' },
+                  { value: 'combo', label: 'Combo' },
+                ]}
+              />
             </label>
             <label className="text-sm font-medium text-slate-700">
               Discount label (e.g. 10% or ₹100 Off)

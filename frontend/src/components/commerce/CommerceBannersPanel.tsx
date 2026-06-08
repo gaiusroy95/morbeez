@@ -8,9 +8,9 @@ import {
   EmptyState,
   Loading,
   Panel,
+  SearchSelect,
   TableWrap,
   inputClass,
-  selectClass,
 } from '../ui';
 
 type BannerTab = 'all' | 'active' | 'upcoming' | 'expired';
@@ -327,22 +327,17 @@ export function CommerceBannersPanel({ canWrite }: Props) {
             </label>
             <label className="text-sm font-medium text-slate-700">
               Placement
-              <select
-                className={selectClass}
+              <SearchSelect
+                className={inputClass}
                 value={form.placement}
-                onChange={(e) =>
+                onChange={(value) =>
                   setForm((f) => ({
                     ...f,
-                    placement: e.target.value as typeof f.placement,
+                    placement: value as typeof f.placement,
                   }))
                 }
-              >
-                {PLACEMENTS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+                options={PLACEMENTS.map((p) => ({ value: p.value, label: p.label }))}
+              />
             </label>
             <label className="text-sm font-medium text-slate-700 sm:col-span-2">
               Description

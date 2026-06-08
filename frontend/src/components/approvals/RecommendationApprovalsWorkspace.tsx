@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Badge, Btn, EmptyState, Loading } from '../ui';
+import { Alert, Badge, Btn, EmptyState, Loading, SearchSelect } from '../ui';
 
 export type ApprovalListItem = {
   id: string;
@@ -188,21 +188,20 @@ export function RecommendationApprovalsWorkspace({ canWrite, canApprove, mineOnl
       {success ? <Alert tone="success">{success}</Alert> : null}
 
       <div className="approvals-toolbar">
-        <label className="approvals-filter">
-          <span className="approvals-filter-label">Status</span>
-          <select
-            className="approvals-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="pending">Pending approval</option>
-            <option value="open">Draft + pending</option>
-            <option value="all">All</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
-            <option value="communicated">Communicated</option>
-          </select>
-        </label>
+        <SearchSelect
+          label="Status"
+          className="approvals-select"
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { value: 'pending', label: 'Pending approval' },
+            { value: 'open', label: 'Draft + pending' },
+            { value: 'all', label: 'All' },
+            { value: 'approved', label: 'Approved' },
+            { value: 'rejected', label: 'Rejected' },
+            { value: 'communicated', label: 'Communicated' },
+          ]}
+        />
         {canApprove ? (
           <label className="approvals-check">
             <input

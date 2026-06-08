@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { openQuoteSendLinks } from '../../lib/quoteSend';
 import { Modal, inputClass } from '../Modal';
-import { Alert, Btn, Loading } from '../ui';
+import { Alert, Btn, Loading, SearchSelect } from '../ui';
 import {
   BulkMarginReviewBadge,
   bulkReviewHint,
@@ -420,14 +420,15 @@ export function CreateEstimateModal({
         </div>
         <label className="quote-order-type">
           <span>Order mode</span>
-          <select
+          <SearchSelect
             className={inputClass}
             value={orderType}
-            onChange={(e) => setOrderType(e.target.value as 'standard' | 'bulk')}
-          >
-            <option value="standard">Auto (≤₹25k retail / bulk above)</option>
-            <option value="bulk">Force bulk</option>
-          </select>
+            onChange={(value) => setOrderType(value as 'standard' | 'bulk')}
+            options={[
+              { value: 'standard', label: 'Auto (≤₹25k retail / bulk above)' },
+              { value: 'bulk', label: 'Force bulk' },
+            ]}
+          />
         </label>
         {pricingPreview ? (
           <span className={`quote-mode-badge quote-mode-badge--${pricingPreview.retailOrBulk}`}>

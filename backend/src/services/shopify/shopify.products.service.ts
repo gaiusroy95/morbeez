@@ -249,19 +249,23 @@ function uniqueBrands(products: ShopifyProduct[]): string[] {
 }
 
 export const shopifyProductsService = {
+  invalidateCatalogCache() {
+    clearProductListCache();
+  },
+
   async count(): Promise<number> {
     const res = await shopifyAdmin<CountResponse>('/products/count.json');
     return res.count ?? 0;
   },
 
-  /** All products with every variant — for inventory grid (uses product list cache). */
+  /** Active/draft products with every variant — for inventory grid (uses product list cache). */
   async getInventoryCatalog(search?: string) {
     const all = await fetchAllProducts(search);
-    return all.map(mapProduct);
+    return all.filter((p) => p.status !== 'archived').map(mapProduct);
   },
 
   async list(query: ProductListQuery) {
-    const limit = Math.min(100, Math.max(8, query.limit ?? 8));
+    const limit = Math.min(200, Math.max(1, query.limit ?? 20));
     const page = Math.max(1, query.page ?? 1);
 
     const catalog = await fetchAllProducts(query.search);

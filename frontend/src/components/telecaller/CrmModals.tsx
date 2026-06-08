@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 import { MasterSelect } from './MasterSelect';
 import { InteractionTypePicker } from './InteractionTypePicker';
 import { FieldActivityTypePicker } from '../operations/field-activities/FieldActivityTypePicker';
@@ -294,14 +295,15 @@ function AddInteractionModal({
           />
         </Field>
         <Field label="Block">
-          <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-            <option value="">— None —</option>
-            {blocks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={blockId}
+            onChange={setBlockId}
+            options={[
+              { value: '', label: '— None —' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
         </Field>
         <Field label="Summary">
           <textarea
@@ -414,18 +416,13 @@ function AddInteractionModal({
           }}
         />
         <Field label="Workflow status">
-          <select
+          <SearchSelect
             className={inputClass}
             value={escalate ? 'Escalated' : workflowStatus}
             disabled={escalate}
-            onChange={(e) => setWorkflowStatus(e.target.value as CrmWorkflowStatus)}
-          >
-            {CRM_WORKFLOW_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+            onChange={(value) => setWorkflowStatus(value as CrmWorkflowStatus)}
+            options={CRM_WORKFLOW_STATUSES.map((s) => ({ value: s, label: s }))}
+          />
         </Field>
         <Field label="Next action due (optional — or auto from &quot;after N days&quot;)">
           <input
@@ -484,14 +481,15 @@ function AddRecommendationModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Block">
-          <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-            <option value="">— None —</option>
-            {blocks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={blockId}
+            onChange={setBlockId}
+            options={[
+              { value: '', label: '— None —' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
         </Field>
         <Field label="Problem / need">
           <input className={inputClass} value={problem} onChange={(e) => setProblem(e.target.value)} />
@@ -560,13 +558,15 @@ function AddFieldFindingModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Block">
-          <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-            {blocks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name} — {b.cropName ?? 'crop'}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={blockId}
+            onChange={setBlockId}
+            options={blocks.map((b) => ({
+              value: b.id,
+              label: `${b.name} — ${b.cropName ?? 'crop'}`,
+            }))}
+          />
         </Field>
         <StructuredFieldFindingFields
           values={structuredFinding}
@@ -650,14 +650,18 @@ function NewOrderModal({
       <div className="space-y-3">
         {catalog.length > 0 ? (
           <Field label="Catalog product">
-            <select className={inputClass} value={variantKey} onChange={(e) => setVariantKey(e.target.value)}>
-              <option value="">Custom</option>
-              {catalog.map((c) => (
-                <option key={String(c.variantId)} value={String(c.variantId)}>
-                  {c.title} — ₹{c.price}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={variantKey}
+              onChange={setVariantKey}
+              options={[
+                { value: '', label: 'Custom' },
+                ...catalog.map((c) => ({
+                  value: String(c.variantId),
+                  label: `${c.title} — ₹${c.price}`,
+                })),
+              ]}
+            />
           </Field>
         ) : null}
         <Field label="Product title">
@@ -679,14 +683,15 @@ function NewOrderModal({
           </Field>
         </div>
         <Field label="Block">
-          <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-            <option value="">—</option>
-            {blocks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={blockId}
+            onChange={setBlockId}
+            options={[
+              { value: '', label: '—' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
         </Field>
         <MasterSelect
           masterType="payment_mode"
@@ -735,13 +740,15 @@ function LogCallModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Outcome">
-          <select className={inputClass} value={outcome} onChange={(e) => setOutcome(e.target.value)}>
-            {['answered', 'no_answer', 'busy', 'callback_requested'].map((o) => (
-              <option key={o} value={o}>
-                {o.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={outcome}
+            onChange={setOutcome}
+            options={['answered', 'no_answer', 'busy', 'callback_requested'].map((o) => ({
+              value: o,
+              label: o.replace(/_/g, ' '),
+            }))}
+          />
         </Field>
         <Field label="Notes">
           <textarea className={inputClass} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -909,14 +916,15 @@ function ScheduleVisitModal({
           />
         </Field>
         <Field label="Block">
-          <select className={inputClass} value={blockId} onChange={(e) => setBlockId(e.target.value)}>
-            <option value="">—</option>
-            {blocks.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.name}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={blockId}
+            onChange={setBlockId}
+            options={[
+              { value: '', label: '—' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
         </Field>
         <Field label="Notes">
           <textarea className={inputClass} rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />

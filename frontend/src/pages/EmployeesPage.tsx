@@ -18,6 +18,7 @@ import {
   Input,
   Loading,
   Panel,
+  SearchSelect,
   Select,
   TableWrap,
 } from '../components/ui';
@@ -1364,13 +1365,12 @@ function NewEmployeeModal({
           />
         </Field>
         <Field label="Role">
-          <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
-            {assignableRoles.map((r) => (
-              <option key={r} value={r}>
-                {roleLabel(r)}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={role}
+            onChange={setRole}
+            options={assignableRoles.map((r) => ({ value: r, label: roleLabel(r) }))}
+          />
         </Field>
         <p className="text-xs text-slate-500">
           After create, an email invite link is generated. The employee must open it and enter the
@@ -1386,11 +1386,16 @@ function NewEmployeeModal({
           <input className={inputClass} value={alternateMobile} onChange={(e) => setAlternateMobile(e.target.value)} />
         </Field>
         <Field label="Gender">
-          <select className={inputClass} value={gender} onChange={(e) => setGender(e.target.value)}>
-            <option value="male">Male</option>
-            <option value="female">Female</option>
-            <option value="other">Other</option>
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={gender}
+            onChange={setGender}
+            options={[
+              { value: 'male', label: 'Male' },
+              { value: 'female', label: 'Female' },
+              { value: 'other', label: 'Other' },
+            ]}
+          />
         </Field>
         <Field label="Date of birth">
           <input type="date" className={inputClass} value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
@@ -1403,11 +1408,16 @@ function NewEmployeeModal({
           <input className={inputClass} value={department} onChange={(e) => setDepartment(e.target.value)} />
         </Field>
         <Field label="Employment type">
-          <select className={inputClass} value={employmentType} onChange={(e) => setEmploymentType(e.target.value)}>
-            <option value="full_time">Full-time</option>
-            <option value="contract">Contract</option>
-            <option value="part_time">Part-time</option>
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={employmentType}
+            onChange={setEmploymentType}
+            options={[
+              { value: 'full_time', label: 'Full-time' },
+              { value: 'contract', label: 'Contract' },
+              { value: 'part_time', label: 'Part-time' },
+            ]}
+          />
         </Field>
         <h4 className="text-sm font-semibold text-slate-800">Location & Languages</h4>
         <Field label="State">
@@ -1665,15 +1675,20 @@ function EditEmployeeModal({
           <input className={inputClass} value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </Field>
         <Field label="Role">
-          <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="super_admin">Super Admin</option>
-            <option value="admin">Admin</option>
-            <option value="operations">Operations</option>
-            <option value="telecaller">Telecaller</option>
-            <option value="agronomist">Agronomist</option>
-            <option value="manager">Manager</option>
-            <option value="viewer">Viewer</option>
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={role}
+            onChange={setRole}
+            options={[
+              { value: 'super_admin', label: 'Super Admin' },
+              { value: 'admin', label: 'Admin' },
+              { value: 'operations', label: 'Operations' },
+              { value: 'telecaller', label: 'Telecaller' },
+              { value: 'agronomist', label: 'Agronomist' },
+              { value: 'manager', label: 'Manager' },
+              { value: 'viewer', label: 'Viewer' },
+            ]}
+          />
         </Field>
         {role === 'agronomist' ? (
           <label className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-slate-800">

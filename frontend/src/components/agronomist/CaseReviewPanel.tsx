@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { Alert, Btn, Loading } from '../ui';
+import { Alert, Btn, Loading, SearchSelect } from '../ui';
 import {
   IconArrowUp,
   IconChevronLeft,
@@ -399,33 +399,36 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
             </div>
             {showFilter ? (
               <div className="cr-filter-row">
-                <select
+                <SearchSelect
                   className="cr-select"
                   value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
+                  onChange={(value) => {
+                    setStatusFilter(value);
                     setPage(1);
                   }}
-                >
-                  <option value="open">Open (needs review)</option>
-                  <option value="pending">Pending only</option>
-                  <option value="assigned">Assigned</option>
-                  <option value="in_review">In review</option>
-                  <option value="resolved">Resolved</option>
-                  <option value="all">All</option>
-                </select>
+                  options={[
+                    { value: 'open', label: 'Open (needs review)' },
+                    { value: 'pending', label: 'Pending only' },
+                    { value: 'assigned', label: 'Assigned' },
+                    { value: 'in_review', label: 'In review' },
+                    { value: 'resolved', label: 'Resolved' },
+                    { value: 'all', label: 'All' },
+                  ]}
+                />
               </div>
             ) : null}
             <label className="cr-sort-row">
               <span className="cr-sort-label">Sort:</span>
-              <select
+              <SearchSelect
                 className="cr-select cr-select--inline"
                 value={sort}
-                onChange={(e) => setSort(e.target.value as 'priority' | 'newest')}
-              >
-                <option value="priority">Priority</option>
-                <option value="newest">Newest</option>
-              </select>
+                onChange={(value) => setSort(value as 'priority' | 'newest')}
+                options={[
+                  { value: 'priority', label: 'Priority' },
+                  { value: 'newest', label: 'Newest' },
+                ]}
+                compact
+              />
             </label>
 
             {loading && queue.length === 0 ? (

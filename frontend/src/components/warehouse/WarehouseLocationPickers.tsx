@@ -200,12 +200,17 @@ export function WarehouseLocationPickers({
     onWarehouseSelect(res.warehouse.id);
   }
 
-  async function updateWarehouse(option: WmsSelectOption, fields: Record<string, string>) {
+  async function updateWarehouse(
+    option: WmsSelectOption,
+    fields: Record<string, string>,
+    confirmPassword: string
+  ) {
     await api(`${WMS_API}/warehouses/${option.value}`, {
       method: 'PATCH',
       body: JSON.stringify({
         name: fields.name?.trim(),
         code: fields.code?.trim(),
+        confirmPassword,
       }),
     });
     await loadWarehouses();
@@ -218,8 +223,11 @@ export function WarehouseLocationPickers({
     }
   }
 
-  async function deleteWarehouse(option: WmsSelectOption) {
-    await api(`${WMS_API}/warehouses/${option.value}`, { method: 'DELETE' });
+  async function deleteWarehouse(option: WmsSelectOption, confirmPassword: string) {
+    await api(`${WMS_API}/warehouses/${option.value}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmPassword }),
+    });
     await loadWarehouses();
     if (value.warehouseId === option.value) {
       onChange(emptyWarehouseLocation());
@@ -240,13 +248,17 @@ export function WarehouseLocationPickers({
     onRackSelect(fields.rack?.trim() ?? '');
   }
 
-  async function updateRack(option: WmsSelectOption, fields: Record<string, string>) {
+  async function updateRack(
+    option: WmsSelectOption,
+    fields: Record<string, string>,
+    confirmPassword: string
+  ) {
     if (!value.warehouseId) return;
     await api(
       `${WMS_API}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
       {
         method: 'PATCH',
-        body: JSON.stringify({ newRack: fields.rack?.trim() }),
+        body: JSON.stringify({ newRack: fields.rack?.trim(), confirmPassword }),
       }
     );
     await loadLocations();
@@ -260,11 +272,11 @@ export function WarehouseLocationPickers({
     }
   }
 
-  async function deleteRack(option: WmsSelectOption) {
+  async function deleteRack(option: WmsSelectOption, confirmPassword: string) {
     if (!value.warehouseId) return;
     await api(
       `${WMS_API}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
-      { method: 'DELETE' }
+      { method: 'DELETE', body: JSON.stringify({ confirmPassword }) }
     );
     await loadLocations();
     if (value.rackId === option.value) {
@@ -286,12 +298,16 @@ export function WarehouseLocationPickers({
     onRowSelect(rowLabel(res.location));
   }
 
-  async function updateRow(option: WmsSelectOption, fields: Record<string, string>) {
+  async function updateRow(
+    option: WmsSelectOption,
+    fields: Record<string, string>,
+    confirmPassword: string
+  ) {
     const loc = rowByLabel.get(option.value);
     if (!loc) return;
     const res = await api<{ ok: boolean; location: Location }>(`${WMS_API}/locations/${loc.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ shelf: fields.row?.trim() }),
+      body: JSON.stringify({ shelf: fields.row?.trim(), confirmPassword }),
     });
     await loadLocations();
     const nextLabel = rowLabel(res.location);
@@ -300,10 +316,13 @@ export function WarehouseLocationPickers({
     }
   }
 
-  async function deleteRow(option: WmsSelectOption) {
+  async function deleteRow(option: WmsSelectOption, confirmPassword: string) {
     const loc = rowByLabel.get(option.value);
     if (!loc) return;
-    await api(`${WMS_API}/locations/${loc.id}`, { method: 'DELETE' });
+    await api(`${WMS_API}/locations/${loc.id}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmPassword }),
+    });
     await loadLocations();
     if (value.rackRow === option.value) {
       onChange({ ...value, rackRow: '', locationId: '' });

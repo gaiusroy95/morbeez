@@ -28,8 +28,9 @@ export interface WizardProductSaveInput {
     skuPrefix?: string;
 }
 export declare const shopifyProductsService: {
+    invalidateCatalogCache(): void;
     count(): Promise<number>;
-    /** All products with every variant — for inventory grid (uses product list cache). */
+    /** Active/draft products with every variant — for inventory grid (uses product list cache). */
     getInventoryCatalog(search?: string): Promise<{
         id: string;
         title: string;

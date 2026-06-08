@@ -11,11 +11,86 @@
   color: #111827;
 }
 
+.commerce-inventory__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.commerce-inventory__intro {
+  margin: 0 0 16px;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
 .commerce-inventory__title {
-  margin: 0 0 20px;
+  margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+}
+
+.commerce-inventory__add-btn {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  background: var(--ci-green);
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.commerce-inventory__add-btn:hover {
+  background: #145218;
+}
+
+.commerce-inventory__header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.commerce-inventory__secondary-btn {
+  padding: 10px 16px;
+  border: 1px solid var(--ci-border);
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.commerce-inventory__secondary-btn:hover {
+  border-color: var(--ci-green);
+  color: var(--ci-green);
+}
+
+.commerce-inventory-po__fields {
+  margin-bottom: 12px;
+}
+
+.commerce-inventory-po__field {
+  display: block;
+}
+
+.commerce-inventory-po__field > span {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ci-muted);
+}
+
+.commerce-inventory-po__open {
+  margin-top: 20px;
 }
 
 .commerce-inventory__stats {
@@ -286,6 +361,130 @@
 }
 
 .commerce-inventory__empty,
+.commerce-inventory-add {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.commerce-inventory-add__error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.875rem;
+}
+
+.commerce-inventory-add__scan-wrap {
+  display: flex;
+  gap: 8px;
+}
+
+.commerce-inventory-add__scan-wrap input {
+  flex: 1;
+}
+
+.commerce-inventory-add__scan-btn {
+  padding: 0 14px;
+  border: 1px solid var(--ci-border);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.commerce-inventory-add__scan-btn:hover:not(:disabled) {
+  border-color: var(--ci-green);
+  color: var(--ci-green);
+}
+
+.commerce-inventory-add__scan-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.commerce-inventory-add__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .commerce-inventory-add__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.commerce-inventory-add__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--ci-border);
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.commerce-inventory-add__summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.commerce-inventory-add__summary-label {
+  font-size: 0.75rem;
+  color: var(--ci-muted);
+}
+
+.commerce-inventory-add__section-title {
+  margin: 0 0 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.commerce-inventory-add__batch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.commerce-inventory-add__batch-table th,
+.commerce-inventory-add__batch-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  text-align: left;
+}
+
+.commerce-inventory-add__batch-table th {
+  color: var(--ci-muted);
+  font-weight: 600;
+}
+
+.commerce-inventory-add__hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ci-muted);
+}
+
+.commerce-inventory-add__balance {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: #e8f5e9;
+  color: #1b5e20;
+  font-size: 0.875rem;
+}
+
+.commerce-inventory-add__balance strong {
+  font-size: 1.125rem;
+}
+
 .commerce-inventory__loading {
   padding: 48px 24px;
   text-align: center;

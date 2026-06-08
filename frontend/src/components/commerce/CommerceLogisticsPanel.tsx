@@ -228,7 +228,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
                     </td>
                     {canWarehouse ? (
                       <td>
-                        <WarehouseOrderLink orderId={o.id} tab="pack" compact />
+                        <WarehouseOrderLink orderId={o.id} tab="fulfillment" compact />
                       </td>
                     ) : null}
                     <td>

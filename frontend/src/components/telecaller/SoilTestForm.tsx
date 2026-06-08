@@ -1,4 +1,5 @@
 import { inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 import { SOIL_MACRO_FIELDS, SOIL_MICRO_FIELDS, SOIL_TYPE_OPTIONS } from './soilLabMetrics';
 
 type Props = {
@@ -63,22 +64,17 @@ export function SoilTestForm({
       <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
         <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Micro elements</h5>
         <FieldGrid fields={SOIL_MICRO_FIELDS} values={micro} onChange={onMicroChange} disabled={disabled} />
-        <label className="mt-3 block text-xs">
-          <span className="font-medium text-slate-700">Soil type</span>
-          <select
-            className={`${inputClass} mt-0.5`}
-            value={soilType}
-            disabled={disabled}
-            onChange={(e) => onSoilTypeChange(e.target.value)}
-          >
-            <option value="">Select soil type</option>
-            {SOIL_TYPE_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SearchSelect
+          label="Soil type"
+          className={`${inputClass} mt-0.5`}
+          value={soilType}
+          disabled={disabled}
+          onChange={onSoilTypeChange}
+          options={[
+            { value: '', label: 'Select soil type' },
+            ...SOIL_TYPE_OPTIONS.map((opt) => ({ value: opt, label: opt })),
+          ]}
+        />
       </section>
     </div>
   );

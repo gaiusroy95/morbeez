@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
+import { SearchSelect } from '../ui';
 import {
   BulkMarginReviewBadge,
   type BulkMarginReviewStatus,
@@ -311,38 +312,36 @@ export function OrdersTab({
 
       {showFilters ? (
         <div className="tc-ord-filters">
-          <label className="tc-ord-filter-field">
-            <span>Type</span>
-            <select
-              value={filters.type}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, type: e.target.value as Filters['type'] }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              <option value="estimate">Quotation</option>
-              <option value="order">Order</option>
-            </select>
-          </label>
-          <label className="tc-ord-filter-field">
-            <span>Status</span>
-            <select
-              value={filters.status}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, status: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All statuses</option>
-              <option value="pending">Pending</option>
-              <option value="checkout">Checkout</option>
-              <option value="paid">Paid</option>
-              <option value="processing">Processing</option>
-              <option value="shipped">Shipped</option>
-              <option value="delivered">Delivered</option>
-            </select>
-          </label>
+          <SearchSelect
+            label="Type"
+            value={filters.type}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, type: value as Filters['type'] }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All' },
+              { value: 'estimate', label: 'Quotation' },
+              { value: 'order', label: 'Order' },
+            ]}
+          />
+          <SearchSelect
+            label="Status"
+            value={filters.status}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, status: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'checkout', label: 'Checkout' },
+              { value: 'paid', label: 'Paid' },
+              { value: 'processing', label: 'Processing' },
+              { value: 'shipped', label: 'Shipped' },
+              { value: 'delivered', label: 'Delivered' },
+            ]}
+          />
           <label className="tc-ord-filter-field">
             <span>Date from</span>
             <input
@@ -492,22 +491,17 @@ export function OrdersTab({
           >
             Next
           </button>
-          <label className="tc-ord-rows-select">
-            Rows
-            <select
-              value={rowsPerPage}
-              onChange={(e) => {
-                setRowsPerPage(Number(e.target.value));
-                setPage(1);
-              }}
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Rows"
+            className="tc-ord-rows-select"
+            value={String(rowsPerPage)}
+            onChange={(value) => {
+              setRowsPerPage(Number(value));
+              setPage(1);
+            }}
+            options={[10, 20, 50].map((n) => ({ value: String(n), label: String(n) }))}
+            compact
+          />
         </div>
       ) : null}
     </div>

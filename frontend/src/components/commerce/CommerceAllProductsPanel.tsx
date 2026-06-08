@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
+import { SearchSelect } from '../ui';
 import '../../styles/commerce-products.css';
 
 type ProductVariant = {
@@ -45,7 +46,8 @@ type Props = {
   canWrite: boolean;
 };
 
-const PAGE_SIZE = 6;
+const PAGE_SIZE_OPTIONS = [10, 20, 50, 100, 200] as const;
+const DEFAULT_PAGE_SIZE = 20;
 
 function stripHtml(html: string): string {
   return html
@@ -121,9 +123,10 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   const [stats, setStats] = useState<ProductStats | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
-    limit: PAGE_SIZE,
+    limit: DEFAULT_PAGE_SIZE,
     total: 0,
     pages: 1,
   });
@@ -152,7 +155,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     setError('');
     const params = new URLSearchParams();
     params.set('page', String(page));
-    params.set('limit', String(PAGE_SIZE));
+    params.set('limit', String(pageSize));
     if (appliedSearch.trim()) params.set('search', appliedSearch.trim());
     if (appliedCategory !== 'all') params.set('category', appliedCategory);
     if (appliedBrand !== 'all') params.set('brand', appliedBrand);
@@ -172,13 +175,13 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
       setStats(d.stats ?? null);
       setCategories(d.categories ?? []);
       setBrands(d.brands ?? []);
-      setPagination(d.pagination ?? { page: 1, limit: PAGE_SIZE, total: 0, pages: 1 });
+      setPagination(d.pagination ?? { page: 1, limit: pageSize, total: 0, pages: 1 });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, [page, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
+  }, [page, pageSize, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
 
   useEffect(() => {
     void load();
@@ -186,7 +189,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
 
   useEffect(() => {
     setSelectedIds(new Set());
-  }, [page, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
+  }, [page, pageSize, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
 
   const allSelected =
     products.length > 0 && products.every((p) => selectedIds.has(p.id));
@@ -453,43 +456,35 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           />
         </div>
-        <select
+        <SearchSelect
           className="commerce-products__select"
           value={draftCategory}
-          onChange={(e) => setDraftCategory(e.target.value)}
-          aria-label="Category"
-        >
-          <option value="all">All Categories</option>
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={setDraftCategory}
+          options={[
+            { value: 'all', label: 'All Categories' },
+            ...categories.map((c) => ({ value: c, label: c })),
+          ]}
+        />
+        <SearchSelect
           className="commerce-products__select"
           value={draftBrand}
-          onChange={(e) => setDraftBrand(e.target.value)}
-          aria-label="Brand"
-        >
-          <option value="all">All Brands</option>
-          {brands.map((b) => (
-            <option key={b} value={b}>
-              {b}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={setDraftBrand}
+          options={[
+            { value: 'all', label: 'All Brands' },
+            ...brands.map((b) => ({ value: b, label: b })),
+          ]}
+        />
+        <SearchSelect
           className="commerce-products__select"
           value={draftStatus}
-          onChange={(e) => setDraftStatus(e.target.value)}
-          aria-label="Status"
-        >
-          <option value="all">All Status</option>
-          <option value="active">Active</option>
-          <option value="draft">Draft</option>
-          <option value="archived">Archived</option>
-        </select>
+          onChange={setDraftStatus}
+          options={[
+            { value: 'all', label: 'All Status' },
+            { value: 'active', label: 'Active' },
+            { value: 'draft', label: 'Draft' },
+            { value: 'archived', label: 'Archived' },
+          ]}
+        />
         <div className="commerce-products__filter-actions">
           <button
             type="button"
@@ -709,9 +704,22 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             </div>
 
             <footer className="commerce-products__footer">
-              <p className="commerce-products__footer-meta">
-                Showing {rangeStart} to {rangeEnd} of {pagination.total} products
-              </p>
+              <div className="commerce-products__footer-left">
+                <p className="commerce-products__footer-meta">
+                  Showing {rangeStart} to {rangeEnd} of {pagination.total} products
+                </p>
+                <SearchSelect
+                  label="Rows per page"
+                  className="commerce-products__page-size-select"
+                  compact
+                  value={String(pageSize)}
+                  onChange={(value) => {
+                    setPageSize(Number(value));
+                    setPage(1);
+                  }}
+                  options={PAGE_SIZE_OPTIONS.map((n) => ({ value: String(n), label: String(n) }))}
+                />
+              </div>
               <nav className="commerce-products__pagination" aria-label="Pagination">
                 <button
                   type="button"

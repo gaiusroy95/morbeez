@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { AppError, NotFoundError } from '../../lib/errors.js';
 import { inventoryService } from '../wms/inventory.service.js';
+import { invoiceService } from './invoice.service.js';
 
 export const packService = {
   async startSession(pickListId: string, mode: 'barcode' | 'manual' = 'manual') {
@@ -24,6 +25,98 @@ export const packService = {
       .single();
     throwIfSupabaseError(error, 'Pack session');
     return data;
+  },
+
+  async scanFulfillment(packSessionId: string, scannedCode: string) {
+    const { data: session, error: sessErr } = await supabase
+      .from('pack_sessions')
+      .select('*, pick_lists(*, pick_list_lines(*))')
+      .eq('id', packSessionId)
+      .single();
+    throwIfSupabaseError(sessErr, 'Pack session');
+    if (!session) throw new NotFoundError('Pack session not found');
+
+    const trimmed = scannedCode.trim();
+    const lines = (session.pick_lists?.pick_list_lines ?? []) as Array<Record<string, unknown>>;
+
+    if (!session.verified_rack) {
+      const racks = lines
+        .map((l) => String(l.rack_location ?? '').trim())
+        .filter(Boolean);
+      const match = racks.find(
+        (r) => r.toLowerCase() === trimmed.toLowerCase() || r === trimmed
+      );
+      if (!match) {
+        await this.logScan(packSessionId, trimmed, null, null, 'rack_mismatch', 'Scan rack first');
+        return { ok: false, phase: 'rack', error: 'Scan rack location first (e.g. A-02)' };
+      }
+      await supabase
+        .from('pack_sessions')
+        .update({ verified_rack: match })
+        .eq('id', packSessionId);
+      await this.logScan(packSessionId, trimmed, null, null, 'rack_ok', `Rack ${match} verified`);
+      return { ok: true, phase: 'rack', rack: match, message: `Rack ${match} OK — scan products` };
+    }
+
+    const productResult = await this.scanBarcode(packSessionId, trimmed);
+    if (!productResult.ok || !productResult.line) {
+      return { ...productResult, phase: 'product' };
+    }
+
+    const lineId = String((productResult.line as Record<string, unknown>).id);
+    const counts = (session.line_scan_counts ?? {}) as Record<string, number>;
+    const next = (counts[lineId] ?? 0) + 1;
+    const required = Number((productResult.line as Record<string, unknown>).qty_required);
+    counts[lineId] = next;
+
+    const lineUpdates: Record<string, unknown> = {};
+    if (next >= required) {
+      lineUpdates.manually_verified = true;
+      lineUpdates.qty_picked = required;
+      const allocId = (productResult.line as Record<string, unknown>).allocation_id;
+      if (allocId) {
+        await inventoryService.pickAllocation(String(allocId), required);
+      }
+    }
+
+    if (Object.keys(lineUpdates).length) {
+      await supabase.from('pick_list_lines').update(lineUpdates).eq('id', lineId);
+    }
+
+    const allDone = lines.every((l) => {
+      const id = String(l.id);
+      const req = Number(l.qty_required);
+      if (id === lineId) return next >= req;
+      return Boolean(l.manually_verified) || (counts[id] ?? 0) >= req;
+    });
+
+    await supabase
+      .from('pack_sessions')
+      .update({
+        line_scan_counts: counts,
+        scan_complete: allDone,
+      })
+      .eq('id', packSessionId);
+
+    if (allDone) {
+      const commerceOrderId = session.pick_lists?.commerce_order_id;
+      if (commerceOrderId) {
+        await invoiceService.generateTaxInvoice(String(commerceOrderId)).catch(() => undefined);
+      }
+    }
+
+    return {
+      ok: true,
+      phase: 'product',
+      productTitle: productResult.productTitle,
+      scannedQty: next,
+      requiredQty: required,
+      scanComplete: allDone,
+      printEnabled: allDone,
+      message: allDone
+        ? 'All items verified — print label & invoice'
+        : `${productResult.productTitle}: ${next}/${required}`,
+    };
   },
 
   async scanBarcode(packSessionId: string, scannedCode: string) {
@@ -154,6 +247,22 @@ export const packService = {
 
     const lines = (pickList.pick_list_lines ?? []) as Array<Record<string, unknown>>;
     if (!lines.length) throw new AppError('Pick list has no lines', 400, 'VALIDATION');
+
+    const { data: openSession } = await supabase
+      .from('pack_sessions')
+      .select('verification_mode, scan_complete')
+      .eq('pick_list_id', pickListId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (openSession?.verification_mode === 'barcode' && !openSession.scan_complete) {
+      throw new AppError(
+        'Complete barcode scan verification before packing',
+        400,
+        'SCAN_INCOMPLETE'
+      );
+    }
 
     for (const line of lines) {
       if (!line.manually_verified && Number(line.qty_picked) < Number(line.qty_required)) {

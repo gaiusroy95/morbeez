@@ -8,7 +8,7 @@ import {
   LanguageTemplatesPanel,
   QuickRepliesPanel,
 } from '../components/operations/OperationsMessagingExtras';
-import { Alert, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
+import { Alert, HubTabs, Loading, ReadOnlyBanner, SearchSelect } from '../components/ui';
 import { Field, Modal, inputClass } from '../components/Modal';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
 import { cropSlugFromName } from '../lib/master-picker-utils';
@@ -745,22 +745,17 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </label>
                     <label className="text-sm">
                       <span className="text-slate-600">Kind</span>
-                      <select
+                      <SearchSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5"
                         value={ruleForm.broadcastKind}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           setRuleForm((f) => ({
                             ...f,
-                            broadcastKind: e.target.value as (typeof BROADCAST_KINDS)[number],
+                            broadcastKind: value as (typeof BROADCAST_KINDS)[number],
                           }))
                         }
-                      >
-                        {BROADCAST_KINDS.map((k) => (
-                          <option key={k} value={k}>
-                            {k}
-                          </option>
-                        ))}
-                      </select>
+                        options={BROADCAST_KINDS.map((k) => ({ value: k, label: k }))}
+                      />
                     </label>
                     <label className="text-sm">
                       <span className="text-slate-600">Target DAP</span>
@@ -1032,17 +1027,16 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                 <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <h3 className="font-medium text-slate-900">Price Trend — {priceViewCrop}</h3>
-                    <select
+                    <SearchSelect
                       className="rounded border border-slate-200 px-2 py-1 text-xs"
-                      value={priceYearView}
-                      onChange={(e) => setPriceYearView(Number(e.target.value))}
-                    >
-                      {[new Date().getFullYear(), new Date().getFullYear() - 1].map((y) => (
-                        <option key={y} value={y}>
-                          {y}
-                        </option>
-                      ))}
-                    </select>
+                      compact
+                      value={String(priceYearView)}
+                      onChange={(value) => setPriceYearView(Number(value))}
+                      options={[new Date().getFullYear(), new Date().getFullYear() - 1].map((y) => ({
+                        value: String(y),
+                        label: String(y),
+                      }))}
+                    />
                     <DynamicMasterPicker
                       masterType="market"
                       label="Filter markets"
@@ -1079,17 +1073,15 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </p>
                     <label className="mt-3 block text-xs text-slate-600">
                       Farmer field (block)
-                      <select
+                      <SearchSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
                         value={marketPrefForm.blockId}
-                        onChange={(e) => setMarketPrefForm((f) => ({ ...f, blockId: e.target.value }))}
-                      >
-                        {fieldBlocks.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {(b.plot_label || b.name) ?? 'Block'} - {b.crop_type}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => setMarketPrefForm((f) => ({ ...f, blockId: value }))}
+                        options={fieldBlocks.map((b) => ({
+                          value: b.id,
+                          label: `${(b.plot_label || b.name) ?? 'Block'} - ${b.crop_type}`,
+                        }))}
+                      />
                     </label>
                     <div className="mt-3">
                       <DynamicMasterPicker
@@ -1187,17 +1179,12 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </label>
                     <label className="block text-xs text-slate-600">
                       Language
-                      <select
+                      <SearchSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
                         value={termForm.language}
-                        onChange={(e) => setTermForm((f) => ({ ...f, language: e.target.value }))}
-                      >
-                        {['ml', 'en', 'ta', 'kn', 'hi'].map((l) => (
-                          <option key={l} value={l}>
-                            {l}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(value) => setTermForm((f) => ({ ...f, language: value }))}
+                        options={['ml', 'en', 'ta', 'kn', 'hi'].map((l) => ({ value: l, label: l }))}
+                      />
                     </label>
                     <label className="block text-xs text-slate-600">
                       Crop
@@ -1226,17 +1213,15 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
               ) : null}
               <div className="mb-4 flex items-center gap-2">
                 <label className="text-sm text-slate-600">Status</label>
-                <select
+                <SearchSelect
                   className="rounded border border-slate-200 px-2 py-1 text-sm"
                   value={termStatus}
-                  onChange={(e) => setTermStatus(e.target.value)}
-                >
-                  {['open', 'in_review', 'resolved', 'dismissed', 'all'].map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setTermStatus}
+                  options={['open', 'in_review', 'resolved', 'dismissed', 'all'].map((s) => ({
+                    value: s,
+                    label: s,
+                  }))}
+                />
               </div>
               <TableSection title="Unknown terms queue">
                 <table className="w-full text-left text-sm">

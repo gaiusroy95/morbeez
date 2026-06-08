@@ -23,6 +23,7 @@ import { FieldFindingDetailModal, type FieldFindingListRow } from './FieldFindin
 import { AgronomistTab, type AgronomistActivityRow } from './AgronomistTab';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
+import { SearchSelect } from '../ui';
 
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
@@ -402,18 +403,12 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
                   ) : null}
                 </p>
                 {canWrite ? (
-                  <select
+                  <SearchSelect
                     className="tc-stage-select"
                     value={l.stage}
-                    onChange={(e) => changeStage(e.target.value)}
-                    aria-label="Lead stage"
-                  >
-                    {STAGES.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={changeStage}
+                    options={STAGES.map((s) => ({ value: s.id, label: s.label }))}
+                  />
                 ) : (
                   <span className={`tc-stage ${STAGE_CLASS[l.stage] ?? 'stage-new'}`}>{l.stageLabel}</span>
                 )}
@@ -1218,19 +1213,13 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
               <h3>Session</h3>
               <label className="block text-xs text-slate-600">
                 Owner
-                <select
-                  className="tc-stage-select"
-                  style={{ width: '100%', marginTop: 6 }}
+                <SearchSelect
+                  className="tc-stage-select mt-1.5 w-full"
                   disabled={!canWrite}
                   value={String(session?.conversation_owner ?? 'ai')}
-                  onChange={(e) => patchSession({ owner: e.target.value })}
-                >
-                  {['ai', 'telecaller', 'agronomist'].map((o) => (
-                    <option key={o} value={o}>
-                      {o}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => patchSession({ owner: value })}
+                  options={['ai', 'telecaller', 'agronomist'].map((o) => ({ value: o, label: o }))}
+                />
               </label>
               <label
                 className="flex items-center gap-2 text-xs"

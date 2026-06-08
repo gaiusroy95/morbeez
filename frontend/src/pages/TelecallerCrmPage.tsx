@@ -16,7 +16,7 @@ import {
   type CropBlockFormValue,
 } from '../components/telecaller/CropBlockFields';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
-import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
+import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner, SearchSelect } from '../components/ui';
 import { getRealtimeClient } from '../lib/realtime';
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
@@ -704,13 +704,18 @@ function NewLeadModal({
               <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
             <Field label="Language">
-              <select className={inputClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
-                <option value="en">English</option>
-                <option value="ml">Malayalam</option>
-                <option value="ta">Tamil</option>
-                <option value="kn">Kannada</option>
-                <option value="hi">Hindi</option>
-              </select>
+              <SearchSelect
+                className={inputClass}
+                value={language}
+                onChange={setLanguage}
+                options={[
+                  { value: 'en', label: 'English' },
+                  { value: 'ml', label: 'Malayalam' },
+                  { value: 'ta', label: 'Tamil' },
+                  { value: 'kn', label: 'Kannada' },
+                  { value: 'hi', label: 'Hindi' },
+                ]}
+              />
             </Field>
             <Field label="Pincode">
               <input

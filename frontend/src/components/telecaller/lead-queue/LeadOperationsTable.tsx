@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../../lib/api';
-import { Btn, Loading } from '../../ui';
+import { Btn, Loading, SearchSelect } from '../../ui';
 import { Field, Modal, inputClass } from '../../Modal';
 import { LeadQueueColumnManager } from './LeadQueueColumnManager';
 import { LeadRowActions } from './LeadRowActions';
@@ -837,22 +837,23 @@ export function LeadOperationsTable({
             </div>
           </div>
           <div className="tc-lq-command-tools">
-            <select
+            <SearchSelect
               className="tc-lq-sort-select"
+              compact
               value={sort}
-              onChange={(e) => setSort(e.target.value)}
-              aria-label="Sort leads"
-            >
-              <option value="priority">Priority</option>
-              <option value="pending_tasks">Pending tasks</option>
-              <option value="escalations">Escalations</option>
-              <option value="opportunity_score">Opportunity</option>
-              <option value="relationship_score">Relationship</option>
-              <option value="acreage">Acreage</option>
-              <option value="follow_up_due">Follow-up due</option>
-              <option value="recent_interaction">Recent interaction</option>
-              <option value="recently_added">Recently added</option>
-            </select>
+              onChange={setSort}
+              options={[
+                { value: 'priority', label: 'Priority' },
+                { value: 'pending_tasks', label: 'Pending tasks' },
+                { value: 'escalations', label: 'Escalations' },
+                { value: 'opportunity_score', label: 'Opportunity' },
+                { value: 'relationship_score', label: 'Relationship' },
+                { value: 'acreage', label: 'Acreage' },
+                { value: 'follow_up_due', label: 'Follow-up due' },
+                { value: 'recent_interaction', label: 'Recent interaction' },
+                { value: 'recently_added', label: 'Recently added' },
+              ]}
+            />
             <button
               type="button"
               className={`tc-lq-tool-btn${showAdvancedFilters ? ' is-active' : ''}`}
@@ -879,14 +880,19 @@ export function LeadOperationsTable({
 
         {showAdvancedFilters ? (
           <div className="tc-lq-advanced-filters">
-            <select className="tc-lq-field" value={stage} onChange={(e) => setStage(e.target.value)}>
-              <option value="">All stages</option>
-              <option value="new_lead">New lead</option>
-              <option value="interested">Interested</option>
-              <option value="follow_up">Follow-up</option>
-              <option value="recommendation">Recommendation</option>
-              <option value="order_placed">Order placed</option>
-            </select>
+            <SearchSelect
+              className="tc-lq-field"
+              value={stage}
+              onChange={setStage}
+              options={[
+                { value: '', label: 'All stages' },
+                { value: 'new_lead', label: 'New lead' },
+                { value: 'interested', label: 'Interested' },
+                { value: 'follow_up', label: 'Follow-up' },
+                { value: 'recommendation', label: 'Recommendation' },
+                { value: 'order_placed', label: 'Order placed' },
+              ]}
+            />
             <input
               className="tc-lq-field"
               placeholder="District"
@@ -917,16 +923,19 @@ export function LeadOperationsTable({
               value={owner}
               onChange={(e) => setOwner(e.target.value)}
             />
-            <select
+            <SearchSelect
               className="tc-lq-field"
               value={opportunityLevel}
-              onChange={(e) => setOpportunityLevel(e.target.value as '' | 'high' | 'medium' | 'low')}
-            >
-              <option value="">Opportunity level</option>
-              <option value="high">High (70+)</option>
-              <option value="medium">Medium (40–69)</option>
-              <option value="low">Low (&lt;40)</option>
-            </select>
+              onChange={(value) =>
+                setOpportunityLevel(value as '' | 'high' | 'medium' | 'low')
+              }
+              options={[
+                { value: '', label: 'Opportunity level' },
+                { value: 'high', label: 'High (70+)' },
+                { value: 'medium', label: 'Medium (40-69)' },
+                { value: 'low', label: 'Low (<40)' },
+              ]}
+            />
             <label className="tc-lq-field tc-lq-field--check">
               <input
                 type="checkbox"
@@ -1202,13 +1211,18 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Stage">
-            <select className={inputClass} value={bulkStage} onChange={(e) => setBulkStage(e.target.value)}>
-              <option value="new_lead">New Lead</option>
-              <option value="interested">Interested</option>
-              <option value="follow_up">Follow-up</option>
-              <option value="recommendation">Recommendation</option>
-              <option value="order_placed">Order Placed</option>
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={bulkStage}
+              onChange={setBulkStage}
+              options={[
+                { value: 'new_lead', label: 'New Lead' },
+                { value: 'interested', label: 'Interested' },
+                { value: 'follow_up', label: 'Follow-up' },
+                { value: 'recommendation', label: 'Recommendation' },
+                { value: 'order_placed', label: 'Order Placed' },
+              ]}
+            />
           </Field>
         </Modal>
       ) : null}
@@ -1221,14 +1235,15 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Owner email">
-            <select className={inputClass} value={bulkOwner} onChange={(e) => setBulkOwner(e.target.value)}>
-              <option value="">Select…</option>
-              {team.map((m) => (
-                <option key={m.email} value={m.email}>
-                  {m.fullName} ({m.email})
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={bulkOwner}
+              onChange={setBulkOwner}
+              options={[
+                { value: '', label: 'Select…' },
+                ...team.map((m) => ({ value: m.email, label: `${m.fullName} (${m.email})` })),
+              ]}
+            />
           </Field>
         </Modal>
       ) : null}
@@ -1241,14 +1256,15 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Employee">
-            <select className={inputClass} value={bulkOwner} onChange={(e) => setBulkOwner(e.target.value)}>
-              <option value="">Select…</option>
-              {team.map((m) => (
-                <option key={m.email} value={m.email}>
-                  {m.fullName} — {m.role}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={bulkOwner}
+              onChange={setBulkOwner}
+              options={[
+                { value: '', label: 'Select…' },
+                ...team.map((m) => ({ value: m.email, label: `${m.fullName} — ${m.role}` })),
+              ]}
+            />
           </Field>
         </Modal>
       ) : null}

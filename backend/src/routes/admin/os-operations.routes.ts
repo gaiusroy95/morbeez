@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { assertModuleAccess } from '../../lib/rbac.js';
+import {
+  assertSuperAdminPasswordConfirm,
+  confirmPasswordSchema,
+} from '../../lib/super-admin-password.js';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
@@ -296,7 +300,7 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch(`${api}/masters/:id`, async (request, reply) => {
-    await assertModuleAccess(request, 'operations', 'write');
+    const actor = await assertModuleAccess(request, 'operations', 'write');
     const { id } = request.params as { id: string };
     const body = z
       .object({
@@ -304,15 +308,20 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
         category: z.string().max(120).nullable().optional(),
         description: z.string().optional(),
         active: z.boolean().optional(),
+        confirmPassword: confirmPasswordSchema,
       })
       .parse(request.body);
-    const item = await crmFarmerService.updateMaster(id, body);
+    const { confirmPassword, ...patch } = body;
+    await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+    const item = await crmFarmerService.updateMaster(id, patch);
     return reply.send({ ok: true, item });
   });
 
   app.delete(`${api}/masters/:id`, async (request, reply) => {
-    await assertModuleAccess(request, 'operations', 'write');
+    const actor = await assertModuleAccess(request, 'operations', 'write');
     const { id } = request.params as { id: string };
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
     const item = await crmFarmerService.updateMaster(id, { active: false });
     return reply.send({ ok: true, item });
   });

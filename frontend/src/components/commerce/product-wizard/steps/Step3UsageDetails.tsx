@@ -1,7 +1,8 @@
 import { APPLICATION_STAGES } from '../constants';
 import { emptyCropMapping, type CropMappingEntry } from '../cropMapping';
-import { WizardField, pwInputClass, pwSelectClass } from '../WizardField';
+import { WizardField, pwInputClass } from '../WizardField';
 import { WizardMasterPicker } from '../WizardMasterPicker';
+import { SearchSelect } from '../../../ui';
 import type { WizardFormState } from '../types';
 
 type Props = {
@@ -108,18 +109,15 @@ export function Step3UsageDetails({ state, onChange }: Props) {
                 />
               </WizardField>
               <WizardField label="Application Stage">
-                <select
-                  className={pwSelectClass()}
+                <SearchSelect
+                  className={pwInputClass()}
                   value={m.applicationStage}
-                  onChange={(e) => patchMapping(m.id, { applicationStage: e.target.value })}
-                >
-                  <option value="">Select stage</option>
-                  {APPLICATION_STAGES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => patchMapping(m.id, { applicationStage: value })}
+                  options={[
+                    { value: '', label: 'Select stage' },
+                    ...APPLICATION_STAGES.map((s) => ({ value: s, label: s })),
+                  ]}
+                />
               </WizardField>
               <WizardField label="Spray Interval (Days)">
                 <input

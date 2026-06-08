@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/operations';
 
@@ -67,18 +68,15 @@ export function QuickRepliesPanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select
+        <SearchSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={category}
-          onChange={(e) => onCategoryChange(e.target.value)}
-        >
-          <option value="all">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+          onChange={onCategoryChange}
+          options={[
+            { value: 'all', label: 'All categories' },
+            ...CATEGORIES.map((c) => ({ value: c, label: c })),
+          ]}
+        />
         {canWrite ? (
           <button
             type="button"
@@ -194,13 +192,12 @@ function QuickReplyModal({
           <input className={inputClass} value={f.shortcutKey} onChange={(e) => setF({ ...f, shortcutKey: e.target.value })} />
         </Field>
         <Field label="Category">
-          <select className={inputClass} value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={f.category}
+            onChange={(value) => setF({ ...f, category: value })}
+            options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+          />
         </Field>
         <Field label="Label (EN)">
           <input className={inputClass} value={f.labelEn} onChange={(e) => setF({ ...f, labelEn: e.target.value })} />
@@ -234,17 +231,12 @@ export function LanguageTemplatesPanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <select
+        <SearchSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={statusFilter}
-          onChange={(e) => onStatusChange(e.target.value)}
-        >
-          {['all', 'draft', 'approved', 'archived'].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          onChange={onStatusChange}
+          options={['all', 'draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
+        />
         {canWrite ? (
           <button
             type="button"
@@ -359,19 +351,23 @@ function LangTemplateModal({
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Language">
-            <select className={inputClass} value={f.language} onChange={(e) => setF({ ...f, language: e.target.value })}>
-              {LANGS.map((l) => (
-                <option key={l} value={l}>
-                  {l}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={f.language}
+              onChange={(value) => setF({ ...f, language: value })}
+              options={LANGS.map((l) => ({ value: l, label: l }))}
+            />
           </Field>
           <Field label="Channel">
-            <select className={inputClass} value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value })}>
-              <option value="session">session</option>
-              <option value="meta_template">meta_template</option>
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={f.channel}
+              onChange={(value) => setF({ ...f, channel: value })}
+              options={[
+                { value: 'session', label: 'session' },
+                { value: 'meta_template', label: 'meta_template' },
+              ]}
+            />
           </Field>
         </div>
         <Field label="Body text">
@@ -387,13 +383,12 @@ function LangTemplateModal({
           </Field>
         ) : null}
         <Field label="Status">
-          <select className={inputClass} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-            {['draft', 'approved', 'archived'].map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={f.status}
+            onChange={(value) => setF({ ...f, status: value })}
+            options={['draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
+          />
         </Field>
       </div>
     </Modal>
@@ -454,29 +449,24 @@ export function AutomationJobsPanel({
       ) : null}
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="mb-4 flex flex-wrap gap-2">
-        <select
+        <SearchSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={statusFilter}
-          onChange={(e) => onStatusChange(e.target.value)}
-        >
-          {['active', 'pending', 'processing', 'failed', 'completed', 'cancelled', 'all'].map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-        <select
+          onChange={onStatusChange}
+          options={['active', 'pending', 'processing', 'failed', 'completed', 'cancelled', 'all'].map((s) => ({
+            value: s,
+            label: s,
+          }))}
+        />
+        <SearchSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={jobTypeFilter}
-          onChange={(e) => onJobTypeChange(e.target.value)}
-        >
-          <option value="all">All job types</option>
-          {JOB_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          onChange={onJobTypeChange}
+          options={[
+            { value: 'all', label: 'All job types' },
+            ...JOB_TYPES.map((t) => ({ value: t, label: t })),
+          ]}
+        />
       </div>
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">

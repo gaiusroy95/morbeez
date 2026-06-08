@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Btn, Panel, selectClass } from '../ui';
+import { Alert, Btn, Panel, SearchSelect } from '../ui';
 import { SEO_API } from './seo-api';
 
 export function SeoSchemaPanel() {
@@ -27,12 +27,16 @@ export function SeoSchemaPanel() {
     <Panel title="Schema markup manager" description="Product, FAQ, Breadcrumb, Article, Review JSON-LD">
       {error ? <Alert tone="error">{error}</Alert> : null}
       <div className="seo-form-row mb-4">
-        <select className={selectClass} value={type} onChange={(e) => setType(e.target.value as typeof type)}>
-          <option value="product">Product</option>
-          <option value="faq">FAQ</option>
-          <option value="breadcrumb">Breadcrumb</option>
-          <option value="article">Article</option>
-        </select>
+        <SearchSelect
+          value={type}
+          onChange={(value) => setType(value as typeof type)}
+          options={[
+            { value: 'product', label: 'Product' },
+            { value: 'faq', label: 'FAQ' },
+            { value: 'breadcrumb', label: 'Breadcrumb' },
+            { value: 'article', label: 'Article' },
+          ]}
+        />
         <Btn size="sm" onClick={() => void runPreview()}>
           Preview schema
         </Btn>

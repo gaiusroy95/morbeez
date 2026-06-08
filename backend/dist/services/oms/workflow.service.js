@@ -8,6 +8,7 @@ import { packService } from './pack.service.js';
 import { invoiceService } from './invoice.service.js';
 import { codService } from './cod.service.js';
 import { shiprocketService } from '../shiprocket/shiprocket.service.js';
+import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
 import { logger } from '../../lib/logger.js';
 export const omsWorkflowService = {
     async onOrderPlaced(shopifyOrderId, order) {
@@ -48,13 +49,60 @@ export const omsWorkflowService = {
         })
             .eq('id', commerceOrderId);
         const pickList = await pickListService.generateForOrder(commerceOrderId);
-        await supabase
-            .from('commerce_orders')
-            .update({
-            oms_status: 'picking',
-            updated_at: new Date().toISOString(),
-        })
-            .eq('id', commerceOrderId);
+        if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false) {
+            await shiprocketService
+                .provisionForCommerceOrder(commerceOrderId)
+                .then(async (result) => {
+                if (!result) {
+                    await supabase
+                        .from('commerce_orders')
+                        .update({
+                        shiprocket_error: 'Missing address or order lines',
+                        oms_status: 'picking',
+                        updated_at: new Date().toISOString(),
+                    })
+                        .eq('id', commerceOrderId);
+                    return;
+                }
+                await supabase
+                    .from('commerce_orders')
+                    .update({
+                    shiprocket_order_id: result.shiprocketOrderId,
+                    shiprocket_shipment_id: result.shipmentId,
+                    tracking_awb: result.awb,
+                    tracking_url: result.trackingUrl,
+                    courier_name: result.courier,
+                    label_url: result.labelUrl,
+                    dispatch_rack: suggestDispatchRack(result.courier),
+                    awb_generated_at: new Date().toISOString(),
+                    shiprocket_error: null,
+                    oms_status: 'picking',
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', commerceOrderId);
+            })
+                .catch(async (err) => {
+                const msg = err instanceof Error ? err.message : 'Shiprocket failed';
+                logger.error({ err, commerceOrderId }, 'Shiprocket on confirm failed — staff can retry');
+                await supabase
+                    .from('commerce_orders')
+                    .update({
+                    shiprocket_error: msg,
+                    oms_status: 'picking',
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', commerceOrderId);
+            });
+        }
+        else {
+            await supabase
+                .from('commerce_orders')
+                .update({
+                oms_status: 'picking',
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', commerceOrderId);
+        }
         return pickList;
     },
     async completePacking(pickListId, verifiedBy) {
@@ -81,10 +129,16 @@ export const omsWorkflowService = {
             .select('shopify_order_id, is_cod, financial_status')
             .eq('id', commerceOrderId)
             .single();
-        const shouldShip = env.ENABLE_SHIPROCKET_AFTER_PACK !== false &&
+        const { data: awbRow } = await supabase
+            .from('commerce_orders')
+            .select('tracking_awb')
+            .eq('id', commerceOrderId)
+            .single();
+        const shouldShipLegacy = env.ENABLE_SHIPROCKET_AFTER_PACK &&
+            !awbRow?.tracking_awb &&
             order?.shopify_order_id &&
             (order.financial_status === 'paid' || order.is_cod);
-        if (shouldShip) {
+        if (shouldShipLegacy) {
             const shipment = await shiprocketService
                 .createShipmentForShopifyOrder(String(order.shopify_order_id))
                 .catch((err) => {
@@ -101,7 +155,6 @@ export const omsWorkflowService = {
                 })
                     .eq('id', commerceOrderId);
             }
-            // Status moves to shipped after dispatch scan verification
         }
         return { invoice, pickListId };
     },
@@ -131,7 +184,7 @@ export const omsWorkflowService = {
     async listOmsOrders(opts) {
         let q = supabase
             .from('commerce_orders')
-            .select('id, shopify_order_id, order_name, oms_status, is_cod, total_amount, created_at')
+            .select('id, shopify_order_id, order_name, oms_status, is_cod, total_amount, created_at, courier_name, tracking_awb, fulfillment_priority, label_url, dispatch_rack')
             .order('created_at', { ascending: false })
             .limit(opts?.limit ?? 50);
         if (opts?.omsStatus)

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
+import { SearchSelect } from '../ui';
 import type { InteractionListRow } from './InteractionDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -263,39 +264,29 @@ export function InteractionsTab({
 
       {showFilters ? (
         <div className="tc-ix-filters">
-          <label className="tc-ix-filter-field">
-            <span>Interaction Type</span>
-            <select
-              value={filters.typeKey}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, typeKey: e.target.value }));
-                setPage(1);
-              }}
-            >
-              {TYPE_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="tc-ix-filter-field">
-            <span>Employee</span>
-            <select
-              value={filters.employee}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, employee: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              {employees.map((emp) => (
-                <option key={emp} value={emp}>
-                  {emp}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Interaction Type"
+            className="tc-ix-filter-field"
+            value={filters.typeKey}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, typeKey: value }));
+              setPage(1);
+            }}
+            options={TYPE_OPTIONS}
+          />
+          <SearchSelect
+            label="Employee"
+            className="tc-ix-filter-field"
+            value={filters.employee}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, employee: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All' },
+              ...employees.map((emp) => ({ value: emp, label: emp })),
+            ]}
+          />
           <label className="tc-ix-filter-field tc-ix-filter-field--range">
             <span>Date Range</span>
             <div className="tc-ix-date-range">
@@ -320,39 +311,29 @@ export function InteractionsTab({
               />
             </div>
           </label>
-          <label className="tc-ix-filter-field">
-            <span>Workflow</span>
-            <select
-              value={filters.workflowStatus}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, workflowStatus: e.target.value }));
-                setPage(1);
-              }}
-            >
-              {WORKFLOW_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="tc-ix-filter-field">
-            <span>Block</span>
-            <select
-              value={filters.blockId}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, blockId: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              {blocks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Workflow"
+            className="tc-ix-filter-field"
+            value={filters.workflowStatus}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, workflowStatus: value }));
+              setPage(1);
+            }}
+            options={WORKFLOW_OPTIONS}
+          />
+          <SearchSelect
+            label="Block"
+            className="tc-ix-filter-field"
+            value={filters.blockId}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, blockId: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
           <button type="button" className="tc-ix-btn-reset" onClick={resetFilters}>
             <ResetIcon />
             Reset
@@ -560,22 +541,17 @@ export function InteractionsTab({
               ›
             </button>
           </div>
-          <label className="tc-ix-rows">
-            Rows per page
-            <select
-              value={rowsPerPage}
-              onChange={(e) => {
-                setRowsPerPage(Number(e.target.value));
-                setPage(1);
-              }}
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Rows per page"
+            className="tc-ix-rows"
+            value={String(rowsPerPage)}
+            onChange={(value) => {
+              setRowsPerPage(Number(value));
+              setPage(1);
+            }}
+            options={[10, 20, 50].map((n) => ({ value: String(n), label: String(n) }))}
+            compact
+          />
         </div>
       ) : null}
     </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
-import { Alert, Btn, DataTable, EmptyState, Loading, Panel, TableWrap, inputClass } from '../ui';
+import { Alert, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 
 type Dashboard = {
@@ -139,14 +139,18 @@ export function WarehouseFinancePanel({ canWrite }: { canWrite: boolean }) {
         ) : null}
         {canWrite && codRows.length > 0 ? (
           <div className="warehouse-form-row mt-4">
-            <select className={inputClass} value={remitId} onChange={(e) => setRemitId(e.target.value)}>
-              <option value="">Order…</option>
-              {codRows.map((r) => (
-                <option key={r.id} value={r.commerce_order_id}>
-                  {r.commerce_orders?.order_name}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              className={inputClass}
+              value={remitId}
+              onChange={setRemitId}
+              options={[
+                { value: '', label: 'Order…' },
+                ...codRows.map((r) => ({
+                  value: r.commerce_order_id,
+                  label: r.commerce_orders?.order_name ?? r.commerce_order_id,
+                })),
+              ]}
+            />
             <input
               className={inputClass}
               type="number"

@@ -1,5 +1,6 @@
 export declare const pickListService: {
     generateForOrder(commerceOrderId: string, createdBy?: string): Promise<any>;
+    rebuildPickList(pickListId: string, createdBy?: string): Promise<any>;
     getPickList(pickListId: string): Promise<any>;
     listPickLists(opts?: {
         status?: string;

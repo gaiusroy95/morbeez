@@ -70,7 +70,35 @@ async function setAvailable(inventoryItemId, available) {
         }),
     });
 }
+async function getAvailable(inventoryItemId) {
+    const locationId = await getPrimaryLocationId();
+    await connectInventoryItem(inventoryItemId, locationId);
+    const res = await shopifyAdmin(`/inventory_levels.json?inventory_item_ids=${inventoryItemId}&location_ids=${locationId}`);
+    return res.inventory_levels?.[0]?.available ?? 0;
+}
 export const shopifyInventoryService = {
+    async getVariantStock(variantId) {
+        const itemId = await ensureVariantTracksInventory(variantId);
+        return getAvailable(itemId);
+    },
+    async adjustVariantStock(variantId, adjustment) {
+        const delta = Math.floor(adjustment);
+        if (!delta) {
+            return this.getVariantStock(variantId);
+        }
+        const itemId = await ensureVariantTracksInventory(variantId);
+        const locationId = await getPrimaryLocationId();
+        await connectInventoryItem(itemId, locationId);
+        const res = await shopifyAdmin('/inventory_levels/adjust.json', {
+            method: 'POST',
+            body: JSON.stringify({
+                location_id: locationId,
+                inventory_item_id: itemId,
+                available_adjustment: delta,
+            }),
+        });
+        return res.inventory_level?.available ?? 0;
+    },
     async setVariantStock(variantId, stock) {
         const itemId = await ensureVariantTracksInventory(variantId);
         await setAvailable(itemId, stock);

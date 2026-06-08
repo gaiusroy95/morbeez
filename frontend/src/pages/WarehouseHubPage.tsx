@@ -3,13 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { HubTabs, ReadOnlyBanner } from '../components/ui';
 import { WarehouseStockPanel } from '../components/warehouse/WarehouseStockPanel';
 import { WarehouseInboundPanel } from '../components/warehouse/WarehouseInboundPanel';
-import { WarehouseOmsPanel } from '../components/warehouse/WarehouseOmsPanel';
-import { WarehousePackPanel } from '../components/warehouse/WarehousePackPanel';
+import { WarehouseFulfillmentPanel } from '../components/warehouse/WarehouseFulfillmentPanel';
 import { WarehouseFinancePanel } from '../components/warehouse/WarehouseFinancePanel';
 import { WarehouseReturnsPanel } from '../components/warehouse/WarehouseReturnsPanel';
 import { WarehouseOverviewPanel } from '../components/warehouse/WarehouseOverviewPanel';
-import { isWarehouseTab, type WarehouseDeepTab } from '../lib/warehouse-links';
+import { isWarehouseTab, normalizeWarehouseTab, type WarehouseDeepTab } from '../lib/warehouse-links';
 import '../styles/warehouse-hub.css';
+import '../styles/fulfillment.css';
 
 type Tab = WarehouseDeepTab;
 
@@ -17,8 +17,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'stock', label: 'Stock' },
   { id: 'inbound', label: 'Purchase & GRN' },
-  { id: 'orders', label: 'Orders & pick' },
-  { id: 'pack', label: 'Pack & verify' },
+  { id: 'fulfillment', label: 'Fulfillment' },
   { id: 'returns', label: 'Returns & refunds' },
   { id: 'finance', label: 'Finance & COD' },
 ];
@@ -29,16 +28,16 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
   const tabFromUrl = searchParams.get('tab');
 
   const [tab, setTab] = useState<Tab>(() => {
-    if (isWarehouseTab(tabFromUrl)) return tabFromUrl;
-    if (orderFromUrl) return 'orders';
+    if (isWarehouseTab(tabFromUrl)) return normalizeWarehouseTab(tabFromUrl);
+    if (orderFromUrl) return 'fulfillment';
     return 'overview';
   });
 
   useEffect(() => {
     if (isWarehouseTab(tabFromUrl)) {
-      setTab(tabFromUrl);
+      setTab(normalizeWarehouseTab(tabFromUrl));
     } else if (orderFromUrl) {
-      setTab('orders');
+      setTab('fulfillment');
     }
   }, [tabFromUrl, orderFromUrl]);
 
@@ -56,7 +55,8 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
   return (
     <div className="warehouse-hub">
       <p className="warehouse-hub-intro muted">
-        Warehouse & order fulfillment — batch stock, pick lists, GST invoices, Shiprocket after pack.
+        Warehouse fulfillment — auto AWB on confirm, pick + pack with scan verification, thermal
+        labels via Shiprocket.
       </p>
       {orderFromUrl ? (
         <p className="warehouse-hub-focus muted">
@@ -68,11 +68,8 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'overview' ? <WarehouseOverviewPanel /> : null}
       {tab === 'stock' ? <WarehouseStockPanel canWrite={canWrite} /> : null}
       {tab === 'inbound' ? <WarehouseInboundPanel canWrite={canWrite} /> : null}
-      {tab === 'orders' ? (
-        <WarehouseOmsPanel canWrite={canWrite} focusOrderId={orderFromUrl} />
-      ) : null}
-      {tab === 'pack' ? (
-        <WarehousePackPanel canWrite={canWrite} focusOrderId={orderFromUrl} />
+      {tab === 'fulfillment' ? (
+        <WarehouseFulfillmentPanel canWrite={canWrite} focusOrderId={orderFromUrl} />
       ) : null}
       {tab === 'returns' ? <WarehouseReturnsPanel canWrite={canWrite} /> : null}
       {tab === 'finance' ? <WarehouseFinancePanel canWrite={canWrite} /> : null}

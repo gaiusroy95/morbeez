@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { SearchSelect } from '../../ui';
 import { AddFieldActivityModal } from './AddFieldActivityModal';
 import {
   colorClassForTag,
@@ -82,18 +83,18 @@ export function FieldActivityPhase2Panel(props: Props) {
           {props.breadcrumbLabel ?? 'Operations / Field Activities'}
         </p>
         <div className="fa-page-controls">
-          <select
+          <SearchSelect
             className="fa-block-select"
             value={props.selectedBlockId}
-            onChange={(e) => props.onBlockChange(e.target.value)}
-          >
-            {props.blocks.map((block) => (
-              <option key={block.id} value={block.id}>
-                {(block.plot_label || block.name) ?? 'Block'} - {block.crop_type}{' '}
-                {block.acreage_decimal != null ? `(${block.acreage_decimal} Acre)` : ''}
-              </option>
-            ))}
-          </select>
+            onChange={props.onBlockChange}
+            options={props.blocks.map((block) => ({
+              value: block.id,
+              label: `${(block.plot_label || block.name) ?? 'Block'} - ${block.crop_type}${
+                block.acreage_decimal != null ? ` (${block.acreage_decimal} Acre)` : ''
+              }`,
+            }))}
+            compact
+          />
           <button type="button" className="fa-filter-btn">
             ▾ Filter
           </button>

@@ -1,4 +1,6 @@
 export declare const shopifyInventoryService: {
+    getVariantStock(variantId: number): Promise<number>;
+    adjustVariantStock(variantId: number, adjustment: number): Promise<number>;
     setVariantStock(variantId: number, stock: number): Promise<void>;
     /**
      * Apply stock quantities after product wizard save.

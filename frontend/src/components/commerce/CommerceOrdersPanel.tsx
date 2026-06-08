@@ -13,7 +13,7 @@ import {
   Panel,
   TableWrap,
   inputClass,
-  selectClass,
+  SearchSelect,
 } from '../ui';
 import { WarehouseOrderLink } from '../warehouse/WarehouseOrderLink';
 import { useAuth } from '../../context/AuthContext';
@@ -222,18 +222,19 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
             }
           }}
         />
-        <select
-          className={selectClass}
+        <SearchSelect
+          className={inputClass}
           value={payment}
-          onChange={(e) => {
-            setPayment(e.target.value as '' | 'cod' | 'paid');
+          onChange={(value) => {
+            setPayment(value as '' | 'cod' | 'paid');
             setPage(1);
           }}
-        >
-          <option value="">All payments</option>
-          <option value="paid">Paid</option>
-          <option value="cod">COD</option>
-        </select>
+          options={[
+            { value: '', label: 'All payments' },
+            { value: 'paid', label: 'Paid' },
+            { value: 'cod', label: 'COD' },
+          ]}
+        />
         <Btn
           variant="secondary"
           onClick={() => {

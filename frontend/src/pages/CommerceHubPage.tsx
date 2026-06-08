@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
 import { paths, toPath } from '../lib/routes';
@@ -40,11 +40,28 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'banners', label: 'Banners' },
 ];
 
+function isCommerceTab(value: string | null): value is Tab {
+  return (
+    value === 'products' ||
+    value === 'inventory' ||
+    value === 'farmers' ||
+    value === 'orders' ||
+    value === 'logistics' ||
+    value === 'offers' ||
+    value === 'combos' ||
+    value === 'flash' ||
+    value === 'banners'
+  );
+}
+
 export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   const { can } = useAuth();
   const canWarehouse = can('warehouse', 'read');
+  const canWarehouseWrite = can('warehouse', 'write');
   const canSeo = can('seo', 'read');
-  const [tab, setTab] = useState<Tab>('products');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(() => (isCommerceTab(tabFromUrl) ? tabFromUrl : 'products'));
   const [search, setSearch] = useState('');
   const searchDefaults = defaultsForPage('commerce');
   useSyncConsoleSearch(
@@ -59,6 +76,21 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   } | null>(null);
   const [archiveError, setArchiveError] = useState('');
   const [ordersReload, setOrdersReload] = useState(0);
+
+  useEffect(() => {
+    if (isCommerceTab(tabFromUrl)) setTab(tabFromUrl);
+  }, [tabFromUrl]);
+
+  const onTabChange = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      const params = new URLSearchParams(searchParams);
+      if (next === 'products') params.delete('tab');
+      else params.set('tab', next);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
 
   async function archiveOrder(id: string, source?: string) {
     setConfirmModal({
@@ -92,7 +124,7 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
           . Order rows include a <strong>WMS</strong> shortcut when applicable.
         </p>
       ) : null}
-      <HubTabs tabs={TABS} active={tab} onChange={setTab} />
+      <HubTabs tabs={TABS} active={tab} onChange={onTabChange} />
       {archiveError ? (
         <p className="mb-3 text-sm text-red-600" role="alert">
           {archiveError}
@@ -100,7 +132,9 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
       ) : null}
 
       {tab === 'products' ? <CommerceAllProductsPanel canWrite={canWrite} /> : null}
-      {tab === 'inventory' ? <CommerceInventoryPanel /> : null}
+      {tab === 'inventory' ? (
+        <CommerceInventoryPanel canWrite={canWrite} canWarehouseWrite={canWarehouseWrite} />
+      ) : null}
       {tab === 'farmers' ? <CommerceFarmersPanel /> : null}
       {tab === 'orders' ? (
         <CommerceOrdersPanel

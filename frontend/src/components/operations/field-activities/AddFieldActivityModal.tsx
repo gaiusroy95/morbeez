@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { SearchSelect } from '../../ui';
 import { FieldActivityTypePicker, formPatchFromActivityType } from './FieldActivityTypePicker';
 import {
   computeDapFromDates,
@@ -161,18 +162,17 @@ export function AddFieldActivityModal(props: Props) {
             </label>
           ) : null}
 
-          <label className="fa-field">
-            <span className="fa-field-label">Status</span>
-            <select
-              className="fa-input"
-              value={props.form.status}
-              onChange={(e) => props.onFormChange((f) => ({ ...f, status: e.target.value }))}
-            >
-              <option value="completed">Completed</option>
-              <option value="pending">Pending</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
+          <SearchSelect
+            label="Status"
+            className="fa-input"
+            value={props.form.status}
+            onChange={(value) => props.onFormChange((f) => ({ ...f, status: value }))}
+            options={[
+              { value: 'completed', label: 'Completed' },
+              { value: 'pending', label: 'Pending' },
+              { value: 'cancelled', label: 'Cancelled' },
+            ]}
+          />
 
           <button
             type="submit"

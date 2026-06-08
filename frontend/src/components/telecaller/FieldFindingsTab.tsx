@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
+import { SearchSelect } from '../ui';
 import type { FieldFindingListRow } from './FieldFindingDetailModal';
 import {
   FINDING_TYPE_LABELS,
@@ -201,55 +202,47 @@ export function FieldFindingsTab({
 
       {showFilters ? (
         <div className="tc-ff-filters">
-          <label className="tc-ff-filter-field">
-            <span>Block</span>
-            <select
-              value={filters.blockId}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, blockId: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All blocks</option>
-              {blocks.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="tc-ff-filter-field">
-            <span>Severity</span>
-            <select
-              value={filters.diseaseTone}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, diseaseTone: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              <option value="healthy">Healthy</option>
-              <option value="warning">Deficiency / warning</option>
-              <option value="danger">Disease / pest</option>
-            </select>
-          </label>
-          <label className="tc-ff-filter-field">
-            <span>Agronomist</span>
-            <select
-              value={filters.agronomist}
-              onChange={(e) => {
-                setFilters((f) => ({ ...f, agronomist: e.target.value }));
-                setPage(1);
-              }}
-            >
-              <option value="">All</option>
-              {agronomists.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Block"
+            className="tc-ff-filter-field"
+            value={filters.blockId}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, blockId: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All blocks' },
+              ...blocks.map((b) => ({ value: b.id, label: b.name })),
+            ]}
+          />
+          <SearchSelect
+            label="Severity"
+            className="tc-ff-filter-field"
+            value={filters.diseaseTone}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, diseaseTone: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All' },
+              { value: 'healthy', label: 'Healthy' },
+              { value: 'warning', label: 'Deficiency / warning' },
+              { value: 'danger', label: 'Disease / pest' },
+            ]}
+          />
+          <SearchSelect
+            label="Agronomist"
+            className="tc-ff-filter-field"
+            value={filters.agronomist}
+            onChange={(value) => {
+              setFilters((f) => ({ ...f, agronomist: value }));
+              setPage(1);
+            }}
+            options={[
+              { value: '', label: 'All' },
+              ...agronomists.map((a) => ({ value: a, label: a })),
+            ]}
+          />
           <label className="tc-ff-filter-field">
             <span>Date from</span>
             <input
@@ -512,22 +505,17 @@ export function FieldFindingsTab({
               ›
             </button>
           </div>
-          <label className="tc-ff-rows">
-            Rows per page
-            <select
-              value={rowsPerPage}
-              onChange={(e) => {
-                setRowsPerPage(Number(e.target.value));
-                setPage(1);
-              }}
-            >
-              {[10, 20, 50].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </label>
+          <SearchSelect
+            label="Rows per page"
+            className="tc-ff-rows"
+            value={String(rowsPerPage)}
+            onChange={(value) => {
+              setRowsPerPage(Number(value));
+              setPage(1);
+            }}
+            options={[10, 20, 50].map((n) => ({ value: String(n), label: String(n) }))}
+            compact
+          />
         </div>
       ) : null}
     </div>

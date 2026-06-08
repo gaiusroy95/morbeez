@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
+import { SearchSelect } from '../ui';
+import { AddStockModal } from './AddStockModal';
+import { InventoryGrnModal } from './InventoryGrnModal';
+import { InventoryPurchaseOrderModal } from './InventoryPurchaseOrderModal';
 import '../../styles/commerce-inventory.css';
 
 type InventoryRow = {
@@ -64,7 +68,12 @@ function pageNumbers(current: number, total: number): Array<number | 'ellipsis'>
   return pages;
 }
 
-export function CommerceInventoryPanel() {
+type Props = {
+  canWrite?: boolean;
+  canWarehouseWrite?: boolean;
+};
+
+export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = false }: Props) {
   const navigate = useNavigate();
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [stats, setStats] = useState<InventoryStats | null>(null);
@@ -84,6 +93,11 @@ export function CommerceInventoryPanel() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [viewRow, setViewRow] = useState<InventoryRow | null>(null);
+  const [addStockVariantId, setAddStockVariantId] = useState<string | null>(null);
+  const [addStockOpen, setAddStockOpen] = useState(false);
+  const [poOpen, setPoOpen] = useState(false);
+  const [grnOpen, setGrnOpen] = useState(false);
+  const [grnPoId, setGrnPoId] = useState<string | undefined>();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,7 +150,52 @@ export function CommerceInventoryPanel() {
 
   return (
     <div className="commerce-inventory">
-      <h2 className="commerce-inventory__title">Inventory</h2>
+      <div className="commerce-inventory__header">
+        <h2 className="commerce-inventory__title">Inventory</h2>
+        <div className="commerce-inventory__header-actions">
+          {canWrite ? (
+            <button
+              type="button"
+              className="commerce-inventory__add-btn"
+              onClick={() => {
+                setAddStockVariantId(null);
+                setAddStockOpen(true);
+              }}
+            >
+              + Add Stock
+            </button>
+          ) : null}
+          {canWarehouseWrite ? (
+            <>
+              <button
+                type="button"
+                className="commerce-inventory__secondary-btn"
+                onClick={() => setPoOpen(true)}
+              >
+                Purchase Order
+              </button>
+              <button
+                type="button"
+                className="commerce-inventory__secondary-btn"
+                onClick={() => {
+                  setGrnPoId(undefined);
+                  setGrnOpen(true);
+                }}
+              >
+                Receive GRN
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      {canWarehouseWrite ? (
+        <p className="commerce-inventory__intro muted">
+          <strong>Add Stock</strong> updates Shopify catalog stock.{' '}
+          <strong>Purchase Order → Receive GRN</strong> records warehouse batches, landed cost, and
+          weighted average pricing.
+        </p>
+      ) : null}
 
       {error ? (
         <div className="commerce-inventory__error" role="alert">
@@ -215,23 +274,22 @@ export function CommerceInventoryPanel() {
 
       {filtersOpen ? (
         <div className="commerce-inventory__filter-panel">
-          <label>
-            Stock status{' '}
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                const v = e.target.value as StatusFilter;
-                setStatusFilter(v);
-                setStatFilter(v);
-                setPage(1);
-              }}
-            >
-              <option value="all">All</option>
-              <option value="in_stock">In Stock</option>
-              <option value="low_stock">Low Stock</option>
-              <option value="out_of_stock">Out of Stock</option>
-            </select>
-          </label>
+          <SearchSelect
+            label="Stock status"
+            value={statusFilter}
+            onChange={(value) => {
+              const v = value as StatusFilter;
+              setStatusFilter(v);
+              setStatFilter(v);
+              setPage(1);
+            }}
+            options={[
+              { value: 'all', label: 'All' },
+              { value: 'in_stock', label: 'In Stock' },
+              { value: 'low_stock', label: 'Low Stock' },
+              { value: 'out_of_stock', label: 'Out of Stock' },
+            ]}
+          />
           <button
             type="button"
             className="commerce-inventory__filter-btn"
@@ -302,6 +360,19 @@ export function CommerceInventoryPanel() {
                             >
                               👁
                             </button>
+                            {canWrite ? (
+                              <button
+                                type="button"
+                                className="commerce-inventory__action-btn"
+                                title="Add stock"
+                                onClick={() => {
+                                  setAddStockVariantId(r.variantId);
+                                  setAddStockOpen(true);
+                                }}
+                              >
+                                +
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="commerce-inventory__action-btn"
@@ -375,6 +446,41 @@ export function CommerceInventoryPanel() {
           </>
         )}
       </div>
+
+      {addStockOpen && canWrite ? (
+        <AddStockModal
+          initialVariantId={addStockVariantId ?? undefined}
+          onClose={() => {
+            setAddStockOpen(false);
+            setAddStockVariantId(null);
+          }}
+          onSaved={() => void load()}
+        />
+      ) : null}
+
+      {poOpen && canWarehouseWrite ? (
+        <InventoryPurchaseOrderModal
+          canWrite={canWarehouseWrite}
+          onClose={() => setPoOpen(false)}
+          onReceivePo={(poId) => {
+            setPoOpen(false);
+            setGrnPoId(poId);
+            setGrnOpen(true);
+          }}
+        />
+      ) : null}
+
+      {grnOpen && canWarehouseWrite ? (
+        <InventoryGrnModal
+          canWrite={canWarehouseWrite}
+          purchaseOrderId={grnPoId}
+          onClose={() => {
+            setGrnOpen(false);
+            setGrnPoId(undefined);
+          }}
+          onSaved={() => void load()}
+        />
+      ) : null}
 
       {viewRow ? (
         <Modal

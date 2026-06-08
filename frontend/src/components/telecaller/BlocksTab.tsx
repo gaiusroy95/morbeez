@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
+import { SearchSelect } from '../ui';
 import {
   CropBlockFields,
   blockFromApi,
@@ -360,19 +361,13 @@ export function BlocksTab({
                 acre
               </h3>
             </div>
-            <label className="tc-bl-change-block">
-              <span className="sr-only">Change block</span>
-              <select
-                value={selectedId ?? ''}
-                onChange={(e) => setSelectedId(e.target.value)}
-              >
-                {blocks.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SearchSelect
+              className="tc-bl-change-block"
+              value={selectedId ?? ''}
+              onChange={setSelectedId}
+              options={blocks.map((b) => ({ value: b.id, label: b.name }))}
+              compact
+            />
           </div>
 
           <nav className="tc-bl-subtabs" aria-label="Block sections">

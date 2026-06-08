@@ -10,10 +10,11 @@ import {
   STORAGE_OPTIONS,
   SUB_CATEGORIES,
 } from '../constants';
-import { WizardField, pwInputClass, pwSelectClass, pwTextareaClass } from '../WizardField';
+import { WizardField, pwInputClass, pwTextareaClass } from '../WizardField';
 import { WarehouseLocationFields } from '../WarehouseLocationFields';
 import type { WizardFormState } from '../types';
 import { readFileAsBase64 } from '../../../../lib/readFileAsBase64';
+import { SearchSelect } from '../../../ui';
 
 type Props = {
   state: WizardFormState;
@@ -80,17 +81,12 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
         <h2 className="pw-section-title">Basic Information</h2>
         <div className="pw-grid pw-grid--3">
           <WizardField label="Brand Name" required>
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.brandName}
-              onChange={(e) => patchBasic({ brandName: e.target.value })}
-            >
-              {BRANDS.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ brandName: value })}
+              options={BRANDS.map((x) => ({ value: x, label: x }))}
+            />
           </WizardField>
           <WizardField label="Trade Name" required>
             <input
@@ -109,46 +105,37 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Category" required>
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.category}
-              onChange={(e) => patchBasic({ category: e.target.value })}
-            >
-              <option value="">Select category</option>
-              {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ category: value })}
+              options={[
+                { value: '', label: 'Select category' },
+                ...CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </WizardField>
           <WizardField label="Sub Category" required>
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.subCategory}
-              onChange={(e) => patchBasic({ subCategory: e.target.value })}
-            >
-              <option value="">Select sub category</option>
-              {SUB_CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ subCategory: value })}
+              options={[
+                { value: '', label: 'Select sub category' },
+                ...SUB_CATEGORIES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </WizardField>
           <WizardField label="Formulation Type" required>
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.formulationType}
-              onChange={(e) => patchBasic({ formulationType: e.target.value })}
-            >
-              <option value="">Select formulation</option>
-              {FORMULATION_TYPES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ formulationType: value })}
+              options={[
+                { value: '', label: 'Select formulation' },
+                ...FORMULATION_TYPES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </WizardField>
           <WizardField label="Technical Content" required>
             <input
@@ -175,18 +162,15 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Product Type">
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.productType}
-              onChange={(e) => patchBasic({ productType: e.target.value })}
-            >
-              <option value="">Select type</option>
-              {PRODUCT_TYPES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ productType: value })}
+              options={[
+                { value: '', label: 'Select type' },
+                ...PRODUCT_TYPES.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </WizardField>
           <WizardField label="Mode of Action" required>
             <input
@@ -197,18 +181,15 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Mode of Entry" required>
-            <select
-              className={pwSelectClass()}
+            <SearchSelect
+              className={pwInputClass()}
               value={b.modeOfEntry}
-              onChange={(e) => patchBasic({ modeOfEntry: e.target.value })}
-            >
-              <option value="">Select mode</option>
-              {MODE_OF_ENTRY.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => patchBasic({ modeOfEntry: value })}
+              options={[
+                { value: '', label: 'Select mode' },
+                ...MODE_OF_ENTRY.map((c) => ({ value: c, label: c })),
+              ]}
+            />
           </WizardField>
           <WizardField label="Country of Origin">
             <input
@@ -340,56 +321,36 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
           <h3>Packaging Information</h3>
           <div className="pw-grid pw-grid--3">
             <WizardField label="Shelf Life">
-              <select
-                className={pwSelectClass()}
+              <SearchSelect
+                className={pwInputClass()}
                 value={b.shelfLife}
-                onChange={(e) => patchBasic({ shelfLife: e.target.value })}
-              >
-                {SHELF_LIFE_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patchBasic({ shelfLife: value })}
+                options={SHELF_LIFE_OPTIONS.map((o) => ({ value: o, label: o }))}
+              />
             </WizardField>
             <WizardField label="Storage Conditions">
-              <select
-                className={pwSelectClass()}
+              <SearchSelect
+                className={pwInputClass()}
                 value={b.storageConditions}
-                onChange={(e) => patchBasic({ storageConditions: e.target.value })}
-              >
-                {STORAGE_OPTIONS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patchBasic({ storageConditions: value })}
+                options={STORAGE_OPTIONS.map((o) => ({ value: o, label: o }))}
+              />
             </WizardField>
             <WizardField label="Packing Type">
-              <select
-                className={pwSelectClass()}
+              <SearchSelect
+                className={pwInputClass()}
                 value={b.packingType}
-                onChange={(e) => patchBasic({ packingType: e.target.value })}
-              >
-                {PACKING_TYPES.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patchBasic({ packingType: value })}
+                options={PACKING_TYPES.map((o) => ({ value: o, label: o }))}
+              />
             </WizardField>
             <WizardField label="Pack Material">
-              <select
-                className={pwSelectClass()}
+              <SearchSelect
+                className={pwInputClass()}
                 value={b.packMaterial}
-                onChange={(e) => patchBasic({ packMaterial: e.target.value })}
-              >
-                {PACK_MATERIALS.map((o) => (
-                  <option key={o} value={o}>
-                    {o}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => patchBasic({ packMaterial: value })}
+                options={PACK_MATERIALS.map((o) => ({ value: o, label: o }))}
+              />
             </WizardField>
           </div>
           <WizardField label="Safety Instructions" full counter={`${safetyLen} / 200`}>

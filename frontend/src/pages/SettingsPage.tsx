@@ -14,6 +14,7 @@ import {
   Panel,
   ReadOnlyBanner,
   TableWrap,
+  SearchSelect,
 } from '../components/ui';
 import { CompanySettingsPanel } from '../components/settings/CompanySettingsPanel';
 
@@ -204,13 +205,12 @@ function EditStaffModal({
           <input className={inputClass} value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </Field>
         <Field label="Role">
-          <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value)}>
-            {roleOptions.map((r) => (
-              <option key={r} value={r}>
-                {roleLabel(r)}
-              </option>
-            ))}
-          </select>
+          <SearchSelect
+            className={inputClass}
+            value={role}
+            onChange={setRole}
+            options={roleOptions.map((r) => ({ value: r, label: roleLabel(r) }))}
+          />
         </Field>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />

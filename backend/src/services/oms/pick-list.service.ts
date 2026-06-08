@@ -1,11 +1,17 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { AppError, NotFoundError } from '../../lib/errors.js';
 import { inventoryService } from '../wms/inventory.service.js';
 import { warehouseService } from '../wms/warehouse.service.js';
 
 function waveNumber(): string {
   return `WAVE-${Date.now()}`;
+}
+
+async function cleanupEmptyPickList(pickListId: string, waveId?: string | null) {
+  await supabase.from('pick_list_lines').delete().eq('pick_list_id', pickListId);
+  await supabase.from('pick_lists').delete().eq('id', pickListId);
+  if (waveId) await supabase.from('pick_waves').delete().eq('id', waveId);
 }
 
 export const pickListService = {
@@ -14,17 +20,28 @@ export const pickListService = {
 
     const { data: existing } = await supabase
       .from('pick_lists')
-      .select('id')
+      .select('id, pick_wave_id')
       .eq('commerce_order_id', commerceOrderId)
       .maybeSingle();
-    if (existing) return this.getPickList(String(existing.id));
+    if (existing) {
+      const full = await this.getPickList(String(existing.id));
+      const lineCount = Array.isArray(full.pick_list_lines) ? full.pick_list_lines.length : 0;
+      if (lineCount > 0) return full;
+      await cleanupEmptyPickList(String(existing.id), full.pick_wave_id as string | null);
+    }
 
     const { data: lines, error: lineErr } = await supabase
       .from('commerce_order_lines')
       .select('*')
       .eq('commerce_order_id', commerceOrderId);
     throwIfSupabaseError(lineErr, 'Order lines');
-    if (!lines?.length) throw new NotFoundError('No order lines to pick');
+    if (!lines?.length) {
+      throw new AppError(
+        'Order has no line items — sync order lines from Shopify or the quote first',
+        409,
+        'NO_ORDER_LINES'
+      );
+    }
 
     const { data: wave, error: waveErr } = await supabase
       .from('pick_waves')
@@ -49,32 +66,44 @@ export const pickListService = {
       .single();
     throwIfSupabaseError(plErr, 'Pick list');
 
-    for (const line of lines) {
-      const qty = Number(line.qty_ordered) - Number(line.qty_cancelled);
-      if (qty <= 0) continue;
+    let pickLinesCreated = 0;
 
-      const allocations = await inventoryService.reserveStock({
-        inventoryItemId: String(line.inventory_item_id),
-        warehouseId: String(warehouse.id),
-        qty,
-        orderLineId: String(line.id),
-      });
+    try {
+      for (const line of lines) {
+        const qty = Number(line.qty_ordered) - Number(line.qty_cancelled);
+        if (qty <= 0) continue;
+        if (!line.inventory_item_id) {
+          throw new AppError(
+            `Order line "${line.product_title}" has no inventory SKU — sync order lines first`,
+            409,
+            'ORDER_LINE_NO_SKU'
+          );
+        }
 
-      for (const alloc of allocations) {
-        const a = alloc as Record<string, unknown>;
-        await supabase.from('pick_list_lines').insert({
-          pick_list_id: pickList.id,
-          order_line_id: line.id,
-          allocation_id: a.id,
-          inventory_item_id: line.inventory_item_id,
-          batch_id: a.batch_id,
-          location_id: a.location_id,
-          product_title: line.product_title,
-          sku: line.sku,
-          batch_code: a.batchCode,
-          rack_location: a.rackLocation,
-          qty_required: a.qty_allocated,
+        const allocations = await inventoryService.reserveStock({
+          inventoryItemId: String(line.inventory_item_id),
+          warehouseId: String(warehouse.id),
+          qty,
+          orderLineId: String(line.id),
         });
+
+        for (const alloc of allocations) {
+          const a = alloc as Record<string, unknown>;
+          await supabase.from('pick_list_lines').insert({
+            pick_list_id: pickList.id,
+            order_line_id: line.id,
+            allocation_id: a.id,
+            inventory_item_id: line.inventory_item_id,
+            batch_id: a.batch_id,
+            location_id: a.location_id,
+            product_title: line.product_title,
+            sku: line.sku,
+            batch_code: a.batchCode,
+            rack_location: a.rackLocation,
+            qty_required: a.qty_allocated,
+          });
+          pickLinesCreated += 1;
+        }
 
         await supabase
           .from('commerce_order_lines')
@@ -84,6 +113,17 @@ export const pickListService = {
           })
           .eq('id', line.id);
       }
+
+      if (pickLinesCreated === 0) {
+        throw new AppError(
+          'No warehouse stock available for this order — receive goods via Purchase & GRN for matching SKUs',
+          409,
+          'NO_PICK_LINES'
+        );
+      }
+    } catch (err) {
+      await cleanupEmptyPickList(String(pickList.id), String(wave.id));
+      throw err;
     }
 
     await supabase
@@ -92,6 +132,13 @@ export const pickListService = {
       .eq('id', pickList.id);
 
     return this.getPickList(String(pickList.id));
+  },
+
+  async rebuildPickList(pickListId: string, createdBy?: string) {
+    const pick = await this.getPickList(pickListId);
+    const commerceOrderId = String(pick.commerce_order_id);
+    await cleanupEmptyPickList(pickListId, pick.pick_wave_id as string | null);
+    return this.generateForOrder(commerceOrderId, createdBy);
   },
 
   async getPickList(pickListId: string) {
@@ -110,7 +157,7 @@ export const pickListService = {
   async listPickLists(opts?: { status?: string; limit?: number }) {
     let q = supabase
       .from('pick_lists')
-      .select('*, commerce_orders(order_name, shopify_order_id, oms_status, is_cod)')
+      .select('*, commerce_orders(order_name, shopify_order_id, oms_status, is_cod), pick_list_lines(id)')
       .order('created_at', { ascending: false })
       .limit(opts?.limit ?? 50);
     if (opts?.status) q = q.eq('status', opts.status);

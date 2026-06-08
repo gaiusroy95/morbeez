@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 import {
   CropBlockFields,
   blockFromApi,
@@ -173,13 +174,12 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
                 <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
               </Field>
               <Field label="Language">
-                <select className={inputClass} value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  {LANGS.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.label}
-                    </option>
-                  ))}
-                </select>
+                <SearchSelect
+                  className={inputClass}
+                  value={language}
+                  onChange={setLanguage}
+                  options={LANGS.map((l) => ({ value: l.id, label: l.label }))}
+                />
               </Field>
               <Field label="Pincode">
                 <input

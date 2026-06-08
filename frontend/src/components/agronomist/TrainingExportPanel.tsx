@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getToken } from '../../lib/api';
-import { Alert, Loading } from '../ui';
+import { Alert, Loading, SearchSelect } from '../ui';
 import '../../styles/training-export.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -179,15 +179,18 @@ export function TrainingExportPanel({ canWrite }: { canWrite: boolean }) {
             Export labeled corrections, crop images, and outcome samples for model training and QA.
           </p>
         </div>
-        <label className="te-period">
-          Period
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-            <option value={90}>90 days</option>
-            <option value={180}>180 days</option>
-          </select>
-        </label>
+        <SearchSelect
+          label="Period"
+          className="te-period"
+          value={String(days)}
+          onChange={(value) => setDays(Number(value))}
+          options={[
+            { value: '7', label: '7 days' },
+            { value: '30', label: '30 days' },
+            { value: '90', label: '90 days' },
+            { value: '180', label: '180 days' },
+          ]}
+        />
       </header>
 
       {error ? <Alert variant="error">{error}</Alert> : null}

@@ -9,7 +9,7 @@ import {
   Filler,
   Tooltip,
 } from 'chart.js';
-import { PageShell } from '../components/ui';
+import { PageShell, SearchSelect } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { canManageStaff } from '../lib/role-home';
@@ -262,10 +262,15 @@ export function DashboardPage() {
         <section className="card card-chart">
           <div className="card-head">
             <h3>Sales Overview</h3>
-            <select className="card-select" aria-label="Chart range" defaultValue="week">
-              <option value="week">This Week</option>
-              <option value="month">This Month</option>
-            </select>
+            <SearchSelect
+              className="card-select"
+              value="week"
+              onChange={() => {}}
+              options={[
+                { value: 'week', label: 'This Week' },
+                { value: 'month', label: 'This Month' },
+              ]}
+            />
           </div>
           <div className="chart-wrap">
             <canvas ref={canvasRef} height={280} />

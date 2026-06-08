@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, TableWrap, inputClass } from '../ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
 
@@ -133,8 +133,31 @@ export function WarehouseOmsPanel({
   }
 
   async function confirmOrder(id: string) {
-    await api(`${WMS_API}/orders/${id}/confirm`, { method: 'POST' });
-    await load();
+    try {
+      await api(`${WMS_API}/orders/${id}/confirm`, { method: 'POST' });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Confirm failed');
+    }
+  }
+
+  async function rebuildPickList(pickListId: string) {
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const d = await api<{ ok: boolean; pickList: PickList }>(
+        `${WMS_API}/pick-lists/${pickListId}/rebuild`,
+        { method: 'POST' }
+      );
+      setSuccess('Pick list rebuilt from warehouse stock');
+      await load();
+      await openPick(d.pickList.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not rebuild pick list');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function resyncQuote(quoteId: string) {
@@ -326,17 +349,15 @@ export function WarehouseOmsPanel({
       <Panel
         title="OMS orders"
         actions={
-          <select
+          <SearchSelect
             className={inputClass}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            {OMS_STATUSES.map((s) => (
-              <option key={s || 'all'} value={s}>
-                {s || 'All statuses'}
-              </option>
-            ))}
-          </select>
+            onChange={setStatusFilter}
+            options={OMS_STATUSES.map((s) => ({
+              value: s,
+              label: s || 'All statuses',
+            }))}
+          />
         }
       >
         {orders.length === 0 ? <EmptyState>No orders in WMS yet.</EmptyState> : null}
@@ -424,6 +445,27 @@ export function WarehouseOmsPanel({
             </Btn>
           }
         >
+          {!selectedPick.pick_list_lines?.length ? (
+            <Alert tone="warn">
+              This pick list has <strong>0 lines</strong> because no warehouse stock was reserved when the
+              order was confirmed. Common causes: no GRN stock for the order SKUs, SKU mismatch, or order
+              lines not synced. Receive stock under <strong>Purchase &amp; GRN</strong>, then rebuild.
+              {canWrite ? (
+                <>
+                  {' '}
+                  <Btn
+                    size="sm"
+                    variant="secondary"
+                    disabled={busy}
+                    onClick={() => void rebuildPickList(selectedPick.id)}
+                  >
+                    Rebuild pick list
+                  </Btn>
+                </>
+              ) : null}
+            </Alert>
+          ) : null}
+
           {canWrite ? (
             <div className="warehouse-pick-toolbar">
               <input

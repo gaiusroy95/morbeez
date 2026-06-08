@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 import { api } from '../../lib/api';
 import { WMS_API } from './warehouse-api';
 import '../../styles/dynamic-master-picker.css';
@@ -53,6 +54,7 @@ export function WarehouseProductPicker({
   compact = false,
   placeholder = 'Select…',
 }: Props) {
+  const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [newTitle, setNewTitle] = useState('');
@@ -123,44 +125,50 @@ export function WarehouseProductPicker({
     }
   }
 
-  async function handleSaveEdit(id: string) {
+  function handleSaveEdit(id: string, itemLabel: string) {
     const title = editTitle.trim();
     const sku = editSku.trim();
-    if (!title || !sku) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api<{ ok: boolean; item: ApiItem }>(`${WMS_API}/inventory-items/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ sku, productTitle: title }),
-      });
-      const row = toRow(res.item);
-      onItemsChange(items.map((item) => (item.inventoryItemId === id ? row : item)));
-      setEditingId(null);
-      if (value === id) emit(row);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not update product');
-    } finally {
-      setBusy(false);
-    }
+    if (!title || !sku || !canEditDelete) return;
+    requestConfirm('edit', itemLabel, async (confirmPassword) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const res = await api<{ ok: boolean; item: ApiItem }>(`${WMS_API}/inventory-items/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ sku, productTitle: title, confirmPassword }),
+        });
+        const row = toRow(res.item);
+        onItemsChange(items.map((item) => (item.inventoryItemId === id ? row : item)));
+        setEditingId(null);
+        if (value === id) emit(row);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not update product');
+        throw err;
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
-  async function handleDelete(id: string) {
-    if (!allowManage) return;
-    if (!window.confirm('Remove this product from the list? It will be hidden from future GRN lines.')) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    try {
-      await api(`${WMS_API}/inventory-items/${id}`, { method: 'DELETE' });
-      onItemsChange(items.filter((item) => item.inventoryItemId !== id));
-      if (value === id) emit(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete product');
-    } finally {
-      setBusy(false);
-    }
+  function handleDelete(id: string, itemLabel: string) {
+    if (!allowManage || !canEditDelete) return;
+    requestConfirm('delete', itemLabel, async (confirmPassword) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await api(`${WMS_API}/inventory-items/${id}`, {
+          method: 'DELETE',
+          body: JSON.stringify({ confirmPassword }),
+        });
+        onItemsChange(items.filter((item) => item.inventoryItemId !== id));
+        if (value === id) emit(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not delete product');
+        throw err;
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
   function startEdit(item: WarehouseInventoryItem) {
@@ -170,6 +178,7 @@ export function WarehouseProductPicker({
   }
 
   return (
+    <>
     <div
       ref={rootRef}
       className={`dmp-root ${open ? 'dmp-root--open' : ''} ${compact ? 'dmp-root--compact' : ''}`.trim()}
@@ -246,7 +255,7 @@ export function WarehouseProductPicker({
                             type="button"
                             className="dmp-btn dmp-btn--primary"
                             disabled={busy}
-                            onClick={() => void handleSaveEdit(item.inventoryItemId)}
+                            onClick={() => handleSaveEdit(item.inventoryItemId, labelFor(item))}
                           >
                             Save
                           </button>
@@ -274,7 +283,7 @@ export function WarehouseProductPicker({
                         >
                           {labelFor(item)}
                         </button>
-                        {allowManage && !disabled ? (
+                        {allowManage && canEditDelete && !disabled ? (
                           <span className="dmp-row-actions">
                             <button
                               type="button"
@@ -297,7 +306,7 @@ export function WarehouseProductPicker({
                               disabled={busy}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void handleDelete(item.inventoryItemId);
+                                handleDelete(item.inventoryItemId, labelFor(item));
                               }}
                             >
                               🗑
@@ -347,5 +356,7 @@ export function WarehouseProductPicker({
         </div>
       ) : null}
     </div>
+    {confirmModal}
+    </>
   );
 }

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInrFull } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Badge, Btn, Loading, Panel, TableWrap, DataTable } from '../ui';
+import { Badge, Btn, DataTable, Loading, Panel, SearchSelect, TableWrap } from '../ui';
 import '../../styles/super-admin-monitor.css';
 
 type AlertAction = {
@@ -508,14 +508,18 @@ export function SuperAdminMonitorDashboard() {
           </div>
           <div className="sam-ad-spend-form">
             <span className="sam-ad-spend-label">Log ad spend</span>
-            <select value={adChannel} onChange={(e) => setAdChannel(e.target.value)}>
-              <option value="meta">Meta</option>
-              <option value="google">Google</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="field">Field</option>
-              <option value="general">General</option>
-              <option value="other">Other</option>
-            </select>
+            <SearchSelect
+              value={adChannel}
+              onChange={setAdChannel}
+              options={[
+                { value: 'meta', label: 'Meta' },
+                { value: 'google', label: 'Google' },
+                { value: 'whatsapp', label: 'WhatsApp' },
+                { value: 'field', label: 'Field' },
+                { value: 'general', label: 'General' },
+                { value: 'other', label: 'Other' },
+              ]}
+            />
             <input
               type="number"
               min={1}

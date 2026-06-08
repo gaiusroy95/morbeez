@@ -12,9 +12,27 @@ export interface InventoryRow {
     variant: string;
     batchNo: string;
     expiryDate: string;
+    mfgDate: string;
     stock: number;
     status: 'in_stock' | 'low_stock' | 'out_of_stock';
     unitValueInr: number;
+}
+export interface CommerceStockBatch {
+    id: string;
+    batchCode: string;
+    mfgDate: string | null;
+    expiryDate: string | null;
+    qty: number;
+}
+export interface InventoryVariantDetail {
+    productId: string;
+    variantId: string;
+    title: string;
+    variant: string;
+    sku: string;
+    barcode: string | null;
+    currentStock: number;
+    batches: CommerceStockBatch[];
 }
 export declare const inventoryAdminService: {
     list(query: InventoryListQuery): Promise<{
@@ -31,6 +49,26 @@ export declare const inventoryAdminService: {
             total: number;
             pages: number;
         };
+    }>;
+    lookup(input: {
+        sku?: string;
+        barcode?: string;
+        variantId?: string;
+        productId?: string;
+    }): Promise<InventoryVariantDetail>;
+    addIncomingStock(input: {
+        variantId: string;
+        batchCode: string;
+        mfgDate?: string | null;
+        expiryDate?: string | null;
+        qty: number;
+        actorEmail?: string;
+    }): Promise<{
+        productId: string;
+        variantId: string;
+        batchCode: string;
+        addedQty: number;
+        totalBalance: number;
     }>;
 };
 //# sourceMappingURL=inventory-admin.service.d.ts.map

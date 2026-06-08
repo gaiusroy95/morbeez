@@ -1,6 +1,7 @@
 import { UNITS } from '../constants';
 import { emptyVariant } from '../state';
-import { WizardField, pwInputClass, pwSelectClass } from '../WizardField';
+import { WizardField, pwInputClass } from '../WizardField';
+import { SearchSelect } from '../../../ui';
 import type { WizardFormState, WizardVariant } from '../types';
 
 type Props = {
@@ -49,17 +50,13 @@ export function Step2VariantsPricing({ state, onChange }: Props) {
                   />
                 </td>
                 <td>
-                  <select
+                  <SearchSelect
                     className="pw-table-input"
+                    compact
                     value={v.unit}
-                    onChange={(e) => patchVariant(idx, { unit: e.target.value })}
-                  >
-                    {UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(value) => patchVariant(idx, { unit: value })}
+                    options={UNITS.map((u) => ({ value: u, label: u }))}
+                  />
                 </td>
                 <td>
                   <input

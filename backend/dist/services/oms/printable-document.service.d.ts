@@ -110,10 +110,12 @@ export declare const printableDocumentService: {
             orderId: any;
             awbCode: any;
             courierName: any;
+            dispatchRack: any;
             deliveryAddress: string[];
             contactNumber: any;
             codAmount: number;
             barcodePayload: string | null;
+            shiprocketLabelUrl: string | null;
             printedAt: string;
         };
     } | {
@@ -215,10 +217,12 @@ export declare const printableDocumentService: {
         orderId: any;
         awbCode: any;
         courierName: any;
+        dispatchRack: any;
         deliveryAddress: string[];
         contactNumber: any;
         codAmount: number;
         barcodePayload: string | null;
+        shiprocketLabelUrl: string | null;
         printedAt: string;
     }>;
     buildReturnInspection(returnId: string): Promise<{

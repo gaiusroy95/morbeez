@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { SearchSelect } from '../../ui';
 import {
   LEAD_QUEUE_COLUMNS,
   VIEW_PRESETS,
@@ -50,26 +51,21 @@ export function LeadQueueColumnManager({
       </div>
 
       <div className="tc-lq-view-row">
-        <label className="tc-lq-view-label">
-          Saved view
-          <select
-            className="tc-filter-select"
-            value={activeViewName === 'active' ? '' : activeViewName}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) onLoadView(v);
-            }}
-          >
-            <option value="">Last session</option>
-            {savedViews
+        <SearchSelect
+          label="Saved view"
+          className="tc-filter-select"
+          value={activeViewName === 'active' ? '' : activeViewName}
+          onChange={(v) => {
+            if (v) onLoadView(v);
+          }}
+          options={[
+            { value: '', label: 'Last session' },
+            ...savedViews
               .filter((v) => v.viewName !== 'active')
-              .map((v) => (
-                <option key={v.viewName} value={v.viewName}>
-                  {v.viewName}
-                </option>
-              ))}
-          </select>
-        </label>
+              .map((v) => ({ value: v.viewName, label: v.viewName })),
+          ]}
+          compact
+        />
         <div className="tc-lq-preset-btns">
           {(Object.keys(VIEW_PRESETS) as ViewPresetId[]).map((id) => (
             <button key={id} type="button" className="tc-lq-chip" onClick={() => onApplyPreset(id)}>

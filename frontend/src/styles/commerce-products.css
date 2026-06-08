@@ -485,9 +485,42 @@
   background: #fff;
 }
 
+.commerce-products__footer-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
 .commerce-products__footer-meta {
   font-size: 0.8125rem;
   color: var(--cp-muted);
+}
+
+.commerce-products__page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--cp-muted);
+}
+
+.commerce-products__page-size-select {
+  min-width: 72px;
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--cp-border);
+  border-radius: 6px;
+  background: #fff;
+  font-size: 0.8125rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.commerce-products__page-size-select:hover,
+.commerce-products__page-size-select:focus {
+  border-color: var(--cp-green);
+  outline: none;
 }
 
 .commerce-products__pagination {

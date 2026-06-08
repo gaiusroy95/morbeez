@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useSuperAdminConfirm } from '../hooks/useSuperAdminConfirm';
 import { useCrmMasters } from '../lib/useCrmMasters';
 import {
   itemMatchesCropSlug,
@@ -10,17 +11,20 @@ import {
 } from '../lib/master-picker-utils';
 import '../styles/dynamic-master-picker.css';
 
-export type DynamicMasterPickerType = 'crop' | 'market' | 'pest' | 'disease';
+export type DynamicMasterPickerType = 'crop' | 'market' | 'pest' | 'disease' | (string & {});
 
-function addFieldPlaceholder(masterType: DynamicMasterPickerType): string {
+function addFieldPlaceholder(masterType: string): string {
   if (masterType === 'market') return 'Market name';
   if (masterType === 'crop') return 'Crop name';
   if (masterType === 'pest') return 'Pest name';
-  return 'Disease name';
+  if (masterType === 'disease') return 'Disease name';
+  const label = masterType.replace(/_/g, ' ');
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)} name`;
 }
 
 type BaseProps = {
   masterType: DynamicMasterPickerType;
+  parentId?: string | null;
   label: string;
   allowManage?: boolean;
   apiBase?: string;
@@ -62,6 +66,7 @@ function filterItems(items: MasterPickerItem[], query: string) {
 export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
   const {
     masterType,
+    parentId = null,
     label,
     allowManage = true,
     apiBase,
@@ -74,9 +79,10 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
 
   const { items, loading, createMaster, updateMaster, deleteMaster } = useCrmMasters(
     masterType,
-    null,
+    parentId,
     { apiBase }
   );
+  const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -182,45 +188,54 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
     }
   }
 
-  async function handleSaveEdit(id: string) {
+  function handleSaveEdit(id: string, itemLabel: string) {
     const name = editName.trim();
-    if (!name) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const item = await updateMaster(id, {
-        name,
-        category: masterType === 'market' ? editDistrict.trim() || undefined : undefined,
-      });
-      setEditingId(null);
-      if (!props.multiple && props.value === id) emitSingle(item);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not update option');
-    } finally {
-      setBusy(false);
-    }
+    if (!name || !canEditDelete) return;
+    requestConfirm('edit', itemLabel, async (confirmPassword) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const item = await updateMaster(
+          id,
+          {
+            name,
+            category: masterType === 'market' ? editDistrict.trim() || undefined : undefined,
+          },
+          confirmPassword
+        );
+        setEditingId(null);
+        if (!props.multiple && props.value === id) emitSingle(item);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not update option');
+        throw err;
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
-  async function handleDelete(id: string) {
-    if (!allowManage) return;
-    if (!window.confirm('Remove this option? It will be hidden from future selections.')) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await deleteMaster(id);
-      if (!props.multiple && props.value === id) emitSingle(null);
-      if (props.multiple) {
-        const removed = items.find((item) => item.id === id);
-        if (removed) {
-          const key = marketKeyFromItem(removed);
-          props.onChange(props.value.filter((k) => k !== key));
+  function handleDelete(id: string, itemLabel: string) {
+    if (!allowManage || !canEditDelete) return;
+    requestConfirm('delete', itemLabel, async (confirmPassword) => {
+      setBusy(true);
+      setError(null);
+      try {
+        await deleteMaster(id, confirmPassword);
+        if (!props.multiple && props.value === id) emitSingle(null);
+        if (props.multiple) {
+          const removed = items.find((item) => item.id === id);
+          if (removed) {
+            const key = marketKeyFromItem(removed);
+            props.onChange(props.value.filter((k) => k !== key));
+          }
         }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Could not delete option');
+        throw err;
+      } finally {
+        setBusy(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not delete option');
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   function startEdit(item: MasterPickerItem) {
@@ -247,6 +262,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
   }
 
   return (
+    <>
     <div
       ref={rootRef}
       className={`dmp-root ${open ? 'dmp-root--open' : ''} ${className ?? ''}`.trim()}
@@ -323,7 +339,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
                             type="button"
                             className="dmp-btn dmp-btn--primary"
                             disabled={busy}
-                            onClick={() => void handleSaveEdit(item.id)}
+                            onClick={() => handleSaveEdit(item.id, labelFromMasterItem(item))}
                           >
                             Save
                           </button>
@@ -351,7 +367,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
                           ) : null}
                           {labelFromMasterItem(item)}
                         </button>
-                        {allowManage ? (
+                        {allowManage && canEditDelete ? (
                           <span className="dmp-row-actions">
                             <button
                               type="button"
@@ -374,7 +390,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
                               disabled={busy}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                void handleDelete(item.id);
+                                handleDelete(item.id, labelFromMasterItem(item));
                               }}
                             >
                               🗑
@@ -429,6 +445,8 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
         </div>
       ) : null}
     </div>
+    {confirmModal}
+    </>
   );
 }
 

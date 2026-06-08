@@ -48,7 +48,8 @@ export const shiprocketAdminService = {
     return {
       configured: Boolean(env.SHIPROCKET_EMAIL?.trim() && env.SHIPROCKET_PASSWORD?.trim()),
       autoShipEnabled: env.ENABLE_SHIPROCKET_AUTO_SHIP,
-      shipAfterPackEnabled: env.ENABLE_SHIPROCKET_AFTER_PACK !== false,
+      shipOnConfirmEnabled: env.ENABLE_SHIPROCKET_ON_CONFIRM !== false,
+      shipAfterPackEnabled: env.ENABLE_SHIPROCKET_AFTER_PACK,
       dashboardUrl: 'https://app.shiprocket.in/',
       webhookPath,
       webhookUrl: apiBase ? `${apiBase}${webhookPath}` : null,

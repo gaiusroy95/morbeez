@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Loading } from '../ui';
+import { Alert, Loading, SearchSelect } from '../ui';
 import '../../styles/follow-up-kpi.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -64,14 +64,17 @@ export function FollowUpKpiPanel() {
             uncertain cases.
           </p>
         </div>
-        <label className="fu-kpi-period">
-          <span>Period</span>
-          <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
-            <option value={7}>7 days</option>
-            <option value={30}>30 days</option>
-            <option value={90}>90 days</option>
-          </select>
-        </label>
+        <SearchSelect
+          label="Period"
+          className="fu-kpi-period"
+          value={String(days)}
+          onChange={(value) => setDays(Number(value))}
+          options={[
+            { value: '7', label: '7 days' },
+            { value: '30', label: '30 days' },
+            { value: '90', label: '90 days' },
+          ]}
+        />
       </div>
 
       {error ? <Alert tone="error">{error}</Alert> : null}

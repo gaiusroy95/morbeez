@@ -70,11 +70,16 @@ const envSchema = z.object({
         .string()
         .transform((v) => v === 'true')
         .default('false'),
-    /** Ship only after warehouse pack verification (recommended with WMS). */
-    ENABLE_SHIPROCKET_AFTER_PACK: z
+    /** Create Shiprocket order + AWB when warehouse confirms (recommended). */
+    ENABLE_SHIPROCKET_ON_CONFIRM: z
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** Legacy: ship only after pack if AWB was not created on confirm. */
+    ENABLE_SHIPROCKET_AFTER_PACK: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
     /** Auto-confirm orders and reserve stock on create/paid. */
     ENABLE_OMS_AUTO_CONFIRM: z
         .string()

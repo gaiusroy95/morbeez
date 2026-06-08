@@ -86,7 +86,44 @@ async function setAvailable(inventoryItemId: number, available: number): Promise
   });
 }
 
+async function getAvailable(inventoryItemId: number): Promise<number> {
+  const locationId = await getPrimaryLocationId();
+  await connectInventoryItem(inventoryItemId, locationId);
+  const res = await shopifyAdmin<{
+    inventory_levels: Array<{ available: number }>;
+  }>(
+    `/inventory_levels.json?inventory_item_ids=${inventoryItemId}&location_ids=${locationId}`
+  );
+  return res.inventory_levels?.[0]?.available ?? 0;
+}
+
 export const shopifyInventoryService = {
+  async getVariantStock(variantId: number): Promise<number> {
+    const itemId = await ensureVariantTracksInventory(variantId);
+    return getAvailable(itemId);
+  },
+
+  async adjustVariantStock(variantId: number, adjustment: number): Promise<number> {
+    const delta = Math.floor(adjustment);
+    if (!delta) {
+      return this.getVariantStock(variantId);
+    }
+    const itemId = await ensureVariantTracksInventory(variantId);
+    const locationId = await getPrimaryLocationId();
+    await connectInventoryItem(itemId, locationId);
+    const res = await shopifyAdmin<{
+      inventory_level: { available: number };
+    }>('/inventory_levels/adjust.json', {
+      method: 'POST',
+      body: JSON.stringify({
+        location_id: locationId,
+        inventory_item_id: itemId,
+        available_adjustment: delta,
+      }),
+    });
+    return res.inventory_level?.available ?? 0;
+  },
+
   async setVariantStock(variantId: number, stock: number): Promise<void> {
     const itemId = await ensureVariantTracksInventory(variantId);
     await setAvailable(itemId, stock);

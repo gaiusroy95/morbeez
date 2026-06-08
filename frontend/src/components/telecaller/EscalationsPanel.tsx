@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { SearchSelect } from '../ui';
 import { EscalationDetailModal, type EscalationListRow } from './EscalationDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -76,17 +77,12 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
             Click a case to review, comment, and update status.
           </p>
         </div>
-        <select
+        <SearchSelect
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          {STATUS_FILTERS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+          onChange={setStatusFilter}
+          options={STATUS_FILTERS}
+        />
       </div>
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}

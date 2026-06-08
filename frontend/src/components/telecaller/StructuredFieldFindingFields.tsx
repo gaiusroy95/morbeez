@@ -1,5 +1,6 @@
 import { DiagnosisLabelPicker } from '../agronomist/DiagnosisLabelPicker';
 import { Field, inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 import {
   FINDING_TYPES,
   FINDING_TYPE_LABELS,
@@ -43,19 +44,16 @@ export function StructuredFieldFindingFields({
   return (
     <div className="tc-structured-finding space-y-3">
       <Field label="Finding type *">
-        <select
+        <SearchSelect
           className={inputClass}
           value={values.findingType}
           disabled={disabled}
-          onChange={(e) => onChange({ findingType: e.target.value as FindingType | '' })}
-        >
-          <option value="">— Select type —</option>
-          {FINDING_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {FINDING_TYPE_LABELS[t]}
-            </option>
-          ))}
-        </select>
+          onChange={(value) => onChange({ findingType: value as FindingType | '' })}
+          options={[
+            { value: '', label: '— Select type —' },
+            ...FINDING_TYPES.map((t) => ({ value: t, label: FINDING_TYPE_LABELS[t] })),
+          ]}
+        />
       </Field>
 
       <Field label="Severity *">

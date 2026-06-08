@@ -64,7 +64,9 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX: z.ZodDefault<z.ZodNumber>;
     RATE_LIMIT_WINDOW_MS: z.ZodDefault<z.ZodNumber>;
     ENABLE_SHIPROCKET_AUTO_SHIP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
-    /** Ship only after warehouse pack verification (recommended with WMS). */
+    /** Create Shiprocket order + AWB when warehouse confirms (recommended). */
+    ENABLE_SHIPROCKET_ON_CONFIRM: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Legacy: ship only after pack if AWB was not created on confirm. */
     ENABLE_SHIPROCKET_AFTER_PACK: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Auto-confirm orders and reserve stock on create/paid. */
     ENABLE_OMS_AUTO_CONFIRM: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
@@ -151,6 +153,7 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
+    ENABLE_SHIPROCKET_ON_CONFIRM: boolean;
     ENABLE_SHIPROCKET_AFTER_PACK: boolean;
     ENABLE_OMS_AUTO_CONFIRM: boolean;
     COMPANY_STATE: string;
@@ -295,6 +298,7 @@ declare const envSchema: z.ZodObject<{
     RATE_LIMIT_MAX?: number | undefined;
     RATE_LIMIT_WINDOW_MS?: number | undefined;
     ENABLE_SHIPROCKET_AUTO_SHIP?: string | undefined;
+    ENABLE_SHIPROCKET_ON_CONFIRM?: string | undefined;
     ENABLE_SHIPROCKET_AFTER_PACK?: string | undefined;
     ENABLE_OMS_AUTO_CONFIRM?: string | undefined;
     COMPANY_GSTIN?: string | undefined;
@@ -371,6 +375,7 @@ export declare const env: {
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
+    ENABLE_SHIPROCKET_ON_CONFIRM: boolean;
     ENABLE_SHIPROCKET_AFTER_PACK: boolean;
     ENABLE_OMS_AUTO_CONFIRM: boolean;
     COMPANY_STATE: string;

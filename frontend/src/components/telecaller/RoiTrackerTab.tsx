@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { SearchSelect } from '../ui';
 
 type RoiEntry = {
   id: string;
@@ -186,17 +187,12 @@ export function RoiTrackerTab({ leadId, canWrite }: Props) {
             </label>
             <label className="text-sm">
               Category
-              <select
+              <SearchSelect
                 className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5"
                 value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategory}
+                options={CATEGORIES.map((c) => ({ value: c, label: c }))}
+              />
             </label>
             <label className="text-sm sm:col-span-2">
               Comments

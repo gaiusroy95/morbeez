@@ -5,7 +5,7 @@ import { defaultsForPage } from '../lib/console-page-search';
 import { matchesSearch } from '../lib/search-filter';
 import { PincodeLookupPage } from './PincodeLookupPage';
 import { Field, Modal, inputClass } from '../components/Modal';
-import { Alert, HubTabs, PageShell, ReadOnlyBanner } from '../components/ui';
+import { Alert, HubTabs, PageShell, ReadOnlyBanner, SearchSelect } from '../components/ui';
 
 const base = '/morbeez-staff/api/v1/os/intelligence';
 const CROPS = ['ginger', 'banana', 'cardamom', 'pepper', 'tomato', 'chilli', 'brinjal', 'all'];
@@ -147,18 +147,15 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
       {tab !== 'pincode' && tab !== 'spray' ? (
         <div className="mt-4 flex items-center gap-2">
           <label className="text-sm text-slate-600">Crop filter</label>
-          <select
+          <SearchSelect
             className="rounded border border-slate-200 px-2 py-1 text-sm"
             value={cropFilter}
-            onChange={(e) => setCropFilter(e.target.value)}
-          >
-            <option value="">All crops</option>
-            {CROPS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+            onChange={setCropFilter}
+            options={[
+              { value: '', label: 'All crops' },
+              ...CROPS.map((c) => ({ value: c, label: c })),
+            ]}
+          />
           {canWrite ? (
             <button
               type="button"
@@ -524,13 +521,12 @@ function IntelligenceFormModal({
               <input className={inputClass} value={f.cropType} onChange={(e) => setF({ ...f, cropType: e.target.value })} />
             </Field>
             <Field label="Action type">
-              <select className={inputClass} value={f.actionType} onChange={(e) => setF({ ...f, actionType: e.target.value })}>
-                {['block_action', 'recommend_task', 'warn'].map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                className={inputClass}
+                value={f.actionType}
+                onChange={(value) => setF({ ...f, actionType: value })}
+                options={['block_action', 'recommend_task', 'warn'].map((a) => ({ value: a, label: a }))}
+              />
             </Field>
             <Field label="Condition JSON">
               <textarea className={inputClass} rows={2} value={f.conditionJson} onChange={(e) => setF({ ...f, conditionJson: e.target.value })} />
@@ -539,13 +535,12 @@ function IntelligenceFormModal({
               <textarea className={inputClass} rows={2} value={f.actionPayload} onChange={(e) => setF({ ...f, actionPayload: e.target.value })} />
             </Field>
             <Field label="Status">
-              <select className={inputClass} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-                {['draft', 'approved', 'archived'].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                className={inputClass}
+                value={f.status}
+                onChange={(value) => setF({ ...f, status: value })}
+                options={['draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
+              />
             </Field>
           </>
         ) : null}
@@ -591,13 +586,12 @@ function IntelligenceFormModal({
               <textarea className={inputClass} rows={2} value={f.products} onChange={(e) => setF({ ...f, products: e.target.value })} />
             </Field>
             <Field label="Status">
-              <select className={inputClass} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>
-                {['draft', 'approved', 'archived'].map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+              <SearchSelect
+                className={inputClass}
+                value={f.status}
+                onChange={(value) => setF({ ...f, status: value })}
+                options={['draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
+              />
             </Field>
           </>
         ) : null}
@@ -610,10 +604,15 @@ function IntelligenceFormModal({
               <input className={inputClass} value={f.productB} onChange={(e) => setF({ ...f, productB: e.target.value })} />
             </Field>
             <Field label="Compatible">
-              <select className={inputClass} value={f.compatible} onChange={(e) => setF({ ...f, compatible: e.target.value })}>
-                <option value="true">Yes</option>
-                <option value="false">No</option>
-              </select>
+              <SearchSelect
+                className={inputClass}
+                value={f.compatible}
+                onChange={(value) => setF({ ...f, compatible: value })}
+                options={[
+                  { value: 'true', label: 'Yes' },
+                  { value: 'false', label: 'No' },
+                ]}
+              />
             </Field>
             <Field label="Min interval (hours)">
               <input className={inputClass} value={f.interval} onChange={(e) => setF({ ...f, interval: e.target.value })} />

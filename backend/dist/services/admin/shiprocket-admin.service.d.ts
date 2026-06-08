@@ -2,6 +2,7 @@ export declare const shiprocketAdminService: {
     getOverview(): {
         configured: boolean;
         autoShipEnabled: boolean;
+        shipOnConfirmEnabled: boolean;
         shipAfterPackEnabled: boolean;
         dashboardUrl: string;
         webhookPath: string;

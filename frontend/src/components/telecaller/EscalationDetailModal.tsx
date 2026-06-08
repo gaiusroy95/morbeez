@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import { SearchSelect } from '../ui';
 
 export type EscalationListRow = {
   id: string;
@@ -232,21 +233,16 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
           {canWrite ? (
             <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
               <Field label="Status">
-                <select
+                <SearchSelect
                   className={inputClass}
                   value={workflowStatus}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setWorkflowStatus(
-                      e.target.value as 'pending' | 'agronomist_review' | 'completed'
+                      value as 'pending' | 'agronomist_review' | 'completed'
                     )
                   }
-                >
-                  {WORKFLOW_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                  options={WORKFLOW_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                />
               </Field>
               <p className="text-xs text-slate-600">
                 Set <strong>Needs agronomist review</strong> when the case should be reviewed by an

@@ -1,5 +1,5 @@
 import type { ShopifyOrder } from '../shopify/shopify.client.js';
-export type OmsStatus = 'pending' | 'confirmed' | 'picking' | 'packed' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'returned';
+export type OmsStatus = 'pending' | 'confirmed' | 'awb_generated' | 'picking' | 'packed' | 'ready_dispatch' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'returned';
 export declare const omsWorkflowService: {
     onOrderPlaced(shopifyOrderId: string, order?: ShopifyOrder): Promise<void>;
     confirmOrder(commerceOrderId: string): Promise<any>;
@@ -20,6 +20,11 @@ export declare const omsWorkflowService: {
         is_cod: any;
         total_amount: any;
         created_at: any;
+        courier_name: any;
+        tracking_awb: any;
+        fulfillment_priority: any;
+        label_url: any;
+        dispatch_rack: any;
     }[]>;
 };
 //# sourceMappingURL=workflow.service.d.ts.map

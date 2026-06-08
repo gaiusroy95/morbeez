@@ -50,6 +50,10 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { logAdminMutation } from '../../lib/admin-mutation-audit.js';
 import { assertSuperAdminDeactivationAllowed } from '../../lib/admin-guards.js';
+import {
+  assertSuperAdminPasswordConfirm,
+  confirmPasswordSchema,
+} from '../../lib/super-admin-password.js';
 import { employeeProfileService } from '../../services/admin/employee-profile.service.js';
 import { staffInviteService } from '../../services/admin/staff-invite.service.js';
 import { staffPasswordService } from '../../services/admin/staff-password.service.js';
@@ -1851,7 +1855,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.patch(`${api}/crm/masters/:id`, async (request, reply) => {
-    requireAdminRole(request, 'admin', 'manager');
+    const actor = requireAdmin(request);
     const { id } = request.params as { id: string };
     const body = z
       .object({
@@ -1859,15 +1863,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         active: z.boolean().optional(),
         description: z.string().optional(),
         category: z.string().max(120).nullable().optional(),
+        confirmPassword: confirmPasswordSchema,
       })
       .parse(request.body);
-    const item = await crmFarmerService.updateMaster(id, body);
+    const { confirmPassword, ...patch } = body;
+    await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+    const item = await crmFarmerService.updateMaster(id, patch);
     return reply.send({ ok: true, item });
   });
 
   app.delete(`${api}/crm/masters/:id`, async (request, reply) => {
-    requireAdminRole(request, 'admin', 'manager');
+    const actor = requireAdmin(request);
     const { id } = request.params as { id: string };
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
     const item = await crmFarmerService.updateMaster(id, { active: false });
     return reply.send({ ok: true, item });
   });
@@ -2357,6 +2366,50 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...result });
   });
 
+  app.get(`${api}/inventory/lookup`, async (request, reply) => {
+    requireAdmin(request);
+    const q = request.query as {
+      sku?: string;
+      barcode?: string;
+      variantId?: string;
+      productId?: string;
+    };
+    const detail = await inventoryAdminService.lookup({
+      sku: q.sku,
+      barcode: q.barcode,
+      variantId: q.variantId,
+      productId: q.productId,
+    });
+    return reply.send({ ok: true, detail });
+  });
+
+  app.post(`${api}/inventory/add-stock`, async (request, reply) => {
+    requireAdminRole(request, 'super_admin', 'admin', 'manager');
+    const actor = requireAdmin(request);
+    const body = z
+      .object({
+        variantId: z.string().min(1),
+        batchCode: z.string().min(1),
+        mfgDate: z.string().optional().nullable(),
+        expiryDate: z.string().optional().nullable(),
+        qty: z.number().positive(),
+      })
+      .parse(request.body);
+    const result = await inventoryAdminService.addIncomingStock({
+      ...body,
+      actorEmail: actor.email,
+    });
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'update',
+      resource: 'inventory',
+      resourceId: body.variantId,
+      details: { kind: 'add_stock', batchCode: body.batchCode, qty: body.qty },
+    });
+    return reply.send({ ok: true, ...result });
+  });
+
   app.get(`${api}/products/warehouse-options/warehouses`, async (request, reply) => {
     requireAdmin(request);
     const rows = await warehouseService.listWarehouses();
@@ -2402,7 +2455,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       q.stock === 'low' || q.stock === 'out' || q.stock === 'in' ? q.stock : undefined;
     const result = await shopifyProductsService.list({
       page: q.page ? Number(q.page) : 1,
-      limit: q.limit ? Number(q.limit) : 8,
+      limit: q.limit ? Number(q.limit) : 20,
       search: q.search,
       category: q.category,
       brand: q.brand,

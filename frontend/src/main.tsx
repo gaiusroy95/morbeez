@@ -16,6 +16,7 @@ import './styles/commerce-quotes.css';
 import './styles/estimate-detail.css';
 import './styles/company-settings.css';
 import './styles/product-wizard.css';
+import './styles/dynamic-master-picker.css';
 import App from './App.tsx';
 
 createRoot(document.getElementById('root')!).render(

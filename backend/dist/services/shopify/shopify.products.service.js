@@ -160,17 +160,20 @@ function uniqueBrands(products) {
     return [...set].sort((a, b) => a.localeCompare(b));
 }
 export const shopifyProductsService = {
+    invalidateCatalogCache() {
+        clearProductListCache();
+    },
     async count() {
         const res = await shopifyAdmin('/products/count.json');
         return res.count ?? 0;
     },
-    /** All products with every variant — for inventory grid (uses product list cache). */
+    /** Active/draft products with every variant — for inventory grid (uses product list cache). */
     async getInventoryCatalog(search) {
         const all = await fetchAllProducts(search);
-        return all.map(mapProduct);
+        return all.filter((p) => p.status !== 'archived').map(mapProduct);
     },
     async list(query) {
-        const limit = Math.min(100, Math.max(8, query.limit ?? 8));
+        const limit = Math.min(200, Math.max(1, query.limit ?? 20));
         const page = Math.max(1, query.page ?? 1);
         const catalog = await fetchAllProducts(query.search);
         const statsSource = catalog.filter((p) => p.status !== 'archived');

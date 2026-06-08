@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { assertModuleAccess } from '../../lib/rbac.js';
+import { assertSuperAdminPasswordConfirm, confirmPasswordSchema, } from '../../lib/super-admin-password.js';
 import { warehouseService } from '../../services/wms/warehouse.service.js';
 import { inventoryService } from '../../services/wms/inventory.service.js';
 import { purchaseService } from '../../services/wms/purchase.service.js';
@@ -17,6 +18,7 @@ import { employeeActionLogService } from '../../services/oms/employee-action-log
 import { manualOrderOmsService } from '../../services/oms/manual-order-oms.service.js';
 import { quoteOmsBridgeService } from '../../services/oms/quote-oms-bridge.service.js';
 import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
+import { fulfillmentService } from '../../services/oms/fulfillment.service.js';
 export async function osWarehouseRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/warehouse';
     // ─── Overview ─────────────────────────────────────────────────────────────
@@ -55,20 +57,25 @@ export async function osWarehouseRoutes(app) {
         return reply.send({ ok: true, warehouse });
     });
     app.patch(`${api}/warehouses/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
         const body = z
             .object({
             code: z.string().min(1).max(32).optional(),
             name: z.string().min(1).max(120).optional(),
+            confirmPassword: confirmPasswordSchema,
         })
             .parse(request.body);
-        const warehouse = await warehouseService.updateWarehouse(id, body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const warehouse = await warehouseService.updateWarehouse(id, patch);
         return reply.send({ ok: true, warehouse });
     });
     app.delete(`${api}/warehouses/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         await warehouseService.deactivateWarehouse(id);
         return reply.send({ ok: true });
     });
@@ -93,7 +100,7 @@ export async function osWarehouseRoutes(app) {
         return reply.send({ ok: true, location });
     });
     app.patch(`${api}/locations/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
         const body = z
             .object({
@@ -101,27 +108,37 @@ export async function osWarehouseRoutes(app) {
             shelf: z.string().optional(),
             bin: z.string().optional(),
             zone: z.string().optional(),
+            confirmPassword: confirmPasswordSchema,
         })
             .parse(request.body);
-        const location = await warehouseService.updateLocation(id, body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const location = await warehouseService.updateLocation(id, patch);
         return reply.send({ ok: true, location });
     });
     app.delete(`${api}/locations/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         await warehouseService.deactivateLocation(id);
         return reply.send({ ok: true });
     });
     app.patch(`${api}/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { warehouseId, rackName } = request.params;
-        const body = z.object({ newRack: z.string().min(1) }).parse(request.body);
+        const body = z
+            .object({ newRack: z.string().min(1), confirmPassword: confirmPasswordSchema })
+            .parse(request.body);
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         await warehouseService.renameRack(warehouseId, decodeURIComponent(rackName), body.newRack);
         return reply.send({ ok: true });
     });
     app.delete(`${api}/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { warehouseId, rackName } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         await warehouseService.deactivateRack(warehouseId, decodeURIComponent(rackName));
         return reply.send({ ok: true });
     });
@@ -157,20 +174,25 @@ export async function osWarehouseRoutes(app) {
         return reply.send({ ok: true, item });
     });
     app.patch(`${api}/inventory-items/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
         const body = z
             .object({
             sku: z.string().min(1).optional(),
             productTitle: z.string().min(1).optional(),
+            confirmPassword: confirmPasswordSchema,
         })
             .parse(request.body);
-        const item = await inventoryService.updateInventoryItem(id, body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const item = await inventoryService.updateInventoryItem(id, patch);
         return reply.send({ ok: true, item });
     });
     app.delete(`${api}/inventory-items/:id`, async (request, reply) => {
-        await assertModuleAccess(request, 'warehouse', 'write');
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         await inventoryService.deactivateInventoryItem(id);
         return reply.send({ ok: true });
     });
@@ -197,6 +219,12 @@ export async function osWarehouseRoutes(app) {
         await assertModuleAccess(request, 'warehouse', 'read');
         const orders = await purchaseService.listPurchaseOrders();
         return reply.send({ ok: true, orders });
+    });
+    app.get(`${api}/purchase-orders/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const { id } = request.params;
+        const purchaseOrder = await purchaseService.getPurchaseOrder(id);
+        return reply.send({ ok: true, purchaseOrder });
     });
     app.post(`${api}/purchase-orders`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
@@ -290,6 +318,12 @@ export async function osWarehouseRoutes(app) {
         await assertModuleAccess(request, 'warehouse', 'read');
         const { id } = request.params;
         const pickList = await pickListService.getPickList(id);
+        return reply.send({ ok: true, pickList });
+    });
+    app.post(`${api}/pick-lists/:id/rebuild`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const pickList = await pickListService.rebuildPickList(id, request.adminEmail);
         return reply.send({ ok: true, pickList });
     });
     app.post(`${api}/pick-lists/:id/lines/:lineId/pick`, async (request, reply) => {
@@ -387,6 +421,82 @@ export async function osWarehouseRoutes(app) {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
         const result = await dispatchService.confirmDispatch(id, request.adminEmail);
+        return reply.send(result);
+    });
+    // ─── Unified fulfillment ──────────────────────────────────────────────────
+    app.get(`${api}/fulfillment/stats`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const stats = await fulfillmentService.getStats();
+        return reply.send({ ok: true, stats });
+    });
+    app.get(`${api}/fulfillment/queue`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const q = request.query;
+        const queue = await fulfillmentService.getQueue({
+            limit: q.limit ? Number(q.limit) : undefined,
+        });
+        return reply.send({ ok: true, queue });
+    });
+    app.get(`${api}/fulfillment/orders/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const { id } = request.params;
+        const detail = await fulfillmentService.getOrderDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/fulfillment/orders/:id/generate-awb`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await fulfillmentService.provisionShipment(id, request.adminEmail);
+        return reply.send({ ok: true, shipment: result });
+    });
+    app.post(`${api}/fulfillment/orders/:id/pack-session`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const session = await fulfillmentService.ensurePackSessionForOrder(id);
+        return reply.send({ ok: true, session });
+    });
+    app.post(`${api}/fulfillment/pack-sessions/:id/scan`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ code: z.string().min(1) }).parse(request.body);
+        const result = await fulfillmentService.scan(id, body.code);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/orders/:id/mark-packed`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await fulfillmentService.markPackedForOrder(id, request.adminEmail);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/fulfillment/orders/:id/mark-label-printed`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await fulfillmentService.markLabelPrinted(id, request.adminEmail);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/orders/:id/dispatch-rack`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ rack: z.string().min(1) }).parse(request.body);
+        const result = await fulfillmentService.assignDispatchRack(id, body.rack);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/orders/:id/exception`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            type: z.enum([
+                'stock_missing',
+                'wrong_barcode',
+                'reprint_label',
+                'courier_failed',
+                'weight_mismatch',
+            ]),
+            note: z.string().optional(),
+        })
+            .parse(request.body);
+        const result = await fulfillmentService.reportException(id, body.type, body.note, request.adminEmail);
         return reply.send(result);
     });
     // ─── Invoices & quotations ────────────────────────────────────────────────

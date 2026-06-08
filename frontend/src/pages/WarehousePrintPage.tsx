@@ -264,7 +264,19 @@ function CourierLabelBody({
       <p className="warehouse-print-awb mono">{String(doc.awbCode ?? 'AWB pending')}</p>
       <p>
         <strong>{String(doc.courierName)}</strong>
+        {doc.dispatchRack ? (
+          <>
+            &nbsp;|&nbsp; Rack <strong>{String(doc.dispatchRack)}</strong>
+          </>
+        ) : null}
       </p>
+      {doc.shiprocketLabelUrl ? (
+        <p>
+          <a href={String(doc.shiprocketLabelUrl)} target="_blank" rel="noreferrer">
+            Open Shiprocket thermal label (PDF)
+          </a>
+        </p>
+      ) : null}
       <h3>Deliver to</h3>
       {addr.map((line, i) => (
         <p key={i}>{line}</p>

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { formatInr } from '../../lib/format';
-import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, TableWrap, inputClass } from '../ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 
 type ReturnRow = {
@@ -74,20 +74,21 @@ export function WarehouseReturnsPanel({ canWrite }: { canWrite: boolean }) {
       <Panel
         title="Return & refund requests"
         actions={
-          <select
+          <SearchSelect
             className={inputClass}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="">All statuses</option>
-            <option value="requested">Requested</option>
-            <option value="verification_pending">Verification pending</option>
-            <option value="approved">Approved</option>
-            <option value="received">Received</option>
-            <option value="inspected">Inspected</option>
-            <option value="refund_completed">Refund completed</option>
-            <option value="rejected">Rejected</option>
-          </select>
+            onChange={setStatusFilter}
+            options={[
+              { value: '', label: 'All statuses' },
+              { value: 'requested', label: 'Requested' },
+              { value: 'verification_pending', label: 'Verification pending' },
+              { value: 'approved', label: 'Approved' },
+              { value: 'received', label: 'Received' },
+              { value: 'inspected', label: 'Inspected' },
+              { value: 'refund_completed', label: 'Refund completed' },
+              { value: 'rejected', label: 'Rejected' },
+            ]}
+          />
         }
       >
         {returns.length === 0 ? <EmptyState>No return requests.</EmptyState> : null}

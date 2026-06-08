@@ -85,10 +85,14 @@ export function useCrmMasters(
   );
 
   const updateMaster = useCallback(
-    async (id: string, patch: { name?: string; category?: string; description?: string }) => {
+    async (
+      id: string,
+      patch: { name?: string; category?: string; description?: string },
+      confirmPassword: string
+    ) => {
       const data = await api<{ ok: boolean; item: MasterItem }>(`${apiBase}/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(patch),
+        body: JSON.stringify({ ...patch, confirmPassword }),
       });
       clearCacheForType(masterType);
       await reload();
@@ -103,8 +107,11 @@ export function useCrmMasters(
   );
 
   const deleteMaster = useCallback(
-    async (id: string) => {
-      await api<{ ok: boolean }>(`${apiBase}/${id}`, { method: 'DELETE' });
+    async (id: string, confirmPassword: string) => {
+      await api<{ ok: boolean }>(`${apiBase}/${id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmPassword }),
+      });
       clearCacheForType(masterType);
       await reload();
     },

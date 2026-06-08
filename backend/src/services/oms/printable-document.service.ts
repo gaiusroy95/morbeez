@@ -189,15 +189,19 @@ export const printableDocumentService = {
     const shipAddr = order.shipping_address as Record<string, unknown> | null;
     const codAmount = order.is_cod ? Number(order.total_amount) : 0;
 
+    const labelUrl = (order.label_url as string | null)?.trim() || null;
+
     return {
       title: 'Courier Label',
       orderId: order.order_name ?? order.shopify_order_id,
       awbCode: order.tracking_awb,
       courierName: order.courier_name ?? 'Shiprocket',
+      dispatchRack: order.dispatch_rack ?? null,
       deliveryAddress: formatAddress(shipAddr),
       contactNumber: order.phone ?? shipAddr?.phone ?? null,
       codAmount,
       barcodePayload: order.tracking_awb ? `AWB|${order.tracking_awb}` : null,
+      shiprocketLabelUrl: labelUrl,
       printedAt: new Date().toISOString(),
     };
   },

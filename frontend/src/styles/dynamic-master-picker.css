@@ -5,6 +5,15 @@
   gap: 0.35rem;
 }
 
+.dmp-root--compact .dmp-trigger {
+  min-height: 2rem;
+  font-size: 0.8125rem;
+}
+
+.dmp-root--compact .dmp-label {
+  font-size: 0.6875rem;
+}
+
 .dmp-label {
   font-size: 0.75rem;
   color: #475569;
