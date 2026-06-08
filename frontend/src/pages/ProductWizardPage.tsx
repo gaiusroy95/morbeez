@@ -87,8 +87,13 @@ export function ProductWizardPage({ canWrite }: Props) {
       if (!ok) return 'Add at least one variant with pack size and selling price';
     }
     if (n === 3) {
-      if (!state.usage.crop.trim()) return 'Select a crop';
-      if (!state.usage.dosageAcre.trim()) return 'Dosage per acre is required';
+      const mappings = state.usage.cropMappings;
+      if (!mappings.length) return 'Add at least one crop mapping';
+      for (let i = 0; i < mappings.length; i++) {
+        const m = mappings[i];
+        if (!m.crop.trim()) return `Select a crop for mapping ${i + 1}`;
+        if (!m.dosageAcre.trim()) return `Dosage per acre is required for mapping ${i + 1}`;
+      }
     }
     return null;
   }

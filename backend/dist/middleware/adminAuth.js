@@ -10,6 +10,8 @@ export function requireAdmin(request) {
 }
 export function requireAdminRole(request, ...roles) {
     const admin = requireAdmin(request);
+    if (admin.role === 'super_admin')
+        return;
     if (!roles.includes(admin.role)) {
         throw new UnauthorizedError('Insufficient permissions');
     }

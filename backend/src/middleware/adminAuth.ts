@@ -16,6 +16,7 @@ export function requireAdmin(request: FastifyRequest): AdminRequest['admin'] {
 
 export function requireAdminRole(request: FastifyRequest, ...roles: string[]): void {
   const admin = requireAdmin(request);
+  if (admin.role === 'super_admin') return;
   if (!roles.includes(admin.role)) {
     throw new UnauthorizedError('Insufficient permissions');
   }

@@ -1,3 +1,5 @@
+import type { CropMappingEntry } from './cropMapping';
+
 export type WizardVariant = {
   id?: string;
   packSize: string;
@@ -24,6 +26,8 @@ export type ProductImage = {
   src: string;
   alt?: string | null;
 };
+
+export type { CropMappingEntry } from './cropMapping';
 
 export type WizardFormState = {
   productId: string | null;
@@ -64,16 +68,7 @@ export type WizardFormState = {
     publishOn: string;
   };
   usage: {
-    crop: string;
-    pest: string;
-    disease: string;
-    symptoms: string;
-    dosageAcre: string;
-    dosageWater: string;
-    applicationStage: string;
-    sprayIntervalDays: string;
-    compatibility: string;
-    crops: string[];
+    cropMappings: CropMappingEntry[];
   };
   media: {
     videoUrl: string;

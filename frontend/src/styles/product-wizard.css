@@ -824,3 +824,53 @@ body.route-product-wizard .page-header {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
 }
+
+.pw-btn--sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.pw-crop-mapping-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pw-crop-mapping-header .pw-section-title {
+  margin-bottom: 0;
+}
+
+.pw-crop-mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.pw-crop-mapping-card {
+  padding: 20px 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.pw-crop-mapping-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.pw-crop-mapping-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.pw-crop-mapping-remove {
+  color: #b91c1c;
+}

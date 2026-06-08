@@ -1,14 +1,24 @@
+import { uniqueCropsFromMappings } from './cropMapping';
 import type { WizardFormState } from './types';
+
+function uniqueValues(values: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values) {
+    const trimmed = v.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    out.push(trimmed);
+  }
+  return out;
+}
 
 function buildTags(state: WizardFormState): string {
   const tags: string[] = [];
   if (state.basic.featured) tags.push('featured');
   if (state.basic.bestSeller) tags.push('best-seller');
   if (state.basic.trending) tags.push('trending');
-  for (const c of state.usage.crops) tags.push(c);
-  if (state.usage.crop && !state.usage.crops.includes(state.usage.crop)) {
-    tags.push(state.usage.crop);
-  }
+  for (const c of uniqueCropsFromMappings(state.usage.cropMappings)) tags.push(c);
   return tags.join(', ');
 }
 
@@ -21,8 +31,12 @@ export function buildWizardPayload(
     state.basic.technicalName.trim() ||
     'New product';
 
-  const crops = [...state.usage.crops];
-  if (state.usage.crop && !crops.includes(state.usage.crop)) crops.push(state.usage.crop);
+  const mappings = state.usage.cropMappings;
+  const crops = uniqueCropsFromMappings(mappings);
+  const primary = mappings[0];
+  const pests = uniqueValues(mappings.map((m) => m.pest));
+  const diseases = uniqueValues(mappings.map((m) => m.disease));
+  const symptoms = uniqueValues(mappings.flatMap((m) => m.symptoms.split(',')));
 
   return {
     title,
@@ -59,22 +73,25 @@ export function buildWizardPayload(
         modeOfAction: state.basic.modeOfAction,
         modeOfEntry: state.basic.modeOfEntry,
         recommendedCrops: crops.join(', '),
-        dosePerAcre: state.usage.dosageAcre,
-        compatibility: state.usage.compatibility,
+        dosePerAcre: primary?.dosageAcre ?? '',
+        compatibility: primary?.compatibility ?? '',
       },
       aiMapping: {
         crops,
-        crop: state.usage.crop,
-        pest: state.usage.pest,
-        disease: state.usage.disease,
-        symptoms: state.usage.symptoms,
-        dosage: state.usage.dosageAcre,
-        waterVolume: state.usage.dosageWater,
-        applicationStage: state.usage.applicationStage,
-        sprayInterval: state.usage.sprayIntervalDays,
-        compatibleProducts: state.usage.compatibility,
-        targetPests: state.usage.pest,
-        targetDiseases: state.usage.disease,
+        cropMappings: mappings.map(({ id, ...rest }) => rest),
+        crop: primary?.crop ?? '',
+        pest: primary?.pest ?? '',
+        disease: primary?.disease ?? '',
+        pests,
+        diseases,
+        symptoms: symptoms.join(', '),
+        dosage: primary?.dosageAcre ?? '',
+        waterVolume: primary?.dosageWater ?? '',
+        applicationStage: primary?.applicationStage ?? '',
+        sprayInterval: primary?.sprayIntervalDays ?? '',
+        compatibleProducts: primary?.compatibility ?? '',
+        targetPests: pests.join(', '),
+        targetDiseases: diseases.join(', '),
       },
       seo: {
         seoTitle: state.seo.seoTitle,

@@ -1,3 +1,4 @@
+import { cropMappingsFromIntelligence, emptyCropMapping } from './cropMapping';
 import type { ProductImage, WizardFormState, WizardVariant } from './types';
 
 export function emptyVariant(): WizardVariant {
@@ -51,16 +52,7 @@ export function defaultWizardState(): WizardFormState {
       publishOn: '',
     },
     usage: {
-      crop: '',
-      pest: '',
-      disease: '',
-      symptoms: '',
-      dosageAcre: '',
-      dosageWater: '',
-      applicationStage: '',
-      sprayIntervalDays: '',
-      compatibility: '',
-      crops: [],
+      cropMappings: [emptyCropMapping()],
     },
     media: {
       videoUrl: '',
@@ -91,14 +83,7 @@ export function mergeIntelligence(
   const ai = (intel.aiMapping ?? intel.ai_mapping ?? {}) as Record<string, unknown>;
   const seo = (intel.seo ?? {}) as Record<string, unknown>;
 
-  const cropsRaw = ai.crops;
-  const crops = Array.isArray(cropsRaw)
-    ? cropsRaw.map(String)
-    : typeof cropsRaw === 'string'
-      ? cropsRaw.split(',').map((s) => s.trim()).filter(Boolean)
-      : typeof ag.recommendedCrops === 'string'
-        ? ag.recommendedCrops.split(',').map((s) => s.trim()).filter(Boolean)
-        : state.usage.crops;
+  const cropMappings = cropMappingsFromIntelligence(ai, ag);
 
   const benefitsRaw = basic.benefits;
   const benefits = Array.isArray(benefitsRaw)
@@ -141,17 +126,7 @@ export function mergeIntelligence(
       benefits: benefits.length ? benefits : state.basic.benefits,
     },
     usage: {
-      ...state.usage,
-      crop: String(state.usage.crop || crops[0] || ''),
-      dosageAcre: String(ai.dosage ?? ag.dosePerAcre ?? state.usage.dosageAcre),
-      dosageWater: String(ai.waterVolume ?? state.usage.dosageWater),
-      applicationStage: String(ai.applicationStage ?? state.usage.applicationStage),
-      sprayIntervalDays: String(ai.sprayInterval ?? state.usage.sprayIntervalDays),
-      compatibility: String(ai.compatibleProducts ?? ag.compatibility ?? state.usage.compatibility),
-      symptoms: String(ai.symptoms ?? state.usage.symptoms),
-      pest: String(ai.pest ?? ai.targetPests ?? state.usage.pest),
-      disease: String(ai.disease ?? ai.targetDiseases ?? state.usage.disease),
-      crops,
+      cropMappings,
     },
     seo: {
       ...state.seo,
