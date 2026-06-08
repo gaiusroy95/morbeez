@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Btn, Panel, SearchSelect } from '../ui';
+import { Alert, Btn, Panel, StaticSelect } from '../ui';
 import { SEO_API } from './seo-api';
 
 export function SeoSchemaPanel() {
@@ -27,7 +27,7 @@ export function SeoSchemaPanel() {
     <Panel title="Schema markup manager" description="Product, FAQ, Breadcrumb, Article, Review JSON-LD">
       {error ? <Alert tone="error">{error}</Alert> : null}
       <div className="seo-form-row mb-4">
-        <SearchSelect
+        <StaticSelect
           value={type}
           onChange={(value) => setType(value as typeof type)}
           options={[

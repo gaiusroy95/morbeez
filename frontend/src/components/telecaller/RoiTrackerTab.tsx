@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 
 type RoiEntry = {
   id: string;
@@ -187,7 +187,7 @@ export function RoiTrackerTab({ leadId, canWrite }: Props) {
             </label>
             <label className="text-sm">
               Category
-              <SearchSelect
+              <StaticSelect
                 className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5"
                 value={category}
                 onChange={setCategory}

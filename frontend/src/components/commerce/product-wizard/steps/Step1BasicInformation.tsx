@@ -14,7 +14,7 @@ import { WizardField, pwInputClass, pwTextareaClass } from '../WizardField';
 import { WarehouseLocationFields } from '../WarehouseLocationFields';
 import type { WizardFormState } from '../types';
 import { readFileAsBase64 } from '../../../../lib/readFileAsBase64';
-import { SearchSelect } from '../../../ui';
+import { StaticSelect } from '../../../ui';
 
 type Props = {
   state: WizardFormState;
@@ -81,7 +81,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
         <h2 className="pw-section-title">Basic Information</h2>
         <div className="pw-grid pw-grid--3">
           <WizardField label="Brand Name" required>
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.brandName}
               onChange={(value) => patchBasic({ brandName: value })}
@@ -105,7 +105,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Category" required>
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.category}
               onChange={(value) => patchBasic({ category: value })}
@@ -116,7 +116,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Sub Category" required>
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.subCategory}
               onChange={(value) => patchBasic({ subCategory: value })}
@@ -127,7 +127,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Formulation Type" required>
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.formulationType}
               onChange={(value) => patchBasic({ formulationType: value })}
@@ -162,7 +162,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Product Type">
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.productType}
               onChange={(value) => patchBasic({ productType: value })}
@@ -181,7 +181,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Mode of Entry" required>
-            <SearchSelect
+            <StaticSelect
               className={pwInputClass()}
               value={b.modeOfEntry}
               onChange={(value) => patchBasic({ modeOfEntry: value })}
@@ -321,7 +321,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
           <h3>Packaging Information</h3>
           <div className="pw-grid pw-grid--3">
             <WizardField label="Shelf Life">
-              <SearchSelect
+              <StaticSelect
                 className={pwInputClass()}
                 value={b.shelfLife}
                 onChange={(value) => patchBasic({ shelfLife: value })}
@@ -329,7 +329,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
               />
             </WizardField>
             <WizardField label="Storage Conditions">
-              <SearchSelect
+              <StaticSelect
                 className={pwInputClass()}
                 value={b.storageConditions}
                 onChange={(value) => patchBasic({ storageConditions: value })}
@@ -337,7 +337,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
               />
             </WizardField>
             <WizardField label="Packing Type">
-              <SearchSelect
+              <StaticSelect
                 className={pwInputClass()}
                 value={b.packingType}
                 onChange={(value) => patchBasic({ packingType: value })}
@@ -345,7 +345,7 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
               />
             </WizardField>
             <WizardField label="Pack Material">
-              <SearchSelect
+              <StaticSelect
                 className={pwInputClass()}
                 value={b.packMaterial}
                 onChange={(value) => patchBasic({ packMaterial: value })}

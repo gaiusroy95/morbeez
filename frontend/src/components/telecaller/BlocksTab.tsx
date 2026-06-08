@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import {
   CropBlockFields,
   blockFromApi,
@@ -361,7 +361,7 @@ export function BlocksTab({
                 acre
               </h3>
             </div>
-            <SearchSelect
+            <StaticSelect
               className="tc-bl-change-block"
               value={selectedId ?? ''}
               onChange={setSelectedId}

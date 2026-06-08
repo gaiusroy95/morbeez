@@ -1,7 +1,7 @@
 import { UNITS } from '../constants';
 import { emptyVariant } from '../state';
 import { WizardField, pwInputClass } from '../WizardField';
-import { SearchSelect } from '../../../ui';
+import { StaticSelect } from '../../../ui';
 import type { WizardFormState, WizardVariant } from '../types';
 
 type Props = {
@@ -50,7 +50,7 @@ export function Step2VariantsPricing({ state, onChange }: Props) {
                   />
                 </td>
                 <td>
-                  <SearchSelect
+                  <StaticSelect
                     className="pw-table-input"
                     compact
                     value={v.unit}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import {
   BulkMarginReviewBadge,
   type BulkMarginReviewStatus,
@@ -312,7 +312,7 @@ export function OrdersTab({
 
       {showFilters ? (
         <div className="tc-ord-filters">
-          <SearchSelect
+          <StaticSelect
             label="Type"
             value={filters.type}
             onChange={(value) => {
@@ -325,7 +325,7 @@ export function OrdersTab({
               { value: 'order', label: 'Order' },
             ]}
           />
-          <SearchSelect
+          <StaticSelect
             label="Status"
             value={filters.status}
             onChange={(value) => {
@@ -491,7 +491,7 @@ export function OrdersTab({
           >
             Next
           </button>
-          <SearchSelect
+          <StaticSelect
             label="Rows"
             className="tc-ord-rows-select"
             value={String(rowsPerPage)}

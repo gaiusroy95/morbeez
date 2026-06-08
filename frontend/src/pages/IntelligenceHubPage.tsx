@@ -5,7 +5,7 @@ import { defaultsForPage } from '../lib/console-page-search';
 import { matchesSearch } from '../lib/search-filter';
 import { PincodeLookupPage } from './PincodeLookupPage';
 import { Field, Modal, inputClass } from '../components/Modal';
-import { Alert, HubTabs, PageShell, ReadOnlyBanner, SearchSelect } from '../components/ui';
+import { Alert, HubTabs, PageShell, ReadOnlyBanner, StaticSelect } from '../components/ui';
 
 const base = '/morbeez-staff/api/v1/os/intelligence';
 const CROPS = ['ginger', 'banana', 'cardamom', 'pepper', 'tomato', 'chilli', 'brinjal', 'all'];
@@ -147,7 +147,7 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
       {tab !== 'pincode' && tab !== 'spray' ? (
         <div className="mt-4 flex items-center gap-2">
           <label className="text-sm text-slate-600">Crop filter</label>
-          <SearchSelect
+          <StaticSelect
             className="rounded border border-slate-200 px-2 py-1 text-sm"
             value={cropFilter}
             onChange={setCropFilter}
@@ -521,7 +521,7 @@ function IntelligenceFormModal({
               <input className={inputClass} value={f.cropType} onChange={(e) => setF({ ...f, cropType: e.target.value })} />
             </Field>
             <Field label="Action type">
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={f.actionType}
                 onChange={(value) => setF({ ...f, actionType: value })}
@@ -535,7 +535,7 @@ function IntelligenceFormModal({
               <textarea className={inputClass} rows={2} value={f.actionPayload} onChange={(e) => setF({ ...f, actionPayload: e.target.value })} />
             </Field>
             <Field label="Status">
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={f.status}
                 onChange={(value) => setF({ ...f, status: value })}
@@ -586,7 +586,7 @@ function IntelligenceFormModal({
               <textarea className={inputClass} rows={2} value={f.products} onChange={(e) => setF({ ...f, products: e.target.value })} />
             </Field>
             <Field label="Status">
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={f.status}
                 onChange={(value) => setF({ ...f, status: value })}
@@ -604,7 +604,7 @@ function IntelligenceFormModal({
               <input className={inputClass} value={f.productB} onChange={(e) => setF({ ...f, productB: e.target.value })} />
             </Field>
             <Field label="Compatible">
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={f.compatible}
                 onChange={(value) => setF({ ...f, compatible: value })}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Loading, SearchSelect } from '../ui';
+import { Alert, Loading, StaticSelect } from '../ui';
 import '../../styles/follow-up-kpi.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -64,7 +64,7 @@ export function FollowUpKpiPanel() {
             uncertain cases.
           </p>
         </div>
-        <SearchSelect
+        <StaticSelect
           label="Period"
           className="fu-kpi-period"
           value={String(days)}

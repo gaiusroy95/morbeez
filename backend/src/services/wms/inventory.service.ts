@@ -649,4 +649,81 @@ export const inventoryService = {
       ref_id: allocationId,
     });
   },
+
+  /**
+   * Mirror commerce_stock_batches into WMS inventory_batches so fulfillment can reserve stock.
+   * Commerce "Add stock" and Shopify counts live separately from warehouse batches until synced.
+   */
+  async syncCommerceBatchesToWarehouse(inventoryItemId: string) {
+    const { data: item, error: itemErr } = await supabase
+      .from('inventory_items')
+      .select('id, sku, product_title, shopify_variant_id')
+      .eq('id', inventoryItemId)
+      .eq('active', true)
+      .maybeSingle();
+    throwIfSupabaseError(itemErr, 'Inventory item for commerce sync');
+    if (!item?.shopify_variant_id) return { syncedQty: 0 };
+
+    const warehouse = await warehouseService.getDefaultWarehouse();
+    const { data: commerceBatches, error: cbErr } = await supabase
+      .from('commerce_stock_batches')
+      .select('*')
+      .eq('shopify_variant_id', item.shopify_variant_id);
+    throwIfSupabaseError(cbErr, 'Commerce stock batches');
+
+    let syncedQty = 0;
+    for (const cb of commerceBatches ?? []) {
+      const commerceQty = Number(cb.qty) || 0;
+      if (commerceQty <= 0) continue;
+
+      const batchCode = String(cb.batch_code);
+      const { data: whBatch } = await supabase
+        .from('inventory_batches')
+        .select('*')
+        .eq('inventory_item_id', inventoryItemId)
+        .eq('warehouse_id', warehouse.id)
+        .eq('batch_code', batchCode)
+        .maybeSingle();
+
+      const whOnHand = Number(whBatch?.qty_on_hand) || 0;
+      const shortfall = commerceQty - whOnHand;
+      if (shortfall <= 0) continue;
+
+      if (!whBatch) {
+        await this.createBatchFromGrn({
+          inventoryItemId,
+          warehouseId: warehouse.id,
+          batchCode,
+          mfgDate: cb.mfg_date ? String(cb.mfg_date) : null,
+          expiryDate: cb.expiry_date ? String(cb.expiry_date) : null,
+          qty: commerceQty,
+        });
+        syncedQty += commerceQty;
+      } else {
+        await supabase
+          .from('inventory_batches')
+          .update({
+            qty_on_hand: whOnHand + shortfall,
+            status: 'active',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', whBatch.id);
+
+        await supabase.from('stock_movements').insert({
+          movement_type: 'adjust',
+          inventory_item_id: inventoryItemId,
+          batch_id: whBatch.id,
+          warehouse_id: warehouse.id,
+          location_id: whBatch.location_id,
+          qty: shortfall,
+          ref_type: 'commerce_stock_sync',
+          ref_id: String(cb.id),
+          notes: 'Synced from commerce inventory',
+        });
+        syncedQty += shortfall;
+      }
+    }
+
+    return { syncedQty };
+  },
 };

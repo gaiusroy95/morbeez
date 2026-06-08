@@ -282,3 +282,38 @@
   font-size: 0.7rem;
   color: #94a3b8;
 }
+
+/* Native <select> — StaticSelect (fixed enums, filters, page size) */
+.dmp-native-select {
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.4rem 2rem 0.4rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E") no-repeat right 0.65rem center;
+  font-size: 0.875rem;
+  color: #0f172a;
+  appearance: none;
+  cursor: pointer;
+}
+
+.dmp-native-select:hover:not(:disabled) {
+  border-color: #94a3b8;
+}
+
+.dmp-native-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.dmp-native-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+}
+
+.dmp-native-select--compact {
+  min-height: 2rem;
+  font-size: 0.8125rem;
+}

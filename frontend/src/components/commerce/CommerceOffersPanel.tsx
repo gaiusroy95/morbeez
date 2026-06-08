@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
-import { Alert, DataTable, EmptyState, Loading, SearchSelect, TableWrap, inputClass } from '../ui';
+import { Alert, DataTable, EmptyState, Loading, StaticSelect, TableWrap, inputClass } from '../ui';
 import { CommerceRegistryBanner } from './CommerceRegistryBanner';
 import { CommercePromoHeader } from './CommercePromoHeader';
 import { CommercePromoTabs } from './CommercePromoTabs';
@@ -303,7 +303,7 @@ export function CommerceOffersPanel({ canWrite }: Props) {
             </label>
             <label className="text-sm font-medium text-slate-700">
               Type
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={offerForm.offerType}
                 onChange={(value) =>

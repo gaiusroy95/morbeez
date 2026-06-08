@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
-import { Alert, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
+import { Alert, Btn, DataTable, EmptyState, Loading, Panel, StaticSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 
 type Dashboard = {
@@ -139,7 +139,7 @@ export function WarehouseFinancePanel({ canWrite }: { canWrite: boolean }) {
         ) : null}
         {canWrite && codRows.length > 0 ? (
           <div className="warehouse-form-row mt-4">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={remitId}
               onChange={setRemitId}

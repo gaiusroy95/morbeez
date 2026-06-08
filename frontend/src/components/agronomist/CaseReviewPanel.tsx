@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { Alert, Btn, Loading, SearchSelect } from '../ui';
+import { Alert, Btn, Loading, StaticSelect } from '../ui';
 import {
   IconArrowUp,
   IconChevronLeft,
@@ -399,7 +399,7 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
             </div>
             {showFilter ? (
               <div className="cr-filter-row">
-                <SearchSelect
+                <StaticSelect
                   className="cr-select"
                   value={statusFilter}
                   onChange={(value) => {
@@ -419,7 +419,7 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
             ) : null}
             <label className="cr-sort-row">
               <span className="cr-sort-label">Sort:</span>
-              <SearchSelect
+              <StaticSelect
                 className="cr-select cr-select--inline"
                 value={sort}
                 onChange={(value) => setSort(value as 'priority' | 'newest')}

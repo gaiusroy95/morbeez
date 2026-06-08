@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { SearchSelect } from '../../ui';
+import { StaticSelect } from '../../ui';
 import { AddFieldActivityModal } from './AddFieldActivityModal';
 import {
   colorClassForTag,
@@ -83,7 +83,7 @@ export function FieldActivityPhase2Panel(props: Props) {
           {props.breadcrumbLabel ?? 'Operations / Field Activities'}
         </p>
         <div className="fa-page-controls">
-          <SearchSelect
+          <StaticSelect
             className="fa-block-select"
             value={props.selectedBlockId}
             onChange={props.onBlockChange}

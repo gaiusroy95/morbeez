@@ -171,12 +171,12 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
   return <input className={cn(inputBase, className)} {...props} />;
 }
 
-/** @deprecated Prefer SearchSelect or DynamicSelect for searchable dropdowns. */
+/** Native HTML select — fixed enums and short static lists. */
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={cn(selectClass, className)} {...props} />;
 }
 
-export { DynamicSelect, SearchSelect } from './DynamicSelect';
+export { DynamicSelect, SearchSelect, StaticSelect } from './DynamicSelect';
 export type { DynamicSelectOption, DynamicSelectField } from './DynamicSelect';
 
 export function Label({ children, className }: { children: ReactNode; className?: string }) {

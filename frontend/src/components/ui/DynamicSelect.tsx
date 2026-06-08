@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
+import { cn } from '../../lib/cn';
 import '../../styles/dynamic-master-picker.css';
 
 export type DynamicSelectOption = {
@@ -352,7 +353,60 @@ export function DynamicSelect({
   );
 }
 
-/** Searchable select for static option lists (filters, enums). */
+/**
+ * Native &lt;select&gt; for fixed option lists (status filters, page size, enums).
+ * Use this instead of SearchSelect when options are static and do not need search UI.
+ */
+export function StaticSelect({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled,
+  className,
+  compact,
+}: {
+  label?: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: Array<{ value: string; label: string }>;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  compact?: boolean;
+}) {
+  const id = useId();
+  return (
+    <div className={cn('dmp-root', compact && 'dmp-root--compact', className)}>
+      {label ? (
+        <label htmlFor={id} className="dmp-label">
+          {label}
+        </label>
+      ) : null}
+      <select
+        id={id}
+        className={cn('dmp-native-select', compact && 'dmp-native-select--compact')}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {placeholder ? (
+          <option value="" disabled={value !== ''}>
+            {placeholder}
+          </option>
+        ) : null}
+        {options.map((o) => (
+          <option key={o.value || '__empty'} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** Searchable dropdown — use only for long lists (products, farmers, catalog). */
 export function SearchSelect({
   label,
   value,

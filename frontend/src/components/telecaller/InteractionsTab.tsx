@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import type { InteractionListRow } from './InteractionDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -264,7 +264,7 @@ export function InteractionsTab({
 
       {showFilters ? (
         <div className="tc-ix-filters">
-          <SearchSelect
+          <StaticSelect
             label="Interaction Type"
             className="tc-ix-filter-field"
             value={filters.typeKey}
@@ -274,7 +274,7 @@ export function InteractionsTab({
             }}
             options={TYPE_OPTIONS}
           />
-          <SearchSelect
+          <StaticSelect
             label="Employee"
             className="tc-ix-filter-field"
             value={filters.employee}
@@ -311,7 +311,7 @@ export function InteractionsTab({
               />
             </div>
           </label>
-          <SearchSelect
+          <StaticSelect
             label="Workflow"
             className="tc-ix-filter-field"
             value={filters.workflowStatus}
@@ -321,7 +321,7 @@ export function InteractionsTab({
             }}
             options={WORKFLOW_OPTIONS}
           />
-          <SearchSelect
+          <StaticSelect
             label="Block"
             className="tc-ix-filter-field"
             value={filters.blockId}
@@ -541,7 +541,7 @@ export function InteractionsTab({
               ›
             </button>
           </div>
-          <SearchSelect
+          <StaticSelect
             label="Rows per page"
             className="tc-ix-rows"
             value={String(rowsPerPage)}

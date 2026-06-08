@@ -2,7 +2,7 @@ import { APPLICATION_STAGES } from '../constants';
 import { emptyCropMapping, type CropMappingEntry } from '../cropMapping';
 import { WizardField, pwInputClass } from '../WizardField';
 import { WizardMasterPicker } from '../WizardMasterPicker';
-import { SearchSelect } from '../../../ui';
+import { StaticSelect } from '../../../ui';
 import type { WizardFormState } from '../types';
 
 type Props = {
@@ -109,7 +109,7 @@ export function Step3UsageDetails({ state, onChange }: Props) {
                 />
               </WizardField>
               <WizardField label="Application Stage">
-                <SearchSelect
+                <StaticSelect
                   className={pwInputClass()}
                   value={m.applicationStage}
                   onChange={(value) => patchMapping(m.id, { applicationStage: value })}

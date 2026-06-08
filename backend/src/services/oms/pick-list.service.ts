@@ -80,6 +80,8 @@ export const pickListService = {
           );
         }
 
+        await inventoryService.syncCommerceBatchesToWarehouse(String(line.inventory_item_id));
+
         const allocations = await inventoryService.reserveStock({
           inventoryItemId: String(line.inventory_item_id),
           warehouseId: String(warehouse.id),

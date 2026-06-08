@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import '../../styles/commerce-products.css';
 
 type ProductVariant = {
@@ -456,7 +456,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
           />
         </div>
-        <SearchSelect
+        <StaticSelect
           className="commerce-products__select"
           value={draftCategory}
           onChange={setDraftCategory}
@@ -465,7 +465,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             ...categories.map((c) => ({ value: c, label: c })),
           ]}
         />
-        <SearchSelect
+        <StaticSelect
           className="commerce-products__select"
           value={draftBrand}
           onChange={setDraftBrand}
@@ -474,7 +474,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             ...brands.map((b) => ({ value: b, label: b })),
           ]}
         />
-        <SearchSelect
+        <StaticSelect
           className="commerce-products__select"
           value={draftStatus}
           onChange={setDraftStatus}
@@ -708,7 +708,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                 <p className="commerce-products__footer-meta">
                   Showing {rangeStart} to {rangeEnd} of {pagination.total} products
                 </p>
-                <SearchSelect
+                <StaticSelect
                   label="Rows per page"
                   className="commerce-products__page-size-select"
                   compact

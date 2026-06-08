@@ -65,6 +65,7 @@ export const pickListService = {
                 if (!line.inventory_item_id) {
                     throw new AppError(`Order line "${line.product_title}" has no inventory SKU — sync order lines first`, 409, 'ORDER_LINE_NO_SKU');
                 }
+                await inventoryService.syncCommerceBatchesToWarehouse(String(line.inventory_item_id));
                 const allocations = await inventoryService.reserveStock({
                     inventoryItemId: String(line.inventory_item_id),
                     warehouseId: String(warehouse.id),

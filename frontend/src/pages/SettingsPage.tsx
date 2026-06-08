@@ -14,7 +14,7 @@ import {
   Panel,
   ReadOnlyBanner,
   TableWrap,
-  SearchSelect,
+  StaticSelect,
 } from '../components/ui';
 import { CompanySettingsPanel } from '../components/settings/CompanySettingsPanel';
 
@@ -205,7 +205,7 @@ function EditStaffModal({
           <input className={inputClass} value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </Field>
         <Field label="Role">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={role}
             onChange={setRole}

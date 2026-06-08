@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Badge, Btn, EmptyState, Loading, SearchSelect } from '../ui';
+import { Alert, Badge, Btn, EmptyState, Loading, StaticSelect } from '../ui';
 
 export type ApprovalListItem = {
   id: string;
@@ -188,7 +188,7 @@ export function RecommendationApprovalsWorkspace({ canWrite, canApprove, mineOnl
       {success ? <Alert tone="success">{success}</Alert> : null}
 
       <div className="approvals-toolbar">
-        <SearchSelect
+        <StaticSelect
           label="Status"
           className="approvals-select"
           value={statusFilter}

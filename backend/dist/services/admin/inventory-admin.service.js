@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
+import { inventoryService } from '../wms/inventory.service.js';
 const LOW_STOCK_THRESHOLD = 10;
 function stockStatus(qty) {
     if (qty <= 0)
@@ -347,6 +348,13 @@ export const inventoryAdminService = {
         }
         const totalBalance = await shopifyInventoryService.adjustVariantStock(Number(variant.id), qty);
         shopifyProductsService.invalidateCatalogCache();
+        const sku = (variant.sku || product.sku || `VAR-${variant.id}`).trim();
+        const wmsItem = await inventoryService.upsertItemFromSku({
+            sku,
+            productTitle: product.title,
+            shopifyVariantId: variant.id,
+        });
+        await inventoryService.syncCommerceBatchesToWarehouse(String(wmsItem.id));
         return {
             productId: product.id,
             variantId: variant.id,

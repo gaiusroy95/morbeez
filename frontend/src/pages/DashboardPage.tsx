@@ -9,7 +9,7 @@ import {
   Filler,
   Tooltip,
 } from 'chart.js';
-import { PageShell, SearchSelect } from '../components/ui';
+import { PageShell, StaticSelect } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { canManageStaff } from '../lib/role-home';
@@ -262,7 +262,7 @@ export function DashboardPage() {
         <section className="card card-chart">
           <div className="card-head">
             <h3>Sales Overview</h3>
-            <SearchSelect
+            <StaticSelect
               className="card-select"
               value="week"
               onChange={() => {}}

@@ -23,7 +23,7 @@ import { FieldFindingDetailModal, type FieldFindingListRow } from './FieldFindin
 import { AgronomistTab, type AgronomistActivityRow } from './AgronomistTab';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
@@ -403,7 +403,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
                   ) : null}
                 </p>
                 {canWrite ? (
-                  <SearchSelect
+                  <StaticSelect
                     className="tc-stage-select"
                     value={l.stage}
                     onChange={changeStage}
@@ -1213,7 +1213,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
               <h3>Session</h3>
               <label className="block text-xs text-slate-600">
                 Owner
-                <SearchSelect
+                <StaticSelect
                   className="tc-stage-select mt-1.5 w-full"
                   disabled={!canWrite}
                   value={String(session?.conversation_owner ?? 'ai')}

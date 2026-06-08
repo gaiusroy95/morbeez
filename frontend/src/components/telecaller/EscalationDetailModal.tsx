@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 
 export type EscalationListRow = {
   id: string;
@@ -233,7 +233,7 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
           {canWrite ? (
             <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
               <Field label="Status">
-                <SearchSelect
+                <StaticSelect
                   className={inputClass}
                   value={workflowStatus}
                   onChange={(value) =>

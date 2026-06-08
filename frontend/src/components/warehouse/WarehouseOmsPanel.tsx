@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, StaticSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
 
@@ -349,7 +349,7 @@ export function WarehouseOmsPanel({
       <Panel
         title="OMS orders"
         actions={
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={statusFilter}
             onChange={setStatusFilter}

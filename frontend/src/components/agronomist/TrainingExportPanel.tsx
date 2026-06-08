@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, getToken } from '../../lib/api';
-import { Alert, Loading, SearchSelect } from '../ui';
+import { Alert, Loading, StaticSelect } from '../ui';
 import '../../styles/training-export.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -179,7 +179,7 @@ export function TrainingExportPanel({ canWrite }: { canWrite: boolean }) {
             Export labeled corrections, crop images, and outcome samples for model training and QA.
           </p>
         </div>
-        <SearchSelect
+        <StaticSelect
           label="Period"
           className="te-period"
           value={String(days)}

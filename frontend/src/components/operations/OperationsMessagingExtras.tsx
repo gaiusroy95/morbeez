@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/operations';
 
@@ -68,7 +68,7 @@ export function QuickRepliesPanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SearchSelect
+        <StaticSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={category}
           onChange={onCategoryChange}
@@ -192,7 +192,7 @@ function QuickReplyModal({
           <input className={inputClass} value={f.shortcutKey} onChange={(e) => setF({ ...f, shortcutKey: e.target.value })} />
         </Field>
         <Field label="Category">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={f.category}
             onChange={(value) => setF({ ...f, category: value })}
@@ -231,7 +231,7 @@ export function LanguageTemplatesPanel({
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <SearchSelect
+        <StaticSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={statusFilter}
           onChange={onStatusChange}
@@ -351,7 +351,7 @@ function LangTemplateModal({
         </Field>
         <div className="grid grid-cols-2 gap-2">
           <Field label="Language">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={f.language}
               onChange={(value) => setF({ ...f, language: value })}
@@ -359,7 +359,7 @@ function LangTemplateModal({
             />
           </Field>
           <Field label="Channel">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={f.channel}
               onChange={(value) => setF({ ...f, channel: value })}
@@ -383,7 +383,7 @@ function LangTemplateModal({
           </Field>
         ) : null}
         <Field label="Status">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={f.status}
             onChange={(value) => setF({ ...f, status: value })}
@@ -449,7 +449,7 @@ export function AutomationJobsPanel({
       ) : null}
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="mb-4 flex flex-wrap gap-2">
-        <SearchSelect
+        <StaticSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={statusFilter}
           onChange={onStatusChange}
@@ -458,7 +458,7 @@ export function AutomationJobsPanel({
             label: s,
           }))}
         />
-        <SearchSelect
+        <StaticSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={jobTypeFilter}
           onChange={onJobTypeChange}

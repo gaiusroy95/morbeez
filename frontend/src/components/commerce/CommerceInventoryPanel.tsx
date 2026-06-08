@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import { AddStockModal } from './AddStockModal';
 import { InventoryGrnModal } from './InventoryGrnModal';
 import { InventoryPurchaseOrderModal } from './InventoryPurchaseOrderModal';
@@ -274,7 +274,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
 
       {filtersOpen ? (
         <div className="commerce-inventory__filter-panel">
-          <SearchSelect
+          <StaticSelect
             label="Stock status"
             value={statusFilter}
             onChange={(value) => {

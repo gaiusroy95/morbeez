@@ -1,5 +1,5 @@
 import type { FormEvent } from 'react';
-import { SearchSelect } from '../../ui';
+import { StaticSelect } from '../../ui';
 import { FieldActivityTypePicker, formPatchFromActivityType } from './FieldActivityTypePicker';
 import {
   computeDapFromDates,
@@ -162,7 +162,7 @@ export function AddFieldActivityModal(props: Props) {
             </label>
           ) : null}
 
-          <SearchSelect
+          <StaticSelect
             label="Status"
             className="fa-input"
             value={props.form.status}

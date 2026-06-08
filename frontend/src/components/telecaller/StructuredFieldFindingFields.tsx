@@ -1,6 +1,6 @@
 import { DiagnosisLabelPicker } from '../agronomist/DiagnosisLabelPicker';
 import { Field, inputClass } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import {
   FINDING_TYPES,
   FINDING_TYPE_LABELS,
@@ -44,7 +44,7 @@ export function StructuredFieldFindingFields({
   return (
     <div className="tc-structured-finding space-y-3">
       <Field label="Finding type *">
-        <SearchSelect
+        <StaticSelect
           className={inputClass}
           value={values.findingType}
           disabled={disabled}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import type { FieldFindingListRow } from './FieldFindingDetailModal';
 import {
   FINDING_TYPE_LABELS,
@@ -202,7 +202,7 @@ export function FieldFindingsTab({
 
       {showFilters ? (
         <div className="tc-ff-filters">
-          <SearchSelect
+          <StaticSelect
             label="Block"
             className="tc-ff-filter-field"
             value={filters.blockId}
@@ -215,7 +215,7 @@ export function FieldFindingsTab({
               ...blocks.map((b) => ({ value: b.id, label: b.name })),
             ]}
           />
-          <SearchSelect
+          <StaticSelect
             label="Severity"
             className="tc-ff-filter-field"
             value={filters.diseaseTone}
@@ -230,7 +230,7 @@ export function FieldFindingsTab({
               { value: 'danger', label: 'Disease / pest' },
             ]}
           />
-          <SearchSelect
+          <StaticSelect
             label="Agronomist"
             className="tc-ff-filter-field"
             value={filters.agronomist}
@@ -505,7 +505,7 @@ export function FieldFindingsTab({
               ›
             </button>
           </div>
-          <SearchSelect
+          <StaticSelect
             label="Rows per page"
             className="tc-ff-rows"
             value={String(rowsPerPage)}

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { formatInr } from '../../lib/format';
-import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, SearchSelect, TableWrap, inputClass } from '../ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, Loading, Panel, StaticSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 
 type ReturnRow = {
@@ -74,7 +74,7 @@ export function WarehouseReturnsPanel({ canWrite }: { canWrite: boolean }) {
       <Panel
         title="Return & refund requests"
         actions={
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={statusFilter}
             onChange={setStatusFilter}

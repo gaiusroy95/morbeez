@@ -40,6 +40,7 @@ export const omsWorkflowService = {
         throwIfSupabaseError(error, 'Confirm order');
         if (!order)
             throw new NotFoundError('Order not found');
+        const pickList = await pickListService.generateForOrder(commerceOrderId);
         await supabase
             .from('commerce_orders')
             .update({
@@ -48,7 +49,6 @@ export const omsWorkflowService = {
             updated_at: new Date().toISOString(),
         })
             .eq('id', commerceOrderId);
-        const pickList = await pickListService.generateForOrder(commerceOrderId);
         if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false) {
             await shiprocketService
                 .provisionForCommerceOrder(commerceOrderId)

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import '../../styles/commerce-farmers.css';
 
 type FarmerRow = {
@@ -176,7 +176,7 @@ export function CommerceFarmersPanel() {
 
       {filtersOpen ? (
         <div className="commerce-farmers__filter-panel">
-          <SearchSelect
+          <StaticSelect
             label="State"
             value={stateFilter}
             onChange={setStateFilter}
@@ -185,7 +185,7 @@ export function CommerceFarmersPanel() {
               ...states.map((s) => ({ value: s, label: s })),
             ]}
           />
-          <SearchSelect
+          <StaticSelect
             label="Status"
             value={statusFilter}
             onChange={(value) => setStatusFilter(value as StatusFilter)}

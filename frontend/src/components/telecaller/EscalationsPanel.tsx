@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import { EscalationDetailModal, type EscalationListRow } from './EscalationDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -77,7 +77,7 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
             Click a case to review, comment, and update status.
           </p>
         </div>
-        <SearchSelect
+        <StaticSelect
           className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
           value={statusFilter}
           onChange={setStatusFilter}

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '../../../lib/api';
-import { Btn, Loading, SearchSelect } from '../../ui';
+import { Btn, Loading, StaticSelect } from '../../ui';
 import { Field, Modal, inputClass } from '../../Modal';
 import { LeadQueueColumnManager } from './LeadQueueColumnManager';
 import { LeadRowActions } from './LeadRowActions';
@@ -837,7 +837,7 @@ export function LeadOperationsTable({
             </div>
           </div>
           <div className="tc-lq-command-tools">
-            <SearchSelect
+            <StaticSelect
               className="tc-lq-sort-select"
               compact
               value={sort}
@@ -880,7 +880,7 @@ export function LeadOperationsTable({
 
         {showAdvancedFilters ? (
           <div className="tc-lq-advanced-filters">
-            <SearchSelect
+            <StaticSelect
               className="tc-lq-field"
               value={stage}
               onChange={setStage}
@@ -923,7 +923,7 @@ export function LeadOperationsTable({
               value={owner}
               onChange={(e) => setOwner(e.target.value)}
             />
-            <SearchSelect
+            <StaticSelect
               className="tc-lq-field"
               value={opportunityLevel}
               onChange={(value) =>
@@ -1211,7 +1211,7 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Stage">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={bulkStage}
               onChange={setBulkStage}
@@ -1235,7 +1235,7 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Owner email">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={bulkOwner}
               onChange={setBulkOwner}
@@ -1256,7 +1256,7 @@ export function LeadOperationsTable({
           saving={bulkBusy}
         >
           <Field label="Employee">
-            <SearchSelect
+            <StaticSelect
               className={inputClass}
               value={bulkOwner}
               onChange={setBulkOwner}

@@ -4,7 +4,7 @@ import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { openQuoteSendLinks } from '../../lib/quoteSend';
 import { Modal, inputClass } from '../Modal';
-import { Alert, Btn, Loading, SearchSelect } from '../ui';
+import { Alert, Btn, Loading, StaticSelect } from '../ui';
 import {
   BulkMarginReviewBadge,
   bulkReviewHint,
@@ -420,7 +420,7 @@ export function CreateEstimateModal({
         </div>
         <label className="quote-order-type">
           <span>Order mode</span>
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={orderType}
             onChange={(value) => setOrderType(value as 'standard' | 'bulk')}

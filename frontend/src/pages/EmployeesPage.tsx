@@ -18,7 +18,7 @@ import {
   Input,
   Loading,
   Panel,
-  SearchSelect,
+  StaticSelect,
   Select,
   TableWrap,
 } from '../components/ui';
@@ -1365,7 +1365,7 @@ function NewEmployeeModal({
           />
         </Field>
         <Field label="Role">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={role}
             onChange={setRole}
@@ -1386,7 +1386,7 @@ function NewEmployeeModal({
           <input className={inputClass} value={alternateMobile} onChange={(e) => setAlternateMobile(e.target.value)} />
         </Field>
         <Field label="Gender">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={gender}
             onChange={setGender}
@@ -1408,7 +1408,7 @@ function NewEmployeeModal({
           <input className={inputClass} value={department} onChange={(e) => setDepartment(e.target.value)} />
         </Field>
         <Field label="Employment type">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={employmentType}
             onChange={setEmploymentType}
@@ -1675,7 +1675,7 @@ function EditEmployeeModal({
           <input className={inputClass} value={fullName} onChange={(e) => setFullName(e.target.value)} />
         </Field>
         <Field label="Role">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={role}
             onChange={setRole}

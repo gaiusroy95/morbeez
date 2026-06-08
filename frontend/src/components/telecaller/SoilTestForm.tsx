@@ -1,5 +1,5 @@
 import { inputClass } from '../Modal';
-import { SearchSelect } from '../ui';
+import { StaticSelect } from '../ui';
 import { SOIL_MACRO_FIELDS, SOIL_MICRO_FIELDS, SOIL_TYPE_OPTIONS } from './soilLabMetrics';
 
 type Props = {
@@ -64,7 +64,7 @@ export function SoilTestForm({
       <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
         <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Micro elements</h5>
         <FieldGrid fields={SOIL_MICRO_FIELDS} values={micro} onChange={onMicroChange} disabled={disabled} />
-        <SearchSelect
+        <StaticSelect
           label="Soil type"
           className={`${inputClass} mt-0.5`}
           value={soilType}

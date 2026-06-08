@@ -8,7 +8,7 @@ import {
   EmptyState,
   Loading,
   Panel,
-  SearchSelect,
+  StaticSelect,
   TableWrap,
   inputClass,
 } from '../ui';
@@ -327,7 +327,7 @@ export function CommerceBannersPanel({ canWrite }: Props) {
             </label>
             <label className="text-sm font-medium text-slate-700">
               Placement
-              <SearchSelect
+              <StaticSelect
                 className={inputClass}
                 value={form.placement}
                 onChange={(value) =>

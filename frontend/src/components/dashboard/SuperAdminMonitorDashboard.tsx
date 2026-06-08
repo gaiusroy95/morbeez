@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInrFull } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Badge, Btn, DataTable, Loading, Panel, SearchSelect, TableWrap } from '../ui';
+import { Badge, Btn, DataTable, Loading, Panel, StaticSelect, TableWrap } from '../ui';
 import '../../styles/super-admin-monitor.css';
 
 type AlertAction = {
@@ -508,7 +508,7 @@ export function SuperAdminMonitorDashboard() {
           </div>
           <div className="sam-ad-spend-form">
             <span className="sam-ad-spend-label">Log ad spend</span>
-            <SearchSelect
+            <StaticSelect
               value={adChannel}
               onChange={setAdChannel}
               options={[

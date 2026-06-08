@@ -8,7 +8,7 @@ import {
   LanguageTemplatesPanel,
   QuickRepliesPanel,
 } from '../components/operations/OperationsMessagingExtras';
-import { Alert, HubTabs, Loading, ReadOnlyBanner, SearchSelect } from '../components/ui';
+import { Alert, HubTabs, Loading, ReadOnlyBanner, StaticSelect } from '../components/ui';
 import { Field, Modal, inputClass } from '../components/Modal';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
 import { cropSlugFromName } from '../lib/master-picker-utils';
@@ -745,7 +745,7 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </label>
                     <label className="text-sm">
                       <span className="text-slate-600">Kind</span>
-                      <SearchSelect
+                      <StaticSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5"
                         value={ruleForm.broadcastKind}
                         onChange={(value) =>
@@ -1027,7 +1027,7 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                 <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm lg:col-span-2">
                   <div className="mb-3 flex flex-wrap items-center gap-2">
                     <h3 className="font-medium text-slate-900">Price Trend — {priceViewCrop}</h3>
-                    <SearchSelect
+                    <StaticSelect
                       className="rounded border border-slate-200 px-2 py-1 text-xs"
                       compact
                       value={String(priceYearView)}
@@ -1073,7 +1073,7 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </p>
                     <label className="mt-3 block text-xs text-slate-600">
                       Farmer field (block)
-                      <SearchSelect
+                      <StaticSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
                         value={marketPrefForm.blockId}
                         onChange={(value) => setMarketPrefForm((f) => ({ ...f, blockId: value }))}
@@ -1179,7 +1179,7 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
                     </label>
                     <label className="block text-xs text-slate-600">
                       Language
-                      <SearchSelect
+                      <StaticSelect
                         className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
                         value={termForm.language}
                         onChange={(value) => setTermForm((f) => ({ ...f, language: value }))}
@@ -1213,7 +1213,7 @@ export function OperationsCenterPage({ canWrite }: { canWrite: boolean }) {
               ) : null}
               <div className="mb-4 flex items-center gap-2">
                 <label className="text-sm text-slate-600">Status</label>
-                <SearchSelect
+                <StaticSelect
                   className="rounded border border-slate-200 px-2 py-1 text-sm"
                   value={termStatus}
                   onChange={setTermStatus}

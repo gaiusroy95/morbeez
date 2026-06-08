@@ -13,7 +13,7 @@ import {
   Panel,
   TableWrap,
   inputClass,
-  SearchSelect,
+  StaticSelect,
 } from '../ui';
 import { WarehouseOrderLink } from '../warehouse/WarehouseOrderLink';
 import { useAuth } from '../../context/AuthContext';
@@ -222,7 +222,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
             }
           }}
         />
-        <SearchSelect
+        <StaticSelect
           className={inputClass}
           value={payment}
           onChange={(value) => {

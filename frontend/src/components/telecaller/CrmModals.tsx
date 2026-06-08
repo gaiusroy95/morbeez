@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
-import { SearchSelect } from '../ui';
+import { SearchSelect, StaticSelect } from '../ui';
 import { MasterSelect } from './MasterSelect';
 import { InteractionTypePicker } from './InteractionTypePicker';
 import { FieldActivityTypePicker } from '../operations/field-activities/FieldActivityTypePicker';
@@ -295,7 +295,7 @@ function AddInteractionModal({
           />
         </Field>
         <Field label="Block">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={blockId}
             onChange={setBlockId}
@@ -416,7 +416,7 @@ function AddInteractionModal({
           }}
         />
         <Field label="Workflow status">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={escalate ? 'Escalated' : workflowStatus}
             disabled={escalate}
@@ -481,7 +481,7 @@ function AddRecommendationModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Block">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={blockId}
             onChange={setBlockId}
@@ -558,7 +558,7 @@ function AddFieldFindingModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Block">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={blockId}
             onChange={setBlockId}
@@ -683,7 +683,7 @@ function NewOrderModal({
           </Field>
         </div>
         <Field label="Block">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={blockId}
             onChange={setBlockId}
@@ -740,7 +740,7 @@ function LogCallModal({
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
         <Field label="Outcome">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={outcome}
             onChange={setOutcome}
@@ -916,7 +916,7 @@ function ScheduleVisitModal({
           />
         </Field>
         <Field label="Block">
-          <SearchSelect
+          <StaticSelect
             className={inputClass}
             value={blockId}
             onChange={setBlockId}

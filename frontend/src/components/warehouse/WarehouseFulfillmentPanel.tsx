@@ -446,7 +446,8 @@ export function WarehouseFulfillmentPanel({
 
               {!workflow?.currentRackLines.length && selectedQueue?.stockIssue === 'no_stock_reserved' ? (
                 <Alert tone="warn">
-                  No stock reserved — add stock via <strong>Purchase &amp; GRN</strong>, then{' '}
+                  Warehouse stock not reserved for this order (shows <strong>0 / {selectedQueue.orderItemCount ?? '?'}</strong>).
+                  Ensure products have stock in <strong>Commerce → Inventory</strong> or via <strong>Purchase &amp; GRN</strong>, then{' '}
                   {canWrite ? (
                     <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void runAction('/rebuild-pick-list', 'Pick list rebuilt')}>
                       Rebuild pick list

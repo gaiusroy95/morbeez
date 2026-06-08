@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { Badge, Btn, DataTable, Loading, Panel, SearchSelect, TableWrap } from '../ui';
+import { Badge, Btn, DataTable, Loading, Panel, StaticSelect, TableWrap } from '../ui';
 
 const pricingApi = '/morbeez-staff/api/v1/os/pricing';
 
@@ -104,7 +104,7 @@ export function EmployeePricingDashboard() {
               onChange={(e) => setMonthYear(e.target.value)}
             />
           </label>
-          <SearchSelect
+          <StaticSelect
             className="pricing-dash-filter"
             value={filter}
             onChange={(value) => setFilter(value as Filter)}

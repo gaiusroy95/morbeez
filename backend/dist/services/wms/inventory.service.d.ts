@@ -92,5 +92,12 @@ export declare const inventoryService: {
     setBatchStatus(batchId: string, status: "active" | "quarantine" | "expired" | "depleted"): Promise<any>;
     pickAllocation(allocationId: string, qty: number): Promise<any>;
     finalizePack(allocationId: string): Promise<void>;
+    /**
+     * Mirror commerce_stock_batches into WMS inventory_batches so fulfillment can reserve stock.
+     * Commerce "Add stock" and Shopify counts live separately from warehouse batches until synced.
+     */
+    syncCommerceBatchesToWarehouse(inventoryItemId: string): Promise<{
+        syncedQty: number;
+    }>;
 };
 //# sourceMappingURL=inventory.service.d.ts.map

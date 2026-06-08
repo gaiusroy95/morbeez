@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SearchSelect } from '../../ui';
+import { StaticSelect } from '../../ui';
 import {
   LEAD_QUEUE_COLUMNS,
   VIEW_PRESETS,
@@ -51,7 +51,7 @@ export function LeadQueueColumnManager({
       </div>
 
       <div className="tc-lq-view-row">
-        <SearchSelect
+        <StaticSelect
           label="Saved view"
           className="tc-filter-select"
           value={activeViewName === 'active' ? '' : activeViewName}
