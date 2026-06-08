@@ -7,8 +7,10 @@ import {
   emptyWarehouseLocation,
   type WarehouseLocationValue,
 } from './WarehouseLocationPickers';
-
-type StockRow = { inventoryItemId: string; sku: string; productTitle: string };
+import {
+  WarehouseProductPicker,
+  type WarehouseInventoryItem,
+} from './WarehouseProductPicker';
 
 type GrnLine = {
   inventoryItemId: string;
@@ -46,10 +48,9 @@ const emptyGrnLine = (): GrnLine => ({
 });
 
 export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
-  const [items, setItems] = useState<StockRow[]>([]);
+  const [items, setItems] = useState<WarehouseInventoryItem[]>([]);
   const [location, setLocation] = useState<WarehouseLocationValue>(emptyWarehouseLocation);
   const [lines, setLines] = useState<GrnLine[]>([emptyGrnLine()]);
-  const [newSku, setNewSku] = useState({ sku: '', title: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -58,8 +59,17 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const stock = await api<{ ok: boolean; stock: StockRow[] }>(`${WMS_API}/stock`);
-      setItems(stock.stock ?? []);
+      const res = await api<{
+        ok: boolean;
+        items: Array<{ id: string; sku: string; productTitle: string }>;
+      }>(`${WMS_API}/inventory-items`);
+      setItems(
+        (res.items ?? []).map((item) => ({
+          inventoryItemId: item.id,
+          sku: item.sku,
+          productTitle: item.productTitle,
+        }))
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     } finally {
@@ -70,35 +80,6 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  async function addSku() {
-    if (!newSku.sku.trim() || !newSku.title.trim()) return;
-    setError('');
-    try {
-      const d = await api<{ ok: boolean; item: { id: string; sku: string; product_title: string } }>(
-        `${WMS_API}/inventory-items`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            sku: newSku.sku.trim(),
-            productTitle: newSku.title.trim(),
-          }),
-        }
-      );
-      setItems((prev) => [
-        ...prev,
-        {
-          inventoryItemId: d.item.id,
-          sku: d.item.sku,
-          productTitle: d.item.product_title,
-        },
-      ]);
-      setNewSku({ sku: '', title: '' });
-      setSuccess('SKU added');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add SKU');
-    }
-  }
 
   async function submitGrn() {
     if (!location.warehouseId) {
@@ -147,31 +128,9 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
       {error ? <Alert tone="error">{error}</Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}
 
-      {canWrite ? (
-        <Panel title="Add SKU" description="Register a product before first GRN">
-          <div className="warehouse-form-row">
-            <input
-              className={inputClass}
-              placeholder="SKU"
-              value={newSku.sku}
-              onChange={(e) => setNewSku((s) => ({ ...s, sku: e.target.value }))}
-            />
-            <input
-              className={inputClass}
-              placeholder="Product title"
-              value={newSku.title}
-              onChange={(e) => setNewSku((s) => ({ ...s, title: e.target.value }))}
-            />
-            <Btn size="sm" onClick={() => void addSku()}>
-              Add SKU
-            </Btn>
-          </div>
-        </Panel>
-      ) : null}
-
       <Panel
         title="Goods received (GRN)"
-        description="Purchase → landed cost → weighted average → safe price recalculation"
+        description="Purchase → landed cost → weighted average → safe price recalculation. Use the product picker to search, add, edit, or remove SKUs."
       >
         <WarehouseLocationPickers
           value={location}
@@ -198,23 +157,20 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
             <tbody>
               {lines.map((line, i) => (
                 <tr key={i}>
-                  <td>
-                    <select
-                      className={inputClass}
+                  <td className="warehouse-product-cell">
+                    <WarehouseProductPicker
+                      compact
                       value={line.inventoryItemId}
+                      items={items}
+                      onItemsChange={setItems}
                       disabled={!canWrite}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setLines((prev) => prev.map((l, j) => (j === i ? { ...l, inventoryItemId: v } : l)));
+                      allowManage={canWrite}
+                      onChange={(id) => {
+                        setLines((prev) =>
+                          prev.map((l, j) => (j === i ? { ...l, inventoryItemId: id } : l))
+                        );
                       }}
-                    >
-                      <option value="">Select…</option>
-                      {items.map((it) => (
-                        <option key={it.inventoryItemId} value={it.inventoryItemId}>
-                          {it.productTitle} ({it.sku})
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </td>
                   <td>
                     <input
@@ -231,14 +187,18 @@ export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
                   <td>
                     <input
                       type="number"
+                      min={1}
                       className={inputClass}
                       value={line.qty}
                       disabled={!canWrite}
                       onChange={(e) =>
                         setLines((prev) =>
-                          prev.map((l, j) => (j === i ? { ...l, qty: Number(e.target.value) } : l))
+                          prev.map((l, j) =>
+                            j === i ? { ...l, qty: Math.max(1, Number(e.target.value) || 1) } : l
+                          )
                         )
                       }
+                      onFocus={(e) => e.target.select()}
                     />
                   </td>
                   {(['supplierCost', 'freightCost', 'customsCost', 'packagingCost', 'miscCost'] as const).map(

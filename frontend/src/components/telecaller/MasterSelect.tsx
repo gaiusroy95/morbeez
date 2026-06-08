@@ -24,10 +24,10 @@ export function MasterSelect({
   className = inputClass,
   apiBase,
 }: Props) {
-  if (masterType === 'crop' || masterType === 'market') {
+  if (masterType === 'crop' || masterType === 'market' || masterType === 'pest' || masterType === 'disease') {
     return (
       <DynamicMasterPicker
-        masterType={masterType}
+        masterType={masterType as 'crop' | 'market' | 'pest' | 'disease'}
         label={label}
         value={value}
         allowManage={allowAdd}

@@ -53,6 +53,10 @@
   line-height: 1;
 }
 
+.dmp-panel--table {
+  min-width: 100%;
+}
+
 .dmp-panel {
   position: absolute;
   z-index: 50;

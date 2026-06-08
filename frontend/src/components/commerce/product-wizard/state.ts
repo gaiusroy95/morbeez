@@ -8,7 +8,7 @@ export function emptyVariant(): WizardVariant {
     mrp: '',
     sellingPrice: '',
     dealerPrice: '',
-    stock: 0,
+    stock: '',
   };
 }
 
@@ -158,7 +158,7 @@ export function loadFromProduct(
     mrp: String(v.mrp ?? v.price ?? ''),
     sellingPrice: String(v.price ?? ''),
     dealerPrice: String(v.dealerPrice ?? ''),
-    stock: Number(v.inventory ?? 0),
+    stock: String(v.inventory ?? ''),
     sku: String(v.sku ?? ''),
   }));
 

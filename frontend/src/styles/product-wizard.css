@@ -872,6 +872,16 @@ body.route-product-wizard .page-header {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
+  overflow: visible;
+}
+
+.pw-crop-mapping-card .dmp-root {
+  position: relative;
+  z-index: 1;
+}
+
+.pw-crop-mapping-card .dmp-root--open {
+  z-index: 40;
 }
 
 .pw-crop-mapping-card-head {

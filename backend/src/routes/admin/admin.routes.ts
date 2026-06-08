@@ -1865,6 +1865,13 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, item });
   });
 
+  app.delete(`${api}/crm/masters/:id`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager');
+    const { id } = request.params as { id: string };
+    const item = await crmFarmerService.updateMaster(id, { active: false });
+    return reply.send({ ok: true, item });
+  });
+
   app.get(`${api}/telecaller/leads/:id/crm`, async (request, reply) => {
     requireAdmin(request);
     const { id } = request.params as { id: string };

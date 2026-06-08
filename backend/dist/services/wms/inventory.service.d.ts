@@ -18,7 +18,20 @@ export type StockSummaryRow = {
         rackLocation: string | null;
     }>;
 };
+export type InventoryItemRow = {
+    id: string;
+    sku: string;
+    productTitle: string;
+};
 export declare const inventoryService: {
+    listInventoryItems(opts?: {
+        search?: string;
+    }): Promise<InventoryItemRow[]>;
+    updateInventoryItem(id: string, input: {
+        sku?: string;
+        productTitle?: string;
+    }): Promise<InventoryItemRow>;
+    deactivateInventoryItem(id: string): Promise<void>;
     upsertItemFromSku(input: {
         sku: string;
         productTitle: string;

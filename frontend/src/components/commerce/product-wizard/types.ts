@@ -7,7 +7,7 @@ export type WizardVariant = {
   mrp: string;
   sellingPrice: string;
   dealerPrice: string;
-  stock: number;
+  stock: string;
   sku?: string;
 };
 

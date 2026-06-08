@@ -10,8 +10,17 @@ import {
 } from '../lib/master-picker-utils';
 import '../styles/dynamic-master-picker.css';
 
+export type DynamicMasterPickerType = 'crop' | 'market' | 'pest' | 'disease';
+
+function addFieldPlaceholder(masterType: DynamicMasterPickerType): string {
+  if (masterType === 'market') return 'Market name';
+  if (masterType === 'crop') return 'Crop name';
+  if (masterType === 'pest') return 'Pest name';
+  return 'Disease name';
+}
+
 type BaseProps = {
-  masterType: 'crop' | 'market';
+  masterType: DynamicMasterPickerType;
   label: string;
   allowManage?: boolean;
   apiBase?: string;
@@ -26,6 +35,8 @@ type BaseProps = {
 type SingleProps = BaseProps & {
   multiple?: false;
   value: string;
+  /** Shown when `value` id is not in the loaded list (e.g. legacy saved label). */
+  displayValue?: string;
   onChange: (id: string, item: MasterPickerItem | null) => void;
   /** When masterType is market, also emit legacy market key `name|district`. */
   onMarketKeyChange?: (marketKey: string, item: MasterPickerItem | null) => void;
@@ -108,6 +119,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
       return `${props.value.length} selected`;
     }
     if (selectedItems[0]) return labelFromMasterItem(selectedItems[0]);
+    if (!props.multiple && props.displayValue?.trim()) return props.displayValue.trim();
     return placeholder;
   }, [props, placeholder, selectedItems]);
 
@@ -249,7 +261,15 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
         disabled={disabled || loading}
         onClick={() => setOpen((v) => !v)}
       >
-        <span className={`dmp-trigger-text ${!selectedItems.length && !props.multiple ? 'dmp-trigger-text--placeholder' : ''}`}>
+        <span
+          className={`dmp-trigger-text ${
+            !selectedItems.length &&
+            !props.multiple &&
+            !(props.multiple === false && props.displayValue?.trim())
+              ? 'dmp-trigger-text--placeholder'
+              : ''
+          }`}
+        >
           {loading ? 'Loading…' : triggerLabel}
         </span>
         <span className="dmp-chevron" aria-hidden>
@@ -373,7 +393,7 @@ export function DynamicMasterPicker(props: DynamicMasterPickerProps) {
             <div className="dmp-footer">
               <input
                 className="dmp-add-input"
-                placeholder={masterType === 'market' ? 'Market name' : 'Enter label'}
+                placeholder={addFieldPlaceholder(masterType)}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {

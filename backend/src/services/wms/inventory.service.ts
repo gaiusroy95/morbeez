@@ -24,7 +24,90 @@ export type StockSummaryRow = {
   }>;
 };
 
+export type InventoryItemRow = {
+  id: string;
+  sku: string;
+  productTitle: string;
+};
+
+function mapInventoryItemRow(row: Record<string, unknown>): InventoryItemRow {
+  return {
+    id: String(row.id),
+    sku: String(row.sku),
+    productTitle: String(row.product_title),
+  };
+}
+
 export const inventoryService = {
+  async listInventoryItems(opts?: { search?: string }): Promise<InventoryItemRow[]> {
+    let q = supabase
+      .from('inventory_items')
+      .select('id, sku, product_title')
+      .eq('active', true);
+    if (opts?.search?.trim()) {
+      const s = `%${opts.search.trim()}%`;
+      q = q.or(`sku.ilike.${s},product_title.ilike.${s}`);
+    }
+    const { data, error } = await q.order('product_title');
+    throwIfSupabaseError(error, 'List inventory items');
+    return (data ?? []).map((row) => mapInventoryItemRow(row as Record<string, unknown>));
+  },
+
+  async updateInventoryItem(
+    id: string,
+    input: { sku?: string; productTitle?: string }
+  ): Promise<InventoryItemRow> {
+    if (input.sku === undefined && input.productTitle === undefined) {
+      throw new AppError('Nothing to update', 400, 'VALIDATION_ERROR');
+    }
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (input.sku !== undefined) patch.sku = input.sku.trim();
+    if (input.productTitle !== undefined) patch.product_title = input.productTitle.trim();
+
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .update(patch)
+      .eq('id', id)
+      .eq('active', true)
+      .select('id, sku, product_title')
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Update inventory item');
+    if (!data) throw new NotFoundError('Inventory item not found');
+    return mapInventoryItemRow(data as Record<string, unknown>);
+  },
+
+  async deactivateInventoryItem(id: string): Promise<void> {
+    const { data: item } = await supabase
+      .from('inventory_items')
+      .select('id')
+      .eq('id', id)
+      .eq('active', true)
+      .maybeSingle();
+    if (!item) throw new NotFoundError('Inventory item not found');
+
+    const { data: batches } = await supabase
+      .from('inventory_batches')
+      .select('qty_on_hand, qty_reserved')
+      .eq('inventory_item_id', id);
+
+    const hasStock = (batches ?? []).some(
+      (b) => (Number(b.qty_on_hand) || 0) + (Number(b.qty_reserved) || 0) > 0
+    );
+    if (hasStock) {
+      throw new AppError(
+        'Cannot remove a product that still has stock on hand',
+        409,
+        'INVENTORY_ITEM_IN_USE'
+      );
+    }
+
+    const { error } = await supabase
+      .from('inventory_items')
+      .update({ active: false, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    throwIfSupabaseError(error, 'Deactivate inventory item');
+  },
+
   async upsertItemFromSku(input: {
     sku: string;
     productTitle: string;

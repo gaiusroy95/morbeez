@@ -80,6 +80,13 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, stock });
   });
 
+  app.get(`${api}/inventory-items`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const q = request.query as { search?: string };
+    const items = await inventoryService.listInventoryItems({ search: q.search });
+    return reply.send({ ok: true, items });
+  });
+
   app.post(`${api}/inventory-items`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const body = z
@@ -94,6 +101,26 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const item = await inventoryService.upsertItemFromSku(body);
     return reply.send({ ok: true, item });
+  });
+
+  app.patch(`${api}/inventory-items/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        sku: z.string().min(1).optional(),
+        productTitle: z.string().min(1).optional(),
+      })
+      .parse(request.body);
+    const item = await inventoryService.updateInventoryItem(id, body);
+    return reply.send({ ok: true, item });
+  });
+
+  app.delete(`${api}/inventory-items/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    await inventoryService.deactivateInventoryItem(id);
+    return reply.send({ ok: true });
   });
 
   // ─── Purchase orders & GRN ────────────────────────────────────────────────

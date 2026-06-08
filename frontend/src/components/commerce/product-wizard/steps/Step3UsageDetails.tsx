@@ -1,11 +1,7 @@
-import {
-  APPLICATION_STAGES,
-  CROP_OPTIONS,
-  DISEASE_OPTIONS,
-  PEST_OPTIONS,
-} from '../constants';
+import { APPLICATION_STAGES } from '../constants';
 import { emptyCropMapping, type CropMappingEntry } from '../cropMapping';
 import { WizardField, pwInputClass, pwSelectClass } from '../WizardField';
+import { WizardMasterPicker } from '../WizardMasterPicker';
 import type { WizardFormState } from '../types';
 
 type Props = {
@@ -64,48 +60,25 @@ export function Step3UsageDetails({ state, onChange }: Props) {
             </div>
 
             <div className="pw-grid pw-grid--3">
-              <WizardField label="Select Crop" required>
-                <select
-                  className={pwSelectClass()}
-                  value={m.crop}
-                  onChange={(e) => patchMapping(m.id, { crop: e.target.value })}
-                >
-                  <option value="">Select crop</option>
-                  {CROP_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </WizardField>
-              <WizardField label="Select Pest">
-                <select
-                  className={pwSelectClass()}
-                  value={m.pest}
-                  onChange={(e) => patchMapping(m.id, { pest: e.target.value })}
-                >
-                  <option value="">Select pest</option>
-                  {PEST_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </WizardField>
-              <WizardField label="Select Disease">
-                <select
-                  className={pwSelectClass()}
-                  value={m.disease}
-                  onChange={(e) => patchMapping(m.id, { disease: e.target.value })}
-                >
-                  <option value="">Select disease</option>
-                  {DISEASE_OPTIONS.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </WizardField>
+              <WizardMasterPicker
+                masterType="crop"
+                label="Select Crop"
+                value={m.crop}
+                required
+                onChange={(name) => patchMapping(m.id, { crop: name })}
+              />
+              <WizardMasterPicker
+                masterType="pest"
+                label="Select Pest"
+                value={m.pest}
+                onChange={(name) => patchMapping(m.id, { pest: name })}
+              />
+              <WizardMasterPicker
+                masterType="disease"
+                label="Select Disease"
+                value={m.disease}
+                onChange={(name) => patchMapping(m.id, { disease: name })}
+              />
             </div>
 
             <WizardField label="Symptoms (Keywords)" full>

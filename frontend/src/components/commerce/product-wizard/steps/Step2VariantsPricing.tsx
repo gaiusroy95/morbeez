@@ -91,11 +91,12 @@ export function Step2VariantsPricing({ state, onChange }: Props) {
                 <td>
                   <input
                     type="number"
+                    min={0}
+                    step={1}
                     className="pw-table-input"
                     value={v.stock}
-                    onChange={(e) =>
-                      patchVariant(idx, { stock: Number(e.target.value) || 0 })
-                    }
+                    onChange={(e) => patchVariant(idx, { stock: e.target.value })}
+                    onFocus={(e) => e.target.select()}
                   />
                 </td>
                 <td>
