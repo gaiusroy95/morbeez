@@ -40,6 +40,22 @@ export declare const inventoryService: {
         hsnCode?: string | null;
         gstPercent?: number;
     }): Promise<any>;
+    extractVariantIdFromSku(sku: string | null | undefined): string | null;
+    listInventoryItemIdsForVariant(variantId: string): Promise<string[]>;
+    getAvailableWarehouseQty(inventoryItemId: string, warehouseId: string): Promise<number>;
+    /**
+     * Order lines often point at VAR-{variantId} items while Add Stock created a second row with the real SKU.
+     * Pick the inventory_items row that actually has warehouse stock after commerce sync.
+     */
+    resolveInventoryItemForOrderLine(line: {
+        id: string;
+        inventory_item_id: string | null;
+        sku: string | null;
+        product_title: string;
+    }): Promise<{
+        inventoryItemId: string;
+        available: number;
+    }>;
     getStockSummary(opts?: {
         search?: string;
         warehouseId?: string;
@@ -101,8 +117,14 @@ export declare const inventoryService: {
         batches: Record<string, unknown>[];
         variantIds: string[];
     }>;
+    collectLinkedInventoryItemIds(item: {
+        id: string;
+        sku: string | null;
+        shopify_variant_id: string | null;
+    }): Promise<string[]>;
     /**
      * Mirror commerce_stock_batches (and Shopify catalog qty as fallback) into WMS inventory_batches.
+     * Applies to every inventory_items row sharing the same Shopify variant (fixes VAR-* duplicates).
      */
     syncCommerceBatchesToWarehouse(inventoryItemId: string): Promise<{
         syncedQty: number;

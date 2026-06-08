@@ -118,10 +118,49 @@ export const inventoryService = {
     hsnCode?: string | null;
     gstPercent?: number;
   }) {
+    const sku = input.sku.trim();
+    const variantId = input.shopifyVariantId?.trim() || null;
+    const preferCanonicalSku = sku && !/^VAR-\d+$/i.test(sku);
+
+    /** One Shopify variant must map to one inventory_items row (orders use VAR-* SKUs). */
+    if (variantId) {
+      const { data: byVariant } = await supabase
+        .from('inventory_items')
+        .select('*')
+        .eq('shopify_variant_id', variantId)
+        .eq('active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (byVariant) {
+        const nextSku =
+          preferCanonicalSku && byVariant.sku !== sku
+            ? sku
+            : String(byVariant.sku);
+        const { data, error } = await supabase
+          .from('inventory_items')
+          .update({
+            sku: nextSku,
+            product_title: input.productTitle,
+            shopify_variant_id: variantId,
+            barcode: input.barcode ?? byVariant.barcode,
+            hsn_code: input.hsnCode ?? byVariant.hsn_code,
+            gst_percent: input.gstPercent ?? byVariant.gst_percent,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', byVariant.id)
+          .select('*')
+          .single();
+        throwIfSupabaseError(error, 'Update inventory item by variant');
+        return data;
+      }
+    }
+
     const { data: existing } = await supabase
       .from('inventory_items')
       .select('*')
-      .eq('sku', input.sku)
+      .eq('sku', sku)
       .maybeSingle();
 
     if (existing) {
@@ -129,7 +168,7 @@ export const inventoryService = {
         .from('inventory_items')
         .update({
           product_title: input.productTitle,
-          shopify_variant_id: input.shopifyVariantId ?? existing.shopify_variant_id,
+          shopify_variant_id: variantId ?? existing.shopify_variant_id,
           barcode: input.barcode ?? existing.barcode,
           hsn_code: input.hsnCode ?? existing.hsn_code,
           gst_percent: input.gstPercent ?? existing.gst_percent,
@@ -145,9 +184,9 @@ export const inventoryService = {
     const { data, error } = await supabase
       .from('inventory_items')
       .insert({
-        sku: input.sku,
+        sku,
         product_title: input.productTitle,
-        shopify_variant_id: input.shopifyVariantId ?? null,
+        shopify_variant_id: variantId,
         barcode: input.barcode ?? null,
         hsn_code: input.hsnCode ?? null,
         gst_percent: input.gstPercent ?? 18,
@@ -156,6 +195,112 @@ export const inventoryService = {
       .single();
     throwIfSupabaseError(error, 'Insert inventory item');
     return data;
+  },
+
+  extractVariantIdFromSku(sku: string | null | undefined): string | null {
+    if (!sku?.trim()) return null;
+    const match = sku.trim().match(/^VAR-(\d+)$/i);
+    return match ? match[1] : null;
+  },
+
+  async listInventoryItemIdsForVariant(variantId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('inventory_items')
+      .select('id')
+      .eq('shopify_variant_id', variantId)
+      .eq('active', true);
+    throwIfSupabaseError(error, 'List items by variant');
+    return (data ?? []).map((row) => String(row.id));
+  },
+
+  async getAvailableWarehouseQty(inventoryItemId: string, warehouseId: string): Promise<number> {
+    const { data: batches, error } = await supabase
+      .from('inventory_batches')
+      .select('qty_on_hand, qty_reserved')
+      .eq('inventory_item_id', inventoryItemId)
+      .eq('warehouse_id', warehouseId)
+      .eq('status', 'active');
+    throwIfSupabaseError(error, 'Warehouse availability');
+    return (batches ?? []).reduce(
+      (sum, b) => sum + Math.max(0, Number(b.qty_on_hand) - Number(b.qty_reserved)),
+      0
+    );
+  },
+
+  /**
+   * Order lines often point at VAR-{variantId} items while Add Stock created a second row with the real SKU.
+   * Pick the inventory_items row that actually has warehouse stock after commerce sync.
+   */
+  async resolveInventoryItemForOrderLine(line: {
+    id: string;
+    inventory_item_id: string | null;
+    sku: string | null;
+    product_title: string;
+  }): Promise<{ inventoryItemId: string; available: number }> {
+    if (!line.inventory_item_id) {
+      throw new AppError(
+        `Order line "${line.product_title}" has no inventory SKU — sync order lines first`,
+        409,
+        'ORDER_LINE_NO_SKU'
+      );
+    }
+
+    const warehouse = await warehouseService.getDefaultWarehouse();
+    const candidateIds = new Set<string>([String(line.inventory_item_id)]);
+
+    const { data: current, error: curErr } = await supabase
+      .from('inventory_items')
+      .select('id, sku, shopify_variant_id')
+      .eq('id', line.inventory_item_id)
+      .eq('active', true)
+      .maybeSingle();
+    throwIfSupabaseError(curErr, 'Order line inventory item');
+
+    const variantIds = new Set<string>();
+    if (current?.shopify_variant_id) variantIds.add(String(current.shopify_variant_id));
+    const fromCurrentSku = this.extractVariantIdFromSku(current?.sku ?? null);
+    if (fromCurrentSku) variantIds.add(fromCurrentSku);
+    const fromLineSku = this.extractVariantIdFromSku(line.sku);
+    if (fromLineSku) variantIds.add(fromLineSku);
+
+    for (const variantId of variantIds) {
+      for (const id of await this.listInventoryItemIdsForVariant(variantId)) {
+        candidateIds.add(id);
+      }
+    }
+
+    if (line.sku?.trim() && !/^VAR-\d+$/i.test(line.sku.trim())) {
+      const { data: bySku } = await supabase
+        .from('inventory_items')
+        .select('id')
+        .eq('sku', line.sku.trim())
+        .eq('active', true);
+      for (const row of bySku ?? []) candidateIds.add(String(row.id));
+    }
+
+    let bestId = String(line.inventory_item_id);
+    let bestAvailable = -1;
+
+    for (const id of candidateIds) {
+      await this.syncCommerceBatchesToWarehouse(id);
+      const available = await this.getAvailableWarehouseQty(id, String(warehouse.id));
+      if (available > bestAvailable) {
+        bestAvailable = available;
+        bestId = id;
+      }
+    }
+
+    if (bestId !== String(line.inventory_item_id)) {
+      await supabase
+        .from('commerce_order_lines')
+        .update({
+          inventory_item_id: bestId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', line.id);
+    }
+
+    return { inventoryItemId: bestId, available: Math.max(0, bestAvailable) };
   },
 
   async getStockSummary(opts?: { search?: string; warehouseId?: string }) {
@@ -741,8 +886,30 @@ export const inventoryService = {
     return { batches, variantIds: [...variantIds] };
   },
 
+  async collectLinkedInventoryItemIds(item: {
+    id: string;
+    sku: string | null;
+    shopify_variant_id: string | null;
+  }): Promise<string[]> {
+    const ids = new Set<string>([item.id]);
+    const { variantIds } = await this.loadCommerceBatchesForItem(item);
+    for (const variantId of variantIds) {
+      for (const id of await this.listInventoryItemIdsForVariant(variantId)) {
+        ids.add(id);
+      }
+    }
+    const fromSku = this.extractVariantIdFromSku(item.sku);
+    if (fromSku) {
+      for (const id of await this.listInventoryItemIdsForVariant(fromSku)) {
+        ids.add(id);
+      }
+    }
+    return [...ids];
+  },
+
   /**
    * Mirror commerce_stock_batches (and Shopify catalog qty as fallback) into WMS inventory_batches.
+   * Applies to every inventory_items row sharing the same Shopify variant (fixes VAR-* duplicates).
    */
   async syncCommerceBatchesToWarehouse(inventoryItemId: string) {
     const { data: item, error: itemErr } = await supabase
@@ -756,35 +923,40 @@ export const inventoryService = {
 
     const warehouse = await warehouseService.getDefaultWarehouse();
     const { batches: commerceBatches, variantIds } = await this.loadCommerceBatchesForItem(item);
+    const targetIds = await this.collectLinkedInventoryItemIds(item);
 
-    let syncedQty = 0;
-    for (const cb of commerceBatches) {
-      syncedQty += await this.applyCommerceBatchToWarehouse(
-        inventoryItemId,
-        String(warehouse.id),
-        cb
-      );
-    }
-
-    if (!commerceBatches.length) {
+    let commerceSource = [...commerceBatches];
+    if (!commerceSource.length) {
       const variantId = variantIds[0] ?? item.shopify_variant_id;
       const variantNum = variantId ? Number(variantId) : NaN;
       if (Number.isFinite(variantNum) && variantNum > 0) {
         try {
           const shopifyQty = await shopifyInventoryService.getVariantStock(variantNum);
           if (shopifyQty > 0) {
-            const batchCode = `CATALOG-${variantId}`;
-            syncedQty += await this.applyCommerceBatchToWarehouse(inventoryItemId, String(warehouse.id), {
-              id: `shopify-${variantId}`,
-              batch_code: batchCode,
-              qty: shopifyQty,
-              mfg_date: null,
-              expiry_date: null,
-            });
+            commerceSource = [
+              {
+                id: `shopify-${variantId}`,
+                batch_code: `CATALOG-${variantId}`,
+                qty: shopifyQty,
+                mfg_date: null,
+                expiry_date: null,
+              },
+            ];
           }
         } catch (err) {
           logger.debug({ err, inventoryItemId, variantId }, 'Shopify stock fallback skipped');
         }
+      }
+    }
+
+    let syncedQty = 0;
+    for (const targetId of targetIds) {
+      for (const cb of commerceSource) {
+        syncedQty += await this.applyCommerceBatchToWarehouse(
+          targetId,
+          String(warehouse.id),
+          cb
+        );
       }
     }
 
@@ -814,22 +986,19 @@ export const inventoryService = {
 
     let syncedVariants = 0;
     let syncedQty = 0;
+    const syncedItemIds = new Set<string>();
 
     for (const variantId of variantIds) {
-      const { data: item } = await supabase
-        .from('inventory_items')
-        .select('id')
-        .eq('shopify_variant_id', variantId)
-        .eq('active', true)
-        .maybeSingle();
+      const itemIds = await this.listInventoryItemIdsForVariant(variantId);
+      if (!itemIds.length) continue;
 
-      if (!item?.id) continue;
-
-      const result = await this.syncCommerceBatchesToWarehouse(String(item.id));
-      if (result.syncedQty > 0) {
-        syncedVariants += 1;
-        syncedQty += result.syncedQty;
+      for (const itemId of itemIds) {
+        if (syncedItemIds.has(itemId)) continue;
+        syncedItemIds.add(itemId);
+        const result = await this.syncCommerceBatchesToWarehouse(itemId);
+        if (result.syncedQty > 0) syncedQty += result.syncedQty;
       }
+      syncedVariants += 1;
     }
 
     const { data: orderItems } = await supabase
@@ -837,11 +1006,10 @@ export const inventoryService = {
       .select('inventory_item_id')
       .not('inventory_item_id', 'is', null);
 
-    const seen = new Set<string>();
     for (const row of orderItems ?? []) {
       const id = String(row.inventory_item_id);
-      if (seen.has(id)) continue;
-      seen.add(id);
+      if (syncedItemIds.has(id)) continue;
+      syncedItemIds.add(id);
       const result = await this.syncCommerceBatchesToWarehouse(id);
       if (result.syncedQty > 0) syncedQty += result.syncedQty;
     }

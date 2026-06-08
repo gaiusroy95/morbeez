@@ -238,13 +238,25 @@ export function WarehouseFulfillmentPanel({
         syncedQty?: number;
         repaired?: number;
         failed?: number;
+        errors?: Array<{ orderId: string; orderName?: string; message: string }>;
         queue: QueueRow[];
       }>(`${WMS_API}/fulfillment/sync-inventory`, { method: 'POST' });
       setQueue(r.queue ?? []);
       const parts: string[] = [];
       if (r.syncedQty) parts.push(`${r.syncedQty} units synced to warehouse`);
       if (r.repaired) parts.push(`${r.repaired} pick lists rebuilt`);
-      setSuccess(parts.length ? parts.join(' · ') : 'Inventory sync complete');
+      if (r.failed) parts.push(`${r.failed} orders still blocked`);
+      if (parts.length) setSuccess(parts.join(' · '));
+      if (r.errors?.length) {
+        setError(
+          r.errors
+            .slice(0, 4)
+            .map((e) => `${e.orderName ?? e.orderId.slice(0, 8)}: ${e.message}`)
+            .join(' — ')
+        );
+      } else if (!parts.length) {
+        setSuccess('Sync finished — select an order to verify pick lines');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed');
     } finally {

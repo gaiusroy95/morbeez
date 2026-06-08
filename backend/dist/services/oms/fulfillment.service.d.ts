@@ -11,6 +11,11 @@ export declare const fulfillmentService: {
     repairStalePickLists(): Promise<{
         repaired: number;
         failed: number;
+        errors: {
+            orderId: string;
+            orderName?: string;
+            message: string;
+        }[];
         syncedVariants: number;
         syncedQty: number;
         variantCount: number;

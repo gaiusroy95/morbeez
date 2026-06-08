@@ -69,6 +69,24 @@ export const fulfillmentService = {
     },
     async repairStalePickLists() {
         const sync = await inventoryService.syncAllCommerceStockToWarehouse();
+        const { data: pendingLines } = await supabase
+            .from('commerce_order_lines')
+            .select('id, inventory_item_id, sku, product_title, commerce_orders!inner(oms_status)')
+            .not('inventory_item_id', 'is', null)
+            .in('commerce_orders.oms_status', [...FULFILLMENT_STATUSES]);
+        for (const line of pendingLines ?? []) {
+            try {
+                await inventoryService.resolveInventoryItemForOrderLine({
+                    id: String(line.id),
+                    inventory_item_id: line.inventory_item_id ? String(line.inventory_item_id) : null,
+                    sku: line.sku ? String(line.sku) : null,
+                    product_title: String(line.product_title ?? 'Product'),
+                });
+            }
+            catch (err) {
+                logger.debug({ err, lineId: line.id }, 'Order line relink skipped');
+            }
+        }
         const { data: orders, error } = await supabase
             .from('commerce_orders')
             .select('id, pick_lists(id, pick_list_lines(id))')
@@ -76,21 +94,33 @@ export const fulfillmentService = {
         throwIfSupabaseError(error, 'Fulfillment repair list');
         let repaired = 0;
         let failed = 0;
+        const errors = [];
+        const { data: orderNames } = await supabase
+            .from('commerce_orders')
+            .select('id, order_name, shopify_order_id')
+            .in('id', (orders ?? []).map((o) => String(o.id)));
+        const nameById = new Map((orderNames ?? []).map((o) => [
+            String(o.id),
+            String(o.order_name ?? o.shopify_order_id ?? o.id),
+        ]));
         for (const order of orders ?? []) {
             const pickLists = (order.pick_lists ?? []);
             const lineCount = pickLists[0]?.pick_list_lines?.length ?? 0;
             if (lineCount > 0)
                 continue;
+            const orderId = String(order.id);
             try {
-                await this.rebuildPickListForOrder(String(order.id));
+                await this.rebuildPickListForOrder(orderId);
                 repaired += 1;
             }
             catch (err) {
                 failed += 1;
-                logger.warn({ err, orderId: order.id }, 'Auto-repair pick list failed');
+                const message = err instanceof Error ? err.message : 'Pick list rebuild failed';
+                errors.push({ orderId, orderName: nameById.get(orderId), message });
+                logger.warn({ err, orderId }, 'Auto-repair pick list failed');
             }
         }
-        return { ...sync, repaired, failed };
+        return { ...sync, repaired, failed, errors };
     },
     async getQueue(opts) {
         if (opts?.repair !== false) {

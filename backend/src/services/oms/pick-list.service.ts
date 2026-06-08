@@ -72,18 +72,24 @@ export const pickListService = {
       for (const line of lines) {
         const qty = Number(line.qty_ordered) - Number(line.qty_cancelled);
         if (qty <= 0) continue;
-        if (!line.inventory_item_id) {
+
+        const resolved = await inventoryService.resolveInventoryItemForOrderLine({
+          id: String(line.id),
+          inventory_item_id: line.inventory_item_id ? String(line.inventory_item_id) : null,
+          sku: line.sku ? String(line.sku) : null,
+          product_title: String(line.product_title ?? 'Product'),
+        });
+
+        if (resolved.available < qty) {
           throw new AppError(
-            `Order line "${line.product_title}" has no inventory SKU — sync order lines first`,
+            `Insufficient warehouse stock for "${line.product_title}" (need ${qty}, have ${resolved.available}) — check Commerce → Inventory SKU matches this order line`,
             409,
-            'ORDER_LINE_NO_SKU'
+            'INSUFFICIENT_STOCK'
           );
         }
 
-        await inventoryService.syncCommerceBatchesToWarehouse(String(line.inventory_item_id));
-
         const allocations = await inventoryService.reserveStock({
-          inventoryItemId: String(line.inventory_item_id),
+          inventoryItemId: resolved.inventoryItemId,
           warehouseId: String(warehouse.id),
           qty,
           orderLineId: String(line.id),
@@ -95,7 +101,7 @@ export const pickListService = {
             pick_list_id: pickList.id,
             order_line_id: line.id,
             allocation_id: a.id,
-            inventory_item_id: line.inventory_item_id,
+            inventory_item_id: resolved.inventoryItemId,
             batch_id: a.batch_id,
             location_id: a.location_id,
             product_title: line.product_title,
