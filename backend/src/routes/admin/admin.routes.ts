@@ -6,6 +6,7 @@ import { superAdminMonitorService } from '../../services/admin/super-admin-monit
 import { farmersAdminService } from '../../services/admin/farmers-admin.service.js';
 import { ordersAdminService } from '../../services/admin/orders-admin.service.js';
 import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
+import { productMediaStorageService } from '../../services/commerce/product-media-storage.service.js';
 import { inventoryAdminService } from '../../services/admin/inventory-admin.service.js';
 import { offersAdminService } from '../../services/admin/offers-admin.service.js';
 import { combosAdminService } from '../../services/admin/combos-admin.service.js';
@@ -98,6 +99,14 @@ const imageUploadSchema = z.object({
   mimeType: z.string().max(100).default('image/jpeg'),
   dataBase64: z.string().min(20).max(12_000_000),
   alt: z.string().max(255).optional(),
+});
+
+const productMediaUploadSchema = z.object({
+  fileName: z.string().min(1).max(255),
+  mimeType: z.string().max(100),
+  dataBase64: z.string().min(20).max(70_000_000),
+  productId: z.string().max(50).optional(),
+  folder: z.enum(['images', 'video', 'label', 'sds', 'brochure']).optional(),
 });
 
 const jsonSection = z.record(z.unknown()).optional();
@@ -2447,6 +2456,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       });
     }
     return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/products/media/upload`, async (request, reply) => {
+    requireAdmin(request);
+    const body = productMediaUploadSchema.parse(request.body);
+    const result = await productMediaStorageService.upload({
+      fileName: body.fileName,
+      mimeType: body.mimeType,
+      dataBase64: body.dataBase64,
+      productId: body.productId,
+      folder: body.folder,
+    });
+    return reply.send({ ok: true, url: result.url, path: result.path });
   });
 
   app.post(`${api}/products/:id/images`, async (request, reply) => {

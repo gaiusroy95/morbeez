@@ -309,7 +309,13 @@ export function ProductWizardPage({ canWrite }: Props) {
         {step === 2 ? <Step2VariantsPricing state={state} onChange={setState} /> : null}
         {step === 3 ? <Step3UsageDetails state={state} onChange={setState} /> : null}
         {step === 4 ? (
-          <Step4Media state={state} onChange={setState} productId={state.productId} />
+          <Step4Media
+            state={state}
+            onChange={setState}
+            productId={state.productId}
+            onUploadServerImage={onUploadServerImage}
+            onError={setError}
+          />
         ) : null}
         {step === 5 ? <Step5ReviewPublish state={state} onChange={setState} /> : null}
       </div>

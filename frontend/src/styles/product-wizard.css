@@ -731,6 +731,24 @@ body.route-product-wizard .page-header {
   object-fit: contain;
 }
 
+.pw-media-preview-video {
+  max-width: 100%;
+  max-height: 100px;
+  border-radius: 8px;
+}
+
+.pw-media-file-link {
+  font-size: 12px;
+  color: #1b5e20;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.pw-media-upload--busy {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
 .pw-media-urls {
   display: grid;
   gap: 12px;
