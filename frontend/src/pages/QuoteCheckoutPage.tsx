@@ -185,7 +185,12 @@ export function QuoteCheckoutPage() {
       });
     } catch (e) {
       if (e instanceof Error && e.message !== 'Payment cancelled') {
-        setError(e.message);
+        const msg = e.message;
+        setError(
+          msg.includes('Shopify')
+            ? `${msg} Your payment may have been captured — refresh this page or contact support with quote ${quote?.quoteNumber ?? ''}.`
+            : msg
+        );
       }
     } finally {
       setPaying(false);

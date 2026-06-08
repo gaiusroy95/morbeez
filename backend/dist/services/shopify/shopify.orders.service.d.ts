@@ -2,6 +2,12 @@ export interface CheckoutLineItem {
     variantId: number;
     quantity: number;
     title?: string;
+    /** Pre-tax unit price from quote/catalog */
+    unitPrice?: number;
+    gstPercent?: number;
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
 }
 export interface CheckoutAddress {
     firstName: string;

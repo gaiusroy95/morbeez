@@ -58,6 +58,7 @@ function mapRow(row) {
         commerceOrderId: row.commerce_order_id ? String(row.commerce_order_id) : null,
         invoiceId: row.invoice_id ? String(row.invoice_id) : null,
         razorpayOrderId: row.razorpay_order_id ? String(row.razorpay_order_id) : null,
+        razorpayPaymentId: row.razorpay_payment_id ? String(row.razorpay_payment_id) : null,
         shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
         shopifyOrderName: row.shopify_order_name ? String(row.shopify_order_name) : null,
         preparedByName: row.prepared_by_name ? String(row.prepared_by_name) : null,
@@ -633,25 +634,81 @@ export const commerceQuoteService = {
                 alreadyCompleted: true,
                 shopifyOrderId: quote.shopifyOrderId,
                 orderName: quote.shopifyOrderName,
+                commerceOrderId: quote.commerceOrderId,
+            };
+        }
+        if (quote.razorpayPaymentId === input.razorpayPaymentId && quote.shopifyOrderId) {
+            return {
+                alreadyCompleted: true,
+                shopifyOrderId: quote.shopifyOrderId,
+                orderName: quote.shopifyOrderName,
+                commerceOrderId: quote.commerceOrderId,
             };
         }
         if (!razorpayCheckoutService.verifyPaymentSignature(input.razorpayOrderId, input.razorpayPaymentId, input.razorpaySignature)) {
             throw new UnauthorizedError('Payment verification failed');
         }
+        if (quote.status !== 'paid') {
+            const { data: priorEvent } = await supabase
+                .from('payment_events')
+                .select('id')
+                .eq('external_id', input.razorpayPaymentId)
+                .eq('event_type', 'quote.payment.captured')
+                .maybeSingle();
+            if (priorEvent?.id) {
+                const { data: session } = await supabase
+                    .from('checkout_sessions')
+                    .select('shopify_order_id, shopify_order_name')
+                    .eq('razorpay_payment_id', input.razorpayPaymentId)
+                    .maybeSingle();
+                if (session?.shopify_order_id) {
+                    const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+                        shopifyOrderId: session.shopify_order_id,
+                        farmerId: quote.farmerId,
+                        leadId: quote.leadId,
+                        quoteId: quote.id,
+                        quoteNumber: quote.quoteNumber,
+                        paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+                    }).catch(() => ({ commerceOrderId: quote.commerceOrderId }));
+                    await supabase
+                        .from('commerce_quotes')
+                        .update({
+                        status: 'paid',
+                        razorpay_payment_id: input.razorpayPaymentId,
+                        shopify_order_id: session.shopify_order_id,
+                        shopify_order_name: session.shopify_order_name,
+                        commerce_order_id: warehouse.commerceOrderId ?? quote.commerceOrderId,
+                        updated_at: new Date().toISOString(),
+                    })
+                        .eq('id', id);
+                    return {
+                        alreadyCompleted: true,
+                        shopifyOrderId: session.shopify_order_id,
+                        orderName: session.shopify_order_name,
+                        commerceOrderId: warehouse.commerceOrderId ?? quote.commerceOrderId,
+                        recovered: true,
+                    };
+                }
+            }
+        }
         const ship = quote.shippingAddress;
         const { firstName, lastName } = splitName(quote.customerName);
         const email = quote.customerEmail ?? `quote+${quote.quoteNumber.toLowerCase()}@morbeez.in`;
         const phone = quote.customerPhone ?? '';
-        const lineItems = quote.lineItems
-            .filter((l) => l.variantId)
-            .map((l) => ({
+        const pricedLines = quote.lineItems.filter((l) => l.variantId);
+        if (!pricedLines.length) {
+            throw new ValidationError('Quote has no Shopify variant lines — cannot convert to order');
+        }
+        const lineItems = pricedLines.map((l) => ({
             variantId: l.variantId,
             quantity: l.qty,
             title: l.title,
+            unitPrice: l.unitPrice,
+            gstPercent: l.gstPercent,
+            cgst: l.cgst,
+            sgst: l.sgst,
+            igst: l.igst,
         }));
-        if (!lineItems.length) {
-            throw new ValidationError('Quote has no Shopify variant lines — cannot convert to order');
-        }
         const paidInr = payAmount(quote).toFixed(2);
         const note = [
             `Quote ${quote.quoteNumber}`,
@@ -660,26 +717,58 @@ export const commerceQuoteService = {
         ]
             .filter(Boolean)
             .join(' · ');
-        const shopifyOrder = await shopifyOrdersService.createPaidOrder({
-            email,
+        const shipping = {
+            firstName,
+            lastName,
+            address1: ship.address1 ?? ship.address ?? 'Address on file',
+            address2: ship.address2,
+            city: ship.city ?? quote.customerState,
+            province: ship.state ?? quote.customerState,
+            zip: ship.pincode ?? ship.zip ?? '680001',
+            country: 'India',
             phone,
-            lineItems,
-            shipping: {
-                firstName,
-                lastName,
-                address1: ship.address1 ?? ship.address ?? 'Address on file',
-                address2: ship.address2,
-                city: ship.city ?? quote.customerState,
-                province: ship.state ?? quote.customerState,
-                zip: ship.pincode ?? ship.zip ?? '560001',
-                country: 'IN',
+        };
+        let shopifyOrder;
+        let warehouseCommerceOrderId = null;
+        try {
+            shopifyOrder = await shopifyOrdersService.createPaidOrder({
+                email,
                 phone,
-            },
-            totalAmountInr: paidInr,
-            razorpayPaymentId: input.razorpayPaymentId,
-            razorpayOrderId: input.razorpayOrderId,
-            note,
-        });
+                lineItems,
+                shipping,
+                totalAmountInr: paidInr,
+                razorpayPaymentId: input.razorpayPaymentId,
+                razorpayOrderId: input.razorpayOrderId,
+                note,
+            });
+        }
+        catch (shopifyErr) {
+            const { logger } = await import('../../lib/logger.js');
+            logger.error({ err: shopifyErr, quoteId: id, razorpayPaymentId: input.razorpayPaymentId }, 'Shopify order failed after Razorpay payment — using local OMS fallback');
+            const local = await quoteOmsBridgeService.createLocalOrderFromQuote({
+                quoteId: quote.id,
+                quoteNumber: quote.quoteNumber,
+                farmerId: quote.farmerId,
+                leadId: quote.leadId,
+                customerName: quote.customerName,
+                customerPhone: quote.customerPhone,
+                customerEmail: quote.customerEmail,
+                customerState: quote.customerState,
+                shippingAddress: ship,
+                lineItems: quote.lineItems,
+                total: quote.total,
+                prepaidAmount: quote.prepaidAmount,
+                codAmount: quote.codAmount,
+                razorpayPaymentId: input.razorpayPaymentId,
+                razorpayOrderId: input.razorpayOrderId,
+            });
+            shopifyOrder = {
+                shopifyOrderId: local.shopifyOrderId,
+                orderName: local.orderName,
+                orderStatusUrl: null,
+            };
+            warehouseCommerceOrderId = local.commerceOrderId;
+        }
         const sessionId = randomUUID();
         await supabase.from('checkout_sessions').insert({
             id: sessionId,
@@ -700,14 +789,16 @@ export const commerceQuoteService = {
             shopify_order_id: shopifyOrder.shopifyOrderId,
             shopify_order_name: shopifyOrder.orderName,
         });
-        const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
-            shopifyOrderId: shopifyOrder.shopifyOrderId,
-            farmerId: quote.farmerId,
-            leadId: quote.leadId,
-            quoteId: quote.id,
-            quoteNumber: quote.quoteNumber,
-            paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
-        });
+        const warehouse = warehouseCommerceOrderId != null
+            ? { commerceOrderId: warehouseCommerceOrderId }
+            : await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+                shopifyOrderId: shopifyOrder.shopifyOrderId,
+                farmerId: quote.farmerId,
+                leadId: quote.leadId,
+                quoteId: quote.id,
+                quoteNumber: quote.quoteNumber,
+                paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+            });
         await supabase
             .from('commerce_quotes')
             .update({
@@ -777,42 +868,81 @@ export const commerceQuoteService = {
         const { firstName, lastName } = splitName(quote.customerName);
         const email = quote.customerEmail ?? `quote+${quote.quoteNumber.toLowerCase()}@morbeez.in`;
         const phone = quote.customerPhone ?? '';
-        const lineItems = quote.lineItems
-            .filter((l) => l.variantId)
-            .map((l) => ({
+        const pricedLines = quote.lineItems.filter((l) => l.variantId);
+        if (!pricedLines.length) {
+            throw new ValidationError('Quote has no Shopify variant lines');
+        }
+        const lineItems = pricedLines.map((l) => ({
             variantId: l.variantId,
             quantity: l.qty,
             title: l.title,
+            unitPrice: l.unitPrice,
+            gstPercent: l.gstPercent,
+            cgst: l.cgst,
+            sgst: l.sgst,
+            igst: l.igst,
         }));
-        if (!lineItems.length) {
-            throw new ValidationError('Quote has no Shopify variant lines');
-        }
-        const shopifyOrder = await shopifyOrdersService.createCodOrder({
-            email,
+        const shipping = {
+            firstName,
+            lastName,
+            address1: ship.address1 ?? ship.address ?? 'Address on file',
+            address2: ship.address2,
+            city: ship.city ?? quote.customerState,
+            province: ship.state ?? quote.customerState,
+            zip: ship.pincode ?? ship.zip ?? '680001',
+            country: 'India',
             phone,
-            lineItems,
-            shipping: {
-                firstName,
-                lastName,
-                address1: ship.address1 ?? ship.address ?? 'Address on file',
-                address2: ship.address2,
-                city: ship.city ?? quote.customerState,
-                province: ship.state ?? quote.customerState,
-                zip: ship.pincode ?? ship.zip ?? '560001',
-                country: 'IN',
+        };
+        let shopifyOrder;
+        let warehouseCommerceOrderId = null;
+        try {
+            shopifyOrder = await shopifyOrdersService.createCodOrder({
+                email,
                 phone,
-            },
-            totalAmountInr: quote.total.toFixed(2),
-            note: `Quote ${quote.quoteNumber} · COD confirmed by ${actorEmail ?? 'staff'}`,
-        });
-        const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
-            shopifyOrderId: shopifyOrder.shopifyOrderId,
-            farmerId: quote.farmerId,
-            leadId: quote.leadId,
-            quoteId: quote.id,
-            quoteNumber: quote.quoteNumber,
-            paymentMethod: 'COD',
-        });
+                lineItems,
+                shipping,
+                totalAmountInr: quote.total.toFixed(2),
+                note: `Quote ${quote.quoteNumber} · COD confirmed by ${actorEmail ?? 'staff'}`,
+            });
+        }
+        catch (shopifyErr) {
+            const { logger } = await import('../../lib/logger.js');
+            logger.error({ err: shopifyErr, quoteId: id }, 'Shopify COD order failed — using local OMS fallback');
+            const local = await quoteOmsBridgeService.createLocalOrderFromQuote({
+                quoteId: quote.id,
+                quoteNumber: quote.quoteNumber,
+                farmerId: quote.farmerId,
+                leadId: quote.leadId,
+                customerName: quote.customerName,
+                customerPhone: quote.customerPhone,
+                customerEmail: quote.customerEmail,
+                customerState: quote.customerState,
+                shippingAddress: ship,
+                lineItems: quote.lineItems,
+                total: quote.total,
+                prepaidAmount: quote.prepaidAmount,
+                codAmount: quote.codAmount,
+                razorpayPaymentId: `cod-${quote.id}`,
+                razorpayOrderId: `cod-${quote.id}`,
+                fulfillmentMode: 'cod',
+            });
+            shopifyOrder = {
+                shopifyOrderId: local.shopifyOrderId,
+                orderName: local.orderName,
+                orderStatusUrl: null,
+            };
+            warehouseCommerceOrderId = local.commerceOrderId;
+        }
+        const warehouse = warehouseCommerceOrderId != null
+            ? { commerceOrderId: warehouseCommerceOrderId }
+            : await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+                shopifyOrderId: shopifyOrder.shopifyOrderId,
+                farmerId: quote.farmerId,
+                leadId: quote.leadId,
+                quoteId: quote.id,
+                quoteNumber: quote.quoteNumber,
+                paymentMethod: 'COD',
+            });
         await supabase
             .from('commerce_quotes')
             .update({

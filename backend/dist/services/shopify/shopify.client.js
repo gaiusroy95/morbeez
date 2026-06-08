@@ -28,7 +28,9 @@ export async function shopifyAdminRaw(path, options = {}) {
     });
     if (!res.ok) {
         const text = await res.text();
-        throw new AppError(`Shopify API error: ${res.status}`, res.status, 'SHOPIFY_API_ERROR', text);
+        const { parseShopifyErrorBody } = await import('../../lib/shopify-address.js');
+        const detail = parseShopifyErrorBody(text);
+        throw new AppError(`Shopify API error: ${res.status}${detail ? ` — ${detail}` : ''}`, res.status, 'SHOPIFY_API_ERROR', text);
     }
     const data = await res.json();
     return { data, links: parseLinkHeader(res.headers.get('link')) };

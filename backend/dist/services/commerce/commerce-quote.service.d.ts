@@ -40,6 +40,7 @@ export type CommerceQuote = {
     commerceOrderId: string | null;
     invoiceId: string | null;
     razorpayOrderId: string | null;
+    razorpayPaymentId: string | null;
     shopifyOrderId: string | null;
     shopifyOrderName: string | null;
     preparedByName: string | null;
@@ -176,14 +177,23 @@ export declare const commerceQuoteService: {
         alreadyCompleted: boolean;
         shopifyOrderId: string;
         orderName: string | null;
+        commerceOrderId: string | null;
+        recovered?: undefined;
         orderStatusUrl?: undefined;
-        commerceOrderId?: undefined;
+    } | {
+        alreadyCompleted: boolean;
+        shopifyOrderId: any;
+        orderName: any;
+        commerceOrderId: any;
+        recovered: boolean;
+        orderStatusUrl?: undefined;
     } | {
         alreadyCompleted: boolean;
         shopifyOrderId: string;
         orderName: string;
         orderStatusUrl: string | null;
         commerceOrderId: any;
+        recovered?: undefined;
     }>;
     confirmCodOrder(id: string, actorEmail?: string): Promise<{
         alreadyCompleted: boolean;
