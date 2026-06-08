@@ -1,4 +1,5 @@
 import { shopifyAdmin, shopifyAdminRaw } from './shopify.client.js';
+import { shopifyInventoryService } from './shopify.inventory.service.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 const LIST_FIELDS = 'id,title,handle,status,vendor,product_type,tags,created_at,updated_at,variants,image,images';
 const CACHE_TTL_MS = 60_000;
@@ -220,7 +221,8 @@ export const shopifyProductsService = {
                 price: String(v.sellingPrice || '0'),
                 compare_at_price: String(v.mrp || v.sellingPrice || '0'),
                 sku,
-                inventory_quantity: Math.max(0, Number(v.stock) || 0),
+                inventory_management: 'shopify',
+                inventory_policy: 'deny',
                 id: v.id ? Number(v.id) : undefined,
             };
         });
@@ -240,8 +242,10 @@ export const shopifyProductsService = {
                 method: 'POST',
                 body: JSON.stringify({ product }),
             });
+            await shopifyInventoryService.syncWizardVariantStocks(input.variants, res.product.variants ?? []);
             clearProductListCache();
-            return mapProduct(res.product);
+            const refreshed = await shopifyAdmin(`/products/${res.product.id}.json`);
+            return mapProduct(refreshed.product);
         }
         const existing = await shopifyAdmin(`/products/${id}.json`);
         const p = existing.product;
@@ -263,8 +267,10 @@ export const shopifyProductsService = {
             method: 'PUT',
             body: JSON.stringify({ product }),
         });
+        await shopifyInventoryService.syncWizardVariantStocks(input.variants, res.product.variants ?? []);
         clearProductListCache();
-        return mapProduct(res.product);
+        const refreshed = await shopifyAdmin(`/products/${id}.json`);
+        return mapProduct(refreshed.product);
     },
     async create(input) {
         if (!input.title?.trim())
@@ -280,7 +286,8 @@ export const shopifyProductsService = {
                 {
                     price: input.price ?? '0.00',
                     sku: input.sku ?? undefined,
-                    inventory_management: null,
+                    inventory_management: 'shopify',
+                    inventory_policy: 'deny',
                 },
             ],
         };

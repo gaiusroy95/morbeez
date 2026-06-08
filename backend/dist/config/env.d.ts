@@ -11,6 +11,8 @@ declare const envSchema: z.ZodObject<{
     SHOPIFY_STORE_DOMAIN: z.ZodString;
     SHOPIFY_ADMIN_API_ACCESS_TOKEN: z.ZodString;
     SHOPIFY_API_VERSION: z.ZodDefault<z.ZodString>;
+    /** Optional — primary location for inventory_levels/set (defaults to first active location). */
+    SHOPIFY_LOCATION_ID: z.ZodOptional<z.ZodString>;
     SHOPIFY_WEBHOOK_SECRET: z.ZodString;
     SHOPIFY_APP_CLIENT_ID: z.ZodOptional<z.ZodString>;
     SHOPIFY_APP_CLIENT_SECRET: z.ZodOptional<z.ZodString>;
@@ -194,6 +196,7 @@ declare const envSchema: z.ZodObject<{
     AI_MIN_REQUEST_INTERVAL_SEC: number;
     API_BASE_URL?: string | undefined;
     SUPABASE_ANON_KEY?: string | undefined;
+    SHOPIFY_LOCATION_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_SECRET?: string | undefined;
     RAZORPAY_KEY_ID?: string | undefined;
@@ -247,6 +250,7 @@ declare const envSchema: z.ZodObject<{
     LOG_LEVEL?: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | undefined;
     SUPABASE_ANON_KEY?: string | undefined;
     SHOPIFY_API_VERSION?: string | undefined;
+    SHOPIFY_LOCATION_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_SECRET?: string | undefined;
     SHOPIFY_APP_SCOPES?: string | undefined;
@@ -412,6 +416,7 @@ export declare const env: {
     AI_MIN_REQUEST_INTERVAL_SEC: number;
     API_BASE_URL?: string | undefined;
     SUPABASE_ANON_KEY?: string | undefined;
+    SHOPIFY_LOCATION_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_ID?: string | undefined;
     SHOPIFY_APP_CLIENT_SECRET?: string | undefined;
     RAZORPAY_KEY_ID?: string | undefined;

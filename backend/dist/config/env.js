@@ -11,6 +11,8 @@ const envSchema = z.object({
     SHOPIFY_STORE_DOMAIN: z.string().min(1),
     SHOPIFY_ADMIN_API_ACCESS_TOKEN: z.string().min(1),
     SHOPIFY_API_VERSION: z.string().default('2024-10'),
+    /** Optional — primary location for inventory_levels/set (defaults to first active location). */
+    SHOPIFY_LOCATION_ID: z.string().optional(),
     SHOPIFY_WEBHOOK_SECRET: z.string().min(1),
     SHOPIFY_APP_CLIENT_ID: z.string().optional(),
     SHOPIFY_APP_CLIENT_SECRET: z.string().optional(),

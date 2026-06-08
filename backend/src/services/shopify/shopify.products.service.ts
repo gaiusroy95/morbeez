@@ -1,4 +1,5 @@
 import { shopifyAdmin, shopifyAdminRaw } from './shopify.client.js';
+import { shopifyInventoryService } from './shopify.inventory.service.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 
 export interface ProductListQuery {
@@ -314,7 +315,8 @@ export const shopifyProductsService = {
         price: String(v.sellingPrice || '0'),
         compare_at_price: String(v.mrp || v.sellingPrice || '0'),
         sku,
-        inventory_quantity: Math.max(0, Number(v.stock) || 0),
+        inventory_management: 'shopify',
+        inventory_policy: 'deny',
         id: v.id ? Number(v.id) : undefined,
       };
     });
@@ -336,8 +338,13 @@ export const shopifyProductsService = {
         method: 'POST',
         body: JSON.stringify({ product }),
       });
+      await shopifyInventoryService.syncWizardVariantStocks(
+        input.variants,
+        res.product.variants ?? []
+      );
       clearProductListCache();
-      return mapProduct(res.product);
+      const refreshed = await shopifyAdmin<ProductResponse>(`/products/${res.product.id}.json`);
+      return mapProduct(refreshed.product);
     }
 
     const existing = await shopifyAdmin<ProductResponse>(`/products/${id}.json`);
@@ -362,8 +369,13 @@ export const shopifyProductsService = {
       method: 'PUT',
       body: JSON.stringify({ product }),
     });
+    await shopifyInventoryService.syncWizardVariantStocks(
+      input.variants,
+      res.product.variants ?? []
+    );
     clearProductListCache();
-    return mapProduct(res.product);
+    const refreshed = await shopifyAdmin<ProductResponse>(`/products/${id}.json`);
+    return mapProduct(refreshed.product);
   },
 
   async create(input: {
@@ -389,7 +401,8 @@ export const shopifyProductsService = {
         {
           price: input.price ?? '0.00',
           sku: input.sku ?? undefined,
-          inventory_management: null,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny',
         },
       ],
     };
