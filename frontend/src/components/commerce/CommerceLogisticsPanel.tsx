@@ -15,11 +15,16 @@ import { useAuth } from '../../context/AuthContext';
 type Overview = {
   configured: boolean;
   autoShipEnabled: boolean;
+  shipAfterPackEnabled?: boolean;
   dashboardUrl: string;
   webhookPath: string;
   webhookUrl: string | null;
+  webhookTokenConfigured?: boolean;
   pendingCount: number;
   latestEventAt: string | null;
+  authOk?: boolean;
+  authError?: string | null;
+  authHint?: string | null;
 };
 
 type PendingOrder = {
@@ -54,12 +59,14 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
   const [events, setEvents] = useState<ShipmentEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [authWarning, setAuthWarning] = useState('');
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setAuthWarning('');
     try {
       const [ov, pend, ev] = await Promise.all([
         api<Overview & { ok: boolean }>('/morbeez-staff/api/v1/logistics/overview'),
@@ -73,6 +80,12 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
       setOverview(ov);
       setPending(pend.pending ?? []);
       setEvents(ev.events ?? []);
+      if (ov.configured && ov.authOk === false) {
+        setAuthWarning(
+          [ov.authError, ov.authHint].filter(Boolean).join(' — ') ||
+            'Shiprocket API credentials are set but login failed.'
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load logistics');
     } finally {
@@ -115,6 +128,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
   return (
     <div className="commerce-logistics">
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {authWarning ? <Alert tone="error">{authWarning}</Alert> : null}
       {successMsg ? <Alert tone="success">{successMsg}</Alert> : null}
 
       {overview ? (
@@ -124,27 +138,41 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
             <span>Awaiting shipment</span>
           </div>
           <div className="commerce-stat-card">
-            <strong>{overview.configured ? 'Yes' : 'No'}</strong>
-            <span>Shiprocket API configured</span>
+            <strong>
+              {!overview.configured ? 'No' : overview.authOk === false ? 'Auth failed' : 'Connected'}
+            </strong>
+            <span>Shiprocket API</span>
           </div>
           <div className="commerce-stat-card">
-            <strong>{overview.autoShipEnabled ? 'On' : 'Off'}</strong>
-            <span>Auto-ship on paid order</span>
+            <strong>{overview.shipAfterPackEnabled !== false ? 'After pack' : 'On paid'}</strong>
+            <span>
+              Ship trigger
+              {overview.autoShipEnabled ? ' (+ auto)' : ''}
+            </span>
           </div>
         </div>
       ) : null}
 
       {!overview?.configured ? (
         <Alert tone="warn">
-          Set <code>SHIPROCKET_EMAIL</code> and <code>SHIPROCKET_PASSWORD</code> on the API server to
-          create shipments from the console.
+          Set <code>SHIPROCKET_EMAIL</code> and <code>SHIPROCKET_PASSWORD</code> on the API server
+          (Render → Environment). Use credentials from Shiprocket → Settings → API → Create API user —
+          not your main Shiprocket login, and not the webhook token.
         </Alert>
       ) : null}
 
       <Alert tone="info">
-        Shiprocket webhook URL:{' '}
+        Webhook URL for Shiprocket dashboard:{' '}
         <code>{overview?.webhookUrl ?? overview?.webhookPath ?? '/webhooks/tracking'}</code>
-        {' '}(must not contain shiprocket/sr/kr in the path).{' '}
+        {' '}
+        with <code>x-api-key</code> header = <code>SHIPROCKET_WEBHOOK_TOKEN</code> on Render.
+        {overview?.webhookTokenConfigured === false ? (
+          <>
+            {' '}
+            <strong>Warning:</strong> webhook token is not set on the API server — tracking updates will
+            be rejected.
+          </>
+        ) : null}{' '}
         {overview?.dashboardUrl ? (
           <a href={overview.dashboardUrl} target="_blank" rel="noreferrer" className="font-semibold underline">
             Open Shiprocket dashboard
@@ -196,7 +224,7 @@ export function CommerceLogisticsPanel({ canWrite }: Props) {
                       </td>
                     ) : null}
                     <td>
-                      {canWrite && overview?.configured ? (
+                      {canWrite && overview?.configured && overview?.authOk !== false ? (
                         <Btn
                           variant="primary"
                           disabled={retryingId === o.shopifyOrderId}

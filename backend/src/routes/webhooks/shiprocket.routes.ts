@@ -44,9 +44,10 @@ async function handleTrackingWebhook(
 }
 
 export async function shiprocketWebhookRoutes(app: FastifyInstance): Promise<void> {
-  /** Use this URL in Shiprocket dashboard (no forbidden keywords) */
+  /** Preferred URL in Shiprocket dashboard (no forbidden keywords) */
   app.post('/webhooks/tracking', handleTrackingWebhook);
 
-  /** Legacy alias — do NOT register this URL in Shiprocket (blocked) */
+  /** Legacy aliases — prefer /webhooks/tracking for new setups */
   app.post('/webhooks/shiprocket', handleTrackingWebhook);
+  app.post('/api/v1/shiprocket/webhook', handleTrackingWebhook);
 }

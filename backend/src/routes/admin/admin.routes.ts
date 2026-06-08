@@ -719,15 +719,19 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.get(`${api}/logistics/overview`, async (request, reply) => {
     requireAdmin(request);
     const overview = shiprocketAdminService.getOverview();
-    const [pendingResult, eventsResult] = await Promise.all([
+    const [pendingResult, eventsResult, authStatus] = await Promise.all([
       shiprocketAdminService.listPending(50),
       shiprocketAdminService.listRecentEvents(5),
+      shiprocketAdminService.getAuthStatus(),
     ]);
     return reply.send({
       ok: true,
       ...overview,
       pendingCount: pendingResult.total,
       latestEventAt: eventsResult.events[0]?.createdAt ?? null,
+      authOk: authStatus.ok,
+      authError: authStatus.error,
+      authHint: authStatus.hint,
     });
   });
 

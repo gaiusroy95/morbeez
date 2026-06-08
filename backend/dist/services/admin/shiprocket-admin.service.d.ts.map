@@ -1,1 +1,1 @@
-{"version":3,"file":"shiprocket-admin.service.d.ts","sourceRoot":"","sources":["../../../src/services/admin/shiprocket-admin.service.ts"],"names":[],"mappings":"AA0CA,eAAO,MAAM,sBAAsB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;wCAgGS,MAAM;;;;;;;;CA4CjD,CAAC"}
+{"version":3,"file":"shiprocket-admin.service.d.ts","sourceRoot":"","sources":["../../../src/services/admin/shiprocket-admin.service.ts"],"names":[],"mappings":"AA2CA,eAAO,MAAM,sBAAsB;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;wCAuGS,MAAM;;;;;;;;CA4CjD,CAAC"}

@@ -2,10 +2,13 @@ export declare const shiprocketAdminService: {
     getOverview(): {
         configured: boolean;
         autoShipEnabled: boolean;
+        shipAfterPackEnabled: boolean;
         dashboardUrl: string;
         webhookPath: string;
         webhookUrl: string | null;
+        webhookTokenConfigured: boolean;
     };
+    getAuthStatus(): Promise<import("../shiprocket/shiprocket.client.js").ShiprocketAuthStatus>;
     listPending(limit?: number): Promise<{
         pending: {
             id: string;

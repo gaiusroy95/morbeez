@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { supabase } from '../../lib/supabase.js';
 import { shiprocketService } from '../shiprocket/shiprocket.service.js';
+import { verifyShiprocketAuth } from '../shiprocket/shiprocket.client.js';
 function isPaid(row) {
     const fs = String(row.financial_status ?? '').toLowerCase();
     const ps = String(row.fulfillment_status ?? '').toLowerCase();
@@ -33,13 +34,19 @@ function formatDisplayId(orderName, id) {
 export const shiprocketAdminService = {
     getOverview() {
         const apiBase = env.API_BASE_URL?.replace(/\/$/, '') ?? '';
+        const webhookPath = '/webhooks/tracking';
         return {
-            configured: Boolean(env.SHIPROCKET_EMAIL && env.SHIPROCKET_PASSWORD),
+            configured: Boolean(env.SHIPROCKET_EMAIL?.trim() && env.SHIPROCKET_PASSWORD?.trim()),
             autoShipEnabled: env.ENABLE_SHIPROCKET_AUTO_SHIP,
+            shipAfterPackEnabled: env.ENABLE_SHIPROCKET_AFTER_PACK !== false,
             dashboardUrl: 'https://app.shiprocket.in/',
-            webhookPath: '/webhooks/tracking',
-            webhookUrl: apiBase ? `${apiBase}/webhooks/tracking` : null,
+            webhookPath,
+            webhookUrl: apiBase ? `${apiBase}${webhookPath}` : null,
+            webhookTokenConfigured: Boolean(env.SHIPROCKET_WEBHOOK_TOKEN?.trim()),
         };
+    },
+    async getAuthStatus() {
+        return verifyShiprocketAuth();
     },
     async listPending(limit = 25) {
         const { data, error } = await supabase
