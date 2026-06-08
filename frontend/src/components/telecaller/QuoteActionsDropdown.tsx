@@ -4,23 +4,27 @@ import { canSendQuoteWithBulkReview, type BulkMarginReviewStatus } from './BulkM
 
 type Props = {
   status: string;
+  codAmount?: number;
   bulkMarginReviewStatus?: BulkMarginReviewStatus;
   busy?: boolean;
   onView: () => void;
   onEdit: () => void;
   onSendWhatsApp: () => void;
   onSendMail: () => void;
+  onConfirmCod?: () => void;
   onDelete: () => void;
 };
 
 export function QuoteActionsDropdown({
   status,
+  codAmount = 0,
   bulkMarginReviewStatus,
   busy,
   onView,
   onEdit,
   onSendWhatsApp,
   onSendMail,
+  onConfirmCod,
   onDelete,
 }: Props) {
   const [open, setOpen] = useState(false);
@@ -28,6 +32,10 @@ export function QuoteActionsDropdown({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const canEdit = status === 'pending' && bulkMarginReviewStatus !== 'pending';
   const canSend = canSendQuoteWithBulkReview(bulkMarginReviewStatus);
+  const canConfirmCod =
+    Boolean(onConfirmCod) &&
+    (status === 'checkout' || status === 'pending') &&
+    (codAmount ?? 0) > 0;
 
   useLayoutEffect(() => {
     if (!open || !anchor) {
@@ -119,6 +127,11 @@ export function QuoteActionsDropdown({
               >
                 Send mail
               </button>
+              {canConfirmCod ? (
+                <button type="button" role="menuitem" onClick={() => run(onConfirmCod!)}>
+                  Confirm COD → warehouse
+                </button>
+              ) : null}
               <button type="button" role="menuitem" className="danger" onClick={() => run(onDelete)}>
                 Delete
               </button>

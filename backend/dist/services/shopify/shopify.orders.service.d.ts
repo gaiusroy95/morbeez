@@ -31,5 +31,10 @@ export declare const shopifyOrdersService: {
         orderName: string;
         orderStatusUrl: string | null;
     }>;
+    createCodOrder(input: Omit<CreatePaidOrderInput, "razorpayPaymentId" | "razorpayOrderId">): Promise<{
+        shopifyOrderId: string;
+        orderName: string;
+        orderStatusUrl: string | null;
+    }>;
 };
 //# sourceMappingURL=shopify.orders.service.d.ts.map

@@ -15,6 +15,8 @@ import { returnWorkflowService } from '../../services/oms/return-workflow.servic
 import { dispatchService } from '../../services/oms/dispatch.service.js';
 import { employeeActionLogService } from '../../services/oms/employee-action-log.service.js';
 import { manualOrderOmsService } from '../../services/oms/manual-order-oms.service.js';
+import { quoteOmsBridgeService } from '../../services/oms/quote-oms-bridge.service.js';
+import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
 export async function osWarehouseRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/warehouse';
     // ─── Overview ─────────────────────────────────────────────────────────────
@@ -158,6 +160,17 @@ export async function osWarehouseRoutes(app) {
         return reply.send({ ok: true, goodsReceipt: grn });
     });
     // ─── OMS orders ───────────────────────────────────────────────────────────
+    app.get(`${api}/quote-queue`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const queue = await quoteOmsBridgeService.listQuoteQueue();
+        return reply.send({ ok: true, queue });
+    });
+    app.post(`${api}/quotes/:id/resync`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await commerceQuoteService.resyncToWarehouse(id);
+        return reply.send({ ok: true, ...result });
+    });
     app.get(`${api}/orders`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'read');
         const q = request.query;

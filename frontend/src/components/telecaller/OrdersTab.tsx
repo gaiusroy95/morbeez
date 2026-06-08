@@ -60,6 +60,7 @@ type UnifiedRow =
       whatsappSentAt: string | null;
       emailSentAt: string | null;
       bulkMarginReviewStatus?: BulkMarginReviewStatus;
+      codAmount?: number;
     }
   | {
       kind: 'order';
@@ -174,6 +175,20 @@ export function OrdersTab({
     }
   }
 
+  async function handleConfirmCod(estimateId: string) {
+    if (!window.confirm('Place this quote as a COD order and send to warehouse?')) return;
+    setSendingId(estimateId);
+    setError('');
+    try {
+      await api(`${base}/leads/${leadId}/estimates/${estimateId}/confirm-cod`, { method: 'POST' });
+      void load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not confirm COD order');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
   async function handleDelete(estimateId: string, displayId: string) {
     if (!window.confirm(`Delete quotation ${displayId}? This cannot be undone.`)) return;
     setSendingId(estimateId);
@@ -207,6 +222,7 @@ export function OrdersTab({
       whatsappSentAt: e.whatsappSentAt,
       emailSentAt: e.emailSentAt,
       bulkMarginReviewStatus: e.bulkMarginReviewStatus ?? null,
+      codAmount: e.codAmount,
     }));
     const ordRows: UnifiedRow[] = orders.map((o) => ({
       kind: 'order',
@@ -433,12 +449,14 @@ export function OrdersTab({
                       <td className="est-list-actions" onClick={(e) => e.stopPropagation()}>
                         <QuoteActionsDropdown
                           status={row.status}
+                          codAmount={row.codAmount}
                           bulkMarginReviewStatus={row.bulkMarginReviewStatus}
                           busy={sendingId === row.id}
                           onView={() => onOpenEstimate(row.id)}
                           onEdit={() => onEditEstimate(row.id)}
                           onSendWhatsApp={() => void handleSend(row.id, ['whatsapp'])}
                           onSendMail={() => void handleSend(row.id, ['email'])}
+                          onConfirmCod={() => void handleConfirmCod(row.id)}
                           onDelete={() => void handleDelete(row.id, row.displayId)}
                         />
                       </td>

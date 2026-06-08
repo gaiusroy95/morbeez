@@ -37,6 +37,19 @@ type PickList = {
 
 type PrintableLink = { type: string; id: string; label: string };
 
+type QuoteQueueRow = {
+  id: string;
+  quoteNumber: string;
+  status: string;
+  customerName: string;
+  total: number;
+  prepaidAmount: number;
+  codAmount: number;
+  commerceOrderId: string | null;
+  queueStatus: 'awaiting_payment' | 'awaiting_warehouse' | 'in_warehouse';
+  pickStatus: string | null;
+};
+
 function printUrl(type: string, id: string) {
   return toPath(`${paths.warehouse}/print/${type}/${id}`);
 }
@@ -50,6 +63,7 @@ export function WarehouseOmsPanel({
 }) {
   const [statusFilter, setStatusFilter] = useState('');
   const [orders, setOrders] = useState<OmsOrder[]>([]);
+  const [quoteQueue, setQuoteQueue] = useState<QuoteQueueRow[]>([]);
   const [pickLists, setPickLists] = useState<PickList[]>([]);
   const [selectedPick, setSelectedPick] = useState<PickList | null>(null);
   const [printables, setPrintables] = useState<PrintableLink[]>([]);
@@ -67,12 +81,14 @@ export function WarehouseOmsPanel({
     setError('');
     try {
       const orderParams = statusFilter ? `?omsStatus=${encodeURIComponent(statusFilter)}` : '';
-      const [ord, picks] = await Promise.all([
+      const [ord, picks, queue] = await Promise.all([
         api<{ ok: boolean; orders: OmsOrder[] }>(`${WMS_API}/orders${orderParams}`),
         api<{ ok: boolean; pickLists: PickList[] }>(`${WMS_API}/pick-lists`),
+        api<{ ok: boolean; queue: QuoteQueueRow[] }>(`${WMS_API}/quote-queue`),
       ]);
       setOrders(ord.orders ?? []);
       setPickLists(picks.pickLists ?? []);
+      setQuoteQueue(queue.queue ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load OMS');
     } finally {
@@ -92,6 +108,12 @@ export function WarehouseOmsPanel({
       void openPick(pick.id);
     }
   }, [focusOrderId, pickLists, loading]);
+
+  async function openPickByOrder(commerceOrderId: string) {
+    const pick = pickLists.find((p) => p.commerce_order_id === commerceOrderId);
+    if (pick) await openPick(pick.id);
+    else setError('Pick list not found — try Sync on the quote row above');
+  }
 
   async function openPick(id: string) {
     const d = await api<{ ok: boolean; pickList: PickList }>(`${WMS_API}/pick-lists/${id}`);
@@ -113,6 +135,19 @@ export function WarehouseOmsPanel({
   async function confirmOrder(id: string) {
     await api(`${WMS_API}/orders/${id}/confirm`, { method: 'POST' });
     await load();
+  }
+
+  async function resyncQuote(quoteId: string) {
+    setBusy(true);
+    try {
+      await api(`${WMS_API}/quotes/${quoteId}/resync`, { method: 'POST' });
+      setSuccess('Quote synced to warehouse');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Resync failed');
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function pickLine(lineId: string) {
@@ -226,6 +261,67 @@ export function WarehouseOmsPanel({
       {error ? <Alert tone="error">{error}</Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}
       {loading ? <Loading /> : null}
+
+      <Panel title="Quote pipeline">
+        {quoteQueue.length === 0 ? (
+          <EmptyState>
+            No quotes in checkout. Paid quotes and Shopify orders appear below after payment.
+          </EmptyState>
+        ) : null}
+        {quoteQueue.length > 0 ? (
+          <TableWrap>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Quote</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Pipeline</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {quoteQueue.map((q) => (
+                  <tr key={q.id}>
+                    <td className="mono">{q.quoteNumber}</td>
+                    <td>{q.customerName}</td>
+                    <td>{formatInr(q.total)}</td>
+                    <td>
+                      {q.queueStatus === 'awaiting_payment' ? (
+                        <Badge tone="role">Awaiting payment</Badge>
+                      ) : q.queueStatus === 'awaiting_warehouse' ? (
+                        <Badge tone="warn">Paid — sync warehouse</Badge>
+                      ) : (
+                        <Badge tone="active">In warehouse ({q.pickStatus ?? 'picking'})</Badge>
+                      )}
+                    </td>
+                    <td>
+                      {q.commerceOrderId ? (
+                        <Btn
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => void openPickByOrder(q.commerceOrderId!)}
+                        >
+                          Open
+                        </Btn>
+                      ) : null}
+                      {canWrite && q.queueStatus === 'awaiting_warehouse' ? (
+                        <Btn size="sm" disabled={busy} onClick={() => void resyncQuote(q.id)}>
+                          Sync
+                        </Btn>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </TableWrap>
+        ) : null}
+        <p className="warehouse-hint muted">
+          Quotes in <strong>Checkout</strong> are waiting for customer payment. After Razorpay payment
+          or COD confirmation, a pick list is created automatically.
+        </p>
+      </Panel>
 
       <Panel
         title="OMS orders"

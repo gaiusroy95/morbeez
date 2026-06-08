@@ -8,6 +8,7 @@ import { companySettingsService } from '../admin/company-settings.service.js';
 import { razorpayCheckoutService } from '../razorpay/razorpay.checkout.service.js';
 import { shopifyOrdersService } from '../shopify/shopify.orders.service.js';
 import { invoiceService } from '../oms/invoice.service.js';
+import { quoteOmsBridgeService } from '../oms/quote-oms-bridge.service.js';
 
 const QUOTE_TTL_HOURS = 48;
 
@@ -982,22 +983,14 @@ export const commerceQuoteService = {
       shopify_order_name: shopifyOrder.orderName,
     });
 
-    const { data: commerceOrder } = await supabase
-      .from('commerce_orders')
-      .select('id')
-      .eq('shopify_order_id', shopifyOrder.shopifyOrderId)
-      .maybeSingle();
-
-    if (commerceOrder?.id) {
-      await supabase
-        .from('commerce_orders')
-        .update({
-          order_source: 'telecaller_quote',
-          payment_method: quote.paymentType === 'cod' ? 'COD' : 'Prepaid',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', commerceOrder.id);
-    }
+    const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+      shopifyOrderId: shopifyOrder.shopifyOrderId,
+      farmerId: quote.farmerId,
+      leadId: quote.leadId,
+      quoteId: quote.id,
+      quoteNumber: quote.quoteNumber,
+      paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+    });
 
     await supabase
       .from('commerce_quotes')
@@ -1006,7 +999,7 @@ export const commerceQuoteService = {
         razorpay_payment_id: input.razorpayPaymentId,
         shopify_order_id: shopifyOrder.shopifyOrderId,
         shopify_order_name: shopifyOrder.orderName,
-        commerce_order_id: commerceOrder?.id ?? null,
+        commerce_order_id: warehouse.commerceOrderId,
         checkout_session_id: sessionId,
         updated_at: new Date().toISOString(),
       })
@@ -1027,7 +1020,7 @@ export const commerceQuoteService = {
 
     await supabase
       .from('employee_sales_ledger')
-      .update({ status: 'paid', commerce_order_id: commerceOrder?.id ?? null })
+      .update({ status: 'paid', commerce_order_id: warehouse.commerceOrderId ?? null })
       .eq('commerce_quote_id', id);
 
     if (quote.leadId) {
@@ -1057,8 +1050,97 @@ export const commerceQuoteService = {
       shopifyOrderId: shopifyOrder.shopifyOrderId,
       orderName: shopifyOrder.orderName,
       orderStatusUrl: shopifyOrder.orderStatusUrl,
-      commerceOrderId: commerceOrder?.id ?? null,
+      commerceOrderId: warehouse.commerceOrderId,
     };
+  },
+
+  async confirmCodOrder(id: string, actorEmail?: string) {
+    const quote = await this.get(id);
+    if (quote.status === 'paid') {
+      return { alreadyCompleted: true, commerceOrderId: quote.commerceOrderId };
+    }
+    if (quote.status !== 'checkout' && quote.status !== 'pending') {
+      throw new ValidationError('Quote is not open for COD confirmation');
+    }
+    if (quote.codAmount <= 0) {
+      throw new ValidationError('This quote has no COD balance — use online payment');
+    }
+
+    const ship = quote.shippingAddress;
+    const { firstName, lastName } = splitName(quote.customerName);
+    const email = quote.customerEmail ?? `quote+${quote.quoteNumber.toLowerCase()}@morbeez.in`;
+    const phone = quote.customerPhone ?? '';
+
+    const lineItems = quote.lineItems
+      .filter((l) => l.variantId)
+      .map((l) => ({
+        variantId: l.variantId!,
+        quantity: l.qty,
+        title: l.title,
+      }));
+    if (!lineItems.length) {
+      throw new ValidationError('Quote has no Shopify variant lines');
+    }
+
+    const shopifyOrder = await shopifyOrdersService.createCodOrder({
+      email,
+      phone,
+      lineItems,
+      shipping: {
+        firstName,
+        lastName,
+        address1: ship.address1 ?? ship.address ?? 'Address on file',
+        address2: ship.address2,
+        city: ship.city ?? quote.customerState,
+        province: ship.state ?? quote.customerState,
+        zip: ship.pincode ?? ship.zip ?? '560001',
+        country: 'IN',
+        phone,
+      },
+      totalAmountInr: quote.total.toFixed(2),
+      note: `Quote ${quote.quoteNumber} · COD confirmed by ${actorEmail ?? 'staff'}`,
+    });
+
+    const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+      shopifyOrderId: shopifyOrder.shopifyOrderId,
+      farmerId: quote.farmerId,
+      leadId: quote.leadId,
+      quoteId: quote.id,
+      quoteNumber: quote.quoteNumber,
+      paymentMethod: 'COD',
+    });
+
+    await supabase
+      .from('commerce_quotes')
+      .update({
+        status: 'paid',
+        shopify_order_id: shopifyOrder.shopifyOrderId,
+        shopify_order_name: shopifyOrder.orderName,
+        commerce_order_id: warehouse.commerceOrderId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id);
+
+    return {
+      shopifyOrderId: shopifyOrder.shopifyOrderId,
+      orderName: shopifyOrder.orderName,
+      commerceOrderId: warehouse.commerceOrderId,
+    };
+  },
+
+  async resyncToWarehouse(id: string) {
+    const quote = await this.get(id);
+    if (!quote.shopifyOrderId) {
+      throw new ValidationError('Quote has no Shopify order — complete payment first');
+    }
+    return quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+      shopifyOrderId: quote.shopifyOrderId,
+      farmerId: quote.farmerId,
+      leadId: quote.leadId,
+      quoteId: quote.id,
+      quoteNumber: quote.quoteNumber,
+      paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+    });
   },
 
   async acceptQuote(id: string): Promise<CommerceQuote> {

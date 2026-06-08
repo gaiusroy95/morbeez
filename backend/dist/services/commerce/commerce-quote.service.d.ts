@@ -185,6 +185,26 @@ export declare const commerceQuoteService: {
         orderStatusUrl: string | null;
         commerceOrderId: any;
     }>;
+    confirmCodOrder(id: string, actorEmail?: string): Promise<{
+        alreadyCompleted: boolean;
+        commerceOrderId: string | null;
+        shopifyOrderId?: undefined;
+        orderName?: undefined;
+    } | {
+        shopifyOrderId: string;
+        orderName: string;
+        commerceOrderId: any;
+        alreadyCompleted?: undefined;
+    }>;
+    resyncToWarehouse(id: string): Promise<{
+        commerceOrderId: null;
+        omsStatus: null;
+        orderName?: undefined;
+    } | {
+        commerceOrderId: any;
+        omsStatus: any;
+        orderName: string;
+    }>;
     acceptQuote(id: string): Promise<CommerceQuote>;
     cancel(id: string): Promise<void>;
     delete(id: string): Promise<void>;

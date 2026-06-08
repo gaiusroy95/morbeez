@@ -248,3 +248,9 @@
   flex-direction: column;
   gap: 8px;
 }
+
+.warehouse-hint {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+}

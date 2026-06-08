@@ -115,8 +115,11 @@ export const shopifyWebhookService = {
       order.financial_status === 'pending';
 
     const tags = (order.tags ?? '').toLowerCase();
-    const orderSource = tags.includes('telecaller') || tags.includes('commerce_quote')
-      ? 'telecaller_quote'
+    const orderSource =
+      tags.includes('telecaller') ||
+      tags.includes('commerce_quote') ||
+      tags.includes('razorpay-checkout')
+        ? 'telecaller_quote'
       : tags.includes('commerce_hub')
         ? 'commerce_hub'
         : 'website';

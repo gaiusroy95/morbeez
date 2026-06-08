@@ -1159,6 +1159,13 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...result });
   });
 
+  app.post(`${api}/leads/:leadId/estimates/:estimateId/confirm-cod`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { estimateId } = request.params as { leadId: string; estimateId: string };
+    const result = await commerceQuoteService.confirmCodOrder(estimateId, admin.email);
+    return reply.send({ ok: true, ...result });
+  });
+
   app.get(`${api}/leads/:leadId/estimates/:estimateId/share`, async (request, reply) => {
     await assertModuleAccess(request, 'telecaller_crm', 'read');
     const { leadId, estimateId } = request.params as { leadId: string; estimateId: string };

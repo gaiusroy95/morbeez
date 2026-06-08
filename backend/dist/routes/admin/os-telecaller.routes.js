@@ -960,6 +960,12 @@ export async function osTelecallerRoutes(app) {
         const result = await commerceQuoteService.sendQuote(estimateId, leadId, body.channels, admin.email);
         return reply.send({ ok: true, ...result });
     });
+    app.post(`${api}/leads/:leadId/estimates/:estimateId/confirm-cod`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { estimateId } = request.params;
+        const result = await commerceQuoteService.confirmCodOrder(estimateId, admin.email);
+        return reply.send({ ok: true, ...result });
+    });
     app.get(`${api}/leads/:leadId/estimates/:estimateId/share`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');
         const { leadId, estimateId } = request.params;

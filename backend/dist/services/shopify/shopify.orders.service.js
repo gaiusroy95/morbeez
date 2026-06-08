@@ -36,7 +36,7 @@ export const shopifyOrdersService = {
             send_receipt: true,
             inventory_behaviour: 'decrement_obeying_policy',
             note: input.note ?? `Paid via Razorpay (${input.razorpayPaymentId})`,
-            tags: 'razorpay-checkout',
+            tags: 'razorpay-checkout,commerce_quote,telecaller',
             transactions: [
                 {
                     kind: 'sale',
@@ -46,6 +46,43 @@ export const shopifyOrdersService = {
                     authorization: input.razorpayPaymentId,
                 },
             ],
+        };
+        const res = await shopifyAdmin('/orders.json', {
+            method: 'POST',
+            body: JSON.stringify({ order }),
+        });
+        return {
+            shopifyOrderId: String(res.order.id),
+            orderName: res.order.name,
+            orderStatusUrl: res.order.order_status_url ?? null,
+        };
+    },
+    async createCodOrder(input) {
+        const shipping = {
+            first_name: input.shipping.firstName,
+            last_name: input.shipping.lastName,
+            address1: input.shipping.address1,
+            address2: input.shipping.address2 ?? '',
+            city: input.shipping.city,
+            province: input.shipping.province,
+            zip: input.shipping.zip,
+            country: input.shipping.country ?? 'IN',
+            phone: input.shipping.phone ?? input.phone ?? '',
+        };
+        const order = {
+            email: input.email,
+            phone: input.phone,
+            line_items: input.lineItems.map((li) => ({
+                variant_id: li.variantId,
+                quantity: li.quantity,
+            })),
+            shipping_address: shipping,
+            billing_address: shipping,
+            financial_status: 'pending',
+            send_receipt: true,
+            inventory_behaviour: 'decrement_obeying_policy',
+            note: input.note ?? 'COD order from telecaller quote',
+            tags: 'cod,commerce_quote,telecaller',
         };
         const res = await shopifyAdmin('/orders.json', {
             method: 'POST',
