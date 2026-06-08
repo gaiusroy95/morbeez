@@ -44,7 +44,7 @@ function orderItemsFromLines(lines) {
 async function loadCommerceOrder(commerceOrderId) {
     const { data, error } = await supabase
         .from('commerce_orders')
-        .select('id, shopify_order_id, order_name, phone, is_cod, financial_status, total_amount, shipping_address, shiprocket_shipment_id, tracking_awb')
+        .select('id, shopify_order_id, order_name, phone, is_cod, financial_status, total_amount, shipping_address, shiprocket_order_id, shiprocket_shipment_id, tracking_awb')
         .eq('id', commerceOrderId)
         .single();
     if (error || !data)
@@ -88,14 +88,70 @@ async function pickCourier(shiprocketOrderId, pincode, weight, isCod) {
     const couriers = parseServiceableCouriers(serviceability);
     if (!couriers.length)
         return null;
+    const data = serviceability.data;
+    const recommendedId = Number(data?.recommended_courier_company_id ?? data?.shiprocket_recommended_courier_id ?? 0);
+    if (recommendedId) {
+        const match = couriers.find((c) => c.courier_company_id === recommendedId);
+        if (match)
+            return match;
+    }
     const sorted = [...couriers].sort((a, b) => Number(a.rate) - Number(b.rate));
     return sorted[0];
 }
-async function assignAwb(shipmentId, courierId) {
+function parseAssignAwbResult(payload) {
+    const assignStatus = payload.awb_assign_status;
+    const accepted = assignStatus === 1 || assignStatus === '1';
+    const response = payload.response;
+    const rawData = response?.data;
+    let row;
+    if (Array.isArray(rawData) && rawData.length) {
+        row = rawData[0];
+    }
+    else if (rawData && typeof rawData === 'object') {
+        row = rawData;
+    }
+    const awb = (row?.awb_code ? String(row.awb_code).trim() : null) ||
+        (payload.awb_code ? String(payload.awb_code).trim() : null) ||
+        null;
+    const courierName = (row?.courier_name ? String(row.courier_name) : null) ||
+        (payload.courier_name ? String(payload.courier_name) : null) ||
+        null;
+    let message = null;
+    if (!accepted && !awb) {
+        message =
+            (typeof rawData === 'string' ? rawData : null) ||
+                String(response?.message ?? payload.message ?? 'AWB assignment rejected by Shiprocket');
+    }
+    return { awb, courierName, accepted, message, raw: payload };
+}
+/** Shiprocket expects shipment_id as an array. */
+async function assignAwb(shipmentId, courierId, orderStatus) {
+    const body = {
+        shipment_id: [shipmentId],
+        courier_id: courierId,
+    };
+    if (orderStatus)
+        body.status = orderStatus;
     return shiprocketRequest('/v1/external/courier/assign/awb', {
         method: 'POST',
-        body: JSON.stringify({ shipment_id: shipmentId, courier_id: courierId }),
+        body: JSON.stringify(body),
     });
+}
+async function fetchShipmentAwb(shipmentId) {
+    const detail = await shiprocketRequest(`/v1/external/shipments/${shipmentId}`, { method: 'GET' });
+    const data = detail.data;
+    const awb = data?.awb ?? data?.awb_code ?? detail.awb ?? detail.awb_code;
+    return awb ? String(awb).trim() : null;
+}
+async function persistPartialShipment(commerceOrderId, shipmentId, shiprocketOrderId) {
+    await supabase
+        .from('commerce_orders')
+        .update({
+        shiprocket_shipment_id: String(shipmentId),
+        shiprocket_order_id: shiprocketOrderId != null ? String(shiprocketOrderId) : undefined,
+        updated_at: new Date().toISOString(),
+    })
+        .eq('id', commerceOrderId);
 }
 async function fetchLabelUrl(shipmentId) {
     const label = await shiprocketRequest('/v1/external/courier/generate/label', {
@@ -136,50 +192,61 @@ export const shiprocketService = {
         const paymentMethod = order.is_cod || order.financial_status !== 'paid' ? 'COD' : 'Prepaid';
         const subTotal = Number(order.total_amount) || lines.reduce((s, l) => s + l.unit_price * l.qty_ordered, 0);
         const weight = Math.max(0.2, lines.reduce((s, l) => s + l.qty_ordered * 0.15, 0.3));
-        const payload = {
-            order_id: order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8),
-            order_date: new Date().toISOString().slice(0, 10),
-            pickup_location: 'Primary',
-            billing_customer_name: addr.first,
-            billing_last_name: addr.last,
-            billing_address: addr.line1,
-            billing_address_2: addr.line2,
-            billing_city: addr.city,
-            billing_pincode: addr.pincode,
-            billing_state: addr.state,
-            billing_country: addr.country,
-            billing_phone: order.phone ?? addr.phone,
-            shipping_is_billing: true,
-            order_items: orderItemsFromLines(lines),
-            payment_method: paymentMethod,
-            sub_total: subTotal,
-            length: 10,
-            breadth: 10,
-            height: 10,
-            weight,
-        };
-        const created = await shiprocketRequest('/v1/external/orders/create/adhoc', {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        });
-        const shipmentId = Number(created.shipment_id);
-        if (!shipmentId)
-            throw new AppError('Shiprocket returned no shipment', 502, 'SHIPROCKET_API_ERROR');
-        let awb = created.awb_code ?? null;
-        let courier = created.courier_name ?? null;
+        let shipmentId = order.shiprocket_shipment_id ? Number(order.shiprocket_shipment_id) : 0;
+        let shiprocketOrderId = order.shiprocket_order_id ? Number(order.shiprocket_order_id) : undefined;
+        let orderStatus;
+        let awb = null;
+        let courier = null;
+        if (!shipmentId) {
+            const payload = {
+                order_id: order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8),
+                order_date: new Date().toISOString().slice(0, 10),
+                pickup_location: 'Primary',
+                billing_customer_name: addr.first,
+                billing_last_name: addr.last,
+                billing_address: addr.line1,
+                billing_address_2: addr.line2,
+                billing_city: addr.city,
+                billing_pincode: addr.pincode,
+                billing_state: addr.state,
+                billing_country: addr.country,
+                billing_phone: order.phone ?? addr.phone,
+                shipping_is_billing: true,
+                order_items: orderItemsFromLines(lines),
+                payment_method: paymentMethod,
+                sub_total: subTotal,
+                length: 10,
+                breadth: 10,
+                height: 10,
+                weight,
+            };
+            const created = await shiprocketRequest('/v1/external/orders/create/adhoc', { method: 'POST', body: JSON.stringify(payload) });
+            shipmentId = Number(created.shipment_id);
+            if (!shipmentId)
+                throw new AppError('Shiprocket returned no shipment', 502, 'SHIPROCKET_API_ERROR');
+            shiprocketOrderId =
+                created.order_id != null ? Number(created.order_id) : shiprocketOrderId;
+            orderStatus = created.status != null ? String(created.status) : undefined;
+            awb = created.awb_code ? String(created.awb_code) : null;
+            courier = created.courier_name ? String(created.courier_name) : null;
+            await persistPartialShipment(commerceOrderId, shipmentId, shiprocketOrderId);
+        }
         if (!awb) {
-            const best = await pickCourier(created.order_id, addr.pincode, weight, paymentMethod === 'COD');
+            const best = await pickCourier(shiprocketOrderId, addr.pincode, weight, paymentMethod === 'COD');
             if (!best) {
                 throw new AppError(`No courier serviceable for pincode ${addr.pincode} — check Shiprocket pickup pincode and dashboard rules`, 409, 'SHIPROCKET_NO_COURIER');
             }
-            const assigned = await assignAwb(shipmentId, best.courier_company_id);
-            awb =
-                assigned.response?.data?.awb_code ??
-                    assigned.awb_code ??
-                    null;
-            courier = assigned.response?.data?.courier_name ?? assigned.courier_name ?? best.courier_name;
+            const assigned = await assignAwb(shipmentId, best.courier_company_id, orderStatus);
+            const parsed = parseAssignAwbResult(assigned);
+            awb = parsed.awb;
+            courier = parsed.courierName ?? best.courier_name;
             if (!awb) {
-                throw new AppError('Shiprocket assigned courier but returned no AWB', 502, 'SHIPROCKET_NO_AWB');
+                awb = await fetchShipmentAwb(shipmentId).catch(() => null);
+            }
+            if (!awb) {
+                logger.error({ commerceOrderId, shipmentId, assignStatus: assigned.awb_assign_status, assigned }, 'Shiprocket assign AWB returned no awb_code');
+                throw new AppError(parsed.message ??
+                    'Shiprocket could not generate AWB — open Shiprocket dashboard and assign courier manually, then retry', 502, 'SHIPROCKET_NO_AWB');
             }
         }
         const labelUrl = await fetchLabelUrl(shipmentId).catch((err) => {
@@ -194,7 +261,7 @@ export const shiprocketService = {
             awb,
             status: 'created',
             courier: courier ?? 'auto',
-            raw_payload: { created, labelUrl },
+            raw_payload: { shipmentId, awb, labelUrl },
         });
         await eventBus.publish('shipment.created', {
             commerceOrderId,
@@ -205,7 +272,7 @@ export const shiprocketService = {
             orderName: order.order_name,
         }, 'shiprocket');
         return {
-            shiprocketOrderId: created.order_id != null ? String(created.order_id) : null,
+            shiprocketOrderId: shiprocketOrderId != null ? String(shiprocketOrderId) : null,
             shipmentId: String(shipmentId),
             awb,
             courier,
