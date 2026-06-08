@@ -1,7 +1,6 @@
 declare const STAFF_ROLES: readonly ["super_admin", "admin", "operations", "agronomist", "telecaller", "manager", "viewer"];
 export type StaffRole = (typeof STAFF_ROLES)[number];
 export type StaffMember = {
-    /** employee_profiles.id when HR profile exists; otherwise admin_users.id */
     id: string;
     adminUserId: string | null;
     hasProfile: boolean;
@@ -23,6 +22,12 @@ export type StaffMember = {
     attributedFarmerCount: number;
     leaderboardEligible: boolean;
     statusOnline: boolean;
+    lateLoginDays: number | null;
+    isLateLogin: boolean;
+    interactionsToday: number;
+    interactionsThisMonth: number;
+    estimatedIncentiveInr: number;
+    roiPct: number;
 };
 export type StaffWorkspace = {
     summary: {
@@ -32,26 +37,38 @@ export type StaffWorkspace = {
         avgPerformanceScore: number;
         avgTurnoverInr: number;
         pendingTasks: number;
+        interactionsToday: number;
+        avgRoiPct: number;
     };
     secondary: {
         onlineNow: number;
         lateLogin: number;
         lowTurnover: number;
         totalLeads: number;
+        interactionsToday: number;
     };
     employees: StaffMember[];
 };
 export declare const staffAdminService: {
-    getWorkspace(): Promise<StaffWorkspace>;
+    clearWorkspaceCache(): void;
+    getWorkspace(opts?: {
+        skipCache?: boolean;
+    }): Promise<StaffWorkspace>;
     getEmployeeDetail(id: string): Promise<{
         employee: StaffMember;
         overview: {
             pendingTasks: number;
             pendingFollowUps: number;
             newLeadsToday: number;
+            interactionsToday: number;
             interactionsThisMonth: number;
             onlineStatus: string;
             lastLoginAt: string | null;
+            lateLoginDays: number | null;
+            isLateLogin: boolean;
+            estimatedIncentiveInr: number;
+            roiPct: number;
+            avgPerformanceScore: number;
             attributedFarmerCount: number;
             leaderboardEligible: boolean;
             performanceSource: "estimated" | "engine";

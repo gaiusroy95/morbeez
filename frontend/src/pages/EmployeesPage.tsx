@@ -32,6 +32,7 @@ type Employee = {
   fullName: string;
   role: string;
   active: boolean;
+  lastLoginAt?: string | null;
   employeeCode: string;
   totalLeads: number;
   pendingTasks: number;
@@ -44,6 +45,14 @@ type Employee = {
   leaderboardEligible?: boolean;
   statusOnline: boolean;
   agronomistTier?: 'new' | 'experienced' | null;
+  lateLoginDays?: number | null;
+  isLateLogin?: boolean;
+  interactionsToday?: number;
+  interactionsThisMonth?: number;
+  estimatedIncentiveInr?: number;
+  roiPct?: number;
+  personalMobile?: string;
+  companyWhatsapp?: string;
 };
 
 type Workspace = {
@@ -54,19 +63,40 @@ type Workspace = {
     avgPerformanceScore: number;
     avgTurnoverInr: number;
     pendingTasks: number;
+    interactionsToday?: number;
+    avgRoiPct?: number;
   };
   secondary: {
     onlineNow: number;
     lateLogin: number;
     lowTurnover: number;
     totalLeads: number;
+    interactionsToday?: number;
   };
   employees: Employee[];
 };
 
+type DetailOverview = {
+  pendingTasks: number;
+  pendingFollowUps: number;
+  newLeadsToday: number;
+  interactionsToday: number;
+  interactionsThisMonth: number;
+  onlineStatus: string;
+  lastLoginAt: string | null;
+  lateLoginDays: number | null;
+  isLateLogin: boolean;
+  estimatedIncentiveInr: number;
+  roiPct: number;
+  avgPerformanceScore: number;
+  attributedFarmerCount: number;
+  leaderboardEligible: boolean;
+  performanceSource: 'engine' | 'estimated';
+};
+
 type Detail = {
   employee: Employee;
-  overview: Record<string, unknown>;
+  overview: DetailOverview;
   turnoverTrend: { labels: string[]; values: number[] };
   performanceBreakdown: Array<{ label: string; pct: number }>;
   performanceFactors?: Array<{ code?: string; label: string; delta?: number }>;
@@ -142,8 +172,9 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     setSearch,
     employeeSearchDefaults.placeholder ?? 'Search employees…'
   );
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!employeeId);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [showHeavyPanels, setShowHeavyPanels] = useState(false);
   const [error, setError] = useState('');
   const [showNewEmployee, setShowNewEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -171,28 +202,40 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     }
   }, []);
 
+  const loadDetail = useCallback(async (id: string) => {
+    setDetailLoading(true);
+    setError('');
+    try {
+      const d = await api<{ ok: boolean } & Detail>(`/morbeez-staff/api/v1/staff/${id}`);
+      setDetail(d);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load employee');
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    loadWorkspace();
-  }, [loadWorkspace]);
+    if (employeeId) return;
+    void loadWorkspace();
+  }, [employeeId, loadWorkspace]);
 
   useEffect(() => {
     if (!employeeId) {
       setDetail(null);
       return;
     }
-    void (async () => {
-      setDetailLoading(true);
-      setError('');
-      try {
-        const d = await api<{ ok: boolean } & Detail>(`/morbeez-staff/api/v1/staff/${employeeId}`);
-        setDetail(d);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Failed to load employee');
-      } finally {
-        setDetailLoading(false);
-      }
-    })();
-  }, [employeeId]);
+    void loadDetail(employeeId);
+  }, [employeeId, loadDetail]);
+
+  useEffect(() => {
+    if (employeeId || !workspace) {
+      setShowHeavyPanels(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowHeavyPanels(true), 120);
+    return () => window.clearTimeout(timer);
+  }, [employeeId, workspace]);
 
   async function createEmployee(input: {
     fullName: string;
@@ -343,7 +386,9 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
 
   if (employeeId && detail?.employee) {
     const e = detail.employee;
-    const roi = e.turnoverInr > 0 ? Math.round((e.performanceScore / 70) * 100) : 0;
+    const ov = detail.overview;
+    const roi = ov.roiPct ?? e.roiPct ?? 0;
+    const turnoverPct = Math.min(100, Math.round((e.turnoverInr / 200000) * 100));
 
     return (
       <div className="emp-page route-employees-detail">
@@ -370,7 +415,8 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                 {roleLabel(e.role)} · {e.employeeCode} · {e.email}
               </p>
               <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>
-                📞 {e.email} · 🌐 English
+                Last login: {formatDateTime(ov.lastLoginAt ?? e.lastLoginAt)}
+                {ov.isLateLogin ? ' · Late login' : ''}
                 {e.performanceSource === 'engine' ? (
                   <>
                     {' '}
@@ -386,7 +432,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
           <div className="emp-metrics-rings">
             <ProgressRing pct={e.performanceScore} label="Performance" display={`${e.performanceScore}%`} />
             <ProgressRing pct={Math.min(100, roi)} label="ROI" display={`${roi}%`} />
-            <ProgressRing pct={75} label="Turnover" display={formatInrFull(e.turnoverInr)} />
+            <ProgressRing pct={turnoverPct} label="Sales (mo)" display={formatInrFull(e.turnoverInr)} />
           </div>
         </div>
 
@@ -419,8 +465,22 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                 <div className="emp-mini-value">{e.totalLeads}</div>
               </div>
               <div className="emp-mini-card">
+                <div className="emp-mini-label">Interactions today</div>
+                <div className="emp-mini-value">{ov.interactionsToday}</div>
+              </div>
+              <div className="emp-mini-card">
                 <div className="emp-mini-label">Interactions (mo)</div>
-                <div className="emp-mini-value">{Number(detail.overview.interactionsThisMonth ?? 0)}</div>
+                <div className="emp-mini-value">{ov.interactionsThisMonth}</div>
+              </div>
+              <div className="emp-mini-card">
+                <div className="emp-mini-label">New leads today</div>
+                <div className="emp-mini-value">{ov.newLeadsToday}</div>
+              </div>
+              <div className="emp-mini-card">
+                <div className="emp-mini-label">Est. incentive</div>
+                <div className="emp-mini-value" style={{ fontSize: '1rem' }}>
+                  {formatInrFull(ov.estimatedIncentiveInr)}
+                </div>
               </div>
               <div className="emp-mini-card">
                 <div className="emp-mini-label">Status</div>
@@ -706,13 +766,20 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     <div className="emp-page">
       {error ? <Alert tone="error">{error}</Alert> : null}
 
-      <div className="mb-4">
-        <EmployeePricingDashboard />
-      </div>
-
-      <div className="mb-4" id="bulk-margin-reviews">
-        <BulkMarginReviewPanel />
-      </div>
+      {showHeavyPanels ? (
+        <>
+          <div className="mb-4">
+            <EmployeePricingDashboard />
+          </div>
+          <div className="mb-4" id="bulk-margin-reviews">
+            <BulkMarginReviewPanel />
+          </div>
+        </>
+      ) : (
+        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Loading pricing and margin tools…
+        </div>
+      )}
 
       <div className="stat-grid">
         <article className="stat-card">
@@ -772,6 +839,10 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
         <div className="emp-mini-card">
           <div className="emp-mini-label">Low turnover</div>
           <div className="emp-mini-value">{sec.lowTurnover}</div>
+        </div>
+        <div className="emp-mini-card">
+          <div className="emp-mini-label">Interactions today</div>
+          <div className="emp-mini-value">{sec.interactionsToday ?? s.interactionsToday ?? 0}</div>
         </div>
         <div className="emp-mini-card">
           <div className="emp-mini-label">Total leads</div>
