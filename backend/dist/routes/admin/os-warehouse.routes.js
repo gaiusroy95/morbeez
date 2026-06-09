@@ -470,8 +470,15 @@ export async function osWarehouseRoutes(app) {
     app.post(`${api}/fulfillment/orders/:id/generate-awb`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
-        const result = await fulfillmentService.provisionShipment(id, request.adminEmail);
-        return reply.send({ ok: true, shipment: result });
+        try {
+            const result = await fulfillmentService.provisionShipment(id, request.adminEmail);
+            return reply.send({ ok: true, shipment: result });
+        }
+        catch (err) {
+            const message = err instanceof Error ? err.message : 'Generate AWB failed';
+            request.log.warn({ err, commerceOrderId: id }, 'Generate AWB failed');
+            throw err instanceof Error ? err : new Error(message);
+        }
     });
     app.post(`${api}/fulfillment/orders/:id/pack-session`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');

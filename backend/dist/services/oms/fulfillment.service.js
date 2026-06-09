@@ -276,17 +276,16 @@ export const fulfillmentService = {
         if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
             throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
         }
-        if (opts?.forceRecreate ?? true) {
-            await supabase
-                .from('commerce_orders')
-                .update({ shiprocket_error: null, updated_at: new Date().toISOString() })
-                .eq('id', commerceOrderId);
-        }
+        await supabase
+            .from('commerce_orders')
+            .update({ shiprocket_error: null, updated_at: new Date().toISOString() })
+            .eq('id', commerceOrderId);
+        const forceRecreate = opts?.forceRecreate ?? false;
         const result = await shiprocketService
-            .provisionForCommerceOrder(commerceOrderId, { forceRecreate: opts?.forceRecreate ?? true })
-            .catch((err) => {
+            .provisionForCommerceOrder(commerceOrderId, { forceRecreate })
+            .catch(async (err) => {
             const msg = err instanceof Error ? err.message : 'Shiprocket failed';
-            void supabase
+            await supabase
                 .from('commerce_orders')
                 .update({
                 shiprocket_error: msg,
@@ -328,13 +327,18 @@ export const fulfillmentService = {
             .eq('id', commerceOrderId)
             .eq('oms_status', 'awb_generated');
         if (actorEmail) {
-            await employeeActionLogService.log({
-                actorEmail,
-                actionType: 'awb_generated',
-                entityType: 'commerce_order',
-                entityId: commerceOrderId,
-                details: { awb: result.awb, courier: result.courier },
-            });
+            try {
+                await employeeActionLogService.log({
+                    actorEmail,
+                    actionType: 'awb_generated',
+                    entityType: 'commerce_order',
+                    entityId: commerceOrderId,
+                    details: { awb: result.awb, courier: result.courier },
+                });
+            }
+            catch (err) {
+                logger.warn({ err, commerceOrderId }, 'AWB generated but action log failed');
+            }
         }
         return result;
     },

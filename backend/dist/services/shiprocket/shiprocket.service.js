@@ -241,6 +241,28 @@ function formatAwbFailureMessage(parsedMessage, wallet, courier) {
     }
     return parts.join(' ');
 }
+function parseCreateAdhocResponse(created) {
+    const payload = created.payload;
+    const data = created.data;
+    const shipmentId = Number(created.shipment_id ?? payload?.shipment_id ?? data?.shipment_id ?? 0);
+    const orderIdRaw = created.order_id ?? payload?.order_id ?? data?.order_id;
+    const shiprocketOrderId = orderIdRaw != null ? Number(orderIdRaw) : undefined;
+    const orderStatusRaw = created.status ?? payload?.status ?? data?.status;
+    const orderStatus = orderStatusRaw != null ? String(orderStatusRaw) : undefined;
+    const awb = (created.awb_code ? String(created.awb_code) : null) ||
+        (payload?.awb_code ? String(payload.awb_code) : null) ||
+        (data?.awb_code ? String(data.awb_code) : null);
+    const courier = (created.courier_name ? String(created.courier_name) : null) ||
+        (payload?.courier_name ? String(payload.courier_name) : null) ||
+        (data?.courier_name ? String(data.courier_name) : null);
+    return { shipmentId, shiprocketOrderId, orderStatus, awb, courier };
+}
+function uniqueShiprocketOrderId(base, commerceOrderId, recreate) {
+    const normalized = base.trim() || commerceOrderId.slice(0, 8);
+    if (!recreate)
+        return normalized;
+    return `${normalized}-${commerceOrderId.slice(0, 4)}`;
+}
 function parseAssignAwbResult(payload) {
     const assignStatus = payload.awb_assign_status;
     const accepted = assignStatus === 1 || assignStatus === '1';
@@ -324,8 +346,19 @@ export const shiprocketService = {
     getDiagnostics,
     formatShiprocketErrorForDisplay,
     async provisionForCommerceOrder(commerceOrderId, opts) {
-        if (opts?.forceRecreate) {
-            const existing = await loadCommerceOrder(commerceOrderId);
+        const existing = await loadCommerceOrder(commerceOrderId);
+        const hasPartialShipment = Boolean(existing.shiprocket_shipment_id) && !existing.tracking_awb;
+        if (!opts?.forceRecreate && hasPartialShipment) {
+            try {
+                return await this._provisionForCommerceOrderOnce(commerceOrderId, {
+                    recreateOnAssignFailure: true,
+                });
+            }
+            catch (err) {
+                logger.warn({ err, commerceOrderId }, 'Assign AWB on existing Shiprocket shipment failed — recreating shipment');
+            }
+        }
+        if (opts?.forceRecreate || hasPartialShipment) {
             if (existing.shiprocket_shipment_id) {
                 await cancelShiprocketShipments([Number(existing.shiprocket_shipment_id)]);
             }
@@ -339,9 +372,12 @@ export const shiprocketService = {
             }
             await clearCommerceShipmentRefs(commerceOrderId);
         }
-        return this._provisionForCommerceOrderOnce(commerceOrderId, Boolean(opts?.forceRecreate));
+        return this._provisionForCommerceOrderOnce(commerceOrderId, {
+            recreateOnAssignFailure: false,
+            freshOrderId: Boolean(opts?.forceRecreate || hasPartialShipment),
+        });
     },
-    async _provisionForCommerceOrderOnce(commerceOrderId, alreadyRecreated) {
+    async _provisionForCommerceOrderOnce(commerceOrderId, opts) {
         const order = await loadCommerceOrder(commerceOrderId);
         if (order.tracking_awb && order.shiprocket_shipment_id) {
             const { data: refreshed } = await supabase
@@ -382,8 +418,9 @@ export const shiprocketService = {
         }
         if (!shipmentId) {
             const pickupLocation = await resolvePickupLocation();
+            const orderIdBase = order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8);
             const payload = {
-                order_id: order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8),
+                order_id: uniqueShiprocketOrderId(orderIdBase, commerceOrderId, Boolean(opts?.freshOrderId)),
                 order_date: new Date().toISOString().slice(0, 10),
                 pickup_location: pickupLocation,
                 billing_customer_name: addr.first,
@@ -405,14 +442,15 @@ export const shiprocketService = {
                 weight,
             };
             const created = await shiprocketRequest('/v1/external/orders/create/adhoc', { method: 'POST', body: JSON.stringify(payload) });
-            shipmentId = Number(created.shipment_id);
-            if (!shipmentId)
-                throw new AppError('Shiprocket returned no shipment', 502, 'SHIPROCKET_API_ERROR');
-            shiprocketOrderId =
-                created.order_id != null ? Number(created.order_id) : shiprocketOrderId;
-            orderStatus = created.status != null ? String(created.status) : undefined;
-            awb = created.awb_code ? String(created.awb_code) : null;
-            courier = created.courier_name ? String(created.courier_name) : null;
+            const parsedCreate = parseCreateAdhocResponse(created);
+            shipmentId = parsedCreate.shipmentId;
+            if (!shipmentId) {
+                throw new AppError('Shiprocket returned no shipment — check pickup location and order details in Shiprocket dashboard', 502, 'SHIPROCKET_API_ERROR');
+            }
+            shiprocketOrderId = parsedCreate.shiprocketOrderId ?? shiprocketOrderId;
+            orderStatus = parsedCreate.orderStatus;
+            awb = parsedCreate.awb;
+            courier = parsedCreate.courier;
             await persistPartialShipment(commerceOrderId, shipmentId, shiprocketOrderId);
         }
         if (!awb) {
@@ -439,7 +477,7 @@ export const shiprocketService = {
                     courierRate: best.rate,
                     assigned,
                 }, 'Shiprocket assign AWB returned no awb_code');
-                if (!alreadyRecreated && order.shiprocket_shipment_id) {
+                if (opts?.recreateOnAssignFailure) {
                     logger.warn({ commerceOrderId }, 'Retrying Shiprocket with fresh shipment after AWB failure');
                     await cancelShiprocketShipments([shipmentId]);
                     try {
@@ -450,7 +488,10 @@ export const shiprocketService = {
                         logger.warn({ err, commerceOrderId }, 'Shiprocket cancel during AWB retry failed');
                     }
                     await clearCommerceShipmentRefs(commerceOrderId);
-                    return this._provisionForCommerceOrderOnce(commerceOrderId, true);
+                    return this._provisionForCommerceOrderOnce(commerceOrderId, {
+                        recreateOnAssignFailure: false,
+                        freshOrderId: true,
+                    });
                 }
                 throw new AppError(formatAwbFailureMessage(parsed.message, wallet, best), 502, 'SHIPROCKET_NO_AWB');
             }

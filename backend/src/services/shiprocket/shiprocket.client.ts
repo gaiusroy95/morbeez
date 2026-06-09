@@ -158,9 +158,10 @@ export async function shiprocketRequest<T>(
       }
     })();
     const suffix = detail ? ` — ${detail}` : '';
+    const statusCode = res.status >= 500 ? 502 : res.status;
     throw new AppError(
       `Shiprocket API ${res.status} on ${path}${suffix}`,
-      res.status,
+      statusCode,
       'SHIPROCKET_API_ERROR',
       text
     );

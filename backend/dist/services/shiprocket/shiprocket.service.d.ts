@@ -23,7 +23,10 @@ export declare const shiprocketService: {
     provisionForCommerceOrder(commerceOrderId: string, opts?: {
         forceRecreate?: boolean;
     }): Promise<ShiprocketProvisionResult | null>;
-    _provisionForCommerceOrderOnce(commerceOrderId: string, alreadyRecreated: boolean): Promise<ShiprocketProvisionResult | null>;
+    _provisionForCommerceOrderOnce(commerceOrderId: string, opts?: {
+        recreateOnAssignFailure?: boolean;
+        freshOrderId?: boolean;
+    }): Promise<ShiprocketProvisionResult | null>;
     createShipmentForShopifyOrder(shopifyOrderId: string): Promise<{
         awb: string | null;
         courier: string;
