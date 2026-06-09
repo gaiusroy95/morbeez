@@ -80,6 +80,7 @@ export const checkoutService = {
                 variantId: li.variantId,
                 quantity: li.quantity,
                 title: li.title,
+                unitPrice: li.price / 100,
             })),
             shipping: {
                 firstName: customer.firstName,

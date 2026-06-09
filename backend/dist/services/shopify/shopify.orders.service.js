@@ -89,8 +89,8 @@ async function createShopifyOrderPayload(input, financialStatus) {
 export const shopifyOrdersService = {
     async createPaidOrder(input) {
         const { order, paidTotal, computedTotal } = await createShopifyOrderPayload(input, 'paid');
-        if (Math.abs(Number(paidTotal) - computedTotal) > 0.05) {
-            // Align transaction to computed Shopify line total when quote total matches within rounding
+        if (computedTotal > 0 && Math.abs(Number(paidTotal) - computedTotal) > 0.05) {
+            // Align transaction to computed Shopify line total when line prices are known
             order.transactions[0].amount = money(computedTotal);
         }
         try {
