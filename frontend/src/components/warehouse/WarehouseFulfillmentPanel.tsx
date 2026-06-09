@@ -32,6 +32,7 @@ type QueueRow = {
   isCod?: boolean;
   totalAmount?: number;
   createdAt?: string;
+  assignedEmployee?: string | null;
 };
 
 type RackLine = {
@@ -112,6 +113,27 @@ type OrderDetail = {
     isCod: boolean;
     totalAmount: number;
   };
+  assignment?: {
+    employeeId: string | null;
+    employeeName: string | null;
+    batchId: string | null;
+    pickingStartedAt: string | null;
+    labelVerifiedAt: string | null;
+  };
+  shippingLabel?: {
+    id: string;
+    qrCode: string;
+    labelVerified: boolean;
+    verifiedAt: string | null;
+    printSequence: number;
+  } | null;
+  labelBatch?: {
+    id: string;
+    batch_number: string;
+    assigned_employee_name: string;
+    batch_status: string;
+    printed_at: string | null;
+  } | null;
 };
 
 const EXCEPTIONS = [
@@ -141,6 +163,23 @@ function lineStatus(line: RackLine) {
   if (line.complete) return { label: 'Picked', tone: 'done' as const };
   if (line.qtyPicked > 0) return { label: 'In Progress', tone: 'progress' as const };
   return { label: 'Pending', tone: 'pending' as const };
+}
+
+function playWrongLabelAlert() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 280;
+    gain.gain.value = 0.15;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+    setTimeout(() => void ctx.close(), 500);
+  } catch {
+    /* audio optional */
+  }
 }
 
 function PickConfirmModal({
@@ -258,6 +297,8 @@ export function WarehouseFulfillmentPanel({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showSyncBanner, setShowSyncBanner] = useState(true);
+  const [labelScanCode, setLabelScanCode] = useState('');
+  const [wrongLabel, setWrongLabel] = useState('');
   const autoOpened = useRef(false);
 
   const loadQueue = useCallback(async () => {
@@ -436,6 +477,39 @@ export function WarehouseFulfillmentPanel({
     }
   }
 
+  async function verifyLabel(code: string) {
+    if (!selectedId || !canWrite || !code.trim()) return;
+    setBusy(true);
+    setWrongLabel('');
+    setError('');
+    try {
+      const r = await api<{
+        ok: boolean;
+        matched: boolean;
+        error?: string;
+        message?: string;
+        alert?: string;
+      }>(`${WMS_API}/fulfillment/orders/${selectedId}/verify-label`, {
+        method: 'POST',
+        body: JSON.stringify({ code: code.trim() }),
+      });
+      if (r.matched) {
+        setLabelScanCode('');
+        setSuccess(r.message ?? 'Label verified — paste on parcel');
+        await loadDetail(selectedId);
+        await loadQueue();
+      } else {
+        playWrongLabelAlert();
+        setWrongLabel(r.error ?? 'Wrong label — scan the next label from your tray');
+      }
+    } catch (e) {
+      playWrongLabelAlert();
+      setWrongLabel(e instanceof Error ? e.message : 'Label verification failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const workflow = detail?.workflow;
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
@@ -457,6 +531,9 @@ export function WarehouseFulfillmentPanel({
   const rackRemainingQty = workflow?.currentRackLines.reduce((s, l) => s + l.remaining, 0) ?? 0;
   const activeRackIndex = workflow?.racks.findIndex((r) => r.active) ?? -1;
   const printQueueCount = stats?.readyToPack ?? queue.filter((r) => r.awb).length;
+  const awaitingLabel = order?.oms_status === 'awaiting_label_verification';
+  const usesBatchLabels = Boolean(detail?.shippingLabel);
+  const assignedName = detail?.assignment?.employeeName ?? selectedQueue?.assignedEmployee ?? null;
 
   const needsPickSetup =
     !printStage &&
@@ -556,6 +633,9 @@ export function WarehouseFulfillmentPanel({
                       <span className="pp-status-badge">{formatOmsStatus(row.omsStatus)}</span>
                       {row.shiprocketError ? <span className="pp-order-warn" title={row.shiprocketError}>⚠</span> : null}
                     </div>
+                    {row.assignedEmployee ? (
+                      <span className="pp-order-assignee">→ {row.assignedEmployee}</span>
+                    ) : null}
                     {row.customerName ? <span className="pp-order-customer">{row.customerName}</span> : null}
                     <div className="pp-order-card-meta">
                       <span>
@@ -610,11 +690,20 @@ export function WarehouseFulfillmentPanel({
                     <strong>{orderPickedQty}</strong>
                   </div>
                   <div>
-                    <span>Picker</span>
-                    <strong>{detail.pickList?.picker_id ? 'Assigned' : '—'}</strong>
+                    <span>Assigned to</span>
+                    <strong>{assignedName ?? detail.pickList?.picker_id ?? '—'}</strong>
                   </div>
                 </div>
               </div>
+
+              {order.oms_status === 'assigned' ? (
+                <div className="pp-setup-card">
+                  <p>
+                    Order assigned to <strong>{assignedName ?? 'employee'}</strong> — labels not printed yet.
+                    Open <strong>Assign &amp; print labels</strong> and print the employee batch before picking.
+                  </p>
+                </div>
+              ) : null}
 
               {detail.shiprocketDiagnostics && !detail.shiprocketDiagnostics.authOk ? (
                 <Alert tone="error">
@@ -659,14 +748,42 @@ export function WarehouseFulfillmentPanel({
                 </div>
               ) : null}
 
-              {printStage ? (
+              {awaitingLabel ? (
+                <section className="pp-label-verify">
+                  <h4>Label verification</h4>
+                  <p>
+                    Take the <strong>next label</strong> from{' '}
+                    {assignedName ? <strong>{assignedName}&apos;s</strong> : 'your'} tray and scan the QR.
+                  </p>
+                  {detail?.shippingLabel ? (
+                    <p className="muted mono">Expected: {selectedQueue?.orderName ?? order.order_name}</p>
+                  ) : null}
+                  {canWrite ? (
+                    <BarcodeScanInput
+                      value={labelScanCode}
+                      onChange={setLabelScanCode}
+                      onScan={(c) => void verifyLabel(c)}
+                      placeholder="Scan shipping label QR"
+                    />
+                  ) : null}
+                  {detail?.shippingLabel?.labelVerified ? (
+                    <p className="pp-label-verified">Label verified — ready for dispatch rack</p>
+                  ) : null}
+                </section>
+              ) : null}
+
+              {printStage && !awaitingLabel ? (
                 <div className="pp-complete-card">
                   <span className="pp-complete-icon" aria-hidden>
                     ✓
                   </span>
                   <div>
                     <strong>All racks picked</strong>
-                    <p>Use the Print queue panel to generate AWB, print label &amp; invoice, then mark packed.</p>
+                    <p>
+                      {usesBatchLabels
+                        ? 'Pack the order, then mark packed and verify the pre-printed label from your tray.'
+                        : 'Use the Print queue panel to generate AWB, print label & invoice, then mark packed.'}
+                    </p>
                   </div>
                 </div>
               ) : workflow?.currentRack ? (
@@ -842,12 +959,24 @@ export function WarehouseFulfillmentPanel({
 
               <section className="pp-sidebar-section pp-next-step">
                 <h4>Next step</h4>
-                {printStage ? (
+                {awaitingLabel ? (
+                  <div className="pp-next-step-card pp-next-step-card--warn">
+                    <span aria-hidden>🏷</span>
+                    <p>
+                      <strong>Awaiting label scan</strong>
+                      <span>Scan QR from employee tray — wrong label blocks dispatch.</span>
+                    </p>
+                  </div>
+                ) : printStage ? (
                   <div className="pp-next-step-card pp-next-step-card--ready">
                     <span aria-hidden>🖨</span>
                     <p>
                       <strong>Printables ready</strong>
-                      <span>Generate AWB, print label &amp; invoice, then mark packed.</span>
+                      <span>
+                        {usesBatchLabels
+                          ? 'Mark packed, then verify pre-printed label QR.'
+                          : 'Generate AWB, print label & invoice, then mark packed.'}
+                      </span>
                     </p>
                   </div>
                 ) : awbRetryAllowed ? (
@@ -914,18 +1043,27 @@ export function WarehouseFulfillmentPanel({
                   </Link>
                   {canWrite ? (
                     <>
-                      <Btn
-                        size="sm"
-                        disabled={busy || !printStage}
-                        onClick={() => void runAction('/mark-label-printed', 'Label printed')}
-                      >
-                        Label printed
-                      </Btn>
+                      {!usesBatchLabels ? (
+                        <Btn
+                          size="sm"
+                          disabled={busy || !printStage}
+                          onClick={() => void runAction('/mark-label-printed', 'Label printed')}
+                        >
+                          Label printed
+                        </Btn>
+                      ) : null}
                       <Btn
                         size="sm"
                         variant="primary"
-                        disabled={busy || !printStage}
-                        onClick={() => void runAction('/mark-packed', 'Order packed')}
+                        disabled={busy || !printStage || awaitingLabel}
+                        onClick={() =>
+                          void runAction(
+                            '/mark-packed',
+                            usesBatchLabels
+                              ? 'Packed — scan label from tray to verify'
+                              : 'Order packed'
+                          )
+                        }
                       >
                         Mark packed
                       </Btn>
@@ -962,6 +1100,19 @@ export function WarehouseFulfillmentPanel({
           )}
         </aside>
       </div>
+
+      {wrongLabel ? (
+        <div className="pp-wrong-label-overlay" role="alert">
+          <div className="pp-wrong-label-card">
+            <h3>Wrong label</h3>
+            <p>{wrongLabel}</p>
+            <p className="muted">Use the next label from your employee tray stack.</p>
+            <Btn size="sm" variant="primary" onClick={() => setWrongLabel('')}>
+              Dismiss
+            </Btn>
+          </div>
+        </div>
+      ) : null}
 
       {pickLookup ? (
         <PickConfirmModal

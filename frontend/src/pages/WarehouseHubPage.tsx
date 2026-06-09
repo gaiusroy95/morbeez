@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { HubTabs, ReadOnlyBanner } from '../components/ui';
 import { WarehouseStockPanel } from '../components/warehouse/WarehouseStockPanel';
 import { WarehouseInboundPanel } from '../components/warehouse/WarehouseInboundPanel';
-import { WarehouseFulfillmentPanel } from '../components/warehouse/WarehouseFulfillmentPanel';
+import { WarehouseFulfillmentHub } from '../components/warehouse/WarehouseFulfillmentHub';
 import { WarehouseFinancePanel } from '../components/warehouse/WarehouseFinancePanel';
 import { WarehouseReturnsPanel } from '../components/warehouse/WarehouseReturnsPanel';
 import { WarehouseOverviewPanel } from '../components/warehouse/WarehouseOverviewPanel';
@@ -71,7 +71,7 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'stock' ? <WarehouseStockPanel canWrite={canWrite} /> : null}
       {tab === 'inbound' ? <WarehouseInboundPanel canWrite={canWrite} /> : null}
       {tab === 'fulfillment' ? (
-        <WarehouseFulfillmentPanel canWrite={canWrite} focusOrderId={orderFromUrl} />
+        <WarehouseFulfillmentHub canWrite={canWrite} focusOrderId={orderFromUrl} />
       ) : null}
       {tab === 'returns' ? <WarehouseReturnsPanel canWrite={canWrite} /> : null}
       {tab === 'finance' ? <WarehouseFinancePanel canWrite={canWrite} /> : null}

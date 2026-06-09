@@ -18,9 +18,12 @@ import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 import { checkoutOmsBridgeService } from '../checkout/checkout-oms-bridge.service.js';
 
 const FULFILLMENT_STATUSES = [
+  'assigned',
   'confirmed',
   'awb_generated',
   'picking',
+  'packing',
+  'awaiting_label_verification',
   'packed',
   'ready_dispatch',
 ] as const;
@@ -87,12 +90,21 @@ export const fulfillmentService = {
   async getStats() {
     const today = startOfTodayIso();
     const [pending, ready, packedToday, courierPending, failedAwb] = await Promise.all([
-      activeFulfillmentOrdersQuery().in('oms_status', ['confirmed', 'awb_generated', 'picking']),
+      activeFulfillmentOrdersQuery().in('oms_status', [
+        'assigned',
+        'confirmed',
+        'awb_generated',
+        'picking',
+        'packing',
+        'awaiting_label_verification',
+      ]),
       activeFulfillmentOrdersQuery()
-        .in('oms_status', ['awb_generated', 'picking'])
+        .in('oms_status', ['assigned', 'awb_generated', 'picking', 'packing', 'awaiting_label_verification'])
         .not('tracking_awb', 'is', null),
-      activeFulfillmentOrdersQuery().eq('oms_status', 'packed').gte('packed_at', today),
-      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'ready_dispatch']),
+      activeFulfillmentOrdersQuery()
+        .in('oms_status', ['packed', 'ready_dispatch'])
+        .gte('packed_at', today),
+      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'ready_dispatch', 'awaiting_label_verification']),
       activeFulfillmentOrdersQuery()
         .not('shiprocket_error', 'is', null)
         .in('oms_status', ['confirmed', 'picking', 'awb_generated']),
@@ -201,6 +213,7 @@ export const fulfillmentService = {
       .select(
         `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
          fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
+         assigned_employee_name, assigned_batch_id,
          pick_lists(id, status, pick_list_lines(id, qty_required)),
          commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`
       )
@@ -269,6 +282,7 @@ export const fulfillmentService = {
         isCod: row.is_cod,
         totalAmount: row.total_amount,
         createdAt: row.created_at,
+        assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
       };
     });
   },
@@ -312,6 +326,24 @@ export const fulfillmentService = {
       shiprocketDiagnostics?.walletBalanceInr ?? null
     );
 
+    const { data: shippingLabel } = await supabase
+      .from('shipping_labels')
+      .select('id, qr_code, label_verified, verified_at, print_sequence, label_batch_id')
+      .eq('commerce_order_id', commerceOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    let labelBatch = null;
+    if (shippingLabel?.label_batch_id) {
+      const { data: batch } = await supabase
+        .from('warehouse_label_batches')
+        .select('id, batch_number, assigned_employee_name, batch_status, printed_at')
+        .eq('id', shippingLabel.label_batch_id)
+        .maybeSingle();
+      labelBatch = batch;
+    }
+
     return {
       order,
       pickList,
@@ -322,6 +354,23 @@ export const fulfillmentService = {
       workflow,
       shiprocketDiagnostics,
       shiprocketErrorDisplay,
+      assignment: {
+        employeeId: order.assigned_employee_id ? String(order.assigned_employee_id) : null,
+        employeeName: order.assigned_employee_name ? String(order.assigned_employee_name) : null,
+        batchId: order.assigned_batch_id ? String(order.assigned_batch_id) : null,
+        pickingStartedAt: order.picking_started_at ?? null,
+        labelVerifiedAt: order.label_verified_at ?? null,
+      },
+      shippingLabel: shippingLabel
+        ? {
+            id: String(shippingLabel.id),
+            qrCode: String(shippingLabel.qr_code),
+            labelVerified: Boolean(shippingLabel.label_verified),
+            verifiedAt: shippingLabel.verified_at ?? null,
+            printSequence: Number(shippingLabel.print_sequence) || 1,
+          }
+        : null,
+      labelBatch,
       customerSummary: {
         phone: order.phone ?? shipAddr?.phone ?? null,
         address: shipAddr
@@ -430,29 +479,45 @@ export const fulfillmentService = {
   },
 
   async markPacked(pickListId: string, actorEmail?: string) {
-    const result = await omsWorkflowService.completePacking(pickListId, actorEmail);
+    await packService.completePack(pickListId, actorEmail);
+
     const { data: pick } = await supabase
       .from('pick_lists')
       .select('commerce_order_id')
       .eq('id', pickListId)
       .single();
-    if (pick?.commerce_order_id) {
-      const rack = await supabase
-        .from('commerce_orders')
-        .select('courier_name, dispatch_rack')
-        .eq('id', pick.commerce_order_id)
-        .single();
-      if (!rack.data?.dispatch_rack && rack.data?.courier_name) {
-        await supabase
-          .from('commerce_orders')
-          .update({
-            dispatch_rack: suggestDispatchRack(rack.data.courier_name as string),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', pick.commerce_order_id);
-      }
+    if (!pick?.commerce_order_id) {
+      throw new NotFoundError('Pick list not found');
     }
-    return result;
+
+    const commerceOrderId = String(pick.commerce_order_id);
+    await supabase
+      .from('pick_lists')
+      .update({
+        status: 'packed',
+        packed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', pickListId);
+
+    await supabase
+      .from('commerce_orders')
+      .update({
+        oms_status: 'awaiting_label_verification',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', commerceOrderId);
+
+    if (actorEmail) {
+      await employeeActionLogService.log({
+        actorEmail,
+        actionType: 'pack_complete_awaiting_label',
+        entityType: 'commerce_order',
+        entityId: commerceOrderId,
+      });
+    }
+
+    return { ok: true, commerceOrderId, status: 'awaiting_label_verification' };
   },
 
   async markLabelPrinted(commerceOrderId: string, actorEmail?: string) {

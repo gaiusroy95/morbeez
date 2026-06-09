@@ -115,6 +115,9 @@ export declare const printableDocumentService: {
             contactNumber: any;
             codAmount: number;
             barcodePayload: string | null;
+            qrPayload: string | null;
+            assignedEmployee: string | null;
+            printSequence: any;
             shiprocketLabelUrl: string | null;
             printedAt: string;
         };
@@ -222,6 +225,9 @@ export declare const printableDocumentService: {
         contactNumber: any;
         codAmount: number;
         barcodePayload: string | null;
+        qrPayload: string | null;
+        assignedEmployee: string | null;
+        printSequence: any;
         shiprocketLabelUrl: string | null;
         printedAt: string;
     }>;

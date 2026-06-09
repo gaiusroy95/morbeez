@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { supabase } from '../../lib/supabase.js';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import { assertSuperAdminPasswordConfirm, confirmPasswordSchema, } from '../../lib/super-admin-password.js';
 import { warehouseService } from '../../services/wms/warehouse.service.js';
@@ -19,6 +20,7 @@ import { manualOrderOmsService } from '../../services/oms/manual-order-oms.servi
 import { quoteOmsBridgeService } from '../../services/oms/quote-oms-bridge.service.js';
 import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
 import { fulfillmentService } from '../../services/oms/fulfillment.service.js';
+import { employeeBatchService } from '../../services/oms/employee-batch.service.js';
 export async function osWarehouseRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/warehouse';
     // ─── Overview ─────────────────────────────────────────────────────────────
@@ -516,6 +518,72 @@ export async function osWarehouseRoutes(app) {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
         const result = await fulfillmentService.markPackedForOrder(id, request.adminEmail);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/orders/:id/verify-label`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ code: z.string().min(1) }).parse(request.body);
+        const { data: order } = await supabase
+            .from('commerce_orders')
+            .select('assigned_employee_id, assigned_employee_name')
+            .eq('id', id)
+            .maybeSingle();
+        const result = await employeeBatchService.verifyShippingLabel({
+            commerceOrderId: id,
+            scannedCode: body.code,
+            employeeId: order?.assigned_employee_id ? String(order.assigned_employee_id) : undefined,
+            employeeName: order?.assigned_employee_name ? String(order.assigned_employee_name) : undefined,
+            actorEmail: request.adminEmail,
+        });
+        return reply.send(result);
+    });
+    // ─── Employee label batches ───────────────────────────────────────────────
+    app.get(`${api}/fulfillment/employees`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const employees = await employeeBatchService.listWarehouseEmployees();
+        return reply.send({ ok: true, employees });
+    });
+    app.get(`${api}/fulfillment/assignable-orders`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const q = request.query;
+        const orders = await employeeBatchService.listAssignableOrders(q.limit ? Number(q.limit) : 80);
+        return reply.send({ ok: true, orders });
+    });
+    app.post(`${api}/fulfillment/assign-batch`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            employeeId: z.string().min(1),
+            employeeName: z.string().min(1),
+            orderIds: z.array(z.string().uuid()).min(1),
+        })
+            .parse(request.body);
+        const result = await employeeBatchService.assignOrdersToEmployee({
+            ...body,
+            actorEmail: request.adminEmail,
+        });
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/fulfillment/label-batches`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const q = request.query;
+        const batches = await employeeBatchService.listBatches({
+            employeeId: q.employeeId,
+            limit: q.limit ? Number(q.limit) : undefined,
+        });
+        return reply.send({ ok: true, batches });
+    });
+    app.get(`${api}/fulfillment/label-batches/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const { id } = request.params;
+        const detail = await employeeBatchService.getBatchDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/fulfillment/label-batches/:id/print`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await employeeBatchService.printBatch(id, request.adminEmail);
         return reply.send({ ok: true, ...result });
     });
     app.post(`${api}/fulfillment/orders/:id/mark-label-printed`, async (request, reply) => {

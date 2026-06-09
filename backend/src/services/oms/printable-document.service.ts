@@ -191,6 +191,14 @@ export const printableDocumentService = {
 
     const labelUrl = (order.label_url as string | null)?.trim() || null;
 
+    const { data: shipLabel } = await supabase
+      .from('shipping_labels')
+      .select('id, qr_code, print_sequence, assigned_employee_name')
+      .eq('commerce_order_id', commerceOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
     return {
       title: 'Courier Label',
       orderId: order.order_name ?? order.shopify_order_id,
@@ -201,6 +209,11 @@ export const printableDocumentService = {
       contactNumber: order.phone ?? shipAddr?.phone ?? null,
       codAmount,
       barcodePayload: order.tracking_awb ? `AWB|${order.tracking_awb}` : null,
+      qrPayload: shipLabel?.qr_code ? String(shipLabel.qr_code) : null,
+      assignedEmployee: shipLabel?.assigned_employee_name
+        ? String(shipLabel.assigned_employee_name)
+        : (order.assigned_employee_name as string | null) ?? null,
+      printSequence: shipLabel?.print_sequence ?? null,
       shiprocketLabelUrl: labelUrl,
       printedAt: new Date().toISOString(),
     };

@@ -14,9 +14,12 @@ import type { ShopifyOrder } from '../shopify/shopify.client.js';
 
 export type OmsStatus =
   | 'pending'
+  | 'assigned'
   | 'confirmed'
   | 'awb_generated'
   | 'picking'
+  | 'packing'
+  | 'awaiting_label_verification'
   | 'packed'
   | 'ready_dispatch'
   | 'shipped'

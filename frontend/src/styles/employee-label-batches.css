@@ -1,0 +1,178 @@
+.elb-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.elb-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.elb-toolbar h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.2rem;
+}
+
+.elb-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.75rem;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .elb-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.elb-card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.elb-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.elb-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+.elb-field select {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.elb-order-pick-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #f3f4f6;
+  border-radius: 8px;
+}
+
+.elb-order-pick {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+}
+
+.elb-order-pick-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.85rem;
+}
+
+.elb-batch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.elb-batch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+}
+
+.elb-batch-row--active {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.elb-batch-meta {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.15rem 0.5rem;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.35rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.elb-batch-status {
+  font-weight: 600;
+  color: #166534;
+}
+
+.elb-tray-note {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  background: #eff6ff;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.elb-stack-hint {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.elb-stack {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.elb-stack-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.elb-stack-item:first-child {
+  border-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.elb-stack-seq {
+  font-weight: 700;
+  color: #166534;
+  min-width: 1.75rem;
+}
+
+.elb-stack-item > div {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}

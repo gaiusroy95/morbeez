@@ -290,6 +290,25 @@ function CourierLabelBody({
         <p>Prepaid</p>
       )}
       {doc.barcodePayload ? <p className="mono">{String(doc.barcodePayload)}</p> : null}
+      {doc.qrPayload ? (
+        <div className="warehouse-print-qr-block">
+          <p>
+            <strong>Order:</strong> {String(doc.orderId)}
+            {doc.printSequence != null ? (
+              <>
+                &nbsp;|&nbsp; Stack #{String(doc.printSequence)}
+              </>
+            ) : null}
+            {doc.assignedEmployee ? (
+              <>
+                &nbsp;|&nbsp; Tray: <strong>{String(doc.assignedEmployee)}</strong>
+              </>
+            ) : null}
+          </p>
+          <p className="warehouse-print-qr mono">{String(doc.qrPayload)}</p>
+          <p className="muted">Scan this QR during pack to verify correct label.</p>
+        </div>
+      ) : null}
     </section>
   );
 }

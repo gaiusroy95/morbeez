@@ -1,3 +1,33 @@
+/* Fulfillment hub sub-tabs */
+
+.wh-fulfillment-hub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.wh-fulfillment-subtabs {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.wh-fulfillment-subtab {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.wh-fulfillment-subtab--active {
+  border-color: #16a34a;
+  background: #f0fdf4;
+  color: #166534;
+}
+
 /* Picker / Packer fulfillment dashboard */
 
 .pp-dashboard {
@@ -915,6 +945,57 @@
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.pp-order-assignee {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #166534;
+}
+
+.pp-label-verify {
+  margin: 0.75rem 0;
+  padding: 0.85rem;
+  border: 2px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+}
+
+.pp-label-verify h4 {
+  margin: 0 0 0.35rem;
+}
+
+.pp-label-verified {
+  margin: 0.5rem 0 0;
+  color: #166534;
+  font-weight: 600;
+}
+
+.pp-wrong-label-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(127, 29, 29, 0.92);
+  padding: 1rem;
+}
+
+.pp-wrong-label-card {
+  max-width: 22rem;
+  text-align: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  border: 3px solid #dc2626;
+}
+
+.pp-wrong-label-card h3 {
+  margin: 0 0 0.5rem;
+  color: #b91c1c;
+  font-size: 1.35rem;
 }
 
 .pp-modal-actions .btn-primary {

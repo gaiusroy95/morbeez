@@ -46,6 +46,7 @@ export declare const fulfillmentService: {
         isCod: any;
         totalAmount: any;
         createdAt: any;
+        assignedEmployee: string | null;
     }[]>;
     getOrderDetail(commerceOrderId: string): Promise<{
         order: any;
@@ -85,6 +86,27 @@ export declare const fulfillmentService: {
         } | null;
         shiprocketDiagnostics: import("../shiprocket/shiprocket.service.js").ShiprocketDiagnostics | null;
         shiprocketErrorDisplay: string | null;
+        assignment: {
+            employeeId: string | null;
+            employeeName: string | null;
+            batchId: string | null;
+            pickingStartedAt: any;
+            labelVerifiedAt: any;
+        };
+        shippingLabel: {
+            id: string;
+            qrCode: string;
+            labelVerified: boolean;
+            verifiedAt: any;
+            printSequence: number;
+        } | null;
+        labelBatch: {
+            id: any;
+            batch_number: any;
+            assigned_employee_name: any;
+            batch_status: any;
+            printed_at: any;
+        } | null;
         customerSummary: {
             phone: any;
             address: string | null;
@@ -96,12 +118,14 @@ export declare const fulfillmentService: {
         forceRecreate?: boolean;
     }): Promise<import("../shiprocket/shiprocket.service.js").ShiprocketProvisionResult>;
     markPackedForOrder(commerceOrderId: string, actorEmail?: string): Promise<{
-        invoice: any;
-        pickListId: string;
+        ok: boolean;
+        commerceOrderId: string;
+        status: string;
     }>;
     markPacked(pickListId: string, actorEmail?: string): Promise<{
-        invoice: any;
-        pickListId: string;
+        ok: boolean;
+        commerceOrderId: string;
+        status: string;
     }>;
     markLabelPrinted(commerceOrderId: string, actorEmail?: string): Promise<{
         ok: boolean;
