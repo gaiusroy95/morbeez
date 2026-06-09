@@ -181,6 +181,19 @@ async function cancelShiprocketOrders(shiprocketOrderIds: number[]) {
   });
 }
 
+async function cancelShiprocketShipments(shipmentIds: number[]) {
+  const ids = [...new Set(shipmentIds.filter((id) => Number.isFinite(id) && id > 0))];
+  if (!ids.length) return;
+  try {
+    await shiprocketRequest<Record<string, unknown>>('/v1/external/orders/cancel/shipment', {
+      method: 'POST',
+      body: JSON.stringify({ shipment_id: ids }),
+    });
+  } catch (err) {
+    logger.warn({ err, shipmentIds: ids }, 'Shiprocket shipment cancel failed');
+  }
+}
+
 async function clearCommerceShipmentRefs(commerceOrderId: string) {
   await supabase
     .from('commerce_orders')
@@ -192,9 +205,92 @@ async function clearCommerceShipmentRefs(commerceOrderId: string) {
       label_url: null,
       courier_name: null,
       awb_generated_at: null,
+      shiprocket_error: null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', commerceOrderId);
+}
+
+function shiprocketPhone(raw?: string | null): string | null {
+  const digits = String(raw ?? '').replace(/\D/g, '');
+  if (digits.length >= 10) return digits.slice(-10);
+  return null;
+}
+
+async function listPickupLocations(): Promise<Array<Record<string, unknown>>> {
+  const res = await shiprocketRequest<Record<string, unknown>>(
+    '/v1/external/settings/company/pickup',
+    { method: 'GET' }
+  );
+  const data = res.data as Record<string, unknown> | undefined;
+  const list =
+    (data?.shipping_address as unknown[]) ??
+    (res.shipping_address as unknown[]) ??
+    (Array.isArray(res.data) ? res.data : []);
+  return Array.isArray(list) ? (list as Array<Record<string, unknown>>) : [];
+}
+
+async function resolvePickupLocation(): Promise<string> {
+  const configured = pickupLocationName();
+  try {
+    const locs = await listPickupLocations();
+    const names = locs
+      .map((l) => String(l.pickup_location ?? '').trim())
+      .filter(Boolean);
+    if (names.includes(configured)) return configured;
+    if (names.length) {
+      logger.warn(
+        { configured, available: names },
+        'SHIPROCKET_PICKUP_LOCATION mismatch — using first Shiprocket pickup'
+      );
+      return names[0]!;
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Could not list Shiprocket pickup locations');
+  }
+  return configured;
+}
+
+export function formatShiprocketErrorForDisplay(
+  storedError: string | null | undefined,
+  wallet: number | null
+): string | null {
+  if (!storedError?.trim()) return null;
+  const err = storedError.trim();
+  if (!/wallet|balance|recharge/i.test(err)) return err;
+  if (wallet == null) {
+    return `${err} — Click Generate AWB to retry (live wallet could not be checked).`;
+  }
+  if (wallet >= 100) {
+    return (
+      `Stale AWB error — Shiprocket previously said: "${err}". ` +
+      `Live API wallet balance is ₹${wallet.toFixed(2)} (OK). ` +
+      `Click Generate AWB to retry with a fresh shipment.`
+    );
+  }
+  return `${err} Live API wallet balance: ₹${wallet.toFixed(2)}.`;
+}
+
+export type ShiprocketDiagnostics = {
+  walletBalanceInr: number | null;
+  pickupLocationConfigured: string;
+  pickupLocationsAvailable: string[];
+  apiUserEmail: string | null;
+};
+
+async function getDiagnostics(): Promise<ShiprocketDiagnostics> {
+  const [wallet, locs] = await Promise.all([
+    getWalletBalance(),
+    listPickupLocations().catch(() => [] as Array<Record<string, unknown>>),
+  ]);
+  return {
+    walletBalanceInr: wallet,
+    pickupLocationConfigured: pickupLocationName(),
+    pickupLocationsAvailable: locs
+      .map((l) => String(l.pickup_location ?? '').trim())
+      .filter(Boolean),
+    apiUserEmail: env.SHIPROCKET_EMAIL?.trim() ?? null,
+  };
 }
 
 function formatAwbFailureMessage(
@@ -283,6 +379,27 @@ async function assignAwb(
   });
 }
 
+async function assignAwbWithFallback(
+  shipmentId: number,
+  preferredCourierId: number,
+  orderStatus?: string | null
+) {
+  let assigned = await assignAwb(shipmentId, preferredCourierId, orderStatus);
+  let parsed = parseAssignAwbResult(assigned);
+  if (parsed.awb) return { assigned, parsed };
+
+  const walletMsg = parsed.message && /wallet|balance|recharge/i.test(parsed.message);
+  if (walletMsg || !parsed.accepted) {
+    logger.warn(
+      { shipmentId, preferredCourierId, message: parsed.message },
+      'Shiprocket assign AWB retrying with auto courier (courier_id 0)'
+    );
+    assigned = await assignAwb(shipmentId, 0, orderStatus);
+    parsed = parseAssignAwbResult(assigned);
+  }
+  return { assigned, parsed };
+}
+
 async function fetchShipmentAwb(shipmentId: number): Promise<string | null> {
   const detail = await shiprocketRequest<Record<string, unknown>>(
     `/v1/external/shipments/${shipmentId}`,
@@ -324,6 +441,8 @@ async function fetchLabelUrl(shipmentId: number): Promise<string | null> {
 /** Delhivery is assigned via Shiprocket courier rules — no separate API in M2 */
 export const shiprocketService = {
   getWalletBalance,
+  getDiagnostics,
+  formatShiprocketErrorForDisplay,
 
   async provisionForCommerceOrder(
     commerceOrderId: string,
@@ -331,6 +450,9 @@ export const shiprocketService = {
   ): Promise<ShiprocketProvisionResult | null> {
     if (opts?.forceRecreate) {
       const existing = await loadCommerceOrder(commerceOrderId);
+      if (existing.shiprocket_shipment_id) {
+        await cancelShiprocketShipments([Number(existing.shiprocket_shipment_id)]);
+      }
       if (existing.shiprocket_order_id) {
         try {
           await cancelShiprocketOrders([Number(existing.shiprocket_order_id)]);
@@ -388,11 +510,21 @@ export const shiprocketService = {
     let awb: string | null = null;
     let courier: string | null = null;
 
+    const billingPhone = shiprocketPhone(order.phone ?? addr.phone);
+    if (!billingPhone) {
+      throw new AppError(
+        'Customer phone must be a valid 10-digit Indian number for Shiprocket AWB',
+        409,
+        'SHIPROCKET_PHONE'
+      );
+    }
+
     if (!shipmentId) {
+      const pickupLocation = await resolvePickupLocation();
       const payload = {
         order_id: order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8),
         order_date: new Date().toISOString().slice(0, 10),
-        pickup_location: pickupLocationName(),
+        pickup_location: pickupLocation,
         billing_customer_name: addr.first,
         billing_last_name: addr.last,
         billing_address: addr.line1,
@@ -401,7 +533,7 @@ export const shiprocketService = {
         billing_pincode: addr.pincode,
         billing_state: addr.state,
         billing_country: addr.country,
-        billing_phone: order.phone ?? addr.phone,
+        billing_phone: billingPhone,
         shipping_is_billing: true,
         order_items: orderItemsFromLines(lines),
         payment_method: paymentMethod,
@@ -448,8 +580,11 @@ export const shiprocketService = {
         );
       }
 
-      const assigned = await assignAwb(shipmentId, best.courier_company_id, orderStatus);
-      const parsed = parseAssignAwbResult(assigned);
+      const { assigned, parsed } = await assignAwbWithFallback(
+        shipmentId,
+        best.courier_company_id,
+        orderStatus
+      );
 
       awb = parsed.awb;
       courier = parsed.courierName ?? best.courier_name;
@@ -473,6 +608,7 @@ export const shiprocketService = {
 
         if (!alreadyRecreated && order.shiprocket_shipment_id) {
           logger.warn({ commerceOrderId }, 'Retrying Shiprocket with fresh shipment after AWB failure');
+          await cancelShiprocketShipments([shipmentId]);
           try {
             if (shiprocketOrderId) await cancelShiprocketOrders([shiprocketOrderId]);
           } catch (err) {

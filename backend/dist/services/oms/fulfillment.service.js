@@ -173,6 +173,7 @@ export const fulfillmentService = {
             .order('created_at', { ascending: true })
             .limit(opts?.limit ?? 80);
         throwIfSupabaseError(error, 'Fulfillment queue');
+        const wallet = await shiprocketService.getWalletBalance().catch(() => null);
         return (data ?? []).map((row) => {
             const pickLists = normalizePickLists(row.pick_lists);
             const orderLines = normalizeRelation(row.commerce_order_lines);
@@ -206,14 +207,17 @@ export const fulfillmentService = {
                 omsStatus: row.oms_status,
                 awb: row.tracking_awb,
                 pickListId: pick?.id ?? null,
-                shiprocketError: row.shiprocket_error,
+                shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(row.shiprocket_error, wallet),
                 isCod: row.is_cod,
                 totalAmount: row.total_amount,
             };
         });
     },
     async getOrderDetail(commerceOrderId) {
-        const order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+        const [order, shiprocketDiagnostics] = await Promise.all([
+            omsWorkflowService.getOrderWorkflow(commerceOrderId),
+            shiprocketService.getDiagnostics().catch(() => null),
+        ]);
         const pickLists = (order.pick_lists ?? []);
         const pickList = pickLists[0] ?? null;
         let packSession = null;
@@ -239,6 +243,7 @@ export const fulfillmentService = {
             workflow = rackPickService.buildWorkflowPayload(ctx);
         }
         const shipAddr = order.shipping_address;
+        const shiprocketErrorDisplay = shiprocketService.formatShiprocketErrorForDisplay(order.shiprocket_error, shiprocketDiagnostics?.walletBalanceInr ?? null);
         return {
             order,
             pickList,
@@ -247,6 +252,8 @@ export const fulfillmentService = {
             suggestedDispatchRack: suggestDispatchRack(order.courier_name),
             printEnabled: Boolean(packSession?.scan_complete),
             workflow,
+            shiprocketDiagnostics,
+            shiprocketErrorDisplay,
             customerSummary: {
                 phone: order.phone ?? shipAddr?.phone ?? null,
                 address: shipAddr
@@ -268,6 +275,12 @@ export const fulfillmentService = {
     async provisionShipment(commerceOrderId, actorEmail, opts) {
         if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
             throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
+        }
+        if (opts?.forceRecreate ?? true) {
+            await supabase
+                .from('commerce_orders')
+                .update({ shiprocket_error: null, updated_at: new Date().toISOString() })
+                .eq('id', commerceOrderId);
         }
         const result = await shiprocketService
             .provisionForCommerceOrder(commerceOrderId, { forceRecreate: opts?.forceRecreate ?? true })

@@ -74,7 +74,16 @@ type PickLookup = {
   defaultQty: number;
 };
 
+type ShiprocketDiagnostics = {
+  walletBalanceInr: number | null;
+  pickupLocationConfigured: string;
+  pickupLocationsAvailable: string[];
+  apiUserEmail: string | null;
+};
+
 type OrderDetail = {
+  shiprocketDiagnostics?: ShiprocketDiagnostics | null;
+  shiprocketErrorDisplay?: string | null;
   order: {
     id: string;
     order_name: string | null;
@@ -631,7 +640,24 @@ export function WarehouseFulfillmentPanel({
             <EmptyState>Select an order.</EmptyState>
           ) : (
             <div className="fulfillment-actions">
-              {order.shiprocket_error ? <Alert tone="warn">{order.shiprocket_error}</Alert> : null}
+              {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
+                <Alert tone="warn">
+                  {detail.shiprocketErrorDisplay ?? order.shiprocket_error}
+                  {detail.shiprocketDiagnostics?.walletBalanceInr != null ? (
+                    <p className="mt-2 text-sm opacity-90">
+                      Live Shiprocket API wallet: ₹
+                      {detail.shiprocketDiagnostics.walletBalanceInr.toLocaleString('en-IN')}
+                      {detail.shiprocketDiagnostics.pickupLocationsAvailable.length ? (
+                        <>
+                          {' '}
+                          · Pickups:{' '}
+                          {detail.shiprocketDiagnostics.pickupLocationsAvailable.join(', ')}
+                        </>
+                      ) : null}
+                    </p>
+                  ) : null}
+                </Alert>
+              ) : null}
 
               {customer ? (
                 <div className="ff-order-summary">

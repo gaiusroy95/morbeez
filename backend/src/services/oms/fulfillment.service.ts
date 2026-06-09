@@ -201,6 +201,8 @@ export const fulfillmentService = {
       .limit(opts?.limit ?? 80);
     throwIfSupabaseError(error, 'Fulfillment queue');
 
+    const wallet = await shiprocketService.getWalletBalance().catch(() => null);
+
     return (data ?? []).map((row) => {
       const pickLists = normalizePickLists<{
         id: string;
@@ -249,7 +251,10 @@ export const fulfillmentService = {
         omsStatus: row.oms_status,
         awb: row.tracking_awb,
         pickListId: pick?.id ?? null,
-        shiprocketError: row.shiprocket_error,
+        shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(
+          row.shiprocket_error as string | null,
+          wallet
+        ),
         isCod: row.is_cod,
         totalAmount: row.total_amount,
       };
@@ -257,7 +262,10 @@ export const fulfillmentService = {
   },
 
   async getOrderDetail(commerceOrderId: string) {
-    const order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+    const [order, shiprocketDiagnostics] = await Promise.all([
+      omsWorkflowService.getOrderWorkflow(commerceOrderId),
+      shiprocketService.getDiagnostics().catch(() => null),
+    ]);
     const pickLists = (order.pick_lists ?? []) as Array<Record<string, unknown>>;
     const pickList = pickLists[0] ?? null;
     let packSession = null;
@@ -287,6 +295,11 @@ export const fulfillmentService = {
 
     const shipAddr = order.shipping_address as Record<string, unknown> | null;
 
+    const shiprocketErrorDisplay = shiprocketService.formatShiprocketErrorForDisplay(
+      order.shiprocket_error as string | null,
+      shiprocketDiagnostics?.walletBalanceInr ?? null
+    );
+
     return {
       order,
       pickList,
@@ -295,6 +308,8 @@ export const fulfillmentService = {
       suggestedDispatchRack: suggestDispatchRack(order.courier_name as string | null),
       printEnabled: Boolean(packSession?.scan_complete),
       workflow,
+      shiprocketDiagnostics,
+      shiprocketErrorDisplay,
       customerSummary: {
         phone: order.phone ?? shipAddr?.phone ?? null,
         address: shipAddr
@@ -321,6 +336,13 @@ export const fulfillmentService = {
   ) {
     if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
       throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
+    }
+
+    if (opts?.forceRecreate ?? true) {
+      await supabase
+        .from('commerce_orders')
+        .update({ shiprocket_error: null, updated_at: new Date().toISOString() })
+        .eq('id', commerceOrderId);
     }
 
     const result = await shiprocketService

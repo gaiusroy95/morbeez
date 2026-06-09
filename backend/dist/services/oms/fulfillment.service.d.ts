@@ -42,7 +42,7 @@ export declare const fulfillmentService: {
         omsStatus: any;
         awb: any;
         pickListId: string;
-        shiprocketError: any;
+        shiprocketError: string | null;
         isCod: any;
         totalAmount: any;
     }[]>;
@@ -82,6 +82,8 @@ export declare const fulfillmentService: {
             }[];
             printEnabled: boolean;
         } | null;
+        shiprocketDiagnostics: import("../shiprocket/shiprocket.service.js").ShiprocketDiagnostics | null;
+        shiprocketErrorDisplay: string | null;
         customerSummary: {
             phone: any;
             address: string | null;
