@@ -115,15 +115,23 @@ export const farmerAuthService = {
             /* signup succeeds even if outbox write fails */
         }
         try {
-            await leadService.createWebsiteSignupLeadIfAbsent({
+            const leadResult = await leadService.upsertSignupLead({
                 farmerId: String(data.id),
                 phone,
                 name: fullName,
                 email,
+                channel: input.channel ?? 'website',
             });
+            logger.info({
+                farmerId: data.id,
+                phone,
+                leadId: leadResult.lead.id,
+                created: leadResult.created,
+                merged: leadResult.merged,
+            }, 'Signup telecaller lead upserted');
         }
         catch (err) {
-            logger.warn({ err, farmerId: data.id, phone }, 'Website signup telecaller lead skipped');
+            logger.error({ err, farmerId: data.id, phone }, 'Signup telecaller lead failed');
         }
         const token = createFarmerToken(data.id, email);
         return { token, farmer: publicFarmer(data) };

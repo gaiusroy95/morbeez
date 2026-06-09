@@ -110,6 +110,7 @@ async function loadOrderMetaByPhones(phones) {
     const { data, error } = await supabase
         .from('commerce_orders')
         .select('phone, created_at')
+        .is('deleted_at', null)
         .not('phone', 'is', null)
         .order('created_at', { ascending: false })
         .limit(10000);

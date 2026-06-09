@@ -35,6 +35,9 @@ export async function shopifyWebhookRoutes(app) {
                 const fulfillment = (payload.fulfillment ?? payload);
                 await shopifyWebhookService.handleFulfillment(fulfillment);
             }
+            else if (topic === 'customers/create' || topic === 'customers/update') {
+                await shopifyWebhookService.handleCustomerUpsert(payload);
+            }
             await logWebhook('shopify', topic, webhookId, payload, 'processed');
             return reply.code(200).send({ ok: true });
         }

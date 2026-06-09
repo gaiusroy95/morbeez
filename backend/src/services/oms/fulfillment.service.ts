@@ -257,6 +257,7 @@ export const fulfillmentService = {
         ),
         isCod: row.is_cod,
         totalAmount: row.total_amount,
+        createdAt: row.created_at,
       };
     });
   },

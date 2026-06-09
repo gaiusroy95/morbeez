@@ -120,6 +120,7 @@ export async function shopifyProxyRoutes(app: FastifyInstance): Promise<void> {
     password: z.string().min(8).max(128),
     acceptTerms: z.literal(true),
     newsletter: z.boolean().default(false),
+    channel: z.enum(['website', 'mobile']).optional(),
   });
 
   const loginSchema = z.object({

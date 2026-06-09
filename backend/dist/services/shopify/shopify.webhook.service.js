@@ -4,7 +4,46 @@ import { farmerService } from '../farmer/farmer.service.js';
 import { orderWhatsappService } from '../whatsapp/orders/order-whatsapp.service.js';
 import { logger } from '../../lib/logger.js';
 import { omsWorkflowService } from '../oms/workflow.service.js';
+import { leadService } from '../crm/lead.service.js';
+import { isValidIndianPhone } from '../../lib/phone.js';
+function phoneFromShopifyCustomer(payload) {
+    const direct = payload.phone ? String(payload.phone) : '';
+    const addr = payload.default_address;
+    const fromAddr = addr?.phone ? String(addr.phone) : '';
+    const raw = direct || fromAddr;
+    if (!raw || !isValidIndianPhone(raw))
+        return null;
+    return raw;
+}
+function nameFromShopifyCustomer(payload) {
+    const first = String(payload.first_name ?? '').trim();
+    const last = String(payload.last_name ?? '').trim();
+    const full = [first, last].filter(Boolean).join(' ').trim();
+    return full || undefined;
+}
 export const shopifyWebhookService = {
+    async handleCustomerUpsert(payload) {
+        const shopifyCustomerId = payload.id != null ? String(payload.id) : null;
+        const phone = phoneFromShopifyCustomer(payload);
+        if (!shopifyCustomerId || !phone) {
+            logger.info({ shopifyCustomerId }, 'Shopify customer webhook skipped — no valid Indian phone');
+            return;
+        }
+        const farmer = await farmerService.upsertFromShopifyCustomer({
+            shopifyCustomerId,
+            phone,
+            name: nameFromShopifyCustomer(payload),
+        });
+        const email = payload.email ? String(payload.email) : undefined;
+        await leadService.upsertSignupLead({
+            farmerId: String(farmer.id),
+            phone,
+            name: nameFromShopifyCustomer(payload),
+            email,
+            channel: 'shopify',
+        });
+        logger.info({ farmerId: farmer.id, shopifyCustomerId, phone }, 'Shopify customer synced to telecaller lead');
+    },
     async handleOrderCreate(order) {
         await this.syncOrder(order);
         await eventBus.publish('shopify.order.created', { shopifyOrderId: String(order.id), orderName: order.name }, 'shopify');

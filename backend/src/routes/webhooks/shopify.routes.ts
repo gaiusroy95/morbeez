@@ -42,6 +42,8 @@ export async function shopifyWebhookRoutes(app: FastifyInstance): Promise<void> 
       ) {
         const fulfillment = (payload.fulfillment ?? payload) as ShopifyFulfillment;
         await shopifyWebhookService.handleFulfillment(fulfillment);
+      } else if (topic === 'customers/create' || topic === 'customers/update') {
+        await shopifyWebhookService.handleCustomerUpsert(payload);
       }
 
       await logWebhook('shopify', topic, webhookId, payload, 'processed');

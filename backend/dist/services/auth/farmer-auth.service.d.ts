@@ -6,6 +6,8 @@ export interface SignupInput {
     password: string;
     acceptTerms: boolean;
     newsletter: boolean;
+    /** website (default) or mobile app */
+    channel?: 'website' | 'mobile';
 }
 export interface LoginInput {
     email: string;

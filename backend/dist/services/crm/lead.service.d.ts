@@ -18,9 +18,21 @@ export type EnsureLeadInput = {
 /** One CRM lead per farmer — returns existing or creates. */
 export declare const leadService: {
     /**
-     * Shopify website registration → telecaller lead list.
-     * Skips when a lead already exists for the same phone (e.g. prior WhatsApp capture).
+     * Website / mobile / Shopify customer signup → telecaller lead list.
+     * Merges into an existing lead when the phone already has one (e.g. WhatsApp capture).
      */
+    upsertSignupLead(input: {
+        farmerId: string;
+        phone: string;
+        name?: string;
+        email?: string;
+        channel?: "website" | "mobile" | "shopify";
+    }): Promise<{
+        lead: Record<string, unknown>;
+        created: boolean;
+        merged: boolean;
+    }>;
+    /** @deprecated Use upsertSignupLead — kept for callers during rollout */
     createWebsiteSignupLeadIfAbsent(input: {
         farmerId: string;
         phone: string;

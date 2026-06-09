@@ -5,6 +5,8 @@ import { orderWhatsappService } from '../whatsapp/orders/order-whatsapp.service.
 import { logger } from '../../lib/logger.js';
 import type { ShopifyOrder } from './shopify.client.js';
 import { omsWorkflowService } from '../oms/workflow.service.js';
+import { leadService } from '../crm/lead.service.js';
+import { isValidIndianPhone } from '../../lib/phone.js';
 
 export interface ShopifyFulfillment {
   id: number;
@@ -15,7 +17,52 @@ export interface ShopifyFulfillment {
   tracking_url?: string;
 }
 
+function phoneFromShopifyCustomer(payload: Record<string, unknown>): string | null {
+  const direct = payload.phone ? String(payload.phone) : '';
+  const addr = payload.default_address as Record<string, unknown> | undefined;
+  const fromAddr = addr?.phone ? String(addr.phone) : '';
+  const raw = direct || fromAddr;
+  if (!raw || !isValidIndianPhone(raw)) return null;
+  return raw;
+}
+
+function nameFromShopifyCustomer(payload: Record<string, unknown>): string | undefined {
+  const first = String(payload.first_name ?? '').trim();
+  const last = String(payload.last_name ?? '').trim();
+  const full = [first, last].filter(Boolean).join(' ').trim();
+  return full || undefined;
+}
+
 export const shopifyWebhookService = {
+  async handleCustomerUpsert(payload: Record<string, unknown>): Promise<void> {
+    const shopifyCustomerId = payload.id != null ? String(payload.id) : null;
+    const phone = phoneFromShopifyCustomer(payload);
+    if (!shopifyCustomerId || !phone) {
+      logger.info({ shopifyCustomerId }, 'Shopify customer webhook skipped — no valid Indian phone');
+      return;
+    }
+
+    const farmer = await farmerService.upsertFromShopifyCustomer({
+      shopifyCustomerId,
+      phone,
+      name: nameFromShopifyCustomer(payload),
+    });
+
+    const email = payload.email ? String(payload.email) : undefined;
+    await leadService.upsertSignupLead({
+      farmerId: String(farmer.id),
+      phone,
+      name: nameFromShopifyCustomer(payload),
+      email,
+      channel: 'shopify',
+    });
+
+    logger.info(
+      { farmerId: farmer.id, shopifyCustomerId, phone },
+      'Shopify customer synced to telecaller lead'
+    );
+  },
+
   async handleOrderCreate(order: ShopifyOrder): Promise<void> {
     await this.syncOrder(order);
     await eventBus.publish(

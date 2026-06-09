@@ -210,6 +210,7 @@ export const fulfillmentService = {
                 shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(row.shiprocket_error, wallet),
                 isCod: row.is_cod,
                 totalAmount: row.total_amount,
+                createdAt: row.created_at,
             };
         });
     },

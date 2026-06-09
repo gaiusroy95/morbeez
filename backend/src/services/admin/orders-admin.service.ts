@@ -410,6 +410,14 @@ async function softDeleteCommerceOrder(
     /* order may have no warehouse allocations */
   }
 
+  const { error: manualErr } = await supabase
+    .from('crm_manual_orders')
+    .delete()
+    .eq('commerce_order_id', id);
+  if (manualErr) {
+    throwIfSupabaseError(manualErr, 'Could not remove linked CRM orders');
+  }
+
   return { id: String(data.id), shopifyOrderId: data.shopify_order_id ? String(data.shopify_order_id) : null };
 }
 

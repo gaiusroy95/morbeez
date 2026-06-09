@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { eventBus } from '../../events/bus.js';
 import { farmerService } from '../farmer/farmer.service.js';
+import { normalizePhone } from '../../lib/phone.js';
 
 const STAGE_RANK: Record<string, number> = {
   new_lead: 1,
@@ -45,71 +46,96 @@ export type EnsureLeadInput = {
   mergeNotes?: boolean;
 };
 
-/** True when any telecaller lead is already tied to this farmer phone. */
-async function hasLeadForPhone(phone: string): Promise<boolean> {
-  const { count, error } = await supabase
-    .from('leads')
-    .select('id, farmers!inner(phone)', { count: 'exact', head: true })
-    .eq('farmers.phone', phone);
-  throwIfSupabaseError(error, 'Could not check existing lead');
-  return (count ?? 0) > 0;
+function phoneVariants(phone: string): string[] {
+  const normalized = normalizePhone(phone);
+  const variants = new Set<string>([normalized, phone.trim()]);
+  if (normalized.length === 12 && normalized.startsWith('91')) {
+    variants.add(normalized.slice(2));
+    variants.add(`+${normalized}`);
+    variants.add(`+91${normalized.slice(2)}`);
+  }
+  if (/^\d{10}$/.test(normalized)) {
+    variants.add(`91${normalized}`);
+  }
+  return [...variants].filter(Boolean);
+}
+
+async function findFarmerIdByPhone(phone: string): Promise<string | null> {
+  const variants = phoneVariants(phone);
+  const { data, error } = await supabase
+    .from('farmers')
+    .select('id')
+    .in('phone', variants)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  throwIfSupabaseError(error, 'Could not resolve farmer by phone');
+  return data?.id ? String(data.id) : null;
+}
+
+function signupNotes(input: {
+  channel: 'website' | 'mobile' | 'shopify';
+  name?: string;
+  email?: string;
+}): string {
+  const channelLabel =
+    input.channel === 'mobile'
+      ? 'Morbeez mobile app'
+      : input.channel === 'shopify'
+        ? 'Shopify customer account'
+        : 'Morbeez Shopify website';
+  return [
+    `Registered on ${channelLabel}`,
+    input.name?.trim() ? `Name: ${input.name.trim()}` : null,
+    input.email ? `Email: ${input.email}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 /** One CRM lead per farmer — returns existing or creates. */
 export const leadService = {
   /**
-   * Shopify website registration → telecaller lead list.
-   * Skips when a lead already exists for the same phone (e.g. prior WhatsApp capture).
+   * Website / mobile / Shopify customer signup → telecaller lead list.
+   * Merges into an existing lead when the phone already has one (e.g. WhatsApp capture).
    */
+  async upsertSignupLead(input: {
+    farmerId: string;
+    phone: string;
+    name?: string;
+    email?: string;
+    channel?: 'website' | 'mobile' | 'shopify';
+  }): Promise<{ lead: Record<string, unknown>; created: boolean; merged: boolean }> {
+    const phone = normalizePhone(input.phone);
+    const channel = input.channel ?? 'website';
+
+    let farmerId = input.farmerId;
+    const farmerByPhone = await findFarmerIdByPhone(phone);
+    if (farmerByPhone) farmerId = farmerByPhone;
+
+    const { lead, created } = await this.ensureLeadForFarmer({
+      farmerId,
+      intent: 'general',
+      source: channel === 'mobile' ? 'web' : 'shopify',
+      status: 'new',
+      stage: 'new_lead',
+      priority: 'normal',
+      notes: signupNotes({ channel, name: input.name, email: input.email }),
+      mergeNotes: true,
+    });
+
+    return { lead, created, merged: !created };
+  },
+
+  /** @deprecated Use upsertSignupLead — kept for callers during rollout */
   async createWebsiteSignupLeadIfAbsent(input: {
     farmerId: string;
     phone: string;
     name?: string;
     email?: string;
   }): Promise<{ created: boolean }> {
-    if (await hasLeadForPhone(input.phone)) {
-      return { created: false };
-    }
-
-    const now = new Date().toISOString();
-    const notes = [
-      'Registered on Morbeez Shopify website',
-      input.name?.trim() ? `Name: ${input.name.trim()}` : null,
-      input.email ? `Email: ${input.email}` : null,
-    ]
-      .filter(Boolean)
-      .join(' · ');
-
-    const { data, error } = await supabase
-      .from('leads')
-      .insert({
-        farmer_id: input.farmerId,
-        intent: 'general',
-        source: 'shopify',
-        status: 'new',
-        stage: 'new_lead',
-        priority: 'normal',
-        notes,
-        last_interaction_at: now,
-      })
-      .select()
-      .single();
-
-    throwIfSupabaseError(error, 'Could not create website signup lead');
-
-    await eventBus.publish(
-      'lead.created',
-      {
-        leadId: data.id,
-        farmerId: input.farmerId,
-        intent: 'general',
-        source: 'shopify',
-        assignedTo: null,
-      },
-      'farmer-auth'
-    );
-
-    return { created: true };
+    const result = await this.upsertSignupLead({ ...input, channel: 'website' });
+    return { created: result.created };
   },
 
   async ensureLeadForFarmer(input: EnsureLeadInput): Promise<{

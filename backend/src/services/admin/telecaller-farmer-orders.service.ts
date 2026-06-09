@@ -291,6 +291,7 @@ export const telecallerFarmerOrdersService = {
       supabase
         .from('commerce_orders')
         .select('*')
+        .is('deleted_at', null)
         .or(
           phone
             ? `farmer_id.eq.${farmerId},phone.ilike.%${phone}%`
@@ -303,7 +304,17 @@ export const telecallerFarmerOrdersService = {
     throwIfSupabaseError(manualRes.error, 'Could not load orders');
     throwIfSupabaseError(commerceRes.error, 'Could not load orders');
 
-    const manual = (manualRes.data ?? []).map((r) => mapManualRow(r as Record<string, unknown>));
+    const visibleCommerceIds = new Set(
+      (commerceRes.data ?? []).map((r) => String(r.id))
+    );
+
+    const manual = (manualRes.data ?? [])
+      .filter((r) => {
+        const linkedCommerceId = r.commerce_order_id ? String(r.commerce_order_id) : null;
+        if (!linkedCommerceId) return true;
+        return visibleCommerceIds.has(linkedCommerceId);
+      })
+      .map((r) => mapManualRow(r as Record<string, unknown>));
     const commerce = (commerceRes.data ?? [])
       .filter((row) => {
         if (row.farmer_id === farmerId) return true;
@@ -327,12 +338,24 @@ export const telecallerFarmerOrdersService = {
       .or(`id.eq.${orderId},order_ref.eq.${orderId}`)
       .maybeSingle();
 
-    if (manual) return mapManualRow(manual as Record<string, unknown>);
+    if (manual) {
+      const linkedCommerceId = manual.commerce_order_id ? String(manual.commerce_order_id) : null;
+      if (linkedCommerceId) {
+        const { data: linked } = await supabase
+          .from('commerce_orders')
+          .select('deleted_at')
+          .eq('id', linkedCommerceId)
+          .maybeSingle();
+        if (!linked || linked.deleted_at) throw new NotFoundError('Order not found');
+      }
+      return mapManualRow(manual as Record<string, unknown>);
+    }
 
     const { data: commerce, error } = await supabase
       .from('commerce_orders')
       .select('*')
       .eq('id', orderId)
+      .is('deleted_at', null)
       .maybeSingle();
     throwIfSupabaseError(error, 'Could not load order');
     if (!commerce) throw new NotFoundError('Order not found');

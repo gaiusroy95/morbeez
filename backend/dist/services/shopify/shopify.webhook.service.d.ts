@@ -8,6 +8,7 @@ export interface ShopifyFulfillment {
     tracking_url?: string;
 }
 export declare const shopifyWebhookService: {
+    handleCustomerUpsert(payload: Record<string, unknown>): Promise<void>;
     handleOrderCreate(order: ShopifyOrder): Promise<void>;
     handleOrderPaid(order: ShopifyOrder): Promise<void>;
     handleFulfillment(fulfillment: ShopifyFulfillment): Promise<void>;

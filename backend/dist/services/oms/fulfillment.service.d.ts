@@ -45,6 +45,7 @@ export declare const fulfillmentService: {
         shiprocketError: string | null;
         isCod: any;
         totalAmount: any;
+        createdAt: any;
     }[]>;
     getOrderDetail(commerceOrderId: string): Promise<{
         order: any;

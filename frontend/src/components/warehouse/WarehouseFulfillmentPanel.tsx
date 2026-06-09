@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, Badge, Btn, EmptyState, Loading, Panel } from '../ui';
+import { Alert, Btn, EmptyState, Loading } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
 
@@ -31,6 +31,7 @@ type QueueRow = {
   shiprocketError: string | null;
   isCod?: boolean;
   totalAmount?: number;
+  createdAt?: string;
 };
 
 type RackLine = {
@@ -97,8 +98,9 @@ type OrderDetail = {
     dispatch_rack: string | null;
     shiprocket_error: string | null;
     shiprocket_shipment_id: string | null;
+    created_at?: string;
   };
-  pickList: { id: string } | null;
+  pickList: { id: string; picker_id?: string | null } | null;
   packSession: { id: string } | null;
   invoice: { id: string; invoice_number: string } | null;
   suggestedDispatchRack: string | null;
@@ -112,8 +114,6 @@ type OrderDetail = {
   };
 };
 
-const STEPS = ['Pick', 'Verify', 'Print', 'Packed'] as const;
-
 const EXCEPTIONS = [
   { type: 'stock_missing', label: 'Stock missing' },
   { type: 'wrong_barcode', label: 'Wrong barcode' },
@@ -126,19 +126,32 @@ function printUrl(type: string, id: string) {
   return toPath(`${paths.warehouse}/print/${type}/${id}`);
 }
 
-function priorityBadge(p: string) {
-  if (p === 'high') return <Badge tone="warn">High</Badge>;
-  if (p === 'low') return <Badge tone="muted">Low</Badge>;
-  return null;
+function formatQueueTime(iso?: string) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatOmsStatus(status: string) {
+  return status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function lineStatus(line: RackLine) {
+  if (line.complete) return { label: 'Picked', tone: 'done' as const };
+  if (line.qtyPicked > 0) return { label: 'In Progress', tone: 'progress' as const };
+  return { label: 'Pending', tone: 'pending' as const };
 }
 
 function PickConfirmModal({
   lookup,
+  rack,
   onClose,
   onConfirm,
   busy,
 }: {
   lookup: PickLookup;
+  rack: string | null;
   onClose: () => void;
   onConfirm: (qty: number) => void;
   busy: boolean;
@@ -150,35 +163,49 @@ function PickConfirmModal({
   }, [lookup]);
 
   return (
-    <div className="ff-modal-backdrop" role="dialog" aria-modal="true">
-      <div className="ff-modal">
-        <h3 className="ff-modal-title">{lookup.productTitle}</h3>
-        {lookup.sku ? <p className="muted">SKU: {lookup.sku}</p> : null}
-        <div className="ff-modal-stats">
+    <div className="pp-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="pp-modal">
+        <div className="pp-modal-head">
+          <h3>Enter quantity</h3>
+          <button type="button" className="pp-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="pp-modal-product">
+          <div className="pp-modal-product-icon" aria-hidden>
+            📦
+          </div>
           <div>
-            <span>Required</span>
+            <strong>{lookup.productTitle}</strong>
+            {lookup.sku ? <p className="muted">SKU: {lookup.sku}</p> : null}
+            {rack ? <p className="pp-modal-rack">Rack {rack}</p> : null}
+          </div>
+        </div>
+        <div className="pp-modal-stats">
+          <div>
+            <span>Required qty</span>
             <strong>{lookup.qtyRequired}</strong>
           </div>
           <div>
-            <span>Picked</span>
+            <span>Already picked</span>
             <strong>{lookup.qtyPicked}</strong>
           </div>
-          <div>
+          <div className="pp-modal-stats--warn">
             <span>Remaining</span>
             <strong>{lookup.remaining}</strong>
           </div>
         </div>
-        <div className="ff-qty-controls">
-          <Btn
-            size="sm"
-            variant="secondary"
+        <div className="pp-qty-controls">
+          <button
+            type="button"
+            className="pp-qty-btn"
             disabled={qty <= 1 || busy}
             onClick={() => setQty((q) => Math.max(1, q - 1))}
           >
             −
-          </Btn>
+          </button>
           <input
-            className="ff-qty-input"
+            className="pp-qty-input"
             type="number"
             min={1}
             max={lookup.remaining}
@@ -188,16 +215,16 @@ function PickConfirmModal({
               if (Number.isFinite(n)) setQty(Math.min(lookup.remaining, Math.max(1, n)));
             }}
           />
-          <Btn
-            size="sm"
-            variant="secondary"
+          <button
+            type="button"
+            className="pp-qty-btn"
             disabled={qty >= lookup.remaining || busy}
             onClick={() => setQty((q) => Math.min(lookup.remaining, q + 1))}
           >
             +
-          </Btn>
+          </button>
         </div>
-        <div className="ff-modal-actions">
+        <div className="pp-modal-actions">
           <Btn size="sm" variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Btn>
@@ -230,6 +257,7 @@ export function WarehouseFulfillmentPanel({
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [showSyncBanner, setShowSyncBanner] = useState(true);
   const autoOpened = useRef(false);
 
   const loadQueue = useCallback(async () => {
@@ -270,9 +298,7 @@ export function WarehouseFulfillmentPanel({
       } else if (!parts.length) {
         setSuccess('Sync finished — select an order to verify pick lines');
       }
-      if (selectedId) {
-        await loadDetail(selectedId, true);
-      }
+      if (selectedId) await loadDetail(selectedId, true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed');
     } finally {
@@ -383,9 +409,7 @@ export function WarehouseFulfillmentPanel({
       setPickLookup(null);
       setSuccess(r.message ?? 'Picked');
       if (selectedId) await loadDetail(selectedId);
-      if (r.stage === 'print') {
-        setSuccess('All racks complete — print label & invoice');
-      }
+      if (r.stage === 'print') setSuccess('All racks complete — open Print queue');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Confirm pick failed');
     } finally {
@@ -422,145 +446,205 @@ export function WarehouseFulfillmentPanel({
   );
   const canGenerateAwb =
     shiprocketAuthOk && (printStage || awbRetryAllowed) && !order?.tracking_awb;
-  const activeStep = printStage ? 3 : workflow?.step ?? 1;
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
 
-  function formatItems(row: QueueRow) {
-    const ordered = row.orderItemCount ?? 0;
-    if (row.itemCount === 0 && ordered > 0) return `0 / ${ordered}`;
-    return String(row.itemCount);
-  }
+  const orderTotalQty =
+    workflow?.racks.reduce((s, r) => s + r.totalQty, 0) ?? selectedQueue?.orderItemCount ?? 0;
+  const orderPickedQty = workflow?.racks.reduce((s, r) => s + r.pickedQty, 0) ?? 0;
+  const rackLineCount = workflow?.currentRackLines.length ?? 0;
+  const rackPickedQty = workflow?.currentRackLines.reduce((s, l) => s + l.qtyPicked, 0) ?? 0;
+  const rackRemainingQty = workflow?.currentRackLines.reduce((s, l) => s + l.remaining, 0) ?? 0;
+  const activeRackIndex = workflow?.racks.findIndex((r) => r.active) ?? -1;
+  const printQueueCount = stats?.readyToPack ?? queue.filter((r) => r.awb).length;
 
-  if (loading && !stats) return <Loading label="Loading fulfillment…" />;
+  const needsPickSetup =
+    !printStage &&
+    (!workflow?.currentRackLines.length ||
+      selectedQueue?.stockIssue === 'no_stock_reserved' ||
+      !detail?.pickList);
+
+  if (loading && !stats) return <Loading label="Loading picker / packer…" />;
 
   return (
-    <div className="warehouse-fulfillment">
+    <div className="pp-dashboard">
+      <header className="pp-toolbar">
+        <div className="pp-toolbar-title">
+          <span className="pp-toolbar-icon" aria-hidden>
+            ⛑
+          </span>
+          <h2>Picker / Packer</h2>
+        </div>
+        <div className="pp-toolbar-actions">
+          <button
+            type="button"
+            className={`pp-print-queue-btn${printStage ? ' pp-print-queue-btn--active' : ''}`}
+            disabled={!printStage && printQueueCount === 0}
+            onClick={() => {
+              if (printStage && order) {
+                window.open(printUrl('courier_label', order.id), '_blank');
+              }
+            }}
+          >
+            Print queue
+            {printQueueCount > 0 ? <span className="pp-badge">{printQueueCount}</span> : null}
+          </button>
+          {canWrite ? (
+            <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void syncInventoryAndRepair()}>
+              Sync inventory
+            </Btn>
+          ) : null}
+        </div>
+      </header>
+
       {error ? <Alert tone="error">{error}</Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}
 
-      {canWrite ? (
-        <div className="fulfillment-sync-row">
-          <p className="muted fulfillment-sync-hint">
-            <strong>0 / N</strong> means warehouse stock is not reserved for that order&apos;s products. Use the button
-            below to sync Commerce inventory and rebuild pick lists. Orders for products with no stock will show an error.
+      {canWrite && showSyncBanner ? (
+        <div className="pp-sync-banner">
+          <p>
+            <strong>0 / N</strong> means stock is not reserved. Sync inventory and rebuild picks for blocked orders.
           </p>
-          <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void syncInventoryAndRepair()}>
-            Sync inventory &amp; rebuild picks
-          </Btn>
+          <button type="button" className="pp-sync-dismiss" onClick={() => setShowSyncBanner(false)}>
+            ×
+          </button>
         </div>
       ) : null}
 
       {stats ? (
-        <div className="fulfillment-kpi-row">
-          <div className="fulfillment-kpi">
-            <span>Pending orders</span>
-            <strong>{stats.pendingOrders}</strong>
-          </div>
-          <div className="fulfillment-kpi">
-            <span>Ready to pack</span>
-            <strong>{stats.readyToPack}</strong>
-          </div>
-          <div className="fulfillment-kpi">
-            <span>Packed today</span>
-            <strong>{stats.packedToday}</strong>
-          </div>
-          <div className="fulfillment-kpi">
-            <span>Courier pending</span>
-            <strong>{stats.courierPending}</strong>
-          </div>
-          <div className="fulfillment-kpi fulfillment-kpi--warn">
-            <span>Failed AWB</span>
-            <strong>{stats.failedAwb}</strong>
-          </div>
+        <div className="pp-stats-strip">
+          <span>
+            Pending <strong>{stats.pendingOrders}</strong>
+          </span>
+          <span>
+            Ready <strong>{stats.readyToPack}</strong>
+          </span>
+          <span>
+            Packed today <strong>{stats.packedToday}</strong>
+          </span>
+          <span className="pp-stats-warn">
+            Failed AWB <strong>{stats.failedAwb}</strong>
+          </span>
         </div>
       ) : null}
 
-      <div className="fulfillment-layout">
+      <div className="pp-layout">
         {/* LEFT — Order queue */}
-        <Panel title="Order queue" className="fulfillment-col fulfillment-col--queue">
-          {queue.length === 0 ? <EmptyState>No orders in fulfillment.</EmptyState> : null}
-          <ul className="ff-order-list">
-            {queue.map((row) => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  className={`ff-order-card${selectedId === row.id ? ' ff-order-card--active' : ''}`}
-                  onClick={() => void loadDetail(row.id, true)}
-                >
-                  <div className="ff-order-card-top">
-                    <span className="ff-order-id mono">{row.orderName}</span>
-                    {priorityBadge(row.priority)}
-                    {row.shiprocketError ? <span className="fulfillment-err-hint" title={row.shiprocketError}>⚠</span> : null}
-                  </div>
-                  {row.customerName ? <span className="ff-order-customer">{row.customerName}</span> : null}
-                  <div className="ff-order-card-meta">
-                    <span>{formatItems(row)} items</span>
-                    {row.totalAmount != null ? <span>{formatInr(row.totalAmount)}</span> : null}
-                    <span>{row.courier}</span>
-                  </div>
-                  {row.stockIssue === 'no_stock_reserved' && row.missingProducts?.length ? (
-                    <span className="ff-order-stock-hint muted">
-                      No stock: {row.missingProducts.join(', ')}
-                    </span>
-                  ) : null}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </Panel>
+        <aside className="pp-queue">
+          <div className="pp-panel-head">
+            <h3>Order queue</h3>
+            <span className="pp-queue-count">{queue.length}</span>
+          </div>
+          {queue.length === 0 ? (
+            <EmptyState>No orders in fulfillment.</EmptyState>
+          ) : (
+            <ul className="pp-order-list">
+              {queue.map((row) => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    className={`pp-order-card${selectedId === row.id ? ' pp-order-card--active' : ''}`}
+                    onClick={() => void loadDetail(row.id, true)}
+                  >
+                    <div className="pp-order-card-head">
+                      <span className="pp-order-id">{row.orderName}</span>
+                      <span className={`pp-pay-badge${row.isCod ? ' pp-pay-badge--cod' : ''}`}>
+                        {row.isCod ? 'COD' : 'Prepaid'}
+                      </span>
+                    </div>
+                    <div className="pp-order-card-sub">
+                      <span className="pp-status-badge">{formatOmsStatus(row.omsStatus)}</span>
+                      {row.shiprocketError ? <span className="pp-order-warn" title={row.shiprocketError}>⚠</span> : null}
+                    </div>
+                    {row.customerName ? <span className="pp-order-customer">{row.customerName}</span> : null}
+                    <div className="pp-order-card-meta">
+                      <span>
+                        {row.orderItemCount ?? row.itemCount} items · {row.totalAmount != null ? formatInr(row.totalAmount) : '—'}
+                      </span>
+                    </div>
+                    <div className="pp-order-card-foot">
+                      <span>{row.courier}</span>
+                      <span>{formatQueueTime(row.createdAt)}</span>
+                    </div>
+                    {row.stockIssue === 'no_stock_reserved' && row.missingProducts?.length ? (
+                      <span className="pp-order-stock-hint">No stock: {row.missingProducts.join(', ')}</span>
+                    ) : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
 
-        {/* CENTER — Rack picking */}
-        <Panel title="Pick + pack" className="fulfillment-col fulfillment-col--pick">
-          {!detail ? (
-            <EmptyState>Select an order from the queue.</EmptyState>
+        {/* CENTER — Active order picking */}
+        <main className="pp-main">
+          {!detail || !order ? (
+            <div className="pp-main-empty">
+              <EmptyState>Select an order from the queue to start picking.</EmptyState>
+            </div>
           ) : (
             <>
-              <div className="ff-stepper">
-                {STEPS.map((label, i) => {
-                  const n = i + 1;
-                  const active = n === activeStep;
-                  const done = n < activeStep;
-                  return (
-                    <div
-                      key={label}
-                      className={`ff-step${active ? ' ff-step--active' : ''}${done ? ' ff-step--done' : ''}`}
-                    >
-                      <span className="ff-step-num">{n}</span>
-                      <span>{label}</span>
+              <div className="pp-order-header">
+                <div className="pp-order-header-top">
+                  <div>
+                    <h3>{selectedQueue?.orderName ?? order.order_name}</h3>
+                    <div className="pp-order-header-badges">
+                      <span className="pp-status-badge">{formatOmsStatus(order.oms_status)}</span>
+                      <span className={`pp-pay-badge${customer?.isCod ? ' pp-pay-badge--cod' : ''}`}>
+                        {customer?.isCod ? 'COD' : 'Prepaid'}
+                      </span>
+                      {order.courier_name ? <span className="pp-courier-chip">{order.courier_name}</span> : null}
                     </div>
-                  );
-                })}
+                  </div>
+                  <div className="pp-order-header-amount">
+                    {customer?.totalAmount != null ? formatInr(customer.totalAmount) : '—'}
+                  </div>
+                </div>
+                <div className="pp-order-header-stats">
+                  <div>
+                    <span>Total items</span>
+                    <strong>{orderTotalQty}</strong>
+                  </div>
+                  <div>
+                    <span>Picked</span>
+                    <strong>{orderPickedQty}</strong>
+                  </div>
+                  <div>
+                    <span>Picker</span>
+                    <strong>{detail.pickList?.picker_id ? 'Assigned' : '—'}</strong>
+                  </div>
+                </div>
               </div>
 
-              {!printStage &&
-              (!workflow?.currentRackLines.length ||
-                selectedQueue?.stockIssue === 'no_stock_reserved' ||
-                !detail.pickList) ? (
-                <Alert tone="warn">
-                  {selectedQueue?.stockIssue === 'no_stock_reserved' ? (
-                    <>
-                      Warehouse stock is not reserved for this order (
-                      <strong>
-                        0 / {selectedQueue.orderItemCount ?? '?'}
-                      </strong>{' '}
-                      pick lines). Add stock under <strong>Commerce → Inventory</strong> or{' '}
-                      <strong>Purchase &amp; GRN</strong>, then rebuild the pick list.
-                    </>
-                  ) : !detail.pickList ? (
-                    <>No pick list exists for this order yet — rebuild to allocate warehouse stock.</>
-                  ) : (
-                    <>Pick list has no rack lines yet — sync inventory and rebuild picks.</>
-                  )}
+              {detail.shiprocketDiagnostics && !detail.shiprocketDiagnostics.authOk ? (
+                <Alert tone="error">
+                  <strong>Shiprocket API blocked</strong>
+                  <p>{detail.shiprocketDiagnostics.authError}</p>
+                  {detail.shiprocketDiagnostics.authHint ? (
+                    <p className="mt-2 text-sm opacity-90">{detail.shiprocketDiagnostics.authHint}</p>
+                  ) : null}
+                </Alert>
+              ) : null}
+
+              {needsPickSetup ? (
+                <div className="pp-setup-card">
+                  <p>
+                    {selectedQueue?.stockIssue === 'no_stock_reserved' ? (
+                      <>
+                        Warehouse stock is not reserved (
+                        <strong>0 / {selectedQueue.orderItemCount ?? '?'}</strong> pick lines). Add stock in
+                        Commerce → Inventory or Purchase &amp; GRN, then rebuild.
+                      </>
+                    ) : !detail.pickList ? (
+                      <>No pick list yet — rebuild to allocate warehouse stock for this order.</>
+                    ) : (
+                      <>Pick list has no rack lines — sync inventory and rebuild picks.</>
+                    )}
+                  </p>
                   {canWrite ? (
-                    <div className="ff-empty-actions">
-                      <Btn
-                        size="sm"
-                        variant="secondary"
-                        disabled={busy}
-                        onClick={() => void syncInventoryAndRepair()}
-                      >
-                        Sync inventory &amp; rebuild
+                    <div className="pp-setup-actions">
+                      <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void syncInventoryAndRepair()}>
+                        Sync inventory
                       </Btn>
                       <Btn
                         size="sm"
@@ -572,59 +656,95 @@ export function WarehouseFulfillmentPanel({
                       </Btn>
                     </div>
                   ) : null}
-                </Alert>
+                </div>
               ) : null}
 
               {printStage ? (
-                <Alert tone="success">
-                  All racks picked. Use the print panel on the right to generate AWB, print label &amp; invoice, then mark packed.
-                </Alert>
+                <div className="pp-complete-card">
+                  <span className="pp-complete-icon" aria-hidden>
+                    ✓
+                  </span>
+                  <div>
+                    <strong>All racks picked</strong>
+                    <p>Use the Print queue panel to generate AWB, print label &amp; invoice, then mark packed.</p>
+                  </div>
+                </div>
               ) : workflow?.currentRack ? (
                 <>
-                  <div className="ff-rack-banner">
-                    <span className="ff-rack-label">Current rack</span>
-                    <strong className="ff-rack-code">{workflow.currentRack}</strong>
-                  </div>
-                  <p className="muted ff-rack-hint">Scan product barcode — qty popup opens on match.</p>
+                  <section className="pp-rack-hero">
+                    <div className="pp-rack-hero-top">
+                      <div>
+                        <span className="pp-rack-label">Current rack</span>
+                        <h2 className="pp-rack-code">{workflow.currentRack}</h2>
+                      </div>
+                      <span className="pp-rack-map-btn" title="Rack map">
+                        📍 Rack map
+                      </span>
+                    </div>
+                    <div className="pp-rack-stats">
+                      <div>
+                        <span>Items in rack</span>
+                        <strong>{rackLineCount}</strong>
+                      </div>
+                      <div>
+                        <span>Picked</span>
+                        <strong>{rackPickedQty}</strong>
+                      </div>
+                      <div className="pp-rack-stats--warn">
+                        <span>Remaining</span>
+                        <strong>{rackRemainingQty}</strong>
+                      </div>
+                    </div>
+                    <p className="pp-rack-tip">Scan product barcode to pick items from this rack.</p>
+                  </section>
 
-                  <table className="ff-pick-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Product</th>
-                        <th>Qty</th>
-                        <th>Picked</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {workflow.currentRackLines.map((l) => (
-                        <tr key={l.id} className={l.complete ? 'ff-pick-row--done' : ''}>
-                          <td>{l.row}</td>
-                          <td>
-                            <strong>{l.productTitle}</strong>
-                            {l.sku ? <span className="muted"> · {l.sku}</span> : null}
-                          </td>
-                          <td>{l.qtyRequired}</td>
-                          <td>
-                            <span className={l.complete ? 'ff-picked-done' : l.qtyPicked > 0 ? 'ff-picked-partial' : ''}>
-                              {l.qtyPicked}/{l.qtyRequired}
-                            </span>
-                          </td>
-                          <td>{l.complete ? '✅ Picked' : 'Pending'}</td>
+                  <div className="pp-product-table-wrap">
+                    <table className="pp-product-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Product</th>
+                          <th>SKU</th>
+                          <th>Order qty</th>
+                          <th>Picked qty</th>
+                          <th>Status</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {workflow.currentRackLines.map((l) => {
+                          const st = lineStatus(l);
+                          return (
+                            <tr key={l.id} className={l.complete ? 'pp-row--done' : ''}>
+                              <td>{l.row}</td>
+                              <td>
+                                <div className="pp-product-cell">
+                                  <span className="pp-product-thumb" aria-hidden>
+                                    📦
+                                  </span>
+                                  <strong>{l.productTitle}</strong>
+                                </div>
+                              </td>
+                              <td className="mono">{l.sku ?? '—'}</td>
+                              <td>{l.qtyRequired}</td>
+                              <td>
+                                <span className={st.tone === 'done' ? 'pp-picked-done' : st.tone === 'progress' ? 'pp-picked-partial' : ''}>
+                                  {l.qtyPicked} / {l.qtyRequired}
+                                </span>
+                              </td>
+                              <td>
+                                <span className={`pp-line-status pp-line-status--${st.tone}`}>{st.label}</span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
                   {canWrite ? (
-                    <div className="ff-scan-area">
-                      {!scanOpen ? (
-                        <Btn variant="primary" onClick={() => setScanOpen(true)}>
-                          Scan barcode
-                        </Btn>
-                      ) : (
-                        <>
+                    <div className="pp-scan-footer">
+                      {scanOpen ? (
+                        <div className="pp-scan-input-wrap">
                           <BarcodeScanInput
                             value={scanCode}
                             onChange={setScanCode}
@@ -632,111 +752,131 @@ export function WarehouseFulfillmentPanel({
                             placeholder="Scan or enter product / batch barcode"
                           />
                           <Btn size="sm" variant="secondary" onClick={() => setScanOpen(false)}>
-                            Close scanner
+                            Close
                           </Btn>
-                        </>
+                        </div>
+                      ) : (
+                        <button type="button" className="pp-scan-cta" onClick={() => setScanOpen(true)}>
+                          Scan barcode — click to focus scanner
+                        </button>
                       )}
-                      {scanMsg ? <p className="scan-msg">{scanMsg}</p> : null}
+                      {scanMsg ? <p className="pp-scan-msg">{scanMsg}</p> : null}
                     </div>
                   ) : null}
                 </>
               ) : null}
             </>
           )}
-        </Panel>
+        </main>
 
-        {/* RIGHT — Summary + printables */}
-        <Panel title="Order & print" className="fulfillment-col fulfillment-col--ship">
+        {/* RIGHT — Progress & print */}
+        <aside className="pp-sidebar">
           {!detail || !order ? (
             <EmptyState>Select an order.</EmptyState>
           ) : (
-            <div className="fulfillment-actions">
-              {detail.shiprocketDiagnostics && !detail.shiprocketDiagnostics.authOk ? (
-                <Alert tone="error">
-                  <strong>Shiprocket API blocked</strong>
-                  <p>{detail.shiprocketDiagnostics.authError}</p>
-                  {detail.shiprocketDiagnostics.authHint ? (
-                    <p className="mt-2 text-sm opacity-90">{detail.shiprocketDiagnostics.authHint}</p>
-                  ) : null}
-                </Alert>
-              ) : null}
-
-              {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
-                <Alert tone="warn">
-                  {detail.shiprocketErrorDisplay ?? order.shiprocket_error}
-                  {detail.shiprocketDiagnostics?.walletBalanceInr != null ? (
-                    <p className="mt-2 text-sm opacity-90">
-                      Live Shiprocket API wallet: ₹
-                      {detail.shiprocketDiagnostics.walletBalanceInr.toLocaleString('en-IN')}
-                      {detail.shiprocketDiagnostics.pickupLocationsAvailable.length ? (
-                        <>
-                          {' '}
-                          · Pickups:{' '}
-                          {detail.shiprocketDiagnostics.pickupLocationsAvailable.join(', ')}
-                        </>
-                      ) : null}
-                    </p>
-                  ) : null}
-                </Alert>
-              ) : null}
-
-              {customer ? (
-                <div className="ff-order-summary">
-                  <p>
-                    <strong>{selectedQueue?.customerName ?? order.order_name}</strong>
-                  </p>
-                  {customer.phone ? <p className="muted">{customer.phone}</p> : null}
-                  {customer.address ? <p className="muted">{customer.address}</p> : null}
-                  <p className="muted">
-                    {customer.isCod ? 'COD' : 'Prepaid'}
-                    {customer.totalAmount != null ? ` · ${formatInr(customer.totalAmount)}` : ''}
-                  </p>
-                  {order.tracking_awb ? (
-                    <p>
-                      AWB <span className="mono">{order.tracking_awb}</span>
-                      {order.courier_name ? ` · ${order.courier_name}` : ''}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
+            <>
               {workflow?.racks.length ? (
-                <div className="ff-rack-progress">
-                  <p className="muted">Rack progress</p>
-                  <ol className="ff-rack-progress-list">
-                    {workflow.racks.map((r) => (
+                <section className="pp-sidebar-section">
+                  <div className="pp-sidebar-head">
+                    <h4>Rack progress</h4>
+                    <span className="muted">
+                      {activeRackIndex >= 0 ? activeRackIndex + 1 : workflow.racks.length} of {workflow.racks.length} racks
+                    </span>
+                  </div>
+                  <ol className="pp-rack-stepper">
+                    {workflow.racks.map((r, i) => (
                       <li
                         key={r.rack}
-                        className={`ff-rack-progress-item${r.active ? ' ff-rack-progress-item--active' : ''}${r.complete ? ' ff-rack-progress-item--done' : ''}`}
+                        className={`pp-rack-step${r.complete ? ' pp-rack-step--done' : ''}${r.active ? ' pp-rack-step--active' : ''}`}
                       >
-                        <span className="mono">{r.rack}</span>
-                        <span>
-                          {r.pickedQty}/{r.totalQty}
+                        <span className="pp-rack-step-marker">
+                          {r.complete ? '✓' : i + 1}
                         </span>
-                        {r.complete ? <span>✓</span> : r.active ? <span>→</span> : null}
+                        <div className="pp-rack-step-body">
+                          <strong>{r.rack}</strong>
+                          <span>
+                            {r.complete
+                              ? 'Complete'
+                              : r.active
+                                ? `${r.totalQty - r.pickedQty} items remaining`
+                                : `${r.pickedQty} / ${r.totalQty} items picked`}
+                          </span>
+                        </div>
                       </li>
                     ))}
                   </ol>
-                </div>
+                </section>
               ) : null}
 
-              <div
-                className={`ff-print-stage${printStage ? ' ff-print-stage--active' : awbRetryAllowed ? ' ff-print-stage--retry' : ''}`}
+              <section className="pp-sidebar-section">
+                <h4>Order summary</h4>
+                <dl className="pp-summary-list">
+                  <div>
+                    <dt>Customer</dt>
+                    <dd>{selectedQueue?.customerName ?? '—'}</dd>
+                  </div>
+                  <div>
+                    <dt>Items</dt>
+                    <dd>
+                      {orderTotalQty} · {customer?.totalAmount != null ? formatInr(customer.totalAmount) : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Payment</dt>
+                    <dd>{customer?.isCod ? 'COD' : 'Prepaid'}</dd>
+                  </div>
+                  {customer?.address ? (
+                    <div>
+                      <dt>Ship to</dt>
+                      <dd className="pp-summary-address">{customer.address}</dd>
+                    </div>
+                  ) : null}
+                  {order.tracking_awb ? (
+                    <div>
+                      <dt>AWB</dt>
+                      <dd className="mono">{order.tracking_awb}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+              </section>
+
+              <section className="pp-sidebar-section pp-next-step">
+                <h4>Next step</h4>
+                {printStage ? (
+                  <div className="pp-next-step-card pp-next-step-card--ready">
+                    <span aria-hidden>🖨</span>
+                    <p>
+                      <strong>Printables ready</strong>
+                      <span>Generate AWB, print label &amp; invoice, then mark packed.</span>
+                    </p>
+                  </div>
+                ) : awbRetryAllowed ? (
+                  <div className="pp-next-step-card pp-next-step-card--warn">
+                    <span aria-hidden>📦</span>
+                    <p>
+                      <strong>AWB pending</strong>
+                      <span>You can assign AWB now; printing still needs picking complete.</span>
+                    </p>
+                  </div>
+                ) : (
+                  <div className="pp-next-step-card">
+                    <span aria-hidden>📋</span>
+                    <p>
+                      <strong>Complete all racks</strong>
+                      <span>When every item is picked, printables unlock automatically.</span>
+                    </p>
+                  </div>
+                )}
+              </section>
+
+              <section
+                className={`pp-print-panel${printStage ? ' pp-print-panel--active' : awbRetryAllowed ? ' pp-print-panel--retry' : ''}`}
               >
-                <p className="ff-print-stage-title">
-                  {printStage ? 'Printables ready' : awbRetryAllowed ? 'AWB retry available' : 'Printables locked'}
-                </p>
-                {!printStage && awbRetryAllowed ? (
-                  <p className="muted ff-print-stage-hint">
-                    Picking is not complete, but you can {awbPendingShipment ? 'assign AWB to the pending Shiprocket shipment' : 'retry Generate AWB'} now.
-                    Label and invoice printing still require rack picking.
-                  </p>
-                ) : !printStage ? (
-                  <p className="muted ff-print-stage-hint">
-                    Complete rack picking (scan every product) to unlock AWB, label, and invoice printing.
-                  </p>
+                <h4>Print queue</h4>
+                {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
+                  <p className="pp-print-warn">{detail.shiprocketErrorDisplay ?? order.shiprocket_error}</p>
                 ) : null}
-                <div className="fulfillment-btn-stack">
+                <div className="pp-print-actions">
                   {canWrite ? (
                     <Btn
                       size="sm"
@@ -747,7 +887,7 @@ export function WarehouseFulfillmentPanel({
                       {awbRetryAllowed && !printStage
                         ? awbPendingShipment
                           ? 'Assign AWB'
-                          : 'Retry Generate AWB'
+                          : 'Retry AWB'
                         : 'Generate AWB'}
                     </Btn>
                   ) : null}
@@ -792,12 +932,18 @@ export function WarehouseFulfillmentPanel({
                     </>
                   ) : null}
                 </div>
-              </div>
+              </section>
+
+              {!printStage && workflow?.currentRack ? (
+                <p className="pp-info-tip">
+                  After all items in this rack are picked, the system moves to the next rack automatically.
+                </p>
+              ) : null}
 
               {canWrite ? (
-                <div className="fulfillment-exceptions">
-                  <p className="muted">Exceptions</p>
-                  <div className="fulfillment-exc-btns">
+                <section className="pp-sidebar-section pp-exceptions">
+                  <h4>Exceptions</h4>
+                  <div className="pp-exc-btns">
                     {EXCEPTIONS.map((ex) => (
                       <Btn
                         key={ex.type}
@@ -810,16 +956,17 @@ export function WarehouseFulfillmentPanel({
                       </Btn>
                     ))}
                   </div>
-                </div>
+                </section>
               ) : null}
-            </div>
+            </>
           )}
-        </Panel>
+        </aside>
       </div>
 
       {pickLookup ? (
         <PickConfirmModal
           lookup={pickLookup}
+          rack={workflow?.currentRack ?? null}
           busy={busy}
           onClose={() => setPickLookup(null)}
           onConfirm={(qty) => void confirmPick(qty)}
