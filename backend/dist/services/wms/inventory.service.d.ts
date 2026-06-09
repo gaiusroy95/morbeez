@@ -40,6 +40,15 @@ export declare const inventoryService: {
         hsnCode?: string | null;
         gstPercent?: number;
     }): Promise<any>;
+    resolveCanonicalInventoryItemId(inventoryItemId: string): Promise<string>;
+    ensureInventoryItemForVariant(variantId: string): Promise<string>;
+    repointInventoryItemReferences(fromId: string, toId: string): Promise<void>;
+    mergeDuplicateInventoryItem(fromId: string, toId: string): Promise<void>;
+    dedupeInventoryItemsByVariant(): Promise<{
+        merged: number;
+        variantGroups: number;
+    }>;
+    loadCommerceVariantIds(): Promise<Set<string>>;
     extractVariantIdFromSku(sku: string | null | undefined): string | null;
     listInventoryItemIdsForVariant(variantId: string): Promise<string[]>;
     getAvailableWarehouseQty(inventoryItemId: string, warehouseId: string): Promise<number>;

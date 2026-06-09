@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { AppError, NotFoundError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
+import { shopifyAdmin } from '../shopify/shopify.client.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
 import { warehouseService } from './warehouse.service.js';
 const COMMERCE_SYNC_THROTTLE_MS = 12_000;
@@ -40,6 +41,24 @@ function mapInventoryItemRow(row) {
         sku: String(row.sku),
         productTitle: String(row.product_title),
     };
+}
+function isVarSku(sku) {
+    return /^VAR-\d+$/i.test(sku.trim());
+}
+function effectiveVariantIdFromItem(item) {
+    if (item.shopify_variant_id?.trim())
+        return String(item.shopify_variant_id).trim();
+    const match = item.sku?.trim().match(/^VAR-(\d+)$/i);
+    return match ? match[1] : null;
+}
+function pickCanonicalInventoryItem(items) {
+    return [...items].sort((a, b) => {
+        const aVar = isVarSku(a.sku) ? 1 : 0;
+        const bVar = isVarSku(b.sku) ? 1 : 0;
+        if (aVar !== bVar)
+            return aVar - bVar;
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    })[0];
 }
 export const inventoryService = {
     async listInventoryItems(opts) {
@@ -101,11 +120,13 @@ export const inventoryService = {
     },
     async upsertItemFromSku(input) {
         const sku = input.sku.trim();
-        const variantId = input.shopifyVariantId?.trim() || null;
-        const preferCanonicalSku = sku && !/^VAR-\d+$/i.test(sku);
+        const variantFromSku = this.extractVariantIdFromSku(sku);
+        const variantId = input.shopifyVariantId?.trim() || variantFromSku || null;
+        const preferCanonicalSku = sku && !isVarSku(sku);
         /** One Shopify variant must map to one inventory_items row (orders use VAR-* SKUs). */
         if (variantId) {
-            const { data: byVariant } = await supabase
+            let byVariant = null;
+            const { data: byVariantCol } = await supabase
                 .from('inventory_items')
                 .select('*')
                 .eq('shopify_variant_id', variantId)
@@ -113,6 +134,16 @@ export const inventoryService = {
                 .order('created_at', { ascending: true })
                 .limit(1)
                 .maybeSingle();
+            byVariant = byVariantCol ?? null;
+            if (!byVariant) {
+                const { data: byVarSku } = await supabase
+                    .from('inventory_items')
+                    .select('*')
+                    .eq('sku', `VAR-${variantId}`)
+                    .eq('active', true)
+                    .maybeSingle();
+                byVariant = byVarSku ?? null;
+            }
             if (byVariant) {
                 const nextSku = preferCanonicalSku && byVariant.sku !== sku
                     ? sku
@@ -171,6 +202,195 @@ export const inventoryService = {
             .single();
         throwIfSupabaseError(error, 'Insert inventory item');
         return data;
+    },
+    async resolveCanonicalInventoryItemId(inventoryItemId) {
+        const { data: item, error } = await supabase
+            .from('inventory_items')
+            .select('id, sku, shopify_variant_id, product_title, created_at')
+            .eq('id', inventoryItemId)
+            .eq('active', true)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Resolve canonical inventory item');
+        if (!item)
+            return inventoryItemId;
+        const variantId = effectiveVariantIdFromItem(item);
+        if (!variantId)
+            return inventoryItemId;
+        const peerIds = await this.listInventoryItemIdsForVariant(variantId);
+        if (peerIds.length <= 1)
+            return inventoryItemId;
+        const { data: peers, error: peerErr } = await supabase
+            .from('inventory_items')
+            .select('id, sku, shopify_variant_id, product_title, created_at')
+            .in('id', peerIds)
+            .eq('active', true);
+        throwIfSupabaseError(peerErr, 'Load peer inventory items');
+        if (!peers?.length)
+            return inventoryItemId;
+        return pickCanonicalInventoryItem(peers).id;
+    },
+    async ensureInventoryItemForVariant(variantId) {
+        const existingIds = await this.listInventoryItemIdsForVariant(variantId);
+        if (existingIds.length) {
+            return this.resolveCanonicalInventoryItemId(existingIds[0]);
+        }
+        let sku = `VAR-${variantId}`;
+        let title = `Variant ${variantId}`;
+        try {
+            const { variant } = await shopifyAdmin(`/variants/${variantId}.json`);
+            const { product } = await shopifyAdmin(`/products/${variant.product_id}.json?fields=id,title`);
+            sku = (variant.sku || sku).trim();
+            const variantLabel = variant.title && variant.title !== 'Default Title' ? ` — ${variant.title}` : '';
+            title = `${product.title}${variantLabel}`;
+        }
+        catch (err) {
+            logger.debug({ err, variantId }, 'Shopify variant lookup for inventory item skipped');
+        }
+        const item = await this.upsertItemFromSku({
+            sku,
+            productTitle: title,
+            shopifyVariantId: variantId,
+        });
+        return String(item.id);
+    },
+    async repointInventoryItemReferences(fromId, toId) {
+        if (fromId === toId)
+            return;
+        const tables = [
+            'commerce_order_lines',
+            'purchase_order_lines',
+            'pick_list_lines',
+            'stock_movements',
+        ];
+        for (const table of tables) {
+            const { error } = await supabase
+                .from(table)
+                .update({ inventory_item_id: toId })
+                .eq('inventory_item_id', fromId);
+            throwIfSupabaseError(error, `Repoint ${table} inventory item`);
+        }
+        const { error: tierErr } = await supabase
+            .from('pricing_tiers')
+            .update({ inventory_item_id: toId })
+            .eq('inventory_item_id', fromId);
+        throwIfSupabaseError(tierErr, 'Repoint pricing tier inventory item');
+    },
+    async mergeDuplicateInventoryItem(fromId, toId) {
+        if (fromId === toId)
+            return;
+        const warehouse = await warehouseService.getDefaultWarehouse();
+        const { data: dupBatches, error } = await supabase
+            .from('inventory_batches')
+            .select('*')
+            .eq('inventory_item_id', fromId)
+            .eq('warehouse_id', warehouse.id);
+        throwIfSupabaseError(error, 'Load duplicate inventory batches');
+        for (const dup of dupBatches ?? []) {
+            const batchCode = String(dup.batch_code);
+            const { data: canonicalBatch } = await supabase
+                .from('inventory_batches')
+                .select('*')
+                .eq('inventory_item_id', toId)
+                .eq('warehouse_id', warehouse.id)
+                .eq('batch_code', batchCode)
+                .maybeSingle();
+            const dupReserved = Number(dup.qty_reserved) || 0;
+            const dupOnHand = Number(dup.qty_on_hand) || 0;
+            if (canonicalBatch) {
+                if (dupReserved > 0) {
+                    await supabase
+                        .from('inventory_batches')
+                        .update({
+                        qty_reserved: (Number(canonicalBatch.qty_reserved) || 0) + dupReserved,
+                        updated_at: new Date().toISOString(),
+                    })
+                        .eq('id', canonicalBatch.id);
+                    await supabase
+                        .from('pick_list_lines')
+                        .update({ batch_id: canonicalBatch.id })
+                        .eq('batch_id', dup.id);
+                }
+                await supabase
+                    .from('inventory_batches')
+                    .update({
+                    qty_on_hand: 0,
+                    qty_reserved: 0,
+                    status: 'depleted',
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', dup.id);
+            }
+            else if (dupReserved > 0 || dupOnHand > 0) {
+                await supabase
+                    .from('inventory_batches')
+                    .update({
+                    inventory_item_id: toId,
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', dup.id);
+            }
+            else {
+                await supabase
+                    .from('inventory_batches')
+                    .update({
+                    qty_on_hand: 0,
+                    qty_reserved: 0,
+                    status: 'depleted',
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', dup.id);
+            }
+        }
+        await this.repointInventoryItemReferences(fromId, toId);
+        await supabase
+            .from('inventory_items')
+            .update({ active: false, updated_at: new Date().toISOString() })
+            .eq('id', fromId);
+    },
+    async dedupeInventoryItemsByVariant() {
+        const { data: items, error } = await supabase
+            .from('inventory_items')
+            .select('id, sku, shopify_variant_id, product_title, created_at')
+            .eq('active', true);
+        throwIfSupabaseError(error, 'Load inventory items for dedupe');
+        const groups = new Map();
+        for (const row of (items ?? [])) {
+            const variantId = effectiveVariantIdFromItem(row);
+            if (!variantId)
+                continue;
+            const list = groups.get(variantId) ?? [];
+            list.push(row);
+            groups.set(variantId, list);
+        }
+        let merged = 0;
+        for (const [, peers] of groups) {
+            if (peers.length <= 1)
+                continue;
+            const canonical = pickCanonicalInventoryItem(peers);
+            for (const peer of peers) {
+                if (peer.id === canonical.id)
+                    continue;
+                await this.mergeDuplicateInventoryItem(peer.id, canonical.id);
+                merged += 1;
+            }
+            if (!canonical.shopify_variant_id) {
+                await supabase
+                    .from('inventory_items')
+                    .update({
+                    shopify_variant_id: effectiveVariantIdFromItem(canonical),
+                    updated_at: new Date().toISOString(),
+                })
+                    .eq('id', canonical.id);
+            }
+        }
+        return { merged, variantGroups: groups.size };
+    },
+    async loadCommerceVariantIds() {
+        const { data, error } = await supabase.from('commerce_stock_batches').select('shopify_variant_id');
+        throwIfSupabaseError(error, 'Load commerce variant ids');
+        return new Set((data ?? [])
+            .map((row) => (row.shopify_variant_id ? String(row.shopify_variant_id).trim() : ''))
+            .filter(Boolean));
     },
     extractVariantIdFromSku(sku) {
         if (!sku?.trim())
@@ -264,6 +484,7 @@ export const inventoryService = {
             return;
         lastCommerceWarehouseSyncAt = now;
         try {
+            await this.dedupeInventoryItemsByVariant();
             await this.syncAllCommerceStockToWarehouse();
         }
         catch (err) {
@@ -309,22 +530,44 @@ export const inventoryService = {
             list.push(b);
             batchesByItem.set(key, list);
         }
-        const rows = (items ?? []).map((item) => {
-            const itemBatches = (batchesByItem.get(String(item.id)) ?? []);
+        const commerceVariantIds = await this.loadCommerceVariantIds();
+        const itemRecords = (items ?? []);
+        const groups = new Map();
+        for (const item of itemRecords) {
+            const variantId = effectiveVariantIdFromItem(item);
+            const key = variantId ? `v:${variantId}` : `s:${item.sku}`;
+            const list = groups.get(key) ?? [];
+            list.push(item);
+            groups.set(key, list);
+        }
+        const rows = [];
+        for (const [, peers] of groups) {
+            const canonical = pickCanonicalInventoryItem(peers);
+            const itemId = String(canonical.id);
+            const variantId = effectiveVariantIdFromItem(canonical);
+            const itemBatches = (batchesByItem.get(itemId) ?? []);
             const totals = mapBatchRows(itemBatches);
-            return {
-                inventoryItemId: String(item.id),
-                sku: String(item.sku),
-                productTitle: String(item.product_title),
+            const activity = totals.available +
+                totals.reserved +
+                totals.damaged +
+                totals.returned +
+                (incomingByItem.get(itemId) ?? 0);
+            const inCommerce = variantId ? commerceVariantIds.has(variantId) : false;
+            if (!inCommerce && activity === 0)
+                continue;
+            rows.push({
+                inventoryItemId: itemId,
+                sku: String(canonical.sku),
+                productTitle: String(canonical.product_title),
                 available: totals.available,
                 reserved: totals.reserved,
                 damaged: totals.damaged,
                 returned: totals.returned,
-                incoming: incomingByItem.get(String(item.id)) ?? 0,
+                incoming: incomingByItem.get(itemId) ?? 0,
                 batches: totals.batches,
-            };
-        });
-        return rows;
+            });
+        }
+        return rows.sort((a, b) => a.productTitle.localeCompare(b.productTitle));
     },
     async getStockItemDetail(inventoryItemId, opts) {
         await this.syncCommerceBatchesToWarehouse(inventoryItemId);
@@ -834,7 +1077,8 @@ export const inventoryService = {
             return { syncedQty: 0 };
         const warehouse = await warehouseService.getDefaultWarehouse();
         const { batches: commerceBatches, variantIds } = await this.loadCommerceBatchesForItem(item);
-        const targetIds = await this.collectLinkedInventoryItemIds(item);
+        const canonicalId = await this.resolveCanonicalInventoryItemId(inventoryItemId);
+        const targetIds = [canonicalId];
         let commerceSource = [...commerceBatches];
         if (!commerceSource.length && opts?.shopifyFallback !== false) {
             const variantId = variantIds[0] ?? item.shopify_variant_id;
@@ -889,19 +1133,20 @@ export const inventoryService = {
         let syncedQty = 0;
         const syncedItemIds = new Set();
         for (const variantId of variantIds) {
-            const itemIds = await this.listInventoryItemIdsForVariant(variantId);
-            if (!itemIds.length)
-                continue;
-            for (const itemId of itemIds) {
-                if (syncedItemIds.has(itemId))
-                    continue;
-                syncedItemIds.add(itemId);
-                const result = await this.syncCommerceBatchesToWarehouse(itemId, {
-                    shopifyFallback: false,
-                });
-                if (result.syncedQty > 0)
-                    syncedQty += result.syncedQty;
+            let itemIds = await this.listInventoryItemIdsForVariant(variantId);
+            if (!itemIds.length) {
+                const createdId = await this.ensureInventoryItemForVariant(variantId);
+                itemIds = [createdId];
             }
+            const canonicalId = await this.resolveCanonicalInventoryItemId(itemIds[0]);
+            if (syncedItemIds.has(canonicalId))
+                continue;
+            syncedItemIds.add(canonicalId);
+            const result = await this.syncCommerceBatchesToWarehouse(canonicalId, {
+                shopifyFallback: false,
+            });
+            if (result.syncedQty > 0)
+                syncedQty += result.syncedQty;
             syncedVariants += 1;
         }
         return { syncedVariants, syncedQty, variantCount: variantIds.length };

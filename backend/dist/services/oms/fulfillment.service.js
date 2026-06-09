@@ -101,6 +101,12 @@ export const fulfillmentService = {
         catch (err) {
             logger.warn({ err }, 'Paid quote warehouse sync during fulfillment repair failed');
         }
+        try {
+            await checkoutOmsBridgeService.repairUnsyncedPaidCheckouts(50);
+        }
+        catch (err) {
+            logger.warn({ err }, 'Paid checkout warehouse sync during fulfillment repair failed');
+        }
         const sync = await inventoryService.syncAllCommerceStockToWarehouse();
         const { data: orders, error } = await supabase
             .from('commerce_orders')
