@@ -411,6 +411,8 @@ export function WarehouseFulfillmentPanel({
   const workflow = detail?.workflow;
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
+  const awbRetryAllowed = Boolean(detail?.shiprocketErrorDisplay || order?.shiprocket_error);
+  const canGenerateAwb = (printStage || awbRetryAllowed) && !order?.tracking_awb;
   const activeStep = printStage ? 3 : workflow?.step ?? 1;
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
@@ -699,11 +701,18 @@ export function WarehouseFulfillmentPanel({
                 </div>
               ) : null}
 
-              <div className={`ff-print-stage${printStage ? ' ff-print-stage--active' : ''}`}>
+              <div
+                className={`ff-print-stage${printStage ? ' ff-print-stage--active' : awbRetryAllowed ? ' ff-print-stage--retry' : ''}`}
+              >
                 <p className="ff-print-stage-title">
-                  {printStage ? 'Printables ready' : 'Printables locked'}
+                  {printStage ? 'Printables ready' : awbRetryAllowed ? 'AWB retry available' : 'Printables locked'}
                 </p>
-                {!printStage ? (
+                {!printStage && awbRetryAllowed ? (
+                  <p className="muted ff-print-stage-hint">
+                    Picking is not complete, but you can retry Generate AWB to clear a failed Shiprocket shipment.
+                    Label and invoice printing still require rack picking.
+                  </p>
+                ) : !printStage ? (
                   <p className="muted ff-print-stage-hint">
                     Complete rack picking (scan every product) to unlock AWB, label, and invoice printing.
                   </p>
@@ -712,11 +721,11 @@ export function WarehouseFulfillmentPanel({
                   {canWrite ? (
                     <Btn
                       size="sm"
-                      variant={printStage ? 'primary' : 'secondary'}
-                      disabled={busy || !printStage || Boolean(order.tracking_awb)}
+                      variant={canGenerateAwb ? 'primary' : 'secondary'}
+                      disabled={busy || !canGenerateAwb}
                       onClick={() => void runAction('/generate-awb', 'AWB generated')}
                     >
-                      Generate AWB
+                      {awbRetryAllowed && !printStage ? 'Retry Generate AWB' : 'Generate AWB'}
                     </Btn>
                   ) : null}
                   {order.label_url ? (
