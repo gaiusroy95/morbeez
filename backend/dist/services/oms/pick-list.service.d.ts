@@ -10,5 +10,10 @@ export declare const pickListService: {
     manualVerifyLine(pickListLineId: string): Promise<any>;
     completePicking(pickListId: string): Promise<any>;
     assignPicker(pickListId: string, pickerId: string): Promise<any>;
+    resolveRackLocationForLine(line: {
+        allocation_id?: string | null;
+        batch_id?: string | null;
+    }): Promise<string | null>;
+    refreshRackLocations(pickListId: string): Promise<number>;
 };
 //# sourceMappingURL=pick-list.service.d.ts.map

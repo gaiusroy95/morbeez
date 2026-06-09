@@ -1298,6 +1298,89 @@ export const inventoryService = {
     });
   },
 
+  async findWarehouseLocationIdForInventoryItem(inventoryItemId: string): Promise<string | null> {
+    const { data: item } = await supabase
+      .from('inventory_items')
+      .select('shopify_variant_id')
+      .eq('id', inventoryItemId)
+      .maybeSingle();
+    const variantId = item?.shopify_variant_id ? String(item.shopify_variant_id) : null;
+    if (!variantId) return null;
+
+    const catalog = await shopifyProductsService.getInventoryCatalog();
+    let productId: string | null = null;
+    for (const product of catalog) {
+      const variants = (product as { variants?: Array<{ id: string | number }> }).variants ?? [];
+      if (variants.some((v) => String(v.id) === variantId)) {
+        productId = String((product as { id: string | number }).id);
+        break;
+      }
+    }
+    if (!productId) return null;
+
+    const { data: intel } = await supabase
+      .from('product_intelligence')
+      .select('basic')
+      .eq('shopify_product_id', productId)
+      .maybeSingle();
+    const locId = (intel?.basic as Record<string, unknown> | undefined)?.locationId;
+    return locId && String(locId).trim() ? String(locId).trim() : null;
+  },
+
+  async applyWarehouseLocationToItemBatches(
+    inventoryItemId: string,
+    locationId?: string | null
+  ): Promise<number> {
+    const loc =
+      locationId?.trim() ||
+      (await this.findWarehouseLocationIdForInventoryItem(inventoryItemId));
+    if (!loc) return 0;
+
+    const { data: batches, error } = await supabase
+      .from('inventory_batches')
+      .select('id, location_id')
+      .eq('inventory_item_id', inventoryItemId)
+      .neq('status', 'depleted');
+    throwIfSupabaseError(error, 'Batches for location apply');
+
+    let updated = 0;
+    for (const batch of batches ?? []) {
+      if (String(batch.location_id ?? '') === loc) continue;
+      const { error: updErr } = await supabase
+        .from('inventory_batches')
+        .update({ location_id: loc, updated_at: new Date().toISOString() })
+        .eq('id', batch.id);
+      throwIfSupabaseError(updErr, 'Apply batch warehouse location');
+      updated += 1;
+    }
+    return updated;
+  },
+
+  async applyProductWarehouseLocationFromIntelligence(shopifyProductId: string) {
+    const { data: intel } = await supabase
+      .from('product_intelligence')
+      .select('basic')
+      .eq('shopify_product_id', shopifyProductId)
+      .maybeSingle();
+    const locId = (intel?.basic as Record<string, unknown> | undefined)?.locationId;
+    if (!locId || !String(locId).trim()) return { updatedBatches: 0 };
+
+    const catalog = await shopifyProductsService.getInventoryCatalog();
+    const product = catalog.find((p) => String((p as { id: string | number }).id) === shopifyProductId) as
+      | { variants?: Array<{ id: string | number }> }
+      | undefined;
+    if (!product?.variants?.length) return { updatedBatches: 0 };
+
+    let updatedBatches = 0;
+    for (const variant of product.variants) {
+      const itemIds = await this.listInventoryItemIdsForVariant(String(variant.id));
+      for (const itemId of itemIds) {
+        updatedBatches += await this.applyWarehouseLocationToItemBatches(itemId, String(locId));
+      }
+    }
+    return { updatedBatches };
+  },
+
   async applyCommerceBatchToWarehouse(
     inventoryItemId: string,
     warehouseId: string,
@@ -1319,6 +1402,7 @@ export const inventoryService = {
 
     if (!whBatch) {
       if (commerceQty <= 0) return 0;
+      const defaultLocationId = await this.findWarehouseLocationIdForInventoryItem(inventoryItemId);
       await this.createBatchFromGrn({
         inventoryItemId,
         warehouseId,
@@ -1326,8 +1410,22 @@ export const inventoryService = {
         mfgDate: cb.mfg_date ? String(cb.mfg_date) : null,
         expiryDate: cb.expiry_date ? String(cb.expiry_date) : null,
         qty: commerceQty,
+        locationId: defaultLocationId,
       });
       return commerceQty;
+    }
+
+    if (!whBatch.location_id) {
+      const defaultLocationId = await this.findWarehouseLocationIdForInventoryItem(inventoryItemId);
+      if (defaultLocationId) {
+        await supabase
+          .from('inventory_batches')
+          .update({
+            location_id: defaultLocationId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', whBatch.id);
+      }
     }
 
     if (targetOnHand === whOnHand) return 0;

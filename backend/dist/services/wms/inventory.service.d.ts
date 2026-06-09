@@ -166,6 +166,11 @@ export declare const inventoryService: {
     setBatchStatus(batchId: string, status: "active" | "quarantine" | "expired" | "depleted"): Promise<any>;
     pickAllocation(allocationId: string, qty: number): Promise<any>;
     finalizePack(allocationId: string): Promise<void>;
+    findWarehouseLocationIdForInventoryItem(inventoryItemId: string): Promise<string | null>;
+    applyWarehouseLocationToItemBatches(inventoryItemId: string, locationId?: string | null): Promise<number>;
+    applyProductWarehouseLocationFromIntelligence(shopifyProductId: string): Promise<{
+        updatedBatches: number;
+    }>;
     applyCommerceBatchToWarehouse(inventoryItemId: string, warehouseId: string, cb: Record<string, unknown>): Promise<number>;
     loadCommerceBatchesForItem(item: {
         id: string;

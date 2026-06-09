@@ -257,4 +257,109 @@ export const pickListService = {
     throwIfSupabaseError(error, 'Assign picker');
     return data;
   },
+
+  async resolveRackLocationForLine(line: {
+    allocation_id?: string | null;
+    batch_id?: string | null;
+  }): Promise<string | null> {
+    type LocRow = {
+      zone?: string | null;
+      rack?: string | null;
+      shelf?: string | null;
+      bin?: string | null;
+      location_code?: string | null;
+    };
+
+    const formatLoc = (loc: LocRow | null | undefined) =>
+      loc ? warehouseService.formatLocationDisplay(loc) : null;
+
+    if (line.allocation_id) {
+      const { data: alloc } = await supabase
+        .from('order_line_allocations')
+        .select(
+          'location_id, batch_id, inventory_batches(location_id, warehouse_locations(zone, rack, shelf, bin, location_code))'
+        )
+        .eq('id', line.allocation_id)
+        .maybeSingle();
+      if (alloc) {
+        const batchRaw = alloc.inventory_batches as
+          | Record<string, unknown>
+          | Array<Record<string, unknown>>
+          | null;
+        const batch = Array.isArray(batchRaw) ? batchRaw[0] ?? null : batchRaw;
+        const locRaw = batch?.warehouse_locations as LocRow | LocRow[] | null | undefined;
+        const joinedLoc = Array.isArray(locRaw) ? locRaw[0] ?? null : locRaw ?? null;
+        const fromJoin = formatLoc(joinedLoc);
+        if (fromJoin) return fromJoin;
+
+        const locationId =
+          (alloc.location_id as string | null) ??
+          (batch?.location_id as string | null) ??
+          null;
+        if (locationId) {
+          const { data: loc } = await supabase
+            .from('warehouse_locations')
+            .select('zone, rack, shelf, bin, location_code')
+            .eq('id', locationId)
+            .maybeSingle();
+          const formatted = formatLoc(loc as LocRow | null);
+          if (formatted) return formatted;
+        }
+      }
+    }
+
+    if (line.batch_id) {
+      const { data: batch } = await supabase
+        .from('inventory_batches')
+        .select('location_id, warehouse_locations(zone, rack, shelf, bin, location_code)')
+        .eq('id', line.batch_id)
+        .maybeSingle();
+      const locRaw = batch?.warehouse_locations as LocRow | LocRow[] | null | undefined;
+      const joinedLoc = Array.isArray(locRaw) ? locRaw[0] ?? null : locRaw ?? null;
+      const fromJoin = formatLoc(joinedLoc);
+      if (fromJoin) return fromJoin;
+
+      if (batch?.location_id) {
+        const { data: loc } = await supabase
+          .from('warehouse_locations')
+          .select('zone, rack, shelf, bin, location_code')
+          .eq('id', batch.location_id)
+          .maybeSingle();
+        const formatted = formatLoc(loc as LocRow | null);
+        if (formatted) return formatted;
+      }
+    }
+
+    return null;
+  },
+
+  async refreshRackLocations(pickListId: string): Promise<number> {
+    const { data: lines, error } = await supabase
+      .from('pick_list_lines')
+      .select('id, rack_location, allocation_id, batch_id, inventory_item_id')
+      .eq('pick_list_id', pickListId);
+    throwIfSupabaseError(error, 'Pick lines for rack refresh');
+
+    let updated = 0;
+    for (const line of lines ?? []) {
+      await inventoryService.applyWarehouseLocationToItemBatches(
+        String(line.inventory_item_id)
+      );
+
+      const rack = await this.resolveRackLocationForLine(line);
+      const current = String(line.rack_location ?? '').trim();
+      if (!rack || rack === current) continue;
+
+      const { error: updErr } = await supabase
+        .from('pick_list_lines')
+        .update({
+          rack_location: rack,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', line.id);
+      throwIfSupabaseError(updErr, 'Refresh pick line rack');
+      updated += 1;
+    }
+    return updated;
+  },
 };

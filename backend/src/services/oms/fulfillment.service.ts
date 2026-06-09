@@ -294,6 +294,13 @@ export const fulfillmentService = {
     ]);
     const pickLists = normalizePickLists<Record<string, unknown>>(order.pick_lists);
     const pickList = pickLists[0] ?? null;
+    if (pickList?.id) {
+      try {
+        await pickListService.refreshRackLocations(String(pickList.id));
+      } catch (err) {
+        logger.warn({ err, pickListId: pickList.id }, 'Pick line rack refresh failed');
+      }
+    }
     let packSession = null;
     if (pickList?.id) {
       const { data: sess } = await supabase

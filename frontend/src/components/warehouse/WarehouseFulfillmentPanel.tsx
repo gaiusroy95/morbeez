@@ -788,6 +788,15 @@ export function WarehouseFulfillmentPanel({
                 </div>
               ) : workflow?.currentRack ? (
                 <>
+                  {workflow.currentRack === 'UNASSIGNED' ? (
+                    <div className="pp-setup-card">
+                      <p>
+                        <strong>No warehouse rack on this pick line.</strong> Set the product&apos;s warehouse
+                        location in Commerce → Product wizard (Step 1), confirm it shows under Fulfillment stock,
+                        then click <strong>Rebuild pick list</strong> on this order.
+                      </p>
+                    </div>
+                  ) : null}
                   <section className="pp-rack-hero">
                     <div className="pp-rack-hero-top">
                       <div>

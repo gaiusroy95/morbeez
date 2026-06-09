@@ -22,6 +22,7 @@ import { consoleSearchService } from '../../services/admin/console-search.servic
 import { productIntelligenceService } from '../../services/admin/product-intelligence.service.js';
 import { shopifyProductsService } from '../../services/shopify/shopify.products.service.js';
 import { warehouseService } from '../../services/wms/warehouse.service.js';
+import { inventoryService } from '../../services/wms/inventory.service.js';
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
 import { marketInsightAdminService } from '../../services/admin/market-insight-admin.service.js';
@@ -2698,6 +2699,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
       admin.id
     );
+    await inventoryService.applyProductWarehouseLocationFromIntelligence(String(product.id)).catch(() => undefined);
     return reply.code(201).send({ ok: true, product });
   });
 
@@ -2718,6 +2720,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       },
       admin.id
     );
+    await inventoryService.applyProductWarehouseLocationFromIntelligence(String(id)).catch(() => undefined);
     return reply.send({ ok: true, product });
   });
 
