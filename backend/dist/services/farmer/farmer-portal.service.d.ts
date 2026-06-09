@@ -103,6 +103,48 @@ export declare const farmerPortalService: {
             }[];
         }[];
     }>;
+    getOrderTracking(farmerId: string, orderId: string): Promise<{
+        order: {
+            id: string;
+            orderNumber: string;
+            productTitle: string;
+            productImageUrl: string | null;
+            quantity: number;
+            amountInr: number;
+            status: string;
+            statusLabel: string;
+            statusTone: string;
+            orderedOn: string;
+            deliveredOn: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null;
+            lineItems: {
+                title: string;
+                quantity: number;
+                imageUrl: string | null;
+            }[];
+        };
+        tracking: {
+            courier: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null | undefined;
+            expectedDelivery: string | null;
+            deliveryBy: string;
+            paymentLabel: string;
+            paymentSubtext: string;
+            deliveryAddress: string | null;
+            shiprocketNote: string | null;
+            omsStatus: string | null;
+        };
+        timeline: {
+            key: string;
+            label: string;
+            at: string | null;
+            done: boolean;
+            pending?: boolean;
+        }[];
+        lineItems: import("../admin/telecaller-farmer-orders.service.js").TelecallerOrderLine[];
+    }>;
     getAdvisory(farmerId: string): Promise<{
         crop: {
             name: string;

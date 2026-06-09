@@ -403,3 +403,233 @@ html.morbeez-portal-authed #portal-bottom-nav {
   opacity: 0;
   pointer-events: none;
 }
+
+body.morbeez-portal--modal-open {
+  overflow: hidden;
+}
+
+.morbeez-portal__modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+@media (min-width: 640px) {
+  .morbeez-portal__modal-backdrop {
+    align-items: center;
+  }
+}
+
+.morbeez-portal__modal {
+  width: 100%;
+  max-width: 28rem;
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 1rem 1rem 0 0;
+  padding: 1.25rem 1.25rem 1.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+}
+
+@media (min-width: 640px) {
+  .morbeez-portal__modal {
+    border-radius: 1rem;
+  }
+}
+
+.morbeez-portal__modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__modal-sub {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--portal-muted);
+}
+
+.morbeez-portal__address-form {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.morbeez-portal__field {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__field em {
+  font-weight: 400;
+  color: var(--portal-muted);
+  font-style: normal;
+}
+
+.morbeez-portal__field input {
+  width: 100%;
+  border: 1px solid var(--portal-border);
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  font-weight: 400;
+  color: #111827;
+  background: #fff;
+}
+
+.morbeez-portal__field input:focus {
+  outline: 2px solid var(--portal-green-light);
+  border-color: var(--portal-green);
+}
+
+.morbeez-portal__form-error {
+  font-size: 0.85rem;
+  color: #991b1b;
+  background: #fef2f2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.morbeez-portal__form-error.hidden {
+  display: none;
+}
+
+.morbeez-portal__modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.morbeez-portal__modal--tracking {
+  position: relative;
+}
+
+.morbeez-portal__modal-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.morbeez-portal__order-row--clickable,
+.morbeez-portal__order-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.morbeez-portal__order-card:hover,
+.morbeez-portal__order-row--clickable:hover {
+  box-shadow: 0 4px 14px rgba(31, 143, 74, 0.12);
+}
+
+.morbeez-portal__order-card:focus-visible,
+.morbeez-portal__order-row--clickable:focus-visible {
+  outline: 2px solid var(--portal-green);
+  outline-offset: 2px;
+}
+
+.morbeez-portal__tracking-loading {
+  text-align: center;
+  padding: 2rem 0;
+  color: var(--portal-muted);
+  font-size: 0.9rem;
+}
+
+.morbeez-portal__tracking-meta {
+  margin-top: 1rem;
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__tracking-label {
+  display: inline-block;
+  min-width: 7rem;
+  color: var(--portal-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.morbeez-portal__tracking-note {
+  font-size: 0.8rem;
+  color: #92400e;
+  background: #fffbeb;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.65rem;
+}
+
+.morbeez-portal__tracking-timeline {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+.morbeez-portal__tracking-step {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  color: var(--portal-muted);
+}
+
+.morbeez-portal__tracking-step.is-done {
+  color: var(--color-trust);
+}
+
+.morbeez-portal__tracking-step.is-pending strong {
+  color: var(--portal-green);
+}
+
+.morbeez-portal__tracking-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  margin-top: 0.2rem;
+  border-radius: 999px;
+  background: #d1d5db;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #d1d5db;
+}
+
+.morbeez-portal__tracking-step.is-done .morbeez-portal__tracking-dot {
+  background: var(--portal-green);
+  box-shadow: 0 0 0 1px var(--portal-green);
+}
+
+.morbeez-portal__tracking-step.is-pending .morbeez-portal__tracking-dot {
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--portal-green);
+}
+
+.morbeez-portal__tracking-at {
+  font-size: 0.8rem;
+  color: var(--portal-muted);
+  margin-top: 0.15rem;
+}
+
+.morbeez-portal__tracking-items {
+  margin: 0.5rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: var(--color-trust);
+}

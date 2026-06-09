@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { farmerAuthService } from '../auth/farmer-auth.service.js';
-import { telecallerFarmerOrdersService } from '../admin/telecaller-farmer-orders.service.js';
+import { telecallerFarmerOrdersService, } from '../admin/telecaller-farmer-orders.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import { advisoryImageStorageService, resolveAdvisoryImageUrl, } from '../core/advisory-image-storage.service.js';
 import { cropImageReviewService } from '../core/crop-image-review.service.js';
@@ -83,6 +83,73 @@ function parseRecommendationBullets(text) {
         .map((s) => s.replace(/^[-*]\s*/, '').trim())
         .filter((s) => s.length > 3)
         .slice(0, 8);
+}
+const ACTIVE_OMS = new Set([
+    'confirmed',
+    'awb_generated',
+    'picking',
+    'packed',
+    'ready_dispatch',
+    'shipped',
+    'delivered',
+    'completed',
+]);
+function formatShippingAddress(addr) {
+    if (!addr || typeof addr !== 'object')
+        return null;
+    const parts = [
+        addr.name,
+        addr.line1 ?? addr.address1 ?? addr.address,
+        addr.line2 ?? addr.address2,
+        [addr.city, addr.state, addr.pincode ?? addr.zip].filter(Boolean).join(', '),
+    ]
+        .map((p) => (p ? String(p).trim() : ''))
+        .filter(Boolean);
+    return parts.length ? parts.join(', ') : null;
+}
+function buildOrderTimeline(order, commerce) {
+    const oms = commerce ? String(commerce.oms_status ?? '') : '';
+    const status = order.status;
+    const paid = order.paymentLabel === 'Paid';
+    const hasAwb = Boolean(order.trackingAwb || commerce?.tracking_awb);
+    const shipped = status === 'shipped' ||
+        status === 'delivered' ||
+        oms === 'shipped' ||
+        oms === 'ready_dispatch' ||
+        hasAwb;
+    const packed = ['packed', 'ready_dispatch', 'shipped', 'delivered', 'completed'].includes(oms) || shipped;
+    const confirmed = ACTIVE_OMS.has(oms) || status === 'processing' || packed || shipped;
+    const placedAt = formatDateTime(order.createdAt);
+    const paymentAt = paid ? placedAt : null;
+    const confirmedAt = commerce?.confirmed_at ? formatDateTime(String(commerce.confirmed_at)) : paid ? placedAt : null;
+    const packedAt = commerce?.packed_at ? formatDateTime(String(commerce.packed_at)) : null;
+    const shippedAt = commerce?.awb_generated_at
+        ? formatDateTime(String(commerce.awb_generated_at))
+        : hasAwb
+            ? order.dateLabel
+            : null;
+    const deliveredAt = status === 'delivered'
+        ? formatDateTime(String(commerce?.updated_at ?? order.createdAt))
+        : null;
+    if (status === 'cancelled') {
+        return [
+            { key: 'placed', label: 'Order placed', at: placedAt, done: true },
+            { key: 'cancelled', label: 'Order cancelled', at: deliveredAt, done: true },
+        ];
+    }
+    const steps = [
+        { key: 'placed', label: 'Order placed', at: placedAt, done: true },
+        { key: 'payment', label: 'Payment received', at: paymentAt, done: paid },
+        { key: 'confirmed', label: 'Order confirmed', at: confirmedAt, done: confirmed },
+        { key: 'packed', label: 'Packed for dispatch', at: packedAt, done: packed },
+        { key: 'shipped', label: 'Shipped', at: shippedAt, done: shipped },
+        { key: 'delivered', label: 'Delivered', at: deliveredAt, done: status === 'delivered', pending: status !== 'delivered' },
+    ];
+    const firstPending = steps.findIndex((s) => !s.done);
+    return steps.map((step, i) => ({
+        ...step,
+        pending: i === firstPending && !step.done,
+    }));
 }
 function publicOrder(row) {
     return {
@@ -213,6 +280,43 @@ export const farmerPortalService = {
     async listOrders(farmerId) {
         const { orders } = await telecallerFarmerOrdersService.listForFarmer(farmerId);
         return { orders: orders.map(publicOrder) };
+    },
+    async getOrderTracking(farmerId, orderId) {
+        const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+        let commerce = null;
+        const commerceId = order.commerceOrderId ?? (order.source === 'commerce' ? order.id : null);
+        if (commerceId) {
+            const { data, error } = await supabase
+                .from('commerce_orders')
+                .select('oms_status, confirmed_at, packed_at, awb_generated_at, expected_delivery_at, courier_name, shiprocket_error, tracking_awb, tracking_url, shipping_address, created_at, updated_at')
+                .eq('id', commerceId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Could not load tracking');
+            commerce = data ?? null;
+        }
+        const timeline = buildOrderTimeline(order, commerce);
+        const expectedDelivery = order.deliveryDateLabel !== '—'
+            ? order.deliveryDateLabel
+            : commerce?.expected_delivery_at
+                ? formatDateTime(String(commerce.expected_delivery_at))
+                : null;
+        return {
+            order: publicOrder(order),
+            tracking: {
+                courier: order.courier ?? (commerce?.courier_name ? String(commerce.courier_name) : null) ?? order.deliveryBy,
+                trackingAwb: order.trackingAwb ?? (commerce?.tracking_awb ? String(commerce.tracking_awb) : null),
+                trackingUrl: order.trackingUrl,
+                expectedDelivery,
+                deliveryBy: order.deliveryBy,
+                paymentLabel: order.paymentLabel,
+                paymentSubtext: order.paymentSubtext,
+                deliveryAddress: order.deliveryAddress ?? formatShippingAddress(commerce?.shipping_address),
+                shiprocketNote: commerce?.shiprocket_error ? String(commerce.shiprocket_error) : null,
+                omsStatus: commerce?.oms_status ? String(commerce.oms_status) : null,
+            },
+            timeline,
+            lineItems: order.lineItems,
+        };
     },
     async getAdvisory(farmerId) {
         const [blocksRes, recsRes, followUpsRes] = await Promise.all([

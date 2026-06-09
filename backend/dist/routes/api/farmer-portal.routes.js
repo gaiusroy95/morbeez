@@ -15,6 +15,12 @@ export async function farmerPortalRoutes(app) {
         const result = await farmerPortalService.listOrders(farmerId);
         return reply.send({ ok: true, ...result });
     });
+    app.get('/api/v1/farmer/portal/orders/:id/tracking', async (request, reply) => {
+        const { farmerId } = requireFarmer(request);
+        const { id } = request.params;
+        const result = await farmerPortalService.getOrderTracking(farmerId, id);
+        return reply.send({ ok: true, ...result });
+    });
     app.get('/api/v1/farmer/portal/advisory', async (request, reply) => {
         const { farmerId } = requireFarmer(request);
         const result = await farmerPortalService.getAdvisory(farmerId);

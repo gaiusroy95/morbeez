@@ -143,7 +143,11 @@
     var orderHtml = '';
     if (ord) {
       orderHtml =
-        '<div class="morbeez-portal__order-row">' +
+        '<div class="morbeez-portal__order-row morbeez-portal__order-row--clickable" data-order-track="' +
+        esc(ord.id) +
+        '" role="button" tabindex="0" aria-label="View tracking for ' +
+        esc(ord.orderNumber) +
+        '">' +
         (ord.productImageUrl
           ? '<img class="morbeez-portal__order-img" src="' + esc(ord.productImageUrl) + '" alt="" />'
           : '<div class="morbeez-portal__order-img"></div>') +
@@ -159,6 +163,7 @@
         ' · ' +
         esc(ord.deliveredOn || ord.orderedOn) +
         '</p>' +
+        '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking details →</p>' +
         '<button type="button" class="morbeez-btn-secondary mt-3 text-sm py-2 px-4" data-reorder="' +
         esc(ord.productTitle) +
         '">Order again</button>' +
@@ -214,9 +219,7 @@
       '</div>' +
       '<div class="flex flex-wrap gap-2 mt-4">' +
       '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-4" id="portal-edit-address">Edit address</button>' +
-      '<a href="' +
-      waUrl('Please help me update my delivery address') +
-      '" target="_blank" rel="noopener" class="morbeez-btn-primary text-sm py-2 px-4">Request update</a>' +
+      '<button type="button" class="morbeez-btn-primary text-sm py-2 px-4" id="portal-add-address">Add address</button>' +
       '</div></div>' +
 
       '<div><h2 class="morbeez-portal__section-title">At a glance</h2>' +
@@ -297,6 +300,132 @@
     bindHomeEvents();
   }
 
+  function closeAddressModal() {
+    var modal = $('portal-address-modal');
+    if (modal) modal.remove();
+    document.body.classList.remove('morbeez-portal--modal-open');
+  }
+
+  function showAddressModal(mode) {
+    closeAddressModal();
+    var isAdd = mode === 'add';
+    var overlay = document.createElement('div');
+    overlay.id = 'portal-address-modal';
+    overlay.className = 'morbeez-portal__modal-backdrop';
+    overlay.innerHTML =
+      '<div class="morbeez-portal__modal" role="dialog" aria-modal="true" aria-labelledby="portal-address-title">' +
+      '<h2 id="portal-address-title" class="morbeez-portal__modal-title">' +
+      (isAdd ? 'Add delivery address' : 'Edit delivery address') +
+      '</h2>' +
+      '<p class="morbeez-portal__modal-sub">Used for order delivery and checkout.</p>' +
+      '<form id="portal-address-form" class="morbeez-portal__address-form">' +
+      '<label class="morbeez-portal__field"><span>Street / house no.</span>' +
+      '<input type="text" id="portal-addr-line1" name="address1" required maxlength="240" autocomplete="address-line1" placeholder="e.g. Sulthan Bathery, Main Road" /></label>' +
+      '<label class="morbeez-portal__field"><span>Area / landmark <em>(optional)</em></span>' +
+      '<input type="text" id="portal-addr-line2" name="address2" maxlength="120" autocomplete="address-line2" placeholder="Near bus stand" /></label>' +
+      '<label class="morbeez-portal__field"><span>City / district</span>' +
+      '<input type="text" id="portal-addr-city" name="city" required maxlength="80" autocomplete="address-level2" placeholder="Wayanad" /></label>' +
+      '<label class="morbeez-portal__field"><span>State</span>' +
+      '<input type="text" id="portal-addr-state" name="state" required maxlength="80" autocomplete="address-level1" placeholder="Kerala" /></label>' +
+      '<label class="morbeez-portal__field"><span>PIN code</span>' +
+      '<input type="text" id="portal-addr-pin" name="pincode" required maxlength="6" inputmode="numeric" pattern="[0-9]{6}" autocomplete="postal-code" placeholder="673592" /></label>' +
+      '<p id="portal-address-form-error" class="morbeez-portal__form-error hidden"></p>' +
+      '<div class="morbeez-portal__modal-actions">' +
+      '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-4" id="portal-address-cancel">Cancel</button>' +
+      '<button type="submit" class="morbeez-btn-primary text-sm py-2 px-4" id="portal-address-save">' +
+      (isAdd ? 'Save address' : 'Update address') +
+      '</button></div></form></div>';
+    document.body.appendChild(overlay);
+    document.body.classList.add('morbeez-portal--modal-open');
+
+    var form = $('portal-address-form');
+    var formError = $('portal-address-form-error');
+    var saveBtn = $('portal-address-save');
+
+    function setFormError(msg) {
+      if (!formError) return;
+      if (msg) {
+        formError.textContent = msg;
+        formError.classList.remove('hidden');
+      } else {
+        formError.textContent = '';
+        formError.classList.add('hidden');
+      }
+    }
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeAddressModal();
+    });
+    $('portal-address-cancel').addEventListener('click', closeAddressModal);
+
+    if (!isAdd) {
+      api('/api/v1/farmer/portal/profile')
+        .then(function (res) {
+          var p = res.profile || {};
+          $('portal-addr-line1').value = p.shippingAddress || '';
+          $('portal-addr-city').value = p.district || '';
+          $('portal-addr-state').value = p.state || '';
+          $('portal-addr-pin').value = p.deliveryPincode || p.pincode || '';
+        })
+        .catch(function (e) {
+          setFormError(e.message);
+        });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      setFormError('');
+      var address1 = ($('portal-addr-line1').value || '').trim();
+      var address2 = ($('portal-addr-line2').value || '').trim();
+      var city = ($('portal-addr-city').value || '').trim();
+      var state = ($('portal-addr-state').value || '').trim();
+      var pincode = ($('portal-addr-pin').value || '').replace(/\D/g, '').slice(0, 6);
+      if (!address1) {
+        setFormError('Please enter your street address.');
+        return;
+      }
+      if (!city || !state) {
+        setFormError('Please enter city and state.');
+        return;
+      }
+      if (pincode.length !== 6) {
+        setFormError('Please enter a valid 6-digit PIN code.');
+        return;
+      }
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+      }
+      api('/api/v1/farmer/portal/address', {
+        method: 'PATCH',
+        body: JSON.stringify({
+          address1: address1,
+          address2: address2 || undefined,
+          city: city,
+          state: state,
+          pincode: pincode,
+        }),
+      })
+        .then(function () {
+          closeAddressModal();
+          hideError();
+          return loadSummary();
+        })
+        .catch(function (err) {
+          setFormError(err.message);
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = isAdd ? 'Save address' : 'Update address';
+          }
+        });
+    });
+
+    setTimeout(function () {
+      var first = $('portal-addr-line1');
+      if (first) first.focus();
+    }, 50);
+  }
+
   function bindHomeEvents() {
     document.querySelectorAll('[data-go-tab]').forEach(function (el) {
       el.addEventListener('click', function () {
@@ -304,7 +433,8 @@
       });
     });
     document.querySelectorAll('[data-reorder]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         var q = encodeURIComponent(btn.getAttribute('data-reorder') || '');
         window.location.href = (cfg.searchUrl || '/search') + '?q=' + q;
       });
@@ -312,24 +442,181 @@
     var editBtn = $('portal-edit-address');
     if (editBtn) {
       editBtn.addEventListener('click', function () {
-        var a1 = prompt('Street address');
-        if (a1 == null) return;
-        var city = prompt('City / district') || '';
-        var state = prompt('State') || '';
-        var pin = prompt('PIN code') || '';
-        api('/api/v1/farmer/portal/address', {
-          method: 'PATCH',
-          body: JSON.stringify({ address1: a1, city: city, state: state, pincode: pin }),
-        })
-          .then(function () {
-            return loadSummary();
-          })
-          .catch(function (e) {
-            showError(e.message);
-          });
+        showAddressModal('edit');
       });
     }
+    var addBtn = $('portal-add-address');
+    if (addBtn) {
+      addBtn.addEventListener('click', function () {
+        showAddressModal('add');
+      });
+    }
+    bindOrderTrackingClicks($('panel-home'));
     bindUpload();
+  }
+
+  function closeTrackingModal() {
+    var modal = $('portal-tracking-modal');
+    if (modal) modal.remove();
+    document.body.classList.remove('morbeez-portal--modal-open');
+  }
+
+  function showTrackingModal(orderId) {
+    if (!orderId) return;
+    closeTrackingModal();
+    var overlay = document.createElement('div');
+    overlay.id = 'portal-tracking-modal';
+    overlay.className = 'morbeez-portal__modal-backdrop';
+    overlay.innerHTML =
+      '<div class="morbeez-portal__modal morbeez-portal__modal--tracking" role="dialog" aria-modal="true" aria-labelledby="portal-tracking-title">' +
+      '<h2 id="portal-tracking-title" class="morbeez-portal__modal-title">Order tracking</h2>' +
+      '<p class="morbeez-portal__modal-sub">Loading tracking details…</p>' +
+      '<div class="morbeez-portal__tracking-loading">Please wait</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    document.body.classList.add('morbeez-portal--modal-open');
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) closeTrackingModal();
+    });
+
+    api('/api/v1/farmer/portal/orders/' + encodeURIComponent(orderId) + '/tracking')
+      .then(function (res) {
+        var order = res.order || {};
+        var tracking = res.tracking || {};
+        var timeline = res.timeline || [];
+        var lines = res.lineItems || order.lineItems || [];
+
+        var timelineHtml =
+          '<ol class="morbeez-portal__tracking-timeline">' +
+          timeline
+            .map(function (step) {
+              var cls = step.done ? 'is-done' : step.pending ? 'is-pending' : '';
+              return (
+                '<li class="morbeez-portal__tracking-step ' +
+                cls +
+                '"><span class="morbeez-portal__tracking-dot"></span>' +
+                '<div><strong>' +
+                esc(step.label) +
+                '</strong>' +
+                (step.at ? '<div class="morbeez-portal__tracking-at">' + esc(step.at) + '</div>' : '') +
+                '</div></li>'
+              );
+            })
+            .join('') +
+          '</ol>';
+
+        var trackLink = tracking.trackingUrl
+          ? '<a href="' +
+            esc(tracking.trackingUrl) +
+            '" target="_blank" rel="noopener" class="morbeez-btn-primary text-sm py-2 px-4 inline-flex mt-3">Track shipment ↗</a>'
+          : '';
+
+        var awbHtml = tracking.trackingAwb
+          ? '<p><span class="morbeez-portal__tracking-label">AWB</span> <strong>' +
+            esc(tracking.trackingAwb) +
+            '</strong></p>'
+          : '<p class="text-sm text-[var(--color-muted)]">AWB will appear once your order is shipped.</p>';
+
+        var noteHtml = tracking.shiprocketNote
+          ? '<p class="morbeez-portal__tracking-note">Courier note: ' + esc(tracking.shiprocketNote) + '</p>'
+          : '';
+
+        var itemsHtml = lines.length
+          ? '<ul class="morbeez-portal__tracking-items">' +
+            lines
+              .map(function (li) {
+                return (
+                  '<li>' +
+                  esc(li.title) +
+                  ' <span class="text-[var(--color-muted)]">× ' +
+                  esc(li.quantity || 1) +
+                  '</span></li>'
+                );
+              })
+              .join('') +
+            '</ul>'
+          : '';
+
+        overlay.querySelector('.morbeez-portal__modal').innerHTML =
+          '<button type="button" class="morbeez-portal__modal-close" id="portal-tracking-close" aria-label="Close">×</button>' +
+          '<h2 id="portal-tracking-title" class="morbeez-portal__modal-title">' +
+          esc(order.productTitle || order.orderNumber) +
+          '</h2>' +
+          '<p class="morbeez-portal__modal-sub">' +
+          esc(order.orderNumber) +
+          ' · ' +
+          inr(order.amountInr) +
+          ' · ' +
+          esc(order.orderedOn) +
+          '</p>' +
+          '<div class="mt-3">' +
+          badge(order.statusLabel, order.statusTone) +
+          '</div>' +
+          '<div class="morbeez-portal__tracking-meta">' +
+          '<p><span class="morbeez-portal__tracking-label">Courier</span> <strong>' +
+          esc(tracking.courier || '—') +
+          '</strong></p>' +
+          awbHtml +
+          (tracking.expectedDelivery && tracking.expectedDelivery !== '—'
+            ? '<p><span class="morbeez-portal__tracking-label">Expected delivery</span> <strong>' +
+              esc(tracking.expectedDelivery) +
+              '</strong></p>'
+            : '') +
+          (tracking.deliveryAddress
+            ? '<p><span class="morbeez-portal__tracking-label">Deliver to</span> ' +
+              esc(tracking.deliveryAddress) +
+              '</p>'
+            : '') +
+          (tracking.paymentLabel
+            ? '<p><span class="morbeez-portal__tracking-label">Payment</span> ' +
+              esc(tracking.paymentLabel) +
+              (tracking.paymentSubtext ? ' · ' + esc(tracking.paymentSubtext) : '') +
+              '</p>'
+            : '') +
+          noteHtml +
+          trackLink +
+          '</div>' +
+          '<h3 class="morbeez-portal__section-title mt-4">Tracking timeline</h3>' +
+          timelineHtml +
+          (itemsHtml ? '<h3 class="morbeez-portal__section-title mt-4">Items</h3>' + itemsHtml : '') +
+          '<div class="morbeez-portal__modal-actions mt-4">' +
+          '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-4" id="portal-tracking-dismiss">Close</button>' +
+          '</div>';
+
+        $('portal-tracking-close').addEventListener('click', closeTrackingModal);
+        $('portal-tracking-dismiss').addEventListener('click', closeTrackingModal);
+      })
+      .catch(function (err) {
+        overlay.querySelector('.morbeez-portal__modal').innerHTML =
+          '<button type="button" class="morbeez-portal__modal-close" id="portal-tracking-close" aria-label="Close">×</button>' +
+          '<h2 class="morbeez-portal__modal-title">Order tracking</h2>' +
+          '<p class="morbeez-portal__form-error">' +
+          esc(err.message || 'Could not load tracking') +
+          '</p>' +
+          '<div class="morbeez-portal__modal-actions mt-4">' +
+          '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-4" id="portal-tracking-dismiss">Close</button>' +
+          '</div>';
+        $('portal-tracking-close').addEventListener('click', closeTrackingModal);
+        $('portal-tracking-dismiss').addEventListener('click', closeTrackingModal);
+      });
+  }
+
+  function bindOrderTrackingClicks(root) {
+    if (!root) return;
+    root.querySelectorAll('[data-order-track]').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        if (e.target.closest('[data-reorder], a, button')) return;
+        showTrackingModal(el.getAttribute('data-order-track'));
+      });
+      el.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (e.target.closest('[data-reorder], a, button')) return;
+          showTrackingModal(el.getAttribute('data-order-track'));
+        }
+      });
+    });
   }
 
   function bindUpload() {
@@ -417,7 +704,11 @@
                 '</a>'
               : '';
           return (
-            '<div class="morbeez-portal__card">' +
+            '<div class="morbeez-portal__card morbeez-portal__order-card morbeez-portal__order-row--clickable" data-order-track="' +
+            esc(o.id) +
+            '" role="button" tabindex="0" aria-label="View tracking for ' +
+            esc(o.orderNumber) +
+            '">' +
             '<div class="morbeez-portal__order-row">' +
             (o.productImageUrl
               ? '<img class="morbeez-portal__order-img" src="' + esc(o.productImageUrl) + '" alt="" />'
@@ -440,6 +731,7 @@
             esc(o.orderedOn) +
             (o.deliveredOn && o.deliveredOn !== '—' ? ' · Delivered ' + esc(o.deliveredOn) : '') +
             '</p>' +
+            '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking details →</p>' +
             track +
             '<div class="flex flex-wrap gap-2 mt-3">' +
             '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-3" data-reorder="' +
@@ -454,10 +746,12 @@
         .join('') +
       '</div>';
     document.querySelectorAll('#panel-orders [data-reorder]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         window.location.href = (cfg.searchUrl || '/search') + '?q=' + encodeURIComponent(btn.getAttribute('data-reorder') || '');
       });
     });
+    bindOrderTrackingClicks($('panel-orders'));
   }
 
   function renderAdvisory() {
