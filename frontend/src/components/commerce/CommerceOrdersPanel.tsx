@@ -22,6 +22,7 @@ import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 type OrderRow = {
   id: string;
   source?: string;
+  commerceOrderId?: string | null;
   displayOrderId: string;
   farmerName: string;
   phone: string | null;
@@ -92,6 +93,7 @@ type OrderDetail = {
   timeline: TimelineStep[];
   notes: string;
   omsStatus?: string | null;
+  commerceOrderId?: string | null;
   isQuote?: boolean;
   quoteStatus?: string;
   checkoutToken?: string;
@@ -149,6 +151,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [pushingWarehouseId, setPushingWarehouseId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -205,6 +208,34 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
       }
       await load();
     });
+  }
+
+  async function pushQuoteToWarehouse(order: OrderRow) {
+    if (!canWrite || order.source !== 'quote' || order.quoteStatus !== 'paid') return;
+    setPushingWarehouseId(order.id);
+    setError('');
+    try {
+      const d = await api<{ ok: boolean; commerceOrderId: string }>(
+        `/morbeez-staff/api/v1/orders/quotes/${order.id}/push-to-warehouse`,
+        { method: 'POST' }
+      );
+      await load();
+      if (detail?.id === order.id) {
+        await openDetail({
+          ...order,
+          commerceOrderId: d.commerceOrderId,
+        });
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not push quote to warehouse');
+    } finally {
+      setPushingWarehouseId(null);
+    }
+  }
+
+  function warehouseOrderId(order: OrderRow) {
+    if (order.source === 'shopify') return order.id;
+    return order.commerceOrderId ?? null;
   }
 
   async function openDetail(order: OrderRow) {
@@ -285,7 +316,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
       {!loading ? (
         <Panel
           title="Orders & dispatch"
-          description="Click a row for shipping and timeline details. Create estimates from Telecaller CRM → lead → Estimates tab."
+          description="Paid quotes must be pushed to Warehouse before pick/pack. Fulfillment (pick, pack, GST invoice, COD) lives in Warehouse & OMS — order rows include a WMS shortcut when synced."
         >
           <TableWrap>
             <DataTable>
@@ -344,12 +375,21 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                       </td>
                       {canWarehouse ? (
                         <td onClick={(e) => e.stopPropagation()}>
-                          {o.source === 'shopify' ? (
+                          {warehouseOrderId(o) ? (
                             <WarehouseOrderLink
-                              orderId={o.id}
+                              orderId={warehouseOrderId(o)!}
                               omsStatus={o.omsStatus}
                               compact
                             />
+                          ) : o.source === 'quote' && o.quoteStatus === 'paid' && canWrite ? (
+                            <button
+                              type="button"
+                              className="commerce-warehouse-push-btn"
+                              disabled={pushingWarehouseId === o.id}
+                              onClick={() => void pushQuoteToWarehouse(o)}
+                            >
+                              {pushingWarehouseId === o.id ? 'Pushing…' : 'Push to WMS'}
+                            </button>
                           ) : (
                             <span className="muted">—</span>
                           )}
@@ -434,19 +474,54 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                   ))}
                 </ul>
               </div>
-              {detail.source === 'shopify' && canWarehouse ? (
+              {canWarehouse ? (
                 <div className="order-detail-section">
                   <h4>Warehouse fulfillment</h4>
-                  {detail.omsStatus ? (
-                    <p>
-                      OMS status: <Badge tone="role">{detail.omsStatus}</Badge>
-                    </p>
+                  {detail.commerceOrderId || detail.source === 'shopify' ? (
+                    <>
+                      {detail.omsStatus ? (
+                        <p>
+                          OMS status: <Badge tone="role">{detail.omsStatus}</Badge>
+                        </p>
+                      ) : (
+                        <p className="text-sm text-slate-600">Synced — awaiting confirmation in WMS.</p>
+                      )}
+                      <p className="mt-2">
+                        <WarehouseOrderLink
+                          orderId={detail.commerceOrderId ?? detail.id}
+                          omsStatus={detail.omsStatus}
+                        />
+                      </p>
+                    </>
+                  ) : detail.isQuote && detail.quoteStatus === 'paid' && canWrite ? (
+                    <>
+                      <p className="text-sm text-slate-600">
+                        This paid quote is not in the warehouse queue yet.
+                      </p>
+                      <Btn
+                        className="mt-2"
+                        disabled={pushingWarehouseId === detail.id}
+                        onClick={() =>
+                          void pushQuoteToWarehouse({
+                            id: detail.id,
+                            source: 'quote',
+                            quoteStatus: detail.quoteStatus,
+                            displayOrderId: detail.displayOrderId,
+                            farmerName: detail.farmerName,
+                            phone: detail.customer.phone,
+                            amount: detail.totals.total,
+                            status: detail.status,
+                            paymentLabel: detail.paymentLabel,
+                            createdAt: detail.orderDate,
+                          })
+                        }
+                      >
+                        {pushingWarehouseId === detail.id ? 'Pushing…' : 'Push to warehouse'}
+                      </Btn>
+                    </>
                   ) : (
                     <p className="text-sm text-slate-600">Not synced to warehouse yet.</p>
                   )}
-                  <p className="mt-2">
-                    <WarehouseOrderLink orderId={detail.id} omsStatus={detail.omsStatus} />
-                  </p>
                 </div>
               ) : null}
               <div className="order-detail-section">

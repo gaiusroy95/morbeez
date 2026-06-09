@@ -206,14 +206,18 @@ export declare const commerceQuoteService: {
         commerceOrderId: any;
         alreadyCompleted?: undefined;
     }>;
+    pushToWarehouse(id: string): Promise<{
+        commerceOrderId: string;
+        created: boolean;
+    }>;
+    repairUnsyncedPaidQuotes(limit?: number): Promise<{
+        repaired: number;
+        failed: number;
+        scanned: number;
+    }>;
     resyncToWarehouse(id: string): Promise<{
-        commerceOrderId: null;
-        omsStatus: null;
-        orderName?: undefined;
-    } | {
-        commerceOrderId: any;
-        omsStatus: any;
-        orderName: string;
+        commerceOrderId: string;
+        created: boolean;
     }>;
     acceptQuote(id: string): Promise<CommerceQuote>;
     cancel(id: string): Promise<void>;

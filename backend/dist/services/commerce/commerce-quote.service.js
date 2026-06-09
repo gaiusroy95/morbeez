@@ -9,6 +9,7 @@ import { razorpayCheckoutService } from '../razorpay/razorpay.checkout.service.j
 import { shopifyOrdersService } from '../shopify/shopify.orders.service.js';
 import { invoiceService } from '../oms/invoice.service.js';
 import { quoteOmsBridgeService } from '../oms/quote-oms-bridge.service.js';
+import { omsWorkflowService } from '../oms/workflow.service.js';
 const QUOTE_TTL_HOURS = 48;
 function quoteNumber() {
     const seq = String(Date.now()).slice(-5);
@@ -959,19 +960,123 @@ export const commerceQuoteService = {
             commerceOrderId: warehouse.commerceOrderId,
         };
     },
-    async resyncToWarehouse(id) {
+    async pushToWarehouse(id) {
         const quote = await this.get(id);
-        if (!quote.shopifyOrderId) {
-            throw new ValidationError('Quote has no Shopify order — complete payment first');
+        if (quote.status !== 'paid') {
+            throw new ValidationError('Only paid quotes can be pushed to warehouse');
         }
-        return quoteOmsBridgeService.syncShopifyOrderToWarehouse({
-            shopifyOrderId: quote.shopifyOrderId,
-            farmerId: quote.farmerId,
-            leadId: quote.leadId,
+        if (quote.commerceOrderId) {
+            const { data: order, error } = await supabase
+                .from('commerce_orders')
+                .select('id, oms_status, deleted_at')
+                .eq('id', quote.commerceOrderId)
+                .maybeSingle();
+            throwIfSupabaseError(error, 'Load linked commerce order');
+            if (order && !order.deleted_at) {
+                if (order.oms_status === 'pending') {
+                    await omsWorkflowService.confirmOrder(String(order.id));
+                }
+                return { commerceOrderId: String(order.id), created: false };
+            }
+        }
+        const hasRealShopify = !!quote.shopifyOrderId && !String(quote.shopifyOrderId).startsWith('quote-');
+        if (hasRealShopify) {
+            const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+                shopifyOrderId: quote.shopifyOrderId,
+                farmerId: quote.farmerId,
+                leadId: quote.leadId,
+                quoteId: quote.id,
+                quoteNumber: quote.quoteNumber,
+                paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+            });
+            await supabase
+                .from('commerce_quotes')
+                .update({
+                commerce_order_id: warehouse.commerceOrderId,
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', id);
+            return { commerceOrderId: String(warehouse.commerceOrderId), created: true };
+        }
+        const local = await quoteOmsBridgeService.createLocalOrderFromQuote({
             quoteId: quote.id,
             quoteNumber: quote.quoteNumber,
-            paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
+            farmerId: quote.farmerId,
+            leadId: quote.leadId,
+            customerName: quote.customerName,
+            customerPhone: quote.customerPhone,
+            customerEmail: quote.customerEmail,
+            customerState: quote.customerState,
+            shippingAddress: quote.shippingAddress,
+            lineItems: quote.lineItems,
+            total: quote.total,
+            prepaidAmount: quote.prepaidAmount,
+            codAmount: quote.codAmount,
+            razorpayPaymentId: quote.razorpayPaymentId ?? `staff-push-${quote.id}`,
+            razorpayOrderId: quote.razorpayOrderId ?? `staff-push-${quote.id}`,
+            fulfillmentMode: quote.codAmount > 0 && !quote.razorpayPaymentId ? 'cod' : 'paid',
         });
+        return {
+            commerceOrderId: String(local.commerceOrderId),
+            created: !local.alreadyExists,
+        };
+    },
+    async repairUnsyncedPaidQuotes(limit = 30) {
+        const { data: unlinked, error: unlinkedErr } = await supabase
+            .from('commerce_quotes')
+            .select('id')
+            .eq('status', 'paid')
+            .is('commerce_order_id', null)
+            .order('updated_at', { ascending: false })
+            .limit(limit);
+        throwIfSupabaseError(unlinkedErr, 'Load unsynced paid quotes');
+        const { data: linked, error: linkedErr } = await supabase
+            .from('commerce_quotes')
+            .select('id, commerce_order_id')
+            .eq('status', 'paid')
+            .not('commerce_order_id', 'is', null)
+            .order('updated_at', { ascending: false })
+            .limit(limit);
+        throwIfSupabaseError(linkedErr, 'Load linked paid quotes');
+        const pendingLinked = [];
+        const linkedIds = (linked ?? []).map((r) => String(r.commerce_order_id));
+        if (linkedIds.length) {
+            const { data: orders, error: ordersErr } = await supabase
+                .from('commerce_orders')
+                .select('id, oms_status, deleted_at')
+                .in('id', linkedIds);
+            throwIfSupabaseError(ordersErr, 'Load linked commerce orders');
+            const orderById = new Map((orders ?? []).map((o) => [String(o.id), o]));
+            for (const row of linked ?? []) {
+                const order = orderById.get(String(row.commerce_order_id));
+                if (!order || order.deleted_at || order.oms_status === 'pending') {
+                    pendingLinked.push(String(row.id));
+                }
+            }
+        }
+        const ids = [
+            ...new Set([
+                ...(unlinked ?? []).map((r) => String(r.id)),
+                ...pendingLinked,
+            ]),
+        ].slice(0, limit);
+        let repaired = 0;
+        let failed = 0;
+        for (const quoteId of ids) {
+            try {
+                await this.pushToWarehouse(quoteId);
+                repaired += 1;
+            }
+            catch (err) {
+                failed += 1;
+                const { logger } = await import('../../lib/logger.js');
+                logger.warn({ err, quoteId }, 'Paid quote warehouse repair failed');
+            }
+        }
+        return { repaired, failed, scanned: ids.length };
+    },
+    async resyncToWarehouse(id) {
+        return this.pushToWarehouse(id);
     },
     async acceptQuote(id) {
         const quote = await this.get(id);

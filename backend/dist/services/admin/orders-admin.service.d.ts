@@ -21,6 +21,7 @@ export declare const ordersAdminService: {
         orders: {
             id: string;
             source: "shopify" | "quote" | "razorpay_checkout";
+            commerceOrderId: string | null;
             shopifyOrderId: string | null;
             orderName: string | null;
             displayOrderId: string;
@@ -92,6 +93,7 @@ export declare const ordersAdminService: {
         notes: string;
         id: string;
         source: "shopify" | "quote" | "razorpay_checkout";
+        commerceOrderId: string | null;
         shopifyOrderId: string | null;
         orderName: string | null;
         displayOrderId: string;
@@ -166,6 +168,7 @@ export declare const ordersAdminService: {
         checkoutToken: string;
         id: string;
         source: "shopify" | "quote" | "razorpay_checkout";
+        commerceOrderId: string | null;
         shopifyOrderId: string | null;
         orderName: string | null;
         displayOrderId: string;

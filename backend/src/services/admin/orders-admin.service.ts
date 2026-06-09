@@ -24,6 +24,7 @@ export interface OrdersListQuery {
 interface NormalizedOrder {
   id: string;
   source: 'shopify' | 'razorpay_checkout' | 'quote';
+  commerceOrderId?: string | null;
   shopifyOrderId: string | null;
   orderName: string | null;
   displayOrderId: string;
@@ -294,6 +295,7 @@ function mapQuote(row: Record<string, unknown>): NormalizedOrder {
   return {
     id: String(row.id),
     source: 'quote',
+    commerceOrderId: row.commerce_order_id ? String(row.commerce_order_id) : null,
     shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
     orderName: row.quote_number ? String(row.quote_number) : null,
     email: row.customer_email ? String(row.customer_email) : null,
@@ -336,14 +338,44 @@ function mergeOrders(
   hiddenShopifyIds: Set<string> = new Set()
 ): NormalizedOrder[] {
   const seenShopify = new Set(commerce.map((o) => o.shopifyOrderId).filter(Boolean));
+  const commerceIds = new Set(commerce.map((o) => o.id));
+  const filteredQuotes = quotes.filter((q) => {
+    if (q.commerceOrderId && commerceIds.has(q.commerceOrderId)) return false;
+    if (q.shopifyOrderId && seenShopify.has(q.shopifyOrderId)) return false;
+    return true;
+  });
   const extra = checkouts.filter(
     (c) =>
       !c.shopifyOrderId ||
       (!seenShopify.has(c.shopifyOrderId) && !hiddenShopifyIds.has(c.shopifyOrderId))
   );
-  return [...quotes, ...commerce, ...extra].sort(
+  return [...filteredQuotes, ...commerce, ...extra].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+}
+
+async function attachQuoteWarehouseMeta(orders: NormalizedOrder[]): Promise<void> {
+  const linkedIds = [
+    ...new Set(
+      orders
+        .filter((o) => o.source === 'quote' && o.commerceOrderId)
+        .map((o) => String(o.commerceOrderId))
+    ),
+  ];
+  if (!linkedIds.length) return;
+
+  const { data, error } = await supabase
+    .from('commerce_orders')
+    .select('id, oms_status')
+    .in('id', linkedIds);
+  throwIfSupabaseError(error, 'Could not load quote warehouse status');
+  const omsById = new Map((data ?? []).map((r) => [String(r.id), String(r.oms_status ?? '')]));
+
+  for (const o of orders) {
+    if (o.source === 'quote' && o.commerceOrderId) {
+      o.omsStatus = omsById.get(String(o.commerceOrderId)) ?? o.omsStatus;
+    }
+  }
 }
 
 async function softDeleteCommerceOrder(
@@ -422,6 +454,7 @@ function toPublicOrder(o: NormalizedOrder) {
   return {
     id: o.id,
     source: o.source,
+    commerceOrderId: o.commerceOrderId ?? null,
     shopifyOrderId: o.shopifyOrderId,
     orderName: o.orderName,
     displayOrderId: o.displayOrderId,
@@ -825,6 +858,11 @@ export const ordersAdminService = {
 
     await commerceQuoteService.purgeExpired();
     await repairOrphanedSoftDeletes();
+    try {
+      await commerceQuoteService.repairUnsyncedPaidQuotes(30);
+    } catch {
+      /* list still loads if warehouse repair fails */
+    }
 
     const [commerceRows, checkoutRows, quotes, hiddenShopifyIds] = await Promise.all([
       loadCommerceOrdersForList(),
@@ -848,6 +886,7 @@ export const ordersAdminService = {
     );
 
     await attachFarmerNames(orders);
+    await attachQuoteWarehouseMeta(orders);
 
     if (query.search?.trim()) {
       const term = query.search.trim().toLowerCase();
@@ -914,6 +953,7 @@ export const ordersAdminService = {
     throwIfSupabaseError(quoteErr, 'Could not load quote');
     if (quoteRow) {
       const q = mapQuote(quoteRow as Record<string, unknown>);
+      await attachQuoteWarehouseMeta([q]);
       const lineItems = ((quoteRow.line_items as Array<Record<string, unknown>>) ?? []).map((li) => ({
         product: String(li.title ?? 'Product'),
         variant: String(li.sku ?? li.variantTitle ?? '—'),

@@ -133,6 +133,26 @@
   border: 1px solid #a7f3d0;
 }
 
+.commerce-warehouse-push-btn {
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid #fcd34d;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.commerce-warehouse-push-btn:hover:not(:disabled) {
+  background: #fef3c7;
+}
+
+.commerce-warehouse-push-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
 .commerce-order-row:hover td {
   background: #f8fafc;
 }

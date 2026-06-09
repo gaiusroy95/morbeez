@@ -239,6 +239,7 @@ function mapQuote(row) {
     return {
         id: String(row.id),
         source: 'quote',
+        commerceOrderId: row.commerce_order_id ? String(row.commerce_order_id) : null,
         shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
         orderName: row.quote_number ? String(row.quote_number) : null,
         email: row.customer_email ? String(row.customer_email) : null,
@@ -270,9 +271,37 @@ function mapQuote(row) {
 }
 function mergeOrders(commerce, checkouts, quotes = [], hiddenShopifyIds = new Set()) {
     const seenShopify = new Set(commerce.map((o) => o.shopifyOrderId).filter(Boolean));
+    const commerceIds = new Set(commerce.map((o) => o.id));
+    const filteredQuotes = quotes.filter((q) => {
+        if (q.commerceOrderId && commerceIds.has(q.commerceOrderId))
+            return false;
+        if (q.shopifyOrderId && seenShopify.has(q.shopifyOrderId))
+            return false;
+        return true;
+    });
     const extra = checkouts.filter((c) => !c.shopifyOrderId ||
         (!seenShopify.has(c.shopifyOrderId) && !hiddenShopifyIds.has(c.shopifyOrderId)));
-    return [...quotes, ...commerce, ...extra].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return [...filteredQuotes, ...commerce, ...extra].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+async function attachQuoteWarehouseMeta(orders) {
+    const linkedIds = [
+        ...new Set(orders
+            .filter((o) => o.source === 'quote' && o.commerceOrderId)
+            .map((o) => String(o.commerceOrderId))),
+    ];
+    if (!linkedIds.length)
+        return;
+    const { data, error } = await supabase
+        .from('commerce_orders')
+        .select('id, oms_status')
+        .in('id', linkedIds);
+    throwIfSupabaseError(error, 'Could not load quote warehouse status');
+    const omsById = new Map((data ?? []).map((r) => [String(r.id), String(r.oms_status ?? '')]));
+    for (const o of orders) {
+        if (o.source === 'quote' && o.commerceOrderId) {
+            o.omsStatus = omsById.get(String(o.commerceOrderId)) ?? o.omsStatus;
+        }
+    }
 }
 async function softDeleteCommerceOrder(id, now, actorEmail) {
     const { data, error } = await supabase
@@ -337,6 +366,7 @@ function toPublicOrder(o) {
     return {
         id: o.id,
         source: o.source,
+        commerceOrderId: o.commerceOrderId ?? null,
         shopifyOrderId: o.shopifyOrderId,
         orderName: o.orderName,
         displayOrderId: o.displayOrderId,
@@ -693,6 +723,12 @@ export const ordersAdminService = {
         const statusFilter = query.status ?? 'all';
         await commerceQuoteService.purgeExpired();
         await repairOrphanedSoftDeletes();
+        try {
+            await commerceQuoteService.repairUnsyncedPaidQuotes(30);
+        }
+        catch {
+            /* list still loads if warehouse repair fails */
+        }
         const [commerceRows, checkoutRows, quotes, hiddenShopifyIds] = await Promise.all([
             loadCommerceOrdersForList(),
             loadCheckoutSessionsForList(),
@@ -707,6 +743,7 @@ export const ordersAdminService = {
         throwIfSupabaseError(quotes.error, 'Could not load quotes');
         let orders = mergeOrders(commerceRows.map((r) => mapCommerceOrder(r)), checkoutRows.map((r) => mapCheckoutSession(r)), (quotes.data ?? []).map((r) => mapQuote(r)), hiddenShopifyIds);
         await attachFarmerNames(orders);
+        await attachQuoteWarehouseMeta(orders);
         if (query.search?.trim()) {
             const term = query.search.trim().toLowerCase();
             orders = orders.filter((o) => {
@@ -762,6 +799,7 @@ export const ordersAdminService = {
         throwIfSupabaseError(quoteErr, 'Could not load quote');
         if (quoteRow) {
             const q = mapQuote(quoteRow);
+            await attachQuoteWarehouseMeta([q]);
             const lineItems = (quoteRow.line_items ?? []).map((li) => ({
                 product: String(li.title ?? 'Product'),
                 variant: String(li.sku ?? li.variantTitle ?? '—'),

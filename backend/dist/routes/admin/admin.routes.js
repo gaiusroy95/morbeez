@@ -482,6 +482,21 @@ export async function adminRoutes(app) {
         const result = await commerceQuoteService.verifyPayment(id, body);
         return reply.send({ ok: true, ...result });
     });
+    app.post(`${api}/orders/quotes/:id/push-to-warehouse`, async (request, reply) => {
+        requireAdminRole(request, 'super_admin', 'admin', 'manager', 'operations');
+        const actor = requireAdmin(request);
+        const { id } = request.params;
+        const result = await commerceQuoteService.pushToWarehouse(id);
+        await logAdminMutation({
+            actorId: actor.id,
+            actorEmail: actor.email,
+            action: 'update',
+            resource: 'commerce_quotes',
+            resourceId: id,
+            details: { action: 'push_to_warehouse' },
+        });
+        return reply.send({ ok: true, ...result });
+    });
     app.delete(`${api}/orders/:id`, async (request, reply) => {
         const actor = requireAdmin(request);
         const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});

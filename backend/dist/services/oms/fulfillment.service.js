@@ -14,6 +14,7 @@ import { employeeActionLogService } from './employee-action-log.service.js';
 import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
 import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulfillment-queue.utils.js';
 import { ordersAdminService } from '../admin/orders-admin.service.js';
+import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 const FULFILLMENT_STATUSES = [
     'confirmed',
     'awb_generated',
@@ -64,6 +65,12 @@ export const fulfillmentService = {
     },
     async repairStalePickLists() {
         await ordersAdminService.repairWarehouseOrderVisibility();
+        try {
+            await commerceQuoteService.repairUnsyncedPaidQuotes(50);
+        }
+        catch (err) {
+            logger.warn({ err }, 'Paid quote warehouse sync during fulfillment repair failed');
+        }
         const sync = await inventoryService.syncAllCommerceStockToWarehouse();
         const { data: orders, error } = await supabase
             .from('commerce_orders')
