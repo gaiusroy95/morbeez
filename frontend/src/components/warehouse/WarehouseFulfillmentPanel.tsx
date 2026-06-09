@@ -793,8 +793,28 @@ export function WarehouseFulfillmentPanel({
                       <p>
                         <strong>No warehouse rack on this pick line.</strong> Set the product&apos;s warehouse
                         location in Commerce → Product wizard (Step 1), confirm it shows under Fulfillment stock,
-                        then click <strong>Rebuild pick list</strong> on this order.
+                        then rebuild this order&apos;s pick list.
                       </p>
+                      {canWrite ? (
+                        <div className="pp-setup-actions">
+                          <Btn
+                            size="sm"
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() => void syncInventoryAndRepair()}
+                          >
+                            Sync inventory
+                          </Btn>
+                          <Btn
+                            size="sm"
+                            variant="primary"
+                            disabled={busy}
+                            onClick={() => void runAction('/rebuild-pick-list', 'Pick list rebuilt')}
+                          >
+                            Rebuild pick list
+                          </Btn>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                   <section className="pp-rack-hero">
