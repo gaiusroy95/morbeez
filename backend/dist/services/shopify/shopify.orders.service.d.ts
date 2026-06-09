@@ -30,6 +30,7 @@ export interface CreatePaidOrderInput {
     razorpayPaymentId: string;
     razorpayOrderId: string;
     note?: string;
+    tags?: string;
 }
 export declare const shopifyOrdersService: {
     createPaidOrder(input: CreatePaidOrderInput): Promise<{

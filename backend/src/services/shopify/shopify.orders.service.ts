@@ -42,6 +42,7 @@ export interface CreatePaidOrderInput {
   razorpayPaymentId: string;
   razorpayOrderId: string;
   note?: string;
+  tags?: string;
 }
 
 interface ShopifyOrderResponse {
@@ -126,7 +127,7 @@ async function createShopifyOrderPayload(input: CreatePaidOrderInput, financialS
     send_receipt: false,
     inventory_behaviour: 'decrement_obeying_policy',
     note: input.note ?? `Paid via Razorpay (${input.razorpayPaymentId})`,
-    tags: 'razorpay-checkout,commerce_quote,telecaller',
+    tags: input.tags ?? 'razorpay-checkout,commerce_quote,telecaller',
     taxes_included: false,
     currency: 'INR',
   };

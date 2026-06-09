@@ -69,7 +69,7 @@ async function createShopifyOrderPayload(input, financialStatus) {
         send_receipt: false,
         inventory_behaviour: 'decrement_obeying_policy',
         note: input.note ?? `Paid via Razorpay (${input.razorpayPaymentId})`,
-        tags: 'razorpay-checkout,commerce_quote,telecaller',
+        tags: input.tags ?? 'razorpay-checkout,commerce_quote,telecaller',
         taxes_included: false,
         currency: 'INR',
     };

@@ -15,6 +15,7 @@ import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
 import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulfillment-queue.utils.js';
 import { ordersAdminService } from '../admin/orders-admin.service.js';
 import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
+import { checkoutOmsBridgeService } from '../checkout/checkout-oms-bridge.service.js';
 const FULFILLMENT_STATUSES = [
     'confirmed',
     'awb_generated',
@@ -145,6 +146,12 @@ export const fulfillmentService = {
         }
         catch (err) {
             logger.warn({ err }, 'Paid quote warehouse sync on queue load failed');
+        }
+        try {
+            await checkoutOmsBridgeService.repairUnsyncedPaidCheckouts(50);
+        }
+        catch (err) {
+            logger.warn({ err }, 'Paid checkout warehouse sync on queue load failed');
         }
         try {
             await repairPendingCommerceOrders(100);

@@ -2,8 +2,10 @@ import { randomUUID } from 'crypto';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
 import { razorpayCheckoutService } from '../razorpay/razorpay.checkout.service.js';
 import { shopifyOrdersService } from '../shopify/shopify.orders.service.js';
+import { checkoutOmsBridgeService } from './checkout-oms-bridge.service.js';
 
 export interface CheckoutLineInput {
   variantId: number;
@@ -111,6 +113,19 @@ export const checkoutService = {
     if (!session) throw new NotFoundError('Checkout session not found');
 
     if (session.status === 'paid' && session.shopify_order_id) {
+      try {
+        await checkoutOmsBridgeService.syncToWarehouse({
+          shopifyOrderId: String(session.shopify_order_id),
+          razorpayPaymentId: session.razorpay_payment_id
+            ? String(session.razorpay_payment_id)
+            : input.razorpayPaymentId,
+        });
+      } catch (err) {
+        logger.warn(
+          { err, sessionId: session.id, shopifyOrderId: session.shopify_order_id },
+          'Warehouse sync on idempotent checkout complete failed'
+        );
+      }
       return {
         alreadyCompleted: true,
         shopifyOrderId: session.shopify_order_id,
@@ -147,6 +162,7 @@ export const checkoutService = {
       totalAmountInr: totalInr,
       razorpayPaymentId: input.razorpayPaymentId,
       razorpayOrderId: input.razorpayOrderId,
+      tags: 'razorpay-checkout,website',
     });
 
     await supabase
@@ -172,6 +188,18 @@ export const checkoutService = {
         shopify_order_id: shopifyOrder.shopifyOrderId,
       },
     });
+
+    try {
+      await checkoutOmsBridgeService.syncToWarehouse({
+        shopifyOrderId: shopifyOrder.shopifyOrderId,
+        razorpayPaymentId: input.razorpayPaymentId,
+      });
+    } catch (err) {
+      logger.error(
+        { err, sessionId: session.id, shopifyOrderId: shopifyOrder.shopifyOrderId },
+        'Warehouse sync after checkout payment failed — repair job will retry'
+      );
+    }
 
     return {
       alreadyCompleted: false,
