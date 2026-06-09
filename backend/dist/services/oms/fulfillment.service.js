@@ -218,7 +218,7 @@ export const fulfillmentService = {
             omsWorkflowService.getOrderWorkflow(commerceOrderId),
             shiprocketService.getDiagnostics().catch(() => null),
         ]);
-        const pickLists = (order.pick_lists ?? []);
+        const pickLists = normalizePickLists(order.pick_lists);
         const pickList = pickLists[0] ?? null;
         let packSession = null;
         if (pickList?.id) {

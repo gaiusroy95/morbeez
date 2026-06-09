@@ -266,7 +266,7 @@ export const fulfillmentService = {
       omsWorkflowService.getOrderWorkflow(commerceOrderId),
       shiprocketService.getDiagnostics().catch(() => null),
     ]);
-    const pickLists = (order.pick_lists ?? []) as Array<Record<string, unknown>>;
+    const pickLists = normalizePickLists<Record<string, unknown>>(order.pick_lists);
     const pickList = pickLists[0] ?? null;
     let packSession = null;
     if (pickList?.id) {

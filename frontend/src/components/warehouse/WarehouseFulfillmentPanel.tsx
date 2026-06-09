@@ -93,6 +93,7 @@ type OrderDetail = {
     label_url: string | null;
     dispatch_rack: string | null;
     shiprocket_error: string | null;
+    shiprocket_shipment_id: string | null;
   };
   pickList: { id: string } | null;
   packSession: { id: string } | null;
@@ -411,7 +412,10 @@ export function WarehouseFulfillmentPanel({
   const workflow = detail?.workflow;
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
-  const awbRetryAllowed = Boolean(detail?.shiprocketErrorDisplay || order?.shiprocket_error);
+  const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
+  const awbRetryAllowed = Boolean(
+    detail?.shiprocketErrorDisplay || order?.shiprocket_error || awbPendingShipment
+  );
   const canGenerateAwb = (printStage || awbRetryAllowed) && !order?.tracking_awb;
   const activeStep = printStage ? 3 : workflow?.step ?? 1;
   const selectedQueue = queue.find((r) => r.id === selectedId);
@@ -709,7 +713,7 @@ export function WarehouseFulfillmentPanel({
                 </p>
                 {!printStage && awbRetryAllowed ? (
                   <p className="muted ff-print-stage-hint">
-                    Picking is not complete, but you can retry Generate AWB to clear a failed Shiprocket shipment.
+                    Picking is not complete, but you can {awbPendingShipment ? 'assign AWB to the pending Shiprocket shipment' : 'retry Generate AWB'} now.
                     Label and invoice printing still require rack picking.
                   </p>
                 ) : !printStage ? (
@@ -725,7 +729,11 @@ export function WarehouseFulfillmentPanel({
                       disabled={busy || !canGenerateAwb}
                       onClick={() => void runAction('/generate-awb', 'AWB generated')}
                     >
-                      {awbRetryAllowed && !printStage ? 'Retry Generate AWB' : 'Generate AWB'}
+                      {awbRetryAllowed && !printStage
+                        ? awbPendingShipment
+                          ? 'Assign AWB'
+                          : 'Retry Generate AWB'
+                        : 'Generate AWB'}
                     </Btn>
                   ) : null}
                   {order.label_url ? (
