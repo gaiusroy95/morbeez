@@ -15,6 +15,7 @@ async function cleanupEmptyPickList(pickListId, waveId) {
 export const pickListService = {
     async generateForOrder(commerceOrderId, createdBy) {
         const warehouse = await warehouseService.getDefaultWarehouse();
+        await inventoryService.releaseOrderAllocations(commerceOrderId, createdBy);
         const { data: existing } = await supabase
             .from('pick_lists')
             .select('id, pick_wave_id')
@@ -108,6 +109,7 @@ export const pickListService = {
         }
         catch (err) {
             await cleanupEmptyPickList(String(pickList.id), String(wave.id));
+            await inventoryService.releaseOrderAllocations(commerceOrderId, createdBy);
             throw err;
         }
         await supabase
@@ -119,6 +121,7 @@ export const pickListService = {
     async rebuildPickList(pickListId, createdBy) {
         const pick = await this.getPickList(pickListId);
         const commerceOrderId = String(pick.commerce_order_id);
+        await inventoryService.releaseOrderAllocations(commerceOrderId, createdBy);
         await cleanupEmptyPickList(pickListId, pick.pick_wave_id);
         return this.generateForOrder(commerceOrderId, createdBy);
     },

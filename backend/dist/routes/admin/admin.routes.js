@@ -483,8 +483,9 @@ export async function adminRoutes(app) {
         return reply.send({ ok: true, ...result });
     });
     app.delete(`${api}/orders/:id`, async (request, reply) => {
-        requireAdminRole(request, 'super_admin', 'admin', 'manager');
         const actor = requireAdmin(request);
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         const { id } = request.params;
         const q = request.query;
         const now = new Date().toISOString();

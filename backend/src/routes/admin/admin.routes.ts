@@ -555,8 +555,9 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.delete(`${api}/orders/:id`, async (request, reply) => {
-    requireAdminRole(request, 'super_admin', 'admin', 'manager');
     const actor = requireAdmin(request);
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
     const { id } = request.params as { id: string };
     const q = request.query as { source?: string };
     const now = new Date().toISOString();

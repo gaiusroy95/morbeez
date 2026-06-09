@@ -282,7 +282,7 @@ export const inventoryService = {
     let bestAvailable = -1;
 
     for (const id of candidateIds) {
-      await this.syncCommerceBatchesToWarehouse(id);
+      await this.syncCommerceBatchesToWarehouse(id, { shopifyFallback: false });
       const available = await this.getAvailableWarehouseQty(id, String(warehouse.id));
       if (available > bestAvailable) {
         bestAvailable = available;
@@ -594,7 +594,10 @@ export const inventoryService = {
         const batch = alloc.inventory_batches as Record<string, unknown>;
         const reserved = Number(batch.qty_reserved) || 0;
         const qty = Number(alloc.qty_allocated) - Number(alloc.qty_packed);
-        if (qty <= 0) continue;
+        if (qty <= 0) {
+          await supabase.from('order_line_allocations').delete().eq('id', alloc.id);
+          continue;
+        }
         await supabase
           .from('inventory_batches')
           .update({
@@ -613,7 +616,12 @@ export const inventoryService = {
           ref_id: commerceOrderId,
           created_by: actorEmail ?? null,
         });
+        await supabase.from('order_line_allocations').delete().eq('id', alloc.id);
       }
+      await supabase
+        .from('commerce_order_lines')
+        .update({ qty_allocated: 0, updated_at: new Date().toISOString() })
+        .eq('id', line.id);
     }
   },
 
@@ -911,7 +919,10 @@ export const inventoryService = {
    * Mirror commerce_stock_batches (and Shopify catalog qty as fallback) into WMS inventory_batches.
    * Applies to every inventory_items row sharing the same Shopify variant (fixes VAR-* duplicates).
    */
-  async syncCommerceBatchesToWarehouse(inventoryItemId: string) {
+  async syncCommerceBatchesToWarehouse(
+    inventoryItemId: string,
+    opts?: { shopifyFallback?: boolean }
+  ) {
     const { data: item, error: itemErr } = await supabase
       .from('inventory_items')
       .select('id, sku, product_title, shopify_variant_id')
@@ -926,7 +937,7 @@ export const inventoryService = {
     const targetIds = await this.collectLinkedInventoryItemIds(item);
 
     let commerceSource = [...commerceBatches];
-    if (!commerceSource.length) {
+    if (!commerceSource.length && opts?.shopifyFallback !== false) {
       const variantId = variantIds[0] ?? item.shopify_variant_id;
       const variantNum = variantId ? Number(variantId) : NaN;
       if (Number.isFinite(variantNum) && variantNum > 0) {
@@ -995,23 +1006,12 @@ export const inventoryService = {
       for (const itemId of itemIds) {
         if (syncedItemIds.has(itemId)) continue;
         syncedItemIds.add(itemId);
-        const result = await this.syncCommerceBatchesToWarehouse(itemId);
+        const result = await this.syncCommerceBatchesToWarehouse(itemId, {
+          shopifyFallback: false,
+        });
         if (result.syncedQty > 0) syncedQty += result.syncedQty;
       }
       syncedVariants += 1;
-    }
-
-    const { data: orderItems } = await supabase
-      .from('commerce_order_lines')
-      .select('inventory_item_id')
-      .not('inventory_item_id', 'is', null);
-
-    for (const row of orderItems ?? []) {
-      const id = String(row.inventory_item_id);
-      if (syncedItemIds.has(id)) continue;
-      syncedItemIds.add(id);
-      const result = await this.syncCommerceBatchesToWarehouse(id);
-      if (result.syncedQty > 0) syncedQty += result.syncedQty;
     }
 
     return { syncedVariants, syncedQty, variantCount: variantIds.length };

@@ -434,7 +434,7 @@ export async function osWarehouseRoutes(app) {
         const q = request.query;
         const queue = await fulfillmentService.getQueue({
             limit: q.limit ? Number(q.limit) : undefined,
-            repair: q.repair !== '0' && q.repair !== 'false',
+            repair: q.repair === '1' || q.repair === 'true',
         });
         return reply.send({ ok: true, queue });
     });

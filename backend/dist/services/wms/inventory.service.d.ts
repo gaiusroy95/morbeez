@@ -126,7 +126,9 @@ export declare const inventoryService: {
      * Mirror commerce_stock_batches (and Shopify catalog qty as fallback) into WMS inventory_batches.
      * Applies to every inventory_items row sharing the same Shopify variant (fixes VAR-* duplicates).
      */
-    syncCommerceBatchesToWarehouse(inventoryItemId: string): Promise<{
+    syncCommerceBatchesToWarehouse(inventoryItemId: string, opts?: {
+        shopifyFallback?: boolean;
+    }): Promise<{
         syncedQty: number;
     }>;
     /** Push all commerce_stock_batches into the default warehouse (one-time / queue repair). */

@@ -23,6 +23,7 @@ type QueueRow = {
   itemCount: number;
   orderItemCount?: number;
   stockIssue?: 'no_order_lines' | 'no_stock_reserved' | null;
+  missingProducts?: string[];
   priority: string;
   omsStatus: string;
   awb: string | null;
@@ -218,11 +219,10 @@ export function WarehouseFulfillmentPanel({
   const [busy, setBusy] = useState(false);
   const autoOpened = useRef(false);
 
-  const loadQueue = useCallback(async (opts?: { repair?: boolean }) => {
-    const repairQs = opts?.repair === false ? '?repair=0' : '';
+  const loadQueue = useCallback(async () => {
     const [s, q] = await Promise.all([
       api<{ ok: boolean; stats: Stats }>(`${WMS_API}/fulfillment/stats`),
-      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue${repairQs}`),
+      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue`),
     ]);
     setStats(s.stats);
     setQueue(q.queue ?? []);
@@ -407,8 +407,8 @@ export function WarehouseFulfillmentPanel({
       {canWrite ? (
         <div className="fulfillment-sync-row">
           <p className="muted fulfillment-sync-hint">
-            Commerce inventory stock is synced to the warehouse automatically when this page loads. If orders still show{' '}
-            <strong>0 / N</strong>, run sync now.
+            <strong>0 / N</strong> means warehouse stock is not reserved for that order&apos;s products. Use the button
+            below to sync Commerce inventory and rebuild pick lists. Orders for products with no stock will show an error.
           </p>
           <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void syncInventoryAndRepair()}>
             Sync inventory &amp; rebuild picks
@@ -464,6 +464,11 @@ export function WarehouseFulfillmentPanel({
                     {row.totalAmount != null ? <span>{formatInr(row.totalAmount)}</span> : null}
                     <span>{row.courier}</span>
                   </div>
+                  {row.stockIssue === 'no_stock_reserved' && row.missingProducts?.length ? (
+                    <span className="ff-order-stock-hint muted">
+                      No stock: {row.missingProducts.join(', ')}
+                    </span>
+                  ) : null}
                 </button>
               </li>
             ))}

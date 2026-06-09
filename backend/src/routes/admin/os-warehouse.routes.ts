@@ -500,7 +500,7 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     const q = request.query as { limit?: string; repair?: string };
     const queue = await fulfillmentService.getQueue({
       limit: q.limit ? Number(q.limit) : undefined,
-      repair: q.repair !== '0' && q.repair !== 'false',
+      repair: q.repair === '1' || q.repair === 'true',
     });
     return reply.send({ ok: true, queue });
   });

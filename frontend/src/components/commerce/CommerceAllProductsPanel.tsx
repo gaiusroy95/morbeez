@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
@@ -149,6 +149,17 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
 
   const [viewProduct, setViewProduct] = useState<ProductRow | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!menuId) return;
+    function onPointerDown(e: MouseEvent) {
+      if (menuRef.current?.contains(e.target as Node)) return;
+      setMenuId(null);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [menuId]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -271,8 +282,22 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     URL.revokeObjectURL(url);
   }
 
+  async function setProductStatus(id: string, status: 'active' | 'draft') {
+    if (!canWrite) return;
+    setMenuId(null);
+    try {
+      await api(`/morbeez-staff/api/v1/products/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update product status');
+    }
+  }
+
   async function archiveProduct(id: string) {
-    if (!canWrite || !window.confirm('Archive this product? It will be hidden from the product list.')) return;
+    if (!canWrite || !window.confirm('Delete this product? It will be archived and hidden from the product list.')) return;
     setMenuId(null);
     try {
       await api(`/morbeez-staff/api/v1/products/${id}`, { method: 'DELETE' });
@@ -635,56 +660,82 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                               {statusLabel(p.status)}
                             </span>
                           </td>
-                          <td style={{ position: 'relative' }}>
-                            <div className="commerce-products__actions">
+                          <td className="commerce-products__actions-cell">
+                            <div
+                              className="commerce-products__actions"
+                              ref={menuId === p.id ? menuRef : undefined}
+                            >
                               <button
                                 type="button"
-                                className="commerce-products__action-btn"
-                                title="View"
-                                onClick={() => setViewProduct(p)}
-                              >
-                                👁
-                              </button>
-                              <button
-                                type="button"
-                                className="commerce-products__action-btn"
-                                title="Edit"
-                                onClick={() =>
-                                  navigate(toPath(`${paths.commerce}/products/${p.id}/edit`))
-                                }
-                              >
-                                ✎
-                              </button>
-                              <button
-                                type="button"
-                                className="commerce-products__action-btn"
-                                title="More"
-                                onClick={() =>
-                                  setMenuId((id) => (id === p.id ? null : p.id))
-                                }
+                                className={`commerce-products__action-btn commerce-products__action-btn--more${
+                                  menuId === p.id ? ' is-open' : ''
+                                }`}
+                                title="Actions"
+                                aria-expanded={menuId === p.id}
+                                aria-haspopup="menu"
+                                onClick={() => setMenuId((id) => (id === p.id ? null : p.id))}
                               >
                                 ⋮
                               </button>
-                              {menuId === p.id && canWrite ? (
-                                <div
-                                  style={{
-                                    position: 'absolute',
-                                    marginTop: 4,
-                                    background: '#fff',
-                                    border: '1px solid #e5e7eb',
-                                    borderRadius: 8,
-                                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                                    zIndex: 2,
-                                  }}
-                                >
+                              {menuId === p.id ? (
+                                <div className="commerce-products__action-menu" role="menu">
                                   <button
                                     type="button"
-                                    className="commerce-products__btn"
-                                    style={{ display: 'block', width: '100%' }}
-                                    onClick={() => void archiveProduct(p.id)}
+                                    className="commerce-products__action-menu-item"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setMenuId(null);
+                                      setViewProduct(p);
+                                    }}
                                   >
-                                    Delete
+                                    View
                                   </button>
+                                  {canWrite ? (
+                                    <button
+                                      type="button"
+                                      className="commerce-products__action-menu-item"
+                                      role="menuitem"
+                                      onClick={() => {
+                                        setMenuId(null);
+                                        navigate(toPath(`${paths.commerce}/products/${p.id}/edit`));
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
+                                  ) : null}
+                                  {canWrite && p.status === 'active' ? (
+                                    <button
+                                      type="button"
+                                      className="commerce-products__action-menu-item"
+                                      role="menuitem"
+                                      onClick={() => void setProductStatus(p.id, 'draft')}
+                                    >
+                                      Hide (inactive)
+                                    </button>
+                                  ) : null}
+                                  {canWrite && p.status !== 'active' ? (
+                                    <button
+                                      type="button"
+                                      className="commerce-products__action-menu-item"
+                                      role="menuitem"
+                                      onClick={() => void setProductStatus(p.id, 'active')}
+                                    >
+                                      Unhide (active)
+                                    </button>
+                                  ) : null}
+                                  {canWrite ? (
+                                    <>
+                                      <div className="commerce-products__action-menu-divider" />
+                                      <button
+                                        type="button"
+                                        className="commerce-products__action-menu-item commerce-products__action-menu-item--danger"
+                                        role="menuitem"
+                                        onClick={() => void archiveProduct(p.id)}
+                                      >
+                                        Delete
+                                      </button>
+                                    </>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>

@@ -31,6 +31,7 @@ export declare const fulfillmentService: {
         itemCount: number;
         orderItemCount: number;
         stockIssue: string | null;
+        missingProducts: (string | undefined)[];
         priority: any;
         omsStatus: any;
         awb: any;

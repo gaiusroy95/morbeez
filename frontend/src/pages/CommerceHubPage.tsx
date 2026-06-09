@@ -5,8 +5,6 @@ import { defaultsForPage } from '../lib/console-page-search';
 import { paths, toPath } from '../lib/routes';
 import { useAuth } from '../context/AuthContext';
 import { HubTabs } from '../components/ui';
-import { Modal } from '../components/Modal';
-import { api } from '../lib/api';
 import { CommerceAllProductsPanel } from '../components/commerce/CommerceAllProductsPanel';
 import { CommerceInventoryPanel } from '../components/commerce/CommerceInventoryPanel';
 import { CommerceFarmersPanel } from '../components/commerce/CommerceFarmersPanel';
@@ -69,14 +67,6 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
     setSearch,
     searchDefaults.placeholder ?? 'Search orders, farmers, products…'
   );
-  const [confirmModal, setConfirmModal] = useState<{
-    title: string;
-    body: string;
-    action: () => Promise<void>;
-  } | null>(null);
-  const [archiveError, setArchiveError] = useState('');
-  const [ordersReload, setOrdersReload] = useState(0);
-
   useEffect(() => {
     if (isCommerceTab(tabFromUrl)) setTab(tabFromUrl);
   }, [tabFromUrl]);
@@ -91,18 +81,6 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
     },
     [searchParams, setSearchParams]
   );
-
-  async function archiveOrder(id: string, source?: string) {
-    setConfirmModal({
-      title: 'Archive order',
-      body: 'Archive/cancel this order?',
-      action: async () => {
-        await api(`/morbeez-staff/api/v1/orders/${id}?source=${encodeURIComponent(source ?? 'shopify')}`, {
-          method: 'DELETE',
-        });
-      },
-    });
-  }
 
   return (
     <div className="commerce-hub">
@@ -125,49 +103,18 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
         </p>
       ) : null}
       <HubTabs tabs={TABS} active={tab} onChange={onTabChange} />
-      {archiveError ? (
-        <p className="mb-3 text-sm text-red-600" role="alert">
-          {archiveError}
-        </p>
-      ) : null}
-
       {tab === 'products' ? <CommerceAllProductsPanel canWrite={canWrite} /> : null}
       {tab === 'inventory' ? (
         <CommerceInventoryPanel canWrite={canWrite} canWarehouseWrite={canWarehouseWrite} />
       ) : null}
       {tab === 'farmers' ? <CommerceFarmersPanel /> : null}
-      {tab === 'orders' ? (
-        <CommerceOrdersPanel
-          canWrite={canWrite}
-          onArchive={archiveOrder}
-          reloadToken={ordersReload}
-        />
-      ) : null}
+      {tab === 'orders' ? <CommerceOrdersPanel canWrite={canWrite} /> : null}
       {tab === 'offers' ? <CommerceOffersPanel canWrite={canWrite} /> : null}
       {tab === 'combos' ? <CommerceCombosPanel canWrite={canWrite} /> : null}
       {tab === 'flash' ? <CommerceFlashSalesPanel canWrite={canWrite} /> : null}
       {tab === 'logistics' ? <CommerceLogisticsPanel canWrite={canWrite} /> : null}
       {tab === 'banners' ? <CommerceBannersPanel canWrite={canWrite} /> : null}
 
-      {confirmModal ? (
-        <Modal
-          title={confirmModal.title}
-          onClose={() => setConfirmModal(null)}
-          onSave={async () => {
-            try {
-              setArchiveError('');
-              await confirmModal.action();
-              setConfirmModal(null);
-              setOrdersReload((n) => n + 1);
-            } catch (e) {
-              setArchiveError(e instanceof Error ? e.message : 'Action failed');
-            }
-          }}
-          saveLabel="Confirm"
-        >
-          <p className="text-sm text-slate-700">{confirmModal.body}</p>
-        </Modal>
-      ) : null}
     </div>
   );
 }

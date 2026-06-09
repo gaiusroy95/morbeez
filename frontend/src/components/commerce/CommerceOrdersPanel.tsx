@@ -17,6 +17,7 @@ import {
 } from '../ui';
 import { WarehouseOrderLink } from '../warehouse/WarehouseOrderLink';
 import { useAuth } from '../../context/AuthContext';
+import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 
 type OrderRow = {
   id: string;
@@ -123,13 +124,11 @@ const PAGE_SIZE = 10;
 
 type Props = {
   canWrite: boolean;
-  onArchive: (id: string, source?: string) => void;
-  /** Increment after archive so the list refetches */
-  reloadToken?: number;
 };
 
-export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Props) {
+export function CommerceOrdersPanel({ canWrite }: Props) {
   const { can } = useAuth();
+  const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
   const canWarehouse = can('warehouse', 'read');
   const [tab, setTab] = useState<OrderTab>('all');
   const [payment, setPayment] = useState<'' | 'cod' | 'paid'>('');
@@ -187,7 +186,26 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
 
   useEffect(() => {
     void load();
-  }, [load, reloadToken]);
+  }, [load]);
+
+  function deleteOrder(order: OrderRow) {
+    if (!canEditDelete) return;
+    const label = order.displayOrderId;
+    requestConfirm('delete', label, async (confirmPassword) => {
+      await api(
+        `/morbeez-staff/api/v1/orders/${order.id}?source=${encodeURIComponent(order.source ?? 'shopify')}`,
+        {
+          method: 'DELETE',
+          body: JSON.stringify({ confirmPassword }),
+        }
+      );
+      if (detail?.id === order.id) {
+        setDetail(null);
+        setDetailLoading(false);
+      }
+      await load();
+    });
+  }
 
   async function openDetail(order: OrderRow) {
     setDetailLoading(true);
@@ -280,7 +298,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                   <th>Payment</th>
                   <th>Date</th>
                   {canWarehouse ? <th>Warehouse</th> : null}
-                  <th />
+                  {canEditDelete ? <th>Actions</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -337,22 +355,26 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
                           )}
                         </td>
                       ) : null}
-                      <td onClick={(e) => e.stopPropagation()}>
-                        {canWrite && o.status !== 'cancelled' ? (
+                      {canEditDelete ? (
+                        <td onClick={(e) => e.stopPropagation()}>
                           <button
                             type="button"
-                            className="text-xs text-red-600 hover:underline"
-                            onClick={() => onArchive(o.id, o.source)}
+                            className="commerce-orders-delete-btn"
+                            onClick={() => deleteOrder(o)}
                           >
-                            Archive
+                            Delete
                           </button>
-                        ) : null}
-                      </td>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={canWarehouse ? 8 : 7}>
+                    <td
+                      colSpan={
+                        6 + (canWarehouse ? 1 : 0) + (canEditDelete ? 1 : 0)
+                      }
+                    >
                       <EmptyState>No orders found.</EmptyState>
                     </td>
                   </tr>
@@ -560,6 +582,7 @@ export function CommerceOrdersPanel({ canWrite, onArchive, reloadToken = 0 }: Pr
           ) : null}
         </Modal>
       )}
+      {confirmModal}
     </>
   );
 }

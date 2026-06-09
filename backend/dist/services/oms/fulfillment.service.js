@@ -12,6 +12,7 @@ import { omsWorkflowService } from './workflow.service.js';
 import { invoiceService } from './invoice.service.js';
 import { employeeActionLogService } from './employee-action-log.service.js';
 import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
+import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulfillment-queue.utils.js';
 const FULFILLMENT_STATUSES = [
     'confirmed',
     'awb_generated',
@@ -69,27 +70,9 @@ export const fulfillmentService = {
     },
     async repairStalePickLists() {
         const sync = await inventoryService.syncAllCommerceStockToWarehouse();
-        const { data: pendingLines } = await supabase
-            .from('commerce_order_lines')
-            .select('id, inventory_item_id, sku, product_title, commerce_orders!inner(oms_status)')
-            .not('inventory_item_id', 'is', null)
-            .in('commerce_orders.oms_status', [...FULFILLMENT_STATUSES]);
-        for (const line of pendingLines ?? []) {
-            try {
-                await inventoryService.resolveInventoryItemForOrderLine({
-                    id: String(line.id),
-                    inventory_item_id: line.inventory_item_id ? String(line.inventory_item_id) : null,
-                    sku: line.sku ? String(line.sku) : null,
-                    product_title: String(line.product_title ?? 'Product'),
-                });
-            }
-            catch (err) {
-                logger.debug({ err, lineId: line.id }, 'Order line relink skipped');
-            }
-        }
         const { data: orders, error } = await supabase
             .from('commerce_orders')
-            .select('id, pick_lists(id, pick_list_lines(id))')
+            .select('id, pick_lists(id, pick_list_lines(id, qty_required))')
             .in('oms_status', [...FULFILLMENT_STATUSES]);
         throwIfSupabaseError(error, 'Fulfillment repair list');
         let repaired = 0;
@@ -104,8 +87,8 @@ export const fulfillmentService = {
             String(o.order_name ?? o.shopify_order_id ?? o.id),
         ]));
         for (const order of orders ?? []) {
-            const pickLists = (order.pick_lists ?? []);
-            const lineCount = pickLists[0]?.pick_list_lines?.length ?? 0;
+            const pickLists = normalizePickLists(order.pick_lists);
+            const lineCount = pickListLineCount(pickLists);
             if (lineCount > 0)
                 continue;
             const orderId = String(order.id);
@@ -123,36 +106,39 @@ export const fulfillmentService = {
         return { ...sync, repaired, failed, errors };
     },
     async getQueue(opts) {
-        if (opts?.repair !== false) {
+        if (opts?.repair === true) {
             try {
                 await this.repairStalePickLists();
             }
             catch (err) {
-                logger.error({ err }, 'Fulfillment queue auto-repair failed');
+                logger.error({ err }, 'Fulfillment queue repair failed');
             }
         }
         const { data, error } = await supabase
             .from('commerce_orders')
             .select(`id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
          fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
-         pick_lists(id, status, pick_list_lines(id)),
-         commerce_order_lines(id, qty_ordered, qty_cancelled)`)
+         pick_lists(id, status, pick_list_lines(id, qty_required)),
+         commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`)
             .in('oms_status', [...FULFILLMENT_STATUSES])
             .order('fulfillment_priority', { ascending: false })
             .order('created_at', { ascending: true })
             .limit(opts?.limit ?? 80);
         throwIfSupabaseError(error, 'Fulfillment queue');
         return (data ?? []).map((row) => {
-            const pickLists = (row.pick_lists ?? []);
-            const orderLines = (row.commerce_order_lines ?? []);
+            const pickLists = normalizePickLists(row.pick_lists);
+            const orderLines = normalizeRelation(row.commerce_order_lines);
             const pick = pickLists[0];
-            const pickItemCount = pick?.pick_list_lines?.length ?? 0;
+            const pickItemCount = pickListLineCount(pickLists);
             const orderItemCount = orderLines.reduce((sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)), 0);
             const stockIssue = orderItemCount === 0
                 ? 'no_order_lines'
                 : pickItemCount === 0
                     ? 'no_stock_reserved'
                     : null;
+            const missingProducts = stockIssue === 'no_stock_reserved'
+                ? orderLines.map((l) => l.product_title).filter(Boolean).slice(0, 2)
+                : [];
             const shipAddr = row.shipping_address;
             const customerName = shipAddr?.name
                 ? String(shipAddr.name)
@@ -167,6 +153,7 @@ export const fulfillmentService = {
                 itemCount: pickItemCount,
                 orderItemCount,
                 stockIssue,
+                missingProducts,
                 priority: row.fulfillment_priority ?? 'normal',
                 omsStatus: row.oms_status,
                 awb: row.tracking_awb,
