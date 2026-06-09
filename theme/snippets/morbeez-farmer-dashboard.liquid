@@ -1,0 +1,65 @@
+{{ 'farmer-portal.css' | asset_url | stylesheet_tag }}
+
+<section class="morbeez-section morbeez-portal" id="MorbeezFarmerPortal">
+  <div class="morbeez-container max-w-5xl">
+    <div id="portal-gate" class="morbeez-portal__gate">
+      <p class="text-lg font-bold text-[var(--color-trust)]">Sign in to view your farm dashboard</p>
+      <p class="text-sm text-[var(--color-muted)]">Track orders, crop advice, soil reports &amp; more.</p>
+      <a href="/pages/login?return=dashboard" class="morbeez-btn-primary mt-2">Login / Sign up</a>
+    </div>
+
+    <div id="portal-app" class="hidden">
+      <div id="portal-error" class="morbeez-portal__error hidden" role="alert"></div>
+      <div id="portal-loading" class="morbeez-portal__loading">Loading your dashboard…</div>
+
+      <div id="portal-content" class="hidden morbeez-portal__stack morbeez-portal__stack--lg">
+        <!-- Home -->
+        <div class="morbeez-portal__panel is-active" data-portal-panel="home" id="panel-home"></div>
+        <!-- Orders -->
+        <div class="morbeez-portal__panel" data-portal-panel="orders" id="panel-orders"></div>
+        <!-- Advisory -->
+        <div class="morbeez-portal__panel" data-portal-panel="advisory" id="panel-advisory"></div>
+        <!-- Reports -->
+        <div class="morbeez-portal__panel" data-portal-panel="reports" id="panel-reports"></div>
+        <!-- Support -->
+        <div class="morbeez-portal__panel" data-portal-panel="support" id="panel-support"></div>
+      </div>
+    </div>
+  </div>
+
+  <nav id="portal-bottom-nav" class="morbeez-portal__bottom-nav hidden" aria-label="Farmer dashboard">
+    <button type="button" class="morbeez-portal__nav-btn is-active" data-portal-tab="home">
+      <span class="morbeez-portal__nav-icon" aria-hidden="true">🏠</span>
+      <span>Home</span>
+    </button>
+    <button type="button" class="morbeez-portal__nav-btn" data-portal-tab="orders">
+      <span class="morbeez-portal__nav-icon" aria-hidden="true">📦</span>
+      <span>Orders</span>
+    </button>
+    <button type="button" class="morbeez-portal__nav-btn" data-portal-tab="advisory">
+      <span class="morbeez-portal__nav-icon" aria-hidden="true">🌱</span>
+      <span>Advisory</span>
+    </button>
+    <button type="button" class="morbeez-portal__nav-btn" data-portal-tab="reports">
+      <span class="morbeez-portal__nav-icon" aria-hidden="true">🧪</span>
+      <span>Reports</span>
+    </button>
+    <button type="button" class="morbeez-portal__nav-btn" data-portal-tab="support">
+      <span class="morbeez-portal__nav-icon" aria-hidden="true">💬</span>
+      <span>Support</span>
+    </button>
+  </nav>
+</section>
+
+<script>
+  window.MORBEEZ_PORTAL = {
+    apiBase: {{ settings.morbeez_api_base_url | default: 'https://morbeez-api-5hbx.onrender.com' | json }},
+    loginUrl: {{ '/pages/login' | url | json }},
+    shopUrl: {{ routes.root_url | json }},
+    searchUrl: {{ routes.search_url | json }},
+    cropDoctorUrl: {{ '/pages/crop-doctor' | url | json }},
+    whatsappPhone: {{ settings.whatsapp_phone | default: '917676026318' | json }},
+    whatsappMessage: {{ settings.whatsapp_message | default: 'Hi Morbeez, I need help with my farm.' | json }}
+  };
+</script>
+<script src="{{ 'farmer-portal.js' | asset_url }}" defer></script>

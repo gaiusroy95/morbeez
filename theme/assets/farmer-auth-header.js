@@ -45,8 +45,8 @@
         var label = [f.firstName, f.lastName].filter(Boolean).join(' ') || f.name || 'Account';
         links.forEach(function (a) {
           a.textContent = label;
-          a.setAttribute('href', '/pages/login');
-          a.setAttribute('title', f.email || '');
+          a.setAttribute('href', '/pages/dashboard');
+          a.setAttribute('title', f.email || 'My dashboard');
         });
       })
       .catch(function () {});

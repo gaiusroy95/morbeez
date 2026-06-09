@@ -172,12 +172,21 @@
     setTab('signup');
   }
 
+  var params = new URLSearchParams(window.location.search);
+
+  function maybeRedirectAfterAuth() {
+    if (params.get('return') === 'dashboard' && getToken()) {
+      window.location.href = '/pages/dashboard';
+    }
+  }
+
   function checkSession() {
     if (!getToken()) return;
     api('/me', { method: 'GET' })
       .then(function (r) {
         if (r.ok && r.data.farmer) {
           showLoggedIn(r.data.farmer);
+          maybeRedirectAfterAuth();
         } else {
           setToken(null);
         }
@@ -204,6 +213,7 @@
             var done = function () {
               showLoggedIn(r.data.farmer);
               showMessage(onSuccess.message, false);
+              maybeRedirectAfterAuth();
             };
             if (window.MorbeezCart) {
               window.MorbeezCart.syncCartForFarmer(r.data.farmer).then(done);
@@ -281,6 +291,7 @@
             var doneSignup = function () {
               showLoggedIn(r.data.farmer);
               showMessage('Account created successfully.', false);
+              maybeRedirectAfterAuth();
             };
             if (window.MorbeezCart) {
               window.MorbeezCart.syncCartForFarmer(r.data.farmer).then(doneSignup);
@@ -322,7 +333,6 @@
     });
   }
 
-  var params = new URLSearchParams(window.location.search);
   var onLoginPage = /\/pages\/login\/?$/i.test(window.location.pathname);
   if (params.get('tab') === 'login' || onLoginPage) setTab('login');
 

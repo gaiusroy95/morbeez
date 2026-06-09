@@ -1,23 +1,50 @@
-{%- if page.handle == 'login' -%}
-  <div class="morbeez-container morbeez-section pt-6">
-    {%- render 'morbeez-breadcrumbs' -%}
-  </div>
-  {%- render 'morbeez-farmer-auth' -%}
-{%- elsif page.handle == 'checkout' -%}
-  {%- render 'morbeez-checkout' -%}
-{%- elsif page.handle == 'checkout-success' -%}
-  {%- render 'morbeez-checkout-success' -%}
-{%- else -%}
-  <div class="morbeez-container morbeez-section">
-    {%- render 'morbeez-breadcrumbs' -%}
-    <h1 class="font-heading text-3xl font-bold">{{ page.title }}</h1>
-    <div class="mt-6 prose prose-sm max-w-none">{{ page.content }}</div>
-  </div>
-{%- endif -%}
-
-{% schema %}
-{
-  "name": "t:sections.main_page.name",
-  "settings": []
-}
-{% endschema %}
+{%- if page.handle == 'login' -%}
+
+  <div class="morbeez-container morbeez-section pt-6">
+
+    {%- render 'morbeez-breadcrumbs' -%}
+
+  </div>
+
+  {%- render 'morbeez-farmer-auth' -%}
+
+{%- elsif page.handle == 'checkout' -%}
+
+  {%- render 'morbeez-checkout' -%}
+
+{%- elsif page.handle == 'checkout-success' -%}
+
+  {%- render 'morbeez-checkout-success' -%}
+
+{%- elsif page.handle == 'dashboard' or page.handle == 'my-account' -%}
+
+  {%- render 'morbeez-farmer-dashboard' -%}
+
+{%- else -%}
+
+  <div class="morbeez-container morbeez-section">
+
+    {%- render 'morbeez-breadcrumbs' -%}
+
+    <h1 class="font-heading text-3xl font-bold">{{ page.title }}</h1>
+
+    <div class="mt-6 prose prose-sm max-w-none">{{ page.content }}</div>
+
+  </div>
+
+{%- endif -%}
+
+
+
+{% schema %}
+
+{
+
+  "name": "t:sections.main_page.name",
+
+  "settings": []
+
+}
+
+{% endschema %}
+

@@ -1,0 +1,386 @@
+/* Morbeez farmer customer portal — mobile-first, no CRM chrome */
+.morbeez-portal {
+  --portal-green: #1f8f4a;
+  --portal-green-light: #e8f7ee;
+  --portal-blue: #2563eb;
+  --portal-purple: #7c3aed;
+  --portal-orange: #ea580c;
+  --portal-muted: #6b7280;
+  --portal-border: #e5e7eb;
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.morbeez-portal__gate {
+  min-height: 50vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 2rem 1rem;
+}
+
+.morbeez-portal__hero {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .morbeez-portal__hero {
+    grid-template-columns: 1.2fr 0.8fr;
+    align-items: start;
+  }
+}
+
+.morbeez-portal__greeting {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: var(--color-trust);
+  line-height: 1.2;
+}
+
+.morbeez-portal__sub {
+  color: var(--portal-muted);
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+.morbeez-portal__crop-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__crop-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--portal-green-light);
+  color: var(--portal-green);
+  font-weight: 600;
+}
+
+.morbeez-portal__banner-card {
+  border-radius: 1rem;
+  overflow: hidden;
+  min-height: 140px;
+  background: linear-gradient(135deg, #166534, #22c55e);
+  color: #fff;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+}
+
+.morbeez-portal__banner-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.2), transparent 55%);
+}
+
+.morbeez-portal__banner-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.morbeez-portal__quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .morbeez-portal__quick-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.morbeez-portal__quick-card {
+  border: 1px solid var(--portal-border);
+  border-radius: 1rem;
+  padding: 1rem;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.morbeez-portal__quick-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.morbeez-portal__quick-card--orders { border-top: 3px solid var(--portal-green); }
+.morbeez-portal__quick-card--advisory { border-top: 3px solid var(--portal-blue); }
+.morbeez-portal__quick-card--reports { border-top: 3px solid var(--portal-purple); }
+.morbeez-portal__quick-card--roi { border-top: 3px solid var(--portal-orange); }
+
+.morbeez-portal__quick-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__quick-desc {
+  font-size: 0.75rem;
+  color: var(--portal-muted);
+  margin-top: 0.25rem;
+  line-height: 1.35;
+}
+
+.morbeez-portal__quick-link {
+  display: inline-block;
+  margin-top: 0.65rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--portal-green);
+}
+
+.morbeez-portal__section-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--color-trust);
+  margin-bottom: 0.75rem;
+}
+
+.morbeez-portal__glance-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .morbeez-portal__glance-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.morbeez-portal__glance {
+  border: 1px solid var(--portal-border);
+  border-radius: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: #fff;
+}
+
+.morbeez-portal__glance-value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__glance-label {
+  font-size: 0.75rem;
+  color: var(--portal-muted);
+  margin-top: 0.15rem;
+}
+
+.morbeez-portal__card {
+  border: 1px solid var(--portal-border);
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1.25rem;
+}
+
+.morbeez-portal__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.morbeez-portal__list li {
+  padding: 0.35rem 0;
+  padding-left: 1.1rem;
+  position: relative;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.morbeez-portal__list li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--portal-green);
+  font-weight: 700;
+}
+
+.morbeez-portal__order-row {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.morbeez-portal__order-img {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 0.65rem;
+  object-fit: cover;
+  background: var(--portal-green-light);
+  flex-shrink: 0;
+}
+
+.morbeez-portal__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.morbeez-portal__badge--success { background: #dcfce7; color: #166534; }
+.morbeez-portal__badge--warning { background: #fef3c7; color: #92400e; }
+.morbeez-portal__badge--info { background: #dbeafe; color: #1d4ed8; }
+.morbeez-portal__badge--danger { background: #fee2e2; color: #991b1b; }
+.morbeez-portal__badge--good { background: #dcfce7; color: #166534; }
+.morbeez-portal__badge--monitor { background: #fef9c3; color: #854d0e; }
+.morbeez-portal__badge--critical { background: #fee2e2; color: #991b1b; }
+
+.morbeez-portal__upload-zone {
+  border: 2px dashed var(--portal-border);
+  border-radius: 1rem;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  background: #fafafa;
+  cursor: pointer;
+}
+
+.morbeez-portal__upload-zone.is-dragover {
+  border-color: var(--portal-green);
+  background: var(--portal-green-light);
+}
+
+.morbeez-portal__support-banner {
+  border-radius: 1rem;
+  background: var(--portal-green-light);
+  border: 1px solid #bbf7d0;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.morbeez-portal__bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  display: flex;
+  background: #fff;
+  border-top: 1px solid var(--portal-border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.morbeez-portal__nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.55rem 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--portal-muted);
+  background: transparent;
+  border: 0;
+  min-height: 3.5rem;
+}
+
+.morbeez-portal__nav-btn.is-active {
+  color: var(--portal-green);
+}
+
+.morbeez-portal__nav-icon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.morbeez-portal__panel {
+  display: none;
+}
+
+.morbeez-portal__panel.is-active {
+  display: block;
+}
+
+.morbeez-portal__empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--portal-muted);
+  font-size: 0.9rem;
+}
+
+.morbeez-portal__stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.morbeez-portal__stack--lg {
+  gap: 1.25rem;
+}
+
+.morbeez-portal__address-lines {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--color-trust);
+}
+
+.morbeez-portal__footer-trust {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--portal-border);
+}
+
+@media (min-width: 768px) {
+  .morbeez-portal__footer-trust {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.morbeez-portal__trust-item {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--portal-muted);
+}
+
+.morbeez-portal__trust-item strong {
+  display: block;
+  color: var(--color-trust);
+  font-size: 0.8rem;
+  margin-bottom: 0.2rem;
+}
+
+.morbeez-portal__loading {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--portal-muted);
+}
+
+.morbeez-portal__error {
+  border-radius: 0.75rem;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.morbeez-portal__hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

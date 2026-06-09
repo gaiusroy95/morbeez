@@ -1,0 +1,9 @@
+{
+  "sections": {
+    "dashboard": {
+      "type": "farmer-dashboard",
+      "settings": {}
+    }
+  },
+  "order": ["dashboard"]
+}

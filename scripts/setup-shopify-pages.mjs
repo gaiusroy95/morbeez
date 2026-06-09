@@ -55,6 +55,12 @@ const endpoint = `https://${STORE}/admin/api/${API_VERSION}/graphql.json`;
 /** handle → theme template suffix (page.{suffix}.json) */
 const PAGES = [
   { title: 'Login', handle: 'login', templateSuffix: 'login', body: '<p>Farmer login and sign up for Morbeez.</p>' },
+  {
+    title: 'My dashboard',
+    handle: 'dashboard',
+    templateSuffix: 'dashboard',
+    body: '<p>Your Morbeez farm dashboard — orders, advisory, soil reports &amp; support.</p>',
+  },
   { title: 'Contact', handle: 'contact', templateSuffix: 'contact', body: '<p>Contact Morbeez for crop advisory and orders.</p>' },
   { title: 'About us', handle: 'about-us', templateSuffix: 'about', body: '<p>About Morbeez — science-backed agriculture for Indian farmers.</p>' },
   { title: 'FAQ', handle: 'faq', templateSuffix: 'faq', body: '<p>Frequently asked questions.</p>' },
