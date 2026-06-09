@@ -185,6 +185,7 @@ export declare const ordersAdminService: {
         prepaidAmount: number | undefined;
         codAmount: number | undefined;
     }>;
+    delete(id: string, source: "shopify" | "razorpay_checkout" | "quote" | undefined, actorEmail?: string): Promise<"commerce_quotes" | "checkout_sessions" | "commerce_orders">;
 };
 export {};
 //# sourceMappingURL=orders-admin.service.d.ts.map

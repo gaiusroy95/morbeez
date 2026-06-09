@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
+import { inventoryService } from '../wms/inventory.service.js';
 
 export type OrderStatusTab =
   | 'all'
@@ -631,11 +632,13 @@ export const ordersAdminService = {
       supabase
         .from('commerce_orders')
         .select('*')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(500),
       supabase
         .from('checkout_sessions')
         .select('*')
+        .is('deleted_at', null)
         .in('status', ['paid', 'pending', 'failed'])
         .order('created_at', { ascending: false })
         .limit(500),
@@ -788,7 +791,12 @@ export const ordersAdminService = {
       };
     }
 
-    const { data, error } = await supabase.from('commerce_orders').select('*').eq('id', id).maybeSingle();
+    const { data, error } = await supabase
+      .from('commerce_orders')
+      .select('*')
+      .eq('id', id)
+      .is('deleted_at', null)
+      .maybeSingle();
     throwIfSupabaseError(error, 'Could not load order');
     if (data) {
       const o = mapCommerceOrder(data);
@@ -800,6 +808,7 @@ export const ordersAdminService = {
       .from('checkout_sessions')
       .select('*')
       .eq('id', id)
+      .is('deleted_at', null)
       .maybeSingle();
     throwIfSupabaseError(sErr, 'Could not load order');
     if (session) {
@@ -809,5 +818,56 @@ export const ordersAdminService = {
     }
 
     throw new NotFoundError('Order not found');
+  },
+
+  async delete(
+    id: string,
+    source: 'shopify' | 'razorpay_checkout' | 'quote' | undefined,
+    actorEmail?: string
+  ): Promise<'commerce_quotes' | 'checkout_sessions' | 'commerce_orders'> {
+    const now = new Date().toISOString();
+
+    if (source === 'quote') {
+      await commerceQuoteService.delete(id);
+      return 'commerce_quotes';
+    }
+
+    if (source === 'razorpay_checkout') {
+      const { data, error } = await supabase
+        .from('checkout_sessions')
+        .update({ status: 'cancelled', deleted_at: now, updated_at: now })
+        .eq('id', id)
+        .is('deleted_at', null)
+        .select('id')
+        .maybeSingle();
+      throwIfSupabaseError(error, 'Could not delete order');
+      if (!data) throw new NotFoundError('Order not found');
+      return 'checkout_sessions';
+    }
+
+    const { data, error } = await supabase
+      .from('commerce_orders')
+      .update({
+        payment_status: 'cancelled',
+        fulfillment_status: 'cancelled',
+        financial_status: 'voided',
+        oms_status: 'cancelled',
+        deleted_at: now,
+        updated_at: now,
+      })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('id')
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not delete order');
+    if (!data) throw new NotFoundError('Order not found');
+
+    try {
+      await inventoryService.releaseOrderAllocations(id, actorEmail);
+    } catch {
+      // Best-effort: order may have no warehouse allocations
+    }
+
+    return 'commerce_orders';
   },
 };

@@ -488,48 +488,15 @@ export async function adminRoutes(app) {
         await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         const { id } = request.params;
         const q = request.query;
-        const now = new Date().toISOString();
-        if (q.source === 'quote') {
-            await commerceQuoteService.delete(id);
-            await logAdminMutation({
-                actorId: actor.id,
-                actorEmail: actor.email,
-                action: 'archive',
-                resource: 'commerce_quotes',
-                resourceId: id,
-            });
-            return reply.send({ ok: true });
-        }
-        if (q.source === 'razorpay_checkout') {
-            const { error } = await supabase
-                .from('checkout_sessions')
-                .update({ status: 'cancelled', updated_at: now })
-                .eq('id', id);
-            throwIfSupabaseError(error, 'Could not cancel order');
-            await logAdminMutation({
-                actorId: actor.id,
-                actorEmail: actor.email,
-                action: 'archive',
-                resource: 'checkout_sessions',
-                resourceId: id,
-            });
-            return reply.send({ ok: true });
-        }
-        const { error } = await supabase
-            .from('commerce_orders')
-            .update({
-            payment_status: 'cancelled',
-            fulfillment_status: 'cancelled',
-            financial_status: 'voided',
-            updated_at: now,
-        })
-            .eq('id', id);
-        throwIfSupabaseError(error, 'Could not cancel order');
+        const source = q.source === 'quote' || q.source === 'razorpay_checkout' || q.source === 'shopify'
+            ? q.source
+            : 'shopify';
+        const resource = await ordersAdminService.delete(id, source, actor.email);
         await logAdminMutation({
             actorId: actor.id,
             actorEmail: actor.email,
             action: 'archive',
-            resource: 'commerce_orders',
+            resource,
             resourceId: id,
         });
         return reply.send({ ok: true });
