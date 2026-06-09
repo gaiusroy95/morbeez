@@ -4,7 +4,9 @@ import { ConflictError, UnauthorizedError, ValidationError } from '../../lib/err
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { createFarmerToken } from '../../lib/jwt.js';
 import { eventBus } from '../../events/bus.js';
+import { logger } from '../../lib/logger.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
+import { leadService } from '../crm/lead.service.js';
 
 export interface SignupInput {
   email: string;
@@ -26,6 +28,11 @@ function normalizeEmail(email: string): string {
 }
 
 function publicFarmer(row: Record<string, unknown>) {
+  const pincodeRow = row.pincode_master as
+    | { pincode?: string; district?: string; state?: string }
+    | null
+    | undefined;
+
   return {
     id: row.id,
     email: row.email,
@@ -33,8 +40,12 @@ function publicFarmer(row: Record<string, unknown>) {
     lastName: row.last_name,
     name: row.name,
     phone: row.phone,
-    district: row.district,
-    state: row.state,
+    village: row.village,
+    district: row.district ?? pincodeRow?.district ?? null,
+    state: row.state ?? pincodeRow?.state ?? null,
+    pincode: pincodeRow?.pincode ?? row.delivery_pincode ?? null,
+    shippingAddress: row.shipping_address ?? null,
+    deliveryPincode: row.delivery_pincode ?? null,
     newsletterSubscribed: row.newsletter_subscribed,
     createdAt: row.created_at,
   };
@@ -136,6 +147,17 @@ export const farmerAuthService = {
       /* signup succeeds even if outbox write fails */
     }
 
+    try {
+      await leadService.createWebsiteSignupLeadIfAbsent({
+        farmerId: String(data.id),
+        phone,
+        name: fullName,
+        email,
+      });
+    } catch (err) {
+      logger.warn({ err, farmerId: data.id, phone }, 'Website signup telecaller lead skipped');
+    }
+
     const token = createFarmerToken(data.id as string, email);
     return { token, farmer: publicFarmer(data) };
   },
@@ -159,7 +181,11 @@ export const farmerAuthService = {
   },
 
   async me(farmerId: string) {
-    const { data, error } = await supabase.from('farmers').select('*').eq('id', farmerId).single();
+    const { data, error } = await supabase
+      .from('farmers')
+      .select('*, pincode_master(pincode, district, state)')
+      .eq('id', farmerId)
+      .single();
     if (error || !data) throw new UnauthorizedError('Session invalid');
     if (!data.email) throw new UnauthorizedError('Session invalid');
     return publicFarmer(data);

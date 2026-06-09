@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { eventBus } from '../../events/bus.js';
 import { farmerService } from '../farmer/farmer.service.js';
 
@@ -44,8 +45,73 @@ export type EnsureLeadInput = {
   mergeNotes?: boolean;
 };
 
+/** True when any telecaller lead is already tied to this farmer phone. */
+async function hasLeadForPhone(phone: string): Promise<boolean> {
+  const { count, error } = await supabase
+    .from('leads')
+    .select('id, farmers!inner(phone)', { count: 'exact', head: true })
+    .eq('farmers.phone', phone);
+  throwIfSupabaseError(error, 'Could not check existing lead');
+  return (count ?? 0) > 0;
+}
+
 /** One CRM lead per farmer — returns existing or creates. */
 export const leadService = {
+  /**
+   * Shopify website registration → telecaller lead list.
+   * Skips when a lead already exists for the same phone (e.g. prior WhatsApp capture).
+   */
+  async createWebsiteSignupLeadIfAbsent(input: {
+    farmerId: string;
+    phone: string;
+    name?: string;
+    email?: string;
+  }): Promise<{ created: boolean }> {
+    if (await hasLeadForPhone(input.phone)) {
+      return { created: false };
+    }
+
+    const now = new Date().toISOString();
+    const notes = [
+      'Registered on Morbeez Shopify website',
+      input.name?.trim() ? `Name: ${input.name.trim()}` : null,
+      input.email ? `Email: ${input.email}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
+    const { data, error } = await supabase
+      .from('leads')
+      .insert({
+        farmer_id: input.farmerId,
+        intent: 'general',
+        source: 'shopify',
+        status: 'new',
+        stage: 'new_lead',
+        priority: 'normal',
+        notes,
+        last_interaction_at: now,
+      })
+      .select()
+      .single();
+
+    throwIfSupabaseError(error, 'Could not create website signup lead');
+
+    await eventBus.publish(
+      'lead.created',
+      {
+        leadId: data.id,
+        farmerId: input.farmerId,
+        intent: 'general',
+        source: 'shopify',
+        assignedTo: null,
+      },
+      'farmer-auth'
+    );
+
+    return { created: true };
+  },
+
   async ensureLeadForFarmer(input: EnsureLeadInput): Promise<{
     lead: Record<string, unknown>;
     created: boolean;

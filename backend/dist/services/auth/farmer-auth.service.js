@@ -4,11 +4,14 @@ import { ConflictError, UnauthorizedError, ValidationError } from '../../lib/err
 import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { createFarmerToken } from '../../lib/jwt.js';
 import { eventBus } from '../../events/bus.js';
+import { logger } from '../../lib/logger.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
+import { leadService } from '../crm/lead.service.js';
 function normalizeEmail(email) {
     return email.trim().toLowerCase();
 }
 function publicFarmer(row) {
+    const pincodeRow = row.pincode_master;
     return {
         id: row.id,
         email: row.email,
@@ -16,8 +19,12 @@ function publicFarmer(row) {
         lastName: row.last_name,
         name: row.name,
         phone: row.phone,
-        district: row.district,
-        state: row.state,
+        village: row.village,
+        district: row.district ?? pincodeRow?.district ?? null,
+        state: row.state ?? pincodeRow?.state ?? null,
+        pincode: pincodeRow?.pincode ?? row.delivery_pincode ?? null,
+        shippingAddress: row.shipping_address ?? null,
+        deliveryPincode: row.delivery_pincode ?? null,
         newsletterSubscribed: row.newsletter_subscribed,
         createdAt: row.created_at,
     };
@@ -107,6 +114,17 @@ export const farmerAuthService = {
         catch {
             /* signup succeeds even if outbox write fails */
         }
+        try {
+            await leadService.createWebsiteSignupLeadIfAbsent({
+                farmerId: String(data.id),
+                phone,
+                name: fullName,
+                email,
+            });
+        }
+        catch (err) {
+            logger.warn({ err, farmerId: data.id, phone }, 'Website signup telecaller lead skipped');
+        }
         const token = createFarmerToken(data.id, email);
         return { token, farmer: publicFarmer(data) };
     },
@@ -125,7 +143,11 @@ export const farmerAuthService = {
         return { token, farmer: publicFarmer({ ...data, last_login_at: now }) };
     },
     async me(farmerId) {
-        const { data, error } = await supabase.from('farmers').select('*').eq('id', farmerId).single();
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('*, pincode_master(pincode, district, state)')
+            .eq('id', farmerId)
+            .single();
         if (error || !data)
             throw new UnauthorizedError('Session invalid');
         if (!data.email)
