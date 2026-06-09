@@ -23,6 +23,22 @@ export type InventoryItemRow = {
     sku: string;
     productTitle: string;
 };
+type CatalogVariantRef = {
+    id: string;
+    sku?: string;
+    option1?: string;
+    packSize?: string;
+    unit?: string;
+    title?: string;
+    inventory?: number;
+};
+type CatalogProductRef = {
+    id: string;
+    title: string;
+    sku?: string | null;
+    inventory?: number;
+    variants?: CatalogVariantRef[];
+};
 export declare const inventoryService: {
     listInventoryItems(opts?: {
         search?: string;
@@ -49,6 +65,14 @@ export declare const inventoryService: {
         variantGroups: number;
     }>;
     loadCommerceVariantIds(): Promise<Set<string>>;
+    loadCommerceBatchesByVariant(): Promise<Map<string, Array<{
+        batchCode: string;
+        qty: number;
+    }>>>;
+    ensureCommerceLinkedItem(variantId: string, catalogEntry?: {
+        product: CatalogProductRef;
+        variant: CatalogVariantRef;
+    } | null): Promise<string>;
     extractVariantIdFromSku(sku: string | null | undefined): string | null;
     listInventoryItemIdsForVariant(variantId: string): Promise<string[]>;
     getAvailableWarehouseQty(inventoryItemId: string, warehouseId: string): Promise<number>;
@@ -172,4 +196,5 @@ export declare const inventoryService: {
         variantCount: number;
     }>;
 };
+export {};
 //# sourceMappingURL=inventory.service.d.ts.map

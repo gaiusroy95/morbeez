@@ -105,7 +105,7 @@ export function WarehouseStockPanel({ canWrite }: { canWrite: boolean }) {
   return (
     <Panel
       title="Live stock"
-      description="Available, reserved, damaged, returned — batch and rack level"
+      description="Mirrors Commerce → Inventory (catalog + batches). Reserved/damaged reflect warehouse fulfillment."
       actions={
         <div className="flex gap-2">
           <input

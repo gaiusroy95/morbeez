@@ -4,6 +4,7 @@ import { AppError, NotFoundError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { shopifyAdmin } from '../shopify/shopify.client.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
+import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { warehouseService } from './warehouse.service.js';
 const COMMERCE_SYNC_THROTTLE_MS = 12_000;
 let lastCommerceWarehouseSyncAt = 0;
@@ -59,6 +60,16 @@ function pickCanonicalInventoryItem(items) {
             return aVar - bVar;
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
     })[0];
+}
+function catalogVariantLabel(variant) {
+    return (variant.option1 ||
+        `${variant.packSize || ''} ${variant.unit || ''}`.trim() ||
+        variant.title ||
+        'Default');
+}
+function catalogDisplayTitle(product, variant) {
+    const label = catalogVariantLabel(variant);
+    return label && label !== 'Default' ? `${product.title} — ${label}` : product.title;
 }
 export const inventoryService = {
     async listInventoryItems(opts) {
@@ -392,6 +403,42 @@ export const inventoryService = {
             .map((row) => (row.shopify_variant_id ? String(row.shopify_variant_id).trim() : ''))
             .filter(Boolean));
     },
+    async loadCommerceBatchesByVariant() {
+        const { data, error } = await supabase
+            .from('commerce_stock_batches')
+            .select('shopify_variant_id, batch_code, qty')
+            .order('expiry_date', { ascending: true, nullsFirst: false });
+        throwIfSupabaseError(error, 'Load commerce stock batches');
+        const map = new Map();
+        for (const row of data ?? []) {
+            const key = String(row.shopify_variant_id).trim();
+            const list = map.get(key) ?? [];
+            list.push({
+                batchCode: String(row.batch_code),
+                qty: Number(row.qty) || 0,
+            });
+            map.set(key, list);
+        }
+        return map;
+    },
+    async ensureCommerceLinkedItem(variantId, catalogEntry) {
+        const itemId = await this.ensureInventoryItemForVariant(variantId);
+        if (!catalogEntry)
+            return itemId;
+        const title = catalogDisplayTitle(catalogEntry.product, catalogEntry.variant);
+        const sku = (catalogEntry.variant.sku || catalogEntry.product.sku || `VAR-${variantId}`).trim();
+        const { error } = await supabase
+            .from('inventory_items')
+            .update({
+            product_title: title,
+            sku,
+            shopify_variant_id: variantId,
+            updated_at: new Date().toISOString(),
+        })
+            .eq('id', itemId);
+        throwIfSupabaseError(error, 'Align inventory item with commerce catalog');
+        return itemId;
+    },
     extractVariantIdFromSku(sku) {
         if (!sku?.trim())
             return null;
@@ -498,22 +545,67 @@ export const inventoryService = {
         const warehouse = opts?.warehouseId
             ? { id: opts.warehouseId }
             : await warehouseService.getDefaultWarehouse();
-        let itemQuery = supabase.from('inventory_items').select('*').eq('active', true);
-        if (opts?.search?.trim()) {
-            const s = `%${opts.search.trim()}%`;
-            itemQuery = itemQuery.or(`sku.ilike.${s},product_title.ilike.${s}`);
+        const [commerceBatchesByVariant, catalog] = await Promise.all([
+            this.loadCommerceBatchesByVariant(),
+            shopifyProductsService.getInventoryCatalog(opts?.search),
+        ]);
+        const catalogByVariantId = new Map();
+        const variantIds = new Set(commerceBatchesByVariant.keys());
+        for (const product of catalog) {
+            const variants = product.variants?.length
+                ? product.variants
+                : [
+                    {
+                        id: product.id,
+                        sku: product.sku ?? '',
+                        option1: 'Default',
+                        packSize: '',
+                        unit: '',
+                        title: 'Default',
+                        inventory: product.inventory ?? 0,
+                    },
+                ];
+            for (const variant of variants) {
+                catalogByVariantId.set(variant.id, { product, variant });
+                const hasCommerceBatches = commerceBatchesByVariant.has(variant.id);
+                const shopifyStock = Number(variant.inventory ?? product.inventory ?? 0) || 0;
+                if (hasCommerceBatches || shopifyStock > 0) {
+                    variantIds.add(variant.id);
+                }
+            }
         }
-        const { data: items, error: itemErr } = await itemQuery.order('product_title');
-        throwIfSupabaseError(itemErr, 'Stock items');
+        const itemIdByVariant = new Map();
+        for (const variantId of variantIds) {
+            const catalogEntry = catalogByVariantId.get(variantId) ?? null;
+            const itemId = await this.ensureCommerceLinkedItem(variantId, catalogEntry);
+            itemIdByVariant.set(variantId, itemId);
+            await this.syncCommerceBatchesToWarehouse(itemId, {
+                shopifyFallback: !commerceBatchesByVariant.has(variantId),
+            });
+        }
+        const itemIds = [...new Set(itemIdByVariant.values())];
+        if (!itemIds.length)
+            return [];
+        const { data: itemRows, error: itemRowsErr } = await supabase
+            .from('inventory_items')
+            .select('id, sku, product_title')
+            .in('id', itemIds);
+        throwIfSupabaseError(itemRowsErr, 'Load linked inventory items');
+        const itemMetaById = new Map((itemRows ?? []).map((row) => [
+            String(row.id),
+            { sku: String(row.sku), productTitle: String(row.product_title) },
+        ]));
         const { data: batches, error: batchErr } = await supabase
             .from('inventory_batches')
             .select('*, warehouse_locations(zone, rack, shelf, bin, location_code)')
             .eq('warehouse_id', warehouse.id)
+            .in('inventory_item_id', itemIds)
             .neq('status', 'depleted');
         throwIfSupabaseError(batchErr, 'Stock batches');
         const { data: poLines } = await supabase
             .from('purchase_order_lines')
             .select('inventory_item_id, qty_ordered, qty_received, purchase_orders!inner(status)')
+            .in('inventory_item_id', itemIds)
             .in('purchase_orders.status', ['sent', 'partial']);
         const incomingByItem = new Map();
         for (const line of poLines ?? []) {
@@ -530,40 +622,38 @@ export const inventoryService = {
             list.push(b);
             batchesByItem.set(key, list);
         }
-        const commerceVariantIds = await this.loadCommerceVariantIds();
-        const itemRecords = (items ?? []);
-        const groups = new Map();
-        for (const item of itemRecords) {
-            const variantId = effectiveVariantIdFromItem(item);
-            const key = variantId ? `v:${variantId}` : `s:${item.sku}`;
-            const list = groups.get(key) ?? [];
-            list.push(item);
-            groups.set(key, list);
-        }
+        const searchTerm = opts?.search?.trim().toLowerCase() ?? '';
         const rows = [];
-        for (const [, peers] of groups) {
-            const canonical = pickCanonicalInventoryItem(peers);
-            const itemId = String(canonical.id);
-            const variantId = effectiveVariantIdFromItem(canonical);
+        for (const [variantId, itemId] of itemIdByVariant) {
+            const catalogEntry = catalogByVariantId.get(variantId);
+            const commerceBatches = commerceBatchesByVariant.get(variantId) ?? [];
             const itemBatches = (batchesByItem.get(itemId) ?? []);
             const totals = mapBatchRows(itemBatches);
-            const activity = totals.available +
-                totals.reserved +
-                totals.damaged +
-                totals.returned +
-                (incomingByItem.get(itemId) ?? 0);
-            const inCommerce = variantId ? commerceVariantIds.has(variantId) : false;
-            if (!inCommerce && activity === 0)
+            const incoming = incomingByItem.get(itemId) ?? 0;
+            const activity = totals.available + totals.reserved + totals.damaged + totals.returned + incoming;
+            if (!commerceBatches.length && activity === 0)
                 continue;
+            const fallbackMeta = itemMetaById.get(itemId);
+            const productTitle = catalogEntry
+                ? catalogDisplayTitle(catalogEntry.product, catalogEntry.variant)
+                : fallbackMeta?.productTitle ?? 'Product';
+            const sku = catalogEntry
+                ? (catalogEntry.variant.sku || catalogEntry.product.sku || `VAR-${variantId}`).trim()
+                : fallbackMeta?.sku ?? `VAR-${variantId}`;
+            if (searchTerm) {
+                const hay = `${productTitle} ${sku}`.toLowerCase();
+                if (!hay.includes(searchTerm))
+                    continue;
+            }
             rows.push({
                 inventoryItemId: itemId,
-                sku: String(canonical.sku),
-                productTitle: String(canonical.product_title),
+                sku,
+                productTitle,
                 available: totals.available,
                 reserved: totals.reserved,
                 damaged: totals.damaged,
                 returned: totals.returned,
-                incoming: incomingByItem.get(itemId) ?? 0,
+                incoming,
                 batches: totals.batches,
             });
         }

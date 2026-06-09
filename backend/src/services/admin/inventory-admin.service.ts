@@ -430,9 +430,12 @@ export const inventoryAdminService = {
     shopifyProductsService.invalidateCatalogCache();
 
     const sku = (variant.sku || product.sku || `VAR-${variant.id}`).trim();
+    const label = variantLabel(product, variant);
+    const productTitle =
+      label && label !== 'Default' ? `${product.title} — ${label}` : product.title;
     const wmsItem = await inventoryService.upsertItemFromSku({
       sku,
-      productTitle: product.title,
+      productTitle,
       shopifyVariantId: variant.id,
     });
     await inventoryService.syncCommerceBatchesToWarehouse(String(wmsItem.id));
