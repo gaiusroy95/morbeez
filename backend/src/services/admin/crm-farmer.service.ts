@@ -31,7 +31,81 @@ export type MasterType =
   | 'plant_condition'
   | 'delivery_partner'
   | 'territory'
-  | 'specialization';
+  | 'specialization'
+  | 'brand'
+  | 'product_category'
+  | 'product_sub_category'
+  | 'formulation_type'
+  | 'mode_of_entry'
+  | 'product_type'
+  | 'shelf_life'
+  | 'storage_condition'
+  | 'packing_type'
+  | 'pack_material'
+  | 'application_stage'
+  | 'product_unit'
+  | 'language';
+
+const MASTER_DEFAULTS: Partial<Record<MasterType, string[]>> = {
+  crop: ['Ginger', 'Banana', 'Pepper', 'Cardamom', 'Paddy'],
+  pest: ['Stem borer', 'Leaf folder', 'Thrips', 'Aphids', 'Whitefly', 'Fruit borer'],
+  disease: ['Leaf spot', 'Blight', 'Powdery mildew', 'Root rot', 'Anthracnose'],
+  brand: ['Katyayani', 'Morbeez', 'UPL', 'Bayer', 'Syngenta', 'Other'],
+  product_category: [
+    'Insecticide',
+    'Fungicide',
+    'Fertilizer',
+    'PGR',
+    'Micronutrient',
+    'Bio Stimulant',
+    'Herbicide',
+    'Other',
+  ],
+  product_sub_category: [
+    'Diamide Insecticide',
+    'Neonicotinoid',
+    'Triazole Fungicide',
+    'NPK Fertilizer',
+    'Growth Regulator',
+    'Other',
+  ],
+  formulation_type: [
+    'SC (Suspension Concentrate)',
+    'EC (Emulsifiable Concentrate)',
+    'WP (Wettable Powder)',
+    'WG (Water Dispersible Granule)',
+    'SL (Soluble Liquid)',
+    'Other',
+  ],
+  mode_of_entry: ['Systemic & Contact', 'Systemic', 'Contact', 'Other'],
+  product_type: [
+    'Chemical Insecticide',
+    'Chemical Fungicide',
+    'Organic Input',
+    'Bio Pesticide',
+    'Other',
+  ],
+  shelf_life: ['1 Year', '2 Years', '3 Years', '5 Years'],
+  storage_condition: [
+    'Store in cool, dry place',
+    'Store below 25°C',
+    'Avoid direct sunlight',
+    'Refrigerate after opening',
+  ],
+  packing_type: ['Bottle', 'Pouch', 'Jar', 'Can', 'Bag'],
+  pack_material: ['HDPE Bottle', 'PET Bottle', 'Laminated pouch', 'Tin'],
+  application_stage: [
+    'Vegetative',
+    'Flowering',
+    'Fruit development',
+    'Pre-harvest',
+    'Post-harvest',
+  ],
+  product_unit: ['ml', 'L', 'kg', 'g'],
+  language: ['English', 'Malayalam', 'Tamil', 'Kannada', 'Hindi'],
+  interaction_outcome: ['answered', 'no_answer', 'busy', 'callback_requested'],
+  interaction_type: ['WhatsApp', 'Follow-up', 'Field visit', 'Recommendation', 'ROI', 'Note'],
+};
 
 function formatDateShort(iso: string | null | undefined) {
   if (!iso) return null;
@@ -88,26 +162,15 @@ export const crmFarmerService = {
 
     let rows = data ?? [];
 
-    if (type === 'crop' && !parentId && !search?.trim()) {
-      const requiredCrops = ['Ginger', 'Banana', 'Pepper', 'Cardamom'];
-      const existing = new Set(rows.map((r) => String(r.name).trim().toLowerCase()));
-      const missing = requiredCrops.filter((name) => !existing.has(name.toLowerCase()));
-      if (missing.length > 0) {
-        for (const name of missing) {
-          const { error: insertErr } = await supabase.from('crm_masters').insert({
-            master_type: 'crop',
-            name,
-            sort_order: 0,
-            parent_id: null,
-            active: true,
-          });
-          if (insertErr && !String(insertErr.message ?? '').toLowerCase().includes('duplicate')) {
-            throwIfSupabaseError(insertErr, 'Could not seed crop defaults');
-          }
+    if (!parentId && !search?.trim()) {
+      const defaults = MASTER_DEFAULTS[type];
+      if (defaults?.length) {
+        const seeded = await this.seedDefaultMasters(type, defaults, rows);
+        if (seeded) {
+          const { data: refreshed, error: refreshErr } = await q.limit(200);
+          throwIfSupabaseError(refreshErr, 'Could not reload masters');
+          rows = refreshed ?? rows;
         }
-        const { data: refreshed, error: refreshErr } = await q.limit(200);
-        throwIfSupabaseError(refreshErr, 'Could not reload masters');
-        rows = refreshed ?? rows;
       }
     }
 
@@ -116,6 +179,27 @@ export const crmFarmerService = {
     }
 
     return rows;
+  },
+
+  async seedDefaultMasters(type: MasterType, names: string[], rows: Array<{ name: string }>) {
+    const existing = new Set(rows.map((r) => String(r.name).trim().toLowerCase()));
+    const missing = names.filter((name) => !existing.has(name.toLowerCase()));
+    if (!missing.length) return false;
+
+    for (const name of missing) {
+      const { error: insertErr } = await supabase.from('crm_masters').insert({
+        master_type: type,
+        name,
+        sort_order: 0,
+        parent_id: null,
+        active: true,
+      });
+      if (insertErr && !String(insertErr.message ?? '').toLowerCase().includes('duplicate')) {
+        throwIfSupabaseError(insertErr, `Could not seed ${type} defaults`);
+      }
+    }
+
+    return true;
   },
 
   async createMaster(input: {

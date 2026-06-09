@@ -19,18 +19,39 @@ export function useSuperAdminConfirm() {
 
   const requestConfirm = useCallback(
     (
-      kind: 'edit' | 'delete',
+      kind: 'edit' | 'delete' | 'hide' | 'unhide',
       itemLabel: string,
       run: (confirmPassword: string) => Promise<void>
     ) => {
       if (!canEditDelete) return;
+      const copy =
+        kind === 'delete'
+          ? {
+              title: 'Confirm delete',
+              description: `Enter your password to delete "${itemLabel}".`,
+              confirmLabel: 'Delete',
+            }
+          : kind === 'hide'
+            ? {
+                title: 'Confirm hide',
+                description: `Enter your password to hide "${itemLabel}" (set inactive).`,
+                confirmLabel: 'Hide',
+              }
+            : kind === 'unhide'
+              ? {
+                  title: 'Confirm unhide',
+                  description: `Enter your password to unhide "${itemLabel}" (set active).`,
+                  confirmLabel: 'Unhide',
+                }
+              : {
+                  title: 'Confirm edit',
+                  description: `Enter your password to save changes to "${itemLabel}".`,
+                  confirmLabel: 'Save changes',
+                };
       setPending({
-        title: kind === 'delete' ? 'Confirm delete' : 'Confirm edit',
-        description:
-          kind === 'delete'
-            ? `Enter your super admin password to delete "${itemLabel}".`
-            : `Enter your super admin password to save changes to "${itemLabel}".`,
-        confirmLabel: kind === 'delete' ? 'Delete' : 'Save changes',
+        title: copy.title,
+        description: copy.description,
+        confirmLabel: copy.confirmLabel,
         run,
       });
       setPassword('');

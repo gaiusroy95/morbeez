@@ -22,7 +22,14 @@ WHERE deleted_at IS NULL
   AND payment_status = 'cancelled'
   AND fulfillment_status = 'cancelled';
 
-UPDATE checkout_sessions
-SET deleted_at = updated_at
-WHERE deleted_at IS NULL
-  AND status = 'cancelled';
+-- Expire checkout sessions tied to admin-deleted commerce orders
+UPDATE checkout_sessions cs
+SET
+  status = 'expired',
+  deleted_at = COALESCE(cs.deleted_at, co.deleted_at, NOW()),
+  updated_at = NOW()
+FROM commerce_orders co
+WHERE cs.shopify_order_id = co.shopify_order_id
+  AND co.deleted_at IS NOT NULL
+  AND cs.deleted_at IS NULL
+  AND cs.status IN ('paid', 'pending', 'failed');

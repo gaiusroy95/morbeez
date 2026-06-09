@@ -1,5 +1,6 @@
 import { shopifyAdmin, shopifyAdminRaw } from './shopify.client.js';
 import { shopifyInventoryService } from './shopify.inventory.service.js';
+import { shopifyPublicationsService } from './shopify.publications.service.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 const LIST_FIELDS = 'id,title,handle,status,vendor,product_type,tags,created_at,updated_at,variants,image,images';
 const CACHE_TTL_MS = 60_000;
@@ -246,6 +247,8 @@ export const shopifyProductsService = {
                 body: JSON.stringify({ product }),
             });
             await shopifyInventoryService.syncWizardVariantStocks(input.variants, res.product.variants ?? []);
+            const createdStatus = (input.status ?? 'draft');
+            await shopifyPublicationsService.syncProductVisibility(String(res.product.id), createdStatus);
             clearProductListCache();
             const refreshed = await shopifyAdmin(`/products/${res.product.id}.json`);
             return mapProduct(refreshed.product);
@@ -271,6 +274,8 @@ export const shopifyProductsService = {
             body: JSON.stringify({ product }),
         });
         await shopifyInventoryService.syncWizardVariantStocks(input.variants, res.product.variants ?? []);
+        const updatedStatus = (input.status ?? p.status);
+        await shopifyPublicationsService.syncProductVisibility(id, updatedStatus);
         clearProductListCache();
         const refreshed = await shopifyAdmin(`/products/${id}.json`);
         return mapProduct(refreshed.product);
@@ -298,6 +303,8 @@ export const shopifyProductsService = {
             method: 'POST',
             body: JSON.stringify({ product }),
         });
+        const createdStatus = (input.status ?? 'draft');
+        await shopifyPublicationsService.syncProductVisibility(String(res.product.id), createdStatus);
         clearProductListCache();
         return mapProduct(res.product);
     },
@@ -327,8 +334,29 @@ export const shopifyProductsService = {
             method: 'PUT',
             body: JSON.stringify({ product }),
         });
+        if (input.status) {
+            await shopifyPublicationsService.syncProductVisibility(id, input.status);
+        }
         clearProductListCache();
         return mapProduct(res.product);
+    },
+    async publishToStorefront(id) {
+        return this.update(id, { status: 'active' });
+    },
+    async publishAllActiveToStorefront() {
+        const catalog = await fetchAllProducts();
+        const active = catalog.filter((p) => p.status === 'active');
+        const failed = [];
+        await Promise.all(active.map(async (p) => {
+            try {
+                await shopifyPublicationsService.syncProductVisibility(String(p.id), 'active');
+            }
+            catch {
+                failed.push(String(p.id));
+            }
+        }));
+        clearProductListCache();
+        return { published: active.length - failed.length, failed };
     },
     async archiveMany(ids) {
         const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];

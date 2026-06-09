@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
+import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
+import { ProductActionMenu } from './ProductActionMenu';
 import '../../styles/commerce-products.css';
 
 type ProductVariant = {
@@ -117,6 +119,7 @@ function pageNumbers(current: number, total: number): Array<number | 'ellipsis'>
 
 export function CommerceAllProductsPanel({ canWrite }: Props) {
   const navigate = useNavigate();
+  const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [products, setProducts] = useState<ProductRow[]>([]);
@@ -149,17 +152,44 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
 
   const [viewProduct, setViewProduct] = useState<ProductRow | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [shopifyStatus, setShopifyStatus] = useState<{
+    connected: boolean;
+    storeDomain: string;
+    storefrontUrl: string;
+    productCount: number;
+    storeMismatch: boolean;
+    message: string;
+  } | null>(null);
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  const [publishingAll, setPublishingAll] = useState(false);
 
-  useEffect(() => {
-    if (!menuId) return;
-    function onPointerDown(e: MouseEvent) {
-      if (menuRef.current?.contains(e.target as Node)) return;
-      setMenuId(null);
+  const closeMenu = useCallback(() => {
+    setMenuId(null);
+    setMenuAnchor(null);
+  }, []);
+
+  const menuProduct = useMemo(
+    () => (menuId ? products.find((p) => p.id === menuId) ?? null : null),
+    [menuId, products]
+  );
+
+  const loadShopifyStatus = useCallback(async () => {
+    try {
+      const d = await api<{
+        ok: boolean;
+        connected: boolean;
+        storeDomain: string;
+        storefrontUrl: string;
+        productCount: number;
+        storeMismatch: boolean;
+        message: string;
+      }>('/morbeez-staff/api/v1/products/shopify-connection');
+      setShopifyStatus(d);
+    } catch {
+      setShopifyStatus(null);
     }
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, [menuId]);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,11 +226,53 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadShopifyStatus();
+  }, [load, loadShopifyStatus]);
 
   useEffect(() => {
     setSelectedIds(new Set());
   }, [page, pageSize, appliedSearch, appliedCategory, appliedBrand, appliedStatus, appliedStock]);
+
+  async function publishToStorefront(product: ProductRow) {
+    if (!canWrite) return;
+    closeMenu();
+    setPublishingId(product.id);
+    setError('');
+    try {
+      await api(`/morbeez-staff/api/v1/products/${product.id}/publish-storefront`, {
+        method: 'POST',
+      });
+      await load();
+      await loadShopifyStatus();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not publish product to storefront');
+    } finally {
+      setPublishingId(null);
+    }
+  }
+
+  async function publishAllToStorefront() {
+    if (!canWrite) return;
+    setPublishingAll(true);
+    setError('');
+    try {
+      const d = await api<{ ok: boolean; published: number; failed: string[] }>(
+        '/morbeez-staff/api/v1/products/publish-all-storefront',
+        { method: 'POST' }
+      );
+      if (d.failed?.length) {
+        setError(
+          `Published ${d.published} product${d.published === 1 ? '' : 's'}; ${d.failed.length} failed.`
+        );
+      }
+      await load();
+      await loadShopifyStatus();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not publish products to storefront');
+    } finally {
+      setPublishingAll(false);
+    }
+  }
 
   const allSelected =
     products.length > 0 && products.every((p) => selectedIds.has(p.id));
@@ -282,34 +354,45 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     URL.revokeObjectURL(url);
   }
 
-  async function setProductStatus(id: string, status: 'active' | 'draft') {
-    if (!canWrite) return;
-    setMenuId(null);
-    try {
-      await api(`/morbeez-staff/api/v1/products/${id}`, {
+  function hideProduct(product: ProductRow) {
+    if (!canEditDelete) return;
+    closeMenu();
+    requestConfirm('hide', product.title, async (confirmPassword) => {
+      await api(`/morbeez-staff/api/v1/products/${product.id}`, {
         method: 'PUT',
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: 'draft', confirmPassword }),
       });
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update product status');
-    }
+    });
   }
 
-  async function archiveProduct(id: string) {
-    if (!canWrite || !window.confirm('Delete this product? It will be archived and hidden from the product list.')) return;
-    setMenuId(null);
-    try {
-      await api(`/morbeez-staff/api/v1/products/${id}`, { method: 'DELETE' });
+  function unhideProduct(product: ProductRow) {
+    if (!canEditDelete) return;
+    closeMenu();
+    requestConfirm('unhide', product.title, async (confirmPassword) => {
+      await api(`/morbeez-staff/api/v1/products/${product.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'active', confirmPassword }),
+      });
+      await load();
+    });
+  }
+
+  function archiveProduct(product: ProductRow) {
+    if (!canEditDelete) return;
+    closeMenu();
+    requestConfirm('delete', product.title, async (confirmPassword) => {
+      await api(`/morbeez-staff/api/v1/products/${product.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmPassword }),
+      });
       setSelectedIds((prev) => {
         const next = new Set(prev);
-        next.delete(id);
+        next.delete(product.id);
         return next;
       });
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not archive product');
-    }
+    });
   }
 
   async function batchArchiveSelected() {
@@ -357,8 +440,47 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     [pagination.page, pagination.pages]
   );
 
+  const showShopifyWarning =
+    shopifyStatus &&
+    (!shopifyStatus.connected || shopifyStatus.storeMismatch);
+
   return (
     <div className="commerce-products">
+      {showShopifyWarning ? (
+        <div className="commerce-products__shopify-banner" role="alert">
+          <strong>Shopify storefront issue:</strong> {shopifyStatus.message}
+          {shopifyStatus.storefrontUrl ? (
+            <>
+              {' '}
+              <a
+                href={`${shopifyStatus.storefrontUrl}/collections/all`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open storefront
+              </a>
+            </>
+          ) : null}
+        </div>
+      ) : shopifyStatus?.connected ? (
+        <div className="commerce-products__shopify-ok">
+          <span>
+            Shopify: {shopifyStatus.storeDomain} · {shopifyStatus.productCount} product
+            {shopifyStatus.productCount === 1 ? '' : 's'} synced
+          </span>
+          {canWrite && shopifyStatus.productCount > 0 ? (
+            <button
+              type="button"
+              className="commerce-products__btn commerce-products__btn--outline commerce-products__shopify-publish-all"
+              disabled={publishingAll}
+              onClick={() => void publishAllToStorefront()}
+            >
+              {publishingAll ? 'Publishing…' : 'Publish all to storefront'}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       <header className="commerce-products__header">
         <div>
           <h2 className="commerce-products__title">All Products</h2>
@@ -661,10 +783,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                             </span>
                           </td>
                           <td className="commerce-products__actions-cell">
-                            <div
-                              className="commerce-products__actions"
-                              ref={menuId === p.id ? menuRef : undefined}
-                            >
+                            <div className="commerce-products__actions">
                               <button
                                 type="button"
                                 className={`commerce-products__action-btn commerce-products__action-btn--more${
@@ -673,71 +792,17 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                                 title="Actions"
                                 aria-expanded={menuId === p.id}
                                 aria-haspopup="menu"
-                                onClick={() => setMenuId((id) => (id === p.id ? null : p.id))}
+                                onClick={(e) => {
+                                  if (menuId === p.id) {
+                                    closeMenu();
+                                  } else {
+                                    setMenuId(p.id);
+                                    setMenuAnchor(e.currentTarget);
+                                  }
+                                }}
                               >
                                 ⋮
                               </button>
-                              {menuId === p.id ? (
-                                <div className="commerce-products__action-menu" role="menu">
-                                  <button
-                                    type="button"
-                                    className="commerce-products__action-menu-item"
-                                    role="menuitem"
-                                    onClick={() => {
-                                      setMenuId(null);
-                                      setViewProduct(p);
-                                    }}
-                                  >
-                                    View
-                                  </button>
-                                  {canWrite ? (
-                                    <button
-                                      type="button"
-                                      className="commerce-products__action-menu-item"
-                                      role="menuitem"
-                                      onClick={() => {
-                                        setMenuId(null);
-                                        navigate(toPath(`${paths.commerce}/products/${p.id}/edit`));
-                                      }}
-                                    >
-                                      Edit
-                                    </button>
-                                  ) : null}
-                                  {canWrite && p.status === 'active' ? (
-                                    <button
-                                      type="button"
-                                      className="commerce-products__action-menu-item"
-                                      role="menuitem"
-                                      onClick={() => void setProductStatus(p.id, 'draft')}
-                                    >
-                                      Hide (inactive)
-                                    </button>
-                                  ) : null}
-                                  {canWrite && p.status !== 'active' ? (
-                                    <button
-                                      type="button"
-                                      className="commerce-products__action-menu-item"
-                                      role="menuitem"
-                                      onClick={() => void setProductStatus(p.id, 'active')}
-                                    >
-                                      Unhide (active)
-                                    </button>
-                                  ) : null}
-                                  {canWrite ? (
-                                    <>
-                                      <div className="commerce-products__action-menu-divider" />
-                                      <button
-                                        type="button"
-                                        className="commerce-products__action-menu-item commerce-products__action-menu-item--danger"
-                                        role="menuitem"
-                                        onClick={() => void archiveProduct(p.id)}
-                                      >
-                                        Delete
-                                      </button>
-                                    </>
-                                  ) : null}
-                                </div>
-                              ) : null}
                             </div>
                           </td>
                         </tr>
@@ -809,6 +874,83 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
           </>
         )}
       </div>
+
+      <ProductActionMenu open={!!menuProduct} anchor={menuAnchor} onClose={closeMenu}>
+        {menuProduct ? (
+          <>
+            <button
+              type="button"
+              className="commerce-products__action-menu-item"
+              role="menuitem"
+              onClick={() => {
+                closeMenu();
+                setViewProduct(menuProduct);
+              }}
+            >
+              View
+            </button>
+            {canWrite ? (
+              <button
+                type="button"
+                className="commerce-products__action-menu-item"
+                role="menuitem"
+                onClick={() => {
+                  closeMenu();
+                  navigate(toPath(`${paths.commerce}/products/${menuProduct.id}/edit`));
+                }}
+              >
+                Edit
+              </button>
+            ) : null}
+            {canWrite ? (
+              <button
+                type="button"
+                className="commerce-products__action-menu-item"
+                role="menuitem"
+                disabled={publishingId === menuProduct.id}
+                onClick={() => void publishToStorefront(menuProduct)}
+              >
+                {publishingId === menuProduct.id ? 'Publishing…' : 'Publish to storefront'}
+              </button>
+            ) : null}
+            {canEditDelete && menuProduct.status === 'active' ? (
+              <button
+                type="button"
+                className="commerce-products__action-menu-item"
+                role="menuitem"
+                onClick={() => hideProduct(menuProduct)}
+              >
+                Hide (inactive)
+              </button>
+            ) : null}
+            {canEditDelete && menuProduct.status !== 'active' ? (
+              <button
+                type="button"
+                className="commerce-products__action-menu-item"
+                role="menuitem"
+                onClick={() => unhideProduct(menuProduct)}
+              >
+                Unhide (active)
+              </button>
+            ) : null}
+            {canEditDelete ? (
+              <>
+                <div className="commerce-products__action-menu-divider" />
+                <button
+                  type="button"
+                  className="commerce-products__action-menu-item commerce-products__action-menu-item--danger"
+                  role="menuitem"
+                  onClick={() => archiveProduct(menuProduct)}
+                >
+                  Delete
+                </button>
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </ProductActionMenu>
+
+      {confirmModal}
 
       {viewProduct ? (
         <Modal

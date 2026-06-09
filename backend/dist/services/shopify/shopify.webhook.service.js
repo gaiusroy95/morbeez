@@ -75,6 +75,15 @@ export const shopifyWebhookService = {
         }
     },
     async syncOrder(order) {
+        const { data: existing } = await supabase
+            .from('commerce_orders')
+            .select('id, deleted_at')
+            .eq('shopify_order_id', String(order.id))
+            .maybeSingle();
+        if (existing?.deleted_at) {
+            logger.info({ orderId: order.id }, 'Skipping Shopify sync for admin-deleted order');
+            return;
+        }
         const isCod = order.tags?.toLowerCase().includes('cod') ||
             order.financial_status === 'pending';
         const tags = (order.tags ?? '').toLowerCase();

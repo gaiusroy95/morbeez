@@ -277,6 +277,45 @@ export declare const shopifyProductsService: {
         createdAt: string;
         updatedAt: string;
     }>;
+    publishToStorefront(id: string): Promise<{
+        id: string;
+        title: string;
+        handle: string;
+        status: string;
+        vendor: string;
+        productType: string;
+        category: string;
+        tags: string;
+        bodyHtml: string;
+        price: string;
+        sku: string | null;
+        inventory: number;
+        variantCount: number;
+        imageUrl: string;
+        images: {
+            id: string;
+            src: string;
+            alt: string | null;
+            position: number;
+        }[];
+        variants: {
+            id: string;
+            title: string;
+            option1: string;
+            packSize: string;
+            unit: string;
+            price: string;
+            mrp: string;
+            sku: string;
+            inventory: number;
+        }[];
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    publishAllActiveToStorefront(): Promise<{
+        published: number;
+        failed: string[];
+    }>;
     archiveMany(ids: string[]): Promise<{
         archived: string[];
         failed: string[];

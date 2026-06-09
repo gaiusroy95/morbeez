@@ -2093,6 +2093,23 @@ export async function adminRoutes(app) {
             })),
         });
     });
+    app.get(`${api}/products/shopify-connection`, async (request, reply) => {
+        requireAdmin(request);
+        const { shopifyPublicationsService } = await import('../../services/shopify/shopify.publications.service.js');
+        const status = await shopifyPublicationsService.getConnectionStatus();
+        return reply.send({ ok: true, ...status });
+    });
+    app.post(`${api}/products/publish-all-storefront`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const result = await shopifyProductsService.publishAllActiveToStorefront();
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/products/:id/publish-storefront`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const { id } = request.params;
+        const product = await shopifyProductsService.publishToStorefront(id);
+        return reply.send({ ok: true, product });
+    });
     app.get(`${api}/products`, async (request, reply) => {
         requireAdmin(request);
         const q = request.query;
@@ -2121,15 +2138,24 @@ export async function adminRoutes(app) {
         return reply.code(201).send({ ok: true, product });
     });
     app.put(`${api}/products/:id`, async (request, reply) => {
+        const actor = requireAdmin(request);
         requireAdminRole(request, 'admin', 'manager');
         const { id } = request.params;
-        const body = productUpdateSchema.parse(request.body);
-        const product = await shopifyProductsService.update(id, body);
+        const body = productUpdateSchema
+            .extend({ confirmPassword: confirmPasswordSchema.optional() })
+            .parse(request.body);
+        if (body.status === 'active' || body.status === 'draft') {
+            await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        }
+        const { confirmPassword: _pw, ...update } = body;
+        const product = await shopifyProductsService.update(id, update);
         return reply.send({ ok: true, product });
     });
     app.delete(`${api}/products/:id`, async (request, reply) => {
         requireAdminRole(request, 'super_admin', 'admin', 'manager');
         const actor = requireAdmin(request);
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         const { id } = request.params;
         const product = await shopifyProductsService.update(id, { status: 'archived' });
         await logAdminMutation({

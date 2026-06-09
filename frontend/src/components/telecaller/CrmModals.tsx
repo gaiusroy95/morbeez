@@ -719,6 +719,7 @@ function LogCallModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const [outcomeId, setOutcomeId] = useState('');
   const [outcome, setOutcome] = useState('answered');
   const [notes, setNotes] = useState('');
   const { saving, error, run } = useSubmit(onSaved, onClose);
@@ -739,17 +740,17 @@ function LogCallModal({
     >
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
       <div className="space-y-3">
-        <Field label="Outcome">
-          <StaticSelect
-            className={inputClass}
-            value={outcome}
-            onChange={setOutcome}
-            options={['answered', 'no_answer', 'busy', 'callback_requested'].map((o) => ({
-              value: o,
-              label: o.replace(/_/g, ' '),
-            }))}
-          />
-        </Field>
+        <MasterSelect
+          masterType="interaction_outcome"
+          label="Outcome"
+          value={outcomeId}
+          displayValue={outcome.replace(/_/g, ' ')}
+          onChange={(id, name) => {
+            setOutcomeId(id);
+            setOutcome(name);
+          }}
+          apiBase={`${base}/masters`}
+        />
         <Field label="Notes">
           <textarea className={inputClass} rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </Field>

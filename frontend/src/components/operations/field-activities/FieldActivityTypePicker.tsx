@@ -1,10 +1,10 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { api } from '../../../lib/api';
+import { DynamicSelect, type DynamicSelectOption } from '../../ui/DynamicSelect';
 import {
   activityEnumFromCategory,
   type FieldActivityType,
 } from './field-activity-utils';
-import '../../../styles/field-activity-type-picker.css';
 
 type Props = {
   label?: string;
@@ -17,19 +17,31 @@ type Props = {
   placeholder?: string;
   onChange: (type: FieldActivityType | null) => void;
   onTypeCreated?: (type: FieldActivityType) => void;
+  onTypesChange?: (types: FieldActivityType[]) => void;
 };
 
-function filterTypes(types: FieldActivityType[], query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return types;
-  return types.filter((t) => {
-    const name = t.activity_name.toLowerCase();
-    const category = t.category.toLowerCase();
-    const crop = String(t.crop ?? '').toLowerCase();
-    return name.includes(q) || category.includes(q) || crop.includes(q);
-  });
+function mutateApiBase(apiBase: string): string {
+  const leadMatch = apiBase.match(/\/leads\/[^/]+$/);
+  if (leadMatch) {
+    return apiBase.replace(/\/leads\/[^/]+$/, '');
+  }
+  return apiBase;
 }
 
+function mapTypeToOption(type: FieldActivityType): DynamicSelectOption {
+  const crop = type.crop ? ` · ${type.crop}` : '';
+  return {
+    key: type.id,
+    value: type.id,
+    label: `${type.activity_name}${crop}`,
+  };
+}
+
+function findType(types: FieldActivityType[], id: string): FieldActivityType | undefined {
+  return types.find((t) => t.id === id);
+}
+
+/** Field activity type picker with search, add, edit, delete (super admin). */
 export function FieldActivityTypePicker({
   label = 'Activity Type',
   types,
@@ -41,138 +53,80 @@ export function FieldActivityTypePicker({
   placeholder = 'Select activity type…',
   onChange,
   onTypeCreated,
+  onTypesChange,
 }: Props) {
-  const listId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const selected = types.find((t) => t.id === value) ?? null;
-  const filtered = useMemo(() => filterTypes(types, search), [types, search]);
-  const trimmedSearch = search.trim();
-  const canCreate =
-    trimmedSearch.length > 0 &&
-    !types.some((t) => t.activity_name.toLowerCase() === trimmedSearch.toLowerCase());
-
-  useEffect(() => {
-    function onDocClick(e: MouseEvent) {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, []);
+  const options = useMemo(() => types.map(mapTypeToOption), [types]);
+  const selected = findType(types, value);
+  const opsBase = mutateApiBase(apiBase);
 
   async function createType(name: string) {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await api<{ ok: boolean; type: FieldActivityType }>(`${apiBase}/field-activity-types`, {
+    const res = await api<{ ok: boolean; type: FieldActivityType }>(
+      `${apiBase}/field-activity-types`,
+      {
         method: 'POST',
         body: JSON.stringify({
           activityName: name,
           crop: cropType?.trim().toLowerCase() || null,
         }),
-      });
-      const created = res.type;
-      onTypeCreated?.(created);
-      onChange(created);
-      setSearch('');
-      setOpen(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create activity type');
-    } finally {
-      setBusy(false);
-    }
+      }
+    );
+    onTypeCreated?.(res.type);
+    onTypesChange?.([...types, res.type]);
+    onChange(res.type);
   }
 
-  function selectType(type: FieldActivityType) {
-    onChange(type);
-    setSearch('');
-    setOpen(false);
+  async function updateType(
+    option: DynamicSelectOption,
+    fields: Record<string, string>,
+    confirmPassword: string
+  ) {
+    const name = fields.label?.trim();
+    if (!name) return;
+    const patchUrl = apiBase.includes('/leads/')
+      ? `${apiBase}/field-activity-types/${option.value}`
+      : `${opsBase}/field-activity-types/${option.value}`;
+    const res = await api<{ ok: boolean; type: FieldActivityType }>(patchUrl, {
+      method: 'PATCH',
+      body: JSON.stringify({ activityName: name, confirmPassword }),
+    });
+    const next = types.map((t) => (t.id === option.value ? res.type : t));
+    onTypesChange?.(next);
+    if (value === option.value) onChange(res.type);
+  }
+
+  async function removeType(option: DynamicSelectOption, confirmPassword: string) {
+    const deleteUrl = apiBase.includes('/leads/')
+      ? `${apiBase}/field-activity-types/${option.value}`
+      : `${opsBase}/field-activity-types/${option.value}`;
+    await api(deleteUrl, {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmPassword }),
+    });
+    const next = types.filter((t) => t.id !== option.value);
+    onTypesChange?.(next);
+    if (value === option.value) onChange(null);
   }
 
   return (
-    <div className="fatp-root" ref={rootRef}>
-      <label className="fatp-label" htmlFor={listId}>
-        {label}
-        {required ? ' *' : ''}
-      </label>
-      <button
-        id={listId}
-        type="button"
-        className="fatp-trigger"
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <span className={`fatp-trigger-text ${selected ? '' : 'fatp-trigger-text--placeholder'}`}>
-          {selected ? selected.activity_name : placeholder}
-        </span>
-        <span className="fatp-chevron" aria-hidden>
-          ▾
-        </span>
-      </button>
-
-      {open ? (
-        <div className="fatp-panel" role="listbox">
-          <div className="fatp-search-wrap">
-            <span className="fatp-search-icon" aria-hidden>
-              ⌕
-            </span>
-            <input
-              className="fatp-search"
-              type="search"
-              value={search}
-              placeholder="Search or add new type…"
-              autoFocus
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && canCreate) {
-                  e.preventDefault();
-                  void createType(trimmedSearch);
-                }
-              }}
-            />
-          </div>
-          <ul className="fatp-list">
-            {filtered.map((type) => (
-              <li key={type.id}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={type.id === value}
-                  className={`fatp-option ${type.id === value ? 'fatp-option--selected' : ''}`}
-                  onClick={() => selectType(type)}
-                >
-                  <span className="fatp-option-name">{type.activity_name}</span>
-                  <span className="fatp-option-meta">
-                    {type.category}
-                    {type.crop ? ` · ${type.crop}` : ' · all crops'}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {filtered.length === 0 && !canCreate ? (
-              <li className="fatp-empty">No matching activity types.</li>
-            ) : null}
-          </ul>
-          {canCreate ? (
-            <button
-              type="button"
-              className="fatp-create"
-              disabled={busy}
-              onClick={() => void createType(trimmedSearch)}
-            >
-              {busy ? 'Adding…' : `+ Add "${trimmedSearch}"`}
-            </button>
-          ) : null}
-          {error ? <p className="fatp-error">{error}</p> : null}
-        </div>
-      ) : null}
-    </div>
+    <DynamicSelect
+      label={label}
+      placeholder={placeholder}
+      value={value}
+      displayValue={selected?.activity_name}
+      options={options}
+      disabled={disabled}
+      allowManage={!disabled}
+      addFields={[{ name: 'label', placeholder: 'Activity name' }]}
+      editFields={[{ name: 'label', placeholder: 'Activity name' }]}
+      onChange={(id) => onChange(id ? findType(types, id) ?? null : null)}
+      onAdd={async (fields) => {
+        const name = fields.label?.trim();
+        if (!name) return;
+        await createType(name);
+      }}
+      onUpdate={updateType}
+      onDelete={removeType}
+    />
   );
 }
 

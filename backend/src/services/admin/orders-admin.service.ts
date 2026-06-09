@@ -285,13 +285,33 @@ function mapQuote(row: Record<string, unknown>): NormalizedOrder {
 function mergeOrders(
   commerce: NormalizedOrder[],
   checkouts: NormalizedOrder[],
-  quotes: NormalizedOrder[] = []
+  quotes: NormalizedOrder[] = [],
+  hiddenShopifyIds: Set<string> = new Set()
 ): NormalizedOrder[] {
   const seenShopify = new Set(commerce.map((o) => o.shopifyOrderId).filter(Boolean));
-  const extra = checkouts.filter((c) => !c.shopifyOrderId || !seenShopify.has(c.shopifyOrderId));
+  const extra = checkouts.filter(
+    (c) =>
+      !c.shopifyOrderId ||
+      (!seenShopify.has(c.shopifyOrderId) && !hiddenShopifyIds.has(c.shopifyOrderId))
+  );
   return [...quotes, ...commerce, ...extra].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+}
+
+async function expireCheckoutSessions(
+  filter: { id?: string; shopifyOrderId?: string },
+  now: string
+): Promise<void> {
+  let q = supabase
+    .from('checkout_sessions')
+    .update({ status: 'expired', deleted_at: now, updated_at: now })
+    .is('deleted_at', null);
+  if (filter.id) q = q.eq('id', filter.id);
+  else if (filter.shopifyOrderId) q = q.eq('shopify_order_id', filter.shopifyOrderId);
+  else return;
+  const { error } = await q;
+  throwIfSupabaseError(error, 'Could not expire checkout session');
 }
 
 function toPublicOrder(o: NormalizedOrder) {
@@ -628,7 +648,7 @@ export const ordersAdminService = {
 
     await commerceQuoteService.purgeExpired();
 
-    const [commerce, checkouts, quotes] = await Promise.all([
+    const [commerce, checkouts, quotes, deletedCommerce] = await Promise.all([
       supabase
         .from('commerce_orders')
         .select('*')
@@ -648,16 +668,30 @@ export const ordersAdminService = {
         .in('status', ['pending', 'checkout'])
         .order('created_at', { ascending: false })
         .limit(500),
+      supabase
+        .from('commerce_orders')
+        .select('shopify_order_id')
+        .not('deleted_at', 'is', null)
+        .not('shopify_order_id', 'is', null)
+        .limit(500),
     ]);
 
     throwIfSupabaseError(commerce.error, 'Could not load orders');
     throwIfSupabaseError(checkouts.error, 'Could not load checkout orders');
     throwIfSupabaseError(quotes.error, 'Could not load quotes');
+    throwIfSupabaseError(deletedCommerce.error, 'Could not load deleted order index');
+
+    const hiddenShopifyIds = new Set(
+      (deletedCommerce.data ?? [])
+        .map((r) => (r.shopify_order_id ? String(r.shopify_order_id) : ''))
+        .filter(Boolean)
+    );
 
     let orders = mergeOrders(
       (commerce.data ?? []).map(mapCommerceOrder),
       (checkouts.data ?? []).map(mapCheckoutSession),
-      (quotes.data ?? []).map((r) => mapQuote(r as Record<string, unknown>))
+      (quotes.data ?? []).map((r) => mapQuote(r as Record<string, unknown>)),
+      hiddenShopifyIds
     );
 
     await attachFarmerNames(orders);
@@ -833,15 +867,32 @@ export const ordersAdminService = {
     }
 
     if (source === 'razorpay_checkout') {
-      const { data, error } = await supabase
+      const { data: checkout, error: loadErr } = await supabase
         .from('checkout_sessions')
-        .update({ status: 'cancelled', deleted_at: now, updated_at: now })
+        .select('id, shopify_order_id')
         .eq('id', id)
         .is('deleted_at', null)
-        .select('id')
         .maybeSingle();
-      throwIfSupabaseError(error, 'Could not delete order');
-      if (!data) throw new NotFoundError('Order not found');
+      throwIfSupabaseError(loadErr, 'Could not load checkout order');
+      if (!checkout) throw new NotFoundError('Order not found');
+
+      await expireCheckoutSessions({ id }, now);
+
+      if (checkout.shopify_order_id) {
+        await supabase
+          .from('commerce_orders')
+          .update({
+            payment_status: 'cancelled',
+            fulfillment_status: 'cancelled',
+            financial_status: 'voided',
+            oms_status: 'cancelled',
+            deleted_at: now,
+            updated_at: now,
+          })
+          .eq('shopify_order_id', String(checkout.shopify_order_id))
+          .is('deleted_at', null);
+      }
+
       return 'checkout_sessions';
     }
 
@@ -857,10 +908,14 @@ export const ordersAdminService = {
       })
       .eq('id', id)
       .is('deleted_at', null)
-      .select('id')
+      .select('id, shopify_order_id')
       .maybeSingle();
     throwIfSupabaseError(error, 'Could not delete order');
     if (!data) throw new NotFoundError('Order not found');
+
+    if (data.shopify_order_id) {
+      await expireCheckoutSessions({ shopifyOrderId: String(data.shopify_order_id) }, now);
+    }
 
     try {
       await inventoryService.releaseOrderAllocations(id, actorEmail);

@@ -1,20 +1,8 @@
-import {
-  BRANDS,
-  CATEGORIES,
-  FORMULATION_TYPES,
-  MODE_OF_ENTRY,
-  PACK_MATERIALS,
-  PACKING_TYPES,
-  PRODUCT_TYPES,
-  SHELF_LIFE_OPTIONS,
-  STORAGE_OPTIONS,
-  SUB_CATEGORIES,
-} from '../constants';
 import { WizardField, pwInputClass, pwTextareaClass } from '../WizardField';
 import { WarehouseLocationFields } from '../WarehouseLocationFields';
+import { WizardMasterPicker } from '../WizardMasterPicker';
 import type { WizardFormState } from '../types';
 import { readFileAsBase64 } from '../../../../lib/readFileAsBase64';
-import { StaticSelect } from '../../../ui';
 
 type Props = {
   state: WizardFormState;
@@ -81,11 +69,11 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
         <h2 className="pw-section-title">Basic Information</h2>
         <div className="pw-grid pw-grid--3">
           <WizardField label="Brand Name" required>
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="brand"
+              label=""
               value={b.brandName}
-              onChange={(value) => patchBasic({ brandName: value })}
-              options={BRANDS.map((x) => ({ value: x, label: x }))}
+              onChange={(name) => patchBasic({ brandName: name })}
             />
           </WizardField>
           <WizardField label="Trade Name" required>
@@ -105,36 +93,27 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Category" required>
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="product_category"
+              label=""
               value={b.category}
-              onChange={(value) => patchBasic({ category: value })}
-              options={[
-                { value: '', label: 'Select category' },
-                ...CATEGORIES.map((c) => ({ value: c, label: c })),
-              ]}
+              onChange={(name) => patchBasic({ category: name })}
             />
           </WizardField>
           <WizardField label="Sub Category" required>
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="product_sub_category"
+              label=""
               value={b.subCategory}
-              onChange={(value) => patchBasic({ subCategory: value })}
-              options={[
-                { value: '', label: 'Select sub category' },
-                ...SUB_CATEGORIES.map((c) => ({ value: c, label: c })),
-              ]}
+              onChange={(name) => patchBasic({ subCategory: name })}
             />
           </WizardField>
           <WizardField label="Formulation Type" required>
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="formulation_type"
+              label=""
               value={b.formulationType}
-              onChange={(value) => patchBasic({ formulationType: value })}
-              options={[
-                { value: '', label: 'Select formulation' },
-                ...FORMULATION_TYPES.map((c) => ({ value: c, label: c })),
-              ]}
+              onChange={(name) => patchBasic({ formulationType: name })}
             />
           </WizardField>
           <WizardField label="Technical Content" required>
@@ -162,14 +141,11 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Product Type">
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="product_type"
+              label=""
               value={b.productType}
-              onChange={(value) => patchBasic({ productType: value })}
-              options={[
-                { value: '', label: 'Select type' },
-                ...PRODUCT_TYPES.map((c) => ({ value: c, label: c })),
-              ]}
+              onChange={(name) => patchBasic({ productType: name })}
             />
           </WizardField>
           <WizardField label="Mode of Action" required>
@@ -181,14 +157,11 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
             />
           </WizardField>
           <WizardField label="Mode of Entry" required>
-            <StaticSelect
-              className={pwInputClass()}
+            <WizardMasterPicker
+              masterType="mode_of_entry"
+              label=""
               value={b.modeOfEntry}
-              onChange={(value) => patchBasic({ modeOfEntry: value })}
-              options={[
-                { value: '', label: 'Select mode' },
-                ...MODE_OF_ENTRY.map((c) => ({ value: c, label: c })),
-              ]}
+              onChange={(name) => patchBasic({ modeOfEntry: name })}
             />
           </WizardField>
           <WizardField label="Country of Origin">
@@ -321,35 +294,35 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
           <h3>Packaging Information</h3>
           <div className="pw-grid pw-grid--3">
             <WizardField label="Shelf Life">
-              <StaticSelect
-                className={pwInputClass()}
+              <WizardMasterPicker
+                masterType="shelf_life"
+                label=""
                 value={b.shelfLife}
-                onChange={(value) => patchBasic({ shelfLife: value })}
-                options={SHELF_LIFE_OPTIONS.map((o) => ({ value: o, label: o }))}
+                onChange={(name) => patchBasic({ shelfLife: name })}
               />
             </WizardField>
             <WizardField label="Storage Conditions">
-              <StaticSelect
-                className={pwInputClass()}
+              <WizardMasterPicker
+                masterType="storage_condition"
+                label=""
                 value={b.storageConditions}
-                onChange={(value) => patchBasic({ storageConditions: value })}
-                options={STORAGE_OPTIONS.map((o) => ({ value: o, label: o }))}
+                onChange={(name) => patchBasic({ storageConditions: name })}
               />
             </WizardField>
             <WizardField label="Packing Type">
-              <StaticSelect
-                className={pwInputClass()}
+              <WizardMasterPicker
+                masterType="packing_type"
+                label=""
                 value={b.packingType}
-                onChange={(value) => patchBasic({ packingType: value })}
-                options={PACKING_TYPES.map((o) => ({ value: o, label: o }))}
+                onChange={(name) => patchBasic({ packingType: name })}
               />
             </WizardField>
             <WizardField label="Pack Material">
-              <StaticSelect
-                className={pwInputClass()}
+              <WizardMasterPicker
+                masterType="pack_material"
+                label=""
                 value={b.packMaterial}
-                onChange={(value) => patchBasic({ packMaterial: value })}
-                options={PACK_MATERIALS.map((o) => ({ value: o, label: o }))}
+                onChange={(name) => patchBasic({ packMaterial: name })}
               />
             </WizardField>
           </div>

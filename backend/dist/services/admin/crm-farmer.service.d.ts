@@ -1,5 +1,5 @@
 import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
-export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'interaction_outcome' | 'interaction_next_action' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization';
+export type MasterType = 'crop' | 'market' | 'variety' | 'irrigation_type' | 'soil_type' | 'growth_stage' | 'block_status' | 'disease' | 'pest' | 'interaction_type' | 'interaction_outcome' | 'interaction_next_action' | 'recommendation_type' | 'application_method' | 'payment_mode' | 'priority' | 'visit_type' | 'moisture_status' | 'pest_pressure' | 'plant_condition' | 'delivery_partner' | 'territory' | 'specialization' | 'brand' | 'product_category' | 'product_sub_category' | 'formulation_type' | 'mode_of_entry' | 'product_type' | 'shelf_life' | 'storage_condition' | 'packing_type' | 'pack_material' | 'application_stage' | 'product_unit' | 'language';
 export declare const crmFarmerService: {
     listMasters(type: MasterType, parentId?: string | null, search?: string): Promise<{
         id: any;
@@ -11,6 +11,9 @@ export declare const crmFarmerService: {
         active: any;
         sort_order: any;
     }[]>;
+    seedDefaultMasters(type: MasterType, names: string[], rows: Array<{
+        name: string;
+    }>): Promise<boolean>;
     createMaster(input: {
         masterType: MasterType;
         name: string;

@@ -157,6 +157,40 @@ export const whatsappOsAdminService = {
         throwIfSupabaseError(error, 'Could not create field activity type');
         return data;
     },
+    async updateFieldActivityType(id, patch) {
+        const updates = { updated_at: new Date().toISOString() };
+        if (patch.activityName != null)
+            updates.activity_name = patch.activityName.trim();
+        if (patch.category != null)
+            updates.category = patch.category.trim().toLowerCase();
+        if (patch.crop !== undefined)
+            updates.crop = patch.crop?.trim().toLowerCase() || null;
+        if (patch.icon !== undefined)
+            updates.icon = patch.icon?.trim() || 'layers';
+        if (patch.colorTag !== undefined)
+            updates.color_tag = patch.colorTag?.trim() || 'emerald';
+        if (patch.followupDefaultDays !== undefined) {
+            updates.followup_default_days = patch.followupDefaultDays;
+        }
+        const { data, error } = await supabase
+            .from('field_activity_types')
+            .update(updates)
+            .eq('id', id)
+            .select('*')
+            .single();
+        throwIfSupabaseError(error, 'Could not update field activity type');
+        return data;
+    },
+    async deleteFieldActivityType(id) {
+        const { data, error } = await supabase
+            .from('field_activity_types')
+            .update({ active_status: false, updated_at: new Date().toISOString() })
+            .eq('id', id)
+            .select('*')
+            .single();
+        throwIfSupabaseError(error, 'Could not delete field activity type');
+        return data;
+    },
     async listFieldPendingTasks(params) {
         const { data, error } = await supabase
             .from('pending_tasks')

@@ -1284,6 +1284,30 @@ export async function osTelecallerRoutes(app) {
         const type = await whatsappOsAdminService.createFieldActivityType(body);
         return reply.status(201).send({ ok: true, type });
     });
+    app.patch(`${api}/leads/:id/field-activity-types/:typeId`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { typeId } = request.params;
+        const body = z
+            .object({
+            activityName: z.string().min(1).max(120).optional(),
+            category: z.string().max(40).optional(),
+            crop: z.string().max(40).nullable().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const type = await whatsappOsAdminService.updateFieldActivityType(typeId, patch);
+        return reply.send({ ok: true, type });
+    });
+    app.delete(`${api}/leads/:id/field-activity-types/:typeId`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { typeId } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        const type = await whatsappOsAdminService.deleteFieldActivityType(typeId);
+        return reply.send({ ok: true, type });
+    });
     app.post(`${api}/leads/:id/field-activities`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
         const { id } = request.params;

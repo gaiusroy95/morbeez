@@ -1,5 +1,6 @@
 import { shopifyAdmin, shopifyAdminRaw } from './shopify.client.js';
 import { shopifyInventoryService } from './shopify.inventory.service.js';
+import { shopifyPublicationsService } from './shopify.publications.service.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 
 export interface ProductListQuery {
@@ -346,6 +347,8 @@ export const shopifyProductsService = {
         input.variants,
         res.product.variants ?? []
       );
+      const createdStatus = (input.status ?? 'draft') as 'active' | 'draft' | 'archived';
+      await shopifyPublicationsService.syncProductVisibility(String(res.product.id), createdStatus);
       clearProductListCache();
       const refreshed = await shopifyAdmin<ProductResponse>(`/products/${res.product.id}.json`);
       return mapProduct(refreshed.product);
@@ -377,6 +380,8 @@ export const shopifyProductsService = {
       input.variants,
       res.product.variants ?? []
     );
+    const updatedStatus = (input.status ?? p.status) as 'active' | 'draft' | 'archived';
+    await shopifyPublicationsService.syncProductVisibility(id, updatedStatus);
     clearProductListCache();
     const refreshed = await shopifyAdmin<ProductResponse>(`/products/${id}.json`);
     return mapProduct(refreshed.product);
@@ -415,6 +420,8 @@ export const shopifyProductsService = {
       method: 'POST',
       body: JSON.stringify({ product }),
     });
+    const createdStatus = (input.status ?? 'draft') as 'active' | 'draft' | 'archived';
+    await shopifyPublicationsService.syncProductVisibility(String(res.product.id), createdStatus);
     clearProductListCache();
     return mapProduct(res.product);
   },
@@ -460,8 +467,37 @@ export const shopifyProductsService = {
       method: 'PUT',
       body: JSON.stringify({ product }),
     });
+    if (input.status) {
+      await shopifyPublicationsService.syncProductVisibility(
+        id,
+        input.status as 'active' | 'draft' | 'archived'
+      );
+    }
     clearProductListCache();
     return mapProduct(res.product);
+  },
+
+  async publishToStorefront(id: string) {
+    return this.update(id, { status: 'active' });
+  },
+
+  async publishAllActiveToStorefront(): Promise<{ published: number; failed: string[] }> {
+    const catalog = await fetchAllProducts();
+    const active = catalog.filter((p) => p.status === 'active');
+    const failed: string[] = [];
+
+    await Promise.all(
+      active.map(async (p) => {
+        try {
+          await shopifyPublicationsService.syncProductVisibility(String(p.id), 'active');
+        } catch {
+          failed.push(String(p.id));
+        }
+      })
+    );
+
+    clearProductListCache();
+    return { published: active.length - failed.length, failed };
   },
 
   async archiveMany(ids: string[]): Promise<{ archived: string[]; failed: string[] }> {

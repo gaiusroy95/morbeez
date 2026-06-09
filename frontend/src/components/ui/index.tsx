@@ -178,6 +178,7 @@ export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectE
 
 export { DynamicSelect, SearchSelect, StaticSelect } from './DynamicSelect';
 export type { DynamicSelectOption, DynamicSelectField } from './DynamicSelect';
+export { MasterDropdown } from './MasterDropdown';
 
 export function Label({ children, className }: { children: ReactNode; className?: string }) {
   return (

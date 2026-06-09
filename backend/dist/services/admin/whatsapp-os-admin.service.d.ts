@@ -59,6 +59,15 @@ export declare const whatsappOsAdminService: {
         colorTag?: string | null;
         followupDefaultDays?: number | null;
     }): Promise<any>;
+    updateFieldActivityType(id: string, patch: {
+        activityName?: string;
+        category?: string;
+        crop?: string | null;
+        icon?: string | null;
+        colorTag?: string | null;
+        followupDefaultDays?: number | null;
+    }): Promise<any>;
+    deleteFieldActivityType(id: string): Promise<any>;
     listFieldPendingTasks(params: {
         blockId: string;
         limit?: number;

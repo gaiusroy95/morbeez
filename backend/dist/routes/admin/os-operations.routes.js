@@ -198,6 +198,33 @@ export async function osOperationsRoutes(app) {
         const type = await whatsappOsAdminService.createFieldActivityType(body);
         return reply.status(201).send({ ok: true, type });
     });
+    app.patch(`${api}/field-activity-types/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            activityName: z.string().min(1).max(120).optional(),
+            category: z.string().max(40).optional(),
+            crop: z.string().max(40).nullable().optional(),
+            icon: z.string().max(40).nullable().optional(),
+            colorTag: z.string().max(40).nullable().optional(),
+            followupDefaultDays: z.number().int().min(0).max(365).nullable().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const type = await whatsappOsAdminService.updateFieldActivityType(id, patch);
+        return reply.send({ ok: true, type });
+    });
+    app.delete(`${api}/field-activity-types/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        const type = await whatsappOsAdminService.deleteFieldActivityType(id);
+        return reply.send({ ok: true, type });
+    });
     app.get(`${api}/field-activities/pending-tasks`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = z

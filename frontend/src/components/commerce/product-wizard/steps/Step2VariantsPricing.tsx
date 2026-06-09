@@ -1,7 +1,6 @@
-import { UNITS } from '../constants';
 import { emptyVariant } from '../state';
 import { WizardField, pwInputClass } from '../WizardField';
-import { StaticSelect } from '../../../ui';
+import { WizardMasterPicker } from '../WizardMasterPicker';
 import type { WizardFormState, WizardVariant } from '../types';
 
 type Props = {
@@ -50,12 +49,11 @@ export function Step2VariantsPricing({ state, onChange }: Props) {
                   />
                 </td>
                 <td>
-                  <StaticSelect
-                    className="pw-table-input"
-                    compact
+                  <WizardMasterPicker
+                    masterType="product_unit"
+                    label=""
                     value={v.unit}
-                    onChange={(value) => patchVariant(idx, { unit: value })}
-                    options={UNITS.map((u) => ({ value: u, label: u }))}
+                    onChange={(name) => patchVariant(idx, { unit: name })}
                   />
                 </td>
                 <td>
