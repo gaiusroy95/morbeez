@@ -2,11 +2,21 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireFarmer } from '../../middleware/require-farmer.js';
 import { farmerPortalService } from '../../services/farmer/farmer-portal.service.js';
+import { farmerProductReviewService } from '../../services/farmer/farmer-product-review.service.js';
 
 /**
  * Farmer customer portal — JWT-protected, no CRM internals exposed.
  */
 export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/api/v1/store/product-reviews', async (request, reply) => {
+    const q = request.query as { productId?: string };
+    if (!q.productId?.trim()) {
+      return reply.status(400).send({ ok: false, message: 'productId is required' });
+    }
+    const result = await farmerProductReviewService.aggregateForProduct(q.productId.trim());
+    return reply.send({ ok: true, ...result });
+  });
+
   app.get('/api/v1/farmer/portal/summary', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const summary = await farmerPortalService.getSummary(farmerId);
@@ -24,6 +34,20 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const result = await farmerPortalService.getOrderTracking(farmerId, id);
     return reply.send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/farmer/portal/orders/:id/reviews', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        productKey: z.string().min(1).max(160),
+        rating: z.number().int().min(1).max(5),
+        reviewText: z.string().max(2000).optional(),
+      })
+      .parse(request.body);
+    const review = await farmerPortalService.submitOrderReview(farmerId, id, body);
+    return reply.status(201).send({ ok: true, review });
   });
 
   app.get('/api/v1/farmer/portal/advisory', async (request, reply) => {

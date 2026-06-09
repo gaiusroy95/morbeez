@@ -28,6 +28,9 @@ const envSchema = z.object({
   SHIPROCKET_EMAIL: z.string().optional(),
   SHIPROCKET_PASSWORD: z.string().optional(),
   SHIPROCKET_WEBHOOK_TOKEN: z.string().optional(),
+  /** Must match pickup location nickname in Shiprocket → Settings → Pickup addresses */
+  SHIPROCKET_PICKUP_LOCATION: z.string().default('Primary'),
+  SHIPROCKET_PICKUP_PINCODE: z.string().default('560001'),
 
   WHATSAPP_PROVIDER: z.enum(['cloud', 'wati', 'interakt', 'adsgyani']).default('adsgyani'),
   WHATSAPP_PHONE_NUMBER_ID: z.string().optional(),

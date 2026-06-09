@@ -101,6 +101,9 @@ function extractCommerceLineItems(raw) {
             quantity: Number(li.quantity) || 1,
             price: li.price != null ? Number(li.price) : undefined,
             imageUrl: image?.src ?? null,
+            shopifyProductId: li.product_id != null ? String(li.product_id) : null,
+            shopifyVariantId: li.variant_id != null ? String(li.variant_id) : null,
+            sku: li.sku ? String(li.sku) : null,
         };
     });
 }

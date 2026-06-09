@@ -1,0 +1,43 @@
+{% comment %}
+  Morbeez farmer reviews on product page (from delivered-order reviews API).
+  @param {product} product
+{% endcomment %}
+<div
+  id="morbeez-farmer-reviews"
+  class="morbeez-farmer-reviews mt-8 rounded-xl border border-gray-100 bg-[var(--color-surface)] p-6"
+  data-product-id="{{ product.id }}"
+  hidden
+>
+  <h2 class="font-heading text-xl font-bold text-[var(--color-trust)]">Farmer reviews</h2>
+  <div id="morbeez-farmer-reviews-summary" class="mt-2 flex items-center gap-2 text-sm text-[var(--color-muted)]"></div>
+  <ul id="morbeez-farmer-reviews-list" class="mt-4 space-y-4"></ul>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('morbeez-farmer-reviews');
+  if (!root) return;
+  var productId = root.getAttribute('data-product-id');
+  if (!productId) return;
+  var apiBase = (window.MORBEEZ_AUTH && window.MORBEEZ_AUTH.apiBase) || (window.MORBEEZ_PORTAL && window.MORBEEZ_PORTAL.apiBase) || '';
+  if (!apiBase) return;
+  fetch(apiBase.replace(/\/$/, '') + '/api/v1/store/product-reviews?productId=' + encodeURIComponent(productId))
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      if (!data.ok || !data.reviewCount) return;
+      root.hidden = false;
+      var summary = document.getElementById('morbeez-farmer-reviews-summary');
+      var list = document.getElementById('morbeez-farmer-reviews-list');
+      if (summary) {
+        summary.textContent = data.averageRating + ' out of 5 · ' + data.reviewCount + ' farmer review' + (data.reviewCount === 1 ? '' : 's');
+      }
+      if (list && data.reviews) {
+        list.innerHTML = data.reviews.slice(0, 8).map(function (rev) {
+          var stars = '★★★★★'.slice(0, rev.rating) + '☆☆☆☆☆'.slice(rev.rating);
+          var text = rev.reviewText ? '<p class="mt-1 text-sm text-[var(--color-trust)]">' + rev.reviewText.replace(/</g, '&lt;') + '</p>' : '';
+          return '<li class="rounded-lg bg-white p-4 border border-gray-100"><div class="text-amber-500 text-sm tracking-wider" aria-label="' + rev.rating + ' stars">' + stars + '</div>' + text + '</li>';
+        }).join('');
+      }
+    })
+    .catch(function () {});
+})();
+</script>

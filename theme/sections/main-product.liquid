@@ -124,6 +124,7 @@
     </div>
 
     <div class="mt-10" id="product-reviews">
+      {%- render 'morbeez-farmer-reviews', product: product -%}
       {%- for block in section.blocks -%}
         {%- render block -%}
       {%- endfor -%}

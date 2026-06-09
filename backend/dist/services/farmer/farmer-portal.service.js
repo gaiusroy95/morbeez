@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { farmerAuthService } from '../auth/farmer-auth.service.js';
 import { telecallerFarmerOrdersService, } from '../admin/telecaller-farmer-orders.service.js';
+import { farmerProductReviewService } from './farmer-product-review.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import { advisoryImageStorageService, resolveAdvisoryImageUrl, } from '../core/advisory-image-storage.service.js';
 import { cropImageReviewService } from '../core/crop-image-review.service.js';
@@ -300,6 +301,7 @@ export const farmerPortalService = {
             : commerce?.expected_delivery_at
                 ? formatDateTime(String(commerce.expected_delivery_at))
                 : null;
+        const reviewState = await farmerProductReviewService.getReviewableLines(farmerId, orderId);
         return {
             order: publicOrder(order),
             tracking: {
@@ -316,7 +318,12 @@ export const farmerPortalService = {
             },
             timeline,
             lineItems: order.lineItems,
+            canReview: reviewState.canReview,
+            reviewLines: reviewState.lines,
         };
+    },
+    async submitOrderReview(farmerId, orderId, input) {
+        return farmerProductReviewService.submitReview(farmerId, orderId, input);
     },
     async getAdvisory(farmerId) {
         const [blocksRes, recsRes, followUpsRes] = await Promise.all([

@@ -6,6 +6,7 @@ import {
   telecallerFarmerOrdersService,
   type TelecallerOrderRow,
 } from '../admin/telecaller-farmer-orders.service.js';
+import { farmerProductReviewService } from './farmer-product-review.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import {
   advisoryImageStorageService,
@@ -342,6 +343,8 @@ export const farmerPortalService = {
           ? formatDateTime(String(commerce.expected_delivery_at))
           : null;
 
+    const reviewState = await farmerProductReviewService.getReviewableLines(farmerId, orderId);
+
     return {
       order: publicOrder(order),
       tracking: {
@@ -359,7 +362,17 @@ export const farmerPortalService = {
       },
       timeline,
       lineItems: order.lineItems,
+      canReview: reviewState.canReview,
+      reviewLines: reviewState.lines,
     };
+  },
+
+  async submitOrderReview(
+    farmerId: string,
+    orderId: string,
+    input: { productKey: string; rating: number; reviewText?: string }
+  ) {
+    return farmerProductReviewService.submitReview(farmerId, orderId, input);
   },
 
   async getAdvisory(farmerId: string) {

@@ -1,5 +1,6 @@
 import { eventBus } from '../../events/bus.js';
 import { supabase } from '../../lib/supabase.js';
+import { env } from '../../config/env.js';
 import { getOrder } from '../shopify/shopify.client.js';
 import { shiprocketRequest } from './shiprocket.client.js';
 import { logger } from '../../lib/logger.js';
@@ -77,7 +78,7 @@ function parseServiceableCouriers(payload) {
 /** Shiprocket serviceability is GET with query params — POST returns 405. */
 async function pickCourier(shiprocketOrderId, pincode, weight, isCod) {
     const params = new URLSearchParams({
-        pickup_postcode: process.env.SHIPROCKET_PICKUP_PINCODE ?? '560001',
+        pickup_postcode: pickupPincode(),
         delivery_postcode: pincode,
         cod: String(isCod ? 1 : 0),
         weight: String(Math.max(0.1, weight)),
@@ -97,6 +98,70 @@ async function pickCourier(shiprocketOrderId, pincode, weight, isCod) {
     }
     const sorted = [...couriers].sort((a, b) => Number(a.rate) - Number(b.rate));
     return sorted[0];
+}
+function pickupLocationName() {
+    return env.SHIPROCKET_PICKUP_LOCATION?.trim() || 'Primary';
+}
+function pickupPincode() {
+    return env.SHIPROCKET_PICKUP_PINCODE?.trim() || '560001';
+}
+async function getWalletBalance() {
+    try {
+        const res = await shiprocketRequest('/v1/external/account/details/wallet-balance', { method: 'GET' });
+        const data = res.data;
+        const raw = data?.balance_amount ?? data?.balance ?? res.balance_amount ?? res.balance;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+    }
+    catch (err) {
+        logger.warn({ err }, 'Shiprocket wallet balance lookup failed');
+        return null;
+    }
+}
+async function cancelShiprocketOrders(shiprocketOrderIds) {
+    const ids = [...new Set(shiprocketOrderIds.filter((id) => Number.isFinite(id) && id > 0))];
+    if (!ids.length)
+        return;
+    await shiprocketRequest('/v1/external/orders/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ ids }),
+    });
+}
+async function clearCommerceShipmentRefs(commerceOrderId) {
+    await supabase
+        .from('commerce_orders')
+        .update({
+        shiprocket_order_id: null,
+        shiprocket_shipment_id: null,
+        tracking_awb: null,
+        tracking_url: null,
+        label_url: null,
+        courier_name: null,
+        awb_generated_at: null,
+        updated_at: new Date().toISOString(),
+    })
+        .eq('id', commerceOrderId);
+}
+function formatAwbFailureMessage(parsedMessage, wallet, courier) {
+    const base = parsedMessage?.trim() ||
+        'Shiprocket could not generate AWB — open Shiprocket dashboard and assign courier manually, then retry';
+    if (!/wallet|balance|recharge|insufficient/i.test(base)) {
+        return base;
+    }
+    const parts = [base];
+    if (wallet != null) {
+        parts.push(`API wallet balance: ₹${wallet.toFixed(2)}`);
+    }
+    if (courier?.rate != null) {
+        parts.push(`Courier freight for this order: ~₹${Number(courier.rate).toFixed(2)}`);
+    }
+    if (wallet != null && courier?.rate != null && wallet < Number(courier.rate)) {
+        parts.push(`Balance is lower than shipping cost — recharge by at least ₹${Math.ceil(Number(courier.rate) - wallet)}.`);
+    }
+    else if (wallet != null && wallet >= 100) {
+        parts.push('Dashboard balance can differ from API wallet, or a stale shipment may be holding funds. Use Generate AWB again (fresh shipment) or cancel the order in Shiprocket → Orders.');
+    }
+    return parts.join(' ');
 }
 function parseAssignAwbResult(payload) {
     const assignStatus = payload.awb_assign_status;
@@ -119,7 +184,9 @@ function parseAssignAwbResult(payload) {
     let message = null;
     if (!accepted && !awb) {
         message =
-            (typeof rawData === 'string' ? rawData : null) ||
+            (row?.awb_assign_error ? String(row.awb_assign_error) : null) ||
+                (row?.error ? String(row.error) : null) ||
+                (typeof rawData === 'string' ? rawData : null) ||
                 String(response?.message ?? payload.message ?? 'AWB assignment rejected by Shiprocket');
     }
     return { awb, courierName, accepted, message, raw: payload };
@@ -162,7 +229,23 @@ async function fetchLabelUrl(shipmentId) {
 }
 /** Delhivery is assigned via Shiprocket courier rules — no separate API in M2 */
 export const shiprocketService = {
-    async provisionForCommerceOrder(commerceOrderId) {
+    getWalletBalance,
+    async provisionForCommerceOrder(commerceOrderId, opts) {
+        if (opts?.forceRecreate) {
+            const existing = await loadCommerceOrder(commerceOrderId);
+            if (existing.shiprocket_order_id) {
+                try {
+                    await cancelShiprocketOrders([Number(existing.shiprocket_order_id)]);
+                }
+                catch (err) {
+                    logger.warn({ err, commerceOrderId }, 'Shiprocket cancel before recreate failed');
+                }
+            }
+            await clearCommerceShipmentRefs(commerceOrderId);
+        }
+        return this._provisionForCommerceOrderOnce(commerceOrderId, Boolean(opts?.forceRecreate));
+    },
+    async _provisionForCommerceOrderOnce(commerceOrderId, alreadyRecreated) {
         const order = await loadCommerceOrder(commerceOrderId);
         if (order.tracking_awb && order.shiprocket_shipment_id) {
             const { data: refreshed } = await supabase
@@ -201,7 +284,7 @@ export const shiprocketService = {
             const payload = {
                 order_id: order.order_name ?? order.shopify_order_id ?? commerceOrderId.slice(0, 8),
                 order_date: new Date().toISOString().slice(0, 10),
-                pickup_location: 'Primary',
+                pickup_location: pickupLocationName(),
                 billing_customer_name: addr.first,
                 billing_last_name: addr.last,
                 billing_address: addr.line1,
@@ -234,7 +317,11 @@ export const shiprocketService = {
         if (!awb) {
             const best = await pickCourier(shiprocketOrderId, addr.pincode, weight, paymentMethod === 'COD');
             if (!best) {
-                throw new AppError(`No courier serviceable for pincode ${addr.pincode} — check Shiprocket pickup pincode and dashboard rules`, 409, 'SHIPROCKET_NO_COURIER');
+                throw new AppError(`No courier serviceable for pincode ${addr.pincode} — check Shiprocket pickup pincode (${pickupPincode()}) and pickup location "${pickupLocationName()}" in Shiprocket settings`, 409, 'SHIPROCKET_NO_COURIER');
+            }
+            const wallet = await getWalletBalance();
+            if (wallet != null && best.rate != null && wallet < Number(best.rate)) {
+                throw new AppError(`Shiprocket wallet has ₹${wallet.toFixed(2)} but this shipment needs ~₹${Number(best.rate).toFixed(2)} freight. Recharge by at least ₹${Math.ceil(Number(best.rate) - wallet)}.`, 409, 'SHIPROCKET_LOW_BALANCE');
             }
             const assigned = await assignAwb(shipmentId, best.courier_company_id, orderStatus);
             const parsed = parseAssignAwbResult(assigned);
@@ -244,9 +331,27 @@ export const shiprocketService = {
                 awb = await fetchShipmentAwb(shipmentId).catch(() => null);
             }
             if (!awb) {
-                logger.error({ commerceOrderId, shipmentId, assignStatus: assigned.awb_assign_status, assigned }, 'Shiprocket assign AWB returned no awb_code');
-                throw new AppError(parsed.message ??
-                    'Shiprocket could not generate AWB — open Shiprocket dashboard and assign courier manually, then retry', 502, 'SHIPROCKET_NO_AWB');
+                logger.error({
+                    commerceOrderId,
+                    shipmentId,
+                    assignStatus: assigned.awb_assign_status,
+                    wallet,
+                    courierRate: best.rate,
+                    assigned,
+                }, 'Shiprocket assign AWB returned no awb_code');
+                if (!alreadyRecreated && order.shiprocket_shipment_id) {
+                    logger.warn({ commerceOrderId }, 'Retrying Shiprocket with fresh shipment after AWB failure');
+                    try {
+                        if (shiprocketOrderId)
+                            await cancelShiprocketOrders([shiprocketOrderId]);
+                    }
+                    catch (err) {
+                        logger.warn({ err, commerceOrderId }, 'Shiprocket cancel during AWB retry failed');
+                    }
+                    await clearCommerceShipmentRefs(commerceOrderId);
+                    return this._provisionForCommerceOrderOnce(commerceOrderId, true);
+                }
+                throw new AppError(formatAwbFailureMessage(parsed.message, wallet, best), 502, 'SHIPROCKET_NO_AWB');
             }
         }
         const labelUrl = await fetchLabelUrl(shipmentId).catch((err) => {
@@ -301,7 +406,7 @@ export const shiprocketService = {
         const payload = {
             order_id: order.name,
             order_date: new Date().toISOString().slice(0, 10),
-            pickup_location: 'Primary',
+            pickup_location: pickupLocationName(),
             billing_customer_name: addr.first_name ?? 'Customer',
             billing_last_name: addr.last_name ?? '',
             billing_address: addr.address1,

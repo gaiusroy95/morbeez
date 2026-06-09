@@ -144,6 +144,20 @@ export declare const farmerPortalService: {
             pending?: boolean;
         }[];
         lineItems: import("../admin/telecaller-farmer-orders.service.js").TelecallerOrderLine[];
+        canReview: boolean;
+        reviewLines: import("./farmer-product-review.service.js").ReviewableLineItem[];
+    }>;
+    submitOrderReview(farmerId: string, orderId: string, input: {
+        productKey: string;
+        rating: number;
+        reviewText?: string;
+    }): Promise<{
+        id: string;
+        rating: number;
+        reviewText: string | null;
+        createdAt: string;
+        productKey: string;
+        productTitle: string;
     }>;
     getAdvisory(farmerId: string): Promise<{
         crop: {

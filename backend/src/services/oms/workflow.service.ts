@@ -74,7 +74,7 @@ export const omsWorkflowService = {
 
     if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false) {
       await shiprocketService
-        .provisionForCommerceOrder(commerceOrderId)
+        .provisionForCommerceOrder(commerceOrderId, { forceRecreate: false })
         .then(async (result) => {
           if (!result) {
             await supabase

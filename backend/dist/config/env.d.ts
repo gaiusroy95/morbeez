@@ -23,6 +23,9 @@ declare const envSchema: z.ZodObject<{
     SHIPROCKET_EMAIL: z.ZodOptional<z.ZodString>;
     SHIPROCKET_PASSWORD: z.ZodOptional<z.ZodString>;
     SHIPROCKET_WEBHOOK_TOKEN: z.ZodOptional<z.ZodString>;
+    /** Must match pickup location nickname in Shiprocket → Settings → Pickup addresses */
+    SHIPROCKET_PICKUP_LOCATION: z.ZodDefault<z.ZodString>;
+    SHIPROCKET_PICKUP_PINCODE: z.ZodDefault<z.ZodString>;
     WHATSAPP_PROVIDER: z.ZodDefault<z.ZodEnum<["cloud", "wati", "interakt", "adsgyani"]>>;
     WHATSAPP_PHONE_NUMBER_ID: z.ZodOptional<z.ZodString>;
     WHATSAPP_ACCESS_TOKEN: z.ZodOptional<z.ZodString>;
@@ -139,6 +142,8 @@ declare const envSchema: z.ZodObject<{
     SHOPIFY_API_VERSION: string;
     SHOPIFY_WEBHOOK_SECRET: string;
     SHOPIFY_APP_SCOPES: string;
+    SHIPROCKET_PICKUP_LOCATION: string;
+    SHIPROCKET_PICKUP_PINCODE: string;
     WHATSAPP_PROVIDER: "cloud" | "wati" | "interakt" | "adsgyani";
     WHATSAPP_SESSION_HOURS: number;
     WHATSAPP_TYPING_SIMULATION: boolean;
@@ -263,6 +268,8 @@ declare const envSchema: z.ZodObject<{
     SHIPROCKET_EMAIL?: string | undefined;
     SHIPROCKET_PASSWORD?: string | undefined;
     SHIPROCKET_WEBHOOK_TOKEN?: string | undefined;
+    SHIPROCKET_PICKUP_LOCATION?: string | undefined;
+    SHIPROCKET_PICKUP_PINCODE?: string | undefined;
     WHATSAPP_PROVIDER?: "cloud" | "wati" | "interakt" | "adsgyani" | undefined;
     WHATSAPP_PHONE_NUMBER_ID?: string | undefined;
     WHATSAPP_ACCESS_TOKEN?: string | undefined;
@@ -361,6 +368,8 @@ export declare const env: {
     SHOPIFY_API_VERSION: string;
     SHOPIFY_WEBHOOK_SECRET: string;
     SHOPIFY_APP_SCOPES: string;
+    SHIPROCKET_PICKUP_LOCATION: string;
+    SHIPROCKET_PICKUP_PINCODE: string;
     WHATSAPP_PROVIDER: "cloud" | "wati" | "interakt" | "adsgyani";
     WHATSAPP_SESSION_HOURS: number;
     WHATSAPP_TYPING_SIMULATION: boolean;

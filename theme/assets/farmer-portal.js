@@ -163,7 +163,9 @@
         ' · ' +
         esc(ord.deliveredOn || ord.orderedOn) +
         '</p>' +
-        '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking details →</p>' +
+        '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking' +
+        (ord.status === 'delivered' ? ' &amp; review' : '') +
+        ' →</p>' +
         '<button type="button" class="morbeez-btn-secondary mt-3 text-sm py-2 px-4" data-reorder="' +
         esc(ord.productTitle) +
         '">Order again</button>' +
@@ -455,6 +457,137 @@
     bindUpload();
   }
 
+  function renderStarButtons(productKey, selected) {
+    var html = '<div class="morbeez-portal__stars" data-stars-for="' + esc(productKey) + '" role="radiogroup" aria-label="Rate product">';
+    for (var s = 1; s <= 5; s++) {
+      html +=
+        '<button type="button" class="morbeez-portal__star' +
+        (selected >= s ? ' is-on' : '') +
+        '" data-star="' +
+        s +
+        '" aria-label="' +
+        s +
+        ' star' +
+        (s > 1 ? 's' : '') +
+        '">★</button>';
+    }
+    html += '<input type="hidden" class="morbeez-portal__star-value" value="' + (selected || 0) + '" /></div>';
+    return html;
+  }
+
+  function renderReviewSection(orderId, canReview, reviewLines) {
+    if (!canReview || !reviewLines || !reviewLines.length) return '';
+    var cards = reviewLines
+      .map(function (line) {
+        if (line.review) {
+          return (
+            '<div class="morbeez-portal__review-card is-done">' +
+            '<p class="font-semibold text-sm">🛍 Rate the product · ' +
+            esc(line.title) +
+            '</p>' +
+            '<div class="morbeez-portal__stars is-readonly" aria-label="' +
+            esc(line.review.rating) +
+            ' stars">' +
+            '★★★★★'.slice(0, line.review.rating) +
+            '☆☆☆☆☆'.slice(line.review.rating) +
+            '</div>' +
+            (line.review.reviewText
+              ? '<p class="text-sm mt-2 text-[var(--color-trust)]">' + esc(line.review.reviewText) + '</p>'
+              : '') +
+            '<p class="text-xs text-[var(--color-muted)] mt-2">Thanks for your review!</p>' +
+            '</div>'
+          );
+        }
+        return (
+          '<form class="morbeez-portal__review-card morbeez-portal__review-form" data-review-form data-order-id="' +
+          esc(orderId) +
+          '" data-product-key="' +
+          esc(line.productKey) +
+          '">' +
+          '<p class="font-semibold text-sm">🛍 Rate the product · ' +
+          esc(line.title) +
+          '</p>' +
+          renderStarButtons(line.productKey, 0) +
+          '<label class="morbeez-portal__field mt-3"><span>Your feedback <em>(optional)</em></span>' +
+          '<textarea rows="3" maxlength="2000" class="morbeez-portal__review-text" placeholder="How did this product work on your farm?"></textarea></label>' +
+          '<p class="morbeez-portal__form-error hidden morbeez-portal__review-error"></p>' +
+          '<button type="submit" class="morbeez-btn-primary text-sm py-2 px-4 mt-2">Submit review</button>' +
+          '</form>'
+        );
+      })
+      .join('');
+    return (
+      '<div class="morbeez-portal__review-panel mt-4">' +
+      '<h3 class="morbeez-portal__section-title">Rate your experience</h3>' +
+      '<p class="text-sm text-[var(--color-muted)] mb-3">Share feedback on products from this delivered order.</p>' +
+      cards +
+      '</div>'
+    );
+  }
+
+  function bindReviewForms(root, orderId, onSubmitted) {
+    if (!root) return;
+    root.querySelectorAll('[data-stars-for]').forEach(function (wrap) {
+      var input = wrap.querySelector('.morbeez-portal__star-value');
+      wrap.querySelectorAll('.morbeez-portal__star').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var val = Number(btn.getAttribute('data-star')) || 0;
+          if (input) input.value = String(val);
+          wrap.querySelectorAll('.morbeez-portal__star').forEach(function (star, idx) {
+            star.classList.toggle('is-on', idx < val);
+          });
+        });
+      });
+    });
+    root.querySelectorAll('[data-review-form]').forEach(function (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var productKey = form.getAttribute('data-product-key');
+        var starInput = form.querySelector('.morbeez-portal__star-value');
+        var rating = Number(starInput && starInput.value) || 0;
+        var errEl = form.querySelector('.morbeez-portal__review-error');
+        var textEl = form.querySelector('.morbeez-portal__review-text');
+        var submitBtn = form.querySelector('[type="submit"]');
+        if (errEl) {
+          errEl.textContent = '';
+          errEl.classList.add('hidden');
+        }
+        if (rating < 1) {
+          if (errEl) {
+            errEl.textContent = 'Please select a star rating.';
+            errEl.classList.remove('hidden');
+          }
+          return;
+        }
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Saving…';
+        }
+        api('/api/v1/farmer/portal/orders/' + encodeURIComponent(orderId) + '/reviews', {
+          method: 'POST',
+          body: JSON.stringify({
+            productKey: productKey,
+            rating: rating,
+            reviewText: textEl ? textEl.value : '',
+          }),
+        })
+          .then(function () {
+            if (typeof onSubmitted === 'function') onSubmitted();
+          })
+          .catch(function (err) {
+            if (errEl) {
+              errEl.textContent = err.message || 'Could not save review';
+              errEl.classList.remove('hidden');
+            }
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Submit review';
+            }
+          });
+      });
+    });
+  }
+
   function closeTrackingModal() {
     var modal = $('portal-tracking-modal');
     if (modal) modal.remove();
@@ -486,6 +619,9 @@
         var tracking = res.tracking || {};
         var timeline = res.timeline || [];
         var lines = res.lineItems || order.lineItems || [];
+        var canReview = !!res.canReview;
+        var reviewLines = res.reviewLines || [];
+        var reviewHtml = renderReviewSection(orderId, canReview, reviewLines);
 
         var timelineHtml =
           '<ol class="morbeez-portal__tracking-timeline">' +
@@ -577,6 +713,7 @@
           noteHtml +
           trackLink +
           '</div>' +
+          reviewHtml +
           '<h3 class="morbeez-portal__section-title mt-4">Tracking timeline</h3>' +
           timelineHtml +
           (itemsHtml ? '<h3 class="morbeez-portal__section-title mt-4">Items</h3>' + itemsHtml : '') +
@@ -586,6 +723,9 @@
 
         $('portal-tracking-close').addEventListener('click', closeTrackingModal);
         $('portal-tracking-dismiss').addEventListener('click', closeTrackingModal);
+        bindReviewForms(overlay.querySelector('.morbeez-portal__modal'), orderId, function () {
+          showTrackingModal(orderId);
+        });
       })
       .catch(function (err) {
         overlay.querySelector('.morbeez-portal__modal').innerHTML =
@@ -731,7 +871,9 @@
             esc(o.orderedOn) +
             (o.deliveredOn && o.deliveredOn !== '—' ? ' · Delivered ' + esc(o.deliveredOn) : '') +
             '</p>' +
-            '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking details →</p>' +
+            '<p class="text-xs text-[var(--color-primary)] font-semibold mt-2">Tap for tracking' +
+            (o.status === 'delivered' ? ' &amp; review' : '') +
+            ' →</p>' +
             track +
             '<div class="flex flex-wrap gap-2 mt-3">' +
             '<button type="button" class="morbeez-btn-secondary text-sm py-2 px-3" data-reorder="' +

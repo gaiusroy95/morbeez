@@ -89,7 +89,9 @@ export declare const fulfillmentService: {
             totalAmount: any;
         };
     }>;
-    provisionShipment(commerceOrderId: string, actorEmail?: string): Promise<import("../shiprocket/shiprocket.service.js").ShiprocketProvisionResult>;
+    provisionShipment(commerceOrderId: string, actorEmail?: string, opts?: {
+        forceRecreate?: boolean;
+    }): Promise<import("../shiprocket/shiprocket.service.js").ShiprocketProvisionResult>;
     markPackedForOrder(commerceOrderId: string, actorEmail?: string): Promise<{
         invoice: any;
         pickListId: string;

@@ -314,22 +314,28 @@ export const fulfillmentService = {
     };
   },
 
-  async provisionShipment(commerceOrderId: string, actorEmail?: string) {
+  async provisionShipment(
+    commerceOrderId: string,
+    actorEmail?: string,
+    opts?: { forceRecreate?: boolean }
+  ) {
     if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
       throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
     }
 
-    const result = await shiprocketService.provisionForCommerceOrder(commerceOrderId).catch((err) => {
-      const msg = err instanceof Error ? err.message : 'Shiprocket failed';
-      void supabase
-        .from('commerce_orders')
-        .update({
-          shiprocket_error: msg,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', commerceOrderId);
-      throw err;
-    });
+    const result = await shiprocketService
+      .provisionForCommerceOrder(commerceOrderId, { forceRecreate: opts?.forceRecreate ?? true })
+      .catch((err) => {
+        const msg = err instanceof Error ? err.message : 'Shiprocket failed';
+        void supabase
+          .from('commerce_orders')
+          .update({
+            shiprocket_error: msg,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', commerceOrderId);
+        throw err;
+      });
 
     if (!result) {
       await supabase

@@ -3,6 +3,9 @@ export type TelecallerOrderLine = {
     quantity: number;
     price?: number;
     imageUrl?: string | null;
+    shopifyProductId?: string | null;
+    shopifyVariantId?: string | null;
+    sku?: string | null;
 };
 export type TelecallerOrderRow = {
     id: string;

@@ -265,11 +265,13 @@ export const fulfillmentService = {
             },
         };
     },
-    async provisionShipment(commerceOrderId, actorEmail) {
+    async provisionShipment(commerceOrderId, actorEmail, opts) {
         if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
             throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
         }
-        const result = await shiprocketService.provisionForCommerceOrder(commerceOrderId).catch((err) => {
+        const result = await shiprocketService
+            .provisionForCommerceOrder(commerceOrderId, { forceRecreate: opts?.forceRecreate ?? true })
+            .catch((err) => {
             const msg = err instanceof Error ? err.message : 'Shiprocket failed';
             void supabase
                 .from('commerce_orders')

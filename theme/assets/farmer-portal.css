@@ -633,3 +633,63 @@ body.morbeez-portal--modal-open {
   font-size: 0.9rem;
   color: var(--color-trust);
 }
+
+.morbeez-portal__review-panel {
+  border-top: 1px solid var(--portal-border);
+  padding-top: 1rem;
+}
+
+.morbeez-portal__review-card {
+  background: #f9fafb;
+  border: 1px solid var(--portal-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  margin-top: 0.75rem;
+}
+
+.morbeez-portal__review-card.is-done {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.morbeez-portal__stars {
+  display: flex;
+  gap: 0.15rem;
+  margin-top: 0.65rem;
+}
+
+.morbeez-portal__stars.is-readonly {
+  color: #f59e0b;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+}
+
+.morbeez-portal__star {
+  border: none;
+  background: none;
+  font-size: 1.65rem;
+  line-height: 1;
+  color: #d1d5db;
+  cursor: pointer;
+  padding: 0.1rem;
+}
+
+.morbeez-portal__star.is-on {
+  color: #f59e0b;
+}
+
+.morbeez-portal__review-text {
+  width: 100%;
+  border: 1px solid var(--portal-border);
+  border-radius: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 4.5rem;
+}
+
+.morbeez-portal__review-text:focus {
+  outline: 2px solid var(--portal-green-light);
+  border-color: var(--portal-green);
+}
