@@ -6,7 +6,10 @@ import { paths, toPath } from '../lib/routes';
 import { useAuth } from '../context/AuthContext';
 import { HubTabs } from '../components/ui';
 import { CommerceAllProductsPanel } from '../components/commerce/CommerceAllProductsPanel';
-import { CommerceInventoryPanel } from '../components/commerce/CommerceInventoryPanel';
+import {
+  CommerceInventoryPanel,
+  type InventoryViewMode,
+} from '../components/commerce/CommerceInventoryPanel';
 import { CommerceFarmersPanel } from '../components/commerce/CommerceFarmersPanel';
 import { CommerceOrdersPanel } from '../components/commerce/CommerceOrdersPanel';
 import { CommerceOffersPanel } from '../components/commerce/CommerceOffersPanel';
@@ -59,6 +62,9 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   const canSeo = can('seo', 'read');
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab');
+  const invViewFromUrl = searchParams.get('invView');
+  const inventoryView: InventoryViewMode =
+    invViewFromUrl === 'fulfillment' ? 'fulfillment' : 'catalog';
   const [tab, setTab] = useState<Tab>(() => (isCommerceTab(tabFromUrl) ? tabFromUrl : 'products'));
   const [search, setSearch] = useState('');
   const searchDefaults = defaultsForPage('commerce');
@@ -77,6 +83,18 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
       const params = new URLSearchParams(searchParams);
       if (next === 'products') params.delete('tab');
       else params.set('tab', next);
+      if (next !== 'inventory') params.delete('invView');
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
+
+  const onInventoryViewChange = useCallback(
+    (next: InventoryViewMode) => {
+      const params = new URLSearchParams(searchParams);
+      params.set('tab', 'inventory');
+      if (next === 'fulfillment') params.set('invView', 'fulfillment');
+      else params.delete('invView');
       setSearchParams(params, { replace: true });
     },
     [searchParams, setSearchParams]
@@ -105,7 +123,12 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
       <HubTabs tabs={TABS} active={tab} onChange={onTabChange} />
       {tab === 'products' ? <CommerceAllProductsPanel canWrite={canWrite} /> : null}
       {tab === 'inventory' ? (
-        <CommerceInventoryPanel canWrite={canWrite} canWarehouseWrite={canWarehouseWrite} />
+        <CommerceInventoryPanel
+          canWrite={canWrite}
+          canWarehouseWrite={canWarehouseWrite}
+          view={inventoryView}
+          onViewChange={onInventoryViewChange}
+        />
       ) : null}
       {tab === 'farmers' ? <CommerceFarmersPanel /> : null}
       {tab === 'orders' ? <CommerceOrdersPanel canWrite={canWrite} /> : null}

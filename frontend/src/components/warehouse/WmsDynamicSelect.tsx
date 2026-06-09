@@ -12,6 +12,7 @@ type Props = {
   disabled?: boolean;
   loading?: boolean;
   allowManage?: boolean;
+  className?: string;
   addFields: WmsSelectField[];
   editFields?: WmsSelectField[];
   onSelect: (value: string, option: WmsSelectOption | null) => void;

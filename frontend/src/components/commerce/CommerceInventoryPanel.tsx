@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
+import { InventoryFulfillmentView } from '../inventory/InventoryFulfillmentView';
 import { AddStockModal } from './AddStockModal';
 import { InventoryGrnModal } from './InventoryGrnModal';
 import { InventoryPurchaseOrderModal } from './InventoryPurchaseOrderModal';
 import '../../styles/commerce-inventory.css';
+
+export type InventoryViewMode = 'catalog' | 'fulfillment';
 
 type InventoryRow = {
   productId: string;
@@ -71,10 +74,27 @@ function pageNumbers(current: number, total: number): Array<number | 'ellipsis'>
 type Props = {
   canWrite?: boolean;
   canWarehouseWrite?: boolean;
+  view?: InventoryViewMode;
+  onViewChange?: (view: InventoryViewMode) => void;
 };
 
-export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = false }: Props) {
+export function CommerceInventoryPanel({
+  canWrite = false,
+  canWarehouseWrite = false,
+  view: viewProp,
+  onViewChange,
+}: Props) {
   const navigate = useNavigate();
+  const [viewInternal, setViewInternal] = useState<InventoryViewMode>('catalog');
+  const view = viewProp ?? viewInternal;
+
+  const setView = useCallback(
+    (next: InventoryViewMode) => {
+      if (onViewChange) onViewChange(next);
+      else setViewInternal(next);
+    },
+    [onViewChange]
+  );
   const [rows, setRows] = useState<InventoryRow[]>([]);
   const [stats, setStats] = useState<InventoryStats | null>(null);
   const [pagination, setPagination] = useState<Pagination>({
@@ -100,6 +120,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
   const [grnPoId, setGrnPoId] = useState<string | undefined>();
 
   const load = useCallback(async () => {
+    if (view !== 'catalog') return;
     setLoading(true);
     setError('');
     const params = new URLSearchParams();
@@ -123,7 +144,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
     } finally {
       setLoading(false);
     }
-  }, [page, appliedSearch, statusFilter]);
+  }, [page, appliedSearch, statusFilter, view]);
 
   useEffect(() => {
     void load();
@@ -148,12 +169,14 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
   const rangeStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1;
   const rangeEnd = Math.min(pagination.page * pagination.limit, pagination.total);
 
+  const searchForFulfillment = appliedSearch.trim() || draftSearch.trim();
+
   return (
     <div className="commerce-inventory">
       <div className="commerce-inventory__header">
         <h2 className="commerce-inventory__title">Inventory</h2>
         <div className="commerce-inventory__header-actions">
-          {canWrite ? (
+          {canWrite && view === 'catalog' ? (
             <button
               type="button"
               className="commerce-inventory__add-btn"
@@ -165,7 +188,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
               + Add Stock
             </button>
           ) : null}
-          {canWarehouseWrite ? (
+          {canWarehouseWrite && view === 'catalog' ? (
             <>
               <button
                 type="button"
@@ -189,11 +212,43 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
         </div>
       </div>
 
-      {canWarehouseWrite ? (
+      <div className="commerce-inventory__view-tabs" role="tablist" aria-label="Inventory view">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'catalog'}
+          className={`commerce-inventory__view-tab${view === 'catalog' ? ' commerce-inventory__view-tab--active' : ''}`}
+          onClick={() => setView('catalog')}
+        >
+          Catalog &amp; batches
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === 'fulfillment'}
+          className={`commerce-inventory__view-tab${view === 'fulfillment' ? ' commerce-inventory__view-tab--active' : ''}`}
+          onClick={() => setView('fulfillment')}
+        >
+          Fulfillment stock
+        </button>
+      </div>
+
+      {view === 'catalog' && canWarehouseWrite ? (
         <p className="commerce-inventory__intro muted">
           <strong>Add Stock</strong> updates Shopify catalog stock and syncs batches to warehouse
-          fulfillment. <strong>Purchase Order → Receive GRN</strong> also records warehouse batches,
-          landed cost, and weighted average pricing.
+          fulfillment. Switch to <strong>Fulfillment stock</strong> for available / reserved /
+          rack-level view.{' '}
+          <Link to={toPath(`${paths.warehouse}?tab=stock`)} className="commerce-warehouse-link">
+            Warehouse hub
+          </Link>
+        </p>
+      ) : null}
+
+      {view === 'fulfillment' ? (
+        <p className="commerce-inventory__intro muted">
+          Pickable quantities for orders — same catalog as above, with <strong>reserved</strong> and{' '}
+          <strong>rack</strong> detail. Use <strong>Catalog &amp; batches</strong> to add stock or
+          receive GRN.
         </p>
       ) : null}
 
@@ -203,7 +258,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
         </div>
       ) : null}
 
-      {stats ? (
+      {view === 'catalog' && stats ? (
         <div className="commerce-inventory__stats">
           <button
             type="button"
@@ -256,23 +311,33 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
           <input
             type="search"
             className="commerce-inventory__search"
-            placeholder="Search products..."
+            placeholder={view === 'fulfillment' ? 'Search SKU or product…' : 'Search products...'}
             value={draftSearch}
             onChange={(e) => setDraftSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applySearch()}
           />
         </div>
+        {view === 'catalog' ? (
+          <button
+            type="button"
+            className="commerce-inventory__filter-btn"
+            onClick={() => setFiltersOpen((o) => !o)}
+            aria-expanded={filtersOpen}
+          >
+            <span aria-hidden>▾</span> Filters
+          </button>
+        ) : null}
         <button
           type="button"
           className="commerce-inventory__filter-btn"
-          onClick={() => setFiltersOpen((o) => !o)}
-          aria-expanded={filtersOpen}
+          style={{ background: '#1b5e20', color: '#fff', borderColor: '#1b5e20' }}
+          onClick={applySearch}
         >
-          <span aria-hidden>▾</span> Filters
+          Search
         </button>
       </div>
 
-      {filtersOpen ? (
+      {view === 'catalog' && filtersOpen ? (
         <div className="commerce-inventory__filter-panel">
           <StaticSelect
             label="Stock status"
@@ -314,6 +379,17 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
         </div>
       ) : null}
 
+      {view === 'fulfillment' ? (
+        <div className="commerce-inventory__table-card commerce-inventory__fulfillment-wrap">
+          <InventoryFulfillmentView
+            canWrite={canWrite || canWarehouseWrite}
+            searchQuery={searchForFulfillment}
+            hideSearch
+          />
+        </div>
+      ) : null}
+
+      {view === 'catalog' ? (
       <div className="commerce-inventory__table-card">
         {loading ? (
           <p className="commerce-inventory__loading">Loading inventory…</p>
@@ -446,6 +522,7 @@ export function CommerceInventoryPanel({ canWrite = false, canWarehouseWrite = f
           </>
         )}
       </div>
+      ) : null}
 
       {addStockOpen && canWrite ? (
         <AddStockModal

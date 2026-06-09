@@ -33,18 +33,25 @@ export type WarehouseLocationApi = {
   warehousesUrl: string;
   locationsUrl: (warehouseId: string) => string;
   useWmsCrud?: boolean;
+  /** Base path for warehouse/rack/row mutations (defaults to WMS API). */
+  crudBase?: string;
 };
+
+const PRODUCTS_WAREHOUSE_OPTIONS = '/morbeez-staff/api/v1/products/warehouse-options';
 
 export const WMS_LOCATION_API: WarehouseLocationApi = {
   warehousesUrl: `${WMS_API}/warehouses`,
   locationsUrl: (id) => `${WMS_API}/warehouses/${id}/locations`,
   useWmsCrud: true,
+  crudBase: WMS_API,
 };
 
+/** Product wizard — read via commerce admin API; CRUD via product warehouse-options (no WMS module required). */
 export const PRODUCTS_LOCATION_API: WarehouseLocationApi = {
-  warehousesUrl: '/morbeez-staff/api/v1/products/warehouse-options/warehouses',
-  locationsUrl: (id) => `/morbeez-staff/api/v1/products/warehouse-options/${id}/locations`,
-  useWmsCrud: false,
+  warehousesUrl: `${PRODUCTS_WAREHOUSE_OPTIONS}/warehouses`,
+  locationsUrl: (id) => `${PRODUCTS_WAREHOUSE_OPTIONS}/${id}/locations`,
+  useWmsCrud: true,
+  crudBase: PRODUCTS_WAREHOUSE_OPTIONS,
 };
 
 function rowLabel(loc: Location): string {
@@ -72,6 +79,7 @@ export function WarehouseLocationPickers({
   showHint = true,
   allowManage = true,
 }: Props) {
+  const crudBase = apiConfig.crudBase ?? WMS_API;
   const canManage = allowManage && apiConfig.useWmsCrud !== false && !disabled;
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -189,7 +197,7 @@ export function WarehouseLocationPickers({
   }
 
   async function addWarehouse(fields: Record<string, string>) {
-    const res = await api<{ ok: boolean; warehouse: Warehouse }>(`${WMS_API}/warehouses`, {
+    const res = await api<{ ok: boolean; warehouse: Warehouse }>(`${crudBase}/warehouses`, {
       method: 'POST',
       body: JSON.stringify({
         name: fields.name?.trim(),
@@ -205,7 +213,7 @@ export function WarehouseLocationPickers({
     fields: Record<string, string>,
     confirmPassword: string
   ) {
-    await api(`${WMS_API}/warehouses/${option.value}`, {
+    await api(`${crudBase}/warehouses/${option.value}`, {
       method: 'PATCH',
       body: JSON.stringify({
         name: fields.name?.trim(),
@@ -224,7 +232,7 @@ export function WarehouseLocationPickers({
   }
 
   async function deleteWarehouse(option: WmsSelectOption, confirmPassword: string) {
-    await api(`${WMS_API}/warehouses/${option.value}`, {
+    await api(`${crudBase}/warehouses/${option.value}`, {
       method: 'DELETE',
       body: JSON.stringify({ confirmPassword }),
     });
@@ -236,7 +244,7 @@ export function WarehouseLocationPickers({
 
   async function addRack(fields: Record<string, string>) {
     if (!value.warehouseId) throw new Error('Select a warehouse first');
-    await api(`${WMS_API}/locations`, {
+    await api(`${crudBase}/locations`, {
       method: 'POST',
       body: JSON.stringify({
         warehouseId: value.warehouseId,
@@ -255,7 +263,7 @@ export function WarehouseLocationPickers({
   ) {
     if (!value.warehouseId) return;
     await api(
-      `${WMS_API}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
+      `${crudBase}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
       {
         method: 'PATCH',
         body: JSON.stringify({ newRack: fields.rack?.trim(), confirmPassword }),
@@ -275,7 +283,7 @@ export function WarehouseLocationPickers({
   async function deleteRack(option: WmsSelectOption, confirmPassword: string) {
     if (!value.warehouseId) return;
     await api(
-      `${WMS_API}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
+      `${crudBase}/warehouses/${value.warehouseId}/racks/${encodeURIComponent(option.value)}`,
       { method: 'DELETE', body: JSON.stringify({ confirmPassword }) }
     );
     await loadLocations();
@@ -286,7 +294,7 @@ export function WarehouseLocationPickers({
 
   async function addRow(fields: Record<string, string>) {
     if (!value.warehouseId || !value.rackId) throw new Error('Select warehouse and rack first');
-    const res = await api<{ ok: boolean; location: Location }>(`${WMS_API}/locations`, {
+    const res = await api<{ ok: boolean; location: Location }>(`${crudBase}/locations`, {
       method: 'POST',
       body: JSON.stringify({
         warehouseId: value.warehouseId,
@@ -305,7 +313,7 @@ export function WarehouseLocationPickers({
   ) {
     const loc = rowByLabel.get(option.value);
     if (!loc) return;
-    const res = await api<{ ok: boolean; location: Location }>(`${WMS_API}/locations/${loc.id}`, {
+    const res = await api<{ ok: boolean; location: Location }>(`${crudBase}/locations/${loc.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ shelf: fields.row?.trim(), confirmPassword }),
     });
@@ -319,7 +327,7 @@ export function WarehouseLocationPickers({
   async function deleteRow(option: WmsSelectOption, confirmPassword: string) {
     const loc = rowByLabel.get(option.value);
     if (!loc) return;
-    await api(`${WMS_API}/locations/${loc.id}`, {
+    await api(`${crudBase}/locations/${loc.id}`, {
       method: 'DELETE',
       body: JSON.stringify({ confirmPassword }),
     });
@@ -340,6 +348,7 @@ export function WarehouseLocationPickers({
       {error ? <p className="warehouse-location-error">{error}</p> : null}
 
       <WmsDynamicSelect
+        className="warehouse-dmp"
         label="Warehouse"
         placeholder={loadingWh ? 'Loading…' : 'Select warehouse'}
         value={value.warehouseId}
@@ -359,6 +368,7 @@ export function WarehouseLocationPickers({
       />
 
       <WmsDynamicSelect
+        className="warehouse-dmp"
         label="Rack ID"
         placeholder={
           !value.warehouseId
@@ -383,6 +393,7 @@ export function WarehouseLocationPickers({
       />
 
       <WmsDynamicSelect
+        className="warehouse-dmp"
         label="Rack row"
         placeholder={
           !value.rackId

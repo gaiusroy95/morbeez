@@ -9,9 +9,16 @@ type Props = {
   onChange: (next: WizardFormState) => void;
   productId: string | null;
   onUploadServerImage: (file: File, alt?: string) => Promise<void>;
+  canWrite?: boolean;
 };
 
-export function Step1BasicInformation({ state, onChange, productId, onUploadServerImage }: Props) {
+export function Step1BasicInformation({
+  state,
+  onChange,
+  productId,
+  onUploadServerImage,
+  canWrite = true,
+}: Props) {
   const b = state.basic;
 
   function patchBasic(partial: Partial<typeof b>) {
@@ -338,6 +345,8 @@ export function Step1BasicInformation({ state, onChange, productId, onUploadServ
         </section>
 
         <WarehouseLocationFields
+          allowManage={canWrite}
+          disabled={!canWrite}
           value={{
             warehouseId: b.warehouseId,
             warehouseName: b.warehouseName,

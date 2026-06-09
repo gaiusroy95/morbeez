@@ -2108,6 +2108,104 @@ export async function adminRoutes(app) {
             })),
         });
     });
+    app.post(`${api}/products/warehouse-options/warehouses`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const body = z
+            .object({
+            code: z.string().min(1).max(32),
+            name: z.string().min(1).max(120),
+            state: z.string().optional(),
+        })
+            .parse(request.body);
+        const warehouse = await warehouseService.createWarehouse(body);
+        return reply.send({ ok: true, warehouse });
+    });
+    app.patch(`${api}/products/warehouse-options/warehouses/:id`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { id } = request.params;
+        const body = z
+            .object({
+            code: z.string().min(1).max(32).optional(),
+            name: z.string().min(1).max(120).optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const warehouse = await warehouseService.updateWarehouse(id, patch);
+        return reply.send({ ok: true, warehouse });
+    });
+    app.delete(`${api}/products/warehouse-options/warehouses/:id`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        await warehouseService.deactivateWarehouse(id);
+        return reply.send({ ok: true });
+    });
+    app.post(`${api}/products/warehouse-options/locations`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const body = z
+            .object({
+            warehouseId: z.string().uuid(),
+            zone: z.string().optional(),
+            rack: z.string().min(1),
+            shelf: z.string().optional(),
+            bin: z.string().optional(),
+        })
+            .parse(request.body);
+        const location = await warehouseService.createLocation(body);
+        return reply.send({ ok: true, location });
+    });
+    app.patch(`${api}/products/warehouse-options/locations/:id`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { id } = request.params;
+        const body = z
+            .object({
+            rack: z.string().min(1).optional(),
+            shelf: z.string().optional(),
+            bin: z.string().optional(),
+            zone: z.string().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const location = await warehouseService.updateLocation(id, patch);
+        return reply.send({ ok: true, location });
+    });
+    app.delete(`${api}/products/warehouse-options/locations/:id`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        await warehouseService.deactivateLocation(id);
+        return reply.send({ ok: true });
+    });
+    app.patch(`${api}/products/warehouse-options/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { warehouseId, rackName } = request.params;
+        const body = z
+            .object({ newRack: z.string().min(1), confirmPassword: confirmPasswordSchema })
+            .parse(request.body);
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        await warehouseService.renameRack(warehouseId, decodeURIComponent(rackName), body.newRack);
+        return reply.send({ ok: true });
+    });
+    app.delete(`${api}/products/warehouse-options/warehouses/:warehouseId/racks/:rackName`, async (request, reply) => {
+        const actor = requireAdmin(request);
+        requireAdminRole(request, 'admin', 'manager');
+        const { warehouseId, rackName } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        await warehouseService.deactivateRack(warehouseId, decodeURIComponent(rackName));
+        return reply.send({ ok: true });
+    });
     app.get(`${api}/products/shopify-connection`, async (request, reply) => {
         requireAdmin(request);
         const { shopifyPublicationsService } = await import('../../services/shopify/shopify.publications.service.js');

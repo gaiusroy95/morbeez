@@ -15,7 +15,7 @@ type Tab = WarehouseDeepTab;
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
-  { id: 'stock', label: 'Stock' },
+  { id: 'stock', label: 'Fulfillment stock' },
   { id: 'inbound', label: 'Purchase & GRN' },
   { id: 'fulfillment', label: 'Fulfillment' },
   { id: 'returns', label: 'Returns & refunds' },

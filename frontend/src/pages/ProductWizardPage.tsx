@@ -304,6 +304,7 @@ export function ProductWizardPage({ canWrite }: Props) {
             onChange={setState}
             productId={state.productId}
             onUploadServerImage={onUploadServerImage}
+            canWrite={canWrite}
           />
         ) : null}
         {step === 2 ? <Step2VariantsPricing state={state} onChange={setState} /> : null}
