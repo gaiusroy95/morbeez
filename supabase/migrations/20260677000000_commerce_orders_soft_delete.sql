@@ -16,7 +16,10 @@ CREATE INDEX IF NOT EXISTS idx_checkout_sessions_deleted_at
 
 -- Hide orders previously "deleted" via admin cancel-only path
 UPDATE commerce_orders
-SET deleted_at = updated_at
+SET
+  deleted_at = updated_at,
+  oms_status = 'cancelled',
+  updated_at = NOW()
 WHERE deleted_at IS NULL
   AND financial_status = 'voided'
   AND payment_status = 'cancelled'

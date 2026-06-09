@@ -212,7 +212,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
     setDetail(null);
     try {
       const d = await api<{ ok: boolean; order: OrderDetail }>(
-        `/morbeez-staff/api/v1/orders/${order.id}`
+        `/morbeez-staff/api/v1/orders/${order.id}?source=${encodeURIComponent(order.source ?? 'shopify')}`
       );
       setDetail(d.order);
     } catch (e) {

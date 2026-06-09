@@ -16,6 +16,7 @@ interface DetailLineItem {
     isFree: boolean;
 }
 export declare const ordersAdminService: {
+    repairWarehouseOrderVisibility(): Promise<number>;
     list(query: OrdersListQuery): Promise<{
         orders: {
             id: string;

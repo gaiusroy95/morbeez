@@ -50,7 +50,41 @@ function nameFromRaw(raw) {
     }
     return null;
 }
+const ACTIVE_OMS_STATUSES = [
+    'confirmed',
+    'awb_generated',
+    'picking',
+    'packed',
+    'ready_dispatch',
+    'shipped',
+    'delivered',
+];
+function isMissingDeletedAtColumn(error) {
+    const msg = String(error?.message ?? '');
+    return (error?.code === 'PGRST204' ||
+        (msg.includes('deleted_at') && msg.includes('does not exist')));
+}
+function resolveOrderSource(row) {
+    const orderSource = String(row.order_source ?? '');
+    const shopifyId = row.shopify_order_id ? String(row.shopify_order_id) : '';
+    if (orderSource === 'telecaller_quote' ||
+        shopifyId.startsWith('quote-paid-') ||
+        shopifyId.startsWith('quote-cod-')) {
+        return 'quote';
+    }
+    return 'shopify';
+}
 function resolveStatus(o) {
+    const oms = String(o.omsStatus || '').toLowerCase();
+    if (oms === 'cancelled')
+        return 'cancelled';
+    if (oms === 'delivered' || oms === 'completed')
+        return 'delivered';
+    if (oms === 'shipped')
+        return 'shipped';
+    if (ACTIVE_OMS_STATUSES.includes(oms)) {
+        return 'processing';
+    }
     const raw = o.rawPayload;
     if (raw?.cancelled_at)
         return 'cancelled';
@@ -96,9 +130,10 @@ function paymentLabel(o) {
 }
 function mapCommerceOrder(row) {
     const raw = row.raw_payload ?? null;
+    const source = resolveOrderSource(row);
     const base = {
         id: String(row.id),
-        source: 'shopify',
+        source,
         shopifyOrderId: row.shopify_order_id ? String(row.shopify_order_id) : null,
         orderName: row.order_name ? String(row.order_name) : null,
         email: row.email ? String(row.email) : null,
@@ -116,11 +151,15 @@ function mapCommerceOrder(row) {
         trackingAwb: row.tracking_awb ? String(row.tracking_awb) : null,
         trackingUrl: row.tracking_url ? String(row.tracking_url) : null,
     };
-    const farmerName = nameFromRaw(raw) || 'Guest';
-    const status = resolveStatus(base);
+    const farmerName = nameFromRaw(raw) ||
+        (source === 'quote' && base.orderName ? String(base.orderName) : null) ||
+        'Guest';
+    const status = resolveStatus({ ...base, omsStatus: base.omsStatus });
     return {
         ...base,
-        displayOrderId: formatDisplayOrderId(base.orderName, base.id),
+        displayOrderId: source === 'quote' && base.orderName
+            ? String(base.orderName)
+            : formatDisplayOrderId(base.orderName, base.id),
         farmerName,
         paymentLabel: paymentLabel(base),
         status,
@@ -266,7 +305,7 @@ function toPublicOrder(o) {
         status: o.status,
         financialStatus: o.financialStatus,
         fulfillmentStatus: o.fulfillmentStatus,
-        omsStatus: o.source === 'shopify' ? o.omsStatus : null,
+        omsStatus: o.omsStatus,
         createdAt: o.createdAt,
         quoteExpiresAt: o.source === 'quote' ? raw.expires_at : undefined,
         quoteHoursLeft: o.source === 'quote' ? raw.hours_left : undefined,
@@ -535,47 +574,94 @@ function buildOrderDetail(o, sessionRow) {
         notes: notes || '',
     };
 }
+async function repairOrphanedSoftDeletes() {
+    const { data, error } = await supabase
+        .from('commerce_orders')
+        .update({ deleted_at: null, updated_at: new Date().toISOString() })
+        .not('deleted_at', 'is', null)
+        .in('oms_status', [...ACTIVE_OMS_STATUSES])
+        .select('id');
+    if (error) {
+        if (isMissingDeletedAtColumn(error))
+            return 0;
+        throwIfSupabaseError(error, 'Could not repair soft-deleted warehouse orders');
+    }
+    return data?.length ?? 0;
+}
+async function loadCommerceOrdersForList() {
+    let res = await supabase
+        .from('commerce_orders')
+        .select('*')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(500);
+    if (res.error && isMissingDeletedAtColumn(res.error)) {
+        res = await supabase
+            .from('commerce_orders')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(500);
+    }
+    throwIfSupabaseError(res.error, 'Could not load orders');
+    return res.data ?? [];
+}
+async function loadCheckoutSessionsForList() {
+    let res = await supabase
+        .from('checkout_sessions')
+        .select('*')
+        .is('deleted_at', null)
+        .in('status', ['paid', 'pending', 'failed'])
+        .order('created_at', { ascending: false })
+        .limit(500);
+    if (res.error && isMissingDeletedAtColumn(res.error)) {
+        res = await supabase
+            .from('checkout_sessions')
+            .select('*')
+            .in('status', ['paid', 'pending', 'failed'])
+            .order('created_at', { ascending: false })
+            .limit(500);
+    }
+    throwIfSupabaseError(res.error, 'Could not load checkout orders');
+    return res.data ?? [];
+}
+async function loadDeletedShopifyIds() {
+    let res = await supabase
+        .from('commerce_orders')
+        .select('shopify_order_id')
+        .not('deleted_at', 'is', null)
+        .not('shopify_order_id', 'is', null)
+        .limit(500);
+    if (res.error && isMissingDeletedAtColumn(res.error)) {
+        return new Set();
+    }
+    throwIfSupabaseError(res.error, 'Could not load deleted order index');
+    return new Set((res.data ?? [])
+        .map((r) => (r.shopify_order_id ? String(r.shopify_order_id) : ''))
+        .filter(Boolean));
+}
 export const ordersAdminService = {
+    async repairWarehouseOrderVisibility() {
+        return repairOrphanedSoftDeletes();
+    },
     async list(query) {
         const page = Math.max(1, query.page ?? 1);
         const limit = Math.min(50, Math.max(8, query.limit ?? 8));
         const statusFilter = query.status ?? 'all';
         await commerceQuoteService.purgeExpired();
-        const [commerce, checkouts, quotes, deletedCommerce] = await Promise.all([
-            supabase
-                .from('commerce_orders')
-                .select('*')
-                .is('deleted_at', null)
-                .order('created_at', { ascending: false })
-                .limit(500),
-            supabase
-                .from('checkout_sessions')
-                .select('*')
-                .is('deleted_at', null)
-                .in('status', ['paid', 'pending', 'failed'])
-                .order('created_at', { ascending: false })
-                .limit(500),
+        await repairOrphanedSoftDeletes();
+        const [commerceRows, checkoutRows, quotes, hiddenShopifyIds] = await Promise.all([
+            loadCommerceOrdersForList(),
+            loadCheckoutSessionsForList(),
             supabase
                 .from('commerce_quotes')
                 .select('*')
-                .in('status', ['pending', 'checkout'])
+                .in('status', ['pending', 'checkout', 'paid'])
                 .order('created_at', { ascending: false })
                 .limit(500),
-            supabase
-                .from('commerce_orders')
-                .select('shopify_order_id')
-                .not('deleted_at', 'is', null)
-                .not('shopify_order_id', 'is', null)
-                .limit(500),
+            loadDeletedShopifyIds(),
         ]);
-        throwIfSupabaseError(commerce.error, 'Could not load orders');
-        throwIfSupabaseError(checkouts.error, 'Could not load checkout orders');
         throwIfSupabaseError(quotes.error, 'Could not load quotes');
-        throwIfSupabaseError(deletedCommerce.error, 'Could not load deleted order index');
-        const hiddenShopifyIds = new Set((deletedCommerce.data ?? [])
-            .map((r) => (r.shopify_order_id ? String(r.shopify_order_id) : ''))
-            .filter(Boolean));
-        let orders = mergeOrders((commerce.data ?? []).map(mapCommerceOrder), (checkouts.data ?? []).map(mapCheckoutSession), (quotes.data ?? []).map((r) => mapQuote(r)), hiddenShopifyIds);
+        let orders = mergeOrders(commerceRows.map((r) => mapCommerceOrder(r)), checkoutRows.map((r) => mapCheckoutSession(r)), (quotes.data ?? []).map((r) => mapQuote(r)), hiddenShopifyIds);
         await attachFarmerNames(orders);
         if (query.search?.trim()) {
             const term = query.search.trim().toLowerCase();
@@ -623,6 +709,7 @@ export const ordersAdminService = {
         };
     },
     async get(id) {
+        await repairOrphanedSoftDeletes();
         const { data: quoteRow, error: quoteErr } = await supabase
             .from('commerce_quotes')
             .select('*')
@@ -693,14 +780,18 @@ export const ordersAdminService = {
                 checkoutToken: String(quoteRow.checkout_token),
             };
         }
-        const { data, error } = await supabase
+        let res = await supabase
             .from('commerce_orders')
             .select('*')
             .eq('id', id)
             .is('deleted_at', null)
             .maybeSingle();
-        throwIfSupabaseError(error, 'Could not load order');
-        if (data) {
+        if (res.error && isMissingDeletedAtColumn(res.error)) {
+            res = await supabase.from('commerce_orders').select('*').eq('id', id).maybeSingle();
+        }
+        throwIfSupabaseError(res.error, 'Could not load order');
+        if (res.data) {
+            const data = res.data;
             const o = mapCommerceOrder(data);
             await attachFarmerNames([o]);
             return buildOrderDetail(o);

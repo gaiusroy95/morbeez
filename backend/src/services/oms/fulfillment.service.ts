@@ -13,6 +13,7 @@ import { invoiceService } from './invoice.service.js';
 import { employeeActionLogService } from './employee-action-log.service.js';
 import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
 import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulfillment-queue.utils.js';
+import { ordersAdminService } from '../admin/orders-admin.service.js';
 
 const FULFILLMENT_STATUSES = [
   'confirmed',
@@ -38,31 +39,25 @@ function startOfTodayIso() {
   return d.toISOString();
 }
 
+function activeFulfillmentOrdersQuery() {
+  return supabase
+    .from('commerce_orders')
+    .select('id', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .neq('oms_status', 'cancelled');
+}
+
 export const fulfillmentService = {
   async getStats() {
     const today = startOfTodayIso();
     const [pending, ready, packedToday, courierPending, failedAwb] = await Promise.all([
-      supabase
-        .from('commerce_orders')
-        .select('id', { count: 'exact', head: true })
-        .in('oms_status', ['confirmed', 'awb_generated', 'picking']),
-      supabase
-        .from('commerce_orders')
-        .select('id', { count: 'exact', head: true })
+      activeFulfillmentOrdersQuery().in('oms_status', ['confirmed', 'awb_generated', 'picking']),
+      activeFulfillmentOrdersQuery()
         .in('oms_status', ['awb_generated', 'picking'])
         .not('tracking_awb', 'is', null),
-      supabase
-        .from('commerce_orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('oms_status', 'packed')
-        .gte('packed_at', today),
-      supabase
-        .from('commerce_orders')
-        .select('id', { count: 'exact', head: true })
-        .in('oms_status', ['packed', 'ready_dispatch']),
-      supabase
-        .from('commerce_orders')
-        .select('id', { count: 'exact', head: true })
+      activeFulfillmentOrdersQuery().eq('oms_status', 'packed').gte('packed_at', today),
+      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'ready_dispatch']),
+      activeFulfillmentOrdersQuery()
         .not('shiprocket_error', 'is', null)
         .in('oms_status', ['confirmed', 'picking', 'awb_generated']),
     ]);
@@ -77,11 +72,14 @@ export const fulfillmentService = {
   },
 
   async repairStalePickLists() {
+    await ordersAdminService.repairWarehouseOrderVisibility();
     const sync = await inventoryService.syncAllCommerceStockToWarehouse();
 
     const { data: orders, error } = await supabase
       .from('commerce_orders')
       .select('id, pick_lists(id, pick_list_lines(id, qty_required))')
+      .is('deleted_at', null)
+      .neq('oms_status', 'cancelled')
       .in('oms_status', [...FULFILLMENT_STATUSES]);
     throwIfSupabaseError(error, 'Fulfillment repair list');
 
@@ -135,6 +133,8 @@ export const fulfillmentService = {
       }
     }
 
+    await ordersAdminService.repairWarehouseOrderVisibility();
+
     const { data, error } = await supabase
       .from('commerce_orders')
       .select(
@@ -143,6 +143,8 @@ export const fulfillmentService = {
          pick_lists(id, status, pick_list_lines(id, qty_required)),
          commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`
       )
+      .is('deleted_at', null)
+      .neq('oms_status', 'cancelled')
       .in('oms_status', [...FULFILLMENT_STATUSES])
       .order('fulfillment_priority', { ascending: false })
       .order('created_at', { ascending: true })
