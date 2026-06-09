@@ -106,7 +106,7 @@ export const omsWorkflowService = {
         })
         .catch(async (err) => {
           const msg = err instanceof Error ? err.message : 'Shiprocket failed';
-          logger.error({ err, commerceOrderId }, 'Shiprocket on confirm failed — staff can retry');
+          logger.warn({ err, commerceOrderId }, 'Shiprocket on confirm failed — order stays in queue; staff can retry AWB');
           await supabase
             .from('commerce_orders')
             .update({

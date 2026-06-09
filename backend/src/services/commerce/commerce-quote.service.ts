@@ -1,7 +1,8 @@
 import { randomUUID } from 'crypto';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { AppError, NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
 import { computeGstBreakup, normalizeIndianState } from '../../lib/gst.js';
 import { env } from '../../config/env.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
@@ -1307,46 +1308,36 @@ export const commerceQuoteService = {
       !!quote.shopifyOrderId && !String(quote.shopifyOrderId).startsWith('quote-');
 
     if (hasRealShopify) {
-      const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
-        shopifyOrderId: quote.shopifyOrderId!,
-        farmerId: quote.farmerId,
-        leadId: quote.leadId,
-        quoteId: quote.id,
-        quoteNumber: quote.quoteNumber,
-        paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
-      });
-      if (!warehouse.commerceOrderId) {
-        const local = await quoteOmsBridgeService.createLocalOrderFromQuote({
-          quoteId: quote.id,
-          quoteNumber: quote.quoteNumber,
+      try {
+        const warehouse = await quoteOmsBridgeService.syncShopifyOrderToWarehouse({
+          shopifyOrderId: quote.shopifyOrderId!,
           farmerId: quote.farmerId,
           leadId: quote.leadId,
-          customerName: quote.customerName,
-          customerPhone: quote.customerPhone,
-          customerEmail: quote.customerEmail,
-          customerState: quote.customerState,
-          shippingAddress: quote.shippingAddress,
-          lineItems: quote.lineItems,
-          total: quote.total,
-          prepaidAmount: quote.prepaidAmount,
-          codAmount: quote.codAmount,
-          razorpayPaymentId: quote.razorpayPaymentId ?? `staff-push-${quote.id}`,
-          razorpayOrderId: quote.razorpayOrderId ?? `staff-push-${quote.id}`,
-          fulfillmentMode: quote.codAmount > 0 && !quote.razorpayPaymentId ? 'cod' : 'paid',
+          quoteId: quote.id,
+          quoteNumber: quote.quoteNumber,
+          paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
         });
-        return {
-          commerceOrderId: String(local.commerceOrderId),
-          created: !local.alreadyExists,
-        };
+        if (warehouse.commerceOrderId) {
+          await supabase
+            .from('commerce_quotes')
+            .update({
+              commerce_order_id: warehouse.commerceOrderId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
+          return { commerceOrderId: String(warehouse.commerceOrderId), created: true };
+        }
+      } catch (err) {
+        const shopifyMissing =
+          err instanceof AppError &&
+          (err.code === 'SHOPIFY_API_ERROR' || err.statusCode === 404);
+        logger.warn(
+          { err, quoteId: quote.id, shopifyOrderId: quote.shopifyOrderId },
+          shopifyMissing
+            ? 'Stale Shopify order on quote — using local OMS fallback'
+            : 'Shopify warehouse sync failed — using local OMS fallback'
+        );
       }
-      await supabase
-        .from('commerce_quotes')
-        .update({
-          commerce_order_id: warehouse.commerceOrderId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
-      return { commerceOrderId: String(warehouse.commerceOrderId), created: true };
     }
 
     const local = await quoteOmsBridgeService.createLocalOrderFromQuote({

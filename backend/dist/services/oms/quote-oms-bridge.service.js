@@ -20,7 +20,14 @@ function skuFromQuoteLine(line, index) {
 export const quoteOmsBridgeService = {
     /** Sync a Shopify order into commerce_orders + lines and auto-confirm for warehouse picking. */
     async syncShopifyOrderToWarehouse(input) {
-        const { order } = await getOrder(input.shopifyOrderId);
+        let order;
+        try {
+            ({ order } = await getOrder(input.shopifyOrderId));
+        }
+        catch (err) {
+            logger.warn({ err, shopifyOrderId: input.shopifyOrderId, quoteId: input.quoteId }, 'Shopify order not found — caller should use local OMS fallback');
+            return { commerceOrderId: null, omsStatus: null, orderName: null };
+        }
         await shopifyWebhookService.syncOrder(order);
         const { data: commerceOrder, error } = await supabase
             .from('commerce_orders')

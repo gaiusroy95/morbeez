@@ -22,6 +22,10 @@ export declare const quoteOmsBridgeService: {
     }): Promise<{
         commerceOrderId: null;
         omsStatus: null;
+        orderName: null;
+    } | {
+        commerceOrderId: null;
+        omsStatus: null;
         orderName?: undefined;
     } | {
         commerceOrderId: any;

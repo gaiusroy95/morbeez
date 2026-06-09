@@ -44,7 +44,16 @@ export const quoteOmsBridgeService = {
     quoteNumber?: string;
     paymentMethod?: string;
   }) {
-    const { order } = await getOrder(input.shopifyOrderId);
+    let order: Awaited<ReturnType<typeof getOrder>>['order'];
+    try {
+      ({ order } = await getOrder(input.shopifyOrderId));
+    } catch (err) {
+      logger.warn(
+        { err, shopifyOrderId: input.shopifyOrderId, quoteId: input.quoteId },
+        'Shopify order not found — caller should use local OMS fallback'
+      );
+      return { commerceOrderId: null, omsStatus: null, orderName: null };
+    }
     await shopifyWebhookService.syncOrder(order);
 
     const { data: commerceOrder, error } = await supabase
