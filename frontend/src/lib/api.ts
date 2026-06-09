@@ -60,6 +60,8 @@ export async function api<T = unknown>(
       issues?: Array<{ message?: string; path?: (string | number)[] }>;
     };
     let msg = body.message || body.error || res.statusText || 'Request failed';
+    const hint = (body as { hint?: string }).hint;
+    if (hint) msg = `${msg} — ${hint}`;
     if (body.error === 'VALIDATION_ERROR' && body.message) {
       msg = body.message;
     }

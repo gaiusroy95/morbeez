@@ -39,6 +39,36 @@ export type ShiprocketAuthStatus = {
   hint: string | null;
 };
 
+export function formatShiprocketAuthError(detail: string | null | undefined): {
+  message: string;
+  hint: string;
+} {
+  const raw = String(detail ?? '').trim();
+  if (/blocked due to too many failed login/i.test(raw)) {
+    return {
+      message:
+        'Shiprocket API user is temporarily locked after too many failed login attempts.',
+      hint:
+        'In Shiprocket → Settings → API: reset the API user password (or create a new API user). ' +
+        'Update SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD on Render to match, then restart the API. ' +
+        'Use the API user password — not your main Shiprocket login.',
+    };
+  }
+  if (/invalid email and password/i.test(raw)) {
+    return {
+      message: 'Shiprocket API credentials are wrong on the server.',
+      hint:
+        'Set SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD on Render from Shiprocket → Settings → API. ' +
+        'SHIPROCKET_PASSWORD must be the API user password, not SHIPROCKET_WEBHOOK_TOKEN.',
+    };
+  }
+  return {
+    message: raw ? `Shiprocket auth failed: ${raw}` : 'Shiprocket auth failed',
+    hint:
+      'Verify SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD on Render (Shiprocket → Settings → API user).',
+  };
+}
+
 export async function verifyShiprocketAuth(opts?: { force?: boolean }): Promise<ShiprocketAuthStatus> {
   if (
     !opts?.force &&
@@ -66,15 +96,21 @@ export async function verifyShiprocketAuth(opts?: { force?: boolean }): Promise<
     authStatusCache = { at: Date.now(), status };
     return status;
   } catch (err) {
-    const message = err instanceof AppError ? err.message : 'Shiprocket auth failed';
+    let detail: string | null = null;
+    if (err instanceof AppError) {
+      if (typeof err.details === 'string') detail = err.details;
+      else if (err.details && typeof err.details === 'object' && 'raw' in err.details) {
+        detail = String((err.details as { raw?: unknown }).raw ?? '');
+      } else {
+        detail = err.message;
+      }
+    }
+    const formatted = formatShiprocketAuthError(detail);
     const status: ShiprocketAuthStatus = {
       configured: true,
       ok: false,
-      error: message,
-      hint:
-        'Use the dedicated API user from Shiprocket → Settings → API (not your main login). ' +
-        'SHIPROCKET_PASSWORD is the API user password — not SHIPROCKET_WEBHOOK_TOKEN. ' +
-        'Ensure Orders and Webhooks modules are enabled for that API user.',
+      error: formatted.message,
+      hint: formatted.hint,
     };
     authStatusCache = { at: Date.now(), status };
     return status;
@@ -103,16 +139,16 @@ export async function getShiprocketToken(): Promise<string> {
   if (!res.ok) {
     clearShiprocketTokenCache();
     const detail = await parseShiprocketErrorBody(res);
-    const suffix = detail ? `: ${detail}` : '';
     logger.warn(
       { status: res.status, email: creds.email, detail },
       'Shiprocket login failed'
     );
+    const formatted = formatShiprocketAuthError(detail);
     throw new AppError(
-      `Shiprocket auth failed${suffix}`,
+      formatted.message,
       res.status === 401 || res.status === 403 ? res.status : 502,
       'SHIPROCKET_AUTH_FAILED',
-      detail
+      { raw: detail, hint: formatted.hint }
     );
   }
 

@@ -2,7 +2,7 @@ import { eventBus } from '../../events/bus.js';
 import { supabase } from '../../lib/supabase.js';
 import { env } from '../../config/env.js';
 import { getOrder } from '../shopify/shopify.client.js';
-import { shiprocketRequest } from './shiprocket.client.js';
+import { shiprocketRequest, verifyShiprocketAuth } from './shiprocket.client.js';
 import { logger } from '../../lib/logger.js';
 import { ndrRtoService } from '../oms/ndr-rto.service.js';
 import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
@@ -272,6 +272,9 @@ export function formatShiprocketErrorForDisplay(
 }
 
 export type ShiprocketDiagnostics = {
+  authOk: boolean;
+  authError: string | null;
+  authHint: string | null;
   walletBalanceInr: number | null;
   pickupLocationConfigured: string;
   pickupLocationsAvailable: string[];
@@ -279,11 +282,17 @@ export type ShiprocketDiagnostics = {
 };
 
 async function getDiagnostics(): Promise<ShiprocketDiagnostics> {
+  const auth = await verifyShiprocketAuth();
   const [wallet, locs] = await Promise.all([
-    getWalletBalance(),
-    listPickupLocations().catch(() => [] as Array<Record<string, unknown>>),
+    auth.ok ? getWalletBalance() : Promise.resolve(null),
+    auth.ok
+      ? listPickupLocations().catch(() => [] as Array<Record<string, unknown>>)
+      : Promise.resolve([] as Array<Record<string, unknown>>),
   ]);
   return {
+    authOk: auth.ok,
+    authError: auth.error,
+    authHint: auth.hint,
     walletBalanceInr: wallet,
     pickupLocationConfigured: pickupLocationName(),
     pickupLocationsAvailable: locs

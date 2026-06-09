@@ -77,9 +77,17 @@ export async function buildApp() {
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof AppError) {
+      const hint =
+        error.details &&
+        typeof error.details === 'object' &&
+        'hint' in error.details &&
+        typeof (error.details as { hint?: unknown }).hint === 'string'
+          ? (error.details as { hint: string }).hint
+          : undefined;
       return reply.code(error.statusCode).send({
         error: error.code,
         message: error.message,
+        ...(hint ? { hint } : {}),
       });
     }
     if (error instanceof ZodError) {

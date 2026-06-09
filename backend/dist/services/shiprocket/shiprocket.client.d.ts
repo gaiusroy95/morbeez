@@ -5,6 +5,10 @@ export type ShiprocketAuthStatus = {
     error: string | null;
     hint: string | null;
 };
+export declare function formatShiprocketAuthError(detail: string | null | undefined): {
+    message: string;
+    hint: string;
+};
 export declare function verifyShiprocketAuth(opts?: {
     force?: boolean;
 }): Promise<ShiprocketAuthStatus>;

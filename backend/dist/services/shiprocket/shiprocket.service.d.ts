@@ -9,6 +9,9 @@ export type ShiprocketProvisionResult = {
 declare function getWalletBalance(): Promise<number | null>;
 export declare function formatShiprocketErrorForDisplay(storedError: string | null | undefined, wallet: number | null): string | null;
 export type ShiprocketDiagnostics = {
+    authOk: boolean;
+    authError: string | null;
+    authHint: string | null;
     walletBalanceInr: number | null;
     pickupLocationConfigured: string;
     pickupLocationsAvailable: string[];

@@ -75,6 +75,9 @@ type PickLookup = {
 };
 
 type ShiprocketDiagnostics = {
+  authOk: boolean;
+  authError: string | null;
+  authHint: string | null;
   walletBalanceInr: number | null;
   pickupLocationConfigured: string;
   pickupLocationsAvailable: string[];
@@ -412,11 +415,13 @@ export function WarehouseFulfillmentPanel({
   const workflow = detail?.workflow;
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
+  const shiprocketAuthOk = detail?.shiprocketDiagnostics?.authOk !== false;
   const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
   const awbRetryAllowed = Boolean(
     detail?.shiprocketErrorDisplay || order?.shiprocket_error || awbPendingShipment
   );
-  const canGenerateAwb = (printStage || awbRetryAllowed) && !order?.tracking_awb;
+  const canGenerateAwb =
+    shiprocketAuthOk && (printStage || awbRetryAllowed) && !order?.tracking_awb;
   const activeStep = printStage ? 3 : workflow?.step ?? 1;
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
@@ -646,6 +651,16 @@ export function WarehouseFulfillmentPanel({
             <EmptyState>Select an order.</EmptyState>
           ) : (
             <div className="fulfillment-actions">
+              {detail.shiprocketDiagnostics && !detail.shiprocketDiagnostics.authOk ? (
+                <Alert tone="error">
+                  <strong>Shiprocket API blocked</strong>
+                  <p>{detail.shiprocketDiagnostics.authError}</p>
+                  {detail.shiprocketDiagnostics.authHint ? (
+                    <p className="mt-2 text-sm opacity-90">{detail.shiprocketDiagnostics.authHint}</p>
+                  ) : null}
+                </Alert>
+              ) : null}
+
               {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
                 <Alert tone="warn">
                   {detail.shiprocketErrorDisplay ?? order.shiprocket_error}

@@ -2,7 +2,7 @@ import { eventBus } from '../../events/bus.js';
 import { supabase } from '../../lib/supabase.js';
 import { env } from '../../config/env.js';
 import { getOrder } from '../shopify/shopify.client.js';
-import { shiprocketRequest } from './shiprocket.client.js';
+import { shiprocketRequest, verifyShiprocketAuth } from './shiprocket.client.js';
 import { logger } from '../../lib/logger.js';
 import { ndrRtoService } from '../oms/ndr-rto.service.js';
 import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
@@ -207,11 +207,17 @@ export function formatShiprocketErrorForDisplay(storedError, wallet) {
     return `${err} Live API wallet balance: ₹${wallet.toFixed(2)}.`;
 }
 async function getDiagnostics() {
+    const auth = await verifyShiprocketAuth();
     const [wallet, locs] = await Promise.all([
-        getWalletBalance(),
-        listPickupLocations().catch(() => []),
+        auth.ok ? getWalletBalance() : Promise.resolve(null),
+        auth.ok
+            ? listPickupLocations().catch(() => [])
+            : Promise.resolve([]),
     ]);
     return {
+        authOk: auth.ok,
+        authError: auth.error,
+        authHint: auth.hint,
         walletBalanceInr: wallet,
         pickupLocationConfigured: pickupLocationName(),
         pickupLocationsAvailable: locs
