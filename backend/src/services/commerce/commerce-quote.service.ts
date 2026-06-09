@@ -1276,8 +1276,15 @@ export const commerceQuoteService = {
 
   async pushToWarehouse(id: string) {
     const quote = await this.get(id);
-    if (quote.status !== 'paid') {
+    const paidViaCheckout = quote.status === 'checkout' && !!quote.razorpayPaymentId;
+    if (quote.status !== 'paid' && !paidViaCheckout) {
       throw new ValidationError('Only paid quotes can be pushed to warehouse');
+    }
+    if (paidViaCheckout) {
+      await supabase
+        .from('commerce_quotes')
+        .update({ status: 'paid', updated_at: new Date().toISOString() })
+        .eq('id', id);
     }
 
     if (quote.commerceOrderId) {
@@ -1308,6 +1315,30 @@ export const commerceQuoteService = {
         quoteNumber: quote.quoteNumber,
         paymentMethod: quote.codAmount > 0 ? 'COD' : 'Prepaid',
       });
+      if (!warehouse.commerceOrderId) {
+        const local = await quoteOmsBridgeService.createLocalOrderFromQuote({
+          quoteId: quote.id,
+          quoteNumber: quote.quoteNumber,
+          farmerId: quote.farmerId,
+          leadId: quote.leadId,
+          customerName: quote.customerName,
+          customerPhone: quote.customerPhone,
+          customerEmail: quote.customerEmail,
+          customerState: quote.customerState,
+          shippingAddress: quote.shippingAddress,
+          lineItems: quote.lineItems,
+          total: quote.total,
+          prepaidAmount: quote.prepaidAmount,
+          codAmount: quote.codAmount,
+          razorpayPaymentId: quote.razorpayPaymentId ?? `staff-push-${quote.id}`,
+          razorpayOrderId: quote.razorpayOrderId ?? `staff-push-${quote.id}`,
+          fulfillmentMode: quote.codAmount > 0 && !quote.razorpayPaymentId ? 'cod' : 'paid',
+        });
+        return {
+          commerceOrderId: String(local.commerceOrderId),
+          created: !local.alreadyExists,
+        };
+      }
       await supabase
         .from('commerce_quotes')
         .update({
@@ -1344,23 +1375,16 @@ export const commerceQuoteService = {
   },
 
   async repairUnsyncedPaidQuotes(limit = 30) {
-    const { data: unlinked, error: unlinkedErr } = await supabase
+    const { data: quoteRows, error: quotesErr } = await supabase
       .from('commerce_quotes')
-      .select('id')
-      .eq('status', 'paid')
-      .is('commerce_order_id', null)
+      .select('id, status, commerce_order_id, razorpay_payment_id')
+      .or('status.eq.paid,and(status.eq.checkout,razorpay_payment_id.not.is.null)')
       .order('updated_at', { ascending: false })
-      .limit(limit);
-    throwIfSupabaseError(unlinkedErr, 'Load unsynced paid quotes');
+      .limit(limit * 2);
+    throwIfSupabaseError(quotesErr, 'Load paid quotes for warehouse repair');
 
-    const { data: linked, error: linkedErr } = await supabase
-      .from('commerce_quotes')
-      .select('id, commerce_order_id')
-      .eq('status', 'paid')
-      .not('commerce_order_id', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(limit);
-    throwIfSupabaseError(linkedErr, 'Load linked paid quotes');
+    const unlinked = (quoteRows ?? []).filter((r) => !r.commerce_order_id);
+    const linked = (quoteRows ?? []).filter((r) => r.commerce_order_id);
 
     const pendingLinked: string[] = [];
     const linkedIds = (linked ?? []).map((r) => String(r.commerce_order_id));
@@ -1380,10 +1404,7 @@ export const commerceQuoteService = {
     }
 
     const ids = [
-      ...new Set([
-        ...(unlinked ?? []).map((r) => String(r.id)),
-        ...pendingLinked,
-      ]),
+      ...new Set([...unlinked.map((r) => String(r.id)), ...pendingLinked]),
     ].slice(0, limit);
 
     let repaired = 0;

@@ -1,6 +1,12 @@
 declare const EXCEPTION_TYPES: readonly ["stock_missing", "wrong_barcode", "reprint_label", "courier_failed", "weight_mismatch"];
 export type FulfillmentExceptionType = (typeof EXCEPTION_TYPES)[number];
+declare function repairPendingCommerceOrders(limit?: number): Promise<{
+    repaired: number;
+    failed: number;
+    scanned: number;
+}>;
 export declare const fulfillmentService: {
+    repairPendingCommerceOrders: typeof repairPendingCommerceOrders;
     getStats(): Promise<{
         pendingOrders: number;
         readyToPack: number;

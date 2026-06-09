@@ -25,7 +25,7 @@ export declare const quoteOmsBridgeService: {
         orderName?: undefined;
     } | {
         commerceOrderId: any;
-        omsStatus: any;
+        omsStatus: string;
         orderName: string;
     }>;
     /**

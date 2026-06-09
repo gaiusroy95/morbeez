@@ -48,7 +48,41 @@ function activeFulfillmentOrdersQuery() {
     .neq('oms_status', 'cancelled');
 }
 
+async function repairPendingCommerceOrders(limit = 100) {
+  const { data, error } = await supabase
+    .from('commerce_orders')
+    .select('id, order_name, shopify_order_id')
+    .is('deleted_at', null)
+    .eq('oms_status', 'pending')
+    .or('financial_status.eq.paid,is_cod.eq.true')
+    .order('created_at', { ascending: true })
+    .limit(limit);
+  throwIfSupabaseError(error, 'Pending commerce orders for warehouse repair');
+
+  let repaired = 0;
+  let failed = 0;
+  for (const row of data ?? []) {
+    try {
+      await omsWorkflowService.confirmOrder(String(row.id));
+      repaired += 1;
+    } catch (err) {
+      failed += 1;
+      logger.warn(
+        {
+          err,
+          orderId: row.id,
+          orderName: row.order_name ?? row.shopify_order_id,
+        },
+        'Pending commerce order confirm failed'
+      );
+    }
+  }
+  return { repaired, failed, scanned: data?.length ?? 0 };
+}
+
 export const fulfillmentService = {
+  repairPendingCommerceOrders,
+
   async getStats() {
     const today = startOfTodayIso();
     const [pending, ready, packedToday, courierPending, failedAwb] = await Promise.all([
@@ -131,6 +165,18 @@ export const fulfillmentService = {
   },
 
   async getQueue(opts?: { limit?: number; repair?: boolean }) {
+    await ordersAdminService.repairWarehouseOrderVisibility();
+    try {
+      await commerceQuoteService.repairUnsyncedPaidQuotes(100);
+    } catch (err) {
+      logger.warn({ err }, 'Paid quote warehouse sync on queue load failed');
+    }
+    try {
+      await repairPendingCommerceOrders(100);
+    } catch (err) {
+      logger.warn({ err }, 'Pending order confirm on queue load failed');
+    }
+
     if (opts?.repair === true) {
       try {
         await this.repairStalePickLists();
@@ -138,8 +184,6 @@ export const fulfillmentService = {
         logger.error({ err }, 'Fulfillment queue repair failed');
       }
     }
-
-    await ordersAdminService.repairWarehouseOrderVisibility();
 
     const { data, error } = await supabase
       .from('commerce_orders')

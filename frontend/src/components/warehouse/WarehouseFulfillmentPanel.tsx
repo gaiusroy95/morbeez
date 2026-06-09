@@ -222,7 +222,7 @@ export function WarehouseFulfillmentPanel({
   const loadQueue = useCallback(async () => {
     const [s, q] = await Promise.all([
       api<{ ok: boolean; stats: Stats }>(`${WMS_API}/fulfillment/stats`),
-      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue`),
+      api<{ ok: boolean; queue: QueueRow[] }>(`${WMS_API}/fulfillment/queue?repair=true`),
     ]);
     setStats(s.stats);
     setQueue(q.queue ?? []);

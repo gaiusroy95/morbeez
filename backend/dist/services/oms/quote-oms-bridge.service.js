@@ -50,9 +50,19 @@ export const quoteOmsBridgeService = {
             })
                 .eq('id', input.quoteId);
         }
+        let omsStatus = String(commerceOrder.oms_status ?? 'pending');
+        if (omsStatus === 'pending') {
+            await omsWorkflowService.confirmOrder(String(commerceOrder.id));
+            const { data: refreshed } = await supabase
+                .from('commerce_orders')
+                .select('oms_status')
+                .eq('id', commerceOrder.id)
+                .maybeSingle();
+            omsStatus = String(refreshed?.oms_status ?? 'confirmed');
+        }
         return {
             commerceOrderId: commerceOrder.id,
-            omsStatus: commerceOrder.oms_status,
+            omsStatus,
             orderName: order.name,
         };
     },
@@ -69,7 +79,15 @@ export const quoteOmsBridgeService = {
             .eq('shopify_order_id', syntheticId)
             .maybeSingle();
         if (existing?.id) {
-            const pickList = await omsWorkflowService.getOrderWorkflow(String(existing.id));
+            const { data: existingOrder } = await supabase
+                .from('commerce_orders')
+                .select('id, oms_status')
+                .eq('id', existing.id)
+                .maybeSingle();
+            let pickList = await omsWorkflowService.getOrderWorkflow(String(existing.id));
+            if (existingOrder?.oms_status === 'pending') {
+                pickList = await omsWorkflowService.confirmOrder(String(existing.id));
+            }
             return {
                 commerceOrderId: existing.id,
                 shopifyOrderId: syntheticId,

@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { AppError, NotFoundError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
 import { inventoryService } from '../wms/inventory.service.js';
 import { warehouseService } from '../wms/warehouse.service.js';
 function waveNumber() {
@@ -70,7 +71,13 @@ export const pickListService = {
                     product_title: String(line.product_title ?? 'Product'),
                 });
                 if (resolved.available < qty) {
-                    throw new AppError(`Insufficient warehouse stock for "${line.product_title}" (need ${qty}, have ${resolved.available}) — check Commerce → Inventory SKU matches this order line`, 409, 'INSUFFICIENT_STOCK');
+                    logger.warn({
+                        commerceOrderId,
+                        productTitle: line.product_title,
+                        need: qty,
+                        have: resolved.available,
+                    }, 'Skipping pick line — insufficient warehouse stock');
+                    continue;
                 }
                 const allocations = await inventoryService.reserveStock({
                     inventoryItemId: resolved.inventoryItemId,
@@ -104,7 +111,7 @@ export const pickListService = {
                     .eq('id', line.id);
             }
             if (pickLinesCreated === 0) {
-                throw new AppError('No warehouse stock available for this order — receive goods via Purchase & GRN for matching SKUs', 409, 'NO_PICK_LINES');
+                logger.warn({ commerceOrderId }, 'Pick list created with no reserved stock — order stays visible in fulfillment queue');
             }
         }
         catch (err) {
@@ -114,7 +121,10 @@ export const pickListService = {
         }
         await supabase
             .from('pick_lists')
-            .update({ status: 'picking', updated_at: new Date().toISOString() })
+            .update({
+            status: pickLinesCreated > 0 ? 'picking' : 'pending',
+            updated_at: new Date().toISOString(),
+        })
             .eq('id', pickList.id);
         return this.getPickList(String(pickList.id));
     },
