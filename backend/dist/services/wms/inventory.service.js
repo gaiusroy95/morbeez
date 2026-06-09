@@ -4,6 +4,36 @@ import { AppError, NotFoundError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
 import { warehouseService } from './warehouse.service.js';
+const COMMERCE_SYNC_THROTTLE_MS = 12_000;
+let lastCommerceWarehouseSyncAt = 0;
+function mapBatchRows(itemBatches) {
+    let available = 0;
+    let reserved = 0;
+    let damaged = 0;
+    let returned = 0;
+    const batches = itemBatches.map((b) => {
+        const onHand = Number(b.qty_on_hand) || 0;
+        const res = Number(b.qty_reserved) || 0;
+        const dmg = Number(b.qty_damaged) || 0;
+        const ret = Number(b.qty_returned) || 0;
+        available += Math.max(0, onHand - res);
+        reserved += res;
+        damaged += dmg;
+        returned += ret;
+        const loc = b.warehouse_locations ?? null;
+        return {
+            id: String(b.id),
+            batchCode: String(b.batch_code),
+            qtyOnHand: onHand,
+            qtyReserved: res,
+            qtyDamaged: dmg,
+            qtyReturned: ret,
+            expiryDate: b.expiry_date ? String(b.expiry_date) : null,
+            rackLocation: loc ? warehouseService.formatLocationDisplay(loc) : null,
+        };
+    });
+    return { available, reserved, damaged, returned, batches };
+}
 function mapInventoryItemRow(row) {
     return {
         id: String(row.id),
@@ -228,7 +258,22 @@ export const inventoryService = {
         }
         return { inventoryItemId: bestId, available: Math.max(0, bestAvailable) };
     },
+    async ensureCommerceStockSynced(force = false) {
+        const now = Date.now();
+        if (!force && now - lastCommerceWarehouseSyncAt < COMMERCE_SYNC_THROTTLE_MS)
+            return;
+        lastCommerceWarehouseSyncAt = now;
+        try {
+            await this.syncAllCommerceStockToWarehouse();
+        }
+        catch (err) {
+            logger.warn({ err }, 'Commerce → warehouse stock sync skipped');
+        }
+    },
     async getStockSummary(opts) {
+        if (opts?.sync !== false) {
+            await this.ensureCommerceStockSynced(opts?.forceSync === true);
+        }
         const warehouse = opts?.warehouseId
             ? { id: opts.warehouseId }
             : await warehouseService.getDefaultWarehouse();
@@ -265,45 +310,66 @@ export const inventoryService = {
             batchesByItem.set(key, list);
         }
         const rows = (items ?? []).map((item) => {
-            const itemBatches = batchesByItem.get(String(item.id)) ?? [];
-            let available = 0;
-            let reserved = 0;
-            let damaged = 0;
-            let returned = 0;
-            const batchRows = itemBatches.map((b) => {
-                const onHand = Number(b.qty_on_hand) || 0;
-                const res = Number(b.qty_reserved) || 0;
-                const dmg = Number(b.qty_damaged) || 0;
-                const ret = Number(b.qty_returned) || 0;
-                available += Math.max(0, onHand - res);
-                reserved += res;
-                damaged += dmg;
-                returned += ret;
-                const loc = b.warehouse_locations;
-                return {
-                    id: String(b.id),
-                    batchCode: String(b.batch_code),
-                    qtyOnHand: onHand,
-                    qtyReserved: res,
-                    qtyDamaged: dmg,
-                    qtyReturned: ret,
-                    expiryDate: b.expiry_date ? String(b.expiry_date) : null,
-                    rackLocation: loc ? warehouseService.formatLocationDisplay(loc) : null,
-                };
-            });
+            const itemBatches = (batchesByItem.get(String(item.id)) ?? []);
+            const totals = mapBatchRows(itemBatches);
             return {
                 inventoryItemId: String(item.id),
                 sku: String(item.sku),
                 productTitle: String(item.product_title),
-                available,
-                reserved,
-                damaged,
-                returned,
+                available: totals.available,
+                reserved: totals.reserved,
+                damaged: totals.damaged,
+                returned: totals.returned,
                 incoming: incomingByItem.get(String(item.id)) ?? 0,
-                batches: batchRows,
+                batches: totals.batches,
             };
         });
         return rows;
+    },
+    async getStockItemDetail(inventoryItemId, opts) {
+        await this.syncCommerceBatchesToWarehouse(inventoryItemId);
+        const warehouse = opts?.warehouseId
+            ? { id: opts.warehouseId }
+            : await warehouseService.getDefaultWarehouse();
+        const { data: item, error: itemErr } = await supabase
+            .from('inventory_items')
+            .select('*')
+            .eq('id', inventoryItemId)
+            .eq('active', true)
+            .maybeSingle();
+        throwIfSupabaseError(itemErr, 'Stock item');
+        if (!item)
+            throw new NotFoundError('Inventory item not found');
+        const { data: itemBatches, error: batchErr } = await supabase
+            .from('inventory_batches')
+            .select('*, warehouse_locations(zone, rack, shelf, bin, location_code)')
+            .eq('warehouse_id', warehouse.id)
+            .eq('inventory_item_id', inventoryItemId)
+            .neq('status', 'depleted');
+        throwIfSupabaseError(batchErr, 'Stock batches');
+        const { data: poLines } = await supabase
+            .from('purchase_order_lines')
+            .select('qty_ordered, qty_received, purchase_orders!inner(status)')
+            .eq('inventory_item_id', inventoryItemId)
+            .in('purchase_orders.status', ['sent', 'partial']);
+        let incoming = 0;
+        for (const line of poLines ?? []) {
+            const ordered = Number(line.qty_ordered) || 0;
+            const received = Number(line.qty_received) || 0;
+            incoming += Math.max(0, ordered - received);
+        }
+        const totals = mapBatchRows((itemBatches ?? []));
+        return {
+            inventoryItemId: String(item.id),
+            sku: String(item.sku),
+            productTitle: String(item.product_title),
+            available: totals.available,
+            reserved: totals.reserved,
+            damaged: totals.damaged,
+            returned: totals.returned,
+            incoming,
+            batches: totals.batches,
+        };
     },
     async createBatchFromGrn(input) {
         if (input.qty <= 0)
@@ -660,9 +726,7 @@ export const inventoryService = {
         });
     },
     async applyCommerceBatchToWarehouse(inventoryItemId, warehouseId, cb) {
-        const commerceQty = Number(cb.qty) || 0;
-        if (commerceQty <= 0)
-            return 0;
+        const commerceQty = Math.max(0, Number(cb.qty) || 0);
         const batchCode = String(cb.batch_code);
         const { data: whBatch } = await supabase
             .from('inventory_batches')
@@ -672,10 +736,11 @@ export const inventoryService = {
             .eq('batch_code', batchCode)
             .maybeSingle();
         const whOnHand = Number(whBatch?.qty_on_hand) || 0;
-        const shortfall = commerceQty - whOnHand;
-        if (shortfall <= 0)
-            return 0;
+        const whReserved = Number(whBatch?.qty_reserved) || 0;
+        const targetOnHand = commerceQty + whReserved;
         if (!whBatch) {
+            if (commerceQty <= 0)
+                return 0;
             await this.createBatchFromGrn({
                 inventoryItemId,
                 warehouseId,
@@ -686,11 +751,14 @@ export const inventoryService = {
             });
             return commerceQty;
         }
+        if (targetOnHand === whOnHand)
+            return 0;
+        const delta = targetOnHand - whOnHand;
         await supabase
             .from('inventory_batches')
             .update({
-            qty_on_hand: whOnHand + shortfall,
-            status: 'active',
+            qty_on_hand: targetOnHand,
+            status: targetOnHand > 0 || whReserved > 0 ? 'active' : 'depleted',
             updated_at: new Date().toISOString(),
         })
             .eq('id', whBatch.id);
@@ -700,12 +768,12 @@ export const inventoryService = {
             batch_id: whBatch.id,
             warehouse_id: warehouseId,
             location_id: whBatch.location_id,
-            qty: shortfall,
+            qty: delta,
             ref_type: 'commerce_stock_sync',
             ref_id: String(cb.id),
             notes: 'Synced from commerce inventory',
         });
-        return shortfall;
+        return Math.abs(delta);
     },
     async loadCommerceBatchesForItem(item) {
         const variantIds = new Set();

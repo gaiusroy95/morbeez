@@ -94,7 +94,7 @@
         "type": "text",
         "id": "morbeez_api_base_url",
         "label": "t:settings.api.base_url",
-        "default": "https://morbeez-api.onrender.com",
+        "default": "https://morbeez-api-5hbx.onrender.com",
         "info": "t:settings.api.base_url_info"
       }
     ]

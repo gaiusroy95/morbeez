@@ -85,7 +85,7 @@ const PAGES = [
 const API_BASE =
   process.env.API_BASE_URL ||
   process.env.MORBEEZ_API_BASE_URL ||
-  'https://morbeez-api.onrender.com';
+  'https://morbeez-api-5hbx.onrender.com';
 
 const URL_REDIRECTS = [
   { path: '/console', target: `${API_BASE.replace(/\/$/, '')}/console/` },

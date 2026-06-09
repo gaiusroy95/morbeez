@@ -56,10 +56,35 @@ export declare const inventoryService: {
         inventoryItemId: string;
         available: number;
     }>;
+    ensureCommerceStockSynced(force?: boolean): Promise<void>;
     getStockSummary(opts?: {
         search?: string;
         warehouseId?: string;
+        sync?: boolean;
+        forceSync?: boolean;
     }): Promise<StockSummaryRow[]>;
+    getStockItemDetail(inventoryItemId: string, opts?: {
+        warehouseId?: string;
+    }): Promise<{
+        inventoryItemId: string;
+        sku: string;
+        productTitle: string;
+        available: number;
+        reserved: number;
+        damaged: number;
+        returned: number;
+        incoming: number;
+        batches: {
+            id: string;
+            batchCode: string;
+            qtyOnHand: number;
+            qtyReserved: number;
+            qtyDamaged: number;
+            qtyReturned: number;
+            expiryDate: string | null;
+            rackLocation: string | null;
+        }[];
+    }>;
     createBatchFromGrn(input: {
         inventoryItemId: string;
         warehouseId: string;

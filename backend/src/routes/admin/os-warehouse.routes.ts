@@ -162,12 +162,24 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
   // ─── Stock & inventory ────────────────────────────────────────────────────
   app.get(`${api}/stock`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'read');
-    const q = request.query as { search?: string; warehouseId?: string };
+    const q = request.query as { search?: string; warehouseId?: string; sync?: string };
     const stock = await inventoryService.getStockSummary({
       search: q.search,
       warehouseId: q.warehouseId,
+      sync: q.sync !== '0',
+      forceSync: q.sync === '1',
     });
     return reply.send({ ok: true, stock });
+  });
+
+  app.get(`${api}/stock/:inventoryItemId/batches`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const { inventoryItemId } = request.params as { inventoryItemId: string };
+    const q = request.query as { warehouseId?: string };
+    const row = await inventoryService.getStockItemDetail(inventoryItemId, {
+      warehouseId: q.warehouseId,
+    });
+    return reply.send({ ok: true, row });
   });
 
   app.get(`${api}/inventory-items`, async (request, reply) => {

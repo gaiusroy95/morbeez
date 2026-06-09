@@ -97,7 +97,7 @@
 
 <script>
   window.MORBEEZ_CHECKOUT = {
-    apiBase: {{ settings.morbeez_api_base_url | default: 'https://morbeez-api.onrender.com' | json }},
+    apiBase: {{ settings.morbeez_api_base_url | default: 'https://morbeez-api-5hbx.onrender.com' | json }},
     successUrl: {{ '/pages/checkout-success' | url | json }},
     cartUrl: {{ routes.cart_url | json }}
   };

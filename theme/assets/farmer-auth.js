@@ -1,7 +1,7 @@
 (function () {
   var STORAGE_KEY = 'morbeez_farmer_token';
   var config = window.MORBEEZ_AUTH || {};
-  var API_BASE = (config.apiBase || 'https://morbeez-api.onrender.com').replace(/\/$/, '');
+  var API_BASE = (config.apiBase || 'https://morbeez-api-5hbx.onrender.com').replace(/\/$/, '');
   var PROXY_BASE = (config.proxyBase || '/apps/morbeez/auth').replace(/\/$/, '');
 
   var card = document.querySelector('.morbeez-auth-card');
@@ -217,7 +217,7 @@
         .catch(function (err) {
           console.error('Morbeez auth error', err);
           showMessage(
-            'Cannot reach Morbeez API. Confirm https://morbeez-api.onrender.com is running and redeployed with auth routes.',
+            'Cannot reach Morbeez API at ' + API_BASE + '. Confirm the API is running and auth routes are deployed.',
             true
           );
         })
@@ -297,7 +297,7 @@
         .catch(function (err) {
           console.error('Morbeez auth error', err);
           showMessage(
-            'Cannot reach Morbeez API. Redeploy the backend on Render, then try again.',
+            'Cannot reach Morbeez API at ' + API_BASE + '. Confirm the API is running and auth routes are deployed.',
             true
           );
         })
@@ -323,7 +323,8 @@
   }
 
   var params = new URLSearchParams(window.location.search);
-  if (params.get('tab') === 'login') setTab('login');
+  var onLoginPage = /\/pages\/login\/?$/i.test(window.location.pathname);
+  if (params.get('tab') === 'login' || onLoginPage) setTab('login');
 
   checkSession();
 })();

@@ -183,6 +183,10 @@ export function AddStockModal({ onClose, onSaved, initialVariantId }: Props) {
           qty,
         }),
       });
+      const refreshed = await api<{ ok: boolean; detail: VariantDetail }>(
+        `/morbeez-staff/api/v1/inventory/lookup?variantId=${encodeURIComponent(detail.variantId)}`
+      );
+      setDetail(refreshed.detail);
       onSaved();
       onClose();
     } catch (e) {

@@ -1,7 +1,7 @@
 (function () {
   var STORAGE_KEY = 'morbeez_farmer_token';
   var config = window.MORBEEZ_AUTH || {};
-  var API_BASE = (config.apiBase || 'https://morbeez-api.onrender.com').replace(/\/$/, '');
+  var API_BASE = (config.apiBase || 'https://morbeez-api-5hbx.onrender.com').replace(/\/$/, '');
 
   function updateLoginLinks() {
     var links = document.querySelectorAll('[data-morbeez-login-link]');

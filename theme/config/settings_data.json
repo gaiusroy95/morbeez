@@ -1,5 +1,6 @@
 {
   "current": {
+    "morbeez_api_base_url": "https://morbeez-api-5hbx.onrender.com",
     "color_primary": "#34B35E",
     "color_accent": "#2A9D4E",
     "color_trust": "#111111",

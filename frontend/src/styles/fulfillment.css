@@ -308,6 +308,19 @@
   margin: 0 0 0.5rem;
 }
 
+.ff-print-stage-hint {
+  font-size: 0.78rem;
+  margin: 0 0 0.5rem;
+  line-height: 1.45;
+}
+
+.ff-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
 .fulfillment-actions {
   display: flex;
   flex-direction: column;

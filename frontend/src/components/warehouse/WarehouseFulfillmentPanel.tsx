@@ -257,6 +257,9 @@ export function WarehouseFulfillmentPanel({
       } else if (!parts.length) {
         setSuccess('Sync finished — select an order to verify pick lines');
       }
+      if (selectedId) {
+        await loadDetail(selectedId, true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed');
     } finally {
@@ -270,23 +273,35 @@ export function WarehouseFulfillmentPanel({
       setScanMsg('');
       setSuccess('');
       setPickLookup(null);
-      const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
-      setDetail(d);
+      setError('');
+      try {
+        const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
+        setDetail(d);
 
-      if (d.packSession?.id) {
-        setSessionId(d.packSession.id);
-      } else if (canWrite && startSession && d.pickList) {
-        const sess = await api<{ ok: boolean; session: { id: string } }>(
-          `${WMS_API}/fulfillment/orders/${orderId}/pack-session`,
-          { method: 'POST' }
-        );
-        setSessionId(sess.session.id);
-        const refreshed = await api<{ ok: boolean } & OrderDetail>(
-          `${WMS_API}/fulfillment/orders/${orderId}`
-        );
-        setDetail(refreshed);
-      } else {
+        if (d.packSession?.id) {
+          setSessionId(d.packSession.id);
+        } else if (canWrite && startSession && d.pickList) {
+          try {
+            const sess = await api<{ ok: boolean; session: { id: string } }>(
+              `${WMS_API}/fulfillment/orders/${orderId}/pack-session`,
+              { method: 'POST' }
+            );
+            setSessionId(sess.session.id);
+            const refreshed = await api<{ ok: boolean } & OrderDetail>(
+              `${WMS_API}/fulfillment/orders/${orderId}`
+            );
+            setDetail(refreshed);
+          } catch (e) {
+            setSessionId('');
+            setError(e instanceof Error ? e.message : 'Could not start pick session');
+          }
+        } else {
+          setSessionId('');
+        }
+      } catch (e) {
+        setDetail(null);
         setSessionId('');
+        setError(e instanceof Error ? e.message : 'Failed to load order');
       }
     },
     [canWrite]
@@ -498,14 +513,44 @@ export function WarehouseFulfillmentPanel({
                 })}
               </div>
 
-              {!workflow?.currentRackLines.length && selectedQueue?.stockIssue === 'no_stock_reserved' ? (
+              {!printStage &&
+              (!workflow?.currentRackLines.length ||
+                selectedQueue?.stockIssue === 'no_stock_reserved' ||
+                !detail.pickList) ? (
                 <Alert tone="warn">
-                  Warehouse stock not reserved for this order (shows <strong>0 / {selectedQueue.orderItemCount ?? '?'}</strong>).
-                  Ensure products have stock in <strong>Commerce → Inventory</strong> or via <strong>Purchase &amp; GRN</strong>, then{' '}
+                  {selectedQueue?.stockIssue === 'no_stock_reserved' ? (
+                    <>
+                      Warehouse stock is not reserved for this order (
+                      <strong>
+                        0 / {selectedQueue.orderItemCount ?? '?'}
+                      </strong>{' '}
+                      pick lines). Add stock under <strong>Commerce → Inventory</strong> or{' '}
+                      <strong>Purchase &amp; GRN</strong>, then rebuild the pick list.
+                    </>
+                  ) : !detail.pickList ? (
+                    <>No pick list exists for this order yet — rebuild to allocate warehouse stock.</>
+                  ) : (
+                    <>Pick list has no rack lines yet — sync inventory and rebuild picks.</>
+                  )}
                   {canWrite ? (
-                    <Btn size="sm" variant="secondary" disabled={busy} onClick={() => void runAction('/rebuild-pick-list', 'Pick list rebuilt')}>
-                      Rebuild pick list
-                    </Btn>
+                    <div className="ff-empty-actions">
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void syncInventoryAndRepair()}
+                      >
+                        Sync inventory &amp; rebuild
+                      </Btn>
+                      <Btn
+                        size="sm"
+                        variant="primary"
+                        disabled={busy}
+                        onClick={() => void runAction('/rebuild-pick-list', 'Pick list rebuilt')}
+                      >
+                        Rebuild pick list
+                      </Btn>
+                    </div>
                   ) : null}
                 </Alert>
               ) : null}
@@ -632,6 +677,11 @@ export function WarehouseFulfillmentPanel({
                 <p className="ff-print-stage-title">
                   {printStage ? 'Printables ready' : 'Printables locked'}
                 </p>
+                {!printStage ? (
+                  <p className="muted ff-print-stage-hint">
+                    Complete rack picking (scan every product) to unlock AWB, label, and invoice printing.
+                  </p>
+                ) : null}
                 <div className="fulfillment-btn-stack">
                   {canWrite ? (
                     <Btn

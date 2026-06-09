@@ -1,8 +1,15 @@
-<div class="morbeez-container morbeez-section">
-  {%- render 'morbeez-breadcrumbs' -%}
-  <h1 class="font-heading text-3xl font-bold">{{ page.title }}</h1>
-  <div class="mt-6 prose prose-sm max-w-none">{{ page.content }}</div>
-</div>
+{%- if page.handle == 'login' -%}
+  <div class="morbeez-container morbeez-section pt-6">
+    {%- render 'morbeez-breadcrumbs' -%}
+  </div>
+  {%- render 'morbeez-farmer-auth' -%}
+{%- else -%}
+  <div class="morbeez-container morbeez-section">
+    {%- render 'morbeez-breadcrumbs' -%}
+    <h1 class="font-heading text-3xl font-bold">{{ page.title }}</h1>
+    <div class="mt-6 prose prose-sm max-w-none">{{ page.content }}</div>
+  </div>
+{%- endif -%}
 
 {% schema %}
 {
