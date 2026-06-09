@@ -1001,8 +1001,10 @@ export const commerceQuoteService = {
         throwIfSupabaseError(error, 'Cancel quote');
     },
     async delete(id) {
-        const { error } = await supabase.from('commerce_quotes').delete().eq('id', id);
+        const { data, error } = await supabase.from('commerce_quotes').delete().eq('id', id).select('id');
         throwIfSupabaseError(error, 'Delete quote');
+        if (!data?.length)
+            throw new NotFoundError('Quote not found');
     },
     async deleteFromLead(id, leadId) {
         const quote = await this.get(id);

@@ -346,6 +346,62 @@ function mergeOrders(
   );
 }
 
+async function softDeleteCommerceOrder(
+  id: string,
+  now: string,
+  actorEmail?: string
+): Promise<{ id: string; shopifyOrderId: string | null } | null> {
+  const { data, error } = await supabase
+    .from('commerce_orders')
+    .update({
+      payment_status: 'cancelled',
+      fulfillment_status: 'cancelled',
+      financial_status: 'voided',
+      oms_status: 'cancelled',
+      deleted_at: now,
+      updated_at: now,
+    })
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('id, shopify_order_id')
+    .maybeSingle();
+  throwIfSupabaseError(error, 'Could not delete order');
+  if (!data) return null;
+
+  if (data.shopify_order_id) {
+    await expireCheckoutSessions({ shopifyOrderId: String(data.shopify_order_id) }, now);
+  }
+
+  try {
+    await inventoryService.releaseOrderAllocations(id, actorEmail);
+  } catch {
+    /* order may have no warehouse allocations */
+  }
+
+  return { id: String(data.id), shopifyOrderId: data.shopify_order_id ? String(data.shopify_order_id) : null };
+}
+
+async function cancelLinkedQuotesForCommerceOrder(
+  commerceOrderId: string,
+  shopifyOrderId: string | null,
+  now: string
+): Promise<void> {
+  await supabase
+    .from('commerce_quotes')
+    .update({ status: 'cancelled', updated_at: now })
+    .eq('commerce_order_id', commerceOrderId);
+
+  if (shopifyOrderId?.startsWith('quote-paid-') || shopifyOrderId?.startsWith('quote-cod-')) {
+    const quoteId = shopifyOrderId.replace(/^quote-(?:paid|cod)-/, '');
+    if (quoteId) {
+      await supabase
+        .from('commerce_quotes')
+        .update({ status: 'cancelled', updated_at: now })
+        .eq('id', quoteId);
+    }
+  }
+}
+
 async function expireCheckoutSessions(
   filter: { id?: string; shopifyOrderId?: string },
   now: string
@@ -965,8 +1021,31 @@ export const ordersAdminService = {
     const now = new Date().toISOString();
 
     if (source === 'quote') {
-      await commerceQuoteService.delete(id);
-      return 'commerce_quotes';
+      const { data: quoteRow, error: quoteLoadErr } = await supabase
+        .from('commerce_quotes')
+        .select('id, commerce_order_id')
+        .eq('id', id)
+        .maybeSingle();
+      throwIfSupabaseError(quoteLoadErr, 'Could not load quote');
+
+      if (quoteRow) {
+        await commerceQuoteService.delete(id);
+        if (quoteRow.commerce_order_id) {
+          const removed = await softDeleteCommerceOrder(String(quoteRow.commerce_order_id), now, actorEmail);
+          if (removed) {
+            await cancelLinkedQuotesForCommerceOrder(removed.id, removed.shopifyOrderId, now);
+          }
+        }
+        return 'commerce_quotes';
+      }
+
+      const removed = await softDeleteCommerceOrder(id, now, actorEmail);
+      if (removed) {
+        await cancelLinkedQuotesForCommerceOrder(removed.id, removed.shopifyOrderId, now);
+        return 'commerce_orders';
+      }
+
+      throw new NotFoundError('Order not found');
     }
 
     if (source === 'razorpay_checkout') {
@@ -999,31 +1078,11 @@ export const ordersAdminService = {
       return 'checkout_sessions';
     }
 
-    const { data, error } = await supabase
-      .from('commerce_orders')
-      .update({
-        payment_status: 'cancelled',
-        fulfillment_status: 'cancelled',
-        financial_status: 'voided',
-        oms_status: 'cancelled',
-        deleted_at: now,
-        updated_at: now,
-      })
-      .eq('id', id)
-      .is('deleted_at', null)
-      .select('id, shopify_order_id')
-      .maybeSingle();
-    throwIfSupabaseError(error, 'Could not delete order');
-    if (!data) throw new NotFoundError('Order not found');
+    const removed = await softDeleteCommerceOrder(id, now, actorEmail);
+    if (!removed) throw new NotFoundError('Order not found');
 
-    if (data.shopify_order_id) {
-      await expireCheckoutSessions({ shopifyOrderId: String(data.shopify_order_id) }, now);
-    }
-
-    try {
-      await inventoryService.releaseOrderAllocations(id, actorEmail);
-    } catch {
-      // Best-effort: order may have no warehouse allocations
+    if (removed.shopifyOrderId?.startsWith('quote-')) {
+      await cancelLinkedQuotesForCommerceOrder(removed.id, removed.shopifyOrderId, now);
     }
 
     return 'commerce_orders';

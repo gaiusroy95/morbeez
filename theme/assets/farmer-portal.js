@@ -669,16 +669,40 @@
     });
   }
 
+  function showGate() {
+    document.documentElement.classList.remove('morbeez-portal-authed');
+    var gate = $('portal-gate');
+    if (gate) {
+      gate.hidden = false;
+      gate.classList.remove('hidden');
+    }
+    var app = $('portal-app');
+    if (app) app.classList.add('hidden');
+    var nav = $('portal-bottom-nav');
+    if (nav) nav.classList.add('hidden');
+  }
+
+  function showApp() {
+    document.documentElement.classList.add('morbeez-portal-authed');
+    var gate = $('portal-gate');
+    if (gate) {
+      gate.hidden = true;
+      gate.classList.add('hidden');
+    }
+    var app = $('portal-app');
+    if (app) app.classList.remove('hidden');
+    var nav = $('portal-bottom-nav');
+    if (nav) nav.classList.remove('hidden');
+  }
+
   function init() {
     var token = getToken();
     if (!token) {
-      $('portal-gate').classList.remove('hidden');
+      showGate();
       return;
     }
 
-    $('portal-gate').classList.add('hidden');
-    $('portal-app').classList.remove('hidden');
-    $('portal-bottom-nav').classList.remove('hidden');
+    showApp();
 
     document.querySelectorAll('[data-portal-tab]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -697,9 +721,7 @@
           try {
             localStorage.removeItem(TOKEN_KEY);
           } catch (err) {}
-          $('portal-app').classList.add('hidden');
-          $('portal-bottom-nav').classList.add('hidden');
-          $('portal-gate').classList.remove('hidden');
+          showGate();
         } else {
           showError(e.message || 'Could not load dashboard');
         }

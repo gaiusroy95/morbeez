@@ -1,5 +1,15 @@
 {{ 'farmer-portal.css' | asset_url | stylesheet_tag }}
 
+<script>
+  (function () {
+    try {
+      if (localStorage.getItem('morbeez_farmer_token')) {
+        document.documentElement.classList.add('morbeez-portal-authed');
+      }
+    } catch (e) {}
+  })();
+</script>
+
 <section class="morbeez-section morbeez-portal" id="MorbeezFarmerPortal">
   <div class="morbeez-container max-w-5xl">
     <div id="portal-gate" class="morbeez-portal__gate">

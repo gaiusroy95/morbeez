@@ -1,4 +1,17 @@
 /* Morbeez farmer customer portal — mobile-first, no CRM chrome */
+html.morbeez-portal-authed #portal-gate {
+  display: none !important;
+}
+
+html.morbeez-portal-authed #portal-app,
+html.morbeez-portal-authed #portal-bottom-nav {
+  display: block;
+}
+
+html.morbeez-portal-authed #portal-bottom-nav {
+  display: flex;
+}
+
 .morbeez-portal {
   --portal-green: #1f8f4a;
   --portal-green-light: #e8f7ee;
@@ -19,6 +32,12 @@
   text-align: center;
   gap: 1rem;
   padding: 2rem 1rem;
+}
+
+/* Tailwind .hidden loses to display:flex above — must hide gate when authed */
+.morbeez-portal__gate.hidden,
+.morbeez-portal__gate[hidden] {
+  display: none !important;
 }
 
 .morbeez-portal__hero {
