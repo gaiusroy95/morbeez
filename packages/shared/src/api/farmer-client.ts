@@ -103,6 +103,22 @@ export async function farmerLogin(email: string, password: string) {
   return data;
 }
 
+export async function sendOtp(phone: string) {
+  return farmerApi<{ ok: boolean; sent: boolean; expiresInSeconds: number; devOtp?: string }>(
+    '/api/v1/auth/otp/send',
+    { method: 'POST', body: JSON.stringify({ phone }) }
+  );
+}
+
+export async function verifyOtp(phone: string, code: string) {
+  const data = await farmerApi<{ ok: boolean; token: string; farmer: FarmerProfile }>(
+    '/api/v1/auth/otp/verify',
+    { method: 'POST', body: JSON.stringify({ phone, code }) }
+  );
+  await setFarmerToken(data.token);
+  return data;
+}
+
 export async function farmerSignup(body: {
   email: string;
   firstName: string;
@@ -266,6 +282,24 @@ export async function verifyCheckout(body: {
   return data;
 }
 
+export type CodCheckoutResult = {
+  shopifyOrderId: string;
+  orderName?: string;
+  orderStatusUrl?: string;
+  paymentMethod: 'cod';
+};
+
+export async function createCodCheckout(body: CheckoutCreateInput): Promise<CodCheckoutResult> {
+  const data = await farmerApi<{ ok: boolean } & CodCheckoutResult>(
+    '/api/v1/checkout/cod/create',
+    {
+      method: 'POST',
+      body: JSON.stringify({ channel: 'mobile', ...body }),
+    }
+  );
+  return data;
+}
+
 export async function fetchPortalNotifications(): Promise<PortalNotification[]> {
   const data = await farmerApi<{ ok: boolean; notifications: PortalNotification[] }>(
     '/api/v1/farmer/portal/notifications'
@@ -289,6 +323,23 @@ export async function createFieldBlock(body: {
     method: 'POST',
     body: JSON.stringify(body),
   });
+  return data.block;
+}
+
+export async function updateFieldBlock(
+  blockId: string,
+  body: {
+    name?: string;
+    cropType?: string;
+    acreage?: number;
+    plantingDate?: string;
+    irrigationType?: string;
+  }
+): Promise<FieldBlock> {
+  const data = await farmerApi<{ ok: boolean; block: FieldBlock }>(
+    `/api/v1/farmer/portal/blocks/${encodeURIComponent(blockId)}`,
+    { method: 'PATCH', body: JSON.stringify(body) }
+  );
   return data.block;
 }
 
@@ -317,6 +368,27 @@ export async function fetchAiScan(sessionId: string): Promise<ScanResult> {
     `/api/v1/farmer/portal/scan/${encodeURIComponent(sessionId)}`
   );
   return data;
+}
+
+export type ScanHistoryItem = {
+  sessionId: string;
+  blockId: string | null;
+  status: string;
+  detectedIssue: string;
+  summary: string | null;
+  createdAt: string;
+  dateLabel: string;
+};
+
+export async function fetchScanHistory(params?: { blockId?: string; limit?: number }): Promise<ScanHistoryItem[]> {
+  const qs = new URLSearchParams();
+  if (params?.blockId) qs.set('blockId', params.blockId);
+  if (params?.limit) qs.set('limit', String(params.limit));
+  const q = qs.toString();
+  const data = await farmerApi<{ ok: boolean; scans: ScanHistoryItem[] }>(
+    `/api/v1/farmer/portal/scans${q ? `?${q}` : ''}`
+  );
+  return data.scans ?? [];
 }
 
 export async function fetchRecommendations(): Promise<FarmerRecommendation[]> {

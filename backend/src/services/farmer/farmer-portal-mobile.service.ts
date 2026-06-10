@@ -183,6 +183,34 @@ export const farmerPortalMobileService = {
     };
   },
 
+  async updateBlock(
+    farmerId: string,
+    blockId: string,
+    input: {
+      name?: string;
+      cropType?: string;
+      acreage?: number;
+      plantingDate?: string;
+      irrigationType?: string;
+    }
+  ) {
+    const block = await blockService.updateBlock(blockId, farmerId, input);
+    const health = healthFromSoil(null);
+    return {
+      id: block.id,
+      name: blockDisplayName(block),
+      crop: block.crop_name ?? block.crop_type,
+      acreage: block.acreage_decimal,
+      dap: block.dap,
+      healthStatus: health.status,
+      healthLabel: health.label,
+      lastActivity: null,
+      currentAlert: null,
+      stage: growthStageLabel(block.stage, block.dap),
+      isPrimary: block.is_primary,
+    };
+  },
+
   async getBlockDetail(farmerId: string, blockId: string) {
     const block = await blockService.getById(blockId, farmerId);
     if (!block) throw new NotFoundError('Field not found');
@@ -258,6 +286,7 @@ export const farmerPortalMobileService = {
         .from('ai_advisory_sessions')
         .select('id, created_at, status, ai_advisory_outputs(probable_issue, farmer_summary_en)')
         .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
         .order('created_at', { ascending: false })
         .limit(15),
       supabase
@@ -327,6 +356,18 @@ export const farmerPortalMobileService = {
   ) {
     if (!env.ENABLE_AI_CROP_DOCTOR) {
       throw new ValidationError('AI scan is temporarily unavailable');
+    }
+
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const { count: scanCount, error: quotaErr } = await supabase
+      .from('ai_advisory_sessions')
+      .select('id', { count: 'exact', head: true })
+      .eq('farmer_id', farmerId)
+      .gte('created_at', dayStart.toISOString());
+    throwIfSupabaseError(quotaErr, 'Could not check scan quota');
+    if ((scanCount ?? 0) >= env.FARMER_SCAN_DAILY_QUOTA) {
+      throw new ValidationError('Daily AI scan limit reached. Try again tomorrow.');
     }
 
     const profile = await farmerAuthService.me(farmerId);
@@ -408,6 +449,33 @@ export const farmerPortalMobileService = {
       recommendationId: recRow?.id ? String(recRow.id) : null,
       summary: String(output?.farmer_summary_en ?? output?.probable_issue ?? ''),
     };
+  },
+
+  async listScans(farmerId: string, query: { blockId?: string; limit?: number }) {
+    const limit = Math.min(50, Math.max(1, query.limit ?? 20));
+    let q = supabase
+      .from('ai_advisory_sessions')
+      .select('id, created_at, status, block_id, ai_advisory_outputs(probable_issue, farmer_summary_en)')
+      .eq('farmer_id', farmerId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (query.blockId) q = q.eq('block_id', query.blockId);
+
+    const { data, error } = await q;
+    throwIfSupabaseError(error, 'Could not load scan history');
+
+    return (data ?? []).map((s) => {
+      const out = (s.ai_advisory_outputs as Array<{ probable_issue?: string; farmer_summary_en?: string }> | null)?.[0];
+      return {
+        sessionId: String(s.id),
+        blockId: s.block_id ? String(s.block_id) : null,
+        status: String(s.status),
+        detectedIssue: out?.probable_issue ? String(out.probable_issue) : 'AI scan',
+        summary: out?.farmer_summary_en ? String(out.farmer_summary_en) : null,
+        createdAt: String(s.created_at),
+        dateLabel: formatDate(String(s.created_at)),
+      };
+    });
   },
 
   async listRecommendations(farmerId: string) {
@@ -560,7 +628,7 @@ export const farmerPortalMobileService = {
       activityDate: input.activityDate,
       notes: notes || undefined,
       costInr: input.costInr ?? null,
-      source: 'admin',
+      source: 'mobile',
       status: 'completed',
     });
 

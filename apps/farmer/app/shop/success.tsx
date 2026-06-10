@@ -5,21 +5,23 @@ import { Btn, Panel } from '@morbeez/ui-native';
 
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ orderName?: string; orderId?: string }>();
+  const params = useLocalSearchParams<{ orderName?: string; orderId?: string; paymentMethod?: string }>();
   const orderName = params.orderName ? String(params.orderName) : '';
+  const isCod = params.paymentMethod === 'cod';
 
   return (
     <View style={styles.wrap}>
-      <Panel title="Payment successful">
+      <Panel title={isCod ? 'Order placed (COD)' : 'Payment successful'}>
         <Text style={styles.body}>
           Thank you! Your order{orderName ? ` ${orderName}` : ''} has been placed.
+          {isCod ? ' Pay the delivery partner in cash when your order arrives.' : ''}
         </Text>
         <Text style={styles.hint}>
-          Track delivery and leave product reviews from the Orders tab once your order arrives.
+          Track delivery and leave product reviews from Orders once your order arrives.
         </Text>
       </Panel>
-      <Btn label="View orders" onPress={() => router.replace('/(tabs)/orders')} />
-      <Btn label="Continue shopping" variant="secondary" onPress={() => router.replace('/(tabs)/shop')} />
+      <Btn label="View orders" onPress={() => router.replace('/orders')} accessibilityLabel="View orders" />
+      <Btn label="Continue shopping" variant="secondary" onPress={() => router.replace('/(tabs)/shop')} accessibilityLabel="Continue shopping" />
     </View>
   );
 }

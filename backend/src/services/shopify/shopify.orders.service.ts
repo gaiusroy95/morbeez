@@ -197,7 +197,7 @@ export const shopifyOrdersService = {
       send_receipt: false,
       inventory_behaviour: 'decrement_obeying_policy',
       note: input.note ?? 'COD order from telecaller quote',
-      tags: 'cod,commerce_quote,telecaller',
+      tags: input.tags ?? 'cod,commerce_quote,telecaller',
       taxes_included: false,
       currency: 'INR',
     };

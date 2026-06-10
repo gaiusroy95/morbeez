@@ -1,9 +1,30 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { env } from '../../config/env.js';
 import { requireFarmer } from '../../middleware/require-farmer.js';
 import { farmerPortalService } from '../../services/farmer/farmer-portal.service.js';
 import { farmerPortalMobileService } from '../../services/farmer/farmer-portal-mobile.service.js';
 import { farmerProductReviewService } from '../../services/farmer/farmer-product-review.service.js';
+import { assertBase64ImageSize } from '../../lib/upload-limits.js';
+
+const uuidParam = z.string().uuid();
+const uploadBodyLimit = { bodyLimit: env.UPLOAD_BODY_LIMIT_BYTES };
+
+function parseUuid(value: string): string {
+  return uuidParam.parse(value);
+}
+
+const imageDataSchema = z
+  .string()
+  .min(32)
+  .max(11_000_000)
+  .superRefine((val, ctx) => {
+    try {
+      assertBase64ImageSize(val);
+    } catch (e) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: e instanceof Error ? e.message : 'Image too large' });
+    }
+  });
 
 /**
  * Farmer customer portal — JWT-protected, no CRM internals exposed.
@@ -81,12 +102,12 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...result });
   });
 
-  app.post('/api/v1/farmer/portal/field-photos', async (request, reply) => {
+  app.post('/api/v1/farmer/portal/field-photos', { config: uploadBodyLimit }, async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const body = z
       .object({
         photoType: z.enum(['field', 'leaf', 'rhizome']),
-        imageData: z.string().min(32),
+        imageData: imageDataSchema,
         mimeType: z.string().optional(),
         notes: z.string().max(300).optional(),
       })
@@ -137,9 +158,27 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send({ ok: true, block });
   });
 
+  app.patch('/api/v1/farmer/portal/blocks/:id', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { id } = request.params as { id: string };
+    parseUuid(id);
+    const body = z
+      .object({
+        name: z.string().min(1).max(120).optional(),
+        cropType: z.string().min(1).max(80).optional(),
+        acreage: z.number().positive().optional(),
+        plantingDate: z.string().optional(),
+        irrigationType: z.string().max(80).optional(),
+      })
+      .parse(request.body);
+    const block = await farmerPortalMobileService.updateBlock(farmerId, id, body);
+    return reply.send({ ok: true, block });
+  });
+
   app.get('/api/v1/farmer/portal/blocks/:id', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const { id } = request.params as { id: string };
+    parseUuid(id);
     const result = await farmerPortalMobileService.getBlockDetail(farmerId, id);
     return reply.send({ ok: true, ...result });
   });
@@ -147,17 +186,18 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/farmer/portal/blocks/:id/timeline', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const { id } = request.params as { id: string };
+    parseUuid(id);
     const timeline = await farmerPortalMobileService.getBlockTimeline(farmerId, id);
     return reply.send({ ok: true, timeline });
   });
 
-  app.post('/api/v1/farmer/portal/scan', async (request, reply) => {
+  app.post('/api/v1/farmer/portal/scan', { config: uploadBodyLimit }, async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const body = z
       .object({
         blockId: z.string().uuid().optional(),
         scanType: z.enum(['leaf', 'field', 'rhizome']),
-        imageData: z.string().min(32),
+        imageData: imageDataSchema,
         mimeType: z.string().optional(),
         language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
       })
@@ -166,9 +206,21 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.status(201).send({ ok: true, ...result });
   });
 
+  app.get('/api/v1/farmer/portal/scans', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as { blockId?: string; limit?: string };
+    if (q.blockId) parseUuid(q.blockId);
+    const scans = await farmerPortalMobileService.listScans(farmerId, {
+      blockId: q.blockId,
+      limit: q.limit ? Number(q.limit) : undefined,
+    });
+    return reply.send({ ok: true, scans });
+  });
+
   app.get('/api/v1/farmer/portal/scan/:sessionId', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const { sessionId } = request.params as { sessionId: string };
+    parseUuid(sessionId);
     const result = await farmerPortalMobileService.getScan(sessionId, farmerId);
     return reply.send({ ok: true, ...result });
   });

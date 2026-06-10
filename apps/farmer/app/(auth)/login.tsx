@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
-import { farmerLogin, t, tokens } from '@morbeez/shared';
+import { farmerLogin, phoneForCheckout, sendOtp, t, verifyOtp } from '@morbeez/shared';
 import { AlertBox, Btn, HubTabs, MorbeezLogo, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -11,7 +11,9 @@ export default function LoginScreen() {
   const { refresh } = useFarmerAuth();
   const { locale, setLocale } = useLocale();
   const [mode, setMode] = useState<'otp' | 'email'>('otp');
+  const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [mobile, setMobile] = useState('');
+  const [otp, setOtp] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -31,9 +33,34 @@ export default function LoginScreen() {
     }
   }
 
-  function onOtpSubmit() {
-    setError('Mobile OTP login is coming soon. Use email sign-in below.');
-    setMode('email');
+  async function onSendOtp() {
+    setError('');
+    setLoading(true);
+    try {
+      const phone = phoneForCheckout(mobile);
+      if (phone.length !== 10) throw new Error('Enter a valid 10-digit mobile number');
+      await sendOtp(phone);
+      setOtpStep('code');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send OTP');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function onVerifyOtp() {
+    setError('');
+    setLoading(true);
+    try {
+      const phone = phoneForCheckout(mobile);
+      await verifyOtp(phone, otp.trim());
+      await refresh();
+      router.replace('/(tabs)/home');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Invalid OTP');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -49,6 +76,7 @@ export default function LoginScreen() {
             tabs={[
               { id: 'en' as const, label: 'English' },
               { id: 'hi' as const, label: 'हिंदी' },
+              { id: 'ml' as const, label: 'മലയാളം' },
             ]}
             active={locale}
             onChange={setLocale}
@@ -58,25 +86,58 @@ export default function LoginScreen() {
 
           {mode === 'otp' ? (
             <>
-              <TextField label={t('mobile', locale)} value={mobile} onChangeText={setMobile} keyboardType="phone-pad" />
-              <Btn label={t('otpSend', locale)} onPress={onOtpSubmit} disabled={loading || mobile.length < 10} />
+              {otpStep === 'phone' ? (
+                <>
+                  <TextField
+                    label={t('mobile', locale)}
+                    value={mobile}
+                    onChangeText={setMobile}
+                    keyboardType="phone-pad"
+                    accessibilityLabel={t('mobile', locale)}
+                  />
+                  <Btn
+                    label={loading ? t('loading', locale) : t('otpSend', locale)}
+                    onPress={() => void onSendOtp()}
+                    disabled={loading || mobile.replace(/\D/g, '').length < 10}
+                  />
+                </>
+              ) : (
+                <>
+                  <TextField
+                    label={t('otpCode', locale)}
+                    value={otp}
+                    onChangeText={setOtp}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    accessibilityLabel={t('otpCode', locale)}
+                  />
+                  <Btn
+                    label={loading ? t('loading', locale) : t('otpVerify', locale)}
+                    onPress={() => void onVerifyOtp()}
+                    disabled={loading || otp.length < 6}
+                  />
+                  <Pressable onPress={() => setOtpStep('phone')} style={styles.linkWrap}>
+                    <Text style={styles.linkText}>{t('changeMobile', locale)}</Text>
+                  </Pressable>
+                </>
+              )}
               <Pressable onPress={() => setMode('email')} style={styles.linkWrap}>
                 <Text style={styles.linkText}>{t('useEmail', locale)}</Text>
               </Pressable>
             </>
           ) : (
             <>
-              <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" />
-              <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-              <Btn label={loading ? 'Signing in…' : t('login', locale)} onPress={() => void onEmailSubmit()} disabled={loading} />
+              <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" accessibilityLabel="Email" />
+              <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry accessibilityLabel="Password" />
+              <Btn label={loading ? t('loading', locale) : t('login', locale)} onPress={() => void onEmailSubmit()} disabled={loading} />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
-                <Text style={styles.linkText}>Use mobile OTP</Text>
+                <Text style={styles.linkText}>{t('useOtp', locale)}</Text>
               </Pressable>
             </>
           )}
 
           <Link href="/(auth)/signup" style={styles.linkWrap}>
-            <Text style={styles.linkText}>Create account</Text>
+            <Text style={styles.linkText}>{t('createAccount', locale)}</Text>
           </Link>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -88,9 +149,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
   logo: { alignSelf: 'center', marginBottom: 20 },
-  title: { fontSize: 28, fontWeight: '700', color: tokens.text, marginBottom: 8, textAlign: 'center' },
-  subtitle: { fontSize: 15, color: tokens.textMuted, marginBottom: 20, textAlign: 'center' },
-  label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 8 },
+  title: { fontSize: 28, fontWeight: '700', color: '#1a1a1a', marginBottom: 8, textAlign: 'center' },
+  subtitle: { fontSize: 15, color: '#666', marginBottom: 20, textAlign: 'center' },
+  label: { fontSize: 13, fontWeight: '600', color: '#1a1a1a', marginBottom: 8 },
   linkWrap: { marginTop: 16, alignItems: 'center' },
-  linkText: { color: tokens.green700, fontSize: 15, fontWeight: '600' },
+  linkText: { color: '#2d6a4f', fontSize: 15, fontWeight: '600' },
 });

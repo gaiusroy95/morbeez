@@ -56,16 +56,20 @@ export function Btn({
   onPress,
   variant = 'primary',
   disabled,
+  accessibilityLabel,
 }: {
   label: string;
   onPress: () => void;
   variant?: 'primary' | 'secondary' | 'danger';
   disabled?: boolean;
+  accessibilityLabel?: string;
 }) {
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
       style={({ pressed }) => [
         styles.btn,
         variant === 'secondary' && styles.btnSecondary,
@@ -199,14 +203,18 @@ export function TextField({
   keyboardType,
   autoCapitalize,
   placeholder,
+  accessibilityLabel,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChangeText: (v: string) => void;
   secureTextEntry?: boolean;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric';
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'number-pad' | 'decimal-pad';
   autoCapitalize?: 'none' | 'sentences' | 'words';
   placeholder?: string;
+  accessibilityLabel?: string;
+  maxLength?: number;
 }) {
   return (
     <View style={styles.field}>
@@ -220,6 +228,8 @@ export function TextField({
         autoCapitalize={autoCapitalize ?? 'none'}
         placeholder={placeholder}
         placeholderTextColor={tokens.textMuted}
+        accessibilityLabel={accessibilityLabel ?? label}
+        maxLength={maxLength}
       />
     </View>
   );

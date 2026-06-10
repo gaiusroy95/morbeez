@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, RefreshControl, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { createFieldBlock, fetchFieldBlocks, tokens, type FieldBlock } from '@morbeez/shared';
+import { fetchFieldBlocks, t, tokens, type FieldBlock } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, FieldCard, Loading } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
+import { OfflineBanner } from '@/context/OfflineContext';
 
 export default function FieldsTabScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const [blocks, setBlocks] = useState<FieldBlock[]>([]);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [adding, setAdding] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
@@ -29,26 +31,13 @@ export default function FieldsTabScreen() {
     void load();
   }, [load]);
 
-  async function addField() {
-    setAdding(true);
-    setError('');
-    try {
-      await createFieldBlock({ name: 'New field', cropType: 'ginger' });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add field');
-    } finally {
-      setAdding(false);
-    }
-  }
-
   const filtered = blocks.filter((b) => {
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return `${b.name} ${b.crop}`.toLowerCase().includes(q);
   });
 
-  if (loading) return <Loading label="Loading fields…" />;
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   return (
     <FlatList
@@ -59,18 +48,25 @@ export default function FieldsTabScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={
         <View>
+          <OfflineBanner />
           {error ? <AlertBox>{error}</AlertBox> : null}
           <TextInput
             style={styles.search}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search fields…"
+            placeholder={t('searchFields', locale)}
             placeholderTextColor={tokens.textMuted}
+            accessibilityLabel={t('searchFields', locale)}
           />
-          <Btn label={adding ? 'Adding…' : 'Add field'} onPress={() => void addField()} disabled={adding} variant="secondary" />
+          <Btn
+            label={t('addField', locale)}
+            onPress={() => router.push('/fields/form')}
+            variant="secondary"
+            accessibilityLabel={t('addField', locale)}
+          />
         </View>
       }
-      ListEmptyComponent={<EmptyState>No fields yet. Add your first crop block.</EmptyState>}
+      ListEmptyComponent={<EmptyState>{t('noFields', locale)}</EmptyState>}
       renderItem={({ item }) => (
         <FieldCard
           name={item.name}
@@ -101,5 +97,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: tokens.text,
     marginBottom: 10,
+    marginTop: 8,
   },
 });

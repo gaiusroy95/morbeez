@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
+import { requireFarmer } from '../../middleware/require-farmer.js';
 import { checkoutService } from '../../services/checkout/checkout.service.js';
 
 function assertCheckoutEnabled(): void {
@@ -67,6 +68,14 @@ export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
     assertCheckoutEnabled();
     const body = verifySchema.parse(request.body);
     const result = await checkoutService.verifyAndComplete(body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/checkout/cod/create', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = createSchema.parse(request.body);
+    const { channel, ...checkoutBody } = body;
+    const result = await checkoutService.createCodCheckout(checkoutBody, channel, farmerId);
     return reply.send({ ok: true, ...result });
   });
 }

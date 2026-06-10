@@ -34,8 +34,23 @@ async function loadCart(): Promise<CartLine[]> {
     const raw = await SecureStore.getItemAsync(CART_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as CartLine[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      await SecureStore.deleteItemAsync(CART_KEY);
+      return [];
+    }
+    return parsed.filter(
+      (line) =>
+        line &&
+        typeof line.variantId === 'string' &&
+        typeof line.pricePaise === 'number' &&
+        typeof line.quantity === 'number'
+    );
   } catch {
+    try {
+      await SecureStore.deleteItemAsync(CART_KEY);
+    } catch {
+      /* ignore */
+    }
     return [];
   }
 }

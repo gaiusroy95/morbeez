@@ -6,14 +6,19 @@ import {
   fetchPortalSummary,
   fetchWeatherIntel,
   formatInr,
+  t,
   tokens,
   type PortalSummary,
 } from '@morbeez/shared';
-import { AlertBox, Btn, HealthBadge, Panel, QuickActionGrid, SectionHeader, StatCard, AlertCard } from '@morbeez/ui-native';
+import { AlertBox, Btn, HealthBadge, Loading, Panel, QuickActionGrid, SectionHeader, StatCard, AlertCard } from '@morbeez/ui-native';
 import { BulletList } from '@/components/PortalHelpers';
+import { OfflineBanner, useOffline } from '@/context/OfflineContext';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const { isOnline, cacheGet, cacheSet } = useOffline();
   const [summary, setSummary] = useState<PortalSummary | null>(null);
   const [weatherSummary, setWeatherSummary] = useState<string | null>(null);
   const [marketSummary, setMarketSummary] = useState<string | null>(null);
@@ -32,25 +37,26 @@ export default function HomeScreen() {
       setSummary(data);
       setWeatherSummary(weather?.summary ?? null);
       setMarketSummary(market?.summary ?? null);
+      void cacheSet('portal_summary', data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load dashboard');
+      const cached = await cacheGet<PortalSummary>('portal_summary');
+      if (cached) {
+        setSummary(cached);
+        setError(isOnline ? (e instanceof Error ? e.message : 'Could not load dashboard') : t('offlineBanner', locale));
+      } else {
+        setError(e instanceof Error ? e.message : 'Could not load dashboard');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [cacheGet, cacheSet, isOnline, locale]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading) {
-    return (
-      <View style={styles.centered}>
-        <Text style={styles.muted}>Loading crop control center…</Text>
-      </View>
-    );
-  }
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   const crop = summary?.crop;
   const glance = summary?.atAGlance;
@@ -62,6 +68,7 @@ export default function HomeScreen() {
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
+      <OfflineBanner />
       {error ? <AlertBox>{error}</AlertBox> : null}
 
       <Text style={styles.greeting}>Hello {summary?.greetingName ?? 'Farmer'}</Text>

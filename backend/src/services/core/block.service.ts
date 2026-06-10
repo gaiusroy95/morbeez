@@ -193,4 +193,39 @@ export const blockService = {
     if (!row) throw new NotFoundError('Block not found after GPS update');
     return row;
   },
+
+  async updateBlock(
+    blockId: string,
+    farmerId: string,
+    patch: {
+      name?: string;
+      cropType?: string;
+      acreage?: number;
+      plantingDate?: string;
+      irrigationType?: string;
+    }
+  ): Promise<BlockWithDap> {
+    const existing = await this.getById(blockId, farmerId);
+    if (!existing) throw new NotFoundError('Field not found');
+
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.name != null) update.name = patch.name;
+    if (patch.cropType != null) {
+      update.crop_type = patch.cropType.toLowerCase();
+      update.crop_name = patch.cropType;
+    }
+    if (patch.acreage != null) update.acreage_decimal = patch.acreage;
+    if (patch.plantingDate != null) update.planting_date = patch.plantingDate;
+    if (patch.irrigationType != null) update.irrigation_type = patch.irrigationType;
+
+    const { data, error } = await supabase
+      .from('farm_blocks')
+      .update(update)
+      .eq('id', blockId)
+      .eq('farmer_id', farmerId)
+      .select('*')
+      .single();
+    if (error) throw error;
+    return this.withDap(mapBlock(data));
+  },
 };

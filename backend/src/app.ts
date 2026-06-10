@@ -86,6 +86,7 @@ export async function buildApp() {
           ? (error.details as { hint: string }).hint
           : undefined;
       return reply.code(error.statusCode).send({
+        ok: false,
         error: error.code,
         message: error.message,
         ...(hint ? { hint } : {}),
@@ -95,10 +96,10 @@ export async function buildApp() {
       const message = error.errors
         .map((e) => (e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message))
         .join('; ');
-      return reply.code(400).send({ error: 'VALIDATION_ERROR', message });
+      return reply.code(400).send({ ok: false, error: 'VALIDATION_ERROR', message });
     }
     logger.error({ err: error }, 'Unhandled error');
-    return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
+    return reply.code(500).send({ ok: false, error: 'INTERNAL_ERROR', message: 'Internal server error' });
   });
 
   registerEventHandlers();

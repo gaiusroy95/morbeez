@@ -16,7 +16,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     void SecureStore.getItemAsync(LOCALE_KEY).then((v) => {
-      if (v === 'en' || v === 'hi') setLocaleState(v);
+      if (v === 'en' || v === 'hi' || v === 'ml') setLocaleState(v);
     });
   }, []);
 

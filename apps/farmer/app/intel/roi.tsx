@@ -1,9 +1,14 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { fetchRoiDashboard, formatInr, tokens } from '@morbeez/shared';
-import { AlertBox, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { useRouter } from 'expo-router';
+import { t } from '@morbeez/shared';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function RoiScreen() {
+  const router = useRouter();
+  const { locale } = useLocale();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Awaited<ReturnType<typeof fetchRoiDashboard>> | null>(null);
@@ -20,6 +25,7 @@ export default function RoiScreen() {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {error ? <AlertBox>{error}</AlertBox> : null}
+      <Btn label={t('addExpense', locale)} onPress={() => router.push('/intel/roi-add')} accessibilityLabel={t('addExpense', locale)} />
       {data ? (
         <>
           <Panel title="Profitability">

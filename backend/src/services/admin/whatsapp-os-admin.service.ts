@@ -322,7 +322,7 @@ export const whatsappOsAdminService = {
     followUpRequired?: boolean;
     followUpDate?: string | null;
     status?: 'completed' | 'pending' | 'cancelled';
-    source?: 'admin' | 'telecaller' | 'whatsapp' | 'system';
+    source?: 'admin' | 'telecaller' | 'whatsapp' | 'system' | 'mobile';
     assignedEmployee?: string;
   }) {
     const { data: block, error: bErr } = await supabase

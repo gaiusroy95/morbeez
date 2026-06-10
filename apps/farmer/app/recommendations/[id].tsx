@@ -38,6 +38,8 @@ export default function RecommendationDetailScreen() {
           imageUrl: match.imageUrl,
           pricePaise: Math.round(parseFloat(variant.price) * 100),
           maxQuantity: Math.max(1, variant.inventory),
+          recommendationId: rec.id,
+          recoveryPurpose: rec.title,
         });
       }
       router.push('/shop/cart');

@@ -77,6 +77,9 @@ const envSchema = z.object({
   CONSOLE_SHARED_PASSWORD: z.string().min(8).max(128).optional(),
   RATE_LIMIT_MAX: z.coerce.number().default(100),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+  FARMER_SCAN_DAILY_QUOTA: z.coerce.number().default(20),
+  UPLOAD_BODY_LIMIT_BYTES: z.coerce.number().default(10_485_760),
 
   ENABLE_SHIPROCKET_AUTO_SHIP: z
     .string()

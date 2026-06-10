@@ -1,0 +1,145 @@
+import { createHash, randomInt } from 'crypto';
+import { supabase } from '../../lib/supabase.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
+import { env } from '../../config/env.js';
+import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
+import { createFarmerToken } from '../../lib/jwt.js';
+import { farmerAuthService } from './farmer-auth.service.js';
+import { whatsappService } from '../whatsapp/whatsapp.service.js';
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const MAX_SEND_PER_HOUR = 5;
+const MAX_VERIFY_ATTEMPTS = 5;
+
+function hashOtp(code: string, phone: string): string {
+  return createHash('sha256').update(`${phone}:${code}:${env.FARMER_JWT_SECRET}`).digest('hex');
+}
+
+function generateOtp(): string {
+  return String(randomInt(100000, 999999));
+}
+
+export const farmerOtpService = {
+  async sendOtp(phoneRaw: string, ipAddress?: string) {
+    if (!isValidIndianPhone(phoneRaw)) {
+      throw new ValidationError('Enter a valid 10-digit Indian mobile number');
+    }
+    const phone = normalizePhone(phoneRaw);
+
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count, error: countErr } = await supabase
+      .from('farmer_otp_challenges')
+      .select('id', { count: 'exact', head: true })
+      .eq('phone', phone)
+      .gte('created_at', since);
+    throwIfSupabaseError(countErr, 'Could not check OTP rate limit');
+    if ((count ?? 0) >= MAX_SEND_PER_HOUR) {
+      throw new ValidationError('Too many OTP requests. Try again in an hour.');
+    }
+
+    const code = generateOtp();
+    const expiresAt = new Date(Date.now() + OTP_TTL_MS).toISOString();
+
+    const { error } = await supabase.from('farmer_otp_challenges').insert({
+      phone,
+      code_hash: hashOtp(code, phone),
+      expires_at: expiresAt,
+      ip_address: ipAddress ?? null,
+    });
+    throwIfSupabaseError(error, 'Could not create OTP challenge');
+
+    const message = `Your Morbeez login OTP is ${code}. Valid for 10 minutes. Do not share this code.`;
+
+    if (env.NODE_ENV === 'production') {
+      try {
+        await whatsappService.sendText(phone, message);
+      } catch (err) {
+        logger.error({ err, phone }, 'OTP WhatsApp send failed');
+        throw new ValidationError('Could not send OTP. Please try again shortly.');
+      }
+    } else {
+      logger.info({ phone, code }, 'Farmer OTP (dev mode — not sent via WhatsApp)');
+    }
+
+    return {
+      sent: true,
+      expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
+      ...(env.NODE_ENV !== 'production' ? { devOtp: code } : {}),
+    };
+  },
+
+  async verifyOtp(phoneRaw: string, codeRaw: string) {
+    if (!isValidIndianPhone(phoneRaw)) {
+      throw new ValidationError('Enter a valid 10-digit Indian mobile number');
+    }
+    const phone = normalizePhone(phoneRaw);
+    const code = String(codeRaw).replace(/\D/g, '');
+    if (code.length !== 6) throw new ValidationError('Enter the 6-digit OTP');
+
+    const { data: challenge, error } = await supabase
+      .from('farmer_otp_challenges')
+      .select('*')
+      .eq('phone', phone)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load OTP challenge');
+
+    if (!challenge) throw new UnauthorizedError('OTP expired or not sent. Request a new code.');
+    if (new Date(String(challenge.expires_at)).getTime() < Date.now()) {
+      throw new UnauthorizedError('OTP expired. Request a new code.');
+    }
+    if ((challenge.attempts ?? 0) >= MAX_VERIFY_ATTEMPTS) {
+      throw new UnauthorizedError('Too many failed attempts. Request a new OTP.');
+    }
+
+    const valid = hashOtp(code, phone) === challenge.code_hash;
+    await supabase
+      .from('farmer_otp_challenges')
+      .update({ attempts: (challenge.attempts ?? 0) + 1 })
+      .eq('id', challenge.id);
+
+    if (!valid) throw new UnauthorizedError('Invalid OTP');
+
+    const { data: farmer, error: farmerErr } = await supabase
+      .from('farmers')
+      .select('*')
+      .eq('phone', phone)
+      .maybeSingle();
+    throwIfSupabaseError(farmerErr, 'Could not load farmer account');
+
+    const now = new Date().toISOString();
+    let farmerRow = farmer;
+
+    if (!farmerRow) {
+      const { data: created, error: createErr } = await supabase
+        .from('farmers')
+        .insert({
+          phone,
+          name: `Farmer ${phone.slice(-4)}`,
+          preferred_language: 'en',
+          source: 'mobile',
+          metadata: { signup_channel: 'mobile', whatsapp_opt_in: true },
+          last_login_at: now,
+          updated_at: now,
+        })
+        .select('*')
+        .single();
+      throwIfSupabaseError(createErr, 'Could not create farmer account');
+      farmerRow = created;
+    } else {
+      await supabase
+        .from('farmers')
+        .update({ last_login_at: now, updated_at: now })
+        .eq('id', farmerRow.id);
+    }
+
+    const email = farmerRow.email ? String(farmerRow.email) : `mobile+${phone}@morbeez.in`;
+    const token = createFarmerToken(String(farmerRow.id), email);
+    const profile = await farmerAuthService.me(String(farmerRow.id));
+
+    return { token, farmer: profile };
+  },
+};

@@ -1,11 +1,13 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { MorbeezLogo } from '@morbeez/ui-native';
-import { tokens } from '@morbeez/shared';
+import { t, tokens } from '@morbeez/shared';
 import { useShopCart } from '@/context/ShopCartContext';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function TabsLayout() {
   const { count } = useShopCart();
+  const { locale } = useLocale();
 
   return (
     <Tabs
@@ -23,30 +25,34 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Home',
+          title: t('home', locale),
+          tabBarAccessibilityLabel: t('home', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="fields"
         options={{
-          title: 'Fields',
+          title: t('fields', locale),
+          tabBarAccessibilityLabel: t('fields', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="scan"
         options={{
-          title: 'AI Scan',
-          headerTitle: 'AI Scan',
+          title: t('scan', locale),
+          headerTitle: t('scan', locale),
+          tabBarAccessibilityLabel: t('scan', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="shop"
         options={{
-          title: 'Shop',
-          headerTitle: 'Shop',
+          title: t('shop', locale),
+          headerTitle: t('shop', locale),
+          tabBarAccessibilityLabel: t('shop', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="bag-outline" size={size} color={color} />,
           tabBarBadge: count > 0 ? (count > 99 ? '99+' : count) : undefined,
         }}
@@ -54,7 +60,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('profile', locale),
+          tabBarAccessibilityLabel: t('profile', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />

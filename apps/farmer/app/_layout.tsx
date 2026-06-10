@@ -5,7 +5,9 @@ import { tokens } from '@morbeez/shared';
 import { MorbeezLogo } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
 import { LocaleProvider } from '@/context/LocaleContext';
+import { OfflineProvider } from '@/context/OfflineContext';
 import { ShopCartProvider } from '@/context/ShopCartContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 function BrandedHeaderTitle({ title }: { title: string }) {
   return (
@@ -51,10 +53,12 @@ const header = {
 
 export default function RootLayout() {
   return (
-    <LocaleProvider>
-      <FarmerAuthProvider>
-        <ShopCartProvider>
-          <AuthGate>
+    <ErrorBoundary>
+      <LocaleProvider>
+        <OfflineProvider>
+          <FarmerAuthProvider>
+            <ShopCartProvider>
+              <AuthGate>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
@@ -64,10 +68,13 @@ export default function RootLayout() {
               <Stack.Screen name="reports/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Soil reports" /> }} />
               <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendations" /> }} />
               <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendation" /> }} />
+              <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field" /> }} />
               <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field details" /> }} />
+              <Stack.Screen name="scan/history" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Scan history" /> }} />
               <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI scan result" /> }} />
               <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Activities" /> }} />
               <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add activity" /> }} />
+              <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add ROI entry" /> }} />
               <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI dashboard" /> }} />
               <Stack.Screen name="intel/weather-market" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Weather & market" /> }} />
               <Stack.Screen name="intel/notifications" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Notifications" /> }} />
@@ -80,6 +87,8 @@ export default function RootLayout() {
           </AuthGate>
         </ShopCartProvider>
       </FarmerAuthProvider>
+        </OfflineProvider>
     </LocaleProvider>
+    </ErrorBoundary>
   );
 }

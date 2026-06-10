@@ -50,6 +50,8 @@ export type CartLine = {
   pricePaise: number;
   quantity: number;
   maxQuantity: number;
+  recoveryPurpose?: string;
+  recommendationId?: string;
 };
 
 export type CheckoutCreateInput = {

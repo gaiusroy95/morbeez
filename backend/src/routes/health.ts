@@ -3,11 +3,43 @@ import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
 
 export async function healthRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/health', async () => ({
-    status: 'ok',
-    service: 'morbeez-api',
-    timestamp: new Date().toISOString(),
-  }));
+  app.get('/health', async () => {
+    let supabaseOk = false;
+    let shopifyOk = false;
+    try {
+      const { error } = await supabase.from('farmers').select('id').limit(1);
+      supabaseOk = !error;
+    } catch {
+      supabaseOk = false;
+    }
+    if (env.SHOPIFY_STORE_DOMAIN && env.SHOPIFY_ADMIN_API_ACCESS_TOKEN) {
+      try {
+        const res = await fetch(
+          `https://${env.SHOPIFY_STORE_DOMAIN}/admin/api/${env.SHOPIFY_API_VERSION}/shop.json`,
+          { headers: { 'X-Shopify-Access-Token': env.SHOPIFY_ADMIN_API_ACCESS_TOKEN } }
+        );
+        shopifyOk = res.ok;
+      } catch {
+        shopifyOk = false;
+      }
+    }
+
+    return {
+      status: 'ok',
+      service: 'morbeez-api',
+      timestamp: new Date().toISOString(),
+      features: {
+        aiCropDoctor: env.ENABLE_AI_CROP_DOCTOR,
+        razorpayCheckout: env.ENABLE_RAZORPAY_CHECKOUT,
+        farmerScanDailyQuota: env.FARMER_SCAN_DAILY_QUOTA,
+      },
+      connectivity: {
+        supabase: supabaseOk,
+        shopify: shopifyOk,
+        razorpayConfigured: Boolean(env.RAZORPAY_KEY_ID && env.RAZORPAY_KEY_SECRET),
+      },
+    };
+  });
 
   /** Debug Meta webhook setup on Render (does not expose secrets). */
   app.get('/health/whatsapp-meta', async (_req, reply) => {
