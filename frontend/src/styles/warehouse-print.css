@@ -158,15 +158,12 @@
 }
 
 .inv-logo {
-  max-width: 110px;
-  max-height: 64px;
+  display: block;
+  width: auto;
+  max-width: 130px;
+  max-height: 72px;
+  height: auto;
   object-fit: contain;
-}
-
-.inv-logo-fallback {
-  font-size: 1.4rem;
-  font-weight: 800;
-  color: #166534;
 }
 
 .inv-header-company h1 {

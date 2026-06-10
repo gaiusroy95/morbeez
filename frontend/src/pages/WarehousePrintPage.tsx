@@ -198,6 +198,8 @@ function TaxInvoiceBody({
   const hsnSummary = (doc.hsnSummary as Array<Record<string, unknown>>) ?? [];
   const bank = doc.bankDetails as Record<string, string> | undefined;
 
+  const invoiceLogo = company.quotationLogoUrl?.trim() || '/logo.png';
+
   const gstSlabs = new Map<number, number>();
   for (const l of lines) {
     const pct = Number(l.gstPercent) || 0;
@@ -209,11 +211,18 @@ function TaxInvoiceBody({
     <div className="inv-doc">
       <header className="inv-header">
         <div className="inv-header-logo">
-          {company.quotationLogoUrl ? (
-            <img src={company.quotationLogoUrl} alt="Morbeez" className="inv-logo" />
-          ) : (
-            <div className="inv-logo-fallback">Morbeez</div>
-          )}
+          <img
+            src={invoiceLogo}
+            alt="Morbeez"
+            className="inv-logo"
+            onError={(e) => {
+              const img = e.currentTarget;
+              if (!img.dataset.fallback) {
+                img.dataset.fallback = '1';
+                img.src = '/logo1.png';
+              }
+            }}
+          />
         </div>
         <div className="inv-header-company">
           <h1>{company.companyName}</h1>
