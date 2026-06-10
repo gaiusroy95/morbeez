@@ -1,8 +1,18 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { tokens } from '@morbeez/shared';
+import { MorbeezLogo } from '@morbeez/ui-native';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
+
+function BrandedHeaderTitle({ title }: { title: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <MorbeezLogo variant="onDark" height={20} />
+      <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{title}</Text>
+    </View>
+  );
+}
 
 function Gate({ children }: { children: React.ReactNode }) {
   const { ready, authed } = useStaffAuth();
@@ -37,7 +47,7 @@ export default function RootLayout() {
             name="visit"
             options={{
               headerShown: true,
-              title: 'Field visit',
+              headerTitle: () => <BrandedHeaderTitle title="Field visit" />,
               headerStyle: { backgroundColor: tokens.green800 },
               headerTintColor: '#fff',
               presentation: 'modal',
@@ -47,7 +57,7 @@ export default function RootLayout() {
             name="finding/[id]"
             options={{
               headerShown: true,
-              title: 'Review finding',
+              headerTitle: () => <BrandedHeaderTitle title="Review finding" />,
               headerStyle: { backgroundColor: tokens.green800 },
               headerTintColor: '#fff',
             }}

@@ -18,6 +18,7 @@ const lineItemSchema = z.object({
 });
 
 const createSchema = z.object({
+  channel: z.enum(['website', 'mobile']).optional().default('website'),
   lineItems: z.array(lineItemSchema).min(1).max(50),
   customer: z.object({
     email: z.string().email().max(255),
@@ -57,7 +58,8 @@ export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/v1/checkout/razorpay/create', async (request, reply) => {
     assertCheckoutEnabled();
     const body = createSchema.parse(request.body);
-    const result = await checkoutService.createRazorpayCheckout(body);
+    const { channel, ...checkoutBody } = body;
+    const result = await checkoutService.createRazorpayCheckout(checkoutBody, channel);
     return reply.send({ ok: true, ...result });
   });
 

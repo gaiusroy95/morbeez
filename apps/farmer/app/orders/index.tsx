@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { fetchPortalOrders, formatInr, tokens, type PortalOrder } from '@morbeez/shared';
 import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
 import { Badge } from '@/components/PortalHelpers';
-import { SHOP_URL, whatsAppUrl } from '@/lib/config';
+import { whatsAppUrl } from '@/lib/config';
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -33,11 +33,7 @@ export default function OrdersScreen() {
       data={orders}
       keyExtractor={(o) => o.id}
       ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
-      ListEmptyComponent={
-        <EmptyState>
-          No orders yet. Browse the shop from Home.
-        </EmptyState>
-      }
+      ListEmptyComponent={<EmptyState>No orders yet. Browse the Shop tab to place your first order.</EmptyState>}
       renderItem={({ item }) => (
         <Pressable style={styles.card} onPress={() => router.push(`/order/${item.id}`)}>
           <View style={styles.row}>
@@ -52,25 +48,16 @@ export default function OrdersScreen() {
               <Text style={styles.meta}>
                 {item.orderNumber} · Qty {item.quantity} · {formatInr(item.amountInr)}
               </Text>
-              <Text style={styles.meta}>{item.orderedOn}{item.deliveredOn !== '—' ? ` · Delivered ${item.deliveredOn}` : ''}</Text>
+              <Text style={styles.meta}>{item.orderedOn}</Text>
             </View>
           </View>
           <View style={styles.actions}>
-            <Text style={styles.link} onPress={() => router.push(`/order/${item.id}`)}>
-              Track order →
-            </Text>
-            {item.trackingUrl ? (
-              <Text style={styles.link} onPress={() => Linking.openURL(item.trackingUrl!)}>
-                External track ↗
-              </Text>
-            ) : null}
+            <Text style={styles.link} onPress={() => router.push(`/order/${item.id}`)}>Track order →</Text>
             <Text
               style={styles.link}
-              onPress={() =>
-                Linking.openURL(`${SHOP_URL.replace(/\/$/, '')}/search?q=${encodeURIComponent(item.productTitle)}`)
-              }
+              onPress={() => router.push({ pathname: '/(tabs)/shop', params: { q: item.productTitle } })}
             >
-              Order again
+              Reorder
             </Text>
             <Text style={styles.link} onPress={() => Linking.openURL(whatsAppUrl(`Invoice for order ${item.orderNumber}`))}>
               Get invoice via WhatsApp

@@ -30,22 +30,15 @@ export default function ReportsScreen() {
       {reports.length === 0 ? (
         <>
           <EmptyState>No soil reports on file yet.</EmptyState>
-          <Btn
-            label="Request report upload via WhatsApp"
-            onPress={() => Linking.openURL(whatsAppUrl('I want to upload my soil test report'))}
-          />
+          <Btn label="Request via WhatsApp" onPress={() => Linking.openURL(whatsAppUrl('I want to upload my soil test report'))} />
         </>
       ) : (
         reports.map((r) => (
           <Panel key={r.id} title={r.blockName}>
             <Badge label={r.healthLabel} tone={r.health} />
             <Text style={styles.meta}>{r.dateLabel}</Text>
-            {r.highlights.length ? (
-              <Text style={styles.body}>{r.highlights.join(' · ')}</Text>
-            ) : null}
-            {r.pdfUrl ? (
-              <Btn label="Download PDF" variant="secondary" onPress={() => Linking.openURL(r.pdfUrl!)} />
-            ) : null}
+            {r.highlights.length ? <Text style={styles.body}>{r.highlights.join(' · ')}</Text> : null}
+            {r.pdfUrl ? <Btn label="Download PDF" variant="secondary" onPress={() => Linking.openURL(r.pdfUrl!)} /> : null}
           </Panel>
         ))
       )}

@@ -49,7 +49,7 @@ function paiseTotal(lineItems: CheckoutLineInput[]): number {
 }
 
 export const checkoutService = {
-  async createRazorpayCheckout(input: CreateCheckoutInput) {
+  async createRazorpayCheckout(input: CreateCheckoutInput, channel: 'website' | 'mobile' = 'website') {
     const amountPaise = paiseTotal(input.lineItems);
     const sessionId = randomUUID();
     const receipt = `mbz_${sessionId.replace(/-/g, '').slice(0, 18)}`;
@@ -68,7 +68,7 @@ export const checkoutService = {
       amount_paise: amountPaise,
       currency: 'INR',
       line_items: input.lineItems,
-      customer: input.customer,
+      customer: { ...input.customer, sourceChannel: channel },
       shipping: input.shipping,
       status: 'pending',
     });
@@ -133,9 +133,10 @@ export const checkoutService = {
       };
     }
 
-    const customer = session.customer as CheckoutCustomerInput;
+    const customer = session.customer as CheckoutCustomerInput & { sourceChannel?: string };
     const shipping = session.shipping as CheckoutShippingInput;
     const lineItems = session.line_items as CheckoutLineInput[];
+    const sourceChannel = customer.sourceChannel === 'mobile' ? 'mobile' : 'website';
 
     const totalInr = (session.amount_paise / 100).toFixed(2);
 
@@ -162,7 +163,7 @@ export const checkoutService = {
       totalAmountInr: totalInr,
       razorpayPaymentId: input.razorpayPaymentId,
       razorpayOrderId: input.razorpayOrderId,
-      tags: 'razorpay-checkout,website',
+      tags: `razorpay-checkout,${sourceChannel}`,
     });
 
     await supabase

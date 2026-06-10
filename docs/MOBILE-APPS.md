@@ -16,38 +16,35 @@ Shared code: `packages/shared`, `packages/ui-native`.
 ## Setup
 
 ```bash
-# From repo root — install all workspaces
 npm install
-
-# API (required)
 cd backend && npm run dev
-
-# Copy env per app (use your LAN IP for physical devices)
 cp apps/farmer/.env.example apps/farmer/.env
-cp apps/telecaller/.env.example apps/telecaller/.env
-# ...
-
-# Start an app
 npm run dev:farmer
 ```
 
-Set `EXPO_PUBLIC_API_BASE_URL=http://YOUR_LAN_IP:3000` in each app's `.env`.
+Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env`.
 
-Farmer app also supports `EXPO_PUBLIC_SHOP_URL` for the Shop WebView tab.
+## Farmer app — MVP structure
 
-## Warehouse RBAC
+**Bottom tabs:** Home · Fields · AI Scan · Shop · Profile
 
-Apply migration `20260687000000_warehouse_mobile_rbac.sql` and assign role `warehouse` or `picker_packer` to pick/pack staff.
+**Stack screens:** field details, AI scan result, recommendations, activities, orders, soil reports, ROI, weather/market, notifications, shop catalog/checkout.
 
-## Web console
-
-The production staff SPA remains in `frontend/` (Vercel). Mobile apps call the same API at `/morbeez-staff/api/v1`.
+**Backend:** `/api/v1/farmer/portal/blocks`, `/scan`, `/recommendations`, `/activities`, `/roi/entries`, `/weather`, `/market-prices`, plus existing store + Razorpay checkout.
 
 ## Feature parity (vs web)
 
 | App | Status | Notes |
 |-----|--------|-------|
-| **Farmer** | Core portal parity | Home, orders, tracking, reviews, address, advisory, reports, support, field photo upload, WhatsApp CTAs. Shop tab hidden (web uses external Shopify). Native Crop Doctor not ported. |
-| **Telecaller** | High parity | 12-tab lead detail, workspace KPIs, escalations toggle, call log, notes, WhatsApp, tasks. Bulk actions, new-lead modal, and deep CRM modals remain web-only. |
-| **Warehouse** | Core fulfillment parity | Stats, queue filters, sync/repair, barcode lookup + confirm-pick, rack progress, label verify, mark packed, AWB, exceptions. Batch assign panel and print URLs are web-only. |
-| **Field Pro** | Core parity | Full visit form (questionnaire, GPS, photos, disease/severity), agronomist queue with AI suggest → draft → submit. Case review / image review tabs remain web-only. |
+| **Farmer** | MVP rebuild | AI-first crop ops + native shop. OTP login UI ready (backend OTP v1.1). COD checkout UI placeholder. |
+| **Telecaller** | Partial CRM | Lead workspace tabs vs full web panel. |
+| **Warehouse** | Fulfillment core | Queue, barcode, pick confirm. |
+| **Field** | Visit + review | Agronomist finding queue. |
+
+## Warehouse RBAC
+
+Apply migration `20260687000000_warehouse_mobile_rbac.sql` for pick/pack staff roles.
+
+## Web console
+
+Staff SPA in `frontend/`. Mobile apps call `/morbeez-staff/api/v1` or farmer `/api/v1`.

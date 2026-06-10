@@ -1,8 +1,20 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
 import { tokens } from '@morbeez/shared';
+import { MorbeezLogo } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
+import { LocaleProvider } from '@/context/LocaleContext';
+import { ShopCartProvider } from '@/context/ShopCartContext';
+
+function BrandedHeaderTitle({ title }: { title: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <MorbeezLogo variant="onDark" height={20} />
+      <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{title}</Text>
+    </View>
+  );
+}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { ready, authed } = useFarmerAuth();
@@ -21,7 +33,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.bg }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.bg, gap: 16 }}>
+        <MorbeezLogo height={40} />
         <ActivityIndicator size="large" color={tokens.green700} />
       </View>
     );
@@ -30,34 +43,43 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+const header = {
+  headerShown: true as const,
+  headerStyle: { backgroundColor: tokens.green800 },
+  headerTintColor: '#fff' as const,
+};
+
 export default function RootLayout() {
   return (
-    <FarmerAuthProvider>
-      <AuthGate>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="order/[id]"
-            options={{
-              headerShown: true,
-              title: 'Order tracking',
-              headerStyle: { backgroundColor: tokens.green800 },
-              headerTintColor: '#fff',
-            }}
-          />
-          <Stack.Screen
-            name="address"
-            options={{
-              presentation: 'modal',
-              headerShown: true,
-              title: 'Delivery address',
-              headerStyle: { backgroundColor: tokens.green800 },
-              headerTintColor: '#fff',
-            }}
-          />
-        </Stack>
-      </AuthGate>
-    </FarmerAuthProvider>
+    <LocaleProvider>
+      <FarmerAuthProvider>
+        <ShopCartProvider>
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="order/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Order tracking" /> }} />
+              <Stack.Screen name="address" options={{ ...header, presentation: 'modal', headerTitle: () => <BrandedHeaderTitle title="Delivery address" /> }} />
+              <Stack.Screen name="orders/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Orders" /> }} />
+              <Stack.Screen name="reports/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Soil reports" /> }} />
+              <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendations" /> }} />
+              <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendation" /> }} />
+              <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field details" /> }} />
+              <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI scan result" /> }} />
+              <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Activities" /> }} />
+              <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add activity" /> }} />
+              <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI dashboard" /> }} />
+              <Stack.Screen name="intel/weather-market" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Weather & market" /> }} />
+              <Stack.Screen name="intel/notifications" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Notifications" /> }} />
+              <Stack.Screen name="shop/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Product" /> }} />
+              <Stack.Screen name="shop/category/[slug]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Products" /> }} />
+              <Stack.Screen name="shop/cart" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Smart cart" /> }} />
+              <Stack.Screen name="shop/checkout" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Checkout" /> }} />
+              <Stack.Screen name="shop/success" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Order placed" />, headerBackVisible: false }} />
+            </Stack>
+          </AuthGate>
+        </ShopCartProvider>
+      </FarmerAuthProvider>
+    </LocaleProvider>
   );
 }

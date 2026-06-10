@@ -8,6 +8,29 @@ import {
   type ViewProps,
 } from 'react-native';
 import { tokens } from '@morbeez/shared';
+import { MorbeezLogo } from './MorbeezLogo';
+
+export { MorbeezLogo } from './MorbeezLogo';
+export {
+  HealthBadge,
+  FieldCard,
+  AlertCard,
+  SectionHeader,
+  StarRating,
+  ProductCard,
+  QuickActionGrid,
+} from './farmer-ui';
+
+/** Green app bar with Morbeez logo on the left */
+export function appHeaderScreenOptions(title?: string) {
+  return {
+    headerStyle: { backgroundColor: tokens.green800 },
+    headerTintColor: '#fff' as const,
+    headerTitle: title ?? '',
+    headerTitleStyle: { fontWeight: '600' as const },
+    headerLeft: () => <MorbeezLogo variant="onDark" height={22} style={{ marginLeft: 12 }} />,
+  };
+}
 
 export function Screen({ style, ...props }: ViewProps) {
   return <View style={[styles.screen, style]} {...props} />;
@@ -230,8 +253,8 @@ const styles = StyleSheet.create({
   },
   btnSecondary: {
     backgroundColor: tokens.card,
-    borderWidth: 1,
-    borderColor: tokens.border,
+    borderWidth: 2,
+    borderColor: tokens.green700,
   },
   btnDanger: {
     backgroundColor: tokens.danger,
@@ -248,7 +271,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   btnTextSecondary: {
-    color: tokens.text,
+    color: tokens.green800,
   },
   alert: {
     backgroundColor: tokens.dangerBg,

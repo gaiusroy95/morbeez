@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { tokens } from '@morbeez/shared';
-import { AlertBox, Btn, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, MorbeezLogo, Screen, TextField } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function LoginScreen() {
@@ -30,8 +30,9 @@ export default function LoginScreen() {
     <Screen>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.brand}>Field Pro</Text>
-          <Text style={styles.subtitle}>Field visits, GPS, photos & agronomist review queue.</Text>
+          <MorbeezLogo height={48} style={styles.logo} />
+          <Text style={styles.title}>Field Pro</Text>
+          <Text style={styles.subtitle}>Field visits and agronomist review queue.</Text>
           {error ? <AlertBox>{error}</AlertBox> : null}
           <TextField label="Work email" value={email} onChangeText={setEmail} keyboardType="email-address" />
           <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry />
@@ -44,6 +45,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  brand: { fontSize: 26, fontWeight: '700', color: tokens.green800, marginBottom: 8 },
+  logo: { alignSelf: 'center', marginBottom: 20 },
+  title: { fontSize: 26, fontWeight: '700', color: tokens.green800, marginBottom: 8 },
   subtitle: { fontSize: 15, color: tokens.textMuted, marginBottom: 24 },
 });

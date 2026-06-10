@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { MorbeezLogo } from '@morbeez/ui-native';
 import { tokens } from '@morbeez/shared';
 
 export default function AppLayout() {
@@ -8,6 +9,7 @@ export default function AppLayout() {
         headerStyle: { backgroundColor: tokens.green800 },
         headerTintColor: '#fff',
         tabBarActiveTintColor: tokens.green700,
+        headerLeft: () => <MorbeezLogo variant="onDark" height={22} style={{ marginLeft: 12 }} />,
       }}
     >
       <Tabs.Screen name="visits" options={{ title: 'Field visits', headerTitle: 'Find farmer' }} />

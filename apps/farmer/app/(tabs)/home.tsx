@@ -1,42 +1,37 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Image,
-  Linking,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as ImagePicker from 'expo-image-picker';
 import {
+  fetchMarketIntel,
   fetchPortalSummary,
+  fetchWeatherIntel,
   formatInr,
   tokens,
-  uploadFieldPhoto,
   type PortalSummary,
 } from '@morbeez/shared';
-import { AlertBox, Btn, KeyValueRow, Panel, StatCard } from '@morbeez/ui-native';
-import { Badge, BulletList, WhatsAppBtn } from '@/components/PortalHelpers';
-import { SHOP_URL, whatsAppUrl } from '@/lib/config';
-import { useFarmerAuth } from '@/context/FarmerAuthContext';
+import { AlertBox, Btn, HealthBadge, Panel, QuickActionGrid, SectionHeader, StatCard, AlertCard } from '@morbeez/ui-native';
+import { BulletList } from '@/components/PortalHelpers';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { logout } = useFarmerAuth();
   const [summary, setSummary] = useState<PortalSummary | null>(null);
+  const [weatherSummary, setWeatherSummary] = useState<string | null>(null);
+  const [marketSummary, setMarketSummary] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
     try {
-      const data = await fetchPortalSummary();
+      const [data, weather, market] = await Promise.all([
+        fetchPortalSummary(),
+        fetchWeatherIntel().catch(() => null),
+        fetchMarketIntel().catch(() => null),
+      ]);
       setSummary(data);
+      setWeatherSummary(weather?.summary ?? null);
+      setMarketSummary(market?.summary ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load dashboard');
     } finally {
@@ -49,30 +44,10 @@ export default function HomeScreen() {
     void load();
   }, [load]);
 
-  async function uploadPhoto(type: 'field' | 'leaf' | 'rhizome') {
-    const pick = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      base64: true,
-    });
-    if (pick.canceled || !pick.assets[0]?.base64) return;
-    setMessage('');
-    try {
-      await uploadFieldPhoto({
-        photoType: type,
-        imageData: pick.assets[0].base64,
-        mimeType: pick.assets[0].mimeType ?? 'image/jpeg',
-      });
-      setMessage('Photo uploaded — our agronomist will review it.');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
-    }
-  }
-
   if (loading) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.muted}>Loading your farm dashboard…</Text>
+        <Text style={styles.muted}>Loading crop control center…</Text>
       </View>
     );
   }
@@ -80,8 +55,6 @@ export default function HomeScreen() {
   const crop = summary?.crop;
   const glance = summary?.atAGlance;
   const rec = summary?.latestRecommendation;
-  const ord = summary?.recentOrder;
-  const addr = summary?.shippingAddress;
 
   return (
     <ScrollView
@@ -90,96 +63,73 @@ export default function HomeScreen() {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
     >
       {error ? <AlertBox>{error}</AlertBox> : null}
-      {message ? <Text style={styles.success}>{message}</Text> : null}
 
-      <Text style={styles.greeting}>Hello {summary?.greetingName ?? 'Farmer'} 👋</Text>
-      <Text style={styles.sub}>Welcome to your Morbeez Dashboard</Text>
+      <Text style={styles.greeting}>Hello {summary?.greetingName ?? 'Farmer'}</Text>
+      <Text style={styles.sub}>Your crop control center</Text>
 
       {crop ? (
-        <View style={styles.pillRow}>
-          <Text style={styles.pill}>🌿 {crop.name}{crop.variety ? ` ${crop.variety}` : ''}</Text>
-          {crop.fieldSize ? <Text style={styles.pill}>📐 {crop.fieldSize}</Text> : null}
-          {crop.stage ? <Text style={styles.pill}>📈 {crop.stage}</Text> : null}
-        </View>
+        <Panel title="Crop health">
+          <View style={styles.healthRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.cropTitle}>{crop.name}{crop.variety ? ` · ${crop.variety}` : ''}</Text>
+              <Text style={styles.meta}>{crop.blockName}{crop.daysAfterPlanting != null ? ` · Day ${crop.daysAfterPlanting}` : ''}</Text>
+              <Text style={styles.meta}>{crop.stage}</Text>
+            </View>
+            <HealthBadge status="stable" label="Monitoring" />
+          </View>
+        </Panel>
       ) : null}
 
-      <Panel title="Good day to grow!">
-        <Text style={styles.body}>Stay consistent with nutrition and crop protection.</Text>
+      <Panel title="Weather">
+        <Text style={styles.body}>{weatherSummary ?? 'Pull to refresh weather for your field.'}</Text>
+        <Btn label="Weather & market" variant="secondary" onPress={() => router.push('/intel/weather-market')} />
       </Panel>
+
+      {summary?.notifications?.length ? (
+        <Panel title="Today's alerts">
+          {summary.notifications.slice(0, 3).map((n) => (
+            <AlertCard key={n.id} message={n.message} meta={n.atLabel} tone={n.tone} />
+          ))}
+          <Btn label="All notifications" variant="secondary" onPress={() => router.push('/intel/notifications')} />
+        </Panel>
+      ) : null}
+
+      <SectionHeader title="Quick actions" />
+      <QuickActionGrid
+        actions={[
+          { id: 'scan', label: 'AI Scan', onPress: () => router.push('/(tabs)/scan') },
+          { id: 'activity', label: 'Add activity', onPress: () => router.push('/activities/add') },
+          { id: 'reco', label: 'Recommendations', onPress: () => router.push('/recommendations') },
+          { id: 'shop', label: 'Shop', onPress: () => router.push('/(tabs)/shop') },
+          { id: 'roi', label: 'ROI', onPress: () => router.push('/intel/roi') },
+        ]}
+      />
 
       <View style={styles.statsRow}>
         <StatCard label="Active orders" value={glance?.activeOrders ?? 0} />
         <StatCard label="Est. profit" value={formatInr(glance?.estimatedProfitInr ?? 0)} />
       </View>
 
-      <Panel title="Delivery address">
-        {addr?.lines.map((line, i) => (
-          <Text key={i} style={styles.body}>{line}</Text>
-        ))}
-        <Btn
-          label={addr?.verified ? 'Edit address' : 'Add delivery address'}
-          onPress={() => router.push('/address')}
-          variant="secondary"
-        />
-      </Panel>
-
-      <Panel title="At a glance">
-        <KeyValueRow label="Next advisory" value={glance?.nextAdvisory ?? '—'} />
-        <KeyValueRow label="New soil reports" value={String(glance?.newReports ?? 0)} />
-      </Panel>
-
       {rec ? (
-        <Panel title={`Today's recommendation — ${rec.cropName}`}>
+        <Panel title="Recent recommendation">
           <Text style={styles.meta}>{rec.dateLabel}{rec.dayLabel ? ` · ${rec.dayLabel}` : ''}</Text>
           <BulletList items={rec.bullets} />
-          {!rec.bullets.length && rec.summary ? <Text style={styles.body}>{rec.summary}</Text> : null}
+          <Btn label="View all" variant="secondary" onPress={() => router.push('/recommendations')} />
         </Panel>
       ) : null}
 
-      {ord ? (
+      {marketSummary ? (
+        <Panel title="Market price">
+          <Text style={styles.body}>{marketSummary}</Text>
+        </Panel>
+      ) : null}
+
+      {summary?.recentOrder ? (
         <Panel title="Recent order">
-          <Pressable onPress={() => router.push(`/order/${ord.id}`)} style={styles.orderRow}>
-            {ord.productImageUrl ? (
-              <Image source={{ uri: ord.productImageUrl }} style={styles.orderImg} />
-            ) : (
-              <View style={[styles.orderImg, styles.orderImgPlaceholder]} />
-            )}
-            <View style={styles.orderMain}>
-              <Text style={styles.orderTitle}>{ord.productTitle}</Text>
-              <Badge label={ord.statusLabel} tone={ord.statusTone} />
-              <Text style={styles.meta}>{ord.orderNumber} · {ord.orderedOn}</Text>
-              <Text style={styles.link}>Tap for tracking{ord.status === 'delivered' ? ' & review' : ''} →</Text>
-            </View>
-          </Pressable>
-          <Btn
-            label="Order again"
-            variant="secondary"
-            onPress={() => Linking.openURL(`${SHOP_URL.replace(/\/$/, '')}/search?q=${encodeURIComponent(ord.productTitle)}`)}
-          />
+          <Text style={styles.body}>{summary.recentOrder.productTitle} · {summary.recentOrder.statusLabel}</Text>
+          <Btn label="Track order" variant="secondary" onPress={() => router.push(`/order/${summary.recentOrder!.id}`)} />
         </Panel>
       ) : null}
-
-      <Panel title="Upload field photo">
-        <Text style={styles.body}>Share crop photos for agronomist review.</Text>
-        <View style={styles.uploadRow}>
-          <Btn label="Field" onPress={() => uploadPhoto('field')} variant="secondary" />
-          <Btn label="Leaf" onPress={() => uploadPhoto('leaf')} variant="secondary" />
-          <Btn label="Rhizome" onPress={() => uploadPhoto('rhizome')} variant="secondary" />
-        </View>
-      </Panel>
-
-      <WhatsAppBtn label="WhatsApp support" />
-
-      {summary?.notifications?.length ? (
-        <Panel title="Notifications">
-          {summary.notifications.slice(0, 5).map((n) => (
-            <Text key={n.id} style={styles.body}>• {n.message} ({n.atLabel})</Text>
-          ))}
-        </Panel>
-      ) : null}
-
-      <Btn label="Browse shop" onPress={() => Linking.openURL(`${SHOP_URL.replace(/\/$/, '')}/collections/all`)} />
-      <Btn label="Sign out" onPress={() => void logout()} variant="secondary" />
     </ScrollView>
   );
 }
@@ -190,26 +140,10 @@ const styles = StyleSheet.create({
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: tokens.bg },
   greeting: { fontSize: 24, fontWeight: '700', color: tokens.text },
   sub: { fontSize: 14, color: tokens.textMuted, marginBottom: 12 },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  pill: {
-    backgroundColor: tokens.green100,
-    color: tokens.green800,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    fontSize: 12,
-    overflow: 'hidden',
-  },
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 4 },
-  body: { fontSize: 14, color: tokens.text, lineHeight: 20, marginBottom: 4 },
-  meta: { fontSize: 12, color: tokens.textMuted, marginBottom: 6 },
-  success: { color: tokens.green700, marginBottom: 8 },
+  healthRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  cropTitle: { fontSize: 16, fontWeight: '700', color: tokens.text },
+  body: { fontSize: 14, color: tokens.text, lineHeight: 20 },
+  meta: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
+  statsRow: { flexDirection: 'row', gap: 12, marginVertical: 12 },
   muted: { color: tokens.textMuted },
-  orderRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
-  orderImg: { width: 64, height: 64, borderRadius: 8 },
-  orderImgPlaceholder: { backgroundColor: tokens.border },
-  orderMain: { flex: 1 },
-  orderTitle: { fontSize: 15, fontWeight: '600', color: tokens.text },
-  link: { fontSize: 12, color: tokens.green700, fontWeight: '600', marginTop: 4 },
-  uploadRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 },
 });

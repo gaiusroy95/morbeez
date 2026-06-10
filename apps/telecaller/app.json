@@ -4,8 +4,15 @@
     "slug": "morbeez-telecaller",
     "version": "1.0.0",
     "scheme": "morbeez-telecaller",
+    "icon": "./assets/icon.png",
     "plugins": ["expo-router"],
     "ios": { "bundleIdentifier": "in.morbeez.telecaller" },
-    "android": { "package": "in.morbeez.telecaller" }
+    "android": {
+      "package": "in.morbeez.telecaller",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1a4d32"
+      }
+    }
   }
 }

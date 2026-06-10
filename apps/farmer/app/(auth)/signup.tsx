@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { farmerSignup, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, MorbeezLogo, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 
 export default function SignupScreen() {
@@ -41,6 +41,7 @@ export default function SignupScreen() {
     <Screen>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <MorbeezLogo height={44} style={styles.logo} />
           <Text style={styles.title}>Create farmer account</Text>
           {error ? <AlertBox>{error}</AlertBox> : null}
           <TextField label="First name" value={firstName} onChangeText={setFirstName} autoCapitalize="words" />
@@ -58,6 +59,7 @@ export default function SignupScreen() {
 
 const styles = StyleSheet.create({
   scroll: { padding: 24, paddingTop: 48 },
+  logo: { alignSelf: 'center', marginBottom: 20 },
   title: {
     fontSize: 24,
     fontWeight: '700',

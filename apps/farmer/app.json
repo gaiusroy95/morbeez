@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "scheme": "morbeez-farmer",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -13,6 +14,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#1a4d32"
       },
       "package": "in.morbeez.farmer"
