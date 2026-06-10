@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Morbeez Field Pro",
+    "slug": "morbeez-field",
+    "version": "1.0.0",
+    "scheme": "morbeez-field",
+    "plugins": ["expo-router"],
+    "ios": { "bundleIdentifier": "in.morbeez.field" },
+    "android": { "package": "in.morbeez.field" }
+  }
+}

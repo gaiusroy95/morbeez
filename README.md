@@ -11,6 +11,8 @@
 | [`docs/m2/`](docs/m2/) | Milestone 2 specifications |
 | [`theme/`](theme/) | Shopify Online Store 2.0 theme (Liquid) |
 | [`backend/`](backend/) | Node.js API — webhooks, payments, WhatsApp, CRM |
+| [`apps/`](apps/) | Mobile apps (farmer, telecaller, warehouse, field) — see [`docs/MOBILE-APPS.md`](docs/MOBILE-APPS.md) |
+| [`frontend/`](frontend/) | Staff web console (Vercel) |
 | [`supabase/migrations/`](supabase/migrations/) | PostgreSQL schema |
 | [`.shopify/`](.shopify/) | CLI project config (link to store) |
 

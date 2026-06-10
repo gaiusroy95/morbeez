@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "Morbeez Farmer",
+    "slug": "morbeez-farmer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "morbeez-farmer",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "in.morbeez.farmer"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1a4d32"
+      },
+      "package": "in.morbeez.farmer"
+    },
+    "plugins": ["expo-router"]
+  }
+}

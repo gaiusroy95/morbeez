@@ -1,0 +1,14 @@
+{
+  "name": "@morbeez/ui-native",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "peerDependencies": {
+    "react": ">=19.0.0",
+    "react-native": ">=0.76.0"
+  },
+  "dependencies": {
+    "@morbeez/shared": "file:../shared"
+  }
+}

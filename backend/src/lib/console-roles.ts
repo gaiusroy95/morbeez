@@ -8,6 +8,8 @@ export const CONSOLE_ROLES = [
   'agronomist',
   'manager',
   'viewer',
+  'warehouse',
+  'picker_packer',
 ] as const;
 
 export type ConsoleRole = (typeof CONSOLE_ROLES)[number];
@@ -57,6 +59,9 @@ export function getRoleHomePath(role: string): string {
       return '/telecaller';
     case 'viewer':
       return '/dashboard';
+    case 'warehouse':
+    case 'picker_packer':
+      return '/warehouse';
     case 'admin':
     case 'super_admin':
     default:

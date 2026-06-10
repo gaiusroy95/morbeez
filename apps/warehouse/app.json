@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Morbeez Pick & Pack",
+    "slug": "morbeez-warehouse",
+    "version": "1.0.0",
+    "scheme": "morbeez-warehouse",
+    "plugins": ["expo-router"],
+    "ios": { "bundleIdentifier": "in.morbeez.warehouse" },
+    "android": { "package": "in.morbeez.warehouse" }
+  }
+}

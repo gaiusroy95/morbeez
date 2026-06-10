@@ -3,6 +3,10 @@
   "version": "1.0.0-m1",
   "private": true,
   "description": "Morbeez agriculture commerce — Shopify theme & foundation",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev:css": "tailwindcss -i ./theme/src/tailwind.css -o ./theme/assets/theme.css --watch",
     "build:css": "tailwindcss -i ./theme/src/tailwind.css -o ./theme/assets/theme.css --minify",
@@ -19,7 +23,11 @@
     "setup:menu": "node scripts/setup-shopify-menu.mjs",
     "dev:console": "npm run dev --prefix frontend",
     "build:console": "npm run build --prefix frontend",
-    "dev:mobile": "npm run start --prefix mobile",
+    "dev:farmer": "npm run start --workspace @morbeez/app-farmer",
+    "dev:telecaller": "npm run start --workspace @morbeez/app-telecaller",
+    "dev:warehouse": "npm run start --workspace @morbeez/app-warehouse",
+    "dev:field": "npm run start --workspace @morbeez/app-field",
+    "install:apps": "npm install --workspaces",
     "verify:api": "node scripts/verify-render-api.mjs",
     "prepare:logos": "python scripts/prepare-logos.py",
     "admin:create-user": "node scripts/create-admin-user.mjs",

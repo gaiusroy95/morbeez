@@ -1,0 +1,139 @@
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import { parseApiError } from './errors';
+import { STAFF_API_V1, resolveStaffApiUrl } from './config';
+
+export const STAFF_TOKEN_KEY = 'morbeez_admin_token';
+
+export type ApiModule = {
+  moduleKey: string;
+  canRead: boolean;
+  canWrite: boolean;
+};
+
+export type SessionAdmin = {
+  id: string;
+  email: string;
+  role: string;
+  fullName?: string;
+  agronomistTier?: 'new' | 'experienced' | null;
+};
+
+export type SessionPayload = {
+  admin: SessionAdmin;
+  modules: ApiModule[];
+  canApproveRecommendations: boolean;
+  canSelfApproveRecommendations: boolean;
+};
+
+async function getStoredToken(): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try {
+      return sessionStorage.getItem(STAFF_TOKEN_KEY);
+    } catch {
+      return null;
+    }
+  }
+  return SecureStore.getItemAsync(STAFF_TOKEN_KEY);
+}
+
+async function setStoredToken(token: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    sessionStorage.setItem(STAFF_TOKEN_KEY, token);
+    return;
+  }
+  await SecureStore.setItemAsync(STAFF_TOKEN_KEY, token);
+}
+
+async function clearStoredToken(): Promise<void> {
+  if (Platform.OS === 'web') {
+    sessionStorage.removeItem(STAFF_TOKEN_KEY);
+    return;
+  }
+  await SecureStore.deleteItemAsync(STAFF_TOKEN_KEY);
+}
+
+export async function getStaffToken(): Promise<string | null> {
+  return getStoredToken();
+}
+
+export async function setStaffToken(token: string): Promise<void> {
+  await setStoredToken(token);
+}
+
+export async function clearStaffToken(): Promise<void> {
+  await clearStoredToken();
+}
+
+export async function staffApi<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = await getStoredToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (options.body != null && !('Content-Type' in headers)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const url = path.startsWith(STAFF_API_V1)
+    ? resolveStaffApiUrl(path)
+    : resolveStaffApiUrl(`${STAFF_API_V1}${path.startsWith('/') ? path : `/${path}`}`);
+
+  const res = await fetch(url, { ...options, headers });
+  const data = (await res.json().catch(() => ({}))) as T & { message?: string; error?: string };
+
+  if (!res.ok) {
+    throw new Error(parseApiError(data, res.statusText));
+  }
+  return data;
+}
+
+export async function staffLogin(email: string, password: string) {
+  const data = await staffApi<{
+    ok: boolean;
+    token: string;
+    admin: SessionAdmin;
+  }>(`${STAFF_API_V1}/auth/login`, {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  await setStaffToken(data.token);
+  return data;
+}
+
+export async function fetchStaffSession(): Promise<SessionPayload> {
+  const data = await staffApi<{
+    ok: boolean;
+    admin: SessionAdmin;
+    modules: ApiModule[];
+    canApproveRecommendations: boolean;
+    canSelfApproveRecommendations?: boolean;
+  }>(`${STAFF_API_V1}/auth/me`);
+  return {
+    admin: data.admin,
+    modules: data.modules ?? [],
+    canApproveRecommendations: Boolean(data.canApproveRecommendations),
+    canSelfApproveRecommendations: Boolean(data.canSelfApproveRecommendations),
+  };
+}
+
+export function canAccessModule(
+  modules: ApiModule[],
+  key: string,
+  mode: 'read' | 'write' = 'read'
+): boolean {
+  const row = modules.find((m) => m.moduleKey === key);
+  if (!row) return false;
+  return mode === 'write' ? row.canWrite : row.canRead || row.canWrite;
+}
+
+/** Reject login when user lacks required module (per-app guard) */
+export function assertModuleAccess(
+  modules: ApiModule[],
+  requiredModule: string,
+  mode: 'read' | 'write' = 'read'
+): void {
+  if (!canAccessModule(modules, requiredModule, mode)) {
+    throw new Error(`Your account does not have access to this app (${requiredModule}).`);
+  }
+}

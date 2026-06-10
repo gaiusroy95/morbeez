@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Morbeez Telecaller",
+    "slug": "morbeez-telecaller",
+    "version": "1.0.0",
+    "scheme": "morbeez-telecaller",
+    "plugins": ["expo-router"],
+    "ios": { "bundleIdentifier": "in.morbeez.telecaller" },
+    "android": { "package": "in.morbeez.telecaller" }
+  }
+}
