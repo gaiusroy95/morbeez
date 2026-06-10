@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { computeGstBreakup, computeInclusiveGstBreakup, finalizeInclusiveInvoiceTotals, normalizeIndianState, } from '../../lib/gst.js';
+import { computeGstBreakup, computeInclusiveGstBreakup, finalizeInclusiveInvoiceTotals, isSameIndianState, normalizeIndianState, } from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
 function invoiceNumber(prefix) {
     return `${prefix}-${Date.now()}`;
@@ -201,19 +201,25 @@ export const invoiceService = {
             },
         };
     },
-    async backfillInclusiveTaxInvoice(invoiceId) {
+    async repairTaxInvoice(invoiceId) {
         const { data: inv, error: invErr } = await supabase
             .from('invoices')
             .select('*, invoice_lines(*)')
             .eq('id', invoiceId)
             .single();
-        throwIfSupabaseError(invErr, 'Invoice backfill');
+        throwIfSupabaseError(invErr, 'Invoice repair');
         if (!inv)
             throw new NotFoundError('Invoice not found');
         if (inv.document_type !== 'tax_invoice' || !inv.commerce_order_id)
             return inv;
         const meta = inv.metadata ?? {};
-        if (meta.pricingMode === 'tax_inclusive')
+        const company = await companySettingsService.snapshot();
+        const companyState = normalizeIndianState(company.state);
+        const storedCompanyState = normalizeIndianState(inv.company_state);
+        const alreadyInclusive = meta.pricingMode === 'tax_inclusive';
+        const companyStateMatches = !companyState ||
+            storedCompanyState.toLowerCase() === companyState.toLowerCase();
+        if (alreadyInclusive && companyStateMatches)
             return inv;
         const { data: order, error: orderErr } = await supabase
             .from('commerce_orders')
@@ -233,9 +239,8 @@ export const invoiceService = {
             .select('order_line_id, batch_code')
             .in('order_line_id', (lines ?? []).map((l) => l.id));
         const batchByLine = new Map((pickLines ?? []).map((pl) => [String(pl.order_line_id), pl.batch_code]));
-        const companyState = normalizeIndianState(inv.company_state);
-        const customerState = normalizeIndianState(inv.customer_state);
-        const sameState = companyState === customerState && companyState.length > 0;
+        const customerState = normalizeIndianState(inv.customer_state || inv.place_of_supply);
+        const sameState = isSameIndianState(companyState, customerState);
         let subtotal = 0;
         let cgst = 0;
         let sgst = 0;
@@ -284,15 +289,20 @@ export const invoiceService = {
         const { error: updateErr } = await supabase
             .from('invoices')
             .update({
+            company_state: companyState,
             subtotal: finalized.subtotalTaxable,
             cgst: finalized.cgst,
             sgst: finalized.sgst,
             igst: finalized.igst,
             total: finalized.total,
-            metadata: { ...meta, pricingMode: 'tax_inclusive' },
+            metadata: {
+                ...meta,
+                pricingMode: 'tax_inclusive',
+                company: company.companySnapshot,
+            },
         })
             .eq('id', invoiceId);
-        throwIfSupabaseError(updateErr, 'Invoice backfill update');
+        throwIfSupabaseError(updateErr, 'Invoice repair update');
         await supabase.from('invoice_lines').delete().eq('invoice_id', invoiceId);
         if (lineRows.length) {
             await supabase.from('invoice_lines').insert(lineRows.map((r) => ({ ...r, invoice_id: invoiceId })));

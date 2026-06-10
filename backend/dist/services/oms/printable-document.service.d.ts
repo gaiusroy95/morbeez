@@ -79,7 +79,7 @@ export declare const printableDocumentService: {
             customerState: any;
             placeOfSupply: any;
             companyGstin: any;
-            companyState: any;
+            companyState: string;
             orderSource: {};
             paymentMethod: {};
             paymentTerms: string;
@@ -253,7 +253,7 @@ export declare const printableDocumentService: {
         customerState: any;
         placeOfSupply: any;
         companyGstin: any;
-        companyState: any;
+        companyState: string;
         orderSource: {};
         paymentMethod: {};
         paymentTerms: string;

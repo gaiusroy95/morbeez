@@ -578,11 +578,7 @@ export const fulfillmentService = {
             .eq('document_type', 'tax_invoice')
             .maybeSingle();
         if (existing) {
-            const meta = existing.metadata ?? {};
-            if (meta.pricingMode !== 'tax_inclusive') {
-                return invoiceService.backfillInclusiveTaxInvoice(existing.id);
-            }
-            return existing;
+            return invoiceService.repairTaxInvoice(existing.id);
         }
         return invoiceService.generateTaxInvoice(commerceOrderId);
     },

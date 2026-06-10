@@ -6,6 +6,8 @@ import {
   computeInclusiveGstBreakup,
   finalizeInclusiveInvoiceTotals,
   halfGstRate,
+  isSameIndianState,
+  normalizeIndianState,
 } from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
 import { invoiceService } from './invoice.service.js';
@@ -145,8 +147,15 @@ export const printableDocumentService = {
     if (!data) throw new NotFoundError('Invoice not found');
 
     const initialMeta = (data.metadata as Record<string, unknown> | null) ?? {};
-    if (data.document_type === 'tax_invoice' && initialMeta.pricingMode !== 'tax_inclusive') {
-      await invoiceService.backfillInclusiveTaxInvoice(invoiceId);
+    const storedCompanyState = normalizeIndianState(String(data.company_state ?? ''));
+    const liveCompanyState = normalizeIndianState(companyLive.state);
+    const needsTaxRepair =
+      data.document_type === 'tax_invoice' &&
+      (initialMeta.pricingMode !== 'tax_inclusive' ||
+        (liveCompanyState.length > 0 &&
+          storedCompanyState.toLowerCase() !== liveCompanyState.toLowerCase()));
+    if (needsTaxRepair) {
+      await invoiceService.repairTaxInvoice(invoiceId);
       const refetch = await supabase
         .from('invoices')
         .select(
@@ -162,9 +171,13 @@ export const printableDocumentService = {
     const order = data.commerce_orders as Record<string, unknown> | null;
     const meta = (data.metadata as Record<string, unknown> | null) ?? {};
     const companySnap = (meta.company as Record<string, unknown> | null) ?? {};
-    const sameState =
-      String(data.company_state ?? '').trim().toLowerCase() ===
-      String(data.customer_state ?? '').trim().toLowerCase();
+    const companyState = normalizeIndianState(
+      String(companyLive.state || companySnap.state || data.company_state || '')
+    );
+    const customerState = normalizeIndianState(
+      String(data.customer_state || data.place_of_supply || '')
+    );
+    const sameState = isSameIndianState(companyState, customerState);
     const pricingMode =
       meta.pricingMode === 'tax_exclusive' ? 'tax_exclusive' : 'tax_inclusive';
 
@@ -195,8 +208,8 @@ export const printableDocumentService = {
         const breakup = computeInclusiveGstBreakup({
           inclusiveAmount: lineInclusive,
           gstPercent,
-          companyState: String(data.company_state ?? ''),
-          customerState: String(data.customer_state ?? ''),
+          companyState,
+          customerState,
         });
         taxableAmount = breakup.taxableAmount;
         cgst = breakup.cgst;
@@ -315,7 +328,7 @@ export const printableDocumentService = {
       customerState: data.customer_state,
       placeOfSupply: data.place_of_supply,
       companyGstin: data.company_gstin,
-      companyState: data.company_state,
+      companyState,
       orderSource: order?.order_source ?? 'website',
       paymentMethod,
       paymentTerms: order?.is_cod ? 'Cash on Delivery' : 'Paid',

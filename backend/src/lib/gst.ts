@@ -76,6 +76,15 @@ export function normalizeIndianState(state: string | null | undefined): string {
   return (state ?? '').trim();
 }
 
+export function isSameIndianState(
+  companyState: string | null | undefined,
+  customerState: string | null | undefined
+): boolean {
+  const company = normalizeIndianState(companyState).toLowerCase();
+  const customer = normalizeIndianState(customerState).toLowerCase();
+  return company.length > 0 && customer.length > 0 && company === customer;
+}
+
 /** CGST/SGST rate is half of the GST slab (18% slab → 9% each). */
 export function halfGstRate(gstPercent: number): number {
   return Math.round(gstPercent * 50) / 100;

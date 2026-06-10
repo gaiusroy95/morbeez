@@ -22,6 +22,7 @@ export declare function computeGstBreakup(params: {
     customerState: string;
 }): GstBreakup;
 export declare function normalizeIndianState(state: string | null | undefined): string;
+export declare function isSameIndianState(companyState: string | null | undefined, customerState: string | null | undefined): boolean;
 /** CGST/SGST rate is half of the GST slab (18% slab → 9% each). */
 export declare function halfGstRate(gstPercent: number): number;
 /** Round invoice-level totals and reconcile GST split to match inclusive − taxable. */
