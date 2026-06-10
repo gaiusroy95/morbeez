@@ -1,6 +1,9 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { env } from '../../config/env.js';
+import { amountInIndianWords } from '../../lib/indian-currency-words.js';
+import { computeInclusiveGstBreakup } from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
 import { returnWorkflowService } from './return-workflow.service.js';
 function formatAddress(addr) {
@@ -110,7 +113,7 @@ export const printableDocumentService = {
     async buildTaxInvoice(invoiceId) {
         const { data, error } = await supabase
             .from('invoices')
-            .select('*, invoice_lines(*), commerce_orders(order_name, order_source, payment_method, is_cod, phone)')
+            .select('*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, billing_address, created_at, total_amount)')
             .eq('id', invoiceId)
             .single();
         throwIfSupabaseError(error, 'Invoice document');
@@ -118,11 +121,95 @@ export const printableDocumentService = {
             throw new NotFoundError('Invoice not found');
         const order = data.commerce_orders;
         const meta = data.metadata ?? {};
+        const companySnap = meta.company ?? {};
+        const sameState = String(data.company_state ?? '').trim().toLowerCase() ===
+            String(data.customer_state ?? '').trim().toLowerCase();
+        const pricingMode = meta.pricingMode === 'tax_inclusive' ? 'tax_inclusive' : 'tax_exclusive';
+        let skuByTitle = new Map();
+        if (data.commerce_order_id) {
+            const { data: orderLines } = await supabase
+                .from('commerce_order_lines')
+                .select('product_title, sku')
+                .eq('commerce_order_id', data.commerce_order_id);
+            skuByTitle = new Map((orderLines ?? []).map((ol) => [String(ol.product_title), String(ol.sku ?? '')]));
+        }
+        const rawLines = (data.invoice_lines ?? []);
+        const lines = rawLines.map((l) => {
+            const qty = Number(l.qty) || 0;
+            const unitPrice = Number(l.unit_price) || 0;
+            const gstPercent = Number(l.gst_percent) || 18;
+            const lineInclusive = Math.round(qty * unitPrice * 100) / 100;
+            let taxableAmount = Number(l.taxable_amount) || 0;
+            let cgst = Number(l.cgst) || 0;
+            let sgst = Number(l.sgst) || 0;
+            let igst = Number(l.igst) || 0;
+            if (pricingMode === 'tax_inclusive' && lineInclusive > 0) {
+                const breakup = computeInclusiveGstBreakup({
+                    inclusiveAmount: lineInclusive,
+                    gstPercent,
+                    companyState: String(data.company_state ?? ''),
+                    customerState: String(data.customer_state ?? ''),
+                });
+                taxableAmount = breakup.taxableAmount;
+                cgst = breakup.cgst;
+                sgst = breakup.sgst;
+                igst = breakup.igst;
+            }
+            const title = String(l.description ?? '');
+            return {
+                description: l.description,
+                hsnCode: l.hsn_code,
+                sku: skuByTitle.get(title) || null,
+                qty,
+                unitPrice,
+                lineTotal: lineInclusive,
+                taxableAmount,
+                gstPercent,
+                cgst,
+                sgst,
+                igst,
+                gstAmount: cgst + sgst + igst,
+                batchCode: l.batch_code,
+            };
+        });
+        const subtotalTaxable = lines.reduce((s, l) => s + l.taxableAmount, 0);
+        const subtotalInclusive = lines.reduce((s, l) => s + l.lineTotal, 0);
+        const cgst = lines.reduce((s, l) => s + l.cgst, 0);
+        const sgst = lines.reduce((s, l) => s + l.sgst, 0);
+        const igst = lines.reduce((s, l) => s + l.igst, 0);
+        const total = pricingMode === 'tax_inclusive' ? subtotalInclusive : Number(data.total) || 0;
+        const hsnMap = new Map();
+        for (const line of lines) {
+            const key = `${line.hsnCode ?? '—'}|${line.gstPercent}`;
+            const prev = hsnMap.get(key) ?? {
+                hsn: String(line.hsnCode ?? '—'),
+                gstPercent: line.gstPercent,
+                taxable: 0,
+                cgst: 0,
+                sgst: 0,
+                igst: 0,
+            };
+            prev.taxable += line.taxableAmount;
+            prev.cgst += line.cgst;
+            prev.sgst += line.sgst;
+            prev.igst += line.igst;
+            hsnMap.set(key, prev);
+        }
+        const shipAddr = (order?.shipping_address ?? order?.billing_address);
+        const billAddr = (order?.billing_address ?? order?.shipping_address);
+        const issued = data.issued_at ? new Date(String(data.issued_at)) : new Date();
+        const paymentMethod = order?.payment_method ?? (order?.is_cod ? 'Cash on Delivery' : 'Prepaid');
+        const codCollect = order?.is_cod ? Number(order.total_amount ?? data.total) : 0;
         return {
             title: 'Tax Invoice',
             invoiceNumber: data.invoice_number,
             documentType: data.document_type,
             issuedAt: data.issued_at,
+            invoiceDate: issued.toLocaleDateString('en-IN'),
+            orderDate: order?.created_at
+                ? new Date(String(order.created_at)).toLocaleDateString('en-IN')
+                : issued.toLocaleDateString('en-IN'),
+            orderName: order?.order_name ?? order?.shopify_order_id ?? null,
             customerName: data.customer_name,
             customerGstin: data.customer_gstin,
             customerState: data.customer_state,
@@ -130,32 +217,40 @@ export const printableDocumentService = {
             companyGstin: data.company_gstin,
             companyState: data.company_state,
             orderSource: order?.order_source ?? 'website',
-            paymentMethod: order?.payment_method ?? (order?.is_cod ? 'COD' : 'Prepaid'),
-            subtotal: data.subtotal,
-            cgst: data.cgst,
-            sgst: data.sgst,
-            igst: data.igst,
+            paymentMethod,
+            paymentTerms: order?.is_cod ? 'Cash on Delivery' : 'Paid',
+            termsOfDelivery: order?.is_cod ? 'Cash on Delivery' : 'Paid',
+            codAmount: codCollect,
+            subtotal: subtotalTaxable,
+            subtotalInclusive,
+            cgst,
+            sgst,
+            igst,
             freight: data.freight,
-            total: data.total,
-            taxBreakup: {
-                sameState: data.company_state === data.customer_state,
-                cgst: data.cgst,
-                sgst: data.sgst,
-                igst: data.igst,
+            total,
+            balanceDue: total,
+            totalInWords: amountInIndianWords(total),
+            pricingMode,
+            taxBreakup: { sameState, cgst, sgst, igst },
+            billTo: formatAddress(billAddr),
+            shipTo: formatAddress(shipAddr),
+            bankDetails: {
+                accountNumber: env.COMPANY_BANK_ACCOUNT ?? '',
+                ifsc: env.COMPANY_BANK_IFSC ?? '',
+                branch: env.COMPANY_BANK_BRANCH ?? '',
             },
-            lines: (data.invoice_lines ?? []).map((l) => ({
-                description: l.description,
-                hsnCode: l.hsn_code,
-                qty: l.qty,
-                unitPrice: l.unit_price,
-                taxableAmount: l.taxable_amount,
-                gstPercent: l.gst_percent,
-                cgst: l.cgst,
-                sgst: l.sgst,
-                igst: l.igst,
-                batchCode: l.batch_code,
+            lines,
+            hsnSummary: [...hsnMap.values()].map((row) => ({
+                hsn: row.hsn,
+                gstPercent: row.gstPercent,
+                taxableAmount: Math.round(row.taxable * 100) / 100,
+                cgst: Math.round(row.cgst * 100) / 100,
+                sgst: Math.round(row.sgst * 100) / 100,
+                igst: Math.round(row.igst * 100) / 100,
+                totalTax: Math.round((row.cgst + row.sgst + row.igst) * 100) / 100,
             })),
-            companySnapshot: meta.company ?? null,
+            companySnapshot: companySnap,
+            jurisdictionNote: `SUBJECT TO ${String(companySnap.district ?? companySnap.state ?? 'LOCAL').toUpperCase()} JURISDICTION`,
         };
     },
     async buildCourierLabel(commerceOrderId) {

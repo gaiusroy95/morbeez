@@ -100,6 +100,9 @@ const envSchema = z.object({
   COMPANY_GSTIN: z.string().optional(),
   COMPANY_STATE: z.string().default('Karnataka'),
   COMPANY_LEGAL_NAME: z.string().optional(),
+  COMPANY_BANK_ACCOUNT: z.string().optional(),
+  COMPANY_BANK_IFSC: z.string().optional(),
+  COMPANY_BANK_BRANCH: z.string().optional(),
   ENABLE_RAZORPAY_PAYMENT_LINKS: z
     .string()
     .transform((v) => v === 'true')

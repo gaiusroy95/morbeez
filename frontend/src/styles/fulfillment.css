@@ -785,14 +785,77 @@
 
 .pp-print-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.45rem;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.65rem;
 }
 
-.pp-print-actions .btn--disabled {
-  opacity: 0.45;
+.pp-print-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 2px solid #d1d5db;
+  background: #fff;
+  color: #111827;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.pp-print-action-btn:hover:not(.pp-print-action-btn--disabled) {
+  border-color: #9ca3af;
+  background: #f9fafb;
+}
+
+.pp-print-action-btn:active:not(.pp-print-action-btn--disabled) {
+  transform: scale(0.99);
+}
+
+.pp-print-action-btn--label {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.pp-print-action-btn--label:hover:not(.pp-print-action-btn--disabled) {
+  background: #dbeafe;
+  border-color: #1d4ed8;
+}
+
+.pp-print-action-btn--invoice {
+  border-color: #7c3aed;
+  color: #6d28d9;
+  background: #f5f3ff;
+}
+
+.pp-print-action-btn--invoice:hover:not(.pp-print-action-btn--disabled) {
+  background: #ede9fe;
+  border-color: #6d28d9;
+}
+
+.pp-print-action-btn--packed {
+  border-color: #16a34a;
+  color: #fff;
+  background: #16a34a;
+}
+
+.pp-print-action-btn--packed:hover:not(.pp-print-action-btn--disabled) {
+  background: #15803d;
+  border-color: #15803d;
+}
+
+.pp-print-action-btn--disabled,
+.pp-print-action-btn:disabled {
+  opacity: 0.42;
   pointer-events: none;
+  cursor: not-allowed;
 }
 
 .pp-info-tip {

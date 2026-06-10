@@ -57,30 +57,28 @@ export function WarehousePrintPage() {
       </div>
 
       <article className={`warehouse-print-doc warehouse-print-doc--${type}`}>
-        <header className="warehouse-print-header">
-          {company.quotationLogoUrl ? (
-            <img src={company.quotationLogoUrl} alt="" className="warehouse-print-logo" />
-          ) : null}
-          <div>
-            <h1>{String(doc.title ?? type)}</h1>
-            <p className="muted">{company.companyName}</p>
-            <p className="muted">{company.formattedAddress}</p>
-            {company.gstin ? <p className="muted">GSTIN: {company.gstin}</p> : null}
-          </div>
-        </header>
+        {type === 'tax_invoice' ? (
+          <TaxInvoiceBody doc={doc} company={company} formatInr={formatInr} />
+        ) : (
+          <>
+            <header className="warehouse-print-header">
+              {company.quotationLogoUrl ? (
+                <img src={company.quotationLogoUrl} alt="" className="warehouse-print-logo" />
+              ) : null}
+              <div>
+                <h1>{String(doc.title ?? type)}</h1>
+                <p className="muted">{company.companyName}</p>
+                <p className="muted">{company.formattedAddress}</p>
+                {company.gstin ? <p className="muted">GSTIN: {company.gstin}</p> : null}
+              </div>
+            </header>
 
-        {type === 'picking_slip' ? <PickingSlipBody doc={doc} /> : null}
-        {type === 'packing_slip' ? <PackingSlipBody doc={doc} /> : null}
-        {type === 'tax_invoice' ? <TaxInvoiceBody doc={doc} formatInr={formatInr} /> : null}
-        {type === 'courier_label' ? <CourierLabelBody doc={doc} formatInr={formatInr} /> : null}
-        {type === 'return_inspection' ? <ReturnInspectionBody doc={doc} formatInr={formatInr} /> : null}
-
-        {company.termsAndConditions && type === 'tax_invoice' ? (
-          <footer className="warehouse-print-terms">
-            <h3>Terms &amp; conditions</h3>
-            <div dangerouslySetInnerHTML={{ __html: company.termsAndConditions }} />
-          </footer>
-        ) : null}
+            {type === 'picking_slip' ? <PickingSlipBody doc={doc} /> : null}
+            {type === 'packing_slip' ? <PackingSlipBody doc={doc} /> : null}
+            {type === 'courier_label' ? <CourierLabelBody doc={doc} formatInr={formatInr} /> : null}
+            {type === 'return_inspection' ? <ReturnInspectionBody doc={doc} formatInr={formatInr} /> : null}
+          </>
+        )}
       </article>
     </div>
   );
@@ -179,75 +177,383 @@ function PackingSlipBody({ doc }: { doc: Record<string, unknown> }) {
   );
 }
 
+function formatQty(n: unknown) {
+  return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function TaxInvoiceBody({
   doc,
+  company,
   formatInr,
 }: {
   doc: Record<string, unknown>;
+  company: PrintPayload['company'];
   formatInr: (n: unknown) => string;
 }) {
   const lines = (doc.lines as Array<Record<string, unknown>>) ?? [];
-  const tax = doc.taxBreakup as Record<string, unknown> | undefined;
+  const tax = doc.taxBreakup as { sameState?: boolean; cgst?: number; sgst?: number; igst?: number };
+  const sameState = Boolean(tax?.sameState);
+  const billTo = (doc.billTo as string[]) ?? [];
+  const shipTo = (doc.shipTo as string[]) ?? [];
+  const hsnSummary = (doc.hsnSummary as Array<Record<string, unknown>>) ?? [];
+  const bank = doc.bankDetails as Record<string, string> | undefined;
+
+  const gstSlabs = new Map<number, number>();
+  for (const l of lines) {
+    const pct = Number(l.gstPercent) || 0;
+    const amt = Number(l.gstAmount) || Number(l.igst) || Number(l.cgst) + Number(l.sgst);
+    gstSlabs.set(pct, (gstSlabs.get(pct) ?? 0) + amt);
+  }
+
   return (
-    <section>
-      <div className="warehouse-print-grid">
-        <div>
-          <h3>Bill to</h3>
-          <p>{String(doc.customerName)}</p>
-          {doc.customerGstin ? <p>GSTIN: {String(doc.customerGstin)}</p> : null}
-          <p>{String(doc.customerState)}</p>
+    <div className="inv-doc">
+      <header className="inv-header">
+        <div className="inv-header-logo">
+          {company.quotationLogoUrl ? (
+            <img src={company.quotationLogoUrl} alt="Morbeez" className="inv-logo" />
+          ) : (
+            <div className="inv-logo-fallback">Morbeez</div>
+          )}
         </div>
-        <div>
-          <p>
-            <strong>Invoice #</strong> {String(doc.invoiceNumber)}
-          </p>
-          <p>
-            <strong>Source:</strong> {String(doc.orderSource)} &nbsp;|&nbsp;
-            <strong>Payment:</strong> {String(doc.paymentMethod)}
-          </p>
+        <div className="inv-header-company">
+          <h1>{company.companyName}</h1>
+          {company.formattedAddress.split('\n').map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+          {company.customerCareNumber ? <p>Phone: {company.customerCareNumber}</p> : null}
+          {company.gstin ? <p className="inv-gstin">GSTIN {company.gstin}</p> : null}
+        </div>
+        <div className="inv-header-title">
+          <h2>TAX INVOICE</h2>
+        </div>
+      </header>
+
+      <table className="inv-meta-table">
+        <tbody>
+          <tr>
+            <th>Invoice Number</th>
+            <td>{String(doc.invoiceNumber)}</td>
+            <th>Place Of Supply</th>
+            <td>{String(doc.placeOfSupply ?? doc.customerState ?? '—')}</td>
+          </tr>
+          <tr>
+            <th>Invoice Date</th>
+            <td>{String(doc.invoiceDate ?? '—')}</td>
+            <th>Terms Of Delivery</th>
+            <td>{String(doc.termsOfDelivery ?? '—')}</td>
+          </tr>
+          <tr>
+            <th>Payment Terms</th>
+            <td>{String(doc.paymentTerms ?? doc.paymentMethod ?? '—')}</td>
+            <th>Terms of Payment</th>
+            <td>{String(doc.paymentMethod ?? '—')}</td>
+          </tr>
+          <tr>
+            <th>Order</th>
+            <td>{String(doc.orderName ?? '—')}</td>
+            <th>Order Date</th>
+            <td>{String(doc.orderDate ?? '—')}</td>
+          </tr>
+          {Number(doc.codAmount) > 0 ? (
+            <tr>
+              <th>Payment to be Collected</th>
+              <td colSpan={3}>{formatInr(doc.codAmount)}</td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+
+      <div className="inv-address-row">
+        <div className="inv-address-box">
+          <h3>Bill To</h3>
+          <p className="inv-address-name">{String(doc.customerName ?? billTo[0] ?? '—')}</p>
+          {billTo.slice(1).map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+          {doc.customerGstin ? <p>GSTIN: {String(doc.customerGstin)}</p> : null}
+        </div>
+        <div className="inv-address-box">
+          <h3>Ship To</h3>
+          {shipTo.length ? (
+            shipTo.map((line, i) => <p key={i}>{line}</p>)
+          ) : (
+            <p>{String(doc.customerName ?? '—')}</p>
+          )}
         </div>
       </div>
-      <table className="warehouse-print-table">
+
+      <table className="inv-lines-table">
         <thead>
           <tr>
-            <th>Description</th>
-            <th>HSN</th>
-            <th>Batch</th>
+            <th className="inv-col-num">#</th>
+            <th className="inv-col-item">Item &amp; Description</th>
+            <th>HSN/SAC</th>
             <th>Qty</th>
             <th>Rate</th>
-            <th>GST%</th>
+            {sameState ? (
+              <>
+                <th colSpan={2}>CGST</th>
+                <th colSpan={2}>SGST</th>
+              </>
+            ) : (
+              <th colSpan={2}>IGST</th>
+            )}
             <th>Amount</th>
+          </tr>
+          <tr className="inv-lines-subhead">
+            <th colSpan={5} />
+            {sameState ? (
+              <>
+                <th>%</th>
+                <th>Amt</th>
+                <th>%</th>
+                <th>Amt</th>
+              </>
+            ) : (
+              <>
+                <th>%</th>
+                <th>Amt</th>
+              </>
+            )}
+            <th />
           </tr>
         </thead>
         <tbody>
           {lines.map((l, i) => (
             <tr key={i}>
-              <td>{String(l.description)}</td>
+              <td>{i + 1}</td>
+              <td className="inv-item-cell">
+                <strong>{String(l.description)}</strong>
+                {l.sku ? <span className="inv-sku">SKU: {String(l.sku)}</span> : null}
+                {l.batchCode ? <span className="inv-sku">Batch: {String(l.batchCode)}</span> : null}
+              </td>
               <td>{String(l.hsnCode ?? '—')}</td>
-              <td>{String(l.batchCode ?? '—')}</td>
-              <td>{String(l.qty)}</td>
-              <td>{formatInr(l.unitPrice)}</td>
-              <td>{String(l.gstPercent)}%</td>
-              <td>{formatInr(l.taxableAmount)}</td>
+              <td className="inv-num">{formatQty(l.qty)}</td>
+              <td className="inv-num">{formatInr(l.unitPrice)}</td>
+              {sameState ? (
+                <>
+                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">{formatInr(l.cgst)}</td>
+                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">{formatInr(l.sgst)}</td>
+                </>
+              ) : (
+                <>
+                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">{formatInr(l.igst)}</td>
+                </>
+              )}
+              <td className="inv-num">{formatInr(l.lineTotal ?? l.unitPrice)}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <div className="warehouse-print-totals">
-        <p>Subtotal: {formatInr(doc.subtotal)}</p>
-        {tax?.sameState ? (
-          <>
-            <p>CGST: {formatInr(doc.cgst)}</p>
-            <p>SGST: {formatInr(doc.sgst)}</p>
-          </>
-        ) : (
-          <p>IGST: {formatInr(doc.igst)}</p>
-        )}
-        <p className="warehouse-print-grand">
-          <strong>Total: {formatInr(doc.total)}</strong>
-        </p>
+
+      <div className="inv-payment-stub">
+        <div className="inv-stub-left">
+          <p>
+            <strong>{String(doc.customerName)}</strong>
+          </p>
+          <table className="inv-stub-table">
+            <tbody>
+              <tr>
+                <th>Invoice Number</th>
+                <td>{String(doc.invoiceNumber)}</td>
+              </tr>
+              <tr>
+                <th>Invoice Date</th>
+                <td>{String(doc.invoiceDate)}</td>
+              </tr>
+              <tr>
+                <th>Balance Due</th>
+                <td>
+                  <strong>{formatInr(doc.balanceDue ?? doc.total)}</strong>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="inv-stub-right">
+          <p>
+            <strong>{company.companyName}</strong>
+          </p>
+          <p className="inv-stub-muted">{company.formattedAddress.replace(/\n/g, ', ')}</p>
+          {company.gstin ? <p className="inv-stub-muted">GSTIN {company.gstin}</p> : null}
+        </div>
       </div>
-    </section>
+
+      <div className="inv-footer-block inv-page-break">
+        <div className="inv-footer-main">
+          <div className="inv-footer-left">
+            <p>
+              <strong>Total In Words</strong>
+            </p>
+            <p className="inv-words">{String(doc.totalInWords ?? '')}</p>
+            {bank?.accountNumber || bank?.ifsc ? (
+              <div className="inv-bank">
+                <p>
+                  <strong>Company&apos;s Bank Details</strong>
+                </p>
+                {bank.accountNumber ? <p>A/C No: {bank.accountNumber}</p> : null}
+                {bank.ifsc ? <p>IFSC Code: {bank.ifsc}</p> : null}
+                {bank.branch ? <p>A/C Branch: {bank.branch}</p> : null}
+              </div>
+            ) : null}
+            {company.termsAndConditions ? (
+              <div
+                className="inv-terms"
+                dangerouslySetInnerHTML={{ __html: company.termsAndConditions }}
+              />
+            ) : (
+              <p className="inv-terms-plain">
+                We declare that this invoice shows the actual price of the goods described and that
+                all particulars are true and correct.
+              </p>
+            )}
+            <p className="inv-jurisdiction">{String(doc.jurisdictionNote ?? '')}</p>
+          </div>
+          <div className="inv-footer-totals">
+            <table>
+              <tbody>
+                <tr>
+                  <th>Sub Total (Tax Inclusive)</th>
+                  <td>{formatInr(doc.subtotalInclusive ?? doc.total)}</td>
+                </tr>
+                <tr>
+                  <th>Total Taxable Amount</th>
+                  <td>{formatInr(doc.subtotal)}</td>
+                </tr>
+                {[...gstSlabs.entries()].map(([pct, amt]) => (
+                  <tr key={pct}>
+                    <th>
+                      {sameState ? `CGST+SGST (${pct}%)` : `IGST${pct} (${pct}%)`}
+                    </th>
+                    <td>{formatInr(amt)}</td>
+                  </tr>
+                ))}
+                {sameState && Number(doc.cgst) > 0 ? (
+                  <>
+                    <tr>
+                      <th>CGST</th>
+                      <td>{formatInr(doc.cgst)}</td>
+                    </tr>
+                    <tr>
+                      <th>SGST</th>
+                      <td>{formatInr(doc.sgst)}</td>
+                    </tr>
+                  </>
+                ) : Number(doc.igst) > 0 ? (
+                  <tr>
+                    <th>IGST</th>
+                    <td>{formatInr(doc.igst)}</td>
+                  </tr>
+                ) : null}
+                <tr className="inv-total-row">
+                  <th>Total</th>
+                  <td>
+                    <strong>{formatInr(doc.total)}</strong>
+                  </td>
+                </tr>
+                <tr className="inv-total-row">
+                  <th>Balance Due</th>
+                  <td>
+                    <strong>{formatInr(doc.balanceDue ?? doc.total)}</strong>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p className="inv-for-company">For {company.companyName}</p>
+          </div>
+        </div>
+
+        <table className="inv-hsn-table">
+          <thead>
+            <tr>
+              <th rowSpan={2}>HSN/SAC</th>
+              <th rowSpan={2}>Taxable Amount</th>
+              {sameState ? (
+                <>
+                  <th colSpan={2}>CGST</th>
+                  <th colSpan={2}>SGST</th>
+                </>
+              ) : (
+                <th colSpan={2}>IGST</th>
+              )}
+              <th rowSpan={2}>Total Tax Amount</th>
+            </tr>
+            <tr>
+              {sameState ? (
+                <>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </>
+              ) : (
+                <>
+                  <th>Rate</th>
+                  <th>Amount</th>
+                </>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {hsnSummary.map((row, i) => (
+              <tr key={i}>
+                <td>{String(row.hsn)}</td>
+                <td className="inv-num">{formatInr(row.taxableAmount)}</td>
+                {sameState ? (
+                  <>
+                    <td>{String(row.gstPercent)}%</td>
+                    <td className="inv-num">{formatInr(row.cgst)}</td>
+                    <td>{String(row.gstPercent)}%</td>
+                    <td className="inv-num">{formatInr(row.sgst)}</td>
+                  </>
+                ) : (
+                  <>
+                    <td>{String(row.gstPercent)}%</td>
+                    <td className="inv-num">{formatInr(row.igst)}</td>
+                  </>
+                )}
+                <td className="inv-num">{formatInr(row.totalTax)}</td>
+              </tr>
+            ))}
+            <tr className="inv-hsn-total">
+              <td>
+                <strong>Total</strong>
+              </td>
+              <td className="inv-num">
+                <strong>{formatInr(doc.subtotal)}</strong>
+              </td>
+              {sameState ? (
+                <>
+                  <td />
+                  <td className="inv-num">
+                    <strong>{formatInr(doc.cgst)}</strong>
+                  </td>
+                  <td />
+                  <td className="inv-num">
+                    <strong>{formatInr(doc.sgst)}</strong>
+                  </td>
+                </>
+              ) : (
+                <>
+                  <td />
+                  <td className="inv-num">
+                    <strong>{formatInr(doc.igst)}</strong>
+                  </td>
+                </>
+              )}
+              <td className="inv-num">
+                <strong>{formatInr(Number(doc.cgst) + Number(doc.sgst) + Number(doc.igst))}</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p className="inv-computer-note">This is a computer-generated invoice. No signature is required.</p>
+      </div>
+    </div>
   );
 }
 

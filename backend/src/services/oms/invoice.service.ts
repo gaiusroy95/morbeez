@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { computeGstBreakup, normalizeIndianState } from '../../lib/gst.js';
+import { computeGstBreakup, computeInclusiveGstBreakup, normalizeIndianState } from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
 
 function invoiceNumber(prefix: string): string {
@@ -151,29 +151,32 @@ export const invoiceService = {
     let igst = 0;
     const lineRows: Array<Record<string, unknown>> = [];
 
+    let totalInclusive = 0;
+
     for (const line of lines ?? []) {
       const qty = Number(line.qty_ordered) - Number(line.qty_cancelled);
       if (qty <= 0) continue;
-      const unitPrice = Number(line.unit_price) || 0;
-      const taxable = qty * unitPrice;
+      const unitPriceInclusive = Number(line.unit_price) || 0;
+      const lineInclusive = Math.round(qty * unitPriceInclusive * 100) / 100;
       const gstPct = Number(line.gst_percent) || 18;
-      const breakup = computeGstBreakup({
-        taxableAmount: taxable,
+      const breakup = computeInclusiveGstBreakup({
+        inclusiveAmount: lineInclusive,
         gstPercent: gstPct,
         companyState,
         customerState,
       });
-      subtotal += taxable;
+      subtotal += breakup.taxableAmount;
       cgst += breakup.cgst;
       sgst += breakup.sgst;
       igst += breakup.igst;
+      totalInclusive += lineInclusive;
 
       lineRows.push({
         description: line.product_title,
         hsn_code: line.hsn_code,
         qty,
-        unit_price: unitPrice,
-        taxable_amount: taxable,
+        unit_price: unitPriceInclusive,
+        taxable_amount: breakup.taxableAmount,
         gst_percent: gstPct,
         cgst: breakup.cgst,
         sgst: breakup.sgst,
@@ -182,7 +185,7 @@ export const invoiceService = {
       });
     }
 
-    const total = subtotal + cgst + sgst + igst;
+    const total = Math.round(totalInclusive * 100) / 100;
     const paymentMethod = order.is_cod ? 'COD' : order.payment_method ?? 'Prepaid';
 
     const { data: inv, error } = await supabase
@@ -207,6 +210,7 @@ export const invoiceService = {
           company: company.companySnapshot,
           orderSource: order.order_source ?? 'website',
           paymentMethod,
+          pricingMode: 'tax_inclusive',
         },
         issued_at: new Date().toISOString(),
       })

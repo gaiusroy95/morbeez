@@ -76,6 +76,9 @@ declare const envSchema: z.ZodObject<{
     COMPANY_GSTIN: z.ZodOptional<z.ZodString>;
     COMPANY_STATE: z.ZodDefault<z.ZodString>;
     COMPANY_LEGAL_NAME: z.ZodOptional<z.ZodString>;
+    COMPANY_BANK_ACCOUNT: z.ZodOptional<z.ZodString>;
+    COMPANY_BANK_IFSC: z.ZodOptional<z.ZodString>;
+    COMPANY_BANK_BRANCH: z.ZodOptional<z.ZodString>;
     ENABLE_RAZORPAY_PAYMENT_LINKS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_RAZORPAY_CHECKOUT: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     CHECKOUT_SUCCESS_PATH: z.ZodDefault<z.ZodString>;
@@ -239,6 +242,9 @@ declare const envSchema: z.ZodObject<{
     CONSOLE_SHARED_PASSWORD?: string | undefined;
     COMPANY_GSTIN?: string | undefined;
     COMPANY_LEGAL_NAME?: string | undefined;
+    COMPANY_BANK_ACCOUNT?: string | undefined;
+    COMPANY_BANK_IFSC?: string | undefined;
+    COMPANY_BANK_BRANCH?: string | undefined;
     GSC_SITE_URL?: string | undefined;
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;
@@ -311,6 +317,9 @@ declare const envSchema: z.ZodObject<{
     COMPANY_GSTIN?: string | undefined;
     COMPANY_STATE?: string | undefined;
     COMPANY_LEGAL_NAME?: string | undefined;
+    COMPANY_BANK_ACCOUNT?: string | undefined;
+    COMPANY_BANK_IFSC?: string | undefined;
+    COMPANY_BANK_BRANCH?: string | undefined;
     ENABLE_RAZORPAY_PAYMENT_LINKS?: string | undefined;
     ENABLE_RAZORPAY_CHECKOUT?: string | undefined;
     CHECKOUT_SUCCESS_PATH?: string | undefined;
@@ -465,6 +474,9 @@ export declare const env: {
     CONSOLE_SHARED_PASSWORD?: string | undefined;
     COMPANY_GSTIN?: string | undefined;
     COMPANY_LEGAL_NAME?: string | undefined;
+    COMPANY_BANK_ACCOUNT?: string | undefined;
+    COMPANY_BANK_IFSC?: string | undefined;
+    COMPANY_BANK_BRANCH?: string | undefined;
     GSC_SITE_URL?: string | undefined;
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;

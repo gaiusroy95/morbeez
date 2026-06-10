@@ -513,13 +513,10 @@ export function WarehouseFulfillmentPanel({
   const workflow = detail?.workflow;
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
-  const shiprocketAuthOk = detail?.shiprocketDiagnostics?.authOk !== false;
   const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
   const awbRetryAllowed = Boolean(
     detail?.shiprocketErrorDisplay || order?.shiprocket_error || awbPendingShipment
   );
-  const canGenerateAwb =
-    shiprocketAuthOk && (printStage || awbRetryAllowed) && !order?.tracking_awb;
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
 
@@ -1003,8 +1000,8 @@ export function WarehouseFulfillmentPanel({
                       <strong>Printables ready</strong>
                       <span>
                         {usesBatchLabels
-                          ? 'Mark packed, then verify pre-printed label QR.'
-                          : 'Generate AWB, print label & invoice, then mark packed.'}
+                          ? 'Print invoice, mark as packed, then verify pre-printed label QR.'
+                          : 'Print shipping label & invoice, then mark as packed.'}
                       </span>
                     </p>
                   </div>
@@ -1027,76 +1024,62 @@ export function WarehouseFulfillmentPanel({
                 )}
               </section>
 
-              <section
-                className={`pp-print-panel${printStage ? ' pp-print-panel--active' : awbRetryAllowed ? ' pp-print-panel--retry' : ''}`}
-              >
+              <section className={`pp-print-panel${printStage ? ' pp-print-panel--active' : ''}`}>
                 <h4>Print queue</h4>
                 {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
                   <p className="pp-print-warn">{detail.shiprocketErrorDisplay ?? order.shiprocket_error}</p>
                 ) : null}
                 <div className="pp-print-actions">
-                  {canWrite ? (
-                    <Btn
-                      size="sm"
-                      variant={canGenerateAwb ? 'primary' : 'secondary'}
-                      disabled={busy || !canGenerateAwb}
-                      onClick={() => void runAction('/generate-awb', 'AWB generated')}
-                    >
-                      {awbRetryAllowed && !printStage
-                        ? awbPendingShipment
-                          ? 'Assign AWB'
-                          : 'Retry AWB'
-                        : 'Generate AWB'}
-                    </Btn>
-                  ) : null}
                   {order.label_url ? (
-                    <a className="btn btn-secondary btn-sm" href={order.label_url} target="_blank" rel="noreferrer">
-                      Shiprocket PDF
+                    <a
+                      className={`pp-print-action-btn pp-print-action-btn--label${printStage ? '' : ' pp-print-action-btn--disabled'}`}
+                      href={printStage ? order.label_url : undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => {
+                        if (!printStage) e.preventDefault();
+                      }}
+                    >
+                      Shipping Label
                     </a>
-                  ) : null}
+                  ) : (
+                    <Link
+                      className={`pp-print-action-btn pp-print-action-btn--label${printStage ? '' : ' pp-print-action-btn--disabled'}`}
+                      to={printStage ? printUrl('courier_label', order.id) : '#'}
+                      target="_blank"
+                      onClick={(e) => {
+                        if (!printStage) e.preventDefault();
+                      }}
+                    >
+                      Shipping Label
+                    </Link>
+                  )}
                   <Link
-                    className={`btn btn-secondary btn-sm${printStage ? '' : ' btn--disabled'}`}
-                    to={printStage ? printUrl('courier_label', order.id) : '#'}
-                    target="_blank"
-                    onClick={(e) => { if (!printStage) e.preventDefault(); }}
-                  >
-                    Print label
-                  </Link>
-                  <Link
-                    className={`btn btn-secondary btn-sm${printStage && detail.invoice ? '' : ' btn--disabled'}`}
+                    className={`pp-print-action-btn pp-print-action-btn--invoice${printStage && detail.invoice ? '' : ' pp-print-action-btn--disabled'}`}
                     to={printStage && detail.invoice ? printUrl('tax_invoice', detail.invoice.id) : '#'}
                     target="_blank"
-                    onClick={(e) => { if (!printStage || !detail.invoice) e.preventDefault(); }}
+                    onClick={(e) => {
+                      if (!printStage || !detail.invoice) e.preventDefault();
+                    }}
                   >
-                    Print invoice
+                    Invoice
                   </Link>
                   {canWrite ? (
-                    <>
-                      {!usesBatchLabels ? (
-                        <Btn
-                          size="sm"
-                          disabled={busy || !printStage}
-                          onClick={() => void runAction('/mark-label-printed', 'Label printed')}
-                        >
-                          Label printed
-                        </Btn>
-                      ) : null}
-                      <Btn
-                        size="sm"
-                        variant="primary"
-                        disabled={busy || !printStage || awaitingLabel}
-                        onClick={() =>
-                          void runAction(
-                            '/mark-packed',
-                            usesBatchLabels
-                              ? 'Packed — scan label from tray to verify'
-                              : 'Order packed'
-                          )
-                        }
-                      >
-                        Mark packed
-                      </Btn>
-                    </>
+                    <button
+                      type="button"
+                      className={`pp-print-action-btn pp-print-action-btn--packed${printStage && !awaitingLabel ? '' : ' pp-print-action-btn--disabled'}`}
+                      disabled={busy || !printStage || awaitingLabel}
+                      onClick={() =>
+                        void runAction(
+                          '/mark-packed',
+                          usesBatchLabels
+                            ? 'Packed — scan label from tray to verify'
+                            : 'Order marked as packed'
+                        )
+                      }
+                    >
+                      Mark as Packed
+                    </button>
                   ) : null}
                 </div>
               </section>
