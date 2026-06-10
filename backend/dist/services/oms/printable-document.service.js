@@ -113,7 +113,7 @@ export const printableDocumentService = {
     async buildTaxInvoice(invoiceId) {
         const { data, error } = await supabase
             .from('invoices')
-            .select('*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, billing_address, created_at, total_amount)')
+            .select('*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, created_at, total_amount)')
             .eq('id', invoiceId)
             .single();
         throwIfSupabaseError(error, 'Invoice document');
@@ -195,8 +195,8 @@ export const printableDocumentService = {
             prev.igst += line.igst;
             hsnMap.set(key, prev);
         }
-        const shipAddr = (order?.shipping_address ?? order?.billing_address);
-        const billAddr = (order?.billing_address ?? order?.shipping_address);
+        const shipAddr = order?.shipping_address;
+        const billAddr = shipAddr;
         const issued = data.issued_at ? new Date(String(data.issued_at)) : new Date();
         const paymentMethod = order?.payment_method ?? (order?.is_cod ? 'Cash on Delivery' : 'Prepaid');
         const codCollect = order?.is_cod ? Number(order.total_amount ?? data.total) : 0;

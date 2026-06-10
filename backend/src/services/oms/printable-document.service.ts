@@ -131,7 +131,7 @@ export const printableDocumentService = {
     const { data, error } = await supabase
       .from('invoices')
       .select(
-        '*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, billing_address, created_at, total_amount)'
+        '*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, created_at, total_amount)'
       )
       .eq('id', invoiceId)
       .single();
@@ -228,8 +228,8 @@ export const printableDocumentService = {
       hsnMap.set(key, prev);
     }
 
-    const shipAddr = (order?.shipping_address ?? order?.billing_address) as Record<string, unknown> | null;
-    const billAddr = (order?.billing_address ?? order?.shipping_address) as Record<string, unknown> | null;
+    const shipAddr = order?.shipping_address as Record<string, unknown> | null;
+    const billAddr = shipAddr;
     const issued = data.issued_at ? new Date(String(data.issued_at)) : new Date();
     const paymentMethod =
       order?.payment_method ?? (order?.is_cod ? 'Cash on Delivery' : 'Prepaid');
