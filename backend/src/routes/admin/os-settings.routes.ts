@@ -34,6 +34,11 @@ export async function osSettingsRoutes(app: FastifyInstance): Promise<void> {
         whatsappNumber: z.string().max(20).optional(),
         termsAndConditions: z.string().max(100_000).optional(),
         quotationLogoUrl: z.string().max(800_000).nullable().optional(),
+        bankAccountName: z.string().max(200).optional(),
+        bankAccountNumber: z.string().max(40).optional(),
+        bankName: z.string().max(120).optional(),
+        bankBranch: z.string().max(120).optional(),
+        bankIfsc: z.string().max(20).optional(),
       })
       .parse(request.body);
     const company = await companySettingsService.update(body, actor.id);

@@ -1,10 +1,10 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
-import { env } from '../../config/env.js';
 import { amountInIndianWords } from '../../lib/indian-currency-words.js';
-import { computeInclusiveGstBreakup } from '../../lib/gst.js';
+import { computeInclusiveGstBreakup, finalizeInclusiveInvoiceTotals, halfGstRate, } from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
+import { invoiceService } from './invoice.service.js';
 import { returnWorkflowService } from './return-workflow.service.js';
 function formatAddress(addr) {
     if (!addr)
@@ -111,7 +111,8 @@ export const printableDocumentService = {
         };
     },
     async buildTaxInvoice(invoiceId) {
-        const { data, error } = await supabase
+        const companyLive = await companySettingsService.get();
+        let { data, error } = await supabase
             .from('invoices')
             .select('*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, created_at, total_amount)')
             .eq('id', invoiceId)
@@ -119,12 +120,25 @@ export const printableDocumentService = {
         throwIfSupabaseError(error, 'Invoice document');
         if (!data)
             throw new NotFoundError('Invoice not found');
+        const initialMeta = data.metadata ?? {};
+        if (data.document_type === 'tax_invoice' && initialMeta.pricingMode !== 'tax_inclusive') {
+            await invoiceService.backfillInclusiveTaxInvoice(invoiceId);
+            const refetch = await supabase
+                .from('invoices')
+                .select('*, invoice_lines(*), commerce_orders(order_name, shopify_order_id, order_source, payment_method, is_cod, phone, shipping_address, created_at, total_amount)')
+                .eq('id', invoiceId)
+                .single();
+            throwIfSupabaseError(refetch.error, 'Invoice document refetch');
+            if (!refetch.data)
+                throw new NotFoundError('Invoice not found');
+            data = refetch.data;
+        }
         const order = data.commerce_orders;
         const meta = data.metadata ?? {};
         const companySnap = meta.company ?? {};
         const sameState = String(data.company_state ?? '').trim().toLowerCase() ===
             String(data.customer_state ?? '').trim().toLowerCase();
-        const pricingMode = meta.pricingMode === 'tax_inclusive' ? 'tax_inclusive' : 'tax_exclusive';
+        const pricingMode = meta.pricingMode === 'tax_exclusive' ? 'tax_exclusive' : 'tax_inclusive';
         let skuByTitle = new Map();
         if (data.commerce_order_id) {
             const { data: orderLines } = await supabase
@@ -165,6 +179,7 @@ export const printableDocumentService = {
                 lineTotal: lineInclusive,
                 taxableAmount,
                 gstPercent,
+                halfGstPercent: halfGstRate(gstPercent),
                 cgst,
                 sgst,
                 igst,
@@ -172,12 +187,51 @@ export const printableDocumentService = {
                 batchCode: l.batch_code,
             };
         });
-        const subtotalTaxable = lines.reduce((s, l) => s + l.taxableAmount, 0);
-        const subtotalInclusive = lines.reduce((s, l) => s + l.lineTotal, 0);
-        const cgst = lines.reduce((s, l) => s + l.cgst, 0);
-        const sgst = lines.reduce((s, l) => s + l.sgst, 0);
-        const igst = lines.reduce((s, l) => s + l.igst, 0);
-        const total = pricingMode === 'tax_inclusive' ? subtotalInclusive : Number(data.total) || 0;
+        const slabMap = new Map();
+        for (const line of lines) {
+            const prev = slabMap.get(line.gstPercent) ?? { cgst: 0, sgst: 0, igst: 0 };
+            prev.cgst += line.cgst;
+            prev.sgst += line.sgst;
+            prev.igst += line.igst;
+            slabMap.set(line.gstPercent, prev);
+        }
+        const gstSlabSummary = [...slabMap.entries()]
+            .sort((a, b) => b[0] - a[0])
+            .map(([gstPercent, taxes]) => {
+            const cgstAmt = Math.round(taxes.cgst * 100) / 100;
+            const sgstAmt = Math.round(taxes.sgst * 100) / 100;
+            const igstAmt = Math.round(taxes.igst * 100) / 100;
+            return {
+                gstPercent,
+                halfPercent: halfGstRate(gstPercent),
+                cgst: cgstAmt,
+                sgst: sgstAmt,
+                igst: igstAmt,
+                totalTax: Math.round((cgstAmt + sgstAmt + igstAmt) * 100) / 100,
+            };
+        });
+        let subtotalTaxable = lines.reduce((s, l) => s + l.taxableAmount, 0);
+        let subtotalInclusive = lines.reduce((s, l) => s + l.lineTotal, 0);
+        let cgst = lines.reduce((s, l) => s + l.cgst, 0);
+        let sgst = lines.reduce((s, l) => s + l.sgst, 0);
+        let igst = lines.reduce((s, l) => s + l.igst, 0);
+        let total = pricingMode === 'tax_inclusive' ? subtotalInclusive : Number(data.total) || 0;
+        if (pricingMode === 'tax_inclusive') {
+            const finalized = finalizeInclusiveInvoiceTotals({
+                subtotalTaxable,
+                subtotalInclusive,
+                cgst,
+                sgst,
+                igst,
+                sameState,
+            });
+            subtotalTaxable = finalized.subtotalTaxable;
+            subtotalInclusive = finalized.subtotalInclusive;
+            cgst = finalized.cgst;
+            sgst = finalized.sgst;
+            igst = finalized.igst;
+            total = finalized.total;
+        }
         const hsnMap = new Map();
         for (const line of lines) {
             const key = `${line.hsnCode ?? '—'}|${line.gstPercent}`;
@@ -235,14 +289,18 @@ export const printableDocumentService = {
             billTo: formatAddress(billAddr),
             shipTo: formatAddress(shipAddr),
             bankDetails: {
-                accountNumber: env.COMPANY_BANK_ACCOUNT ?? '',
-                ifsc: env.COMPANY_BANK_IFSC ?? '',
-                branch: env.COMPANY_BANK_BRANCH ?? '',
+                accountName: String(companySnap.bankAccountName ?? companyLive.bankAccountName ?? '') || null,
+                accountNumber: String(companySnap.bankAccountNumber ?? companyLive.bankAccountNumber ?? '') || null,
+                bankName: String(companySnap.bankName ?? companyLive.bankName ?? '') || null,
+                branch: String(companySnap.bankBranch ?? companyLive.bankBranch ?? '') || null,
+                ifsc: String(companySnap.bankIfsc ?? companyLive.bankIfsc ?? '') || null,
             },
             lines,
+            gstSlabSummary,
             hsnSummary: [...hsnMap.values()].map((row) => ({
                 hsn: row.hsn,
                 gstPercent: row.gstPercent,
+                halfPercent: halfGstRate(row.gstPercent),
                 taxableAmount: Math.round(row.taxable * 100) / 100,
                 cgst: Math.round(row.cgst * 100) / 100,
                 sgst: Math.round(row.sgst * 100) / 100,

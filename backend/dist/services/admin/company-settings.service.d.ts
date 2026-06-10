@@ -12,6 +12,11 @@ export type CompanySettings = {
     whatsappNumber: string;
     termsAndConditions: string;
     quotationLogoUrl: string;
+    bankAccountName: string;
+    bankAccountNumber: string;
+    bankName: string;
+    bankBranch: string;
+    bankIfsc: string;
     formattedAddress: string;
     updatedAt: string | null;
 };
@@ -31,6 +36,11 @@ export declare const companySettingsService: {
         whatsappNumber: string;
         termsAndConditions: string;
         quotationLogoUrl: string | null;
+        bankAccountName: string;
+        bankAccountNumber: string;
+        bankName: string;
+        bankBranch: string;
+        bankIfsc: string;
     }>, adminId?: string): Promise<CompanySettings>;
     /** Snapshot stored on invoices and exposed to storefront */
     snapshot(): Promise<CompanySettings & {

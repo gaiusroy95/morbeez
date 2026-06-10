@@ -75,3 +75,44 @@ export function computeGstBreakup(params: {
 export function normalizeIndianState(state: string | null | undefined): string {
   return (state ?? '').trim();
 }
+
+/** CGST/SGST rate is half of the GST slab (18% slab → 9% each). */
+export function halfGstRate(gstPercent: number): number {
+  return Math.round(gstPercent * 50) / 100;
+}
+
+/** Round invoice-level totals and reconcile GST split to match inclusive − taxable. */
+export function finalizeInclusiveInvoiceTotals(params: {
+  subtotalTaxable: number;
+  subtotalInclusive: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  sameState: boolean;
+}): {
+  subtotalTaxable: number;
+  subtotalInclusive: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  total: number;
+} {
+  const subtotalInclusive = Math.round(params.subtotalInclusive * 100) / 100;
+  const subtotalTaxable = Math.round(params.subtotalTaxable * 100) / 100;
+  const totalGst = Math.round((subtotalInclusive - subtotalTaxable) * 100) / 100;
+
+  if (params.sameState) {
+    const cgst = Math.round((totalGst / 2) * 100) / 100;
+    const sgst = Math.round((totalGst - cgst) * 100) / 100;
+    return { subtotalTaxable, subtotalInclusive, cgst, sgst, igst: 0, total: subtotalInclusive };
+  }
+
+  return {
+    subtotalTaxable,
+    subtotalInclusive,
+    cgst: 0,
+    sgst: 0,
+    igst: totalGst,
+    total: subtotalInclusive,
+  };
+}

@@ -2,7 +2,12 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
-import { computeGstBreakup, computeInclusiveGstBreakup, normalizeIndianState } from '../../lib/gst.js';
+import {
+  computeGstBreakup,
+  computeInclusiveGstBreakup,
+  finalizeInclusiveInvoiceTotals,
+  normalizeIndianState,
+} from '../../lib/gst.js';
 import { companySettingsService } from '../admin/company-settings.service.js';
 
 function invoiceNumber(prefix: string): string {
@@ -185,7 +190,20 @@ export const invoiceService = {
       });
     }
 
-    const total = Math.round(totalInclusive * 100) / 100;
+    const sameState = companyState === customerState && companyState.length > 0;
+    const finalized = finalizeInclusiveInvoiceTotals({
+      subtotalTaxable: subtotal,
+      subtotalInclusive: totalInclusive,
+      cgst,
+      sgst,
+      igst,
+      sameState,
+    });
+    subtotal = finalized.subtotalTaxable;
+    cgst = finalized.cgst;
+    sgst = finalized.sgst;
+    igst = finalized.igst;
+    const total = finalized.total;
     const paymentMethod = order.is_cod ? 'COD' : order.payment_method ?? 'Prepaid';
 
     const { data: inv, error } = await supabase
@@ -233,6 +251,119 @@ export const invoiceService = {
         igst,
       },
     };
+  },
+
+  async backfillInclusiveTaxInvoice(invoiceId: string) {
+    const { data: inv, error: invErr } = await supabase
+      .from('invoices')
+      .select('*, invoice_lines(*)')
+      .eq('id', invoiceId)
+      .single();
+    throwIfSupabaseError(invErr, 'Invoice backfill');
+    if (!inv) throw new NotFoundError('Invoice not found');
+    if (inv.document_type !== 'tax_invoice' || !inv.commerce_order_id) return inv;
+
+    const meta = (inv.metadata as Record<string, unknown> | null) ?? {};
+    if (meta.pricingMode === 'tax_inclusive') return inv;
+
+    const { data: order, error: orderErr } = await supabase
+      .from('commerce_orders')
+      .select('*')
+      .eq('id', inv.commerce_order_id)
+      .single();
+    throwIfSupabaseError(orderErr, 'Order for invoice backfill');
+    if (!order) throw new NotFoundError('Order not found');
+
+    const { data: lines, error: lineErr } = await supabase
+      .from('commerce_order_lines')
+      .select('*')
+      .eq('commerce_order_id', inv.commerce_order_id);
+    throwIfSupabaseError(lineErr, 'Invoice backfill lines');
+
+    const { data: pickLines } = await supabase
+      .from('pick_list_lines')
+      .select('order_line_id, batch_code')
+      .in(
+        'order_line_id',
+        (lines ?? []).map((l) => l.id)
+      );
+    const batchByLine = new Map(
+      (pickLines ?? []).map((pl) => [String(pl.order_line_id), pl.batch_code])
+    );
+
+    const companyState = normalizeIndianState(inv.company_state);
+    const customerState = normalizeIndianState(inv.customer_state);
+    const sameState = companyState === customerState && companyState.length > 0;
+
+    let subtotal = 0;
+    let cgst = 0;
+    let sgst = 0;
+    let igst = 0;
+    let totalInclusive = 0;
+    const lineRows: Array<Record<string, unknown>> = [];
+
+    for (const line of lines ?? []) {
+      const qty = Number(line.qty_ordered) - Number(line.qty_cancelled);
+      if (qty <= 0) continue;
+      const unitPriceInclusive = Number(line.unit_price) || 0;
+      const lineInclusive = Math.round(qty * unitPriceInclusive * 100) / 100;
+      const gstPct = Number(line.gst_percent) || 18;
+      const breakup = computeInclusiveGstBreakup({
+        inclusiveAmount: lineInclusive,
+        gstPercent: gstPct,
+        companyState,
+        customerState,
+      });
+      subtotal += breakup.taxableAmount;
+      cgst += breakup.cgst;
+      sgst += breakup.sgst;
+      igst += breakup.igst;
+      totalInclusive += lineInclusive;
+
+      lineRows.push({
+        description: line.product_title,
+        hsn_code: line.hsn_code,
+        qty,
+        unit_price: unitPriceInclusive,
+        taxable_amount: breakup.taxableAmount,
+        gst_percent: gstPct,
+        cgst: breakup.cgst,
+        sgst: breakup.sgst,
+        igst: breakup.igst,
+        batch_code: batchByLine.get(String(line.id)) ?? null,
+      });
+    }
+
+    const finalized = finalizeInclusiveInvoiceTotals({
+      subtotalTaxable: subtotal,
+      subtotalInclusive: totalInclusive,
+      cgst,
+      sgst,
+      igst,
+      sameState,
+    });
+
+    const { error: updateErr } = await supabase
+      .from('invoices')
+      .update({
+        subtotal: finalized.subtotalTaxable,
+        cgst: finalized.cgst,
+        sgst: finalized.sgst,
+        igst: finalized.igst,
+        total: finalized.total,
+        metadata: { ...meta, pricingMode: 'tax_inclusive' },
+      })
+      .eq('id', invoiceId);
+    throwIfSupabaseError(updateErr, 'Invoice backfill update');
+
+    await supabase.from('invoice_lines').delete().eq('invoice_id', invoiceId);
+    if (lineRows.length) {
+      await supabase.from('invoice_lines').insert(
+        lineRows.map((r) => ({ ...r, invoice_id: invoiceId }))
+      );
+    }
+
+    return this.getInvoice(invoiceId);
   },
 
   async getInvoice(invoiceId: string) {

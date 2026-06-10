@@ -19,6 +19,11 @@ export type CompanySettings = {
   whatsappNumber: string;
   termsAndConditions: string;
   quotationLogoUrl: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankName: string;
+  bankBranch: string;
+  bankIfsc: string;
   formattedAddress: string;
   updatedAt: string | null;
 };
@@ -37,6 +42,11 @@ const EMPTY: CompanySettings = {
   whatsappNumber: '',
   termsAndConditions: '',
   quotationLogoUrl: '',
+  bankAccountName: '',
+  bankAccountNumber: '',
+  bankName: '',
+  bankBranch: '',
+  bankIfsc: '',
   formattedAddress: '',
   updatedAt: null,
 };
@@ -83,6 +93,11 @@ export function CompanySettingsPanel({ canWrite }: { canWrite?: boolean }) {
             whatsappNumber: form.whatsappNumber,
             termsAndConditions: form.termsAndConditions,
             quotationLogoUrl: form.quotationLogoUrl || null,
+            bankAccountName: form.bankAccountName,
+            bankAccountNumber: form.bankAccountNumber,
+            bankName: form.bankName,
+            bankBranch: form.bankBranch,
+            bankIfsc: form.bankIfsc,
           }),
         }
       );
@@ -209,6 +224,62 @@ export function CompanySettingsPanel({ canWrite }: { canWrite?: boolean }) {
               placeholder="91XXXXXXXXXX"
             />
           </Field>
+        </div>
+
+        <div className="settings-section-gap">
+          <h3 className="text-base font-semibold text-slate-800">Bank account details</h3>
+          <p className="muted" style={{ marginBottom: 12 }}>
+            Shown on tax invoices under &ldquo;Company&apos;s Bank Details&rdquo;.
+          </p>
+          <div className="space-y-3">
+            <Field label="Name (account holder)">
+              <input
+                className={inputClass}
+                value={form.bankAccountName}
+                onChange={(e) => set('bankAccountName', e.target.value)}
+                disabled={!canWrite}
+                placeholder="Account holder name"
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Account number">
+                <input
+                  className={inputClass}
+                  value={form.bankAccountNumber}
+                  onChange={(e) => set('bankAccountNumber', e.target.value)}
+                  disabled={!canWrite}
+                  inputMode="numeric"
+                />
+              </Field>
+              <Field label="IFSC code">
+                <input
+                  className={inputClass}
+                  value={form.bankIfsc}
+                  onChange={(e) => set('bankIfsc', e.target.value.toUpperCase())}
+                  disabled={!canWrite}
+                  placeholder="SBIN0001234"
+                />
+              </Field>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Bank name">
+                <input
+                  className={inputClass}
+                  value={form.bankName}
+                  onChange={(e) => set('bankName', e.target.value)}
+                  disabled={!canWrite}
+                />
+              </Field>
+              <Field label="Branch">
+                <input
+                  className={inputClass}
+                  value={form.bankBranch}
+                  onChange={(e) => set('bankBranch', e.target.value)}
+                  disabled={!canWrite}
+                />
+              </Field>
+            </div>
+          </div>
         </div>
 
         <div className="settings-section-gap">

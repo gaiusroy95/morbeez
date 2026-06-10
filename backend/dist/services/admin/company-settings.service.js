@@ -17,6 +17,11 @@ function mapRow(row) {
     const whatsappNumber = String(row?.whatsapp_number ?? '').trim();
     const termsAndConditions = String(row?.terms_and_conditions ?? '').trim();
     const quotationLogoUrl = String(row?.quotation_logo_url ?? '').trim();
+    const bankAccountName = String(row?.bank_account_name ?? '').trim();
+    const bankAccountNumber = String(row?.bank_account_number ?? '').trim();
+    const bankName = String(row?.bank_name ?? '').trim();
+    const bankBranch = String(row?.bank_branch ?? '').trim();
+    const bankIfsc = String(row?.bank_ifsc ?? '').trim();
     const locality = [district, state, country].filter(Boolean).join(', ');
     const formattedAddress = [addressLine, locality, pincode ? `PIN ${pincode}` : '']
         .filter(Boolean)
@@ -35,6 +40,11 @@ function mapRow(row) {
         whatsappNumber,
         termsAndConditions,
         quotationLogoUrl,
+        bankAccountName,
+        bankAccountNumber,
+        bankName,
+        bankBranch,
+        bankIfsc,
         formattedAddress,
         updatedAt: row?.updated_at ? String(row.updated_at) : null,
     };
@@ -82,6 +92,17 @@ export const companySettingsService = {
         if (input.quotationLogoUrl !== undefined) {
             patch.quotation_logo_url = input.quotationLogoUrl?.trim() || null;
         }
+        if (input.bankAccountName !== undefined)
+            patch.bank_account_name = input.bankAccountName.trim();
+        if (input.bankAccountNumber !== undefined) {
+            patch.bank_account_number = input.bankAccountNumber.trim();
+        }
+        if (input.bankName !== undefined)
+            patch.bank_name = input.bankName.trim();
+        if (input.bankBranch !== undefined)
+            patch.bank_branch = input.bankBranch.trim();
+        if (input.bankIfsc !== undefined)
+            patch.bank_ifsc = input.bankIfsc.trim();
         const { data, error } = await supabase
             .from('company_settings')
             .upsert({ id: ROW_ID, ...patch }, { onConflict: 'id' })
@@ -109,6 +130,11 @@ export const companySettingsService = {
                 whatsappNumber: s.whatsappNumber,
                 termsAndConditions: s.termsAndConditions,
                 quotationLogoUrl: s.quotationLogoUrl,
+                bankAccountName: s.bankAccountName,
+                bankAccountNumber: s.bankAccountNumber,
+                bankName: s.bankName,
+                bankBranch: s.bankBranch,
+                bankIfsc: s.bankIfsc,
                 formattedAddress: s.formattedAddress,
             },
         };

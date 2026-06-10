@@ -181,6 +181,42 @@ function formatQty(n: unknown) {
   return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function formatGstRate(n: unknown) {
+  const v = Number(n) || 0;
+  return Number.isInteger(v) ? String(v) : v.toFixed(1).replace(/\.0$/, '');
+}
+
+type GstSlabRow = {
+  gstPercent: number;
+  halfPercent: number;
+  cgst: number;
+  sgst: number;
+  igst: number;
+  totalTax: number;
+};
+
+function buildGstSlabSummary(lines: Array<Record<string, unknown>>): GstSlabRow[] {
+  const slabMap = new Map<number, { cgst: number; sgst: number; igst: number }>();
+  for (const l of lines) {
+    const pct = Number(l.gstPercent) || 0;
+    const prev = slabMap.get(pct) ?? { cgst: 0, sgst: 0, igst: 0 };
+    prev.cgst += Number(l.cgst) || 0;
+    prev.sgst += Number(l.sgst) || 0;
+    prev.igst += Number(l.igst) || 0;
+    slabMap.set(pct, prev);
+  }
+  return [...slabMap.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([gstPercent, taxes]) => ({
+      gstPercent,
+      halfPercent: Math.round(gstPercent * 50) / 100,
+      cgst: taxes.cgst,
+      sgst: taxes.sgst,
+      igst: taxes.igst,
+      totalTax: taxes.cgst + taxes.sgst + taxes.igst,
+    }));
+}
+
 function TaxInvoiceBody({
   doc,
   company,
@@ -197,15 +233,12 @@ function TaxInvoiceBody({
   const shipTo = (doc.shipTo as string[]) ?? [];
   const hsnSummary = (doc.hsnSummary as Array<Record<string, unknown>>) ?? [];
   const bank = doc.bankDetails as Record<string, string> | undefined;
+  const gstSlabSummary =
+    (doc.gstSlabSummary as GstSlabRow[] | undefined)?.length
+      ? (doc.gstSlabSummary as GstSlabRow[])
+      : buildGstSlabSummary(lines);
 
   const invoiceLogo = company.quotationLogoUrl?.trim() || '/logo.png';
-
-  const gstSlabs = new Map<number, number>();
-  for (const l of lines) {
-    const pct = Number(l.gstPercent) || 0;
-    const amt = Number(l.gstAmount) || Number(l.igst) || Number(l.cgst) + Number(l.sgst);
-    gstSlabs.set(pct, (gstSlabs.get(pct) ?? 0) + amt);
-  }
 
   return (
     <div className="inv-doc">
@@ -341,14 +374,18 @@ function TaxInvoiceBody({
               <td className="inv-num">{formatInr(l.unitPrice)}</td>
               {sameState ? (
                 <>
-                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">
+                    {formatGstRate(l.halfGstPercent ?? Number(l.gstPercent) / 2)}%
+                  </td>
                   <td className="inv-num">{formatInr(l.cgst)}</td>
-                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">
+                    {formatGstRate(l.halfGstPercent ?? Number(l.gstPercent) / 2)}%
+                  </td>
                   <td className="inv-num">{formatInr(l.sgst)}</td>
                 </>
               ) : (
                 <>
-                  <td className="inv-num">{String(l.gstPercent)}%</td>
+                  <td className="inv-num">{formatGstRate(l.gstPercent)}%</td>
                   <td className="inv-num">{formatInr(l.igst)}</td>
                 </>
               )}
@@ -398,14 +435,20 @@ function TaxInvoiceBody({
               <strong>Total In Words</strong>
             </p>
             <p className="inv-words">{String(doc.totalInWords ?? '')}</p>
-            {bank?.accountNumber || bank?.ifsc ? (
+            {bank?.accountName ||
+            bank?.accountNumber ||
+            bank?.bankName ||
+            bank?.branch ||
+            bank?.ifsc ? (
               <div className="inv-bank">
                 <p>
                   <strong>Company&apos;s Bank Details</strong>
                 </p>
-                {bank.accountNumber ? <p>A/C No: {bank.accountNumber}</p> : null}
-                {bank.ifsc ? <p>IFSC Code: {bank.ifsc}</p> : null}
-                {bank.branch ? <p>A/C Branch: {bank.branch}</p> : null}
+                {bank.accountName ? <p>Name: {bank.accountName}</p> : null}
+                {bank.accountNumber ? <p>Account Number: {bank.accountNumber}</p> : null}
+                {bank.bankName ? <p>Bank Name: {bank.bankName}</p> : null}
+                {bank.branch ? <p>Branch: {bank.branch}</p> : null}
+                {bank.ifsc ? <p>IFSC code: {bank.ifsc}</p> : null}
               </div>
             ) : null}
             {company.termsAndConditions ? (
@@ -432,31 +475,23 @@ function TaxInvoiceBody({
                   <th>Total Taxable Amount</th>
                   <td>{formatInr(doc.subtotal)}</td>
                 </tr>
-                {[...gstSlabs.entries()].map(([pct, amt]) => (
-                  <tr key={pct}>
-                    <th>
-                      {sameState ? `CGST+SGST (${pct}%)` : `IGST${pct} (${pct}%)`}
-                    </th>
-                    <td>{formatInr(amt)}</td>
-                  </tr>
-                ))}
-                {sameState && Number(doc.cgst) > 0 ? (
-                  <>
-                    <tr>
-                      <th>CGST</th>
-                      <td>{formatInr(doc.cgst)}</td>
-                    </tr>
-                    <tr>
-                      <th>SGST</th>
-                      <td>{formatInr(doc.sgst)}</td>
-                    </tr>
-                  </>
-                ) : Number(doc.igst) > 0 ? (
-                  <tr>
-                    <th>IGST</th>
-                    <td>{formatInr(doc.igst)}</td>
-                  </tr>
-                ) : null}
+                {sameState
+                  ? gstSlabSummary.flatMap((slab) => [
+                      <tr key={`cgst-${slab.gstPercent}`}>
+                        <th>CGST {formatGstRate(slab.halfPercent)}%</th>
+                        <td>{formatInr(slab.cgst)}</td>
+                      </tr>,
+                      <tr key={`sgst-${slab.gstPercent}`}>
+                        <th>SGST {formatGstRate(slab.halfPercent)}%</th>
+                        <td>{formatInr(slab.sgst)}</td>
+                      </tr>,
+                    ])
+                  : gstSlabSummary.map((slab) => (
+                      <tr key={slab.gstPercent}>
+                        <th>IGST {formatGstRate(slab.gstPercent)}%</th>
+                        <td>{formatInr(slab.igst)}</td>
+                      </tr>
+                    ))}
                 <tr className="inv-total-row">
                   <th>Total</th>
                   <td>
@@ -513,14 +548,14 @@ function TaxInvoiceBody({
                 <td className="inv-num">{formatInr(row.taxableAmount)}</td>
                 {sameState ? (
                   <>
-                    <td>{String(row.gstPercent)}%</td>
+                    <td>{formatGstRate(row.halfPercent ?? Number(row.gstPercent) / 2)}%</td>
                     <td className="inv-num">{formatInr(row.cgst)}</td>
-                    <td>{String(row.gstPercent)}%</td>
+                    <td>{formatGstRate(row.halfPercent ?? Number(row.gstPercent) / 2)}%</td>
                     <td className="inv-num">{formatInr(row.sgst)}</td>
                   </>
                 ) : (
                   <>
-                    <td>{String(row.gstPercent)}%</td>
+                    <td>{formatGstRate(row.gstPercent)}%</td>
                     <td className="inv-num">{formatInr(row.igst)}</td>
                   </>
                 )}

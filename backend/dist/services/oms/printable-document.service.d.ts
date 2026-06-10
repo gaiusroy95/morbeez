@@ -104,9 +104,11 @@ export declare const printableDocumentService: {
             billTo: string[];
             shipTo: string[];
             bankDetails: {
-                accountNumber: string;
-                ifsc: string;
-                branch: string;
+                accountName: string | null;
+                accountNumber: string | null;
+                bankName: string | null;
+                branch: string | null;
+                ifsc: string | null;
             };
             lines: {
                 description: unknown;
@@ -117,15 +119,25 @@ export declare const printableDocumentService: {
                 lineTotal: number;
                 taxableAmount: number;
                 gstPercent: number;
+                halfGstPercent: number;
                 cgst: number;
                 sgst: number;
                 igst: number;
                 gstAmount: number;
                 batchCode: unknown;
             }[];
+            gstSlabSummary: {
+                gstPercent: number;
+                halfPercent: number;
+                cgst: number;
+                sgst: number;
+                igst: number;
+                totalTax: number;
+            }[];
             hsnSummary: {
                 hsn: string;
                 gstPercent: number;
+                halfPercent: number;
                 taxableAmount: number;
                 cgst: number;
                 sgst: number;
@@ -266,9 +278,11 @@ export declare const printableDocumentService: {
         billTo: string[];
         shipTo: string[];
         bankDetails: {
-            accountNumber: string;
-            ifsc: string;
-            branch: string;
+            accountName: string | null;
+            accountNumber: string | null;
+            bankName: string | null;
+            branch: string | null;
+            ifsc: string | null;
         };
         lines: {
             description: unknown;
@@ -279,15 +293,25 @@ export declare const printableDocumentService: {
             lineTotal: number;
             taxableAmount: number;
             gstPercent: number;
+            halfGstPercent: number;
             cgst: number;
             sgst: number;
             igst: number;
             gstAmount: number;
             batchCode: unknown;
         }[];
+        gstSlabSummary: {
+            gstPercent: number;
+            halfPercent: number;
+            cgst: number;
+            sgst: number;
+            igst: number;
+            totalTax: number;
+        }[];
         hsnSummary: {
             hsn: string;
             gstPercent: number;
+            halfPercent: number;
             taxableAmount: number;
             cgst: number;
             sgst: number;

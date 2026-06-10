@@ -669,11 +669,17 @@ export const fulfillmentService = {
   async ensureInvoice(commerceOrderId: string) {
     const { data: existing } = await supabase
       .from('invoices')
-      .select('id')
+      .select('id, metadata')
       .eq('commerce_order_id', commerceOrderId)
       .eq('document_type', 'tax_invoice')
       .maybeSingle();
-    if (existing) return existing;
+    if (existing) {
+      const meta = (existing.metadata as Record<string, unknown> | null) ?? {};
+      if (meta.pricingMode !== 'tax_inclusive') {
+        return invoiceService.backfillInclusiveTaxInvoice(existing.id);
+      }
+      return existing;
+    }
     return invoiceService.generateTaxInvoice(commerceOrderId);
   },
 };
