@@ -6,6 +6,47 @@ import { shopifyAdmin } from '../shopify/shopify.client.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
 import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { warehouseService } from './warehouse.service.js';
+const INVENTORY_PACKAGING_SELECT = 'id, sku, product_title, item_weight_kg, packaging_category_id, preferred_box_id, is_fragile, is_liquid, stackable';
+async function loadPackagingLookups(categoryIds, boxIds) {
+    const categories = new Map();
+    const boxes = new Map();
+    if (categoryIds.length) {
+        const { data } = await supabase
+            .from('packaging_categories')
+            .select('id, name')
+            .in('id', categoryIds);
+        for (const row of data ?? []) {
+            categories.set(String(row.id), String(row.name));
+        }
+    }
+    if (boxIds.length) {
+        const { data } = await supabase.from('shipping_boxes').select('id, code, name').in('id', boxIds);
+        for (const row of data ?? []) {
+            boxes.set(String(row.id), { code: String(row.code), name: String(row.name) });
+        }
+    }
+    return { categories, boxes };
+}
+function mapPackagingProfile(row, lookup) {
+    if (!row)
+        return null;
+    const categoryId = row.packaging_category_id ? String(row.packaging_category_id) : null;
+    const boxId = row.preferred_box_id ? String(row.preferred_box_id) : null;
+    const boxMeta = boxId ? lookup?.boxes.get(boxId) : undefined;
+    return {
+        itemWeightKg: row.item_weight_kg != null && Number(row.item_weight_kg) > 0
+            ? Number(row.item_weight_kg)
+            : null,
+        packagingCategoryId: categoryId,
+        packagingCategoryName: categoryId ? (lookup?.categories.get(categoryId) ?? null) : null,
+        preferredBoxId: boxId,
+        preferredBoxCode: boxMeta?.code ?? null,
+        preferredBoxName: boxMeta?.name ?? null,
+        isFragile: Boolean(row.is_fragile),
+        isLiquid: Boolean(row.is_liquid),
+        stackable: row.stackable !== false,
+    };
+}
 const COMMERCE_SYNC_THROTTLE_MS = 12_000;
 let lastCommerceWarehouseSyncAt = 0;
 function mapBatchRows(itemBatches) {
@@ -35,13 +76,6 @@ function mapBatchRows(itemBatches) {
         };
     });
     return { available, reserved, damaged, returned, batches };
-}
-function mapInventoryItemRow(row) {
-    return {
-        id: String(row.id),
-        sku: String(row.sku),
-        productTitle: String(row.product_title),
-    };
 }
 function isVarSku(sku) {
     return /^VAR-\d+$/i.test(sku.trim());
@@ -75,7 +109,7 @@ export const inventoryService = {
     async listInventoryItems(opts) {
         let q = supabase
             .from('inventory_items')
-            .select('id, sku, product_title')
+            .select(INVENTORY_PACKAGING_SELECT)
             .eq('active', true);
         if (opts?.search?.trim()) {
             const s = `%${opts.search.trim()}%`;
@@ -83,10 +117,27 @@ export const inventoryService = {
         }
         const { data, error } = await q.order('product_title');
         throwIfSupabaseError(error, 'List inventory items');
-        return (data ?? []).map((row) => mapInventoryItemRow(row));
+        const rows = (data ?? []);
+        const lookup = await loadPackagingLookups([...new Set(rows.map((r) => (r.packaging_category_id ? String(r.packaging_category_id) : '')).filter(Boolean))], [...new Set(rows.map((r) => (r.preferred_box_id ? String(r.preferred_box_id) : '')).filter(Boolean))]);
+        return rows.map((row) => ({
+            id: String(row.id),
+            sku: String(row.sku),
+            productTitle: String(row.product_title),
+            packaging: mapPackagingProfile(row, lookup),
+        }));
     },
     async updateInventoryItem(id, input) {
-        if (input.sku === undefined && input.productTitle === undefined) {
+        const hasPatch = input.sku !== undefined ||
+            input.productTitle !== undefined ||
+            input.itemWeightKg !== undefined ||
+            input.packagingCategory !== undefined ||
+            input.packagingCategoryId !== undefined ||
+            input.preferredBoxCode !== undefined ||
+            input.preferredBoxId !== undefined ||
+            input.isFragile !== undefined ||
+            input.isLiquid !== undefined ||
+            input.stackable !== undefined;
+        if (!hasPatch) {
             throw new AppError('Nothing to update', 400, 'VALIDATION_ERROR');
         }
         const patch = { updated_at: new Date().toISOString() };
@@ -94,17 +145,59 @@ export const inventoryService = {
             patch.sku = input.sku.trim();
         if (input.productTitle !== undefined)
             patch.product_title = input.productTitle.trim();
+        if (input.itemWeightKg !== undefined)
+            patch.item_weight_kg = input.itemWeightKg;
+        if (input.packagingCategory !== undefined)
+            patch.packaging_category = input.packagingCategory;
+        if (input.packagingCategoryId !== undefined)
+            patch.packaging_category_id = input.packagingCategoryId;
+        if (input.preferredBoxCode !== undefined)
+            patch.preferred_box_code = input.preferredBoxCode;
+        if (input.preferredBoxId !== undefined)
+            patch.preferred_box_id = input.preferredBoxId;
+        if (input.isFragile !== undefined)
+            patch.is_fragile = input.isFragile;
+        if (input.isLiquid !== undefined)
+            patch.is_liquid = input.isLiquid;
+        if (input.stackable !== undefined)
+            patch.stackable = input.stackable;
         const { data, error } = await supabase
             .from('inventory_items')
             .update(patch)
             .eq('id', id)
             .eq('active', true)
-            .select('id, sku, product_title')
+            .select(INVENTORY_PACKAGING_SELECT)
             .maybeSingle();
         throwIfSupabaseError(error, 'Update inventory item');
         if (!data)
             throw new NotFoundError('Inventory item not found');
-        return mapInventoryItemRow(data);
+        const row = data;
+        const lookup = await loadPackagingLookups(row.packaging_category_id ? [String(row.packaging_category_id)] : [], row.preferred_box_id ? [String(row.preferred_box_id)] : []);
+        return {
+            id: String(row.id),
+            sku: String(row.sku),
+            productTitle: String(row.product_title),
+            packaging: mapPackagingProfile(row, lookup),
+        };
+    },
+    async getInventoryItem(id) {
+        const { data, error } = await supabase
+            .from('inventory_items')
+            .select(INVENTORY_PACKAGING_SELECT)
+            .eq('id', id)
+            .eq('active', true)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Get inventory item');
+        if (!data)
+            throw new NotFoundError('Inventory item not found');
+        const row = data;
+        const lookup = await loadPackagingLookups(row.packaging_category_id ? [String(row.packaging_category_id)] : [], row.preferred_box_id ? [String(row.preferred_box_id)] : []);
+        return {
+            id: String(row.id),
+            sku: String(row.sku),
+            productTitle: String(row.product_title),
+            packaging: mapPackagingProfile(row, lookup),
+        };
     },
     async deactivateInventoryItem(id) {
         const { data: item } = await supabase
@@ -588,12 +681,18 @@ export const inventoryService = {
             return [];
         const { data: itemRows, error: itemRowsErr } = await supabase
             .from('inventory_items')
-            .select('id, sku, product_title')
+            .select(INVENTORY_PACKAGING_SELECT)
             .in('id', itemIds);
         throwIfSupabaseError(itemRowsErr, 'Load linked inventory items');
-        const itemMetaById = new Map((itemRows ?? []).map((row) => [
-            String(row.id),
-            { sku: String(row.sku), productTitle: String(row.product_title) },
+        const itemRowRecords = (itemRows ?? []);
+        const packagingLookup = await loadPackagingLookups([...new Set(itemRowRecords.map((r) => (r.packaging_category_id ? String(r.packaging_category_id) : '')).filter(Boolean))], [...new Set(itemRowRecords.map((r) => (r.preferred_box_id ? String(r.preferred_box_id) : '')).filter(Boolean))]);
+        const itemMetaById = new Map(itemRowRecords.map((r) => [
+            String(r.id),
+            {
+                sku: String(r.sku),
+                productTitle: String(r.product_title),
+                packaging: mapPackagingProfile(r, packagingLookup),
+            },
         ]));
         const { data: batches, error: batchErr } = await supabase
             .from('inventory_batches')
@@ -649,6 +748,7 @@ export const inventoryService = {
                 inventoryItemId: itemId,
                 sku,
                 productTitle,
+                packaging: fallbackMeta?.packaging ?? null,
                 available: totals.available,
                 reserved: totals.reserved,
                 damaged: totals.damaged,
@@ -666,7 +766,7 @@ export const inventoryService = {
             : await warehouseService.getDefaultWarehouse();
         const { data: item, error: itemErr } = await supabase
             .from('inventory_items')
-            .select('*')
+            .select(INVENTORY_PACKAGING_SELECT)
             .eq('id', inventoryItemId)
             .eq('active', true)
             .maybeSingle();
@@ -692,10 +792,13 @@ export const inventoryService = {
             incoming += Math.max(0, ordered - received);
         }
         const totals = mapBatchRows((itemBatches ?? []));
+        const itemRow = item;
+        const detailLookup = await loadPackagingLookups(itemRow.packaging_category_id ? [String(itemRow.packaging_category_id)] : [], itemRow.preferred_box_id ? [String(itemRow.preferred_box_id)] : []);
         return {
             inventoryItemId: String(item.id),
             sku: String(item.sku),
             productTitle: String(item.product_title),
+            packaging: mapPackagingProfile(itemRow, detailLookup),
             available: totals.available,
             reserved: totals.reserved,
             damaged: totals.damaged,

@@ -1,7 +1,19 @@
+export type ProductPackagingProfile = {
+    itemWeightKg: number | null;
+    packagingCategoryId: string | null;
+    packagingCategoryName: string | null;
+    preferredBoxId: string | null;
+    preferredBoxCode: string | null;
+    preferredBoxName: string | null;
+    isFragile: boolean;
+    isLiquid: boolean;
+    stackable: boolean;
+};
 export type StockSummaryRow = {
     inventoryItemId: string;
     sku: string;
     productTitle: string;
+    packaging: ProductPackagingProfile | null;
     available: number;
     reserved: number;
     damaged: number;
@@ -22,6 +34,7 @@ export type InventoryItemRow = {
     id: string;
     sku: string;
     productTitle: string;
+    packaging?: ProductPackagingProfile | null;
 };
 type CatalogVariantRef = {
     id: string;
@@ -46,7 +59,16 @@ export declare const inventoryService: {
     updateInventoryItem(id: string, input: {
         sku?: string;
         productTitle?: string;
+        itemWeightKg?: number | null;
+        packagingCategory?: string | null;
+        packagingCategoryId?: string | null;
+        preferredBoxCode?: string | null;
+        preferredBoxId?: string | null;
+        isFragile?: boolean;
+        isLiquid?: boolean;
+        stackable?: boolean;
     }): Promise<InventoryItemRow>;
+    getInventoryItem(id: string): Promise<InventoryItemRow>;
     deactivateInventoryItem(id: string): Promise<void>;
     upsertItemFromSku(input: {
         sku: string;
@@ -102,6 +124,7 @@ export declare const inventoryService: {
         inventoryItemId: string;
         sku: string;
         productTitle: string;
+        packaging: ProductPackagingProfile | null;
         available: number;
         reserved: number;
         damaged: number;

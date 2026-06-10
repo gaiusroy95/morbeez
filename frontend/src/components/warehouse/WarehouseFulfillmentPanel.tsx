@@ -6,6 +6,7 @@ import { paths, toPath } from '../../lib/routes';
 import { Alert, Btn, EmptyState, Loading } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
+import { ManualCourierPicker } from './ManualCourierPicker';
 
 type QueueFilter = 'pending' | 'packed' | 'lr_pending' | 'completed';
 
@@ -163,7 +164,24 @@ type OrderDetail = {
   } | null;
   awbAssignAvailable?: boolean;
   shippingMethod?: 'shiprocket' | 'manual';
-  manualCourierOptions?: string[];
+  package?: {
+    status: string;
+    suggestedBoxCode: string;
+    suggestedBoxName: string;
+    lengthCm: number;
+    breadthCm: number;
+    heightCm: number;
+    estimatedWeightKg: number;
+    packageWeightKg: number;
+    billingWeightKg: number;
+    overridden: boolean;
+    confirmedAt: string | null;
+    courierPayload: { length: number; breadth: number; height: number; weight: number };
+    packagingCategoryName?: string | null;
+    matchedRuleId?: string | null;
+    boxSelectionSource?: string | null;
+    volumetricWeightKg?: number;
+  } | null;
 };
 
 const EXCEPTIONS = [
@@ -329,8 +347,14 @@ export function WarehouseFulfillmentPanel({
   const [showSyncBanner, setShowSyncBanner] = useState(true);
   const [labelScanCode, setLabelScanCode] = useState('');
   const [wrongLabel, setWrongLabel] = useState('');
+  const [manualCourierId, setManualCourierId] = useState('');
   const [manualCourier, setManualCourier] = useState('');
   const [manualTracking, setManualTracking] = useState('');
+  const [packageOverrideOpen, setPackageOverrideOpen] = useState(false);
+  const [overrideLength, setOverrideLength] = useState('');
+  const [overrideBreadth, setOverrideBreadth] = useState('');
+  const [overrideHeight, setOverrideHeight] = useState('');
+  const [overrideWeight, setOverrideWeight] = useState('');
   const [queueFilter, setQueueFilter] = useState<QueueFilter>('pending');
   const autoOpened = useRef(false);
 
@@ -391,7 +415,8 @@ export function WarehouseFulfillmentPanel({
         const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
         setDetail(d);
         const sm = d.shippingMethod ?? d.order.shipping_method ?? 'shiprocket';
-        setManualCourier(d.order.courier_name ?? d.manualCourierOptions?.[0] ?? '');
+        setManualCourierId('');
+        setManualCourier(d.order.courier_name ?? '');
         setManualTracking(d.order.tracking_awb ?? '');
 
         if (d.packSession?.id) {
@@ -532,6 +557,69 @@ export function WarehouseFulfillmentPanel({
     }
   }
 
+  async function confirmPackageEstimate() {
+    if (!selectedId || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${WMS_API}/fulfillment/orders/${selectedId}/package/confirm`, {
+        method: 'POST',
+        body: JSON.stringify({ autoAwb: true }),
+      });
+      setSuccess('Package confirmed — courier payload sent when Shiprocket is enabled');
+      setPackageOverrideOpen(false);
+      await loadDetail(selectedId);
+      await loadQueue();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not confirm package');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recalculatePackage() {
+    if (!selectedId || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${WMS_API}/fulfillment/orders/${selectedId}/package/estimate`, { method: 'POST' });
+      setSuccess('Package estimate recalculated');
+      await loadDetail(selectedId);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not recalculate package');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function savePackageOverride() {
+    if (!selectedId || !canWrite) return;
+    const lengthCm = Number(overrideLength);
+    const breadthCm = Number(overrideBreadth);
+    const heightCm = Number(overrideHeight);
+    const weightKg = Number(overrideWeight);
+    if (!lengthCm || !breadthCm || !heightCm || !weightKg) {
+      setError('Enter valid length, breadth, height, and weight');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${WMS_API}/fulfillment/orders/${selectedId}/package/override`, {
+        method: 'POST',
+        body: JSON.stringify({ lengthCm, breadthCm, heightCm, weightKg }),
+      });
+      setSuccess('Package dimensions overridden and saved');
+      setPackageOverrideOpen(false);
+      await loadDetail(selectedId);
+      await loadQueue();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not override package');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveManualLogistics() {
     if (!selectedId || !canWrite) return;
     setBusy(true);
@@ -645,16 +733,12 @@ export function WarehouseFulfillmentPanel({
   const showPrintActions = printStage || awbIssue || isManualShipping || awaitingTracking;
   const invoiceReady = Boolean(detail?.invoice);
   const awbAssignAvailable = detail?.awbAssignAvailable !== false && !isManualShipping;
+  const packageInfo = detail?.package;
+  const packageConfirmed =
+    packageInfo?.status === 'confirmed' || packageInfo?.status === 'label_generated';
+  const packageNeedsConfirm = Boolean(packageInfo && !packageConfirmed);
   const useShiprocketLabel =
     !isManualShipping && Boolean(order?.label_url) && shippingMethod === 'shiprocket';
-  const manualCourierOptions = detail?.manualCourierOptions ?? [
-    'GRL',
-    'ST Courier',
-    'VRL',
-    'Bus transport',
-    'Local courier',
-    'Customer preferred transport',
-  ];
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
   const filteredQueue = queue.filter((row) => queueFilterBucket(row) === queueFilter);
@@ -1141,6 +1225,148 @@ export function WarehouseFulfillmentPanel({
                 </dl>
               </section>
 
+              {packageInfo ? (
+                <section className="pp-sidebar-section pp-package-estimate">
+                  <h4>Package estimate</h4>
+                  <dl className="pp-package-grid">
+                    <div>
+                      <dt>Suggested box</dt>
+                      <dd>
+                        <strong>{packageInfo.suggestedBoxCode}</strong>
+                        <span className="muted"> {packageInfo.suggestedBoxName}</span>
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Dimensions (L × W × H)</dt>
+                      <dd>
+                        {packageInfo.lengthCm} × {packageInfo.breadthCm} × {packageInfo.heightCm} cm
+                      </dd>
+                    </div>
+                    {packageInfo.packagingCategoryName ? (
+                      <div>
+                        <dt>Category</dt>
+                        <dd>{packageInfo.packagingCategoryName}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>Estimated weight</dt>
+                      <dd>{packageInfo.packageWeightKg} kg</dd>
+                    </div>
+                    {packageInfo.volumetricWeightKg != null ? (
+                      <div>
+                        <dt>Volumetric weight</dt>
+                        <dd>{packageInfo.volumetricWeightKg} kg</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>Billing weight</dt>
+                      <dd>{packageInfo.billingWeightKg} kg</dd>
+                    </div>
+                    {packageInfo.boxSelectionSource ? (
+                      <div>
+                        <dt>Rule source</dt>
+                        <dd className="mono">{packageInfo.boxSelectionSource}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>Status</dt>
+                      <dd>
+                        <span
+                          className={`pp-package-status pp-package-status--${packageInfo.status}`}
+                        >
+                          {packageInfo.status.replace(/_/g, ' ')}
+                        </span>
+                        {packageInfo.overridden ? <span className="muted"> · overridden</span> : null}
+                      </dd>
+                    </div>
+                  </dl>
+                  {canWrite ? (
+                    <div className="pp-package-actions">
+                      {packageNeedsConfirm ? (
+                        <Btn
+                          size="sm"
+                          variant="primary"
+                          disabled={busy}
+                          onClick={() => void confirmPackageEstimate()}
+                        >
+                          {busy ? 'Confirming…' : 'Confirm package'}
+                        </Btn>
+                      ) : null}
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => {
+                          setOverrideLength(String(packageInfo.lengthCm));
+                          setOverrideBreadth(String(packageInfo.breadthCm));
+                          setOverrideHeight(String(packageInfo.heightCm));
+                          setOverrideWeight(String(packageInfo.packageWeightKg));
+                          setPackageOverrideOpen((v) => !v);
+                        }}
+                      >
+                        {packageOverrideOpen ? 'Hide override' : 'Override dimensions'}
+                      </Btn>
+                      <Btn size="sm" variant="ghost" disabled={busy} onClick={() => void recalculatePackage()}>
+                        Recalculate
+                      </Btn>
+                    </div>
+                  ) : null}
+                  {packageOverrideOpen ? (
+                    <div className="pp-package-override">
+                      <label className="pp-manual-field">
+                        <span>Length (cm)</span>
+                        <input
+                          value={overrideLength}
+                          disabled={!canWrite || busy}
+                          onChange={(e) => setOverrideLength(e.target.value)}
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <label className="pp-manual-field">
+                        <span>Breadth (cm)</span>
+                        <input
+                          value={overrideBreadth}
+                          disabled={!canWrite || busy}
+                          onChange={(e) => setOverrideBreadth(e.target.value)}
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <label className="pp-manual-field">
+                        <span>Height (cm)</span>
+                        <input
+                          value={overrideHeight}
+                          disabled={!canWrite || busy}
+                          onChange={(e) => setOverrideHeight(e.target.value)}
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <label className="pp-manual-field">
+                        <span>Weight (kg)</span>
+                        <input
+                          value={overrideWeight}
+                          disabled={!canWrite || busy}
+                          onChange={(e) => setOverrideWeight(e.target.value)}
+                          inputMode="decimal"
+                        />
+                      </label>
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void savePackageOverride()}
+                      >
+                        Save override
+                      </Btn>
+                    </div>
+                  ) : null}
+                  {!isManualShipping && packageNeedsConfirm ? (
+                    <p className="pp-package-hint muted">
+                      Confirm package before AWB / label generation. Dimensions auto-send to Shiprocket.
+                    </p>
+                  ) : null}
+                </section>
+              ) : null}
+
               <section className="pp-sidebar-section pp-shipment-mode">
                 <h4>Shipment mode</h4>
                 <div className="pp-shipment-options">
@@ -1179,23 +1405,16 @@ export function WarehouseFulfillmentPanel({
                 {isManualShipping ? (
                   <div className="pp-manual-logistics">
                     <h5>Manual logistics details</h5>
-                    <label className="pp-manual-field">
-                      <span>
-                        Logistics / Courier name <em>*</em>
-                      </span>
-                      <select
-                        value={manualCourier}
-                        disabled={!canWrite || busy}
-                        onChange={(e) => setManualCourier(e.target.value)}
-                      >
-                        <option value="">Select courier</option>
-                        {manualCourierOptions.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <ManualCourierPicker
+                      value={manualCourierId}
+                      displayValue={manualCourier}
+                      required
+                      disabled={!canWrite || busy}
+                      onChange={(id, name) => {
+                        setManualCourierId(id);
+                        setManualCourier(name);
+                      }}
+                    />
                     <label className="pp-manual-field">
                       <span>
                         Tracking / LR number <em>*</em>
@@ -1262,16 +1481,18 @@ export function WarehouseFulfillmentPanel({
                     <p>
                       <strong>AWB pending</strong>
                       <span>
-                        {printStage
-                          ? 'Assign AWB when ready. Invoice and label print stay available if courier or wallet fails.'
-                          : 'AWB assigns automatically when you open the order. Complete picking to mark packed.'}
+                        {packageNeedsConfirm
+                          ? 'Confirm package dimensions first, then assign AWB.'
+                          : printStage
+                            ? 'Assign AWB when ready. Invoice and label print stay available if courier or wallet fails.'
+                            : 'AWB generates after package confirm. Complete picking to mark packed.'}
                       </span>
                     </p>
                     {canWrite && awbAssignAvailable && !order.tracking_awb ? (
                       <Btn
                         size="sm"
                         variant="secondary"
-                        disabled={busy}
+                        disabled={busy || packageNeedsConfirm}
                         onClick={() => void assignAwb(Boolean(order.shiprocket_error || detail.shiprocketErrorDisplay))}
                       >
                         {busy ? 'Assigning…' : order.shiprocket_error ? 'Retry AWB' : 'Assign AWB'}
@@ -1299,7 +1520,7 @@ export function WarehouseFulfillmentPanel({
                     <Btn
                       size="sm"
                       variant="secondary"
-                      disabled={busy}
+                      disabled={busy || packageNeedsConfirm}
                       onClick={() => void assignAwb(Boolean(order.shiprocket_error || detail.shiprocketErrorDisplay))}
                     >
                       {busy ? 'Assigning AWB…' : order.shiprocket_error ? 'Retry AWB' : 'Assign AWB'}

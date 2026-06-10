@@ -7,6 +7,8 @@ import { logger } from '../../lib/logger.js';
 import { ndrRtoService } from '../oms/ndr-rto.service.js';
 import { resolveTrackingUrl } from '../../lib/shipment-tracking.js';
 import { AppError } from '../../lib/errors.js';
+import { packageRuleEngineService } from '../oms/package-rule-engine.service.js';
+import { courierPayloadAuditService } from '../oms/courier-payload-audit.service.js';
 
 export type ShiprocketProvisionResult = {
   shiprocketOrderId: string | null;
@@ -557,7 +559,11 @@ export const shiprocketService = {
     const paymentMethod =
       order.is_cod || order.financial_status !== 'paid' ? 'COD' : 'Prepaid';
     const subTotal = Number(order.total_amount) || lines.reduce((s, l) => s + l.unit_price * l.qty_ordered, 0);
-    const weight = Math.max(0.2, lines.reduce((s, l) => s + l.qty_ordered * 0.15, 0.3));
+    const dims = await packageRuleEngineService.resolveCourierDimensions(commerceOrderId);
+    const weight = dims.weight;
+    const length = dims.length;
+    const breadth = dims.breadth;
+    const height = dims.height;
 
     let shipmentId = order.shiprocket_shipment_id ? Number(order.shiprocket_shipment_id) : 0;
     let shiprocketOrderId = order.shiprocket_order_id ? Number(order.shiprocket_order_id) : undefined;
@@ -594,9 +600,9 @@ export const shiprocketService = {
         order_items: orderItemsFromLines(lines),
         payment_method: paymentMethod,
         sub_total: subTotal,
-        length: 10,
-        breadth: 10,
-        height: 10,
+        length,
+        breadth,
+        height,
         weight,
       };
 
@@ -720,6 +726,18 @@ export const shiprocketService = {
       },
       'shiprocket'
     );
+
+    await courierPayloadAuditService
+      .record({
+        commerceOrderId,
+        courierName: courier ?? 'shiprocket',
+        payloadJson: { length, breadth, height, weight, shipmentId, shiprocketOrderId },
+        awbNumber: awb,
+        labelUrl,
+        apiResponse: { shipmentId, awb, courier, labelUrl },
+        success: Boolean(awb),
+      })
+      .catch((err) => logger.warn({ err, commerceOrderId }, 'Courier payload audit failed'));
 
     return {
       shiprocketOrderId: shiprocketOrderId != null ? String(shiprocketOrderId) : null,

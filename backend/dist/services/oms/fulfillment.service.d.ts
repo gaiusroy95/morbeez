@@ -65,7 +65,6 @@ export declare const fulfillmentService: {
             document_type: string;
         } | null;
         shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
-        manualCourierOptions: ("GRL" | "ST Courier" | "VRL" | "Bus transport" | "Local courier" | "Customer preferred transport")[];
         awbAssignAvailable: boolean;
         suggestedDispatchRack: string | null;
         printEnabled: boolean;
@@ -123,7 +122,43 @@ export declare const fulfillmentService: {
             isCod: boolean;
             totalAmount: any;
         };
+        package: {
+            status: string;
+            suggestedBoxCode: string;
+            suggestedBoxName: string;
+            packagingCategoryName: string | null;
+            matchedRuleId: string | null;
+            boxSelectionSource: {} | null;
+            lengthCm: number;
+            breadthCm: number;
+            heightCm: number;
+            estimatedWeightKg: number;
+            packageWeightKg: number;
+            volumetricWeightKg: number;
+            billingWeightKg: number;
+            overridden: boolean;
+            confirmedAt: any;
+            courierPayload: {
+                length: number;
+                breadth: number;
+                height: number;
+                weight: number;
+            };
+            lines: import("./package-rule-engine.service.js").PackageLineInsight[];
+        } | null;
     }>;
+    estimatePackage(commerceOrderId: string): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
+    confirmPackage(commerceOrderId: string, actorEmail?: string, opts?: {
+        autoAwb?: boolean;
+    }): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
+    overridePackage(commerceOrderId: string, input: {
+        boxId?: string;
+        lengthCm: number;
+        breadthCm: number;
+        heightCm: number;
+        weightKg: number;
+    }, actorEmail?: string): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
+    listShippingBoxes(): Promise<import("./shipping-box.service.js").ShippingBox[]>;
     setShippingMethod(commerceOrderId: string, method: "shiprocket" | "manual", actorEmail?: string): Promise<any>;
     saveManualLogistics(commerceOrderId: string, input: {
         courierName: string;

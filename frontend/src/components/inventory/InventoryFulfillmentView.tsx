@@ -2,6 +2,11 @@ import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Alert, Btn, DataTable, EmptyState, Loading, TableWrap, inputClass } from '../ui';
 import { WMS_API } from '../warehouse/warehouse-api';
+import {
+  ProductPackagingEditor,
+  packagingSummaryLabel,
+  type ProductPackagingProfile,
+} from './ProductPackagingEditor';
 
 export type FulfillmentBatchRow = {
   batchCode: string;
@@ -17,6 +22,7 @@ export type FulfillmentStockRow = {
   inventoryItemId: string;
   sku: string;
   productTitle: string;
+  packaging: ProductPackagingProfile | null;
   available: number;
   reserved: number;
   damaged: number;
@@ -55,6 +61,7 @@ export function InventoryFulfillmentView({
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [batchLoading, setBatchLoading] = useState<string | null>(null);
+  const [packagingEdit, setPackagingEdit] = useState<FulfillmentStockRow | null>(null);
 
   const effectiveSearch = hideSearch ? (searchQuery ?? '') : applied;
 
@@ -121,6 +128,12 @@ export function InventoryFulfillmentView({
     return () => window.removeEventListener('focus', onFocus);
   }, [load]);
 
+  function onPackagingSaved(inventoryItemId: string, packaging: ProductPackagingProfile) {
+    setRows((prev) =>
+      prev.map((r) => (r.inventoryItemId === inventoryItemId ? { ...r, packaging } : r))
+    );
+  }
+
   return (
     <div className={className}>
       {!hideSearch ? (
@@ -159,6 +172,7 @@ export function InventoryFulfillmentView({
               <tr>
                 <th>Product</th>
                 <th>SKU</th>
+                <th>Packaging</th>
                 <th>Available</th>
                 <th>Reserved</th>
                 <th>Damaged</th>
@@ -175,12 +189,32 @@ export function InventoryFulfillmentView({
                   r.reserved > 0 ||
                   r.damaged > 0 ||
                   r.returned > 0;
+                const packagingSet = Boolean(
+                  r.packaging?.itemWeightKg || r.packaging?.packagingCategoryId
+                );
 
                 return (
                   <Fragment key={r.inventoryItemId}>
                     <tr>
                       <td>{r.productTitle}</td>
                       <td className="mono">{r.sku}</td>
+                      <td>
+                        <span
+                          className={`inventory-packaging-pill${packagingSet ? ' inventory-packaging-pill--set' : ''}`}
+                        >
+                          {packagingSummaryLabel(r.packaging)}
+                        </span>
+                        {canWrite ? (
+                          <Btn
+                            size="sm"
+                            variant="ghost"
+                            className="inventory-packaging-edit-btn"
+                            onClick={() => setPackagingEdit(r)}
+                          >
+                            Edit
+                          </Btn>
+                        ) : null}
+                      </td>
                       <td>{r.available}</td>
                       <td>{r.reserved}</td>
                       <td>{r.damaged}</td>
@@ -204,7 +238,7 @@ export function InventoryFulfillmentView({
                     </tr>
                     {isExpanded ? (
                       <tr key={`${r.inventoryItemId}-b`}>
-                        <td colSpan={7}>
+                        <td colSpan={8}>
                           {batchLoading === r.inventoryItemId ? (
                             <Loading label="Loading batches…" />
                           ) : r.batches.length === 0 ? (
@@ -245,6 +279,21 @@ export function InventoryFulfillmentView({
       ) : null}
       {!canWrite ? (
         <p className="muted text-sm mt-3">Read-only — stock changes via Add Stock, PO, or GRN on the Catalog view.</p>
+      ) : null}
+
+      {packagingEdit ? (
+        <ProductPackagingEditor
+          inventoryItemId={packagingEdit.inventoryItemId}
+          productTitle={packagingEdit.productTitle}
+          sku={packagingEdit.sku}
+          packaging={packagingEdit.packaging}
+          open={Boolean(packagingEdit)}
+          onClose={() => setPackagingEdit(null)}
+          onSaved={(packaging) => {
+            onPackagingSaved(packagingEdit.inventoryItemId, packaging);
+            setPackagingEdit(null);
+          }}
+        />
       ) : null}
     </div>
   );

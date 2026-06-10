@@ -7,6 +7,7 @@ import { recommendationFollowUpService } from '../core/recommendation-follow-up.
 import { emptySoilLabMetrics, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 import { resolveNextActionDueAt } from './interaction-next-action.js';
 import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
+import { MANUAL_COURIER_OPTIONS } from '../../lib/manual-couriers.js';
 
 export type MasterType =
   | 'crop'
@@ -30,6 +31,7 @@ export type MasterType =
   | 'pest_pressure'
   | 'plant_condition'
   | 'delivery_partner'
+  | 'manual_courier'
   | 'territory'
   | 'specialization'
   | 'brand'
@@ -105,6 +107,7 @@ const MASTER_DEFAULTS: Partial<Record<MasterType, string[]>> = {
   language: ['English', 'Malayalam', 'Tamil', 'Kannada', 'Hindi'],
   interaction_outcome: ['answered', 'no_answer', 'busy', 'callback_requested'],
   interaction_type: ['WhatsApp', 'Follow-up', 'Field visit', 'Recommendation', 'ROI', 'Note'],
+  manual_courier: [...MANUAL_COURIER_OPTIONS],
 };
 
 function formatDateShort(iso: string | null | undefined) {

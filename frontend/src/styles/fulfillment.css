@@ -908,6 +908,122 @@
   font-size: 0.85rem;
 }
 
+.pp-manual-courier-picker.dmp-root {
+  width: 100%;
+}
+
+.pp-manual-courier-picker .dmp-label {
+  font-size: 0.8rem;
+  color: #334155;
+}
+
+.pp-manual-courier-picker .dmp-label::after {
+  content: ' *';
+  color: #dc2626;
+}
+
+.pp-manual-courier-picker .dmp-trigger {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.85rem;
+  background: #fff;
+  text-align: left;
+}
+
+.pp-package-grid {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0 0 0.65rem;
+}
+
+.pp-package-grid div {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.pp-package-grid dt {
+  color: #64748b;
+  margin: 0;
+}
+
+.pp-package-grid dd {
+  margin: 0;
+  text-align: right;
+}
+
+.pp-package-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.pp-package-override {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.5rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.pp-package-hint {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.pp-package-status {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.pp-package-status--confirmed,
+.pp-package-status--label_generated {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pp-package-status--estimated,
+.pp-package-status--packaging_estimated {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.warehouse-packaging-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.warehouse-packaging-intro {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.warehouse-packaging-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: center;
+}
+
+.warehouse-packaging-form--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
 .pp-manual-hint {
   margin: 0;
   font-size: 0.76rem;

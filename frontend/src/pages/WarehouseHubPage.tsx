@@ -7,6 +7,7 @@ import { WarehouseFulfillmentHub } from '../components/warehouse/WarehouseFulfil
 import { WarehouseFinancePanel } from '../components/warehouse/WarehouseFinancePanel';
 import { WarehouseReturnsPanel } from '../components/warehouse/WarehouseReturnsPanel';
 import { WarehouseOverviewPanel } from '../components/warehouse/WarehouseOverviewPanel';
+import { WarehousePackagingPanel } from '../components/warehouse/WarehousePackagingPanel';
 import { isWarehouseTab, normalizeWarehouseTab, type WarehouseDeepTab } from '../lib/warehouse-links';
 import '../styles/warehouse-hub.css';
 import '../styles/fulfillment.css';
@@ -18,6 +19,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'stock', label: 'Fulfillment stock' },
   { id: 'inbound', label: 'Purchase & GRN' },
   { id: 'fulfillment', label: 'Fulfillment' },
+  { id: 'packaging', label: 'Packaging' },
   { id: 'returns', label: 'Returns & refunds' },
   { id: 'finance', label: 'Finance & COD' },
 ];
@@ -73,6 +75,7 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'fulfillment' ? (
         <WarehouseFulfillmentHub canWrite={canWrite} focusOrderId={orderFromUrl} />
       ) : null}
+      {tab === 'packaging' ? <WarehousePackagingPanel canWrite={canWrite} /> : null}
       {tab === 'returns' ? <WarehouseReturnsPanel canWrite={canWrite} /> : null}
       {tab === 'finance' ? <WarehouseFinancePanel canWrite={canWrite} /> : null}
     </div>

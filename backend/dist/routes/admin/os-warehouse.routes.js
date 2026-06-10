@@ -21,6 +21,11 @@ import { quoteOmsBridgeService } from '../../services/oms/quote-oms-bridge.servi
 import { commerceQuoteService } from '../../services/commerce/commerce-quote.service.js';
 import { fulfillmentService } from '../../services/oms/fulfillment.service.js';
 import { employeeBatchService } from '../../services/oms/employee-batch.service.js';
+import { shippingBoxService } from '../../services/oms/shipping-box.service.js';
+import { packagingCategoryService } from '../../services/oms/packaging-category.service.js';
+import { packageRuleService } from '../../services/oms/package-rule.service.js';
+import { packagingSettingsService } from '../../services/oms/packaging-settings.service.js';
+import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
 export async function osWarehouseRoutes(app) {
     const api = '/morbeez-staff/api/v1/os/warehouse';
     // ─── Overview ─────────────────────────────────────────────────────────────
@@ -171,6 +176,12 @@ export async function osWarehouseRoutes(app) {
         const items = await inventoryService.listInventoryItems({ search: q.search });
         return reply.send({ ok: true, items });
     });
+    app.get(`${api}/inventory-items/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const { id } = request.params;
+        const item = await inventoryService.getInventoryItem(id);
+        return reply.send({ ok: true, item });
+    });
     app.post(`${api}/inventory-items`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
         const body = z
@@ -193,6 +204,17 @@ export async function osWarehouseRoutes(app) {
             .object({
             sku: z.string().min(1).optional(),
             productTitle: z.string().min(1).optional(),
+            itemWeightKg: z.number().positive().nullable().optional(),
+            packagingCategory: z
+                .enum(['general', 'powder', 'granular', 'liquid', 'bottle'])
+                .nullable()
+                .optional(),
+            packagingCategoryId: z.string().uuid().nullable().optional(),
+            preferredBoxCode: z.string().max(20).nullable().optional(),
+            preferredBoxId: z.string().uuid().nullable().optional(),
+            isFragile: z.boolean().optional(),
+            isLiquid: z.boolean().optional(),
+            stackable: z.boolean().optional(),
             confirmPassword: confirmPasswordSchema,
         })
             .parse(request.body);
@@ -494,6 +516,174 @@ export async function osWarehouseRoutes(app) {
         const order = await fulfillmentService.setShippingMethod(id, body.method, request.adminEmail);
         return reply.send({ ok: true, order });
     });
+    // ─── Dynamic packaging admin (categories, rules, settings) ─────────────────
+    app.get(`${api}/packaging/categories`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const categories = await packagingCategoryService.listAll();
+        return reply.send({ ok: true, categories });
+    });
+    app.post(`${api}/packaging/categories`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            name: z.string().min(1).max(80),
+            description: z.string().max(240).optional(),
+            priority: z.number().int().optional(),
+        })
+            .parse(request.body);
+        const category = await packagingCategoryService.create(body);
+        return reply.status(201).send({ ok: true, category });
+    });
+    app.patch(`${api}/packaging/categories/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            name: z.string().min(1).max(80).optional(),
+            description: z.string().max(240).nullable().optional(),
+            priority: z.number().int().optional(),
+            active: z.boolean().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const category = await packagingCategoryService.update(id, patch);
+        return reply.send({ ok: true, category });
+    });
+    app.get(`${api}/packaging/rules`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const rules = await packageRuleService.listAll();
+        return reply.send({ ok: true, rules });
+    });
+    app.post(`${api}/packaging/rules`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            packagingCategoryId: z.string().uuid(),
+            minWeightKg: z.number().nonnegative(),
+            maxWeightKg: z.number().positive(),
+            preferredBoxId: z.string().uuid(),
+            priority: z.number().int().optional(),
+        })
+            .parse(request.body);
+        const rule = await packageRuleService.create(body);
+        return reply.status(201).send({ ok: true, rule });
+    });
+    app.patch(`${api}/packaging/rules/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            packagingCategoryId: z.string().uuid().optional(),
+            minWeightKg: z.number().nonnegative().optional(),
+            maxWeightKg: z.number().positive().optional(),
+            preferredBoxId: z.string().uuid().optional(),
+            priority: z.number().int().optional(),
+            active: z.boolean().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const rule = await packageRuleService.update(id, patch);
+        return reply.send({ ok: true, rule });
+    });
+    app.get(`${api}/packaging/settings`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const settings = await packagingSettingsService.listAll();
+        return reply.send({ ok: true, settings });
+    });
+    app.patch(`${api}/packaging/settings/:key`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { key } = request.params;
+        const body = z
+            .object({
+            value: z.union([z.number(), z.string(), z.boolean()]),
+            description: z.string().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        const setting = await packagingSettingsService.update(key, body.value, body.description);
+        return reply.send({ ok: true, setting });
+    });
+    app.get(`${api}/shipping-boxes`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const boxes = await fulfillmentService.listShippingBoxes();
+        return reply.send({ ok: true, boxes });
+    });
+    app.post(`${api}/shipping-boxes`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            code: z.string().min(1).max(20),
+            name: z.string().min(1).max(120),
+            lengthCm: z.number().positive(),
+            breadthCm: z.number().positive(),
+            heightCm: z.number().positive(),
+            maxWeightKg: z.number().positive(),
+            tareWeightKg: z.number().nonnegative().optional(),
+            liquidFriendly: z.boolean().optional(),
+            packagingType: z.string().max(40).optional().nullable(),
+            sortOrder: z.number().int().optional(),
+        })
+            .parse(request.body);
+        const box = await shippingBoxService.create(body);
+        return reply.status(201).send({ ok: true, box });
+    });
+    app.patch(`${api}/shipping-boxes/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            code: z.string().min(1).max(20).optional(),
+            name: z.string().min(1).max(120).optional(),
+            lengthCm: z.number().positive().optional(),
+            breadthCm: z.number().positive().optional(),
+            heightCm: z.number().positive().optional(),
+            maxWeightKg: z.number().positive().optional(),
+            tareWeightKg: z.number().nonnegative().optional(),
+            liquidFriendly: z.boolean().optional(),
+            packagingType: z.string().max(40).nullable().optional(),
+            sortOrder: z.number().int().optional(),
+            active: z.boolean().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const box = await shippingBoxService.update(id, patch);
+        return reply.send({ ok: true, box });
+    });
+    app.post(`${api}/fulfillment/orders/:id/package/estimate`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const estimate = await fulfillmentService.estimatePackage(id);
+        return reply.send({ ok: true, estimate });
+    });
+    app.post(`${api}/fulfillment/orders/:id/package/confirm`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ autoAwb: z.boolean().optional() }).parse(request.body ?? {});
+        const estimate = await fulfillmentService.confirmPackage(id, request.adminEmail, { autoAwb: body.autoAwb });
+        return reply.send({ ok: true, estimate });
+    });
+    app.post(`${api}/fulfillment/orders/:id/package/override`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            boxId: z.string().uuid().optional(),
+            lengthCm: z.number().positive(),
+            breadthCm: z.number().positive(),
+            heightCm: z.number().positive(),
+            weightKg: z.number().positive(),
+        })
+            .parse(request.body);
+        const estimate = await fulfillmentService.overridePackage(id, body, request.adminEmail);
+        return reply.send({ ok: true, estimate });
+    });
     app.post(`${api}/fulfillment/orders/:id/manual-logistics`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
@@ -641,6 +831,59 @@ export async function osWarehouseRoutes(app) {
             .parse(request.body);
         const result = await fulfillmentService.reportException(id, body.type, body.note, request.adminEmail);
         return reply.send(result);
+    });
+    // ─── Warehouse masters (manual couriers, etc.) ─────────────────────────────
+    app.get(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const q = request.query;
+        const type = z.string().min(1).parse(q.type ?? 'manual_courier');
+        const items = await crmFarmerService.listMasters(type, q.parentId || null, q.search);
+        return reply.send({ ok: true, items });
+    });
+    app.post(`${api}/masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const body = z
+            .object({
+            masterType: z.string().min(1),
+            name: z.string().min(1).max(120),
+            parentId: z.string().uuid().nullable().optional(),
+            category: z.string().optional(),
+            description: z.string().optional(),
+        })
+            .parse(request.body);
+        const item = await crmFarmerService.createMaster({
+            masterType: body.masterType,
+            name: body.name,
+            parentId: body.parentId,
+            category: body.category,
+            description: body.description,
+        });
+        return reply.status(201).send({ ok: true, item });
+    });
+    app.patch(`${api}/masters/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            name: z.string().min(1).max(120).optional(),
+            category: z.string().max(120).nullable().optional(),
+            description: z.string().optional(),
+            active: z.boolean().optional(),
+            confirmPassword: confirmPasswordSchema,
+        })
+            .parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertSuperAdminPasswordConfirm(actor, confirmPassword);
+        const item = await crmFarmerService.updateMaster(id, patch);
+        return reply.send({ ok: true, item });
+    });
+    app.delete(`${api}/masters/:id`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+        const item = await crmFarmerService.updateMaster(id, { active: false });
+        return reply.send({ ok: true, item });
     });
     // ─── Invoices & quotations ────────────────────────────────────────────────
     app.get(`${api}/invoices/:id`, async (request, reply) => {

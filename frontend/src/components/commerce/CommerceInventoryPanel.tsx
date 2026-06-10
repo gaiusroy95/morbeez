@@ -247,8 +247,9 @@ export function CommerceInventoryPanel({
       {view === 'fulfillment' ? (
         <p className="commerce-inventory__intro muted">
           Pickable quantities for orders — same catalog as above, with <strong>reserved</strong> and{' '}
-          <strong>rack</strong> detail. Use <strong>Catalog &amp; batches</strong> to add stock or
-          receive GRN.
+          <strong>rack</strong> detail. Set <strong>packaging</strong> (dead weight, category, preferred box) per
+          SKU for automatic courier dimensions. Use <strong>Catalog &amp; batches</strong> to add stock or receive
+          GRN.
         </p>
       ) : null}
 

@@ -1,1 +1,1 @@
-{"version":3,"file":"os-warehouse.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/admin/os-warehouse.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AA4B/C,wBAAsB,iBAAiB,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAk+B3E"}
+{"version":3,"file":"os-warehouse.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/admin/os-warehouse.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAiC/C,wBAAsB,iBAAiB,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CA2uC3E"}

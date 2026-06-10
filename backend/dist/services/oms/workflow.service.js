@@ -8,7 +8,7 @@ import { packService } from './pack.service.js';
 import { invoiceService } from './invoice.service.js';
 import { codService } from './cod.service.js';
 import { shiprocketService } from '../shiprocket/shiprocket.service.js';
-import { suggestDispatchRack } from './fulfillment-dispatch-racks.js';
+import { packageRuleEngineService } from './package-rule-engine.service.js';
 import { logger } from '../../lib/logger.js';
 export const omsWorkflowService = {
     async onOrderPlaced(shopifyOrderId, order) {
@@ -50,52 +50,20 @@ export const omsWorkflowService = {
         })
             .eq('id', commerceOrderId);
         const shippingMethod = String(order.shipping_method ?? 'shiprocket');
-        if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false && shippingMethod !== 'manual') {
-            await shiprocketService
-                .provisionForCommerceOrder(commerceOrderId, { forceRecreate: false })
-                .then(async (result) => {
-                if (!result) {
-                    await supabase
-                        .from('commerce_orders')
-                        .update({
-                        shiprocket_error: 'Missing address or order lines',
-                        oms_status: 'picking',
-                        updated_at: new Date().toISOString(),
-                    })
-                        .eq('id', commerceOrderId);
-                    return;
-                }
-                await supabase
-                    .from('commerce_orders')
-                    .update({
-                    shiprocket_order_id: result.shiprocketOrderId,
-                    shiprocket_shipment_id: result.shipmentId,
-                    tracking_awb: result.awb,
-                    tracking_url: result.trackingUrl,
-                    courier_name: result.courier,
-                    label_url: result.labelUrl,
-                    dispatch_rack: suggestDispatchRack(result.courier),
-                    awb_generated_at: new Date().toISOString(),
-                    shiprocket_error: null,
-                    oms_status: 'picking',
-                    updated_at: new Date().toISOString(),
-                })
-                    .eq('id', commerceOrderId);
-            })
-                .catch(async (err) => {
-                const msg = err instanceof Error ? err.message : 'Shiprocket failed';
-                logger.warn({ err, commerceOrderId }, 'Shiprocket on confirm failed — order stays in queue; staff can retry AWB');
-                await supabase
-                    .from('commerce_orders')
-                    .update({
-                    shiprocket_error: msg,
-                    oms_status: 'picking',
-                    updated_at: new Date().toISOString(),
-                })
-                    .eq('id', commerceOrderId);
-            });
+        try {
+            await packageRuleEngineService.ensureEstimated(commerceOrderId);
         }
-        else {
+        catch (err) {
+            logger.warn({ err, commerceOrderId }, 'Package estimate on confirm failed');
+            await supabase
+                .from('commerce_orders')
+                .update({
+                oms_status: 'picking',
+                updated_at: new Date().toISOString(),
+            })
+                .eq('id', commerceOrderId);
+        }
+        if (shippingMethod === 'manual') {
             await supabase
                 .from('commerce_orders')
                 .update({

@@ -1,5 +1,5 @@
 import type { ShopifyOrder } from '../shopify/shopify.client.js';
-export type OmsStatus = 'pending' | 'assigned' | 'confirmed' | 'awb_generated' | 'picking' | 'packing' | 'awaiting_label_verification' | 'packed' | 'ready_dispatch' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'returned';
+export type OmsStatus = 'pending' | 'assigned' | 'confirmed' | 'packaging_estimated' | 'ready_for_courier' | 'awb_generated' | 'label_generated' | 'picking' | 'packing' | 'awaiting_label_verification' | 'awaiting_tracking' | 'packed' | 'ready_dispatch' | 'shipped' | 'delivered' | 'completed' | 'cancelled' | 'returned';
 export declare const omsWorkflowService: {
     onOrderPlaced(shopifyOrderId: string, order?: ShopifyOrder): Promise<void>;
     confirmOrder(commerceOrderId: string): Promise<any>;

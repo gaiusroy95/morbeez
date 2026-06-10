@@ -6,6 +6,7 @@ import { crmInternalNotesService } from './crm-internal-notes.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { emptySoilLabMetrics, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 import { resolveNextActionDueAt } from './interaction-next-action.js';
+import { MANUAL_COURIER_OPTIONS } from '../../lib/manual-couriers.js';
 const MASTER_DEFAULTS = {
     crop: ['Ginger', 'Banana', 'Pepper', 'Cardamom', 'Paddy'],
     pest: ['Stem borer', 'Leaf folder', 'Thrips', 'Aphids', 'Whitefly', 'Fruit borer'],
@@ -65,6 +66,7 @@ const MASTER_DEFAULTS = {
     language: ['English', 'Malayalam', 'Tamil', 'Kannada', 'Hindi'],
     interaction_outcome: ['answered', 'no_answer', 'busy', 'callback_requested'],
     interaction_type: ['WhatsApp', 'Follow-up', 'Field visit', 'Recommendation', 'ROI', 'Note'],
+    manual_courier: [...MANUAL_COURIER_OPTIONS],
 };
 function formatDateShort(iso) {
     if (!iso)

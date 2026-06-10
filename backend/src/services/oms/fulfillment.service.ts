@@ -16,12 +16,17 @@ import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulf
 import { ordersAdminService } from '../admin/orders-admin.service.js';
 import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 import { checkoutOmsBridgeService } from '../checkout/checkout-oms-bridge.service.js';
-import { MANUAL_COURIER_OPTIONS, normalizeShippingMethod } from '../../lib/manual-couriers.js';
+import { normalizeShippingMethod } from '../../lib/manual-couriers.js';
+import { packageRuleEngineService } from './package-rule-engine.service.js';
+import { shippingBoxService } from './shipping-box.service.js';
 
 const FULFILLMENT_STATUSES = [
   'assigned',
   'confirmed',
+  'packaging_estimated',
+  'ready_for_courier',
   'awb_generated',
+  'label_generated',
   'picking',
   'packing',
   'awaiting_label_verification',
@@ -297,17 +302,27 @@ export const fulfillmentService = {
 
     const shippingMethod = normalizeShippingMethod(order.shipping_method);
 
+    let packageEstimate = null;
+    try {
+      packageEstimate = await packageRuleEngineService.ensureEstimated(commerceOrderId);
+      order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+    } catch (err) {
+      logger.warn({ err, commerceOrderId }, 'Package estimate on order open failed');
+    }
+
+    const packageStatus = String(order.package_status ?? 'pending');
     if (
       shippingMethod === 'shiprocket' &&
       env.ENABLE_SHIPROCKET_ON_CONFIRM !== false &&
       !order.tracking_awb &&
-      !order.shiprocket_error
+      !order.shiprocket_error &&
+      (packageStatus === 'confirmed' || packageStatus === 'label_generated')
     ) {
       try {
         await this.provisionShipment(commerceOrderId);
         order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
       } catch (err) {
-        logger.warn({ err, commerceOrderId }, 'Auto AWB assignment on order open failed');
+        logger.warn({ err, commerceOrderId }, 'Auto AWB after package confirm failed');
         order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
       }
     }
@@ -395,7 +410,6 @@ export const fulfillmentService = {
       packSession,
       invoice,
       shippingMethod: normalizeShippingMethod(order.shipping_method),
-      manualCourierOptions: [...MANUAL_COURIER_OPTIONS],
       awbAssignAvailable:
         shippingMethod === 'shiprocket' && env.ENABLE_SHIPROCKET_ON_CONFIRM !== false,
       suggestedDispatchRack: suggestDispatchRack(order.courier_name as string | null),
@@ -436,7 +450,116 @@ export const fulfillmentService = {
         isCod: Boolean(order.is_cod),
         totalAmount: order.total_amount,
       },
+      package: packageEstimate
+        ? {
+            status: String(order.package_status ?? 'estimated'),
+            suggestedBoxCode: packageEstimate.suggestedBox.code,
+            suggestedBoxName: packageEstimate.suggestedBox.name,
+            packagingCategoryName: packageEstimate.packagingCategoryName,
+            matchedRuleId: packageEstimate.matchedRuleId,
+            boxSelectionSource: packageEstimate.meta.boxSelectionSource ?? null,
+            lengthCm: packageEstimate.lengthCm,
+            breadthCm: packageEstimate.breadthCm,
+            heightCm: packageEstimate.heightCm,
+            estimatedWeightKg: packageEstimate.estimatedWeightKg,
+            packageWeightKg: packageEstimate.packageWeightKg,
+            volumetricWeightKg: packageEstimate.volumetricWeightKg,
+            billingWeightKg: packageEstimate.billingWeightKg,
+            overridden: Boolean(order.package_overridden),
+            confirmedAt: order.package_confirmed_at ?? null,
+            courierPayload: packageEstimate.courierPayload,
+            lines: packageEstimate.lines,
+          }
+        : null,
     };
+  },
+
+  async estimatePackage(commerceOrderId: string) {
+    const estimate = await packageRuleEngineService.estimateForOrder(commerceOrderId);
+    await packageRuleEngineService.persistEstimate(commerceOrderId, estimate);
+    return estimate;
+  },
+
+  async confirmPackage(commerceOrderId: string, actorEmail?: string, opts?: { autoAwb?: boolean }) {
+    const estimate = await packageRuleEngineService.confirmPackage(commerceOrderId, actorEmail);
+
+    const { data: order } = await supabase
+      .from('commerce_orders')
+      .select('shipping_method, tracking_awb')
+      .eq('id', commerceOrderId)
+      .single();
+
+    const shippingMethod = normalizeShippingMethod(order?.shipping_method);
+    const shouldAwb =
+      (opts?.autoAwb ?? true) &&
+      shippingMethod === 'shiprocket' &&
+      env.ENABLE_SHIPROCKET_ON_CONFIRM !== false &&
+      !order?.tracking_awb;
+
+    if (shouldAwb) {
+      await this.provisionShipment(commerceOrderId, actorEmail).catch((err) => {
+        logger.warn({ err, commerceOrderId }, 'AWB after package confirm failed');
+        throw err;
+      });
+    }
+
+    if (actorEmail) {
+      await employeeActionLogService.log({
+        actorEmail,
+        actionType: 'package_confirmed',
+        entityType: 'commerce_order',
+        entityId: commerceOrderId,
+        details: {
+          box: estimate.suggestedBox.code,
+          weight: estimate.packageWeightKg,
+          billingWeight: estimate.billingWeightKg,
+        },
+      });
+    }
+
+    return estimate;
+  },
+
+  async overridePackage(
+    commerceOrderId: string,
+    input: {
+      boxId?: string;
+      lengthCm: number;
+      breadthCm: number;
+      heightCm: number;
+      weightKg: number;
+    },
+    actorEmail?: string
+  ) {
+    const estimate = await packageRuleEngineService.overridePackage(commerceOrderId, {
+      ...input,
+      actorEmail,
+    });
+
+    const { data: order } = await supabase
+      .from('commerce_orders')
+      .select('shipping_method, tracking_awb')
+      .eq('id', commerceOrderId)
+      .single();
+
+    if (
+      normalizeShippingMethod(order?.shipping_method) === 'shiprocket' &&
+      env.ENABLE_SHIPROCKET_ON_CONFIRM !== false &&
+      !order?.tracking_awb
+    ) {
+      await this.provisionShipment(commerceOrderId, actorEmail, { forceRecreate: true }).catch(
+        (err) => {
+          logger.warn({ err, commerceOrderId }, 'AWB after package override failed');
+          throw err;
+        }
+      );
+    }
+
+    return estimate;
+  },
+
+  async listShippingBoxes() {
+    return shippingBoxService.listAll();
   },
 
   async setShippingMethod(
@@ -564,6 +687,20 @@ export const fulfillmentService = {
       );
     }
 
+    const { data: pkgRow } = await supabase
+      .from('commerce_orders')
+      .select('package_status')
+      .eq('id', commerceOrderId)
+      .single();
+    const pkgStatus = String(pkgRow?.package_status ?? 'pending');
+    if (pkgStatus !== 'confirmed' && pkgStatus !== 'label_generated') {
+      throw new AppError(
+        'Confirm package dimensions before generating AWB / label',
+        409,
+        'PACKAGE_NOT_CONFIRMED'
+      );
+    }
+
     await supabase
       .from('commerce_orders')
       .update({ shiprocket_error: null, updated_at: new Date().toISOString() })
@@ -610,7 +747,8 @@ export const fulfillmentService = {
         dispatch_rack: dispatchRack,
         awb_generated_at: new Date().toISOString(),
         shiprocket_error: null,
-        oms_status: 'awb_generated',
+        package_status: 'label_generated',
+        oms_status: 'label_generated',
         updated_at: new Date().toISOString(),
       })
       .eq('id', commerceOrderId);
@@ -619,7 +757,7 @@ export const fulfillmentService = {
       .from('commerce_orders')
       .update({ oms_status: 'picking', updated_at: new Date().toISOString() })
       .eq('id', commerceOrderId)
-      .eq('oms_status', 'awb_generated');
+      .eq('oms_status', 'label_generated');
 
     if (actorEmail) {
       try {

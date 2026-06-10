@@ -5,6 +5,7 @@ export type WarehouseDeepTab =
   | 'stock'
   | 'inbound'
   | 'fulfillment'
+  | 'packaging'
   | 'returns'
   | 'finance';
 
@@ -16,6 +17,7 @@ const WAREHOUSE_TABS = new Set<WarehouseDeepTab>([
   'stock',
   'inbound',
   'fulfillment',
+  'packaging',
   'returns',
   'finance',
 ]);
