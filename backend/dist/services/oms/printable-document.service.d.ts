@@ -161,7 +161,9 @@ export declare const printableDocumentService: {
         document: {
             title: string;
             orderId: any;
+            shippingMethod: string;
             awbCode: any;
+            trackingLabel: string;
             courierName: any;
             dispatchRack: any;
             deliveryAddress: string[];
@@ -324,7 +326,9 @@ export declare const printableDocumentService: {
     buildCourierLabel(commerceOrderId: string): Promise<{
         title: string;
         orderId: any;
+        shippingMethod: string;
         awbCode: any;
+        trackingLabel: string;
         courierName: any;
         dispatchRack: any;
         deliveryAddress: string[];

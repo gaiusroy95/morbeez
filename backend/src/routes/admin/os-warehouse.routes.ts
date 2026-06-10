@@ -561,6 +561,40 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
+  app.patch(`${api}/fulfillment/orders/:id/shipping-method`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        method: z.enum(['shiprocket', 'manual']),
+      })
+      .parse(request.body);
+    const order = await fulfillmentService.setShippingMethod(
+      id,
+      body.method,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, order });
+  });
+
+  app.post(`${api}/fulfillment/orders/:id/manual-logistics`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        courierName: z.string().min(1).max(120),
+        trackingAwb: z.string().min(1).max(80),
+        trackingUrl: z.string().url().optional().nullable(),
+      })
+      .parse(request.body);
+    const order = await fulfillmentService.saveManualLogistics(
+      id,
+      body,
+      (request as { adminEmail?: string }).adminEmail
+    );
+    return reply.send({ ok: true, order });
+  });
+
   app.post(`${api}/fulfillment/orders/:id/pack-session`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const { id } = request.params as { id: string };

@@ -330,6 +330,7 @@ export const printableDocumentService = {
         const shipAddr = order.shipping_address;
         const codAmount = order.is_cod ? Number(order.total_amount) : 0;
         const labelUrl = order.label_url?.trim() || null;
+        const shippingMethod = String(order.shipping_method ?? 'shiprocket') === 'manual' ? 'manual' : 'shiprocket';
         const { data: shipLabel } = await supabase
             .from('shipping_labels')
             .select('id, qr_code, print_sequence, assigned_employee_name')
@@ -338,10 +339,12 @@ export const printableDocumentService = {
             .limit(1)
             .maybeSingle();
         return {
-            title: 'Courier Label',
+            title: shippingMethod === 'manual' ? 'Manual Shipping Label' : 'Courier Label',
             orderId: order.order_name ?? order.shopify_order_id,
+            shippingMethod,
             awbCode: order.tracking_awb,
-            courierName: order.courier_name ?? 'Shiprocket',
+            trackingLabel: shippingMethod === 'manual' ? 'LR / Tracking' : 'AWB',
+            courierName: order.courier_name ?? (shippingMethod === 'manual' ? 'Manual logistics' : 'Shiprocket'),
             dispatchRack: order.dispatch_rack ?? null,
             deliveryAddress: formatAddress(shipAddr),
             contactNumber: order.phone ?? shipAddr?.phone ?? null,
@@ -352,7 +355,7 @@ export const printableDocumentService = {
                 ? String(shipLabel.assigned_employee_name)
                 : order.assigned_employee_name ?? null,
             printSequence: shipLabel?.print_sequence ?? null,
-            shiprocketLabelUrl: labelUrl,
+            shiprocketLabelUrl: shippingMethod === 'shiprocket' ? labelUrl : null,
             printedAt: new Date().toISOString(),
         };
     },

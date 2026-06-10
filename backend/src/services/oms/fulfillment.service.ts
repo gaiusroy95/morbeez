@@ -16,6 +16,7 @@ import { normalizePickLists, normalizeRelation, pickListLineCount } from './fulf
 import { ordersAdminService } from '../admin/orders-admin.service.js';
 import { commerceQuoteService } from '../commerce/commerce-quote.service.js';
 import { checkoutOmsBridgeService } from '../checkout/checkout-oms-bridge.service.js';
+import { MANUAL_COURIER_OPTIONS, normalizeShippingMethod } from '../../lib/manual-couriers.js';
 
 const FULFILLMENT_STATUSES = [
   'assigned',
@@ -24,8 +25,12 @@ const FULFILLMENT_STATUSES = [
   'picking',
   'packing',
   'awaiting_label_verification',
+  'awaiting_tracking',
   'packed',
   'ready_dispatch',
+  'shipped',
+  'delivered',
+  'completed',
 ] as const;
 
 const EXCEPTION_TYPES = [
@@ -37,12 +42,6 @@ const EXCEPTION_TYPES = [
 ] as const;
 
 export type FulfillmentExceptionType = (typeof EXCEPTION_TYPES)[number];
-
-function startOfTodayIso() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
-}
 
 function activeFulfillmentOrdersQuery() {
   return supabase
@@ -88,34 +87,34 @@ export const fulfillmentService = {
   repairPendingCommerceOrders,
 
   async getStats() {
-    const today = startOfTodayIso();
-    const [pending, ready, packedToday, courierPending, failedAwb] = await Promise.all([
+    const [pending, packed, lrPending, completed] = await Promise.all([
       activeFulfillmentOrdersQuery().in('oms_status', [
         'assigned',
         'confirmed',
         'awb_generated',
         'picking',
         'packing',
-        'awaiting_label_verification',
       ]),
-      activeFulfillmentOrdersQuery()
-        .in('oms_status', ['assigned', 'awb_generated', 'picking', 'packing', 'awaiting_label_verification'])
-        .not('tracking_awb', 'is', null),
-      activeFulfillmentOrdersQuery()
-        .in('oms_status', ['packed', 'ready_dispatch'])
-        .gte('packed_at', today),
-      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'ready_dispatch', 'awaiting_label_verification']),
-      activeFulfillmentOrdersQuery()
-        .not('shiprocket_error', 'is', null)
-        .in('oms_status', ['confirmed', 'picking', 'awb_generated']),
+      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'awaiting_label_verification']),
+      activeFulfillmentOrdersQuery().eq('oms_status', 'awaiting_tracking'),
+      activeFulfillmentOrdersQuery().in('oms_status', [
+        'ready_dispatch',
+        'shipped',
+        'delivered',
+        'completed',
+      ]),
     ]);
 
     return {
+      pending: pending.count ?? 0,
+      packed: packed.count ?? 0,
+      lrPending: lrPending.count ?? 0,
+      completed: completed.count ?? 0,
       pendingOrders: pending.count ?? 0,
-      readyToPack: ready.count ?? 0,
-      packedToday: packedToday.count ?? 0,
-      courierPending: courierPending.count ?? 0,
-      failedAwb: failedAwb.count ?? 0,
+      readyToPack: packed.count ?? 0,
+      packedToday: packed.count ?? 0,
+      courierPending: lrPending.count ?? 0,
+      failedAwb: 0,
     };
   },
 
@@ -212,6 +211,7 @@ export const fulfillmentService = {
       .from('commerce_orders')
       .select(
         `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
+         shipping_method, tracking_status,
          fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
          assigned_employee_name, assigned_batch_id,
          pick_lists(id, status, pick_list_lines(id, qty_required)),
@@ -273,6 +273,11 @@ export const fulfillmentService = {
         missingProducts,
         priority: row.fulfillment_priority ?? 'normal',
         omsStatus: row.oms_status,
+        shippingMethod: normalizeShippingMethod(row.shipping_method),
+        trackingStatus: row.tracking_status ? String(row.tracking_status) : null,
+        needsManualTracking:
+          normalizeShippingMethod(row.shipping_method) === 'manual' &&
+          row.oms_status === 'awaiting_tracking',
         awb: row.tracking_awb,
         pickListId: pick?.id ?? null,
         shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(
@@ -290,7 +295,10 @@ export const fulfillmentService = {
   async getOrderDetail(commerceOrderId: string) {
     let order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
 
+    const shippingMethod = normalizeShippingMethod(order.shipping_method);
+
     if (
+      shippingMethod === 'shiprocket' &&
       env.ENABLE_SHIPROCKET_ON_CONFIRM !== false &&
       !order.tracking_awb &&
       !order.shiprocket_error
@@ -386,7 +394,10 @@ export const fulfillmentService = {
       pickList,
       packSession,
       invoice,
-      awbAssignAvailable: env.ENABLE_SHIPROCKET_ON_CONFIRM !== false,
+      shippingMethod: normalizeShippingMethod(order.shipping_method),
+      manualCourierOptions: [...MANUAL_COURIER_OPTIONS],
+      awbAssignAvailable:
+        shippingMethod === 'shiprocket' && env.ENABLE_SHIPROCKET_ON_CONFIRM !== false,
       suggestedDispatchRack: suggestDispatchRack(order.courier_name as string | null),
       printEnabled: Boolean(packSession?.scan_complete),
       workflow,
@@ -428,6 +439,109 @@ export const fulfillmentService = {
     };
   },
 
+  async setShippingMethod(
+    commerceOrderId: string,
+    method: 'shiprocket' | 'manual',
+    actorEmail?: string
+  ) {
+    const { data: order, error } = await supabase
+      .from('commerce_orders')
+      .select('id, shipping_method, tracking_awb')
+      .eq('id', commerceOrderId)
+      .single();
+    throwIfSupabaseError(error, 'Order for shipping method');
+    if (!order) throw new NotFoundError('Order not found');
+
+    const patch: Record<string, unknown> = {
+      shipping_method: method,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (method === 'manual') {
+      patch.shiprocket_error = null;
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('commerce_orders')
+      .update(patch)
+      .eq('id', commerceOrderId)
+      .select('*')
+      .single();
+    throwIfSupabaseError(updateErr, 'Update shipping method');
+
+    if (method === 'shiprocket' && !order.tracking_awb && env.ENABLE_SHIPROCKET_ON_CONFIRM !== false) {
+      await this.provisionShipment(commerceOrderId, actorEmail).catch((err) => {
+        logger.warn({ err, commerceOrderId }, 'Shiprocket after switching from manual failed');
+      });
+      return omsWorkflowService.getOrderWorkflow(commerceOrderId);
+    }
+
+    return updated;
+  },
+
+  async saveManualLogistics(
+    commerceOrderId: string,
+    input: {
+      courierName: string;
+      trackingAwb: string;
+      trackingUrl?: string | null;
+    },
+    actorEmail?: string
+  ) {
+    const courierName = input.courierName.trim();
+    const trackingAwb = input.trackingAwb.trim();
+    if (!courierName) throw new AppError('Courier name is required', 400, 'VALIDATION');
+    if (!trackingAwb) throw new AppError('Tracking / LR number is required', 400, 'VALIDATION');
+
+    const { data: order, error } = await supabase
+      .from('commerce_orders')
+      .select('id, oms_status, shipping_method')
+      .eq('id', commerceOrderId)
+      .single();
+    throwIfSupabaseError(error, 'Order for manual logistics');
+    if (!order) throw new NotFoundError('Order not found');
+
+    const nextStatus =
+      order.oms_status === 'awaiting_tracking' || order.oms_status === 'packed'
+        ? 'ready_dispatch'
+        : order.oms_status;
+
+    const now = new Date().toISOString();
+    const patch: Record<string, unknown> = {
+      shipping_method: 'manual',
+      courier_name: courierName,
+      tracking_awb: trackingAwb,
+      tracking_url: input.trackingUrl?.trim() || null,
+      tracking_status: 'pending',
+      shiprocket_error: null,
+      oms_status: nextStatus,
+      updated_at: now,
+    };
+    if (nextStatus === 'ready_dispatch') {
+      patch.ready_dispatch_at = now;
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('commerce_orders')
+      .update(patch)
+      .eq('id', commerceOrderId)
+      .select('*')
+      .single();
+    throwIfSupabaseError(updateErr, 'Save manual logistics');
+
+    if (actorEmail) {
+      await employeeActionLogService.log({
+        actorEmail,
+        actionType: 'manual_logistics_saved',
+        entityType: 'commerce_order',
+        entityId: commerceOrderId,
+        details: { courierName, trackingAwb },
+      });
+    }
+
+    return updated;
+  },
+
   async provisionShipment(
     commerceOrderId: string,
     actorEmail?: string,
@@ -435,6 +549,19 @@ export const fulfillmentService = {
   ) {
     if (env.ENABLE_SHIPROCKET_ON_CONFIRM === false) {
       throw new AppError('Shiprocket on confirm is disabled', 400, 'SHIPROCKET_DISABLED');
+    }
+
+    const { data: orderRow } = await supabase
+      .from('commerce_orders')
+      .select('shipping_method')
+      .eq('id', commerceOrderId)
+      .maybeSingle();
+    if (normalizeShippingMethod(orderRow?.shipping_method) === 'manual') {
+      throw new AppError(
+        'Order uses manual logistics — enter courier and LR number instead',
+        400,
+        'MANUAL_SHIPPING'
+      );
     }
 
     await supabase
@@ -529,33 +656,80 @@ export const fulfillmentService = {
     }
 
     const commerceOrderId = String(pick.commerce_order_id);
+
+    const { data: order } = await supabase
+      .from('commerce_orders')
+      .select('shipping_method, tracking_awb, assigned_batch_id')
+      .eq('id', commerceOrderId)
+      .single();
+
+    const { data: batchLabel } = await supabase
+      .from('shipping_labels')
+      .select('id')
+      .eq('commerce_order_id', commerceOrderId)
+      .limit(1)
+      .maybeSingle();
+
+    const shippingMethod = normalizeShippingMethod(order?.shipping_method);
+    const hasBatchLabel = Boolean(batchLabel?.id || order?.assigned_batch_id);
+    const hasTracking = Boolean(order?.tracking_awb);
+
+    let nextStatus = 'awaiting_label_verification';
+    let trackingStatus: string | null = null;
+
+    if (shippingMethod === 'manual') {
+      if (hasTracking) {
+        nextStatus = 'ready_dispatch';
+        trackingStatus = 'pending';
+      } else {
+        nextStatus = 'awaiting_tracking';
+        trackingStatus = 'awaiting_lr';
+      }
+    } else if (hasBatchLabel) {
+      nextStatus = 'awaiting_label_verification';
+    } else if (hasTracking) {
+      nextStatus = 'ready_dispatch';
+      trackingStatus = 'pending';
+    } else {
+      nextStatus = 'packed';
+    }
+
+    const packedAt = new Date().toISOString();
+
     await supabase
       .from('pick_lists')
       .update({
         status: 'packed',
-        packed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        packed_at: packedAt,
+        updated_at: packedAt,
       })
       .eq('id', pickListId);
 
     await supabase
       .from('commerce_orders')
       .update({
-        oms_status: 'awaiting_label_verification',
-        updated_at: new Date().toISOString(),
+        oms_status: nextStatus,
+        packed_at: packedAt,
+        tracking_status: trackingStatus,
+        ready_dispatch_at: nextStatus === 'ready_dispatch' ? packedAt : null,
+        updated_at: packedAt,
       })
       .eq('id', commerceOrderId);
 
     if (actorEmail) {
       await employeeActionLogService.log({
         actorEmail,
-        actionType: 'pack_complete_awaiting_label',
+        actionType:
+          nextStatus === 'awaiting_tracking'
+            ? 'pack_complete_awaiting_tracking'
+            : 'pack_complete_awaiting_label',
         entityType: 'commerce_order',
         entityId: commerceOrderId,
+        details: { status: nextStatus, shippingMethod },
       });
     }
 
-    return { ok: true, commerceOrderId, status: 'awaiting_label_verification' };
+    return { ok: true, commerceOrderId, status: nextStatus };
   },
 
   async markLabelPrinted(commerceOrderId: string, actorEmail?: string) {
@@ -626,6 +800,14 @@ export const fulfillmentService = {
     }
 
     if (type === 'reprint_label') {
+      const { data: orderRow } = await supabase
+        .from('commerce_orders')
+        .select('shipping_method')
+        .eq('id', commerceOrderId)
+        .maybeSingle();
+      if (normalizeShippingMethod(orderRow?.shipping_method) === 'manual') {
+        return { ok: true, type, note: note ?? null, manual: true };
+      }
       const provisioned = await this.provisionShipment(commerceOrderId, actorEmail).catch((err) => {
         logger.error({ err, commerceOrderId }, 'Reprint label / AWB retry failed');
         return null;

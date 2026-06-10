@@ -8,6 +8,10 @@ declare function repairPendingCommerceOrders(limit?: number): Promise<{
 export declare const fulfillmentService: {
     repairPendingCommerceOrders: typeof repairPendingCommerceOrders;
     getStats(): Promise<{
+        pending: number;
+        packed: number;
+        lrPending: number;
+        completed: number;
         pendingOrders: number;
         readyToPack: number;
         packedToday: number;
@@ -40,6 +44,9 @@ export declare const fulfillmentService: {
         missingProducts: (string | undefined)[];
         priority: any;
         omsStatus: any;
+        shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
+        trackingStatus: string | null;
+        needsManualTracking: boolean;
         awb: any;
         pickListId: string;
         shiprocketError: string | null;
@@ -57,6 +64,8 @@ export declare const fulfillmentService: {
             invoice_number: string;
             document_type: string;
         } | null;
+        shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
+        manualCourierOptions: ("GRL" | "ST Courier" | "VRL" | "Bus transport" | "Local courier" | "Customer preferred transport")[];
         awbAssignAvailable: boolean;
         suggestedDispatchRack: string | null;
         printEnabled: boolean;
@@ -115,6 +124,12 @@ export declare const fulfillmentService: {
             totalAmount: any;
         };
     }>;
+    setShippingMethod(commerceOrderId: string, method: "shiprocket" | "manual", actorEmail?: string): Promise<any>;
+    saveManualLogistics(commerceOrderId: string, input: {
+        courierName: string;
+        trackingAwb: string;
+        trackingUrl?: string | null;
+    }, actorEmail?: string): Promise<any>;
     provisionShipment(commerceOrderId: string, actorEmail?: string, opts?: {
         forceRecreate?: boolean;
     }): Promise<import("../shiprocket/shiprocket.service.js").ShiprocketProvisionResult>;
@@ -137,14 +152,23 @@ export declare const fulfillmentService: {
     }>;
     reportException(commerceOrderId: string, type: FulfillmentExceptionType, note?: string, actorEmail?: string): Promise<{
         ok: boolean;
+        type: "reprint_label";
+        note: string | null;
+        manual: boolean;
+        retried?: undefined;
+        awb?: undefined;
+    } | {
+        ok: boolean;
         retried: boolean;
         awb: string | null;
         type?: undefined;
         note?: undefined;
+        manual?: undefined;
     } | {
         ok: boolean;
         type: "stock_missing" | "wrong_barcode" | "reprint_label" | "courier_failed" | "weight_mismatch";
         note: string | null;
+        manual?: undefined;
         retried?: undefined;
         awb?: undefined;
     }>;

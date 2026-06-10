@@ -586,9 +586,13 @@ function CourierLabelBody({
   const addr = (doc.deliveryAddress as string[]) ?? [];
   return (
     <section className="warehouse-print-courier">
-      <p className="warehouse-print-awb mono">{String(doc.awbCode ?? 'AWB pending')}</p>
+      <p className="muted">{String(doc.trackingLabel ?? 'AWB')}</p>
+      <p className="warehouse-print-awb mono">{String(doc.awbCode ?? 'Tracking pending')}</p>
       <p>
         <strong>{String(doc.courierName)}</strong>
+        {doc.shippingMethod === 'manual' ? (
+          <span className="muted"> &nbsp;|&nbsp; Manual logistics</span>
+        ) : null}
         {doc.dispatchRack ? (
           <>
             &nbsp;|&nbsp; Rack <strong>{String(doc.dispatchRack)}</strong>

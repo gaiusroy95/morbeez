@@ -7,13 +7,36 @@ import { Alert, Btn, EmptyState, Loading } from '../ui';
 import { WMS_API } from './warehouse-api';
 import { BarcodeScanInput } from './BarcodeScanInput';
 
+type QueueFilter = 'pending' | 'packed' | 'lr_pending' | 'completed';
+
 type Stats = {
-  pendingOrders: number;
-  readyToPack: number;
-  packedToday: number;
-  courierPending: number;
-  failedAwb: number;
+  pending: number;
+  packed: number;
+  lrPending: number;
+  completed: number;
+  pendingOrders?: number;
+  readyToPack?: number;
+  packedToday?: number;
+  courierPending?: number;
+  failedAwb?: number;
 };
+
+const QUEUE_FILTERS: Array<{ id: QueueFilter; label: string }> = [
+  { id: 'pending', label: 'Pending' },
+  { id: 'packed', label: 'Packed' },
+  { id: 'lr_pending', label: 'LR Pending' },
+  { id: 'completed', label: 'Completed' },
+];
+
+function queueFilterBucket(row: QueueRow): QueueFilter {
+  const status = row.omsStatus;
+  if (status === 'awaiting_tracking' || row.needsManualTracking) return 'lr_pending';
+  if (['ready_dispatch', 'shipped', 'delivered', 'completed'].includes(status)) {
+    return 'completed';
+  }
+  if (['packed', 'awaiting_label_verification'].includes(status)) return 'packed';
+  return 'pending';
+}
 
 type QueueRow = {
   id: string;
@@ -27,6 +50,8 @@ type QueueRow = {
   priority: string;
   omsStatus: string;
   awb: string | null;
+  shippingMethod?: 'shiprocket' | 'manual';
+  needsManualTracking?: boolean;
   pickListId: string | null;
   shiprocketError: string | null;
   isCod?: boolean;
@@ -99,6 +124,8 @@ type OrderDetail = {
     dispatch_rack: string | null;
     shiprocket_error: string | null;
     shiprocket_shipment_id: string | null;
+    shipping_method?: string | null;
+    tracking_status?: string | null;
     created_at?: string;
   };
   pickList: { id: string; picker_id?: string | null } | null;
@@ -135,6 +162,8 @@ type OrderDetail = {
     printed_at: string | null;
   } | null;
   awbAssignAvailable?: boolean;
+  shippingMethod?: 'shiprocket' | 'manual';
+  manualCourierOptions?: string[];
 };
 
 const EXCEPTIONS = [
@@ -300,6 +329,9 @@ export function WarehouseFulfillmentPanel({
   const [showSyncBanner, setShowSyncBanner] = useState(true);
   const [labelScanCode, setLabelScanCode] = useState('');
   const [wrongLabel, setWrongLabel] = useState('');
+  const [manualCourier, setManualCourier] = useState('');
+  const [manualTracking, setManualTracking] = useState('');
+  const [queueFilter, setQueueFilter] = useState<QueueFilter>('pending');
   const autoOpened = useRef(false);
 
   const loadQueue = useCallback(async () => {
@@ -358,6 +390,9 @@ export function WarehouseFulfillmentPanel({
       try {
         const d = await api<{ ok: boolean } & OrderDetail>(`${WMS_API}/fulfillment/orders/${orderId}`);
         setDetail(d);
+        const sm = d.shippingMethod ?? d.order.shipping_method ?? 'shiprocket';
+        setManualCourier(d.order.courier_name ?? d.manualCourierOptions?.[0] ?? '');
+        setManualTracking(d.order.tracking_awb ?? '');
 
         if (d.packSession?.id) {
           setSessionId(d.packSession.id);
@@ -478,6 +513,47 @@ export function WarehouseFulfillmentPanel({
     }
   }
 
+  async function setShipmentMode(method: 'shiprocket' | 'manual') {
+    if (!selectedId || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${WMS_API}/fulfillment/orders/${selectedId}/shipping-method`, {
+        method: 'PATCH',
+        body: JSON.stringify({ method }),
+      });
+      setSuccess(method === 'manual' ? 'Manual logistics selected' : 'Shiprocket selected');
+      await loadDetail(selectedId);
+      await loadQueue();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update shipping method');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveManualLogistics() {
+    if (!selectedId || !canWrite) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${WMS_API}/fulfillment/orders/${selectedId}/manual-logistics`, {
+        method: 'POST',
+        body: JSON.stringify({
+          courierName: manualCourier.trim(),
+          trackingAwb: manualTracking.trim(),
+        }),
+      });
+      setSuccess('Manual logistics saved');
+      await loadDetail(selectedId);
+      await loadQueue();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save manual logistics');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function assignAwb(forceRecreate = false) {
     if (!selectedId || !canWrite) return;
     setBusy(true);
@@ -550,20 +626,46 @@ export function WarehouseFulfillmentPanel({
 
   const workflow = detail?.workflow;
   const order = detail?.order;
+  const shippingMethod =
+    detail?.shippingMethod ??
+    (order?.shipping_method === 'manual' ? 'manual' : 'shiprocket');
+  const isManualShipping = shippingMethod === 'manual';
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
+  const awaitingTracking = order?.oms_status === 'awaiting_tracking';
   const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
-  const awbIssue = Boolean(
-    !order?.tracking_awb ||
-      detail?.shiprocketErrorDisplay ||
-      order?.shiprocket_error ||
-      awbPendingShipment
-  );
+  const awbIssue =
+    !isManualShipping &&
+    Boolean(
+      !order?.tracking_awb ||
+        detail?.shiprocketErrorDisplay ||
+        order?.shiprocket_error ||
+        awbPendingShipment
+    );
   const awbRetryAllowed = awbIssue;
-  const showPrintActions = printStage || awbIssue;
+  const showPrintActions = printStage || awbIssue || isManualShipping || awaitingTracking;
   const invoiceReady = Boolean(detail?.invoice);
-  const awbAssignAvailable = detail?.awbAssignAvailable !== false;
+  const awbAssignAvailable = detail?.awbAssignAvailable !== false && !isManualShipping;
+  const useShiprocketLabel =
+    !isManualShipping && Boolean(order?.label_url) && shippingMethod === 'shiprocket';
+  const manualCourierOptions = detail?.manualCourierOptions ?? [
+    'GRL',
+    'ST Courier',
+    'VRL',
+    'Bus transport',
+    'Local courier',
+    'Customer preferred transport',
+  ];
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
+  const filteredQueue = queue.filter((row) => queueFilterBucket(row) === queueFilter);
+  const filterCounts = {
+    pending: stats?.pending ?? queue.filter((r) => queueFilterBucket(r) === 'pending').length,
+    packed: stats?.packed ?? queue.filter((r) => queueFilterBucket(r) === 'packed').length,
+    lr_pending:
+      stats?.lrPending ?? queue.filter((r) => queueFilterBucket(r) === 'lr_pending').length,
+    completed:
+      stats?.completed ?? queue.filter((r) => queueFilterBucket(r) === 'completed').length,
+  };
 
   const orderTotalQty =
     workflow?.racks.reduce((s, r) => s + r.totalQty, 0) ?? selectedQueue?.orderItemCount ?? 0;
@@ -630,35 +732,34 @@ export function WarehouseFulfillmentPanel({
         </div>
       ) : null}
 
-      {stats ? (
-        <div className="pp-stats-strip">
-          <span>
-            Pending <strong>{stats.pendingOrders}</strong>
-          </span>
-          <span>
-            Ready <strong>{stats.readyToPack}</strong>
-          </span>
-          <span>
-            Packed today <strong>{stats.packedToday}</strong>
-          </span>
-          <span className="pp-stats-warn">
-            Failed AWB <strong>{stats.failedAwb}</strong>
-          </span>
-        </div>
-      ) : null}
+      <div className="pp-queue-filters">
+        {QUEUE_FILTERS.map((f) => (
+          <button
+            key={f.id}
+            type="button"
+            className={`pp-queue-filter${queueFilter === f.id ? ' pp-queue-filter--active' : ''}${f.id === 'lr_pending' ? ' pp-queue-filter--warn' : ''}`}
+            onClick={() => setQueueFilter(f.id)}
+          >
+            {f.label}
+            <strong>{filterCounts[f.id]}</strong>
+          </button>
+        ))}
+      </div>
 
       <div className="pp-layout">
         {/* LEFT — Order queue */}
         <aside className="pp-queue">
           <div className="pp-panel-head">
             <h3>Order queue</h3>
-            <span className="pp-queue-count">{queue.length}</span>
+            <span className="pp-queue-count">{filteredQueue.length}</span>
           </div>
-          {queue.length === 0 ? (
-            <EmptyState>No orders in fulfillment.</EmptyState>
+          {filteredQueue.length === 0 ? (
+            <EmptyState>
+              No {QUEUE_FILTERS.find((f) => f.id === queueFilter)?.label.toLowerCase()} orders.
+            </EmptyState>
           ) : (
             <ul className="pp-order-list">
-              {queue.map((row) => (
+              {filteredQueue.map((row) => (
                 <li key={row.id}>
                   <button
                     type="button"
@@ -673,7 +774,19 @@ export function WarehouseFulfillmentPanel({
                     </div>
                     <div className="pp-order-card-sub">
                       <span className="pp-status-badge">{formatOmsStatus(row.omsStatus)}</span>
-                      {row.shiprocketError ? <span className="pp-order-warn" title={row.shiprocketError}>⚠</span> : null}
+                      {row.shippingMethod === 'manual' ? (
+                        <span className="pp-order-mode">Manual</span>
+                      ) : null}
+                      {row.needsManualTracking ? (
+                        <span className="pp-order-warn" title="Awaiting LR / tracking">
+                          LR
+                        </span>
+                      ) : null}
+                      {row.shiprocketError && row.shippingMethod !== 'manual' ? (
+                        <span className="pp-order-warn" title={row.shiprocketError}>
+                          ⚠
+                        </span>
+                      ) : null}
                     </div>
                     {row.assignedEmployee ? (
                       <span className="pp-order-assignee">→ {row.assignedEmployee}</span>
@@ -1028,9 +1141,102 @@ export function WarehouseFulfillmentPanel({
                 </dl>
               </section>
 
+              <section className="pp-sidebar-section pp-shipment-mode">
+                <h4>Shipment mode</h4>
+                <div className="pp-shipment-options">
+                  <label
+                    className={`pp-shipment-option${shippingMethod === 'shiprocket' ? ' pp-shipment-option--active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name={`shipment-${order.id}`}
+                      checked={shippingMethod === 'shiprocket'}
+                      disabled={!canWrite || busy}
+                      onChange={() => void setShipmentMode('shiprocket')}
+                    />
+                    <span className="pp-shipment-option-body">
+                      <strong>Shiprocket (Auto)</strong>
+                      <span>Recommended for serviceable areas</span>
+                    </span>
+                  </label>
+                  <label
+                    className={`pp-shipment-option${shippingMethod === 'manual' ? ' pp-shipment-option--active' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name={`shipment-${order.id}`}
+                      checked={shippingMethod === 'manual'}
+                      disabled={!canWrite || busy}
+                      onChange={() => void setShipmentMode('manual')}
+                    />
+                    <span className="pp-shipment-option-body">
+                      <strong>Manual logistics</strong>
+                      <span>For non-serviceable areas, bulk, or client request</span>
+                    </span>
+                  </label>
+                </div>
+
+                {isManualShipping ? (
+                  <div className="pp-manual-logistics">
+                    <h5>Manual logistics details</h5>
+                    <label className="pp-manual-field">
+                      <span>
+                        Logistics / Courier name <em>*</em>
+                      </span>
+                      <select
+                        value={manualCourier}
+                        disabled={!canWrite || busy}
+                        onChange={(e) => setManualCourier(e.target.value)}
+                      >
+                        <option value="">Select courier</option>
+                        {manualCourierOptions.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="pp-manual-field">
+                      <span>
+                        Tracking / LR number <em>*</em>
+                      </span>
+                      <input
+                        value={manualTracking}
+                        disabled={!canWrite || busy}
+                        onChange={(e) => setManualTracking(e.target.value)}
+                        placeholder="LR / AWB / tracking number"
+                      />
+                    </label>
+                    {canWrite ? (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy || !manualCourier.trim() || !manualTracking.trim()}
+                        onClick={() => void saveManualLogistics()}
+                      >
+                        {busy ? 'Saving…' : 'Save logistics details'}
+                      </Btn>
+                    ) : null}
+                    {awaitingTracking && !order.tracking_awb ? (
+                      <p className="pp-manual-hint muted">
+                        Packed — enter LR when transport receipt is collected.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
+
               <section className="pp-sidebar-section pp-next-step">
                 <h4>Next step</h4>
-                {awaitingLabel ? (
+                {awaitingTracking ? (
+                  <div className="pp-next-step-card pp-next-step-card--warn">
+                    <span aria-hidden>📋</span>
+                    <p>
+                      <strong>Awaiting tracking</strong>
+                      <span>Parcel packed — save LR / tracking when logistics confirms.</span>
+                    </p>
+                  </div>
+                ) : awaitingLabel ? (
                   <div className="pp-next-step-card pp-next-step-card--warn">
                     <span aria-hidden>🏷</span>
                     <p>
@@ -1106,10 +1312,10 @@ export function WarehouseFulfillmentPanel({
                   </div>
                 ) : null}
                 <div className="pp-print-actions">
-                  {order.label_url ? (
+                  {useShiprocketLabel ? (
                     <a
                       className={`pp-print-action-btn pp-print-action-btn--label${showPrintActions ? '' : ' pp-print-action-btn--disabled'}`}
-                      href={showPrintActions ? order.label_url : undefined}
+                      href={showPrintActions ? order.label_url! : undefined}
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => {
@@ -1127,7 +1333,7 @@ export function WarehouseFulfillmentPanel({
                         if (!showPrintActions) e.preventDefault();
                       }}
                     >
-                      Shipping Label
+                      {isManualShipping ? 'Custom shipping label' : 'Shipping Label'}
                     </Link>
                   )}
                   <Link

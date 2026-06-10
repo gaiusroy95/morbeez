@@ -49,7 +49,8 @@ export const omsWorkflowService = {
             updated_at: new Date().toISOString(),
         })
             .eq('id', commerceOrderId);
-        if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false) {
+        const shippingMethod = String(order.shipping_method ?? 'shiprocket');
+        if (env.ENABLE_SHIPROCKET_ON_CONFIRM !== false && shippingMethod !== 'manual') {
             await shiprocketService
                 .provisionForCommerceOrder(commerceOrderId, { forceRecreate: false })
                 .then(async (result) => {
