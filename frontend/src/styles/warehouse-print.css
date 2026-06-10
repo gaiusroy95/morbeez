@@ -285,18 +285,44 @@
   font-weight: 700;
 }
 
-.inv-payment-stub {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+.inv-bank-section {
   border-top: 2px dashed #94a3b8;
   margin-top: 14px;
   padding-top: 10px;
 }
 
-.inv-stub-muted {
-  font-size: 10px;
-  color: #475569;
+.inv-bank-title {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.inv-bank-table {
+  width: 100%;
+  max-width: 480px;
+  border-collapse: collapse;
+  margin-bottom: 10px;
+  font-size: 11px;
+}
+
+.inv-bank-table th,
+.inv-bank-table td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 10px;
+  vertical-align: top;
+}
+
+.inv-bank-table th {
+  background: #f8fafc;
+  font-weight: 700;
+  text-align: left;
+  width: 38%;
+  white-space: nowrap;
+}
+
+.inv-bank-table td {
+  font-weight: 600;
 }
 
 .inv-footer-block {
@@ -313,10 +339,6 @@
 .inv-words {
   font-weight: 600;
   margin-bottom: 10px;
-}
-
-.inv-bank {
-  margin: 10px 0;
 }
 
 .inv-terms,

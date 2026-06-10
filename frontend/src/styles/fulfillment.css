@@ -783,6 +783,23 @@
   line-height: 1.4;
 }
 
+.pp-awb-assign-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin: 0.5rem 0 0.25rem;
+}
+
+.pp-awb-assign-hint {
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.pp-next-step-card .btn {
+  margin-top: 0.5rem;
+}
+
 .pp-print-actions {
   display: flex;
   flex-direction: column;

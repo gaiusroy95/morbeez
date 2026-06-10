@@ -53,10 +53,11 @@ export declare const fulfillmentService: {
         pickList: Record<string, unknown>;
         packSession: any;
         invoice: {
-            id: any;
-            invoice_number: any;
-            document_type: any;
+            id: string;
+            invoice_number: string;
+            document_type: string;
         } | null;
+        awbAssignAvailable: boolean;
         suggestedDispatchRack: string | null;
         printEnabled: boolean;
         workflow: {

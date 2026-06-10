@@ -288,10 +288,23 @@ export const fulfillmentService = {
   },
 
   async getOrderDetail(commerceOrderId: string) {
-    const [order, shiprocketDiagnostics] = await Promise.all([
-      omsWorkflowService.getOrderWorkflow(commerceOrderId),
-      shiprocketService.getDiagnostics().catch(() => null),
-    ]);
+    let order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+
+    if (
+      env.ENABLE_SHIPROCKET_ON_CONFIRM !== false &&
+      !order.tracking_awb &&
+      !order.shiprocket_error
+    ) {
+      try {
+        await this.provisionShipment(commerceOrderId);
+        order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+      } catch (err) {
+        logger.warn({ err, commerceOrderId }, 'Auto AWB assignment on order open failed');
+        order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
+      }
+    }
+
+    const shiprocketDiagnostics = await shiprocketService.getDiagnostics().catch(() => null);
     const pickLists = normalizePickLists<Record<string, unknown>>(order.pick_lists);
     const pickList = pickLists[0] ?? null;
     if (pickList?.id) {
@@ -312,6 +325,7 @@ export const fulfillmentService = {
       packSession = sess;
     }
 
+    let invoice: { id: string; invoice_number: string; document_type: string } | null = null;
     const { data: invoices } = await supabase
       .from('invoices')
       .select('id, invoice_number, document_type')
@@ -319,6 +333,22 @@ export const fulfillmentService = {
       .eq('document_type', 'tax_invoice')
       .order('created_at', { ascending: false })
       .limit(1);
+    invoice = invoices?.[0] ?? null;
+    if (!invoice) {
+      try {
+        const ensured = await this.ensureInvoice(commerceOrderId);
+        if (ensured?.id) {
+          const { data: invRow } = await supabase
+            .from('invoices')
+            .select('id, invoice_number, document_type')
+            .eq('id', ensured.id)
+            .maybeSingle();
+          invoice = invRow ?? null;
+        }
+      } catch (err) {
+        logger.warn({ err, commerceOrderId }, 'Invoice ensure on order detail failed');
+      }
+    }
 
     let workflow = null;
     if (packSession?.id && pickList) {
@@ -355,7 +385,8 @@ export const fulfillmentService = {
       order,
       pickList,
       packSession,
-      invoice: invoices?.[0] ?? null,
+      invoice,
+      awbAssignAvailable: env.ENABLE_SHIPROCKET_ON_CONFIRM !== false,
       suggestedDispatchRack: suggestDispatchRack(order.courier_name as string | null),
       printEnabled: Boolean(packSession?.scan_complete),
       workflow,

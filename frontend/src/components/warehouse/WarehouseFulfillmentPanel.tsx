@@ -134,6 +134,7 @@ type OrderDetail = {
     batch_status: string;
     printed_at: string | null;
   } | null;
+  awbAssignAvailable?: boolean;
 };
 
 const EXCEPTIONS = [
@@ -477,6 +478,43 @@ export function WarehouseFulfillmentPanel({
     }
   }
 
+  async function assignAwb(forceRecreate = false) {
+    if (!selectedId || !canWrite) return;
+    setBusy(true);
+    setError('');
+    setSuccess('');
+    try {
+      const r = await api<{
+        ok: boolean;
+        error?: string;
+        shipment?: { awb?: string | null } | null;
+      }>(`${WMS_API}/fulfillment/orders/${selectedId}/generate-awb`, {
+        method: 'POST',
+        body: JSON.stringify({ forceRecreate }),
+      });
+      if (r.ok && r.shipment?.awb) {
+        setSuccess(`AWB assigned: ${r.shipment.awb}`);
+      } else if (r.ok) {
+        setSuccess('AWB assigned');
+      } else {
+        setError(
+          r.error ??
+            'AWB could not be assigned (wallet or courier issue). Invoice and label print are still available below.'
+        );
+      }
+      await loadDetail(selectedId);
+      await loadQueue();
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'AWB assignment failed — invoice and label print are still available below.'
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function verifyLabel(code: string) {
     if (!selectedId || !canWrite || !code.trim()) return;
     setBusy(true);
@@ -514,9 +552,16 @@ export function WarehouseFulfillmentPanel({
   const order = detail?.order;
   const printStage = workflow?.stage === 'print' || detail?.printEnabled;
   const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
-  const awbRetryAllowed = Boolean(
-    detail?.shiprocketErrorDisplay || order?.shiprocket_error || awbPendingShipment
+  const awbIssue = Boolean(
+    !order?.tracking_awb ||
+      detail?.shiprocketErrorDisplay ||
+      order?.shiprocket_error ||
+      awbPendingShipment
   );
+  const awbRetryAllowed = awbIssue;
+  const showPrintActions = printStage || awbIssue;
+  const invoiceReady = Boolean(detail?.invoice);
+  const awbAssignAvailable = detail?.awbAssignAvailable !== false;
   const selectedQueue = queue.find((r) => r.id === selectedId);
   const customer = detail?.customerSummary;
 
@@ -1010,8 +1055,22 @@ export function WarehouseFulfillmentPanel({
                     <span aria-hidden>📦</span>
                     <p>
                       <strong>AWB pending</strong>
-                      <span>You can assign AWB now; printing still needs picking complete.</span>
+                      <span>
+                        {printStage
+                          ? 'Assign AWB when ready. Invoice and label print stay available if courier or wallet fails.'
+                          : 'AWB assigns automatically when you open the order. Complete picking to mark packed.'}
+                      </span>
                     </p>
+                    {canWrite && awbAssignAvailable && !order.tracking_awb ? (
+                      <Btn
+                        size="sm"
+                        variant="secondary"
+                        disabled={busy}
+                        onClick={() => void assignAwb(Boolean(order.shiprocket_error || detail.shiprocketErrorDisplay))}
+                      >
+                        {busy ? 'Assigning…' : order.shiprocket_error ? 'Retry AWB' : 'Assign AWB'}
+                      </Btn>
+                    ) : null}
                   </div>
                 ) : (
                   <div className="pp-next-step-card">
@@ -1024,42 +1083,59 @@ export function WarehouseFulfillmentPanel({
                 )}
               </section>
 
-              <section className={`pp-print-panel${printStage ? ' pp-print-panel--active' : ''}`}>
+              <section className={`pp-print-panel${showPrintActions ? ' pp-print-panel--active' : ''}`}>
                 <h4>Print queue</h4>
                 {detail.shiprocketErrorDisplay || order.shiprocket_error ? (
                   <p className="pp-print-warn">{detail.shiprocketErrorDisplay ?? order.shiprocket_error}</p>
                 ) : null}
+                {canWrite && awbAssignAvailable && !order.tracking_awb ? (
+                  <div className="pp-awb-assign-row">
+                    <Btn
+                      size="sm"
+                      variant="secondary"
+                      disabled={busy}
+                      onClick={() => void assignAwb(Boolean(order.shiprocket_error || detail.shiprocketErrorDisplay))}
+                    >
+                      {busy ? 'Assigning AWB…' : order.shiprocket_error ? 'Retry AWB' : 'Assign AWB'}
+                    </Btn>
+                    {awbIssue && !printStage ? (
+                      <span className="pp-awb-assign-hint muted">
+                        Invoice &amp; label available even if AWB fails
+                      </span>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="pp-print-actions">
                   {order.label_url ? (
                     <a
-                      className={`pp-print-action-btn pp-print-action-btn--label${printStage ? '' : ' pp-print-action-btn--disabled'}`}
-                      href={printStage ? order.label_url : undefined}
+                      className={`pp-print-action-btn pp-print-action-btn--label${showPrintActions ? '' : ' pp-print-action-btn--disabled'}`}
+                      href={showPrintActions ? order.label_url : undefined}
                       target="_blank"
                       rel="noreferrer"
                       onClick={(e) => {
-                        if (!printStage) e.preventDefault();
+                        if (!showPrintActions) e.preventDefault();
                       }}
                     >
                       Shipping Label
                     </a>
                   ) : (
                     <Link
-                      className={`pp-print-action-btn pp-print-action-btn--label${printStage ? '' : ' pp-print-action-btn--disabled'}`}
-                      to={printStage ? printUrl('courier_label', order.id) : '#'}
+                      className={`pp-print-action-btn pp-print-action-btn--label${showPrintActions ? '' : ' pp-print-action-btn--disabled'}`}
+                      to={showPrintActions ? printUrl('courier_label', order.id) : '#'}
                       target="_blank"
                       onClick={(e) => {
-                        if (!printStage) e.preventDefault();
+                        if (!showPrintActions) e.preventDefault();
                       }}
                     >
                       Shipping Label
                     </Link>
                   )}
                   <Link
-                    className={`pp-print-action-btn pp-print-action-btn--invoice${printStage && detail.invoice ? '' : ' pp-print-action-btn--disabled'}`}
-                    to={printStage && detail.invoice ? printUrl('tax_invoice', detail.invoice.id) : '#'}
+                    className={`pp-print-action-btn pp-print-action-btn--invoice${showPrintActions && invoiceReady ? '' : ' pp-print-action-btn--disabled'}`}
+                    to={showPrintActions && invoiceReady ? printUrl('tax_invoice', detail.invoice!.id) : '#'}
                     target="_blank"
                     onClick={(e) => {
-                      if (!printStage || !detail.invoice) e.preventDefault();
+                      if (!showPrintActions || !invoiceReady) e.preventDefault();
                     }}
                   >
                     Invoice

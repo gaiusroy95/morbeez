@@ -232,7 +232,15 @@ function TaxInvoiceBody({
   const billTo = (doc.billTo as string[]) ?? [];
   const shipTo = (doc.shipTo as string[]) ?? [];
   const hsnSummary = (doc.hsnSummary as Array<Record<string, unknown>>) ?? [];
-  const bank = doc.bankDetails as Record<string, string> | undefined;
+  const bank = doc.bankDetails as Record<string, string | null> | undefined;
+  const bankRows = [
+    { label: 'Name', value: bank?.accountName },
+    { label: 'Account Number', value: bank?.accountNumber },
+    { label: 'Bank Name', value: bank?.bankName },
+    { label: 'Branch', value: bank?.branch },
+    { label: 'IFSC Code', value: bank?.ifsc },
+  ].filter((row) => row.value);
+  const hasBankDetails = bankRows.length > 0;
   const gstSlabSummary =
     (doc.gstSlabSummary as GstSlabRow[] | undefined)?.length
       ? (doc.gstSlabSummary as GstSlabRow[])
@@ -395,38 +403,21 @@ function TaxInvoiceBody({
         </tbody>
       </table>
 
-      <div className="inv-payment-stub">
-        <div className="inv-stub-left">
-          <p>
-            <strong>{String(doc.customerName)}</strong>
-          </p>
-          <table className="inv-stub-table">
+      {hasBankDetails ? (
+        <section className="inv-bank-section">
+          <h3 className="inv-bank-title">Company&apos;s Bank Details</h3>
+          <table className="inv-bank-table">
             <tbody>
-              <tr>
-                <th>Invoice Number</th>
-                <td>{String(doc.invoiceNumber)}</td>
-              </tr>
-              <tr>
-                <th>Invoice Date</th>
-                <td>{String(doc.invoiceDate)}</td>
-              </tr>
-              <tr>
-                <th>Balance Due</th>
-                <td>
-                  <strong>{formatInr(doc.balanceDue ?? doc.total)}</strong>
-                </td>
-              </tr>
+              {bankRows.map((row) => (
+                <tr key={row.label}>
+                  <th>{row.label}</th>
+                  <td>{String(row.value)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
-        </div>
-        <div className="inv-stub-right">
-          <p>
-            <strong>{company.companyName}</strong>
-          </p>
-          <p className="inv-stub-muted">{company.formattedAddress.replace(/\n/g, ', ')}</p>
-          {company.gstin ? <p className="inv-stub-muted">GSTIN {company.gstin}</p> : null}
-        </div>
-      </div>
+        </section>
+      ) : null}
 
       <div className="inv-footer-block inv-page-break">
         <div className="inv-footer-main">
@@ -435,22 +426,6 @@ function TaxInvoiceBody({
               <strong>Total In Words</strong>
             </p>
             <p className="inv-words">{String(doc.totalInWords ?? '')}</p>
-            {bank?.accountName ||
-            bank?.accountNumber ||
-            bank?.bankName ||
-            bank?.branch ||
-            bank?.ifsc ? (
-              <div className="inv-bank">
-                <p>
-                  <strong>Company&apos;s Bank Details</strong>
-                </p>
-                {bank.accountName ? <p>Name: {bank.accountName}</p> : null}
-                {bank.accountNumber ? <p>Account Number: {bank.accountNumber}</p> : null}
-                {bank.bankName ? <p>Bank Name: {bank.bankName}</p> : null}
-                {bank.branch ? <p>Branch: {bank.branch}</p> : null}
-                {bank.ifsc ? <p>IFSC code: {bank.ifsc}</p> : null}
-              </div>
-            ) : null}
             {company.termsAndConditions ? (
               <div
                 className="inv-terms"
