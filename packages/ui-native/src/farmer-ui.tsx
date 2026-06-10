@@ -144,10 +144,132 @@ export function QuickActionGrid({
   return (
     <View style={styles.quickGrid}>
       {actions.map((a) => (
-        <Pressable key={a.id} style={styles.quickBtn} onPress={a.onPress}>
+        <Pressable key={a.id} style={styles.quickBtn} onPress={a.onPress} accessibilityRole="button" accessibilityLabel={a.label}>
           <Text style={styles.quickBtnText}>{a.label}</Text>
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+export function MarketRateCard({
+  crop,
+  marketName,
+  pricePerKg,
+  trend,
+  dailyChangeInr,
+  onPress,
+}: {
+  crop: string;
+  marketName: string;
+  pricePerKg: number;
+  trend?: 'up' | 'down' | 'flat' | null;
+  dailyChangeInr?: number | null;
+  onPress?: () => void;
+}) {
+  const arrow = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
+  const trendColor = trend === 'up' ? tokens.green700 : trend === 'down' ? tokens.danger : tokens.textMuted;
+  const changeLabel =
+    dailyChangeInr != null && dailyChangeInr !== 0
+      ? `${dailyChangeInr > 0 ? '↑' : '↓'} ₹${Math.abs(Math.round(dailyChangeInr))} Today`
+      : null;
+  const inner = (
+    <View style={styles.marketCard}>
+      <Text style={styles.marketCrop}>{crop}</Text>
+      <Text style={styles.marketName}>{marketName}</Text>
+      <View style={styles.marketPriceRow}>
+        <Text style={styles.marketPrice}>₹{pricePerKg}/kg</Text>
+        {trend ? <Text style={[styles.marketTrend, { color: trendColor }]}>{arrow}</Text> : null}
+      </View>
+      {changeLabel ? <Text style={[styles.marketChange, { color: trendColor }]}>{changeLabel}</Text> : null}
+    </View>
+  );
+  if (onPress) return <Pressable onPress={onPress}>{inner}</Pressable>;
+  return inner;
+}
+
+export function FinanceSummaryRow({
+  items,
+}: {
+  items: Array<{ label: string; value: string; highlight?: boolean }>;
+}) {
+  return (
+    <View style={styles.financeRow}>
+      {items.map((item) => (
+        <View key={item.label} style={styles.financeCell}>
+          <Text style={styles.financeLabel}>{item.label}</Text>
+          <Text style={[styles.financeValue, item.highlight && styles.financeHighlight]}>{item.value}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function TaskCard({ label, dueLabel, onPress }: { label: string; dueLabel?: string; onPress?: () => void }) {
+  const inner = (
+    <View style={styles.taskCard}>
+      <Text style={styles.taskLabel}>{label}</Text>
+      {dueLabel ? <Text style={styles.taskDue}>{dueLabel}</Text> : null}
+    </View>
+  );
+  if (onPress) return <Pressable onPress={onPress}>{inner}</Pressable>;
+  return inner;
+}
+
+export function PromoBanner({ title, subtitle, onPress }: { title: string; subtitle?: string; onPress?: () => void }) {
+  const inner = (
+    <View style={styles.promoBanner}>
+      <Text style={styles.promoTitle}>{title}</Text>
+      {subtitle ? <Text style={styles.promoSub}>{subtitle}</Text> : null}
+    </View>
+  );
+  if (onPress) return <Pressable onPress={onPress}>{inner}</Pressable>;
+  return inner;
+}
+
+export function OrderStatusChip({ label, tone = 'neutral' }: { label: string; tone?: string }) {
+  const bg = tone === 'success' ? tokens.green100 : tone === 'warning' ? '#FFF4E5' : tokens.card;
+  return (
+    <View style={[styles.orderChip, { backgroundColor: bg }]}>
+      <Text style={styles.orderChipText}>{label}</Text>
+    </View>
+  );
+}
+
+export function DonutChart({
+  segments,
+  size = 140,
+}: {
+  segments: Array<{ label: string; value: number; color: string }>;
+  size?: number;
+}) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  return (
+    <View style={styles.donutWrap}>
+      <View style={[styles.donutRing, { width: size, height: size, borderRadius: size / 2 }]}>
+        {segments.map((seg, i) => {
+          const pct = Math.round((seg.value / total) * 100);
+          if (pct <= 0) return null;
+          return (
+            <View key={seg.label} style={styles.donutLegendRow}>
+              <View style={[styles.donutDot, { backgroundColor: seg.color }]} />
+              <Text style={styles.donutLegendText}>{seg.label} · {pct}%</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+export function StageProgressBar({ dap, stage }: { dap: number | null; stage?: string | null }) {
+  const pct = dap != null ? Math.min(100, Math.round((dap / 120) * 100)) : 0;
+  return (
+    <View style={styles.stageBarWrap}>
+      <View style={styles.stageBarTrack}>
+        <View style={[styles.stageBarFill, { width: `${pct}%` }]} />
+      </View>
+      {stage ? <Text style={styles.stageBarLabel}>{stage}{dap != null ? ` · DAP ${dap}` : ''}</Text> : null}
     </View>
   );
 }
@@ -223,4 +345,63 @@ const styles = StyleSheet.create({
   },
   quickBtnText: { fontSize: 13, fontWeight: '600', color: tokens.green800 },
   pressed: { opacity: 0.9 },
+  marketCard: {
+    backgroundColor: tokens.green800,
+    borderRadius: tokens.radiusSm,
+    padding: 16,
+    marginBottom: 12,
+  },
+  marketCrop: { fontSize: 12, color: '#c8e6c9', fontWeight: '600', textTransform: 'uppercase' },
+  marketName: { fontSize: 13, color: '#e8f5e9', marginTop: 4 },
+  marketPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  marketPrice: { fontSize: 28, fontWeight: '800', color: '#fff' },
+  marketTrend: { fontSize: 22, fontWeight: '700' },
+  marketChange: { fontSize: 14, fontWeight: '600', marginTop: 6, color: '#e8f5e9' },
+  financeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  financeCell: {
+    flex: 1,
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+  },
+  financeLabel: { fontSize: 11, color: tokens.textMuted, marginBottom: 4 },
+  financeValue: { fontSize: 15, fontWeight: '700', color: tokens.text },
+  financeHighlight: { color: tokens.green700 },
+  taskCard: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+    marginBottom: 8,
+  },
+  taskLabel: { fontSize: 14, fontWeight: '600', color: tokens.text },
+  taskDue: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
+  promoBanner: {
+    backgroundColor: tokens.green700,
+    borderRadius: tokens.radiusSm,
+    padding: 16,
+    marginBottom: 12,
+  },
+  promoTitle: { fontSize: 16, fontWeight: '700', color: '#fff' },
+  promoSub: { fontSize: 13, color: '#e8f5e9', marginTop: 4 },
+  orderChip: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginTop: 4 },
+  orderChipText: { fontSize: 11, fontWeight: '700', color: tokens.text },
+  donutWrap: { alignItems: 'center', marginVertical: 8 },
+  donutRing: {
+    borderWidth: 12,
+    borderColor: tokens.green500,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  donutLegendRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  donutDot: { width: 10, height: 10, borderRadius: 5 },
+  donutLegendText: { fontSize: 13, color: tokens.text },
+  stageBarWrap: { marginVertical: 8 },
+  stageBarTrack: { height: 8, backgroundColor: tokens.border, borderRadius: 4, overflow: 'hidden' },
+  stageBarFill: { height: 8, backgroundColor: tokens.green700, borderRadius: 4 },
+  stageBarLabel: { fontSize: 12, color: tokens.textMuted, marginTop: 6 },
 });

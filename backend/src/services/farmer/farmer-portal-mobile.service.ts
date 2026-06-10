@@ -54,6 +54,43 @@ function parseBullets(text: string | null | undefined): string[] {
     .slice(0, 8);
 }
 
+function parseRecommendationProducts(raw: unknown): Array<{
+  title: string;
+  quantity?: number;
+  variantId?: string | null;
+  shopifyHandle?: string | null;
+}> {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((p) => {
+        if (typeof p === 'string') return { title: p.trim() };
+        if (p && typeof p === 'object') {
+          const o = p as Record<string, unknown>;
+          const title = String(
+            o.tradeName ?? o.productTitle ?? o.title ?? o.name ?? o.technicalName ?? 'Product'
+          ).trim();
+          const variantId = o.shopifyVariantId ?? o.variantId ?? null;
+          return {
+            title,
+            quantity: o.quantity != null ? Number(o.quantity) : undefined,
+            variantId: variantId ? String(variantId) : null,
+            shopifyHandle: o.shopifyHandle ? String(o.shopifyHandle) : null,
+          };
+        }
+        return { title: 'Product' };
+      })
+      .filter((p) => p.title.length > 0)
+      .slice(0, 8);
+  }
+  const productsRaw = String(raw ?? '');
+  return productsRaw
+    .split(/[,;|\n]/)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((title) => ({ title }));
+}
+
 function severityFromConfidence(confidence: number): 'low' | 'medium' | 'high' {
   if (confidence < 0.5) return 'high';
   if (confidence < 0.7) return 'medium';
@@ -495,13 +532,7 @@ export const farmerPortalMobileService = {
   mapRecommendation(r: Record<string, unknown>) {
     const block = r.farm_blocks as { name?: string; crop_name?: string } | null;
     const text = [r.products, r.dosage, r.recommendation].filter(Boolean).join('\n');
-    const productsRaw = String(r.products ?? '');
-    const products = productsRaw
-      .split(/[,;|\n]/)
-      .map((p) => p.trim())
-      .filter(Boolean)
-      .slice(0, 6)
-      .map((title) => ({ title }));
+    const products = parseRecommendationProducts(r.products);
 
     return {
       id: String(r.id),
@@ -602,6 +633,7 @@ export const farmerPortalMobileService = {
     input: {
       blockId: string;
       activityType: 'spray_applied' | 'fertigation' | 'drench' | 'scouting' | 'irrigation' | 'other';
+      activityTypeId?: string;
       activityDate: string;
       productUsed?: string;
       quantity?: string;
@@ -624,6 +656,7 @@ export const farmerPortalMobileService = {
     await whatsappOsAdminService.createFieldActivity({
       blockId: input.blockId,
       activityType,
+      activityTypeId: input.activityTypeId,
       activityLabel: label,
       activityDate: input.activityDate,
       notes: notes || undefined,
@@ -728,22 +761,44 @@ export const farmerPortalMobileService = {
   },
 
   async getRoiDashboard(farmerId: string) {
-    const { farmerPortalService } = await import('./farmer-portal.service.js');
-    const roi = await farmerPortalService.getRoi(farmerId);
-    const investment = roi.summary.inputCostInr;
-    const revenue = roi.summary.estimatedYieldIncomeInr;
-    const profit = roi.summary.estimatedProfitInr;
-    const roiPercent = investment > 0 ? Math.round((profit / investment) * 100) : 0;
+    const { cropSeasonService } = await import('./crop-season.service.js');
+    const active = await cropSeasonService.getActiveDashboard(farmerId);
+    const breakdownLegacy = { inputs: 0, labor: 0, operations: 0, other: 0 };
+    for (const b of active.breakdown) {
+      const l = b.label.toLowerCase();
+      if (l.includes('labour') || l.includes('labor')) breakdownLegacy.labor += b.value;
+      else if (l.includes('fert') || l.includes('spray') || l.includes('purchase')) breakdownLegacy.inputs += b.value;
+      else if (l.includes('irrig') || l.includes('mach')) breakdownLegacy.operations += b.value;
+      else breakdownLegacy.other += b.value;
+    }
 
     return {
-      investmentInr: investment,
-      projectedRevenueInr: revenue,
-      profitInr: profit,
-      roiPercent,
-      yieldForecast: roi.summary.acreage ? `${roi.summary.acreage} acre tracked` : null,
-      acreage: roi.summary.acreage,
-      marketNote: roi.summary.marketNote,
-      recentEntries: roi.recentEntries,
+      seasonId: active.seasonId,
+      blockName: active.blockName,
+      dap: active.dap,
+      stageLabel: active.stageLabel,
+      investmentInr: active.spentInr,
+      projectedRevenueInr: active.expectedIncomeInr,
+      profitInr: active.netProfitInr,
+      spentInr: active.spentInr,
+      expectedIncomeInr: active.expectedIncomeInr,
+      netProfitInr: active.netProfitInr,
+      roiPercent: active.roiPercent,
+      yieldForecast: active.yieldEstimate,
+      acreage: active.acreage,
+      marketNote: active.marketNote,
+      seasonLabel: active.seasonLabel,
+      breakdown: breakdownLegacy,
+      breakdownByType: active.breakdown,
+      recentEntries: active.recentEntries.map((e) => ({
+        id: e.id,
+        dateLabel: e.dateLabel,
+        category: e.label,
+        amountInr: e.amountInr,
+        type: e.type,
+        note: e.note,
+        icon: e.icon,
+      })),
     };
   },
 };

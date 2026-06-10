@@ -31,20 +31,21 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="fields"
+        name="market"
         options={{
-          title: t('fields', locale),
-          tabBarAccessibilityLabel: t('fields', locale),
-          tabBarIcon: ({ color, size }) => <Ionicons name="map-outline" size={size} color={color} />,
+          title: t('market', locale),
+          headerTitle: t('market', locale),
+          tabBarAccessibilityLabel: t('market', locale),
+          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="scan"
+        name="roi"
         options={{
-          title: t('scan', locale),
-          headerTitle: t('scan', locale),
-          tabBarAccessibilityLabel: t('scan', locale),
-          tabBarIcon: ({ color, size }) => <Ionicons name="camera-outline" size={size} color={color} />,
+          title: t('roi', locale),
+          headerTitle: t('roi', locale),
+          tabBarAccessibilityLabel: t('roi', locale),
+          tabBarIcon: ({ color, size }) => <Ionicons name="pie-chart-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -65,6 +66,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen name="fields" options={{ href: null }} />
+      <Tabs.Screen name="scan" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -19,6 +19,13 @@ export {
   StarRating,
   ProductCard,
   QuickActionGrid,
+  MarketRateCard,
+  FinanceSummaryRow,
+  TaskCard,
+  PromoBanner,
+  OrderStatusChip,
+  DonutChart,
+  StageProgressBar,
 } from './farmer-ui';
 
 /** Green app bar with Morbeez logo on the left */

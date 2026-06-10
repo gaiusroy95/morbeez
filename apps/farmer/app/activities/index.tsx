@@ -1,16 +1,19 @@
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { fetchActivities, tokens, type CultivationActivity } from '@morbeez/shared';
+import { fetchActivities, formatInr, t, tokens, type CultivationActivity } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, Loading } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function ActivitiesScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const params = useLocalSearchParams<{ blockId?: string }>();
   const [filter, setFilter] = useState<string>('all');
   const [items, setItems] = useState<CultivationActivity[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setError('');
@@ -25,6 +28,7 @@ export default function ActivitiesScreen() {
       setError(e instanceof Error ? e.message : 'Could not load activities');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [filter, params.blockId]);
 
@@ -32,14 +36,20 @@ export default function ActivitiesScreen() {
     void load();
   }, [load]);
 
-  if (loading) return <Loading label="Loading activities…" />;
+  const sorted = useMemo(
+    () => [...items].sort((a, b) => (a.dateLabel < b.dateLabel ? 1 : -1)),
+    [items]
+  );
+
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   return (
     <FlatList
       style={styles.list}
       contentContainerStyle={styles.content}
-      data={items}
+      data={sorted}
       keyExtractor={(i) => i.id}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={
         <>
           {error ? <AlertBox>{error}</AlertBox> : null}
@@ -58,11 +68,15 @@ export default function ActivitiesScreen() {
       }
       ListEmptyComponent={<EmptyState>No activities recorded yet.</EmptyState>}
       renderItem={({ item }) => (
-        <Text style={styles.row}>
-          {item.dateLabel} · {item.activityLabel}
-          {item.costInr ? ` · ₹${item.costInr}` : ''}
-          {item.blockName ? ` · ${item.blockName}` : ''}
-        </Text>
+        <View style={styles.card}>
+          <Text style={styles.title}>{item.activityLabel}</Text>
+          <Text style={styles.meta}>
+            {item.dateLabel}
+            {item.blockName ? ` · ${item.blockName}` : ''}
+          </Text>
+          {item.notes ? <Text style={styles.body}>{item.notes}</Text> : null}
+          {item.costInr ? <Text style={styles.cost}>{formatInr(item.costInr)}</Text> : null}
+        </View>
       )}
     />
   );
@@ -71,14 +85,16 @@ export default function ActivitiesScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, paddingBottom: 32 },
-  row: {
+  card: {
     backgroundColor: tokens.card,
     borderRadius: tokens.radiusSm,
     borderWidth: 1,
     borderColor: tokens.border,
-    padding: 12,
-    marginBottom: 8,
-    fontSize: 14,
-    color: tokens.text,
+    padding: 14,
+    marginBottom: 10,
   },
+  title: { fontSize: 15, fontWeight: '600', color: tokens.text },
+  meta: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
+  body: { fontSize: 13, color: tokens.text, marginTop: 6 },
+  cost: { fontSize: 14, fontWeight: '700', color: tokens.green800, marginTop: 6 },
 });

@@ -151,6 +151,28 @@ ${priceFacts(params.cropType, params.date, params.rows)}`;
   }
 }
 
+async function computeWeeklyTrendPct(crop: string, marketName: string, date: string, todayPrice: number) {
+  const end = new Date(`${date}T12:00:00+05:30`);
+  const weekAgo = new Date(end);
+  weekAgo.setDate(weekAgo.getDate() - 7);
+
+  const { data: row } = await supabase
+    .from('crop_daily_prices')
+    .select('price_per_kg')
+    .eq('crop_type', crop.toLowerCase())
+    .eq('market_name', marketName)
+    .eq('price_date', weekAgo.toISOString().slice(0, 10))
+    .eq('active', true)
+    .maybeSingle();
+
+  if (row?.price_per_kg != null) {
+    const prev = Number(row.price_per_kg);
+    if (prev <= 0) return null;
+    return Math.round(((todayPrice - prev) / prev) * 100);
+  }
+  return null;
+}
+
 export const dailyPricesService = {
   async formatForFarmer(farmerId: string, language: AdvisoryLanguage): Promise<string> {
     const ctx = await fetchCompactFarmerContext(farmerId);
@@ -188,23 +210,57 @@ export const dailyPricesService = {
       return `${t('pricesIntro', language)}\n\nNo prices published yet for ${crop}. Our team will update soon.`;
     }
 
-    return this.formatRows(language, crop, date, rows);
+    const primary = rows[0];
+    const weeklyPct = await computeWeeklyTrendPct(
+      crop,
+      String(primary.market_name),
+      date,
+      Number(primary.price_per_kg)
+    );
+    return this.formatRows(language, crop, date, rows, weeklyPct);
   },
 
   formatRows(
     language: AdvisoryLanguage,
     crop: string,
     date: string,
-    rows: PriceRow[]
+    rows: PriceRow[],
+    weeklyPct?: number | null
   ): string {
-    const lines = [`${t('pricesIntro', language)}`, `🌱 ${crop.charAt(0).toUpperCase() + crop.slice(1)} — ${date}`, ''];
-    for (const r of rows) {
-      let line = `• ${r.market_name} → ₹${Number(r.price_per_kg).toFixed(0)}/kg`;
-      if (r.last_year_price_per_kg != null) {
-        line += `\n  Same day last year: ₹${Number(r.last_year_price_per_kg).toFixed(0)}/kg`;
-      }
-      lines.push(line);
+    const primary = rows[0];
+    const price = Number(primary.price_per_kg);
+    const arrow =
+      primary.last_year_price_per_kg != null
+        ? price > Number(primary.last_year_price_per_kg)
+          ? '↑'
+          : price < Number(primary.last_year_price_per_kg)
+            ? '↓'
+            : '→'
+        : weeklyPct != null && weeklyPct > 0
+          ? '↑'
+          : weeklyPct != null && weeklyPct < 0
+            ? '↓'
+            : '';
+
+    const cropLabel = crop.charAt(0).toUpperCase() + crop.slice(1);
+    const lines = [
+      `${t('pricesIntro', language)}`,
+      `${cropLabel} Price:`,
+      `₹${price.toFixed(0)}/kg${arrow ? ` ${arrow}` : ''}`,
+      '',
+    ];
+
+    if (weeklyPct != null) {
+      lines.push('Weekly Trend:', `${weeklyPct > 0 ? '+' : ''}${weeklyPct}%`, '');
     }
+
+    if (rows.length > 1) {
+      lines.push(`${primary.market_name} · ${date}`);
+      for (const r of rows.slice(1)) {
+        lines.push(`• ${r.market_name} → ₹${Number(r.price_per_kg).toFixed(0)}/kg`);
+      }
+    }
+
     return lines.join('\n');
   },
 };

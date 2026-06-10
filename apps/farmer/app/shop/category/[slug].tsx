@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   FlatList,
   Pressable,
@@ -10,18 +10,23 @@ import {
   View,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { fetchStoreProducts, formatInr, tokens, type StoreProduct } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading, ProductCard, SectionHeader } from '@morbeez/ui-native';
+import { fetchStoreProducts, formatInr, t, tokens, type StoreProduct } from '@morbeez/shared';
+import { AlertBox, EmptyState, HubTabs, Loading, ProductCard } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 
-const SHOP_CATEGORIES = ['Fungicides', 'Insecticides', 'Nutrition', 'Bio Products', 'Growth Promoters'];
+type SortKey = 'featured' | 'price_low' | 'price_high';
 
 export default function CategoryListingScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const category = decodeURIComponent(String(slug ?? ''));
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortKey>('featured');
+  const [stockOnly, setStockOnly] = useState(false);
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -33,6 +38,7 @@ export default function CategoryListingScreen() {
       setError(e instanceof Error ? e.message : 'Could not load products');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [category, search]);
 
@@ -40,16 +46,28 @@ export default function CategoryListingScreen() {
     void load();
   }, [load]);
 
-  if (loading) return <Loading label="Loading products…" />;
+  const visible = useMemo(() => {
+    let list = [...products];
+    if (stockOnly) list = list.filter((p) => p.inventory > 0);
+    if (sort === 'price_low') {
+      list.sort((a, b) => parseFloat(a.price || '0') - parseFloat(b.price || '0'));
+    } else if (sort === 'price_high') {
+      list.sort((a, b) => parseFloat(b.price || '0') - parseFloat(a.price || '0'));
+    }
+    return list;
+  }, [products, sort, stockOnly]);
+
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   return (
     <FlatList
       style={styles.list}
       contentContainerStyle={styles.content}
-      data={products}
+      data={visible}
       keyExtractor={(p) => p.id}
       numColumns={2}
       columnWrapperStyle={styles.row}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={
         <View>
           {error ? <AlertBox>{error}</AlertBox> : null}
@@ -62,6 +80,23 @@ export default function CategoryListingScreen() {
             placeholderTextColor={tokens.textMuted}
             onSubmitEditing={() => void load()}
           />
+          <HubTabs
+            tabs={[
+              { id: 'featured' as SortKey, label: 'Featured' },
+              { id: 'price_low' as SortKey, label: 'Price ↑' },
+              { id: 'price_high' as SortKey, label: 'Price ↓' },
+            ]}
+            active={sort}
+            onChange={setSort}
+          />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+            <Pressable style={[styles.chip, !stockOnly && styles.chipActive]} onPress={() => setStockOnly(false)}>
+              <Text style={[styles.chipText, !stockOnly && styles.chipTextActive]}>All</Text>
+            </Pressable>
+            <Pressable style={[styles.chip, stockOnly && styles.chipActive]} onPress={() => setStockOnly(true)}>
+              <Text style={[styles.chipText, stockOnly && styles.chipTextActive]}>In stock</Text>
+            </Pressable>
+          </ScrollView>
         </View>
       }
       ListEmptyComponent={<EmptyState>No products in this category.</EmptyState>}
@@ -93,4 +128,17 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   row: { gap: 10 },
+  filters: { gap: 8, paddingVertical: 8 },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    marginRight: 8,
+  },
+  chipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500 },
+  chipText: { fontSize: 13, color: tokens.textMuted },
+  chipTextActive: { color: tokens.green800, fontWeight: '600' },
 });

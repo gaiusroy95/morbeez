@@ -121,6 +121,8 @@ export default function CheckoutScreen() {
             orderName: result.orderName ?? '',
             orderId: result.shopifyOrderId ?? '',
             paymentMethod: 'cod',
+            amountInr: String(Math.round(totalPaise / 100)),
+            productSummary: items.map((i) => i.title).join(', ').slice(0, 200),
           },
         });
         return;
@@ -153,6 +155,8 @@ export default function CheckoutScreen() {
           orderName: result.orderName ?? '',
           orderId: result.shopifyOrderId ?? '',
           paymentMethod: 'online',
+          amountInr: String(Math.round(totalPaise / 100)),
+          productSummary: items.map((i) => i.title).join(', ').slice(0, 200),
         },
       });
     } catch (e) {

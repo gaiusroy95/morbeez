@@ -69,12 +69,21 @@ export default function RootLayout() {
               <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendations" /> }} />
               <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendation" /> }} />
               <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field" /> }} />
+              <Stack.Screen name="fields/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="My fields" /> }} />
               <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field details" /> }} />
+              <Stack.Screen name="scan/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI crop scan" /> }} />
               <Stack.Screen name="scan/history" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Scan history" /> }} />
               <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI scan result" /> }} />
+              <Stack.Screen name="market/trends/[crop]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Market trends" /> }} />
               <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Activities" /> }} />
               <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add activity" /> }} />
-              <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add ROI entry" /> }} />
+              <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
+              <Stack.Screen name="roi/quick-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
+              <Stack.Screen name="roi/quick-expense/amount" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Enter amount" /> }} />
+              <Stack.Screen name="roi/labour-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add labour" /> }} />
+              <Stack.Screen name="roi/harvest" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Harvest" /> }} />
+              <Stack.Screen name="roi/history/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Crop history" /> }} />
+              <Stack.Screen name="roi/history/[seasonId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Season details" /> }} />
               <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI dashboard" /> }} />
               <Stack.Screen name="intel/weather-market" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Weather & market" /> }} />
               <Stack.Screen name="intel/notifications" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Notifications" /> }} />

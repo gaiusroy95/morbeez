@@ -25,7 +25,7 @@ export default function RoiScreen() {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {error ? <AlertBox>{error}</AlertBox> : null}
-      <Btn label={t('addExpense', locale)} onPress={() => router.push('/intel/roi-add')} accessibilityLabel={t('addExpense', locale)} />
+      <Btn label={t('addExpense', locale)} onPress={() => router.push('/roi/quick-expense')} accessibilityLabel={t('addExpense', locale)} />
       {data ? (
         <>
           <Panel title="Profitability">

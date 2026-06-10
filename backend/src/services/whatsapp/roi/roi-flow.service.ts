@@ -412,6 +412,12 @@ export const roiFlowService = {
     amount: number;
     entryDate: string;
     comments?: string;
+    seasonId?: string;
+    blockId?: string;
+    expenseTypeId?: string;
+    labourTypeId?: string;
+    workersCount?: number;
+    commerceOrderId?: string;
   }): Promise<string> {
     const dc = debitCreditForType(params.entryType, params.amount);
     const snapshot = {
@@ -421,12 +427,28 @@ export const roiFlowService = {
       debit_inr: dc.debit_inr,
       credit_inr: dc.credit_inr,
       amount_inr: params.amount,
+      season_id: params.seasonId ?? null,
     };
+
+    let seasonId = params.seasonId;
+    let blockId = params.blockId;
+    if (!seasonId) {
+      try {
+        const { cropSeasonService } = await import('../../farmer/crop-season.service.js');
+        const season = await cropSeasonService.ensureActiveSeason(params.farmerId, blockId);
+        seasonId = season.id;
+        blockId = blockId ?? season.block_id;
+      } catch {
+        /* season optional for legacy */
+      }
+    }
 
     const { data, error } = await supabase
       .from('farmer_roi_entries')
       .insert({
         farmer_id: params.farmerId,
+        block_id: blockId ?? null,
+        season_id: seasonId ?? null,
         entry_type: params.entryType,
         amount_inr: params.amount,
         debit_inr: dc.debit_inr,
@@ -434,6 +456,10 @@ export const roiFlowService = {
         comments: params.comments?.slice(0, 500) ?? null,
         note: params.comments?.slice(0, 200) ?? null,
         entry_date: params.entryDate,
+        expense_type_id: params.expenseTypeId ?? null,
+        labour_type_id: params.labourTypeId ?? null,
+        workers_count: params.workersCount ?? null,
+        commerce_order_id: params.commerceOrderId ?? null,
       })
       .select('id')
       .single();

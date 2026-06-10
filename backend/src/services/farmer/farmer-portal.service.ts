@@ -257,6 +257,64 @@ export const farmerPortalService = {
       [profile.district, profile.state, profile.deliveryPincode || profile.pincode].filter(Boolean).join(', '),
     ].filter(Boolean);
 
+    const today = new Date().toISOString().slice(0, 10);
+    const monthStart = `${today.slice(0, 7)}-01`;
+    const todayExpense = (roiRes.entries ?? [])
+      .filter((e) => e.entryDate === today && e.creditInr == null)
+      .reduce((s, e) => s + (e.amountInr ?? 0), 0);
+    const monthExpense = (roiRes.entries ?? [])
+      .filter((e) => e.entryDate >= monthStart && e.creditInr == null)
+      .reduce((s, e) => s + (e.amountInr ?? 0), 0);
+
+    const cropType = primary?.crop_name ? String(primary.crop_name).toLowerCase() : 'ginger';
+    const { rows: priceRows, date: priceDate } = await (async () => {
+      const { data: rows } = await supabase
+        .from('crop_daily_prices')
+        .select('market_name, price_per_kg, last_year_price_per_kg')
+        .eq('crop_type', cropType)
+        .eq('price_date', today)
+        .eq('active', true)
+        .order('market_name')
+        .limit(1);
+      if (rows?.length) return { date: today, rows };
+      const { data: fb } = await supabase
+        .from('crop_daily_prices')
+        .select('market_name, price_per_kg, last_year_price_per_kg, price_date')
+        .eq('crop_type', cropType)
+        .eq('active', true)
+        .order('price_date', { ascending: false })
+        .limit(1);
+      return { date: fb?.[0]?.price_date ? String(fb[0].price_date) : today, rows: fb ?? [] };
+    })();
+
+    const topPrice = priceRows?.[0];
+    let marketTrend: 'up' | 'down' | 'flat' | null = null;
+    if (topPrice?.last_year_price_per_kg != null) {
+      const p = Number(topPrice.price_per_kg);
+      const ly = Number(topPrice.last_year_price_per_kg);
+      if (p > ly * 1.02) marketTrend = 'up';
+      else if (p < ly * 0.98) marketTrend = 'down';
+      else marketTrend = 'flat';
+    }
+
+    const tasks: Array<{ id: string; label: string; dueLabel: string; href: string }> = [];
+    if (latestRec) {
+      tasks.push({
+        id: `rec-${latestRec.id}`,
+        label: String(latestRec.problem ?? latestRec.recommendation ?? 'Apply recommendation').slice(0, 80),
+        dueLabel: nextAdvisory,
+        href: `/recommendations/${latestRec.id}`,
+      });
+    }
+    if (latestRec?.follow_up_at && new Date(String(latestRec.follow_up_at)) > new Date()) {
+      tasks.push({
+        id: `follow-${latestRec.id}`,
+        label: 'Follow-up check due',
+        dueLabel: formatDate(String(latestRec.follow_up_at)),
+        href: `/recommendations/${latestRec.id}`,
+      });
+    }
+
     return {
       greetingName: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.name || 'Farmer',
       crop: primary
@@ -310,6 +368,21 @@ export const farmerPortalService = {
         : null,
       recentOrder: orders[0] ? publicOrder(orders[0]) : null,
       notifications: notifRes,
+      todayMarket: topPrice
+        ? {
+            crop: cropType,
+            pricePerKg: Number(topPrice.price_per_kg),
+            marketName: String(topPrice.market_name),
+            trend: marketTrend,
+            date: String(priceDate),
+          }
+        : null,
+      finance: {
+        todayExpenseInr: Math.round(todayExpense),
+        monthExpenseInr: Math.round(monthExpense),
+        projectedProfitInr: Math.max(0, Math.round(roiRes.summary.balance)),
+      },
+      tasks,
     };
   },
 

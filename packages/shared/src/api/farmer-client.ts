@@ -24,9 +24,15 @@ import type { ScanResult } from '../types/scan';
 import type { CultivationActivity } from '../types/activities';
 import type { FarmerRecommendation, RecommendationDetail } from '../types/recommendations';
 import type {
+  ActiveSeasonDashboard,
+  CropSeasonDetail,
+  CropSeasonSummary,
   MarketIntel,
   PortalNotification,
+  RoiActivityType,
   RoiDashboard,
+  RoiExpenseType,
+  RoiLabourType,
   WeatherIntel,
 } from '../types/intel';
 
@@ -433,6 +439,7 @@ export async function fetchActivities(params?: {
 export async function createActivity(body: {
   blockId: string;
   activityType: 'spray_applied' | 'fertigation' | 'drench' | 'scouting' | 'irrigation' | 'other';
+  activityTypeId?: string;
   activityDate: string;
   productUsed?: string;
   quantity?: string;
@@ -475,9 +482,269 @@ export async function fetchMarketIntel(crop?: string): Promise<MarketIntel> {
   return data.market;
 }
 
+export type MarketCropItem = {
+  id: string;
+  cropName: string;
+  icon: string | null;
+  displayOrder: number;
+};
+
+export type MarketDashboard = {
+  crop: string;
+  favoriteCrop: string;
+  crops: MarketCropItem[];
+  date: string;
+  districtLabel: string;
+  selectedMarket: string | null;
+  primaryMarket: string | null;
+  todayPrice: number | null;
+  dailyChangeInr: number | null;
+  dailyTrend: 'up' | 'down' | 'flat' | null;
+  weeklyTrendPct: number | null;
+  yoyPct: number | null;
+  trend: 'up' | 'down' | 'flat' | null;
+  priceDirection: 'strong' | 'weak' | 'neutral';
+  rows: Array<{
+    marketName: string;
+    pricePerKg: number;
+    lastYearPricePerKg: number | null;
+    trend: 'up' | 'down' | 'flat' | null;
+    yoyPct: number | null;
+  }>;
+};
+
+export async function fetchMarketCrops(): Promise<MarketCropItem[]> {
+  const data = await farmerApi<{ ok: boolean; crops: MarketCropItem[] }>('/api/v1/farmer/portal/market/crops');
+  return data.crops ?? [];
+}
+
+export async function fetchMarketDashboard(crop?: string, market?: string): Promise<MarketDashboard> {
+  const qs = new URLSearchParams();
+  if (crop) qs.set('crop', crop);
+  if (market) qs.set('market', market);
+  const q = qs.toString();
+  const data = await farmerApi<{ ok: boolean; dashboard: MarketDashboard }>(
+    `/api/v1/farmer/portal/market/dashboard${q ? `?${q}` : ''}`
+  );
+  return data.dashboard;
+}
+
+export type MarketTrends = {
+  crop: string;
+  marketName: string;
+  date: string;
+  range: string;
+  points: Array<{ month: number; monthLabel: string; currentYear: number | null; previousYear: number | null }>;
+  seasonal: Array<{ month: string; currentYear: number | null; previousYear: number | null }>;
+  overlayCurrent: Array<{ label: string; value: number }>;
+  overlayPrevious: Array<{ label: string; value: number }>;
+  insights: string[];
+  priceDirection: 'up' | 'down' | 'flat';
+};
+
+export async function fetchMarketTrends(
+  crop?: string,
+  range?: string,
+  market?: string
+): Promise<MarketTrends> {
+  const qs = new URLSearchParams();
+  if (crop) qs.set('crop', crop);
+  if (range) qs.set('range', range);
+  if (market) qs.set('market', market);
+  const q = qs.toString();
+  const data = await farmerApi<{ ok: boolean; trends: MarketTrends }>(
+    `/api/v1/farmer/portal/market/trends${q ? `?${q}` : ''}`
+  );
+  return data.trends;
+}
+
+export type MandiComparison = {
+  crop: string;
+  date: string;
+  preferredMarket: string | null;
+  highestMarket: string | null;
+  rows: Array<{
+    marketName: string;
+    pricePerKg: number;
+    lastYearPricePerKg: number | null;
+    trend: 'up' | 'down' | 'flat' | null;
+    yoyPct: number | null;
+    isHighest: boolean;
+    isPreferred: boolean;
+  }>;
+};
+
+export async function fetchMandiComparison(crop?: string, market?: string): Promise<MandiComparison> {
+  const qs = new URLSearchParams();
+  if (crop) qs.set('crop', crop);
+  if (market) qs.set('market', market);
+  const q = qs.toString();
+  const data = await farmerApi<{ ok: boolean; comparison: MandiComparison }>(
+    `/api/v1/farmer/portal/market/mandi-comparison${q ? `?${q}` : ''}`
+  );
+  return data.comparison;
+}
+
+export type MultiCropComparison = {
+  marketName: string;
+  date: string;
+  favoriteCrop: string | null;
+  bestCrop: string | null;
+  crops: Array<{
+    crop: string;
+    icon: string | null;
+    marketName: string;
+    pricePerKg: number | null;
+    yoyPct: number | null;
+    weeklyTrendPct: number | null;
+    trend: 'up' | 'down' | 'flat' | null;
+    signal: 'strong' | 'weak' | 'neutral';
+    date: string;
+  }>;
+};
+
+export async function fetchMultiCropComparison(market?: string): Promise<MultiCropComparison> {
+  const q = market ? `?market=${encodeURIComponent(market)}` : '';
+  const data = await farmerApi<{ ok: boolean; comparison: MultiCropComparison }>(
+    `/api/v1/farmer/portal/market/crop-comparison${q}`
+  );
+  return data.comparison;
+}
+
+export type StoreBanner = {
+  id: string;
+  title: string;
+  subtitle: string | null;
+  imageUrl: string | null;
+  linkUrl: string | null;
+  ctaLabel: string | null;
+};
+
+export async function fetchStoreBanners(placement = 'home_hero'): Promise<StoreBanner[]> {
+  const data = await farmerApi<{ ok: boolean; banners: StoreBanner[] }>(
+    `/api/v1/store/banners?placement=${encodeURIComponent(placement)}`
+  );
+  return data.banners ?? [];
+}
+
+export async function fetchStoreRecommendations(): Promise<StoreProduct[]> {
+  const data = await farmerApi<{ ok: boolean; products: StoreProduct[] }>('/api/v1/store/recommendations');
+  return data.products ?? [];
+}
+
 export async function fetchRoiDashboard(): Promise<RoiDashboard> {
   const data = await farmerApi<{ ok: boolean; dashboard: RoiDashboard }>(
     '/api/v1/farmer/portal/roi/dashboard'
   );
   return data.dashboard;
+}
+
+export async function fetchActiveSeasonRoi(): Promise<ActiveSeasonDashboard> {
+  const data = await farmerApi<{ ok: boolean; dashboard: ActiveSeasonDashboard }>(
+    '/api/v1/farmer/portal/roi/season/active'
+  );
+  return data.dashboard;
+}
+
+export async function fetchRoiExpenseTypes(): Promise<RoiExpenseType[]> {
+  const data = await farmerApi<{ ok: boolean; types: RoiExpenseType[] }>(
+    '/api/v1/farmer/portal/roi/expense-types'
+  );
+  return data.types ?? [];
+}
+
+export async function fetchRoiLabourTypes(): Promise<RoiLabourType[]> {
+  const data = await farmerApi<{ ok: boolean; types: RoiLabourType[] }>(
+    '/api/v1/farmer/portal/roi/labour-types'
+  );
+  return data.types ?? [];
+}
+
+export async function fetchRoiActivityTypes(crop?: string): Promise<RoiActivityType[]> {
+  const q = crop ? `?crop=${encodeURIComponent(crop)}` : '';
+  const data = await farmerApi<{ ok: boolean; types: Array<Record<string, unknown>> }>(
+    `/api/v1/farmer/portal/roi/activity-types${q}`
+  );
+  return (data.types ?? []).map((t) => ({
+    id: String(t.id),
+    activityName: String(t.activityName ?? t.activity_name ?? 'Activity'),
+    icon: t.icon ? String(t.icon) : null,
+    category: t.category ? String(t.category) : undefined,
+  }));
+}
+
+export async function createQuickExpense(body: {
+  expenseTypeId: string;
+  amount: number;
+  seasonId?: string;
+  entryDate?: string;
+  note?: string;
+}): Promise<{ id: string; seasonId: string }> {
+  const data = await farmerApi<{ ok: boolean; id: string; seasonId: string }>(
+    '/api/v1/farmer/portal/roi/expenses',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return { id: data.id, seasonId: data.seasonId };
+}
+
+export async function createLabourExpense(body: {
+  labourTypeId: string;
+  amount: number;
+  workers?: number;
+  seasonId?: string;
+  note?: string;
+  entryDate?: string;
+}): Promise<{ id: string; seasonId: string }> {
+  const data = await farmerApi<{ ok: boolean; id: string; seasonId: string }>(
+    '/api/v1/farmer/portal/roi/labour',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return { id: data.id, seasonId: data.seasonId };
+}
+
+export async function submitHarvest(body: {
+  yieldKg: number;
+  sellingPricePerKg: number;
+  seasonId?: string;
+  harvestDate?: string;
+}): Promise<{ seasonId: string; totalIncomeInr: number; netProfitInr: number; roiPercent: number }> {
+  const data = await farmerApi<{
+    ok: boolean;
+    seasonId: string;
+    totalIncomeInr: number;
+    netProfitInr: number;
+    roiPercent: number;
+  }>('/api/v1/farmer/portal/roi/harvest', { method: 'POST', body: JSON.stringify(body) });
+  return {
+    seasonId: data.seasonId,
+    totalIncomeInr: data.totalIncomeInr,
+    netProfitInr: data.netProfitInr,
+    roiPercent: data.roiPercent,
+  };
+}
+
+export async function fetchCropHistory(): Promise<CropSeasonSummary[]> {
+  const data = await farmerApi<{ ok: boolean; seasons: CropSeasonSummary[] }>(
+    '/api/v1/farmer/portal/roi/history'
+  );
+  return data.seasons ?? [];
+}
+
+export async function fetchSeasonDetail(seasonId: string): Promise<CropSeasonDetail> {
+  const data = await farmerApi<{ ok: boolean; detail: CropSeasonDetail }>(
+    `/api/v1/farmer/portal/roi/history/${encodeURIComponent(seasonId)}`
+  );
+  return data.detail;
+}
+
+export async function recordShopPurchaseExpense(body: {
+  orderId: string;
+  amount: number;
+  productSummary: string;
+}): Promise<{ id: string }> {
+  const data = await farmerApi<{ ok: boolean; id: string }>(
+    '/api/v1/farmer/portal/roi/purchase-order',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return { id: data.id };
 }

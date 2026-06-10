@@ -13,24 +13,31 @@ import {
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
+  fetchStoreBanners,
   fetchStoreProducts,
+  fetchStoreRecommendations,
   formatInr,
+  t,
   tokens,
   type StoreProduct,
 } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading, SectionHeader } from '@morbeez/ui-native';
+import { AlertBox, EmptyState, Loading, ProductCard, PromoBanner, SectionHeader } from '@morbeez/ui-native';
+import { useShopCart } from '@/context/ShopCartContext';
+import { useLocale } from '@/context/LocaleContext';
 
 const SHOP_CATEGORIES = ['Fungicides', 'Insecticides', 'Nutrition', 'Bio Products', 'Growth Promoters'];
-import { useShopCart } from '@/context/ShopCartContext';
 
 export default function ShopScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  const { locale } = useLocale();
   const { count } = useShopCart();
   const params = useLocalSearchParams<{ q?: string }>();
   const [search, setSearch] = useState(params.q ? String(params.q) : '');
   const [category, setCategory] = useState<string | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
+  const [banners, setBanners] = useState<Awaited<ReturnType<typeof fetchStoreBanners>>>([]);
+  const [recommended, setRecommended] = useState<StoreProduct[]>([]);
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [page, setPage] = useState(1);
   const [pages, setPages] = useState(1);
@@ -62,12 +69,20 @@ export default function ShopScreen() {
     async (pageNum: number, replace: boolean) => {
       if (replace) setError('');
       try {
-        const data = await fetchStoreProducts({
-          page: pageNum,
-          limit: 20,
-          search: search.trim() || undefined,
-          category: category ?? undefined,
-        });
+        const [data, bannerRows, reco] = await Promise.all([
+          fetchStoreProducts({
+            page: pageNum,
+            limit: 20,
+            search: search.trim() || undefined,
+            category: category ?? undefined,
+          }),
+          pageNum === 1 ? fetchStoreBanners('home_hero').catch(() => []) : Promise.resolve([]),
+          pageNum === 1 ? fetchStoreRecommendations().catch(() => []) : Promise.resolve([]),
+        ]);
+        if (pageNum === 1) {
+          setBanners(bannerRows);
+          setRecommended(reco);
+        }
         setCategories(data.categories);
         setPages(data.pagination.pages);
         setPage(data.pagination.page);
@@ -97,7 +112,7 @@ export default function ShopScreen() {
     setLoadingMore(false);
   }
 
-  if (loading) return <Loading label="Loading products…" />;
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   return (
     <FlatList
@@ -113,6 +128,33 @@ export default function ShopScreen() {
       ListHeaderComponent={
         <View style={styles.headerBlock}>
           {error ? <AlertBox>{error}</AlertBox> : null}
+          {banners.map((b) => (
+            <PromoBanner
+              key={b.id}
+              title={b.title}
+              subtitle={b.subtitle ?? undefined}
+              onPress={() => {
+                if (b.linkUrl) router.push(b.linkUrl as '/shop/cart');
+              }}
+            />
+          ))}
+          {recommended.length ? (
+            <>
+              <SectionHeader title="Recommended for you" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recoRow}>
+                {recommended.map((item) => (
+                  <View key={item.id} style={styles.recoCard}>
+                    <ProductCard
+                      title={item.title}
+                      price={item.price ? formatInr(parseFloat(item.price)) : '—'}
+                      imageUrl={item.imageUrl}
+                      onPress={() => router.push(`/shop/${item.id}`)}
+                    />
+                  </View>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
           <TextInput
             style={styles.search}
             value={search}
@@ -247,4 +289,6 @@ const styles = StyleSheet.create({
   },
   headerBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   footer: { textAlign: 'center', color: tokens.textMuted, paddingVertical: 12 },
+  recoRow: { paddingBottom: 12, gap: 10 },
+  recoCard: { width: 160, marginRight: 10 },
 });

@@ -38,6 +38,19 @@ export type PortalSummary = {
     newReports: number;
     estimatedProfitInr: number;
   };
+  todayMarket: {
+    crop: string;
+    pricePerKg: number;
+    marketName: string;
+    trend: 'up' | 'down' | 'flat' | null;
+    date: string;
+  } | null;
+  finance: {
+    todayExpenseInr: number;
+    monthExpenseInr: number;
+    projectedProfitInr: number;
+  };
+  tasks: Array<{ id: string; label: string; dueLabel: string; href: string }>;
   quickAccess: {
     ordersCount: number;
     hasAdvisory: boolean;

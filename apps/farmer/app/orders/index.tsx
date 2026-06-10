@@ -1,14 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { fetchPortalOrders, formatInr, tokens, type PortalOrder } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
-import { Badge } from '@/components/PortalHelpers';
+import { fetchPortalOrders, formatInr, t, tokens, type PortalOrder } from '@morbeez/shared';
+import { AlertBox, EmptyState, HubTabs, Loading, OrderStatusChip } from '@morbeez/ui-native';
 import { whatsAppUrl } from '@/lib/config';
+import { useLocale } from '@/context/LocaleContext';
+
+type StatusFilter = 'all' | 'processing' | 'shipped' | 'delivered';
+
+function matchesFilter(order: PortalOrder, filter: StatusFilter): boolean {
+  if (filter === 'all') return true;
+  const s = order.status.toLowerCase();
+  if (filter === 'processing') return s === 'processing' || s === 'pending' || s === 'confirmed';
+  if (filter === 'shipped') return s === 'shipped' || s === 'in_transit';
+  if (filter === 'delivered') return s === 'delivered';
+  return true;
+}
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const [orders, setOrders] = useState<PortalOrder[]>([]);
+  const [filter, setFilter] = useState<StatusFilter>('all');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -24,18 +37,34 @@ export default function OrdersScreen() {
     })();
   }, []);
 
-  if (loading) return <Loading label="Loading orders…" />;
+  const filtered = useMemo(() => orders.filter((o) => matchesFilter(o, filter)), [orders, filter]);
+
+  if (loading) return <Loading label={t('loading', locale)} />;
 
   return (
     <FlatList
       style={styles.list}
       contentContainerStyle={styles.content}
-      data={orders}
+      data={filtered}
       keyExtractor={(o) => o.id}
-      ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
-      ListEmptyComponent={<EmptyState>No orders yet. Browse the Shop tab to place your first order.</EmptyState>}
+      ListHeaderComponent={
+        <>
+          {error ? <AlertBox>{error}</AlertBox> : null}
+          <HubTabs
+            tabs={[
+              { id: 'all' as StatusFilter, label: 'All' },
+              { id: 'processing' as StatusFilter, label: 'Processing' },
+              { id: 'shipped' as StatusFilter, label: 'Shipped' },
+              { id: 'delivered' as StatusFilter, label: 'Delivered' },
+            ]}
+            active={filter}
+            onChange={setFilter}
+          />
+        </>
+      }
+      ListEmptyComponent={<EmptyState>No orders in this filter.</EmptyState>}
       renderItem={({ item }) => (
-        <Pressable style={styles.card} onPress={() => router.push(`/order/${item.id}`)}>
+        <Pressable style={styles.card} onPress={() => router.push(`/order/${item.id}`)} accessibilityLabel={`Order ${item.orderNumber}`}>
           <View style={styles.row}>
             {item.productImageUrl ? (
               <Image source={{ uri: item.productImageUrl }} style={styles.img} />
@@ -44,7 +73,7 @@ export default function OrdersScreen() {
             )}
             <View style={styles.main}>
               <Text style={styles.title}>{item.productTitle}</Text>
-              <Badge label={item.statusLabel} tone={item.statusTone} />
+              <OrderStatusChip label={item.statusLabel} tone={item.statusTone} />
               <Text style={styles.meta}>
                 {item.orderNumber} · Qty {item.quantity} · {formatInr(item.amountInr)}
               </Text>

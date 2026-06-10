@@ -1,13 +1,31 @@
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { tokens } from '@morbeez/shared';
+import { recordShopPurchaseExpense, t, tokens } from '@morbeez/shared';
 import { Btn, Panel } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ orderName?: string; orderId?: string; paymentMethod?: string }>();
+  const { locale } = useLocale();
+  const params = useLocalSearchParams<{
+    orderName?: string;
+    orderId?: string;
+    paymentMethod?: string;
+    amountInr?: string;
+    productSummary?: string;
+  }>();
   const orderName = params.orderName ? String(params.orderName) : '';
   const isCod = params.paymentMethod === 'cod';
+
+  useEffect(() => {
+    const orderId = params.orderId ? String(params.orderId) : '';
+    const amount = params.amountInr ? Number(params.amountInr) : 0;
+    const summary = params.productSummary ? String(params.productSummary) : '';
+    if (orderId && amount > 0 && summary) {
+      void recordShopPurchaseExpense({ orderId, amount, productSummary: summary }).catch(() => {});
+    }
+  }, [params.orderId, params.amountInr, params.productSummary]);
 
   return (
     <View style={styles.wrap}>
@@ -17,11 +35,11 @@ export default function CheckoutSuccessScreen() {
           {isCod ? ' Pay the delivery partner in cash when your order arrives.' : ''}
         </Text>
         <Text style={styles.hint}>
-          Track delivery and leave product reviews from Orders once your order arrives.
+          Purchase added to your ROI season automatically. Track delivery from Orders.
         </Text>
       </Panel>
-      <Btn label="View orders" onPress={() => router.replace('/orders')} accessibilityLabel="View orders" />
-      <Btn label="Continue shopping" variant="secondary" onPress={() => router.replace('/(tabs)/shop')} accessibilityLabel="Continue shopping" />
+      <Btn label={t('viewOrders', locale)} onPress={() => router.replace('/orders')} accessibilityLabel={t('viewOrders', locale)} />
+      <Btn label={t('continueShopping', locale)} variant="secondary" onPress={() => router.replace('/(tabs)/shop')} accessibilityLabel={t('continueShopping', locale)} />
     </View>
   );
 }
