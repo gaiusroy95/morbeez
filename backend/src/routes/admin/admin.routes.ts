@@ -64,10 +64,15 @@ import { attendanceCalculatorService } from '../../services/admin/attendance-cal
 import { incentiveCalculatorService } from '../../services/admin/incentive-calculator.service.js';
 import { payrollGeneratorService } from '../../services/admin/payroll-generator.service.js';
 
-const loginSchema = z.object({
-  email: z.string().email().max(255),
-  password: z.string().min(1).max(128),
-});
+const loginSchema = z
+  .object({
+    phone: z.string().min(10).max(20).optional(),
+    email: z.string().email().max(255).optional(),
+    password: z.string().min(1).max(128),
+  })
+  .refine((body) => Boolean(body.phone?.trim() || body.email?.trim()), {
+    message: 'Mobile number or email is required',
+  });
 
 const otpSendSchema = z.object({
   phone: z.string().min(10).max(20),

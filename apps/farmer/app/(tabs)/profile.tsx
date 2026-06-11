@@ -35,7 +35,7 @@ export default function ProfileTabScreen() {
       </Panel>
 
       <Panel title="Menu">
-        <Btn label={t('myFields', locale)} variant="secondary" onPress={() => router.push('/fields')} accessibilityLabel={t('myFields', locale)} />
+        <Btn label={t('myBlocks', locale)} variant="secondary" onPress={() => router.push('/fields')} accessibilityLabel={t('myBlocks', locale)} />
         <Btn label="Account & address" variant="secondary" onPress={() => router.push('/address')} />
         <Btn label={t('orders', locale)} variant="secondary" onPress={() => router.push('/orders')} />
         <Btn label={t('notifications', locale)} variant="secondary" onPress={() => router.push('/intel/notifications')} />

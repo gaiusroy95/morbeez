@@ -1,12 +1,32 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { filterPackQueue, tokens, warehouseClient, type QueueOrder } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, ListCard, Loading } from '@morbeez/ui-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  filterPackQueueByTab,
+  tokens,
+  warehouseClient,
+  type PackQueueTab,
+  type QueueOrder,
+} from '@morbeez/shared';
+import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+
+const TABS: Array<{ id: PackQueueTab; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'packing', label: 'Packing' },
+  { id: 'awaiting_pack', label: 'Awaiting pack' },
+];
+
+function parsePackTab(raw: string | string[] | undefined): PackQueueTab {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  if (v === 'packing' || v === 'awaiting_pack' || v === 'all') return v;
+  return 'all';
+}
 
 export default function PackingQueueScreen() {
   const router = useRouter();
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [queue, setQueue] = useState<QueueOrder[]>([]);
+  const [tab, setTab] = useState<PackQueueTab>(() => parsePackTab(tabParam));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -28,7 +48,19 @@ export default function PackingQueueScreen() {
     void load();
   }, [load]);
 
-  const filtered = useMemo(() => filterPackQueue(queue), [queue]);
+  useEffect(() => {
+    if (tabParam) setTab(parsePackTab(tabParam));
+  }, [tabParam]);
+
+  const filtered = useMemo(() => filterPackQueueByTab(queue, tab), [queue, tab]);
+  const counts = useMemo(
+    () => ({
+      all: filterPackQueueByTab(queue, 'all').length,
+      packing: filterPackQueueByTab(queue, 'packing').length,
+      awaiting_pack: filterPackQueueByTab(queue, 'awaiting_pack').length,
+    }),
+    [queue]
+  );
 
   if (loading) return <Loading label="Loading packing queue…" />;
 
@@ -41,7 +73,16 @@ export default function PackingQueueScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }
         contentContainerStyle={styles.content}
-        ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
+        ListHeaderComponent={
+          <>
+            {error ? <AlertBox>{error}</AlertBox> : null}
+            <HubTabs
+              tabs={TABS.map((t) => ({ id: t.id, label: `${t.label} (${counts[t.id]})` }))}
+              active={tab}
+              onChange={setTab}
+            />
+          </>
+        }
         renderItem={({ item }) => (
           <>
             <ListCard
@@ -55,7 +96,7 @@ export default function PackingQueueScreen() {
             </View>
           </>
         )}
-        ListEmptyComponent={<EmptyState>No orders ready for packing.</EmptyState>}
+        ListEmptyComponent={<EmptyState>No orders in this packing bucket.</EmptyState>}
       />
     </View>
   );

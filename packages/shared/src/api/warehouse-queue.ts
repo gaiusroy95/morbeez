@@ -20,13 +20,30 @@ export function isPickingQueueOrder(row: QueueOrder): boolean {
   return queueFilterBucket(row) === 'pending' && Boolean(row.pickListId);
 }
 
-export type PickQueueTab = 'all' | 'in_progress' | 'on_hold';
+export type PickQueueTab = 'all' | 'assigned' | 'in_progress' | 'on_hold';
+
+const ASSIGNED_STATUSES = new Set(['assigned', 'confirmed', 'awb_generated']);
 
 export function filterPickQueue(rows: QueueOrder[], tab: PickQueueTab): QueueOrder[] {
   const base = rows.filter(isPickingQueueOrder);
   if (tab === 'all') return base;
   if (tab === 'on_hold') return base.filter((r) => Boolean(r.stockIssue));
-  return base.filter((r) => !r.stockIssue && (r.omsStatus === 'picking' || r.omsStatus === 'assigned'));
+  if (tab === 'assigned') {
+    return base.filter((r) => !r.stockIssue && ASSIGNED_STATUSES.has(r.omsStatus));
+  }
+  return base.filter((r) => !r.stockIssue && r.omsStatus === 'picking');
+}
+
+export type PackQueueTab = 'all' | 'packing' | 'awaiting_pack';
+
+export function filterPackQueueByTab(rows: QueueOrder[], tab: PackQueueTab): QueueOrder[] {
+  const base = filterPackQueue(rows);
+  if (tab === 'all') return base;
+  if (tab === 'packing') return base.filter((r) => PACKING_STATUSES.has(r.omsStatus));
+  return base.filter(
+    (r) =>
+      ['packed', 'awaiting_label_verification'].includes(r.omsStatus) || queueFilterBucket(r) === 'packed'
+  );
 }
 
 export function filterPackQueue(rows: QueueOrder[]): QueueOrder[] {

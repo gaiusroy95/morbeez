@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { fetchSeasonDetail, formatInr, t, tokens, type CropSeasonDetail } from '@morbeez/shared';
 import { AlertBox, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
@@ -38,7 +38,19 @@ export default function SeasonDetailScreen() {
         <KeyValueRow label="ROI" value={`${detail.roiPercent}%`} />
       </Panel>
 
-      {detail.harvest ? (
+      {detail.harvests?.length ? (
+        <Panel title={t('harvestSales', locale)}>
+          {detail.harvests.map((h) => (
+            <View key={h.id} style={styles.harvestRow}>
+              <Text style={styles.line}>
+                {h.harvestDate} · {h.yieldKg} kg @ {formatInr(h.sellingPricePerKg)}/kg
+              </Text>
+              <Text style={styles.harvestAmt}>{formatInr(h.totalIncomeInr)}</Text>
+              {h.buyer ? <Text style={styles.meta}>{h.buyer}</Text> : null}
+            </View>
+          ))}
+        </Panel>
+      ) : detail.harvest ? (
         <Panel title={t('harvest', locale)}>
           <KeyValueRow label={t('yieldKg', locale)} value={String(detail.harvest.yieldKg)} />
           <KeyValueRow label={t('sellingPrice', locale)} value={formatInr(detail.harvest.sellingPricePerKg)} />
@@ -75,4 +87,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   title: { fontSize: 22, fontWeight: '700', color: tokens.text, marginBottom: 12 },
   line: { fontSize: 13, color: tokens.text, marginBottom: 6 },
+  harvestRow: { marginBottom: 10, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.border },
+  harvestAmt: { fontSize: 14, fontWeight: '700', color: tokens.green800, marginTop: 2 },
+  meta: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
 });

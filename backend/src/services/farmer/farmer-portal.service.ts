@@ -13,6 +13,7 @@ import {
   resolveAdvisoryImageUrl,
 } from '../core/advisory-image-storage.service.js';
 import { cropImageReviewService } from '../core/crop-image-review.service.js';
+import { growthStageFromDap, cropCycleDays } from './crop-stage.service.js';
 import { normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 
 function formatDate(iso: string | null | undefined): string {
@@ -52,13 +53,12 @@ function daysAfterPlanting(plantingDate: string | null | undefined): number | nu
   return days >= 0 ? days : null;
 }
 
-function growthStageLabel(stage: string | null | undefined, dap: number | null): string {
-  if (stage?.trim()) return stage.trim();
-  if (dap == null) return 'Growing';
-  if (dap < 30) return 'Early growth';
-  if (dap < 60) return 'Vegetative growth';
-  if (dap < 120) return 'Active development';
-  return 'Maturity phase';
+function growthStageLabel(
+  crop: string | null | undefined,
+  stage: string | null | undefined,
+  dap: number | null
+): string {
+  return growthStageFromDap(crop, dap, stage);
 }
 
 function scoreSoilReport(metrics: ReturnType<typeof normalizeSoilMetrics>): 'good' | 'monitor' | 'critical' {
@@ -323,8 +323,14 @@ export const farmerPortalService = {
             variety: primary.variety_name ? String(primary.variety_name) : null,
             fieldSize: primary.area ? String(primary.area) : null,
             blockName: String(primary.name ?? 'Field'),
-            stage: growthStageLabel(primary.stage ? String(primary.stage) : null, dap),
+            blockId: String(primary.id),
+            stage: growthStageLabel(
+              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.stage ? String(primary.stage) : null,
+              dap
+            ),
             daysAfterPlanting: dap,
+            cycleDays: cropCycleDays(primary.crop_type ? String(primary.crop_type) : primary.crop_name ? String(primary.crop_name) : null),
           }
         : null,
       shippingAddress: {
@@ -357,7 +363,13 @@ export const farmerPortalService = {
         ? {
             id: String(latestRec.id),
             cropName: blockJoin?.crop_name ? String(blockJoin.crop_name) : primary?.crop_name ?? 'Crop',
-            stage: primary ? growthStageLabel(primary.stage ? String(primary.stage) : null, dap) : null,
+            stage: primary
+              ? growthStageLabel(
+                  primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+                  primary.stage ? String(primary.stage) : null,
+                  dap
+                )
+              : null,
             dateLabel: formatDate(String(latestRec.created_at)),
             dayLabel: dap != null ? `Day ${dap}` : null,
             bullets: parseRecommendationBullets(
@@ -486,7 +498,13 @@ export const farmerPortalService = {
         dateLabel: formatDate(String(r.created_at)),
         cropName: block?.crop_name ? String(block.crop_name) : primary?.crop_name ?? 'Crop',
         blockName: block?.name ? String(block.name) : null,
-        stage: primary ? growthStageLabel(primary.stage ? String(primary.stage) : null, dap) : null,
+        stage: primary
+          ? growthStageLabel(
+              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.stage ? String(primary.stage) : null,
+              dap
+            )
+          : null,
         dayLabel: dap != null ? `Day ${dap}` : null,
         title: r.problem ? String(r.problem) : 'Crop recommendation',
         bullets: parseRecommendationBullets(text),
@@ -508,7 +526,11 @@ export const farmerPortalService = {
         ? {
             name: String(primary.crop_name ?? 'Crop'),
             fieldSize: primary.area ? String(primary.area) : null,
-            stage: growthStageLabel(primary.stage ? String(primary.stage) : null, dap),
+            stage: growthStageLabel(
+              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.stage ? String(primary.stage) : null,
+              dap
+            ),
             daysAfterPlanting: dap,
           }
         : null,
@@ -535,7 +557,8 @@ export const farmerPortalService = {
         const block = r.farm_blocks as { name?: string } | null;
         return {
           id: String(r.id),
-          blockName: block?.name ? String(block.name) : 'Field',
+          blockId: r.block_id ? String(r.block_id) : null,
+          blockName: block?.name ? String(block.name) : 'Block',
           dateLabel: formatDate(String(r.reported_at)),
           health: scoreSoilReport(metrics),
           healthLabel:

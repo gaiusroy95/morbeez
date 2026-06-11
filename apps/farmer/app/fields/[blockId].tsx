@@ -1,35 +1,56 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   fetchActivities,
   fetchFieldDetail,
-  fetchRecommendations,
+  fetchPortalSoilReports,
+  fetchRoiSummary,
   formatInr,
   t,
   tokens,
   type CultivationActivity,
-  type FarmerRecommendation,
   type FieldDetail,
-  type FieldTimelineItem,
+  type PortalSoilReport,
+  type RoiDashboardV2,
 } from '@morbeez/shared';
-import { AlertBox, Btn, HealthBadge, HubTabs, KeyValueRow, Loading, Panel, StageProgressBar } from '@morbeez/ui-native';
-import { useShopCart } from '@/context/ShopCartContext';
-import { buildCartItemFromRecommendationProduct } from '@/lib/shop-helpers';
-
+import {
+  AlertBox,
+  Btn,
+  HealthBadge,
+  HubTabs,
+  KeyValueRow,
+  Loading,
+  Panel,
+  RoiCropStatusCard,
+  RoiStatCards,
+  StageProgressBar,
+} from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
+import { useRoiFilter } from '@/context/RoiFilterContext';
+import { whatsAppUrl } from '@/lib/config';
 
-type Tab = 'overview' | 'timeline' | 'activities' | 'recommendations' | 'roi';
+type BlockTab = 'activities' | 'soilTests' | 'roi';
 
-export default function FieldDetailScreen() {
+function activityIcon(type: string) {
+  if (type.includes('spray')) return '🧴';
+  if (type.includes('fert')) return '💧';
+  if (type.includes('scout') || type.includes('observation')) return '👁';
+  if (type.includes('drench')) return '🚿';
+  if (type.includes('plant')) return '🌱';
+  return '📋';
+}
+
+export default function BlockDetailScreen() {
   const router = useRouter();
   const { locale } = useLocale();
   const { blockId } = useLocalSearchParams<{ blockId: string }>();
-  const { addItem } = useShopCart();
-  const [tab, setTab] = useState<Tab>('overview');
+  const { setBlockId } = useRoiFilter();
+  const [tab, setTab] = useState<BlockTab>('activities');
   const [detail, setDetail] = useState<FieldDetail | null>(null);
   const [activities, setActivities] = useState<CultivationActivity[]>([]);
-  const [recommendations, setRecommendations] = useState<FarmerRecommendation[]>([]);
+  const [soilReports, setSoilReports] = useState<PortalSoilReport[]>([]);
+  const [roiSummary, setRoiSummary] = useState<RoiDashboardV2 | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -37,16 +58,20 @@ export default function FieldDetailScreen() {
     if (!blockId) return;
     setError('');
     try {
-      const [d, acts, recs] = await Promise.all([
+      const [d, acts, reports, roi] = await Promise.all([
         fetchFieldDetail(String(blockId)),
         fetchActivities({ blockId: String(blockId) }),
-        fetchRecommendations(),
+        fetchPortalSoilReports(),
+        fetchRoiSummary({ blockId: String(blockId) }),
       ]);
       setDetail(d);
       setActivities(acts);
-      setRecommendations(recs.filter((r) => r.blockName === d.block.name));
+      setSoilReports(
+        reports.filter((r) => r.blockId === String(blockId) || r.blockName === d.block.name)
+      );
+      setRoiSummary(roi);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load field');
+      setError(e instanceof Error ? e.message : 'Could not load block');
     } finally {
       setLoading(false);
     }
@@ -56,149 +81,276 @@ export default function FieldDetailScreen() {
     void load();
   }, [load]);
 
-  async function addRecoProduct(rec: FarmerRecommendation, productTitle: string) {
-    const product = rec.products.find((p) => p.title === productTitle);
-    if (!product) return;
-    try {
-      const item = await buildCartItemFromRecommendationProduct(product, {
-        recommendationId: rec.id,
-        recoveryPurpose: rec.title,
-      });
-      if (!item) {
-        setError('Product not found in shop catalog');
-        return;
-      }
-      addItem(item);
-      router.push('/shop/cart');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not add to cart');
-    }
-  }
+  const sortedActivities = useMemo(
+    () => [...activities].sort((a, b) => (a.activityDate < b.activityDate ? 1 : -1)),
+    [activities]
+  );
+
+  const latestSoil = soilReports[0] ?? null;
 
   if (loading) return <Loading label={t('loading', locale)} />;
-  if (!detail) return <AlertBox>{error || 'Field not found'}</AlertBox>;
+  if (!detail) return <AlertBox>{error || 'Block not found'}</AlertBox>;
 
   const b = detail.block;
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      {error ? <AlertBox>{error}</AlertBox> : null}
-      <Text style={styles.title}>{b.name}</Text>
-      <HealthBadge status={b.healthStatus} label={b.healthLabel} />
-      <StageProgressBar dap={b.dap} stage={b.stage} />
+    <View style={styles.root}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {error ? <AlertBox>{error}</AlertBox> : null}
 
-      <HubTabs
-        tabs={[
-          { id: 'overview' as Tab, label: 'Overview' },
-          { id: 'timeline' as Tab, label: 'Timeline' },
-          { id: 'activities' as Tab, label: 'Activities' },
-          { id: 'recommendations' as Tab, label: 'Reco' },
-          { id: 'roi' as Tab, label: 'ROI' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryTop}>
+            <View style={styles.summaryIcon}>
+              <Text style={styles.summaryEmoji}>🌱</Text>
+            </View>
+            <View style={styles.summaryMain}>
+              <View style={styles.summaryTitleRow}>
+                <Text style={styles.title}>{b.name}</Text>
+                <HealthBadge status={b.healthStatus} label={t('activeStatus', locale)} />
+              </View>
+              <KeyValueRow label="Crop" value={b.crop} />
+              {b.acreage != null ? <KeyValueRow label="Area" value={`${b.acreage} Acre`} /> : null}
+              {b.plantingDateLabel ? (
+                <KeyValueRow label={t('plantingDateLabel', locale)} value={b.plantingDateLabel} />
+              ) : null}
+              {b.dap != null ? <KeyValueRow label={t('dapLabel', locale)} value={`${b.dap} Days`} /> : null}
+              {b.stage ? <KeyValueRow label="Stage" value={b.stage} /> : null}
+            </View>
+          </View>
+          {b.dap != null ? <StageProgressBar dap={b.dap} stage={b.stage} /> : null}
+        </View>
 
-      {tab === 'overview' ? (
-        <Panel title="Crop overview">
-          <KeyValueRow label="Crop" value={b.crop} />
-          <KeyValueRow label="Stage" value={b.stage ?? '—'} />
-          <KeyValueRow label="DAP" value={b.dap != null ? String(b.dap) : '—'} />
-          <KeyValueRow label="SPAD" value={b.spad ?? '—'} />
-          <KeyValueRow label="Soil moisture" value={b.soilMoisture ?? '—'} />
-          <KeyValueRow label="Irrigation" value={b.irrigationType ?? '—'} />
-          <KeyValueRow label="Health score" value={b.healthScore != null ? String(b.healthScore) : '—'} />
-        </Panel>
-      ) : null}
+        <HubTabs
+          tabs={[
+            { id: 'activities', label: t('activities', locale) },
+            { id: 'soilTests', label: t('soilTests', locale) },
+            { id: 'roi', label: t('roi', locale) },
+          ]}
+          active={tab}
+          onChange={(id) => setTab(id as BlockTab)}
+        />
 
-      {tab === 'timeline' ? (
-        <Panel title="Timeline">
-          {detail.timeline.length ? (
-            detail.timeline.map((item: FieldTimelineItem) => (
-              <Text key={item.id} style={styles.line}>
-                {item.atLabel} · {item.title}
-                {item.subtitle ? ` — ${item.subtitle}` : ''}
-              </Text>
-            ))
-          ) : (
-            <Text style={styles.muted}>No timeline events yet.</Text>
-          )}
-        </Panel>
-      ) : null}
+        {tab === 'activities' ? (
+          <View style={styles.timeline}>
+            {sortedActivities.length ? (
+              sortedActivities.map((a, index) => (
+                <View key={a.id} style={styles.timelineRow}>
+                  <View style={styles.timelineRail}>
+                    <View style={styles.timelineDot} />
+                    {index < sortedActivities.length - 1 ? <View style={styles.timelineLine} /> : null}
+                  </View>
+                  <View style={styles.timelineCard}>
+                    <View style={styles.timelineHeader}>
+                      <Text style={styles.timelineIcon}>{activityIcon(a.activityType)}</Text>
+                      <View style={styles.timelineMeta}>
+                        <Text style={styles.timelineDate}>{a.dateLabel}</Text>
+                        <Text style={styles.timelineTitle}>{a.activityLabel}</Text>
+                      </View>
+                      <View style={styles.completedBadge}>
+                        <Text style={styles.completedText}>{t('completedStatus', locale)}</Text>
+                      </View>
+                    </View>
+                    {a.notes ? <Text style={styles.timelineNotes}>{a.notes}</Text> : null}
+                    {a.costInr ? <Text style={styles.timelineCost}>{formatInr(a.costInr)}</Text> : null}
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.muted}>No activities recorded for this block yet.</Text>
+            )}
+          </View>
+        ) : null}
+
+        {tab === 'soilTests' ? (
+          <>
+            {latestSoil ? (
+              <Panel title={`${t('latestSoilTest', locale)} · ${latestSoil.dateLabel}`}>
+                {latestSoil.highlights.length ? (
+                  <View style={styles.metricsGrid}>
+                    {latestSoil.highlights.map((h) => (
+                      <View key={h} style={styles.metricCell}>
+                        <Text style={styles.metricValue}>{h}</Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={styles.muted}>Report on file — open PDF for full metrics.</Text>
+                )}
+                {latestSoil.pdfUrl ? (
+                  <Pressable onPress={() => void Linking.openURL(latestSoil.pdfUrl!)}>
+                    <Text style={styles.link}>{t('viewFullReport', locale)} ›</Text>
+                  </Pressable>
+                ) : null}
+              </Panel>
+            ) : (
+              <Text style={styles.muted}>No soil tests on file for this block yet.</Text>
+            )}
+            {soilReports.length > 1 ? (
+              <Panel title={t('allSoilTests', locale)}>
+                {soilReports.map((r) => (
+                  <Pressable
+                    key={r.id}
+                    style={styles.soilRow}
+                    onPress={() => r.pdfUrl && void Linking.openURL(r.pdfUrl)}
+                  >
+                    <Text style={styles.soilDate}>{r.dateLabel}</Text>
+                    <Text style={styles.soilMeta}>{r.healthLabel}</Text>
+                  </Pressable>
+                ))}
+              </Panel>
+            ) : null}
+          </>
+        ) : null}
+
+        {tab === 'roi' ? (
+          <Panel title={`${b.name} ${t('roi', locale)}`}>
+            {roiSummary?.cropStatus ? (
+              <RoiCropStatusCard
+                crop={roiSummary.cropStatus.crop}
+                blockName={roiSummary.cropStatus.blockName}
+                acreage={roiSummary.cropStatus.acreage}
+                plantingDate={roiSummary.cropStatus.plantingDate}
+                dap={roiSummary.cropStatus.dap}
+                stageLabel={roiSummary.cropStatus.stageLabel}
+                dapMax={roiSummary.cropStatus.dapMax}
+              />
+            ) : null}
+            {roiSummary?.financial ? (
+              <RoiStatCards
+                expenseLabel={t('spent', locale)}
+                incomeLabel={t('totalIncome', locale)}
+                profitLabel={t('profit', locale)}
+                roiLabel={t('roi', locale)}
+                expense={roiSummary.financial.expenseInr}
+                income={roiSummary.financial.incomeInr}
+                profit={roiSummary.financial.profitInr}
+                roiPercent={roiSummary.financial.roiPercent}
+                hasIncome={roiSummary.financial.hasIncome}
+                profitMessage={roiSummary.financial.profitMessage}
+                formatValue={formatInr}
+              />
+            ) : (
+              <Text style={styles.muted}>No active crop cycle for this block.</Text>
+            )}
+            <Btn
+              label="Open ROI dashboard"
+              onPress={() => {
+                setBlockId(String(blockId));
+                router.push('/(tabs)/roi');
+              }}
+            />
+          </Panel>
+        ) : null}
+      </ScrollView>
 
       {tab === 'activities' ? (
-        <Panel title="Activities">
-          {activities.length ? (
-            activities.slice(0, 8).map((a) => (
-              <View key={a.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{a.activityLabel}</Text>
-                <Text style={styles.muted}>
-                  {a.dateLabel}
-                  {a.costInr ? ` · ${formatInr(a.costInr)}` : ''}
-                  {a.notes ? ` · ${a.notes}` : ''}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.muted}>No activities recorded for this field.</Text>
-          )}
-          <Btn label="View all activities" variant="secondary" onPress={() => router.push({ pathname: '/activities', params: { blockId: b.id } })} />
-          <Btn label="Add activity" onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })} />
-        </Panel>
+        <View style={styles.footer}>
+          <Btn
+            label={`+ ${t('addActivity', locale)}`}
+            onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })}
+          />
+        </View>
       ) : null}
 
-      {tab === 'recommendations' ? (
-        <Panel title="Recommendations">
-          {recommendations.length ? (
-            recommendations.map((rec) => (
-              <View key={rec.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{rec.title}</Text>
-                <Text style={styles.muted}>{rec.dateLabel} · {rec.cropName}</Text>
-                {rec.products.map((p) => (
-                  <View key={p.title} style={styles.recoRow}>
-                    <Text style={styles.body}>• {p.title}</Text>
-                    <Btn label="Add to cart" variant="secondary" onPress={() => void addRecoProduct(rec, p.title)} />
-                  </View>
-                ))}
-                <Btn label="View details" variant="secondary" onPress={() => router.push(`/recommendations/${rec.id}`)} />
-              </View>
-            ))
-          ) : (
-            <Text style={styles.muted}>No open recommendations for this field.</Text>
-          )}
-        </Panel>
+      {tab === 'soilTests' ? (
+        <View style={styles.footer}>
+          <Btn
+            label={`+ ${t('newSoilTest', locale)}`}
+            variant="secondary"
+            onPress={() => void Linking.openURL(whatsAppUrl(`Soil test for block ${b.name}`))}
+          />
+        </View>
       ) : null}
-
-      {tab === 'roi' ? (
-        <Panel title="Field ROI">
-          <Btn label="Open ROI dashboard" onPress={() => router.push('/(tabs)/roi')} />
-          <Btn label="Add expense" variant="secondary" onPress={() => router.push('/roi/quick-expense')} />
-        </Panel>
-      ) : null}
-
-      <Panel title="Quick actions">
-        <Btn label="Upload scan" onPress={() => router.push('/scan')} />
-        <Btn label="Add activity" variant="secondary" onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })} />
-      </Panel>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: tokens.bg },
-  content: { padding: 16, paddingBottom: 32 },
-  title: { fontSize: 22, fontWeight: '700', color: tokens.text, marginBottom: 8 },
-  line: { fontSize: 13, color: tokens.text, marginBottom: 8, lineHeight: 18 },
-  muted: { fontSize: 13, color: tokens.textMuted, marginBottom: 8 },
-  card: {
+  root: { flex: 1, backgroundColor: tokens.bg },
+  scroll: { flex: 1 },
+  content: { padding: 16, paddingBottom: 100 },
+  summaryCard: {
     backgroundColor: tokens.card,
-    borderRadius: tokens.radiusSm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+  summaryTop: { flexDirection: 'row', gap: 12 },
+  summaryIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 10,
+    backgroundColor: tokens.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryEmoji: { fontSize: 32 },
+  summaryMain: { flex: 1 },
+  summaryTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 4 },
+  title: { fontSize: 20, fontWeight: '800', color: tokens.text, flex: 1 },
+  muted: { fontSize: 13, color: tokens.textMuted, marginVertical: 8 },
+  timeline: { marginTop: 8 },
+  timelineRow: { flexDirection: 'row', gap: 10 },
+  timelineRail: { width: 16, alignItems: 'center' },
+  timelineDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: tokens.green700,
+    marginTop: 18,
+  },
+  timelineLine: { flex: 1, width: 2, backgroundColor: tokens.border, marginTop: 4 },
+  timelineCard: {
+    flex: 1,
+    backgroundColor: tokens.card,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: tokens.border,
     padding: 12,
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  cardTitle: { fontSize: 15, fontWeight: '600', color: tokens.text, marginBottom: 4 },
-  body: { fontSize: 13, color: tokens.text, flex: 1 },
-  recoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  timelineHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  timelineIcon: { fontSize: 20, marginTop: 2 },
+  timelineMeta: { flex: 1 },
+  timelineDate: { fontSize: 11, color: tokens.textMuted, fontWeight: '600' },
+  timelineTitle: { fontSize: 15, fontWeight: '700', color: tokens.text, marginTop: 2 },
+  completedBadge: {
+    backgroundColor: tokens.green100,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  completedText: { fontSize: 10, fontWeight: '700', color: tokens.green800 },
+  timelineNotes: { fontSize: 13, color: tokens.text, marginTop: 8 },
+  timelineCost: { fontSize: 13, fontWeight: '700', color: tokens.green800, marginTop: 6 },
+  metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  metricCell: {
+    width: '47%',
+    backgroundColor: tokens.green100,
+    borderRadius: 8,
+    padding: 10,
+  },
+  metricValue: { fontSize: 13, fontWeight: '700', color: tokens.text },
+  link: { fontSize: 14, fontWeight: '600', color: tokens.green700, marginTop: 10 },
+  soilRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: tokens.border,
+  },
+  soilDate: { fontSize: 14, fontWeight: '600', color: tokens.text },
+  soilMeta: { fontSize: 13, color: tokens.textMuted },
+  footer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: tokens.border,
+    backgroundColor: tokens.bg,
+  },
 });

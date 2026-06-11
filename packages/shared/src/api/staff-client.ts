@@ -94,14 +94,18 @@ export async function staffApi<T = unknown>(path: string, options: RequestInit =
   return data;
 }
 
-export async function staffLogin(email: string, password: string) {
+export async function staffLogin(phone: string, password: string, email?: string) {
   const data = await staffApi<{
     ok: boolean;
     token: string;
     admin: SessionAdmin;
   }>(`${STAFF_API_V1}/auth/login`, {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({
+      phone,
+      password,
+      ...(email?.trim() ? { email: email.trim() } : {}),
+    }),
   });
   await setStaffToken(data.token);
   return data;

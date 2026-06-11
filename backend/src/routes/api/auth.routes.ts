@@ -8,7 +8,7 @@ import { UnauthorizedError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 
 const signupSchema = z.object({
-  email: z.string().email().max(255),
+  email: z.union([z.string().email().max(255), z.literal('')]).optional(),
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),
   phone: z.string().min(10).max(20),

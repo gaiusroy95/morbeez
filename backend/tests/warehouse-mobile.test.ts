@@ -4,6 +4,7 @@ import {
   filterDispatchQueue,
   filterLrPending,
   filterPackQueue,
+  filterPackQueueByTab,
   filterPickQueue,
   isPickingQueueOrder,
   isWarehouseManagerRole,
@@ -42,8 +43,11 @@ describe('warehouse queue helpers', () => {
         pickListId: 'pl-2',
         stockIssue: 'no_stock_reserved',
       }),
+      row({ id: '3', orderName: '#3', omsStatus: 'assigned', pickListId: 'pl-3' }),
     ];
-    assert.equal(filterPickQueue(orders, 'all').length, 2);
+    assert.equal(filterPickQueue(orders, 'all').length, 3);
+    assert.equal(filterPickQueue(orders, 'assigned').length, 1);
+    assert.equal(filterPickQueue(orders, 'in_progress').length, 1);
     assert.equal(filterPickQueue(orders, 'on_hold').length, 1);
     assert.equal(isPickingQueueOrder(orders[0]!), true);
   });
@@ -60,10 +64,12 @@ describe('warehouse queue helpers', () => {
   it('filters pack queue by packing statuses', () => {
     const orders = [
       row({ id: '1', orderName: '#1', omsStatus: 'packing' }),
-      row({ id: '2', orderName: '#2', omsStatus: 'ready_dispatch' }),
+      row({ id: '2', orderName: '#2', omsStatus: 'packed' }),
       row({ id: '3', orderName: '#3', omsStatus: 'packaging_estimated' }),
     ];
-    assert.equal(filterPackQueue(orders).length, 2);
+    assert.equal(filterPackQueue(orders).length, 3);
+    assert.equal(filterPackQueueByTab(orders, 'packing').length, 2);
+    assert.equal(filterPackQueueByTab(orders, 'awaiting_pack').length, 1);
   });
 });
 

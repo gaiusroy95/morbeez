@@ -28,13 +28,15 @@ Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env`.
 
 ## Farmer app — mockup-aligned structure
 
-**Bottom tabs:** Home · Market · ROI · Shop · Profile
+**Bottom tabs:** Home · ROI · Shop · Profile
 
-**Home dashboard:** today's market rate, financial summary, tasks, weather alerts, quick actions (scan, expense, activity, fields, recommendations).
+**Home dashboard:** crop & market selectors, hero card (DAP, growth stage, current rate, YoY), embedded market analytics chart (30D/90D/1Y/2Y), weather alert banner, quick actions (AI Scan, Activities, My Fields, Recommendations).
 
-**Stack screens:** fields list, field add/edit, field details, **ROI quick expense (icon grid + amount pad)**, labour entry, harvest close, crop history, AI scan + result + history, market trend charts, recommendations, activities, orders, notifications, shop checkout.
+**Market tab:** removed from bottom navigation; market analytics live on Home. Stack route `/(tabs)/market` remains for legacy deep links.
 
-**ROI daily flow:** Open ROI tab → see DAP, Spent, Expected, Profit for active crop season → tap **Add expense** → pick dynamic type tile → enter amount → saved to season ledger. Harvest closes season into crop history.
+**Stack screens:** fields list, field add/edit, field details, **ROI transactions (add expense / add income)**, expense book, analytics, start/finish crop cycle, crop history, AI scan + result + history, market trend charts, recommendations, activities, orders, notifications, shop checkout.
+
+**ROI v1 flow:** Open ROI tab → crop/block filters (when multi-field) → financial summary (profit/ROI hidden until first income) → harvest summary → sub-tabs (Overview · Transactions · Expense Book · Analytics · History) → **Add Transaction** → expense or harvest sale → multiple harvest sales keep season active → **Finish Crop Cycle** archives to history → **Start New Cycle** on same block. Field detail ROI tab is scoped to that block.
 
 Fields and AI Scan are reachable from Home quick actions (not tab bar items).
 
@@ -97,10 +99,11 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route 
 | Area | Endpoints |
 |------|-----------|
 | Auth | `POST /api/v1/auth/otp/send`, `POST /api/v1/auth/otp/verify`, `POST /api/v1/auth/login` |
-| ROI season | `GET /api/v1/farmer/portal/roi/season/active`, `GET …/expense-types`, `GET …/labour-types`, `POST …/expenses`, `POST …/labour`, `POST …/harvest`, `GET …/history`, `POST …/purchase-order` |
+| ROI v1 | `GET …/roi/summary`, `GET …/roi/context`, `GET …/roi/categories`, `POST …/roi/categories`, `POST …/roi/harvest-sale`, `POST …/roi/income`, `POST …/roi/season/:id/finish`, `POST …/roi/season/start`, `GET …/roi/transactions`, `GET …/roi/expense-book`, `GET …/roi/analytics`, `PATCH|DELETE …/roi/transactions/:id`, `GET …/roi/history?v=2` |
+| ROI legacy | `GET …/roi/season/active`, `POST …/expenses`, `POST …/labour`, `POST …/harvest` (deprecated wrappers) |
 | Portal summary | `GET /api/v1/farmer/portal/summary` — `todayMarket`, `finance`, `tasks` |
 | Market | `GET /api/v1/farmer/portal/market/crops`, `GET .../market/dashboard?crop=&market=`, `GET .../market/trends?crop=&market=&range=`, `GET .../market/mandi-comparison?crop=`, `GET .../market/crop-comparison?market=` |
-| ROI | `GET /api/v1/farmer/portal/roi/dashboard` — `breakdown`, `seasonLabel`; `POST …/roi/entries` |
+| ROI dashboard | `GET /api/v1/farmer/portal/roi/summary` (preferred); `GET …/roi/dashboard` deprecated alias |
 | Crop ops | `/api/v1/farmer/portal/blocks`, `PATCH …/blocks/:id`, `/scan`, `/scans`, `/activities`, `/recommendations` |
 | Store | `GET /api/v1/store/products`, `GET /api/v1/store/banners`, `GET /api/v1/store/recommendations`, checkout `POST /api/v1/checkout/razorpay/*`, `POST /api/v1/checkout/cod/create` (JWT) |
 
@@ -115,15 +118,30 @@ API_BASE_URL=… FARMER_EMAIL=… FARMER_PASSWORD=… node scripts/farmer-smoke.
 Manual checklist after deploy:
 
 1. Login (OTP or email)
-2. Home cards: market rate, finance strip, tasks, weather
-3. Market tab: crop + mandi selectors; Overview · Trends (YoY overlay) · Multi-crop compare · Mandi compare; trend detail screen
-4. ROI tab: hero profit, donut breakdown, add expense
-5. Fields from Home → field detail inline tabs → add to cart from reco
-6. AI Scan from Home → result → recommendation / shop CTA
-7. Shop: banners, recommended row, category filters, PDP buy-now → checkout
-8. Profile menu → orders filter tabs → order timeline
-9. Notifications grouped sections
-10. Language switch (en / hi / ml)
+2. Home: crop/market selectors → hero card → trend chart → weather alert → quick actions
+3. Change crop or market on Home → hero price, DAP context, and chart refresh
+4. Market stack screen (legacy): crop + mandi selectors; Overview · Trends · Multi-crop compare · Mandi compare; trend detail screen
+5. ROI tab: filters (multi-block), honest profit gating, harvest summary, add transaction, finish/start cycle
+6. Fields from Home → field detail inline tabs → add to cart from reco
+7. AI Scan from Home → result → recommendation / shop CTA
+8. Shop: banners, recommended row, category filters, PDP buy-now → checkout
+9. Profile menu → orders filter tabs → order timeline
+10. Notifications grouped sections
+11. Language switch (en / hi / ml)
+12. OTP login → force-quit app → reopen → still logged in (session persists)
+
+### Farmer ROI v1 smoke checklist
+
+1. Single block farmer: no crop/block filters, no Expense Book tab
+2. Multi-block farmer: crop and block filters appear; Expense Book tab visible
+3. Add expense with smart defaults; change crop → block dropdown updates
+4. Three harvest sales → totals correct → season still active
+5. Finish crop cycle → COMPLETE confirm (+ password if set) → success modal → appears in History
+6. Analytics donut chart shows category segments with center total
+7. Field detail ROI tab scoped to that block (not primary block only)
+8. Tap transaction → edit amount/date; All | Expense | Income ledger filters
+9. History screen: Active Cycles | Completed Cycles tabs; completed cards show ROI %
+10. Legacy `/roi/quick-expense` routes redirect to add-expense form
 
 ## Production env matrix (backend)
 

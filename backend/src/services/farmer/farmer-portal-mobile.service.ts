@@ -11,6 +11,7 @@ import { whatsappOsAdminService } from '../admin/whatsapp-os-admin.service.js';
 import { roiFlowService } from '../whatsapp/roi/roi-flow.service.js';
 import type { RoiEntryType } from '../admin/farmer-roi-admin.service.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
+import { growthStageFromDap } from './crop-stage.service.js';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -25,13 +26,12 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
-function growthStageLabel(stage: string | null | undefined, dap: number | null): string {
-  if (stage?.trim()) return stage.trim();
-  if (dap == null) return 'Growing';
-  if (dap < 30) return 'Early growth';
-  if (dap < 60) return 'Vegetative growth';
-  if (dap < 120) return 'Active development';
-  return 'Maturity phase';
+function growthStageLabel(
+  crop: string | null | undefined,
+  stage: string | null | undefined,
+  dap: number | null
+): string {
+  return growthStageFromDap(crop, dap, stage);
 }
 
 function healthFromSoil(raw: string | null | undefined): {
@@ -176,11 +176,13 @@ export const farmerPortalMobileService = {
           crop: b.crop_name ?? b.crop_type,
           acreage: b.acreage_decimal,
           dap: b.dap,
+          plantingDate: b.planting_date,
+          plantingDateLabel: b.planting_date ? formatDate(b.planting_date) : null,
           healthStatus: health.status,
           healthLabel: health.label,
           lastActivity: last ? `${last.label} · ${last.at}` : null,
           currentAlert: alertByBlock.get(b.id) ?? null,
-          stage: growthStageLabel(b.stage, b.dap),
+          stage: growthStageLabel(b.crop_type ?? b.crop_name, b.stage, b.dap),
           isPrimary: b.is_primary,
         };
       }),
@@ -215,7 +217,7 @@ export const farmerPortalMobileService = {
       healthLabel: health.label,
       lastActivity: null,
       currentAlert: null,
-      stage: growthStageLabel(block.stage, block.dap),
+      stage: growthStageLabel(block.crop_type ?? block.crop_name, block.stage, block.dap),
       isPrimary: block.is_primary,
     };
   },
@@ -243,7 +245,7 @@ export const farmerPortalMobileService = {
       healthLabel: health.label,
       lastActivity: null,
       currentAlert: null,
-      stage: growthStageLabel(block.stage, block.dap),
+      stage: growthStageLabel(block.crop_type ?? block.crop_name, block.stage, block.dap),
       isPrimary: block.is_primary,
     };
   },
@@ -278,11 +280,13 @@ export const farmerPortalMobileService = {
         crop: block.crop_name ?? block.crop_type,
         acreage: block.acreage_decimal,
         dap: block.dap,
+        plantingDate: block.planting_date,
+        plantingDateLabel: block.planting_date ? formatDate(block.planting_date) : null,
         healthStatus: health.status,
         healthLabel: health.label,
         lastActivity: timeline[0]?.title ?? null,
         currentAlert: timeline.find((t) => t.type === 'recommendation')?.title ?? null,
-        stage: growthStageLabel(block.stage, block.dap),
+        stage: growthStageLabel(block.crop_type ?? block.crop_name, block.stage, block.dap),
         isPrimary: block.is_primary,
         spad: macro?.chlorophyll?.value ? String(macro.chlorophyll.value) : null,
         shootCount: null,

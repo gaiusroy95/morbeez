@@ -11,6 +11,8 @@ import {
   clearFarmerToken,
   fetchFarmerMe,
   getFarmerToken,
+  isFarmerAuthError,
+  isFarmerTokenExpired,
   type FarmerProfile,
 } from '@morbeez/shared';
 
@@ -37,14 +39,26 @@ export function FarmerAuthProvider({ children }: { children: ReactNode }) {
       setReady(true);
       return;
     }
+    if (isFarmerTokenExpired(token)) {
+      await clearFarmerToken();
+      setAuthed(false);
+      setFarmer(null);
+      setReady(true);
+      return;
+    }
     try {
       const profile = await fetchFarmerMe();
       setFarmer(profile);
       setAuthed(true);
-    } catch {
-      await clearFarmerToken();
-      setAuthed(false);
-      setFarmer(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (isFarmerAuthError(msg)) {
+        await clearFarmerToken();
+        setAuthed(false);
+        setFarmer(null);
+      } else {
+        setAuthed(true);
+      }
     } finally {
       setReady(true);
     }

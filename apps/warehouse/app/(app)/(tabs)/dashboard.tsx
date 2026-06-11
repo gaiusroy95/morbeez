@@ -58,12 +58,36 @@ export default function DashboardScreen() {
       <Text style={styles.subtitle}>Today&apos;s fulfillment overview</Text>
 
       <View style={styles.statsGrid}>
-        <StatCard label="Assigned" value={stats?.pendingOrders ?? 0} />
-        <StatCard label="Picking" value={stats?.picking ?? 0} />
-        <StatCard label="Packing" value={stats?.packing ?? 0} />
-        <StatCard label="Awaiting pack" value={stats?.packed ?? stats?.readyToPack ?? 0} />
-        <StatCard label="Ready dispatch" value={stats?.readyDispatch ?? 0} />
-        <StatCard label="LR pending" value={stats?.awaitingTracking ?? stats?.lrPending ?? 0} />
+        <StatCard
+          label="Assigned"
+          value={stats?.pendingOrders ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/picking', params: { tab: 'assigned' } })}
+        />
+        <StatCard
+          label="Picking"
+          value={stats?.picking ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/picking', params: { tab: 'in_progress' } })}
+        />
+        <StatCard
+          label="Packing"
+          value={stats?.packing ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/packing', params: { tab: 'packing' } })}
+        />
+        <StatCard
+          label="Awaiting pack"
+          value={stats?.packed ?? stats?.readyToPack ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/packing', params: { tab: 'awaiting_pack' } })}
+        />
+        <StatCard
+          label="Ready dispatch"
+          value={stats?.readyDispatch ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/dispatch', params: { tab: 'ready' } })}
+        />
+        <StatCard
+          label="LR pending"
+          value={stats?.awaitingTracking ?? stats?.lrPending ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/dispatch', params: { tab: 'lr_pending' } })}
+        />
       </View>
 
       {progressSegments.length > 0 ? (

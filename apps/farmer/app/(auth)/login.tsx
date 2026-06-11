@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { farmerLogin, phoneForCheckout, sendOtp, t, verifyOtp } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, MorbeezLogo, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, HubTabs, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -132,7 +132,7 @@ export default function LoginScreen() {
           ) : (
             <>
               <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" accessibilityLabel="Email" />
-              <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry accessibilityLabel="Password" />
+              <PasswordField label="Password" value={password} onChangeText={setPassword} accessibilityLabel="Password" />
               <Btn label={loading ? t('loading', locale) : t('login', locale)} onPress={() => void onEmailSubmit()} disabled={loading} />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
                 <Text style={styles.linkText}>{t('useOtp', locale)}</Text>

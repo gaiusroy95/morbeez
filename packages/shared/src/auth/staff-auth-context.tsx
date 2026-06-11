@@ -28,7 +28,7 @@ type StaffAuthState = {
   canWrite: boolean;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
+  login: (phone: string, password: string, email?: string) => Promise<void>;
   loginWithOtp: (phone: string, code: string) => Promise<void>;
 };
 
@@ -72,8 +72,8 @@ export function createStaffAuth(requiredModule: string, requireWrite = false) {
     }, [refresh]);
 
     const login = useCallback(
-      async (email: string, password: string) => {
-        await staffLogin(email, password);
+      async (phone: string, password: string, email?: string) => {
+        await staffLogin(phone, password, email);
         const session = await fetchStaffSession();
         assertModuleAccess(session.modules, requiredModule, requireWrite ? 'write' : 'read');
         setAdmin(session.admin);

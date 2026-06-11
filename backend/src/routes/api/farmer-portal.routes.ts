@@ -344,17 +344,52 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, comparison });
   });
 
+  /** @deprecated Use GET /roi/summary — kept for legacy mobile builds */
   app.get('/api/v1/farmer/portal/roi/dashboard', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
-    const dashboard = await farmerPortalMobileService.getRoiDashboard(farmerId);
+    const { roiAggregationService } = await import('../../services/farmer/roi-aggregation.service.js');
+    const summary = await roiAggregationService.getSummary(farmerId, {});
+    const dashboard = {
+      investmentInr: summary.financial?.expenseInr ?? 0,
+      projectedRevenueInr: summary.financial?.incomeInr ?? 0,
+      profitInr: summary.financial?.profitInr ?? 0,
+      roiPercent: summary.financial?.roiPercent ?? 0,
+      breakdown: summary.breakdown ?? [],
+      seasonLabel: summary.cropStatus?.crop ?? undefined,
+      dap: summary.cropStatus?.dap,
+      stageLabel: summary.cropStatus?.stageLabel,
+    };
     return reply.send({ ok: true, dashboard });
   });
 
   app.get('/api/v1/farmer/portal/roi/season/active', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
+    const q = request.query as { blockId?: string };
     const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
-    const dashboard = await cropSeasonService.getActiveDashboard(farmerId);
+    const dashboard = await cropSeasonService.getActiveDashboard(farmerId, q.blockId);
     return reply.send({ ok: true, dashboard });
+  });
+
+  app.get('/api/v1/farmer/portal/roi/summary', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as { crop?: string; blockId?: string };
+    const { roiAggregationService } = await import('../../services/farmer/roi-aggregation.service.js');
+    const summary = await roiAggregationService.getSummary(farmerId, {
+      crop: q.crop ?? null,
+      blockId: q.blockId ?? null,
+    });
+    return reply.send({ ok: true, summary });
+  });
+
+  app.get('/api/v1/farmer/portal/roi/context', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as { crop?: string; blockId?: string };
+    const { roiAggregationService } = await import('../../services/farmer/roi-aggregation.service.js');
+    const context = await roiAggregationService.getContext(farmerId, {
+      crop: q.crop ?? null,
+      blockId: q.blockId ?? null,
+    });
+    return reply.send({ ok: true, context });
   });
 
   app.get('/api/v1/farmer/portal/roi/expense-types', async (request, reply) => {
@@ -382,15 +417,42 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, types });
   });
 
+  app.get('/api/v1/farmer/portal/roi/categories', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const categories = await cropSeasonService.listCategories(farmerId);
+    return reply.send({ ok: true, categories });
+  });
+
+  app.post('/api/v1/farmer/portal/roi/categories', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = z
+      .object({
+        name: z.string().min(1).max(80),
+        icon: z.string().max(8).optional(),
+        color: z.string().max(20).optional(),
+        ledgerEntryType: z.enum(['labour', 'purchase', 'misc', 'harvest', 'income']).optional(),
+      })
+      .parse(request.body);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const category = await cropSeasonService.createFarmerCategory(farmerId, body);
+    return reply.status(201).send({ ok: true, category });
+  });
+
   app.post('/api/v1/farmer/portal/roi/expenses', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const body = z
       .object({
         seasonId: z.string().uuid().optional(),
-        expenseTypeId: z.string().uuid(),
+        blockId: z.string().uuid().optional(),
+        expenseTypeId: z.string().uuid().optional(),
+        categoryId: z.string().uuid().optional(),
         amount: z.number().positive(),
         entryDate: z.string().min(8).optional(),
         note: z.string().max(500).optional(),
+      })
+      .refine((b) => Boolean(b.expenseTypeId || b.categoryId), {
+        message: 'expenseTypeId or categoryId is required',
       })
       .parse(request.body);
     const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
@@ -420,14 +482,147 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     const body = z
       .object({
         seasonId: z.string().uuid().optional(),
+        blockId: z.string().uuid().optional(),
         harvestDate: z.string().min(8).optional(),
         yieldKg: z.number().positive(),
         sellingPricePerKg: z.number().positive(),
+        buyer: z.string().max(120).optional(),
       })
       .parse(request.body);
     const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
-    const result = await cropSeasonService.submitHarvest(farmerId, body);
+    const result = await cropSeasonService.recordHarvestSale(farmerId, body);
     return reply.status(201).send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/farmer/portal/roi/harvest-sale', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = z
+      .object({
+        seasonId: z.string().uuid().optional(),
+        blockId: z.string().uuid().optional(),
+        harvestDate: z.string().min(8).optional(),
+        yieldKg: z.number().positive(),
+        sellingPricePerKg: z.number().positive(),
+        buyer: z.string().max(120).optional(),
+      })
+      .parse(request.body);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.recordHarvestSale(farmerId, body);
+    return reply.status(201).send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/farmer/portal/roi/income', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = z
+      .object({
+        seasonId: z.string().uuid().optional(),
+        blockId: z.string().uuid().optional(),
+        incomeSubtype: z.enum(['advance', 'subsidy', 'other']),
+        amount: z.number().positive(),
+        entryDate: z.string().min(8).optional(),
+        note: z.string().max(500).optional(),
+      })
+      .parse(request.body);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.recordIncome(farmerId, body);
+    return reply.status(201).send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/farmer/portal/roi/season/:seasonId/finish', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { seasonId } = request.params as { seasonId: string };
+    parseUuid(seasonId);
+    const body = z
+      .object({
+        password: z.string().min(1).max(128).optional(),
+        confirmText: z.string().min(1).max(32),
+      })
+      .parse(request.body ?? {});
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.finishSeason(farmerId, seasonId, body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post('/api/v1/farmer/portal/roi/season/start', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = z
+      .object({
+        blockId: z.string().uuid(),
+        crop: z.string().min(1).max(80),
+        acreage: z.number().positive().optional(),
+        plantingDate: z.string().min(8).optional(),
+      })
+      .parse(request.body);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const season = await cropSeasonService.startSeason(farmerId, body);
+    return reply.status(201).send({ ok: true, season });
+  });
+
+  app.get('/api/v1/farmer/portal/roi/transactions', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as {
+      seasonId?: string;
+      blockId?: string;
+      crop?: string;
+      type?: string;
+      from?: string;
+      to?: string;
+      page?: string;
+      limit?: string;
+    };
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.listTransactions(farmerId, {
+      seasonId: q.seasonId,
+      blockId: q.blockId,
+      crop: q.crop,
+      type: q.type === 'expense' || q.type === 'income' ? q.type : undefined,
+      from: q.from,
+      to: q.to,
+      page: q.page ? Number(q.page) : 1,
+      limit: q.limit ? Number(q.limit) : 50,
+    });
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get('/api/v1/farmer/portal/roi/expense-book', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as { crop?: string; blockId?: string };
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const book = await cropSeasonService.getExpenseBook(farmerId, q);
+    return reply.send({ ok: true, ...book });
+  });
+
+  app.get('/api/v1/farmer/portal/roi/analytics', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const q = request.query as { crop?: string; blockId?: string };
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const analytics = await cropSeasonService.getAnalytics(farmerId, q);
+    return reply.send({ ok: true, analytics });
+  });
+
+  app.patch('/api/v1/farmer/portal/roi/transactions/:entryId', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { entryId } = request.params as { entryId: string };
+    parseUuid(entryId);
+    const body = z
+      .object({
+        amount: z.number().positive().optional(),
+        note: z.string().max(500).optional(),
+        entryDate: z.string().min(8).optional(),
+      })
+      .parse(request.body);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.updateTransaction(farmerId, entryId, body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.delete('/api/v1/farmer/portal/roi/transactions/:entryId', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { entryId } = request.params as { entryId: string };
+    parseUuid(entryId);
+    const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    const result = await cropSeasonService.deleteTransaction(farmerId, entryId);
+    return reply.send({ ok: true, ...result });
   });
 
   app.post('/api/v1/farmer/portal/roi/purchase-order', async (request, reply) => {
@@ -446,7 +641,12 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/v1/farmer/portal/roi/history', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
+    const q = request.query as { v?: string };
     const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+    if (q.v === '2') {
+      const history = await cropSeasonService.listHistoryV2(farmerId);
+      return reply.send({ ok: true, ...history });
+    }
     const seasons = await cropSeasonService.listHistory(farmerId);
     return reply.send({ ok: true, seasons });
   });

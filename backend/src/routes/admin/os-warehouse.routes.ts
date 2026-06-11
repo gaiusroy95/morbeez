@@ -852,6 +852,13 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(result);
   });
 
+  app.post(`${api}/fulfillment/pack-sessions/:id/advance-rack`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const result = await fulfillmentService.advanceToNextRack(id);
+    return reply.send(result);
+  });
+
   app.post(`${api}/fulfillment/orders/:id/mark-packed`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const { id } = request.params as { id: string };

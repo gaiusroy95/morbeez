@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { phoneForCheckout, sendStaffOtp, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, MorbeezLogo, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function LoginScreen() {
   const { login, loginWithOtp } = useStaffAuth();
   const router = useRouter();
-  const [mode, setMode] = useState<'otp' | 'email'>('otp');
+  const [mode, setMode] = useState<'otp' | 'password'>('otp');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -18,11 +18,13 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function onEmailSubmit() {
+  async function onPasswordSubmit() {
     setError('');
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      const phone = phoneForCheckout(mobile);
+      if (phone.length !== 10) throw new Error('Enter a valid 10-digit mobile number');
+      await login(phone, password, email.trim() || undefined);
       router.replace('/(app)');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed');
@@ -77,7 +79,7 @@ export default function LoginScreen() {
               {otpStep === 'phone' ? (
                 <>
                   <TextField
-                    label="Mobile number"
+                    label="Mobile number *"
                     value={mobile}
                     onChangeText={setMobile}
                     keyboardType="phone-pad"
@@ -109,15 +111,32 @@ export default function LoginScreen() {
                   </Pressable>
                 </>
               )}
-              <Pressable onPress={() => setMode('email')} style={styles.linkWrap}>
-                <Text style={styles.linkText}>Use work email instead</Text>
+              <Pressable onPress={() => setMode('password')} style={styles.linkWrap}>
+                <Text style={styles.linkText}>Use password instead</Text>
               </Pressable>
             </>
           ) : (
             <>
-              <TextField label="Work email" value={email} onChangeText={setEmail} keyboardType="email-address" />
-              <TextField label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-              <Btn label={loading ? 'Signing in…' : 'Sign in'} onPress={() => void onEmailSubmit()} disabled={loading} />
+              <TextField
+                label="Mobile number *"
+                value={mobile}
+                onChangeText={setMobile}
+                keyboardType="phone-pad"
+                accessibilityLabel="Mobile number"
+              />
+              <TextField
+                label="Work email (optional)"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                accessibilityLabel="Work email optional"
+              />
+              <PasswordField label="Password" value={password} onChangeText={setPassword} />
+              <Btn
+                label={loading ? 'Signing in…' : 'Sign in'}
+                onPress={() => void onPasswordSubmit()}
+                disabled={loading || mobile.replace(/\D/g, '').length < 10 || !password}
+              />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
                 <Text style={styles.linkText}>Use mobile OTP instead</Text>
               </Pressable>

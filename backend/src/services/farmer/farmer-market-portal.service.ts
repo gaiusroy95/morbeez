@@ -328,6 +328,18 @@ export const farmerMarketPortalService = {
     const weeklyTrendPctVal =
       top != null ? await computeWeeklyTrendPct(cropType, top.marketName, date, top.pricePerKg) : null;
 
+    const lastYearSameDayPricePerKg = top?.lastYearPricePerKg ?? null;
+    const differenceInr =
+      top && lastYearSameDayPricePerKg != null
+        ? Math.round(top.pricePerKg - lastYearSameDayPricePerKg)
+        : null;
+    const yesterdayPrice =
+      top && dailyChangeInr != null ? top.pricePerKg - dailyChangeInr : null;
+    const dailyChangePct =
+      dailyChangeInr != null && yesterdayPrice != null && yesterdayPrice > 0
+        ? Math.round((dailyChangeInr / yesterdayPrice) * 1000) / 10
+        : null;
+
     const districtLabel = profile.district ?? profile.state ?? 'Your district';
     const favoriteCrop = block?.crop_type?.toLowerCase() ?? cropType;
 
@@ -344,6 +356,9 @@ export const farmerMarketPortalService = {
       dailyTrend: dailyChangeInr != null ? (dailyChangeInr > 0 ? 'up' : dailyChangeInr < 0 ? 'down' : 'flat') : null,
       weeklyTrendPct: weeklyTrendPctVal,
       yoyPct: top?.yoyPct ?? null,
+      lastYearSameDayPricePerKg,
+      differenceInr,
+      dailyChangePct,
       trend: top?.trend ?? null,
       priceDirection:
         top?.yoyPct != null

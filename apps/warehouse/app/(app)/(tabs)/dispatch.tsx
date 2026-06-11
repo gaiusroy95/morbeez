@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { filterDispatchQueue, filterLrPending, tokens, warehouseClient, type QueueOrder } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
 
@@ -12,10 +12,16 @@ function groupKey(row: QueueOrder): string {
   return row.courier || 'Other';
 }
 
+function parseDispatchTab(raw: string | string[] | undefined): DispatchTab {
+  const v = Array.isArray(raw) ? raw[0] : raw;
+  return v === 'lr_pending' ? 'lr_pending' : 'ready';
+}
+
 export default function DispatchQueueScreen() {
   const router = useRouter();
+  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [queue, setQueue] = useState<QueueOrder[]>([]);
-  const [tab, setTab] = useState<DispatchTab>('ready');
+  const [tab, setTab] = useState<DispatchTab>(() => parseDispatchTab(tabParam));
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,6 +42,10 @@ export default function DispatchQueueScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (tabParam) setTab(parseDispatchTab(tabParam));
+  }, [tabParam]);
 
   const ready = useMemo(() => filterDispatchQueue(queue), [queue]);
   const lrPending = useMemo(() => filterLrPending(queue), [queue]);

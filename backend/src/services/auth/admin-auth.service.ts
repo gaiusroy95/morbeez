@@ -3,9 +3,12 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { UnauthorizedError, ValidationError } from '../../lib/errors.js';
 import { verifyPassword } from '../../lib/password.js';
 import { createAdminToken } from '../../lib/admin-jwt.js';
+import { isValidIndianPhone } from '../../lib/phone.js';
+import { findActiveAdminByPhone } from './staff-phone-lookup.js';
 
 export interface AdminLoginInput {
-  email: string;
+  phone?: string;
+  email?: string;
   password: string;
 }
 
@@ -26,39 +29,56 @@ function publicAdmin(row: Record<string, unknown>) {
 
 export const adminAuthService = {
   async login(input: AdminLoginInput) {
-    const email = normalizeEmail(input.email);
     if (!input.password) throw new ValidationError('Password is required');
 
-    const { data, error } = await supabase
-      .from('admin_users')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle();
+    let data: Record<string, unknown>;
 
-    throwIfSupabaseError(error, 'Could not load admin account');
-    if (!data?.password_hash) throw new UnauthorizedError('Invalid email or password');
-
-    if (!data.active) {
-      if (!data.email_verified_at) {
-        throw new UnauthorizedError(
-          'Activate your account using the invitation link sent to your email'
-        );
+    if (input.phone?.trim()) {
+      if (!isValidIndianPhone(input.phone)) {
+        throw new ValidationError('Enter a valid 10-digit mobile number');
       }
-      throw new UnauthorizedError('Account is inactive');
+      data = await findActiveAdminByPhone(input.phone);
+      if (!data.password_hash) throw new UnauthorizedError('Invalid mobile number or password');
+      if (input.email?.trim()) {
+        const email = normalizeEmail(input.email);
+        if (data.email && normalizeEmail(String(data.email)) !== email) {
+          throw new UnauthorizedError('Invalid mobile number or password');
+        }
+      }
+    } else if (input.email?.trim()) {
+      const email = normalizeEmail(input.email);
+      const { data: row, error } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', email)
+        .maybeSingle();
+      throwIfSupabaseError(error, 'Could not load admin account');
+      if (!row?.password_hash) throw new UnauthorizedError('Invalid email or password');
+      if (!row.active) {
+        if (!row.email_verified_at) {
+          throw new UnauthorizedError(
+            'Activate your account using the invitation link sent to your email'
+          );
+        }
+        throw new UnauthorizedError('Account is inactive');
+      }
+      if (!row.email_verified_at && row.role !== 'super_admin') {
+        throw new UnauthorizedError('Complete email verification using your invitation link');
+      }
+      data = row;
+    } else {
+      throw new ValidationError('Mobile number is required');
     }
 
-    if (!data.email_verified_at && data.role !== 'super_admin') {
-      throw new UnauthorizedError('Complete email verification using your invitation link');
-    }
-
-    if (!verifyPassword(input.password, data.password_hash)) {
-      throw new UnauthorizedError('Invalid email or password');
+    if (!verifyPassword(input.password, String(data.password_hash))) {
+      throw new UnauthorizedError(input.phone ? 'Invalid mobile number or password' : 'Invalid email or password');
     }
 
     const now = new Date().toISOString();
     await supabase.from('admin_users').update({ last_login_at: now, updated_at: now }).eq('id', data.id);
 
-    const token = createAdminToken(data.id, email, data.role);
+    const email = String(data.email ?? '');
+    const token = createAdminToken(String(data.id), email, String(data.role));
     return { token, admin: publicAdmin({ ...data, last_login_at: now }) };
   },
 

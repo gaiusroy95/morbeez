@@ -25,11 +25,13 @@ export {
   filterDispatchQueue,
   filterLrPending,
   filterPackQueue,
+  filterPackQueueByTab,
   filterPickQueue,
   isPickingQueueOrder,
   isWarehouseManagerRole,
   queueFilterBucket,
   warehouseModulesForRole,
+  type PackQueueTab,
   type PickQueueTab,
 } from './warehouse-queue';
 
@@ -80,10 +82,23 @@ export const warehouseClient = {
     sessionId: string,
     lineId: string,
     qty: number
-  ): Promise<{ ok: boolean; message?: string; stage?: string }> {
+  ): Promise<{ ok: boolean; message?: string; stage?: string; rackComplete?: boolean; printEnabled?: boolean }> {
     return staffApi(`${WMS}/fulfillment/pack-sessions/${sessionId}/confirm-pick`, {
       method: 'POST',
       body: JSON.stringify({ lineId, qty }),
+    });
+  },
+
+  async advanceToNextRack(sessionId: string): Promise<{
+    ok: boolean;
+    message?: string;
+    stage?: string;
+    printEnabled?: boolean;
+    advancedToRack?: string | null;
+  }> {
+    return staffApi(`${WMS}/fulfillment/pack-sessions/${sessionId}/advance-rack`, {
+      method: 'POST',
+      body: '{}',
     });
   },
 

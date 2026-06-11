@@ -1028,6 +1028,10 @@ export const fulfillmentService = {
     return rackPickService.confirmPick(packSessionId, lineId, qty);
   },
 
+  async advanceToNextRack(packSessionId: string) {
+    return rackPickService.advanceToNextRack(packSessionId);
+  },
+
   async scan(packSessionId: string, code: string) {
     return packService.scanFulfillment(packSessionId, code);
   },

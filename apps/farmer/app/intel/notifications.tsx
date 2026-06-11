@@ -51,7 +51,7 @@ export default function NotificationsScreen() {
     if (item.type === 'advisory') router.push('/recommendations');
     else if (item.type === 'delivery') router.push('/orders');
     else if (item.type === 'soil') router.push('/reports');
-    else router.push('/(tabs)/market');
+    else router.push('/(tabs)/home');
   }
 
   if (loading) return <Loading label={t('loading', locale)} />;

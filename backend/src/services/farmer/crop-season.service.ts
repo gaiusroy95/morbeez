@@ -1,17 +1,16 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
 import { blockService, blockDisplayName } from '../core/block.service.js';
+import { growthStageFromDap } from './crop-stage.service.js';
 import { roiFlowService, type RoiEntryType } from '../whatsapp/roi/roi-flow.service.js';
 
-function growthStageLabel(stage: string | null | undefined, dap: number | null): string {
-  if (stage?.trim()) return stage.trim();
-  if (dap == null) return 'Growing';
-  if (dap < 30) return 'Establishment';
-  if (dap < 60) return 'Tillering';
-  if (dap < 90) return 'Vegetative';
-  if (dap < 120) return 'Maturity';
-  return 'Late season';
+function growthStageLabel(
+  crop: string | null | undefined,
+  stage: string | null | undefined,
+  dap: number | null
+): string {
+  return growthStageFromDap(crop, dap, stage);
 }
 
 function formatDate(iso: string | null | undefined): string {
@@ -53,6 +52,8 @@ type SeasonRow = {
   market_note: string | null;
   season_status: string;
   season_label: string | null;
+  harvest_count: number;
+  total_yield_kg: number;
 };
 
 function mapSeason(row: Record<string, unknown>): SeasonRow {
@@ -73,6 +74,8 @@ function mapSeason(row: Record<string, unknown>): SeasonRow {
     market_note: row.market_note ? String(row.market_note) : null,
     season_status: String(row.season_status),
     season_label: row.season_label ? String(row.season_label) : null,
+    harvest_count: Number(row.harvest_count ?? 0),
+    total_yield_kg: Number(row.total_yield_kg ?? 0),
   };
 }
 
@@ -191,13 +194,13 @@ export const cropSeasonService = {
     return season;
   },
 
-  async getActiveDashboard(farmerId: string) {
-    const season = await this.ensureActiveSeason(farmerId);
+  async getActiveDashboard(farmerId: string, blockId?: string) {
+    const season = await this.ensureActiveSeason(farmerId, blockId);
     const block = await blockService.getById(season.block_id, farmerId);
     if (!block) throw new NotFoundError('Field not found');
 
     const dap = blockService.computeDap(block);
-    const stageLabel = growthStageLabel(block.stage, dap);
+    const stageLabel = growthStageLabel(block.crop_type ?? block.crop_name, block.stage, dap);
     const totals = await recomputeSeasonTotals(season.id);
 
     const { data: recent } = await supabase
@@ -254,8 +257,10 @@ export const cropSeasonService = {
     }
 
     const investment = totals.expense;
-    const profit = (expectedIncome || totals.income) - investment;
-    const roiPercent = investment > 0 ? Math.round((profit / investment) * 100) : 0;
+    const hasIncome = totals.income > 0;
+    const profit = hasIncome ? totals.income - investment : null;
+    const roiPercent =
+      hasIncome && investment > 0 && profit != null ? Math.round((profit / investment) * 100) : null;
 
     return {
       seasonId: season.id,
@@ -269,8 +274,10 @@ export const cropSeasonService = {
       seasonStatus: season.season_status,
       spentInr: investment,
       expectedIncomeInr: expectedIncome,
-      netProfitInr: profit,
-      roiPercent,
+      netProfitInr: profit ?? 0,
+      roiPercent: roiPercent ?? 0,
+      hasIncome,
+      profitMessage: hasIncome ? null : 'Profit & ROI available after first harvest sale',
       yieldEstimate: season.acreage ? `${season.acreage} acre` : null,
       marketNote,
       breakdown: breakdownArr,
@@ -291,24 +298,52 @@ export const cropSeasonService = {
 
   async createQuickExpense(
     farmerId: string,
-    input: { seasonId?: string; expenseTypeId: string; amount: number; entryDate?: string; note?: string }
+    input: {
+      seasonId?: string;
+      blockId?: string;
+      expenseTypeId?: string;
+      categoryId?: string;
+      amount: number;
+      entryDate?: string;
+      note?: string;
+    }
   ) {
     const season = input.seasonId
       ? await this.getSeasonForFarmer(farmerId, input.seasonId)
-      : await this.ensureActiveSeason(farmerId);
+      : await this.ensureActiveSeason(farmerId, input.blockId);
 
-    const { data: expType, error: typeErr } = await supabase
-      .from('roi_expense_types')
-      .select('*')
-      .eq('id', input.expenseTypeId)
-      .eq('active_status', true)
-      .maybeSingle();
-    throwIfSupabaseError(typeErr, 'Could not load expense type');
-    if (!expType) throw new NotFoundError('Expense type not found');
+    let categoryId = input.categoryId;
+    let expenseTypeId = input.expenseTypeId;
+    let entryType: RoiEntryType = 'misc';
+    let note = input.note?.trim() ?? '';
 
-    const entryType = String(expType.ledger_entry_type) as RoiEntryType;
+    if (categoryId) {
+      const cat = await this.getCategoryForFarmer(farmerId, categoryId);
+      entryType = String(cat.ledger_entry_type) as RoiEntryType;
+      if (!note) note = String(cat.name);
+      expenseTypeId = cat.legacy_expense_type_id ? String(cat.legacy_expense_type_id) : undefined;
+    } else if (expenseTypeId) {
+      const { data: expType, error: typeErr } = await supabase
+        .from('roi_expense_types')
+        .select('*')
+        .eq('id', expenseTypeId)
+        .eq('active_status', true)
+        .maybeSingle();
+      throwIfSupabaseError(typeErr, 'Could not load expense type');
+      if (!expType) throw new NotFoundError('Expense type not found');
+      entryType = String(expType.ledger_entry_type) as RoiEntryType;
+      if (!note) note = String(expType.expense_name);
+      const { data: linked } = await supabase
+        .from('farmer_roi_categories')
+        .select('id')
+        .eq('legacy_expense_type_id', expenseTypeId)
+        .maybeSingle();
+      categoryId = linked?.id ? String(linked.id) : undefined;
+    } else {
+      throw new ValidationError('Category or expense type is required');
+    }
+
     const entryDate = input.entryDate ?? todayIst();
-    const note = input.note?.trim() || String(expType.expense_name);
 
     const entryId = await roiFlowService.recordEntry({
       farmerId,
@@ -318,7 +353,8 @@ export const cropSeasonService = {
       comments: note,
       seasonId: season.id,
       blockId: season.block_id,
-      expenseTypeId: input.expenseTypeId,
+      expenseTypeId,
+      categoryId,
     });
 
     await recomputeSeasonTotals(season.id);
@@ -391,13 +427,20 @@ export const cropSeasonService = {
     return { id: entryId };
   },
 
-  async submitHarvest(
+  async recordHarvestSale(
     farmerId: string,
-    input: { seasonId?: string; harvestDate?: string; yieldKg: number; sellingPricePerKg: number }
+    input: {
+      seasonId?: string;
+      blockId?: string;
+      harvestDate?: string;
+      yieldKg: number;
+      sellingPricePerKg: number;
+      buyer?: string;
+    }
   ) {
     const season = input.seasonId
       ? await this.getSeasonForFarmer(farmerId, input.seasonId)
-      : await this.ensureActiveSeason(farmerId);
+      : await this.ensureActiveSeason(farmerId, input.blockId);
 
     if (season.season_status !== 'active') {
       throw new ValidationError('Season is already closed');
@@ -405,15 +448,17 @@ export const cropSeasonService = {
 
     const harvestDate = input.harvestDate ?? todayIst();
     const totalIncome = Math.round(input.yieldKg * input.sellingPricePerKg * 100) / 100;
+    const buyerNote = input.buyer?.trim() ? ` · ${input.buyer.trim()}` : '';
 
     const entryId = await roiFlowService.recordEntry({
       farmerId,
       entryType: 'harvest',
       amount: totalIncome,
       entryDate: harvestDate,
-      comments: `Harvest ${input.yieldKg} kg @ ₹${input.sellingPricePerKg}/kg`,
+      comments: `Harvest ${input.yieldKg} kg @ ₹${input.sellingPricePerKg}/kg${buyerNote}`,
       seasonId: season.id,
       blockId: season.block_id,
+      incomeSubtype: 'harvest_sale',
     });
 
     await supabase.from('harvest_records').insert({
@@ -424,25 +469,27 @@ export const cropSeasonService = {
       selling_price_per_kg: input.sellingPricePerKg,
       total_income_inr: totalIncome,
       roi_entry_id: entryId,
+      buyer: input.buyer?.trim() || null,
     });
 
+    const newCount = season.harvest_count + 1;
+    const newYield = season.total_yield_kg + input.yieldKg;
     const totals = await recomputeSeasonTotals(season.id);
     const roiPercent = totals.expense > 0 ? Math.round((totals.profit / totals.expense) * 100) : 0;
 
     await supabase
       .from('crop_seasons')
       .update({
-        end_date: harvestDate,
-        final_yield_kg: input.yieldKg,
-        season_status: 'harvested',
+        harvest_count: newCount,
+        total_yield_kg: newYield,
+        final_yield_kg: newYield,
         updated_at: new Date().toISOString(),
       })
       .eq('id', season.id);
 
-    await this.archiveSeason(farmerId, season.id);
-
     return {
       seasonId: season.id,
+      harvestCount: newCount,
       totalIncomeInr: totalIncome,
       netProfitInr: totals.profit,
       roiPercent,
@@ -450,29 +497,145 @@ export const cropSeasonService = {
     };
   },
 
-  async archiveSeason(farmerId: string, seasonId: string) {
-    const season = await this.getSeasonForFarmer(farmerId, seasonId);
+  /** @deprecated Use recordHarvestSale — kept for backward compatibility */
+  async submitHarvest(
+    farmerId: string,
+    input: { seasonId?: string; harvestDate?: string; yieldKg: number; sellingPricePerKg: number }
+  ) {
+    return this.recordHarvestSale(farmerId, input);
+  },
+
+  async recordIncome(
+    farmerId: string,
+    input: {
+      seasonId?: string;
+      blockId?: string;
+      incomeSubtype: 'advance' | 'subsidy' | 'other';
+      amount: number;
+      entryDate?: string;
+      note?: string;
+    }
+  ) {
+    const season = input.seasonId
+      ? await this.getSeasonForFarmer(farmerId, input.seasonId)
+      : await this.ensureActiveSeason(farmerId, input.blockId);
+
+    const entryId = await roiFlowService.recordEntry({
+      farmerId,
+      entryType: 'income',
+      amount: input.amount,
+      entryDate: input.entryDate ?? todayIst(),
+      comments: input.note?.trim() || input.incomeSubtype,
+      seasonId: season.id,
+      blockId: season.block_id,
+      incomeSubtype: input.incomeSubtype,
+    });
+
     await recomputeSeasonTotals(season.id);
+    return { id: entryId, seasonId: season.id };
+  },
+
+  async finishSeason(
+    farmerId: string,
+    seasonId: string,
+    opts?: { password?: string; confirmText?: string }
+  ) {
+    const season = await this.getSeasonForFarmer(farmerId, seasonId);
+    if (season.season_status !== 'active') {
+      throw new ValidationError('Season is already finished');
+    }
+
+    if (!opts?.confirmText || opts.confirmText.trim().toUpperCase() !== 'COMPLETE') {
+      throw new ValidationError('Type COMPLETE to confirm');
+    }
+
+    const { data: farmerRow } = await supabase
+      .from('farmers')
+      .select('password_hash')
+      .eq('id', farmerId)
+      .maybeSingle();
+
+    if (farmerRow?.password_hash) {
+      if (!opts.password?.trim()) {
+        throw new ValidationError('Password is required');
+      }
+      const { verifyPassword } = await import('../../lib/password.js');
+      if (!verifyPassword(opts.password.trim(), String(farmerRow.password_hash))) {
+        throw new UnauthorizedError('Invalid password');
+      }
+    }
+
+    await recomputeSeasonTotals(season.id);
+    const endDate = todayIst();
     await supabase
       .from('crop_seasons')
-      .update({ season_status: 'archived', updated_at: new Date().toISOString() })
+      .update({
+        season_status: 'archived',
+        end_date: endDate,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', season.id);
 
-    const block = await blockService.getById(season.block_id, farmerId);
-    if (block) {
-      const dap = blockService.computeDap(block);
-      const startDate = todayIst();
-      await supabase.from('crop_seasons').insert({
+    const totals = await sumSeasonEntries(season.id);
+    const roiPercent = totals.expense > 0 ? Math.round((totals.profit / totals.expense) * 100) : 0;
+    return {
+      seasonId: season.id,
+      netProfitInr: totals.profit,
+      totalExpenseInr: totals.expense,
+      totalIncomeInr: totals.income,
+      roiPercent,
+    };
+  },
+
+  async startSeason(
+    farmerId: string,
+    input: { blockId: string; crop: string; acreage?: number; plantingDate?: string }
+  ) {
+    const block = await blockService.getById(input.blockId, farmerId);
+    if (!block) throw new NotFoundError('Field not found');
+
+    const { data: existing } = await supabase
+      .from('crop_seasons')
+      .select('id')
+      .eq('block_id', input.blockId)
+      .eq('season_status', 'active')
+      .maybeSingle();
+    if (existing) throw new ValidationError('This field already has an active crop cycle');
+
+    const plantingDate = input.plantingDate ?? todayIst();
+    const crop = input.crop.trim().toLowerCase();
+    const dap = blockService.computeDap({ planting_date: plantingDate, created_at: block.created_at });
+
+    await supabase
+      .from('farm_blocks')
+      .update({
+        crop_type: crop,
+        planting_date: plantingDate,
+        acreage_decimal: input.acreage ?? block.acreage_decimal,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', input.blockId);
+
+    const { data, error } = await supabase
+      .from('crop_seasons')
+      .insert({
         farmer_id: farmerId,
-        block_id: season.block_id,
-        crop: block.crop_type,
-        acreage: block.acreage_decimal,
-        start_date: startDate,
+        block_id: input.blockId,
+        crop,
+        acreage: input.acreage ?? block.acreage_decimal,
+        start_date: plantingDate,
         dap,
-        season_label: seasonLabelFromDates(startDate, block.crop_type),
+        season_label: seasonLabelFromDates(plantingDate, crop),
         season_status: 'active',
-      });
-    }
+      })
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Could not start crop cycle');
+    return mapSeason(data as Record<string, unknown>);
+  },
+
+  async archiveSeason(farmerId: string, seasonId: string) {
+    return this.finishSeason(farmerId, seasonId);
   },
 
   async listHistory(farmerId: string) {
@@ -512,11 +675,11 @@ export const cropSeasonService = {
       .eq('season_id', season.id)
       .order('entry_date', { ascending: false });
 
-    const { data: harvest } = await supabase
+    const { data: harvestRows } = await supabase
       .from('harvest_records')
       .select('*')
       .eq('season_id', season.id)
-      .maybeSingle();
+      .order('harvest_date', { ascending: false });
 
     const { data: activities } = await supabase
       .from('cultivation_activities')
@@ -542,12 +705,20 @@ export const cropSeasonService = {
       netProfitInr: season.net_profit,
       roiPercent: season.total_expense > 0 ? Math.round((season.net_profit / season.total_expense) * 100) : 0,
       finalYieldKg: season.final_yield_kg,
-      harvest: harvest
+      harvests: (harvestRows ?? []).map((h) => ({
+        id: String(h.id),
+        harvestDate: String(h.harvest_date).slice(0, 10),
+        yieldKg: Number(h.yield_kg),
+        sellingPricePerKg: Number(h.selling_price_per_kg),
+        totalIncomeInr: Number(h.total_income_inr),
+        buyer: h.buyer ? String(h.buyer) : null,
+      })),
+      harvest: harvestRows?.[0]
         ? {
-            harvestDate: String(harvest.harvest_date).slice(0, 10),
-            yieldKg: Number(harvest.yield_kg),
-            sellingPricePerKg: Number(harvest.selling_price_per_kg),
-            totalIncomeInr: Number(harvest.total_income_inr),
+            harvestDate: String(harvestRows[0].harvest_date).slice(0, 10),
+            yieldKg: Number(harvestRows[0].yield_kg),
+            sellingPricePerKg: Number(harvestRows[0].selling_price_per_kg),
+            totalIncomeInr: Number(harvestRows[0].total_income_inr),
           }
         : null,
       entries: (entries ?? []).map((e) => ({
@@ -593,6 +764,320 @@ export const cropSeasonService = {
       })),
       pagination: { page, limit, total: count ?? 0 },
     };
+  },
+
+  async listCategories(farmerId: string) {
+    const { data, error } = await supabase
+      .from('farmer_roi_categories')
+      .select('*')
+      .or(`is_system.eq.true,farmer_id.eq.${farmerId}`)
+      .eq('active_status', true)
+      .order('sort_order')
+      .order('name');
+    throwIfSupabaseError(error, 'Could not load categories');
+    return (data ?? []).map((r) => ({
+      id: String(r.id),
+      name: String(r.name),
+      icon: r.icon ? String(r.icon) : null,
+      color: r.color ? String(r.color) : null,
+      ledgerEntryType: String(r.ledger_entry_type),
+      isSystem: Boolean(r.is_system),
+    }));
+  },
+
+  async getCategoryForFarmer(farmerId: string, categoryId: string) {
+    const { data, error } = await supabase
+      .from('farmer_roi_categories')
+      .select('*')
+      .eq('id', categoryId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load category');
+    if (!data) throw new NotFoundError('Category not found');
+    if (!data.is_system && String(data.farmer_id) !== farmerId) {
+      throw new NotFoundError('Category not found');
+    }
+    return data as Record<string, unknown> & { legacy_expense_type_id?: string | null };
+  },
+
+  async createFarmerCategory(
+    farmerId: string,
+    input: { name: string; icon?: string; color?: string; ledgerEntryType?: RoiEntryType }
+  ) {
+    const name = input.name.trim();
+    if (!name) throw new ValidationError('Category name is required');
+    const { data, error } = await supabase
+      .from('farmer_roi_categories')
+      .insert({
+        farmer_id: farmerId,
+        name,
+        icon: input.icon ?? '📦',
+        color: input.color ?? '#757575',
+        ledger_entry_type: input.ledgerEntryType ?? 'misc',
+        is_system: false,
+      })
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Could not create category');
+    return {
+      id: String(data.id),
+      name: String(data.name),
+      icon: data.icon ? String(data.icon) : null,
+      color: data.color ? String(data.color) : null,
+      ledgerEntryType: String(data.ledger_entry_type),
+      isSystem: false,
+    };
+  },
+
+  async listTransactions(
+    farmerId: string,
+    opts: {
+      seasonId?: string;
+      blockId?: string;
+      crop?: string;
+      type?: 'expense' | 'income';
+      from?: string;
+      to?: string;
+      page?: number;
+      limit?: number;
+    }
+  ) {
+    const page = opts.page ?? 1;
+    const limit = opts.limit ?? 50;
+    const offset = (page - 1) * limit;
+
+    let seasonIds: string[] = [];
+    if (opts.seasonId) {
+      seasonIds = [opts.seasonId];
+    } else {
+      const { roiAggregationService } = await import('./roi-aggregation.service.js');
+      seasonIds = await roiAggregationService.resolveActiveSeasonIds(farmerId, {
+        blockId: opts.blockId,
+        crop: opts.crop,
+      });
+    }
+
+    if (!seasonIds.length) {
+      return { transactions: [], pagination: { page, limit, total: 0 } };
+    }
+
+    let q = supabase
+      .from('farmer_roi_entries')
+      .select(
+        '*, roi_expense_types(expense_name), farmer_roi_categories(name)',
+        { count: 'exact' }
+      )
+      .in('season_id', seasonIds)
+      .order('entry_date', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (opts.from) q = q.gte('entry_date', opts.from);
+    if (opts.to) q = q.lte('entry_date', opts.to);
+
+    const { data, error, count } = await q;
+    throwIfSupabaseError(error, 'Could not load transactions');
+
+    const rows = (data ?? []).filter((e) => {
+      const isIncome = e.entry_type === 'harvest' || e.entry_type === 'income';
+      if (opts.type === 'income') return isIncome;
+      if (opts.type === 'expense') return !isIncome;
+      return true;
+    });
+
+    return {
+      transactions: rows.map((e) => {
+        const isIncome = e.entry_type === 'harvest' || e.entry_type === 'income';
+        const label =
+          (e.farmer_roi_categories as { name?: string } | null)?.name ??
+          (e.roi_expense_types as { expense_name?: string } | null)?.expense_name ??
+          String(e.entry_type);
+        const amt = Number(e.amount_inr ?? 0);
+        return {
+          id: String(e.id),
+          date: String(e.entry_date).slice(0, 10),
+          dateLabel: formatDate(String(e.entry_date)),
+          type: isIncome ? ('income' as const) : ('expense' as const),
+          entryType: String(e.entry_type),
+          incomeSubtype: e.income_subtype ? String(e.income_subtype) : null,
+          label,
+          amountInr: amt,
+          signedAmountInr: isIncome ? amt : -amt,
+          note: e.comments ? String(e.comments) : null,
+          seasonId: e.season_id ? String(e.season_id) : null,
+          blockId: e.block_id ? String(e.block_id) : null,
+          categoryId: e.category_id ? String(e.category_id) : null,
+        };
+      }),
+      pagination: { page, limit, total: count ?? 0 },
+    };
+  },
+
+  async getExpenseBook(farmerId: string, filter: { crop?: string; blockId?: string }) {
+    const { roiAggregationService } = await import('./roi-aggregation.service.js');
+    const seasonIds = await roiAggregationService.resolveActiveSeasonIds(farmerId, filter);
+    if (!seasonIds.length) return { groups: [] as Array<{ categoryId: string; categoryName: string; icon: string | null; totalInr: number; lines: Array<{ id: string; dateLabel: string; description: string; amountInr: number }> }> };
+
+    const { data, error } = await supabase
+      .from('farmer_roi_entries')
+      .select('id, entry_date, amount_inr, debit_inr, comments, category_id, farmer_roi_categories(name, icon)')
+      .in('season_id', seasonIds)
+      .not('entry_type', 'in', '("harvest","income")')
+      .order('entry_date', { ascending: false });
+    throwIfSupabaseError(error, 'Could not load expense book');
+
+    const groups = new Map<string, { categoryId: string; categoryName: string; icon: string | null; totalInr: number; lines: Array<{ id: string; dateLabel: string; description: string; amountInr: number }> }>();
+
+    for (const e of data ?? []) {
+      const cat = e.farmer_roi_categories as { name?: string; icon?: string } | null;
+      const catId = e.category_id ? String(e.category_id) : 'other';
+      const catName = cat?.name ?? 'Other';
+      const amt = e.debit_inr != null ? Number(e.debit_inr) : Number(e.amount_inr ?? 0);
+      const g = groups.get(catId) ?? {
+        categoryId: catId,
+        categoryName: catName,
+        icon: cat?.icon ?? null,
+        totalInr: 0,
+        lines: [],
+      };
+      g.totalInr += amt;
+      g.lines.push({
+        id: String(e.id),
+        dateLabel: formatDate(String(e.entry_date)),
+        description: e.comments ? String(e.comments) : catName,
+        amountInr: amt,
+      });
+      groups.set(catId, g);
+    }
+
+    return { groups: [...groups.values()].sort((a, b) => b.totalInr - a.totalInr) };
+  },
+
+  async getAnalytics(farmerId: string, filter: { crop?: string; blockId?: string }) {
+    const { roiAggregationService } = await import('./roi-aggregation.service.js');
+    const summary = await roiAggregationService.getSummary(farmerId, filter);
+    const totalExpense = summary.financial.expenseInr;
+    const breakdown = summary.breakdown.map((b) => ({
+      label: b.label,
+      value: b.value,
+      percent: totalExpense > 0 ? Math.round((b.value / totalExpense) * 1000) / 10 : 0,
+      color: b.color,
+    }));
+    const top = breakdown.length ? breakdown.reduce((a, b) => (b.value > a.value ? b : a)) : null;
+
+    const seasonIds = summary.activeSeasonIds;
+    const monthly = new Map<string, number>();
+    if (seasonIds.length) {
+      const { data } = await supabase
+        .from('farmer_roi_entries')
+        .select('entry_date, amount_inr, debit_inr, entry_type')
+        .in('season_id', seasonIds)
+        .not('entry_type', 'in', '("harvest","income")');
+      for (const e of data ?? []) {
+        const d = String(e.entry_date).slice(0, 7);
+        const amt = e.debit_inr != null ? Number(e.debit_inr) : Number(e.amount_inr ?? 0);
+        monthly.set(d, (monthly.get(d) ?? 0) + amt);
+      }
+    }
+
+    return {
+      breakdown,
+      topCategory: top ? { label: top.label, value: top.value } : null,
+      monthlyExpenseTrend: [...monthly.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, amountInr]) => ({ month, amountInr })),
+      harvest: summary.harvestSummary,
+    };
+  },
+
+  async listHistoryV2(farmerId: string) {
+    const blocks = await blockService.listByFarmer(farmerId);
+    const blockMap = new Map(blocks.map((b) => [b.id, blockDisplayName(b)]));
+
+    const { data: activeRows } = await supabase
+      .from('crop_seasons')
+      .select('*')
+      .eq('farmer_id', farmerId)
+      .eq('season_status', 'active')
+      .order('start_date', { ascending: false });
+
+    const active = (activeRows ?? []).map((r) => {
+      const s = mapSeason(r as Record<string, unknown>);
+      const block = blocks.find((b) => b.id === s.block_id);
+      return {
+        id: s.id,
+        crop: s.crop,
+        seasonLabel: s.season_label ?? seasonLabelFromDates(s.start_date, s.crop),
+        netProfitInr: s.net_profit,
+        totalExpenseInr: s.total_expense,
+        totalIncomeInr: s.total_income,
+        finalYieldKg: s.total_yield_kg || s.final_yield_kg,
+        status: s.season_status,
+        startDate: s.start_date,
+        endDate: s.end_date,
+        blockName: blockMap.get(s.block_id) ?? null,
+        dap: block ? blockService.computeDap(block) : s.dap,
+        stageLabel: growthStageLabel(
+          block?.crop_type ?? block?.crop_name ?? s.crop_type,
+          block?.stage,
+          block ? blockService.computeDap(block) : s.dap
+        ),
+      };
+    });
+
+    const completed = await this.listHistory(farmerId);
+    return { active, completed };
+  },
+
+  async updateTransaction(
+    farmerId: string,
+    entryId: string,
+    patch: { amount?: number; note?: string; entryDate?: string }
+  ) {
+    const { data: existing, error } = await supabase
+      .from('farmer_roi_entries')
+      .select('*')
+      .eq('id', entryId)
+      .eq('farmer_id', farmerId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load entry');
+    if (!existing) throw new NotFoundError('Transaction not found');
+
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (patch.amount != null) {
+      update.amount_inr = patch.amount;
+      const dc = patch.amount;
+      const isIncome = existing.entry_type === 'harvest' || existing.entry_type === 'income';
+      update.debit_inr = isIncome ? null : dc;
+      update.credit_inr = isIncome ? dc : null;
+    }
+    if (patch.note !== undefined) update.comments = patch.note;
+    if (patch.entryDate) update.entry_date = patch.entryDate;
+
+    await supabase.from('farmer_roi_entries').update(update).eq('id', entryId);
+    if (existing.season_id) await recomputeSeasonTotals(String(existing.season_id));
+    return { id: entryId };
+  },
+
+  async deleteTransaction(farmerId: string, entryId: string) {
+    const { data: existing, error } = await supabase
+      .from('farmer_roi_entries')
+      .select('*')
+      .eq('id', entryId)
+      .eq('farmer_id', farmerId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load entry');
+    if (!existing) throw new NotFoundError('Transaction not found');
+
+    await supabase.from('farmer_roi_audit_log').insert({
+      farmer_id: farmerId,
+      entry_id: entryId,
+      action: 'delete',
+      old_amount_inr: Number(existing.amount_inr),
+      reason: 'Farmer deleted transaction',
+      actor: 'farmer',
+    });
+    await supabase.from('farmer_roi_entries').delete().eq('id', entryId);
+    if (existing.season_id) await recomputeSeasonTotals(String(existing.season_id));
+    return { ok: true };
   },
 
   async getSeasonForFarmer(farmerId: string, seasonId: string): Promise<SeasonRow> {

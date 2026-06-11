@@ -7,6 +7,8 @@ import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
 import { LocaleProvider } from '@/context/LocaleContext';
 import { OfflineProvider } from '@/context/OfflineContext';
 import { ShopCartProvider } from '@/context/ShopCartContext';
+import { RoiFilterProvider } from '@/context/RoiFilterContext';
+import { HomeDashboardProvider } from '@/context/HomeDashboardContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 function BrandedHeaderTitle({ title }: { title: string }) {
@@ -57,6 +59,8 @@ export default function RootLayout() {
       <LocaleProvider>
         <OfflineProvider>
           <FarmerAuthProvider>
+            <RoiFilterProvider>
+            <HomeDashboardProvider>
             <ShopCartProvider>
               <AuthGate>
             <Stack screenOptions={{ headerShown: false }}>
@@ -69,9 +73,9 @@ export default function RootLayout() {
               <Stack.Screen name="reports/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Soil reports" /> }} />
               <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendations" /> }} />
               <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendation" /> }} />
-              <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field" /> }} />
-              <Stack.Screen name="fields/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="My fields" /> }} />
-              <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Field details" /> }} />
+              <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Block" /> }} />
+              <Stack.Screen name="fields/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="My blocks" /> }} />
+              <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Block" /> }} />
               <Stack.Screen name="scan/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI crop scan" /> }} />
               <Stack.Screen name="scan/history" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Scan history" /> }} />
               <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI scan result" /> }} />
@@ -83,6 +87,14 @@ export default function RootLayout() {
               <Stack.Screen name="roi/quick-expense/amount" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Enter amount" /> }} />
               <Stack.Screen name="roi/labour-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add labour" /> }} />
               <Stack.Screen name="roi/harvest" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Harvest" /> }} />
+              <Stack.Screen name="roi/transactions/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Transactions" /> }} />
+              <Stack.Screen name="roi/transactions/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add transaction" /> }} />
+              <Stack.Screen name="roi/transactions/add-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
+              <Stack.Screen name="roi/transactions/add-income" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add income" /> }} />
+              <Stack.Screen name="roi/transactions/edit/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Edit transaction" /> }} />
+              <Stack.Screen name="roi/expense-book" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Expense book" /> }} />
+              <Stack.Screen name="roi/analytics" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI analytics" /> }} />
+              <Stack.Screen name="roi/start-cycle" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Start crop cycle" /> }} />
               <Stack.Screen name="roi/history/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Crop history" /> }} />
               <Stack.Screen name="roi/history/[seasonId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Season details" /> }} />
               <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI dashboard" /> }} />
@@ -96,6 +108,8 @@ export default function RootLayout() {
             </Stack>
           </AuthGate>
         </ShopCartProvider>
+            </HomeDashboardProvider>
+            </RoiFilterProvider>
       </FarmerAuthProvider>
         </OfflineProvider>
     </LocaleProvider>

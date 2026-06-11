@@ -89,6 +89,7 @@ export type CropSeasonSummary = {
   netProfitInr: number;
   totalExpenseInr: number;
   totalIncomeInr: number;
+  roiPercent: number | null;
   finalYieldKg: number | null;
   status: string;
   startDate: string;
@@ -106,6 +107,7 @@ export type CropSeasonDetail = CropSeasonSummary & {
     sellingPricePerKg: number;
     totalIncomeInr: number;
   } | null;
+  harvests: HarvestEntry[];
   entries: Array<{
     id: string;
     dateLabel: string;
@@ -121,6 +123,135 @@ export type CropSeasonDetail = CropSeasonSummary & {
     costInr: number | null;
     notes: string | null;
   }>;
+};
+
+export type RoiFilterState = {
+  crop?: string | null;
+  blockId?: string | null;
+};
+
+export type RoiVisibility = {
+  showCropFilter: boolean;
+  showBlockFilter: boolean;
+  showExpenseBook: boolean;
+};
+
+export type RoiFinancialSummary = {
+  expenseInr: number;
+  incomeInr: number;
+  profitInr: number | null;
+  roiPercent: number | null;
+  hasIncome: boolean;
+  profitMessage?: string | null;
+};
+
+export type RoiHarvestSummary = {
+  harvestCount: number;
+  totalQtyKg: number;
+  totalIncomeInr: number;
+  averageRatePerKg: number | null;
+  bestRatePerKg: number | null;
+  lowestRatePerKg: number | null;
+};
+
+export type RoiCropStatusCard = {
+  crop: string;
+  blockId: string;
+  blockName: string;
+  acreage: number | null;
+  plantingDate: string | null;
+  dap: number;
+  stageLabel: string;
+  dapMax?: number;
+  seasonId: string | null;
+  seasonStatus: string;
+};
+
+export type FarmerCategory = {
+  id: string;
+  name: string;
+  icon: string | null;
+  color: string | null;
+  ledgerEntryType: string;
+  isSystem: boolean;
+};
+
+export type HarvestEntry = {
+  id: string;
+  harvestDate: string;
+  yieldKg: number;
+  sellingPricePerKg: number;
+  totalIncomeInr: number;
+  buyer: string | null;
+};
+
+export type TransactionRow = {
+  id: string;
+  date: string;
+  dateLabel: string;
+  type: 'expense' | 'income';
+  entryType: string;
+  incomeSubtype: string | null;
+  label: string;
+  amountInr: number;
+  signedAmountInr: number;
+  note: string | null;
+  seasonId: string | null;
+  blockId: string | null;
+  categoryId: string | null;
+};
+
+export type ExpenseBookLine = {
+  id: string;
+  dateLabel: string;
+  description: string;
+  amountInr: number;
+};
+
+export type ExpenseBookGroup = {
+  categoryId: string;
+  categoryName: string;
+  icon: string | null;
+  totalInr: number;
+  lines: ExpenseBookLine[];
+};
+
+export type RoiDashboardV2 = {
+  visibility: RoiVisibility;
+  cropCount: number;
+  blockCount: number;
+  crops: string[];
+  blocks: Array<{ id: string; name: string; crop: string }>;
+  filter: RoiFilterState;
+  cropStatus: RoiCropStatusCard | null;
+  financial: RoiFinancialSummary;
+  harvestSummary: RoiHarvestSummary;
+  breakdown: Array<{ label: string; value: number; color: string }>;
+  recentTransactions: TransactionRow[];
+  activeSeasonIds: string[];
+};
+
+export type RoiContext = {
+  filter: RoiFilterState;
+  crop: string;
+  blockId: string;
+  blockName: string;
+  seasonId: string | null;
+  blocksForCrop: Array<{ id: string; name: string; crop: string }>;
+  categories: FarmerCategory[];
+  incomeSubtypes: Array<{ id: string; label: string }>;
+};
+
+export type RoiAnalytics = {
+  breakdown: Array<{ label: string; value: number; percent: number; color: string }>;
+  topCategory: { label: string; value: number } | null;
+  monthlyExpenseTrend: Array<{ month: string; amountInr: number }>;
+  harvest: RoiHarvestSummary;
+};
+
+export type RoiHistoryResponse = {
+  active: Array<CropSeasonSummary & { blockName: string | null; dap: number | null; stageLabel: string | null }>;
+  completed: CropSeasonSummary[];
 };
 
 export type RoiDashboard = {

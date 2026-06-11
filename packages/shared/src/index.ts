@@ -15,4 +15,5 @@ export * from './types/recommendations';
 export * from './types/intel';
 export * from './shop/index';
 export * from './i18n/index';
+export * from './api/roi-helpers';
 export { createStaffAuth } from './auth/staff-auth-context';

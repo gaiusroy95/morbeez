@@ -1,4 +1,5 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
 import { tokens } from '@morbeez/shared';
 
 const healthColors: Record<string, { bg: string; text: string }> = {
@@ -17,6 +18,72 @@ export function HealthBadge({ status, label }: { status: string; label: string }
   );
 }
 
+export function BlockCard({
+  name,
+  crop,
+  acreage,
+  dap,
+  plantingDateLabel,
+  statusLabel = 'Active',
+  healthStatus = 'stable',
+  onPress,
+}: {
+  name: string;
+  crop: string;
+  acreage: number | null;
+  dap: number | null;
+  plantingDateLabel?: string | null;
+  statusLabel?: string;
+  healthStatus?: string;
+  onPress?: () => void;
+}) {
+  const content = (
+    <View style={styles.blockCard}>
+      <View style={styles.blockCardIcon}>
+        <Text style={styles.blockCardEmoji}>🌱</Text>
+      </View>
+      <View style={styles.blockCardBody}>
+        <View style={styles.fieldHeader}>
+          <Text style={styles.fieldName}>{name}</Text>
+          <HealthBadge status={healthStatus} label={statusLabel} />
+        </View>
+        <Text style={styles.blockDetailRow}>
+          <Text style={styles.blockDetailLabel}>Crop </Text>
+          <Text style={styles.blockDetailValue}>{crop}</Text>
+        </Text>
+        {acreage != null ? (
+          <Text style={styles.blockDetailRow}>
+            <Text style={styles.blockDetailLabel}>Area </Text>
+            <Text style={styles.blockDetailValue}>{acreage} Acre</Text>
+          </Text>
+        ) : null}
+        {plantingDateLabel ? (
+          <Text style={styles.blockDetailRow}>
+            <Text style={styles.blockDetailLabel}>Planting </Text>
+            <Text style={styles.blockDetailValue}>{plantingDateLabel}</Text>
+          </Text>
+        ) : null}
+        {dap != null ? (
+          <Text style={styles.blockDetailRow}>
+            <Text style={styles.blockDetailLabel}>DAP </Text>
+            <Text style={styles.blockDetailValue}>{dap}</Text>
+          </Text>
+        ) : null}
+      </View>
+      {onPress ? <Text style={styles.blockChevron}>›</Text> : null}
+    </View>
+  );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={({ pressed }) => [styles.blockPressable, pressed && styles.pressed]}>
+        {content}
+      </Pressable>
+    );
+  }
+  return content;
+}
+
+/** @deprecated Use BlockCard */
 export function FieldCard({
   name,
   crop,
@@ -27,6 +94,7 @@ export function FieldCard({
   lastActivity,
   currentAlert,
   onPress,
+  plantingDateLabel,
 }: {
   name: string;
   crop: string;
@@ -34,33 +102,23 @@ export function FieldCard({
   dap: number | null;
   healthStatus: string;
   healthLabel: string;
-  lastActivity: string | null;
-  currentAlert: string | null;
+  lastActivity?: string | null;
+  currentAlert?: string | null;
+  plantingDateLabel?: string | null;
   onPress?: () => void;
 }) {
-  const content = (
-    <View style={styles.fieldCard}>
-      <View style={styles.fieldHeader}>
-        <Text style={styles.fieldName}>{name}</Text>
-        <HealthBadge status={healthStatus} label={healthLabel} />
-      </View>
-      <Text style={styles.fieldMeta}>
-        {crop}
-        {acreage ? ` · ${acreage} acre` : ''}
-        {dap != null ? ` · DAP ${dap}` : ''}
-      </Text>
-      {lastActivity ? <Text style={styles.fieldSub}>Last: {lastActivity}</Text> : null}
-      {currentAlert ? <Text style={styles.fieldAlert}>⚠ {currentAlert}</Text> : null}
-    </View>
+  return (
+    <BlockCard
+      name={name}
+      crop={crop}
+      acreage={acreage}
+      dap={dap}
+      plantingDateLabel={plantingDateLabel}
+      statusLabel={healthLabel}
+      healthStatus={healthStatus}
+      onPress={onPress}
+    />
   );
-  if (onPress) {
-    return (
-      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
-        {content}
-      </Pressable>
-    );
-  }
-  return content;
 }
 
 export function AlertCard({ message, meta, tone = 'info' }: { message: string; meta?: string; tone?: string }) {
@@ -148,6 +206,265 @@ export function QuickActionGrid({
           <Text style={styles.quickBtnText}>{a.label}</Text>
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+export function CropMarketSelectors({
+  crops,
+  markets,
+  selectedCrop,
+  selectedMarket,
+  favoriteCrop,
+  onSelectCrop,
+  onSelectMarket,
+  cropLabel,
+  marketLabel,
+}: {
+  crops: Array<{ id: string; cropName: string; icon?: string | null }>;
+  markets: string[];
+  selectedCrop: string;
+  selectedMarket: string | null;
+  favoriteCrop?: string | null;
+  onSelectCrop: (crop: string) => void;
+  onSelectMarket: (market: string) => void;
+  cropLabel: string;
+  marketLabel: string;
+}) {
+  return (
+    <View style={styles.selectorWrap}>
+      <View style={styles.selectorRow}>
+        <Text style={styles.selectorLabel}>{cropLabel}</Text>
+        <View style={styles.selectorChips}>
+          {crops.map((c) => {
+            const active = c.cropName === selectedCrop;
+            return (
+              <Pressable
+                key={c.id}
+                style={[styles.selectorChip, active && styles.selectorChipActive]}
+                onPress={() => onSelectCrop(c.cropName)}
+              >
+                <Text style={[styles.selectorChipText, active && styles.selectorChipTextActive]}>
+                  {c.icon ? `${c.icon} ` : '🌱 '}
+                  {c.cropName.charAt(0).toUpperCase() + c.cropName.slice(1)}
+                  {favoriteCrop === c.cropName ? ' ★' : ''}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      {markets.length ? (
+        <View style={styles.selectorRow}>
+          <Text style={styles.selectorLabel}>{marketLabel}</Text>
+          <View style={styles.selectorChips}>
+            {markets.map((m) => {
+              const active = m === selectedMarket;
+              return (
+                <Pressable
+                  key={m}
+                  style={[styles.selectorChip, active && styles.selectorChipActive]}
+                  onPress={() => onSelectMarket(m)}
+                >
+                  <Text style={[styles.selectorChipText, active && styles.selectorChipTextActive]}>
+                    📍 {m}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function HomeHeroCard({
+  cropName,
+  cropIcon,
+  dap,
+  cycleDays,
+  stage,
+  marketName,
+  pricePerKg,
+  dailyChangePct,
+  lastYearPrice,
+  differenceInr,
+  yoyPct,
+  labels,
+}: {
+  cropName: string;
+  cropIcon?: string | null;
+  dap: number | null;
+  cycleDays: number | null;
+  stage: string;
+  marketName: string;
+  pricePerKg: number;
+  dailyChangePct?: number | null;
+  lastYearPrice?: number | null;
+  differenceInr?: number | null;
+  yoyPct?: number | null;
+  labels: {
+    currentRate: string;
+    lastYearSameDay: string;
+    difference: string;
+    yoyChange: string;
+    dap: string;
+  };
+}) {
+  const dapLabel =
+    dap != null && cycleDays != null ? `DAP ${dap} / ${cycleDays}` : dap != null ? `DAP ${dap}` : labels.dap;
+  const dailyTrend =
+    dailyChangePct != null && dailyChangePct !== 0
+      ? `${dailyChangePct > 0 ? '↑' : '↓'} ${Math.abs(dailyChangePct)}% from yesterday`
+      : null;
+
+  return (
+    <View style={styles.heroCard}>
+      <View style={styles.heroTop}>
+        <View style={styles.heroCropCol}>
+          <View style={styles.heroCropIcon}>
+            <Text style={styles.heroCropEmoji}>{cropIcon ?? '🌿'}</Text>
+          </View>
+          <View style={styles.heroCropInfo}>
+            <Text style={styles.heroCropName}>{cropName.toUpperCase()}</Text>
+            <View style={styles.heroDapBadge}>
+              <Text style={styles.heroDapText}>{dapLabel}</Text>
+            </View>
+            <Text style={styles.heroStage}>🌱 {stage}</Text>
+          </View>
+        </View>
+        <View style={styles.heroPriceCol}>
+          <Text style={styles.heroRateLabel}>{labels.currentRate}</Text>
+          <Text style={styles.heroPrice}>₹{pricePerKg}/kg</Text>
+          {dailyTrend ? <Text style={styles.heroDailyTrend}>{dailyTrend}</Text> : null}
+        </View>
+      </View>
+      <View style={styles.heroDivider} />
+      <View style={styles.heroYoYRow}>
+        <Text style={styles.heroYoYItem}>
+          {labels.lastYearSameDay}: {lastYearPrice != null ? `₹${lastYearPrice}/kg` : '—'}
+        </Text>
+        <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
+          {labels.difference}: {differenceInr != null ? `${differenceInr >= 0 ? '+' : ''}₹${differenceInr}/kg` : '—'}
+        </Text>
+        <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
+          {labels.yoyChange}: {yoyPct != null ? `${yoyPct >= 0 ? '+' : ''}${yoyPct}%` : '—'}
+        </Text>
+      </View>
+      <Text style={styles.heroMarketMeta}>{marketName}</Text>
+    </View>
+  );
+}
+
+export function MarketAnalyticsPanel({
+  title,
+  ranges,
+  activeRange,
+  onRangeChange,
+  showCurrentYear,
+  showLastYear,
+  onToggleCurrentYear,
+  onToggleLastYear,
+  currentYearLabel,
+  lastYearLabel,
+  chart,
+}: {
+  title: string;
+  ranges: Array<{ id: string; label: string }>;
+  activeRange: string;
+  onRangeChange: (id: string) => void;
+  showCurrentYear: boolean;
+  showLastYear: boolean;
+  onToggleCurrentYear: () => void;
+  onToggleLastYear: () => void;
+  currentYearLabel: string;
+  lastYearLabel: string;
+  chart: ReactNode;
+}) {
+  return (
+    <View style={styles.analyticsPanel}>
+      <View style={styles.analyticsHeader}>
+        <Text style={styles.analyticsTitle}>{title}</Text>
+        <View style={styles.rangePills}>
+          {ranges.map((r) => (
+            <Pressable
+              key={r.id}
+              style={[styles.rangePill, activeRange === r.id && styles.rangePillActive]}
+              onPress={() => onRangeChange(r.id)}
+            >
+              <Text style={[styles.rangePillText, activeRange === r.id && styles.rangePillTextActive]}>
+                {r.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <View style={styles.toggleRow}>
+        <Pressable style={styles.toggleChip} onPress={onToggleCurrentYear}>
+          <Text style={[styles.toggleText, showCurrentYear && styles.toggleTextActive]}>● {currentYearLabel}</Text>
+        </Pressable>
+        <Pressable style={styles.toggleChip} onPress={onToggleLastYear}>
+          <Text style={[styles.toggleText, showLastYear && styles.toggleTextMutedActive]}>● {lastYearLabel}</Text>
+        </Pressable>
+      </View>
+      {chart}
+    </View>
+  );
+}
+
+export function WeatherAlertBanner({
+  message,
+  actionLabel,
+  onPress,
+}: {
+  message: string;
+  actionLabel: string;
+  onPress?: () => void;
+}) {
+  const inner = (
+    <View style={styles.weatherBanner}>
+      <Text style={styles.weatherIcon}>⚠</Text>
+      <Text style={styles.weatherMessage} numberOfLines={2}>
+        {message}
+      </Text>
+      {onPress ? <Text style={styles.weatherAction}>{actionLabel} ›</Text> : null}
+    </View>
+  );
+  if (onPress) {
+    return <Pressable onPress={onPress}>{inner}</Pressable>;
+  }
+  return inner;
+}
+
+export function HomeQuickActions({
+  title,
+  actions,
+}: {
+  title: string;
+  actions: Array<{
+    id: string;
+    label: string;
+    subtitle: string;
+    icon: string;
+    onPress: () => void;
+  }>;
+}) {
+  return (
+    <View style={styles.homeQuickWrap}>
+      <Text style={styles.homeQuickTitle}>{title}</Text>
+      <View style={styles.homeQuickRow}>
+        {actions.map((a) => (
+          <Pressable key={a.id} style={styles.homeQuickCard} onPress={a.onPress}>
+            <Text style={styles.homeQuickIcon}>{a.icon}</Text>
+            <Text style={styles.homeQuickLabel}>{a.label}</Text>
+            <Text style={styles.homeQuickSub} numberOfLines={2}>
+              {a.subtitle}
+            </Text>
+            <Text style={styles.homeQuickChevron}>›</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -262,14 +579,301 @@ export function DonutChart({
   );
 }
 
-export function StageProgressBar({ dap, stage }: { dap: number | null; stage?: string | null }) {
-  const pct = dap != null ? Math.min(100, Math.round((dap / 120) * 100)) : 0;
+export function StageProgressBar({
+  dap,
+  stage,
+  dapMax,
+}: {
+  dap: number | null;
+  stage?: string | null;
+  dapMax?: number | null;
+}) {
+  const max = dapMax && dapMax > 0 ? dapMax : 120;
+  const pct = dap != null ? Math.min(100, Math.round((dap / max) * 100)) : 0;
   return (
     <View style={styles.stageBarWrap}>
       <View style={styles.stageBarTrack}>
         <View style={[styles.stageBarFill, { width: `${pct}%` }]} />
       </View>
-      {stage ? <Text style={styles.stageBarLabel}>{stage}{dap != null ? ` · DAP ${dap}` : ''}</Text> : null}
+      {stage ? (
+        <Text style={styles.stageBarLabel}>
+          {stage}
+          {dap != null ? ` · DAP ${dap}${dapMax ? ` / ${dapMax}` : ''}` : ''}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+export function RoiFilterPickers({
+  showCrop,
+  showBlock,
+  crops,
+  blocks,
+  selectedCrop,
+  selectedBlockId,
+  onCropChange,
+  onBlockChange,
+  allCropsLabel,
+  allBlocksLabel,
+}: {
+  showCrop: boolean;
+  showBlock: boolean;
+  crops: string[];
+  blocks: Array<{ id: string; name: string }>;
+  selectedCrop: string | null;
+  selectedBlockId: string | null;
+  onCropChange: (crop: string | null) => void;
+  onBlockChange: (blockId: string | null) => void;
+  allCropsLabel: string;
+  allBlocksLabel: string;
+}) {
+  const cropLabel = selectedCrop
+    ? selectedCrop.charAt(0).toUpperCase() + selectedCrop.slice(1)
+    : allCropsLabel;
+  const blockLabel = blocks.find((b) => b.id === selectedBlockId)?.name ?? allBlocksLabel;
+
+  return (
+    <View style={styles.roiFilterRow}>
+      {showCrop ? (
+        <View style={styles.roiFilterCol}>
+          <Text style={styles.roiFilterLabel}>{allCropsLabel}</Text>
+          <View style={styles.roiPickerWrap}>
+            {[null, ...crops].map((c) => {
+              const id = c ?? 'all';
+              const active = (c ?? null) === selectedCrop;
+              return (
+                <Pressable
+                  key={id}
+                  style={[styles.roiPickerChip, active && styles.roiPickerChipActive]}
+                  onPress={() => onCropChange(c)}
+                >
+                  <Text style={[styles.roiPickerText, active && styles.roiPickerTextActive]}>
+                    {c ? c.charAt(0).toUpperCase() + c.slice(1) : allCropsLabel}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.roiPickerCurrent}>{cropLabel} ▼</Text>
+        </View>
+      ) : null}
+      {showBlock ? (
+        <View style={styles.roiFilterCol}>
+          <Text style={styles.roiFilterLabel}>{allBlocksLabel}</Text>
+          <View style={styles.roiPickerWrap}>
+            {[null, ...blocks].map((b) => {
+              const id = b?.id ?? 'all';
+              const active = (b?.id ?? null) === selectedBlockId;
+              return (
+                <Pressable
+                  key={id}
+                  style={[styles.roiPickerChip, active && styles.roiPickerChipActive]}
+                  onPress={() => onBlockChange(b?.id ?? null)}
+                >
+                  <Text style={[styles.roiPickerText, active && styles.roiPickerTextActive]}>
+                    {b?.name ?? allBlocksLabel}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.roiPickerCurrent}>{blockLabel} ▼</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+export function RoiStatCards({
+  expenseLabel,
+  incomeLabel,
+  profitLabel,
+  roiLabel,
+  expense,
+  income,
+  profit,
+  roiPercent,
+  hasIncome,
+  profitMessage,
+  formatValue,
+}: {
+  expenseLabel: string;
+  incomeLabel: string;
+  profitLabel: string;
+  roiLabel: string;
+  expense: number;
+  income: number;
+  profit: number | null;
+  roiPercent: number | null;
+  hasIncome: boolean;
+  profitMessage?: string | null;
+  formatValue: (n: number) => string;
+}) {
+  return (
+    <View style={styles.roiStatWrap}>
+      <View style={styles.roiStatGrid}>
+        <View style={styles.roiStatCard}>
+          <Text style={styles.roiStatLabel}>{expenseLabel}</Text>
+          <Text style={[styles.roiStatValue, styles.roiStatExpense]}>{formatValue(expense)}</Text>
+        </View>
+        <View style={styles.roiStatCard}>
+          <Text style={styles.roiStatLabel}>{incomeLabel}</Text>
+          <Text style={[styles.roiStatValue, styles.roiStatIncome]}>{formatValue(income)}</Text>
+        </View>
+        <View style={styles.roiStatCard}>
+          <Text style={styles.roiStatLabel}>{profitLabel}</Text>
+          <Text style={[styles.roiStatValue, hasIncome && profit != null ? styles.roiStatIncome : styles.roiStatMuted]}>
+            {hasIncome && profit != null ? formatValue(profit) : '—'}
+          </Text>
+        </View>
+        <View style={styles.roiStatCard}>
+          <Text style={styles.roiStatLabel}>{roiLabel}</Text>
+          <Text style={[styles.roiStatValue, hasIncome && roiPercent != null ? styles.roiStatIncome : styles.roiStatMuted]}>
+            {hasIncome && roiPercent != null ? `${roiPercent}%` : '—'}
+          </Text>
+        </View>
+      </View>
+      {!hasIncome && profitMessage ? <Text style={styles.roiStatHint}>{profitMessage}</Text> : null}
+    </View>
+  );
+}
+
+export function RoiCropStatusCard({
+  crop,
+  blockName,
+  acreage,
+  plantingDate,
+  dap,
+  stageLabel,
+  dapMax,
+}: {
+  crop: string;
+  blockName: string;
+  acreage: number | null;
+  plantingDate: string | null;
+  dap: number;
+  stageLabel: string;
+  dapMax?: number | null;
+}) {
+  return (
+    <View style={styles.roiStatusCard}>
+      <View style={styles.roiStatusHeader}>
+        <View style={styles.roiStatusIcon}>
+          <Text style={styles.roiStatusEmoji}>🌿</Text>
+        </View>
+        <View style={styles.roiStatusInfo}>
+          <Text style={styles.roiStatusCrop}>{crop}</Text>
+          <Text style={styles.roiStatusBlock}>{blockName}</Text>
+          {acreage != null ? <Text style={styles.roiStatusMeta}>{acreage} acre</Text> : null}
+        </View>
+      </View>
+      <View style={styles.roiStatusGrid}>
+        {plantingDate ? (
+          <View style={styles.roiStatusCell}>
+            <Text style={styles.roiStatusCellLabel}>Planting</Text>
+            <Text style={styles.roiStatusCellValue}>{plantingDate}</Text>
+          </View>
+        ) : null}
+        <View style={styles.roiStatusCell}>
+          <Text style={styles.roiStatusCellLabel}>DAP</Text>
+          <Text style={styles.roiStatusCellValue}>{dap}</Text>
+        </View>
+        <View style={styles.roiStatusCell}>
+          <Text style={styles.roiStatusCellLabel}>Stage</Text>
+          <Text style={styles.roiStatusCellValue}>{stageLabel}</Text>
+        </View>
+      </View>
+      <StageProgressBar dap={dap} stage={stageLabel} dapMax={dapMax} />
+    </View>
+  );
+}
+
+export function RoiHarvestGrid({
+  title,
+  harvestCount,
+  totalQtyKg,
+  totalIncomeInr,
+  averageRate,
+  bestRate,
+  lowestRate,
+  formatValue,
+  labels,
+}: {
+  title: string;
+  harvestCount: number;
+  totalQtyKg: number;
+  totalIncomeInr: number;
+  averageRate: number | null;
+  bestRate?: number | null;
+  lowestRate?: number | null;
+  formatValue: (n: number) => string;
+  labels: {
+    entries: string;
+    totalQty: string;
+    totalIncome: string;
+    avgRate: string;
+    bestRate: string;
+    lowestRate: string;
+  };
+}) {
+  return (
+    <View style={styles.roiHarvestCard}>
+      <Text style={styles.roiHarvestTitle}>{title}</Text>
+      <View style={styles.roiHarvestGrid}>
+        <View style={styles.roiHarvestCell}>
+          <Text style={styles.roiHarvestLabel}>{labels.entries}</Text>
+          <Text style={styles.roiHarvestValue}>{harvestCount}</Text>
+        </View>
+        <View style={styles.roiHarvestCell}>
+          <Text style={styles.roiHarvestLabel}>{labels.totalQty}</Text>
+          <Text style={styles.roiHarvestValue}>{totalQtyKg} kg</Text>
+        </View>
+        <View style={styles.roiHarvestCell}>
+          <Text style={styles.roiHarvestLabel}>{labels.totalIncome}</Text>
+          <Text style={styles.roiHarvestValue}>{formatValue(totalIncomeInr)}</Text>
+        </View>
+        <View style={styles.roiHarvestCell}>
+          <Text style={styles.roiHarvestLabel}>{labels.avgRate}</Text>
+          <Text style={styles.roiHarvestValue}>
+            {averageRate != null ? `${formatValue(averageRate)}/kg` : '—'}
+          </Text>
+        </View>
+        {bestRate != null ? (
+          <View style={styles.roiHarvestCell}>
+            <Text style={styles.roiHarvestLabel}>{labels.bestRate}</Text>
+            <Text style={styles.roiHarvestValue}>{formatValue(bestRate)}/kg</Text>
+          </View>
+        ) : null}
+        {lowestRate != null ? (
+          <View style={styles.roiHarvestCell}>
+            <Text style={styles.roiHarvestLabel}>{labels.lowestRate}</Text>
+            <Text style={styles.roiHarvestValue}>{formatValue(lowestRate)}/kg</Text>
+          </View>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+export function RoiQuickActionsRow({
+  title,
+  actions,
+}: {
+  title: string;
+  actions: Array<{ id: string; label: string; subtitle: string; onPress: () => void }>;
+}) {
+  return (
+    <View style={styles.roiQuickWrap}>
+      <Text style={styles.roiQuickTitle}>{title}</Text>
+      <View style={styles.roiQuickRow}>
+        {actions.map((a) => (
+          <Pressable key={a.id} style={styles.roiQuickCard} onPress={a.onPress}>
+            <Text style={styles.roiQuickLabel}>{a.label}</Text>
+            <Text style={styles.roiQuickSub}>{a.subtitle}</Text>
+          </Pressable>
+        ))}
+      </View>
     </View>
   );
 }
@@ -285,6 +889,31 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
   },
+  blockPressable: { marginBottom: 10 },
+  blockCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: tokens.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+    gap: 12,
+  },
+  blockCardIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 10,
+    backgroundColor: tokens.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blockCardEmoji: { fontSize: 28 },
+  blockCardBody: { flex: 1 },
+  blockDetailRow: { fontSize: 12, color: tokens.textMuted, marginTop: 3 },
+  blockDetailLabel: { color: tokens.textMuted },
+  blockDetailValue: { color: tokens.text, fontWeight: '600' },
+  blockChevron: { fontSize: 24, color: tokens.textMuted, paddingHorizontal: 4 },
   fieldHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 },
   fieldName: { fontSize: 16, fontWeight: '700', color: tokens.text, flex: 1 },
   fieldMeta: { fontSize: 13, color: tokens.textMuted, marginTop: 6 },
@@ -404,4 +1033,201 @@ const styles = StyleSheet.create({
   stageBarTrack: { height: 8, backgroundColor: tokens.border, borderRadius: 4, overflow: 'hidden' },
   stageBarFill: { height: 8, backgroundColor: tokens.green700, borderRadius: 4 },
   stageBarLabel: { fontSize: 12, color: tokens.textMuted, marginTop: 6 },
+  selectorWrap: { marginBottom: 12, gap: 10 },
+  selectorRow: { gap: 6 },
+  selectorLabel: { fontSize: 11, fontWeight: '700', color: tokens.textMuted, letterSpacing: 0.6, textTransform: 'uppercase' },
+  selectorChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectorChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: tokens.radiusSm,
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+  },
+  selectorChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  selectorChipText: { fontSize: 14, fontWeight: '600', color: tokens.text },
+  selectorChipTextActive: { color: tokens.green800 },
+  heroCard: {
+    backgroundColor: tokens.green800,
+    borderRadius: tokens.radius,
+    padding: 16,
+    marginBottom: 12,
+  },
+  heroTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  heroCropCol: { flexDirection: 'row', gap: 12, flex: 1 },
+  heroCropIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroCropEmoji: { fontSize: 28 },
+  heroCropInfo: { flex: 1 },
+  heroCropName: { fontSize: 20, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+  heroDapBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: tokens.green500,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  heroDapText: { fontSize: 11, fontWeight: '700', color: '#fff' },
+  heroStage: { fontSize: 13, color: '#e8f5e9', marginTop: 6 },
+  heroPriceCol: { alignItems: 'flex-end' },
+  heroRateLabel: { fontSize: 11, color: '#c8e6c9' },
+  heroPrice: { fontSize: 26, fontWeight: '800', color: '#fff', marginTop: 4 },
+  heroDailyTrend: { fontSize: 12, fontWeight: '600', color: tokens.green500, marginTop: 4 },
+  heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 },
+  heroYoYRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  heroYoYItem: { fontSize: 11, color: '#e8f5e9' },
+  heroYoYPos: { color: tokens.green500, fontWeight: '600' },
+  heroMarketMeta: { fontSize: 11, color: '#c8e6c9', marginTop: 8 },
+  analyticsPanel: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radius,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+  analyticsHeader: { gap: 10, marginBottom: 10 },
+  analyticsTitle: { fontSize: 15, fontWeight: '700', color: tokens.text },
+  rangePills: { flexDirection: 'row', gap: 6 },
+  rangePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: tokens.bg,
+    borderWidth: 1,
+    borderColor: tokens.border,
+  },
+  rangePillActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  rangePillText: { fontSize: 12, fontWeight: '600', color: tokens.textMuted },
+  rangePillTextActive: { color: tokens.green800 },
+  toggleRow: { flexDirection: 'row', gap: 12, marginBottom: 10 },
+  toggleChip: { paddingVertical: 4 },
+  toggleText: { fontSize: 12, color: tokens.textMuted },
+  toggleTextActive: { color: tokens.green700, fontWeight: '700' },
+  toggleTextMutedActive: { color: tokens.textMuted, fontWeight: '700' },
+  weatherBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF4E5',
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    padding: 12,
+    marginBottom: 12,
+  },
+  weatherIcon: { fontSize: 18, color: '#EA580C' },
+  weatherMessage: { flex: 1, fontSize: 13, fontWeight: '600', color: '#9A3412' },
+  weatherAction: { fontSize: 12, fontWeight: '700', color: tokens.green700 },
+  homeQuickWrap: { marginBottom: 12 },
+  homeQuickTitle: { fontSize: 16, fontWeight: '700', color: tokens.text, marginBottom: 10 },
+  homeQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  homeQuickCard: {
+    width: '47%',
+    flexGrow: 1,
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 14,
+    minHeight: 110,
+  },
+  homeQuickIcon: { fontSize: 22, marginBottom: 8 },
+  homeQuickLabel: { fontSize: 14, fontWeight: '700', color: tokens.text },
+  homeQuickSub: { fontSize: 11, color: tokens.textMuted, marginTop: 4, paddingRight: 12 },
+  homeQuickChevron: { position: 'absolute', right: 12, top: 14, fontSize: 18, color: tokens.textMuted },
+  roiFilterRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  roiFilterCol: { flex: 1 },
+  roiFilterLabel: { fontSize: 11, fontWeight: '700', color: tokens.textMuted, marginBottom: 6, textTransform: 'uppercase' },
+  roiPickerWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  roiPickerChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+  },
+  roiPickerChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  roiPickerText: { fontSize: 12, fontWeight: '600', color: tokens.text },
+  roiPickerTextActive: { color: tokens.green800 },
+  roiPickerCurrent: { fontSize: 13, fontWeight: '700', color: tokens.green800 },
+  roiStatWrap: { marginBottom: 12 },
+  roiStatGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  roiStatCard: {
+    width: '47%',
+    flexGrow: 1,
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+  },
+  roiStatLabel: { fontSize: 11, color: tokens.textMuted, marginBottom: 4 },
+  roiStatValue: { fontSize: 18, fontWeight: '800', color: tokens.text },
+  roiStatExpense: { color: tokens.danger },
+  roiStatIncome: { color: tokens.green800 },
+  roiStatMuted: { color: tokens.textMuted, fontSize: 16 },
+  roiStatHint: { fontSize: 12, color: tokens.textMuted, fontStyle: 'italic', marginTop: 8 },
+  roiStatusCard: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radius,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+  roiStatusHeader: { flexDirection: 'row', gap: 12, marginBottom: 12 },
+  roiStatusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: tokens.green100,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roiStatusEmoji: { fontSize: 24 },
+  roiStatusInfo: { flex: 1 },
+  roiStatusCrop: { fontSize: 18, fontWeight: '800', color: tokens.text },
+  roiStatusBlock: { fontSize: 14, color: tokens.textMuted, marginTop: 2 },
+  roiStatusMeta: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
+  roiStatusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  roiStatusCell: { minWidth: '30%' },
+  roiStatusCellLabel: { fontSize: 11, color: tokens.textMuted },
+  roiStatusCellValue: { fontSize: 14, fontWeight: '700', color: tokens.text },
+  roiHarvestCard: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+  roiHarvestTitle: { fontSize: 15, fontWeight: '700', color: tokens.text, marginBottom: 10 },
+  roiHarvestGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  roiHarvestCell: { width: '47%' },
+  roiHarvestLabel: { fontSize: 11, color: tokens.textMuted },
+  roiHarvestValue: { fontSize: 15, fontWeight: '700', color: tokens.text, marginTop: 2 },
+  roiQuickWrap: { marginBottom: 12 },
+  roiQuickTitle: { fontSize: 15, fontWeight: '700', color: tokens.text, marginBottom: 8 },
+  roiQuickRow: { flexDirection: 'row', gap: 8 },
+  roiQuickCard: {
+    flex: 1,
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+    minHeight: 72,
+  },
+  roiQuickLabel: { fontSize: 13, fontWeight: '700', color: tokens.text },
+  roiQuickSub: { fontSize: 11, color: tokens.textMuted, marginTop: 4 },
 });

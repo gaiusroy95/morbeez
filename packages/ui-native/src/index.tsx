@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -14,17 +15,28 @@ export { MorbeezLogo } from './MorbeezLogo';
 export {
   HealthBadge,
   FieldCard,
+  BlockCard,
   AlertCard,
   SectionHeader,
   StarRating,
   ProductCard,
   QuickActionGrid,
+  CropMarketSelectors,
+  HomeHeroCard,
+  MarketAnalyticsPanel,
+  WeatherAlertBanner,
+  HomeQuickActions,
   MarketRateCard,
   FinanceSummaryRow,
   TaskCard,
   PromoBanner,
   OrderStatusChip,
   DonutChart,
+  RoiFilterPickers,
+  RoiStatCards,
+  RoiCropStatusCard,
+  RoiHarvestGrid,
+  RoiQuickActionsRow,
   StageProgressBar,
 } from './farmer-ui';
 
@@ -125,16 +137,26 @@ export function EmptyState({ children }: { children: React.ReactNode }) {
 export function StatCard({
   label,
   value,
+  onPress,
 }: {
   label: string;
   value: string | number;
+  onPress?: () => void;
 }) {
-  return (
-    <View style={styles.statCard}>
+  const content = (
+    <>
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
-    </View>
+    </>
   );
+  if (onPress) {
+    return (
+      <Pressable style={styles.statCard} onPress={onPress}>
+        {content}
+      </Pressable>
+    );
+  }
+  return <View style={styles.statCard}>{content}</View>;
 }
 
 export function ListCard({
@@ -238,6 +260,47 @@ export function TextField({
         accessibilityLabel={accessibilityLabel ?? label}
         maxLength={maxLength}
       />
+    </View>
+  );
+}
+
+export function PasswordField({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  accessibilityLabel,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (v: string) => void;
+  placeholder?: string;
+  accessibilityLabel?: string;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.passwordRow}>
+        <TextInput
+          style={styles.passwordInput}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={!visible}
+          autoCapitalize="none"
+          placeholder={placeholder}
+          placeholderTextColor={tokens.textMuted}
+          accessibilityLabel={accessibilityLabel ?? label}
+        />
+        <Pressable
+          onPress={() => setVisible((v) => !v)}
+          style={styles.eyeBtn}
+          accessibilityRole="button"
+          accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+        >
+          <Text style={styles.eyeText}>{visible ? '🙈' : '👁'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -435,5 +498,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: tokens.text,
+  },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: tokens.text,
+  },
+  eyeBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  eyeText: {
+    fontSize: 18,
   },
 });

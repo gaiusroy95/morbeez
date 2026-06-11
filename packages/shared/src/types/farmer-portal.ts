@@ -22,8 +22,10 @@ export type PortalSummary = {
     variety: string | null;
     fieldSize: string | null;
     blockName: string;
+    blockId?: string | null;
     stage: string;
     daysAfterPlanting: number | null;
+    cycleDays?: number | null;
   } | null;
   shippingAddress: {
     name: string;
@@ -96,6 +98,7 @@ export type PortalAdvisory = {
 
 export type PortalSoilReport = {
   id: string;
+  blockId: string | null;
   blockName: string;
   dateLabel: string;
   health: string;
@@ -133,7 +136,7 @@ export type PortalTracking = {
 
 export type FarmerProfile = {
   id: string;
-  email: string;
+  email: string | null;
   firstName: string;
   lastName: string;
   phone: string;
@@ -143,4 +146,5 @@ export type FarmerProfile = {
   state?: string | null;
   district?: string | null;
   village?: string | null;
+  hasPassword?: boolean;
 };

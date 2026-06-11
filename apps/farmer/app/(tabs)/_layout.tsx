@@ -30,15 +30,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="market"
-        options={{
-          title: t('market', locale),
-          headerTitle: t('market', locale),
-          tabBarAccessibilityLabel: t('market', locale),
-          tabBarIcon: ({ color, size }) => <Ionicons name="trending-up-outline" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="market" options={{ href: null }} />
       <Tabs.Screen
         name="roi"
         options={{

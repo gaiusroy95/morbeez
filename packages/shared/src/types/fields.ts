@@ -6,6 +6,8 @@ export type FieldBlock = {
   crop: string;
   acreage: number | null;
   dap: number | null;
+  plantingDate?: string | null;
+  plantingDateLabel?: string | null;
   healthStatus: FieldHealthStatus;
   healthLabel: string;
   lastActivity: string | null;

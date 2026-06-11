@@ -38,7 +38,7 @@ export default function FieldFormScreen() {
     setLoading(true);
     try {
       const body = {
-        name: name.trim() || 'My field',
+        name: name.trim() || 'My block',
         cropType: cropType.trim() || 'ginger',
         acreage: acreage ? Number(acreage) : undefined,
         plantingDate: plantingDate.trim() || undefined,
