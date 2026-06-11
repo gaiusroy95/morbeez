@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { fetchPortalProfile, t, tokens } from '@morbeez/shared';
-import { Btn, KeyValueRow, Panel } from '@morbeez/ui-native';
+import {
+  fetchPortalProfile,
+  isAppLocale,
+  t,
+  tokens,
+} from '@morbeez/shared';
+import { Btn, KeyValueRow, LanguagePicker, Panel } from '@morbeez/ui-native';
 import { WhatsAppBtn } from '@/components/PortalHelpers';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -23,54 +28,48 @@ export default function ProfileTabScreen() {
         setName([p.firstName, p.lastName].filter(Boolean).join(' '));
         setPhone(p.phone ?? '');
         setEmail(p.email ?? '');
+        const lang = p.preferredLanguage?.slice(0, 2);
+        if (lang && isAppLocale(lang)) setLocale(lang);
       })
       .catch(() => {});
-  }, []);
+  }, [setLocale]);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       <Panel title={name || t('profile', locale)}>
-        <KeyValueRow label="Phone" value={phone || '—'} />
-        <KeyValueRow label="Email" value={email || '—'} />
+        <KeyValueRow label={t('phone', locale)} value={phone || '—'} />
+        <KeyValueRow label={t('email', locale)} value={email || '—'} />
       </Panel>
 
-      <Panel title="Menu">
-        <Btn label={t('myBlocks', locale)} variant="secondary" onPress={() => router.push('/fields')} accessibilityLabel={t('myBlocks', locale)} />
-        <Btn label="Account & address" variant="secondary" onPress={() => router.push('/address')} />
+      <Panel title={t('menu', locale)}>
+        <Btn label={t('myBlocks', locale)} variant="secondary" onPress={() => router.push('/fields')} />
+        <Btn label={t('accountAddress', locale)} variant="secondary" onPress={() => router.push('/address')} />
         <Btn label={t('orders', locale)} variant="secondary" onPress={() => router.push('/orders')} />
         <Btn label={t('notifications', locale)} variant="secondary" onPress={() => router.push('/intel/notifications')} />
         <Btn label={t('scanHistory', locale)} variant="secondary" onPress={() => router.push('/scan/history')} />
       </Panel>
 
-      <Panel title="WhatsApp alerts">
+      <Panel title={t('whatsappAlerts', locale)}>
         <View style={styles.switchRow}>
-          <Text style={styles.switchLabel}>Order & advisory updates via WhatsApp</Text>
+          <Text style={styles.switchLabel}>{t('whatsappOrderUpdates', locale)}</Text>
           <Switch
             value={whatsappAlerts}
             onValueChange={setWhatsappAlerts}
             trackColor={{ true: tokens.green500, false: tokens.border }}
-            accessibilityLabel="WhatsApp notifications"
+            accessibilityLabel={t('whatsappAlerts', locale)}
           />
         </View>
-        <Text style={styles.hint}>Contact support to change delivery preferences on your account.</Text>
+        <Text style={styles.hint}>{t('whatsappAlertHint', locale)}</Text>
       </Panel>
 
       <Panel title={t('language', locale)}>
-        <View style={styles.langRow}>
-          {(['en', 'hi', 'ml'] as const).map((code) => (
-            <Btn
-              key={code}
-              label={code === 'en' ? 'English' : code === 'hi' ? 'हिंदी' : 'മലയാളം'}
-              variant={locale === code ? 'primary' : 'secondary'}
-              onPress={() => setLocale(code)}
-            />
-          ))}
-        </View>
+        <Text style={styles.hint}>{t('languageHint', locale)}</Text>
+        <LanguagePicker locale={locale} onChange={setLocale} />
       </Panel>
 
-      <Btn label="Help & support" variant="secondary" onPress={() => Linking.openURL(whatsAppUrl('Farmer app help'))} />
-      <WhatsAppBtn label="WhatsApp support" />
-      <Btn label={t('logout', locale)} variant="secondary" onPress={() => void logout()} accessibilityLabel={t('logout', locale)} />
+      <Btn label={t('helpSupport', locale)} variant="secondary" onPress={() => Linking.openURL(whatsAppUrl('Farmer app help'))} />
+      <WhatsAppBtn label={t('whatsappSupport', locale)} />
+      <Btn label={t('logout', locale)} variant="secondary" onPress={() => void logout()} />
     </ScrollView>
   );
 }
@@ -80,6 +79,5 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32, gap: 8 },
   switchRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   switchLabel: { flex: 1, fontSize: 14, color: tokens.text },
-  hint: { fontSize: 12, color: tokens.textMuted, marginTop: 8 },
-  langRow: { gap: 8 },
+  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10 },
 });

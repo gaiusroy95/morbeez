@@ -137,6 +137,17 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, profile });
   });
 
+  app.patch('/api/v1/farmer/portal/language', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const body = z
+      .object({
+        preferredLanguage: z.enum(['en', 'hi', 'ml', 'ta', 'kn']),
+      })
+      .parse(request.body);
+    const profile = await farmerPortalService.updatePreferredLanguage(farmerId, body.preferredLanguage);
+    return reply.send({ ok: true, profile });
+  });
+
   app.get('/api/v1/farmer/portal/blocks', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const result = await farmerPortalMobileService.listBlocks(farmerId);

@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { Text, View } from 'react-native';
 import { MorbeezLogo } from '@morbeez/ui-native';
 import { tokens } from '@morbeez/shared';
+import { WarehouseQueueProvider } from '@/context/WarehouseQueueContext';
 
 function BrandedHeaderTitle({ title }: { title: string }) {
   return (
@@ -14,12 +15,13 @@ function BrandedHeaderTitle({ title }: { title: string }) {
 
 export default function AppLayout() {
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: tokens.green800 },
-        headerTintColor: '#fff',
-      }}
-    >
+    <WarehouseQueueProvider>
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: tokens.green800 },
+          headerTintColor: '#fff',
+        }}
+      >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="print/[type]/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Print document" /> }} />
@@ -35,6 +37,7 @@ export default function AppLayout() {
       <Stack.Screen name="more/assign-labels" options={{ headerTitle: () => <BrandedHeaderTitle title="Assign labels" /> }} />
       <Stack.Screen name="order/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Pick & pack" /> }} />
       <Stack.Screen name="order/timeline/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Order timeline" /> }} />
-    </Stack>
+      </Stack>
+    </WarehouseQueueProvider>
   );
 }

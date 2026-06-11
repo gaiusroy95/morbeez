@@ -28,7 +28,7 @@ export type FarmBlockCard = {
   plantingDate?: string | null;
 };
 
-type SubTab = 'overview' | 'soil' | 'visits' | 'recommendations' | 'followups' | 'timeline';
+type SubTab = 'overview' | 'soil' | 'recommendations' | 'followups' | 'timeline';
 
 type WorkspaceData = {
   blockInfo?: {
@@ -69,13 +69,6 @@ type WorkspaceData = {
     status?: string;
   }>;
   followUps?: Array<{ id: string; title?: string; dueLabel?: string; notes?: string }>;
-  visits?: Array<{
-    id: string;
-    visitedLabel?: string;
-    agronomistName?: string;
-    diseasePest?: string;
-    observations?: string;
-  }>;
   nextFollowUp?: { title?: string; dueLabel?: string; notes?: string } | null;
   timeline?: Array<{ title: string; atLabel: string; kind?: string; detail?: string }>;
 };
@@ -134,7 +127,6 @@ function recTypeClass(recType?: string): string {
 const SUB_TABS: Array<{ id: SubTab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'soil', label: 'Soil reports' },
-  { id: 'visits', label: 'Visit findings' },
   { id: 'recommendations', label: 'Recommendations' },
   { id: 'followups', label: 'Follow-ups' },
   { id: 'timeline', label: 'Timeline' },
@@ -616,44 +608,6 @@ export function BlocksTab({
                   <li className="tc-bl-muted">No soil reports for this block.</li>
                 ) : null}
               </ul>
-            </div>
-          ) : subTab === 'visits' ? (
-            <div className="tc-bl-table-wrap">
-              <div className="tc-bl-panel-head">
-                <h4>Visit findings</h4>
-                {canWrite ? (
-                  <button type="button" className="tc-bl-link-btn" onClick={onAddFieldFinding}>
-                    + Add finding
-                  </button>
-                ) : null}
-              </div>
-              <table className="tc-bl-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Agronomist</th>
-                    <th>Disease / pest</th>
-                    <th>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(workspace?.visits ?? []).map((v) => (
-                    <tr
-                      key={v.id}
-                      className="tc-bl-row-click"
-                      onClick={() => onOpenFinding({ id: v.id } as FieldFindingListRow)}
-                    >
-                      <td>{v.visitedLabel ?? '—'}</td>
-                      <td>{v.agronomistName ?? '—'}</td>
-                      <td>{v.diseasePest ?? '—'}</td>
-                      <td className="tc-bl-notes-cell">{v.observations ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(workspace?.visits?.length ?? 0) === 0 ? (
-                <p className="tc-bl-empty">No visit findings for this block.</p>
-              ) : null}
             </div>
           ) : subTab === 'recommendations' ? (
             <div className="tc-bl-panel">

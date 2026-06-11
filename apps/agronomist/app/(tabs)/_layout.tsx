@@ -1,9 +1,12 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { MorbeezLogo } from '@morbeez/ui-native';
-import { tokens } from '@morbeez/shared';
+import { t, tokens } from '@morbeez/shared';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function TabsLayout() {
+  const { locale } = useLocale();
+
   return (
     <Tabs
       screenOptions={{
@@ -20,36 +23,36 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
+          title: t('dashboard', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="farmers"
         options={{
-          title: 'Farmers',
+          title: t('farmers', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="visits"
         options={{
-          title: 'Visits',
-          headerTitle: 'Visits',
+          title: t('visits', locale),
+          headerTitle: t('visits', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="leaf-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="tasks"
         options={{
-          title: 'Tasks',
+          title: t('tasks', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="checkbox-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('profile', locale),
           tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />

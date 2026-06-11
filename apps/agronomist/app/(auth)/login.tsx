@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
-import { phoneForCheckout, sendStaffOtp, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { phoneForCheckout, sendStaffOtp, t, tokens } from '@morbeez/shared';
+import { AlertBox, Btn, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function LoginScreen() {
   const { login, loginWithOtp } = useStaffAuth();
   const router = useRouter();
+  const { locale, setLocale } = useLocale();
   const [mode, setMode] = useState<'otp' | 'email'>('otp');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [mobile, setMobile] = useState('');
@@ -22,12 +24,12 @@ export default function LoginScreen() {
     setError('');
     setLoading(true);
     try {
-      if (!email.trim()) throw new Error('Enter your work email');
-      if (!password) throw new Error('Enter your password');
+      if (!email.trim()) throw new Error(t('workEmail', locale));
+      if (!password) throw new Error(t('password', locale));
       await login(email.trim(), password);
       router.replace('/(tabs)/dashboard');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Login failed');
+      setError(e instanceof Error ? e.message : t('login', locale));
     } finally {
       setLoading(false);
     }
@@ -39,12 +41,12 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const phone = phoneForCheckout(mobile);
-      if (phone.length !== 10) throw new Error('Enter a valid 10-digit mobile number');
+      if (phone.length !== 10) throw new Error(t('phoneRequired', locale));
       const result = await sendStaffOtp(phone);
       if (result.devOtp) setDevOtpHint(`Dev OTP: ${result.devOtp}`);
       setOtpStep('code');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send OTP');
+      setError(e instanceof Error ? e.message : t('otpSend', locale));
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,7 @@ export default function LoginScreen() {
       await loginWithOtp(phone, otp.trim());
       router.replace('/(tabs)/dashboard');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Invalid OTP');
+      setError(e instanceof Error ? e.message : t('otpCode', locale));
     } finally {
       setLoading(false);
     }
@@ -69,8 +71,12 @@ export default function LoginScreen() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <MorbeezLogo height={48} style={styles.logo} />
-          <Text style={styles.title}>Morbeez Agronomist</Text>
-          <Text style={styles.subtitle}>Farmer intelligence, visits, recommendations, and tasks.</Text>
+          <Text style={styles.title}>{t('morbeezAgronomist', locale)}</Text>
+          <Text style={styles.subtitle}>{t('agronomistTagline', locale)}</Text>
+
+          <Text style={styles.label}>{t('language', locale)}</Text>
+          <LanguagePicker locale={locale} onChange={setLocale} />
+
           {error ? <AlertBox>{error}</AlertBox> : null}
           {devOtpHint ? <AlertBox>{devOtpHint}</AlertBox> : null}
 
@@ -79,14 +85,14 @@ export default function LoginScreen() {
               {otpStep === 'phone' ? (
                 <>
                   <TextField
-                    label="Mobile number"
+                    label={t('mobile', locale)}
                     value={mobile}
                     onChangeText={setMobile}
                     keyboardType="phone-pad"
-                    accessibilityLabel="Mobile number"
+                    accessibilityLabel={t('mobile', locale)}
                   />
                   <Btn
-                    label={loading ? 'Sending…' : 'Send OTP'}
+                    label={loading ? t('loading', locale) : t('otpSend', locale)}
                     onPress={() => void onSendOtp()}
                     disabled={loading || mobile.replace(/\D/g, '').length < 10}
                   />
@@ -94,45 +100,50 @@ export default function LoginScreen() {
               ) : (
                 <>
                   <TextField
-                    label="Enter OTP"
+                    label={t('otpCode', locale)}
                     value={otp}
                     onChangeText={setOtp}
                     keyboardType="number-pad"
                     maxLength={6}
-                    accessibilityLabel="Enter OTP"
+                    accessibilityLabel={t('otpCode', locale)}
                   />
                   <Btn
-                    label={loading ? 'Verifying…' : 'Verify & sign in'}
+                    label={loading ? t('loading', locale) : t('verifySignIn', locale)}
                     onPress={() => void onVerifyOtp()}
                     disabled={loading || otp.length < 6}
                   />
                   <Pressable onPress={() => setOtpStep('phone')} style={styles.linkWrap}>
-                    <Text style={styles.linkText}>Change mobile number</Text>
+                    <Text style={styles.linkText}>{t('changeMobile', locale)}</Text>
                   </Pressable>
                 </>
               )}
               <Pressable onPress={() => setMode('email')} style={styles.linkWrap}>
-                <Text style={styles.linkText}>Use email instead</Text>
+                <Text style={styles.linkText}>{t('useEmailInstead', locale)}</Text>
               </Pressable>
             </>
           ) : (
             <>
               <TextField
-                label="Work email"
+                label={t('workEmail', locale)}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                accessibilityLabel="Work email"
+                accessibilityLabel={t('workEmail', locale)}
               />
-              <PasswordField label="Password" value={password} onChangeText={setPassword} accessibilityLabel="Password" />
+              <PasswordField
+                label={t('password', locale)}
+                value={password}
+                onChangeText={setPassword}
+                accessibilityLabel={t('password', locale)}
+              />
               <Btn
-                label={loading ? 'Signing in…' : 'Sign in'}
+                label={loading ? t('loading', locale) : t('login', locale)}
                 onPress={() => void onEmailSubmit()}
                 disabled={loading || !email.trim() || !password}
               />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
-                <Text style={styles.linkText}>Use mobile OTP instead</Text>
+                <Text style={styles.linkText}>{t('useMobileOtp', locale)}</Text>
               </Pressable>
             </>
           )}
@@ -147,6 +158,7 @@ const styles = StyleSheet.create({
   logo: { alignSelf: 'center', marginBottom: 20 },
   title: { fontSize: 26, fontWeight: '700', color: tokens.green800, marginBottom: 8 },
   subtitle: { fontSize: 15, color: tokens.textMuted, marginBottom: 24 },
+  label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 8 },
   linkWrap: { marginTop: 16, alignItems: 'center' },
   linkText: { color: tokens.green700, fontSize: 15, fontWeight: '600' },
 });

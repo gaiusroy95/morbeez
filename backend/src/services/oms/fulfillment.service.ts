@@ -89,6 +89,90 @@ async function repairPendingCommerceOrders(limit = 100) {
   return { repaired, failed, scanned: data?.length ?? 0 };
 }
 
+const FULFILLMENT_QUEUE_SELECT = `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
+         shipping_method, tracking_status,
+         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
+         assigned_employee_name, assigned_batch_id,
+         pick_lists(id, status, pick_list_lines(id, qty_required)),
+         commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`;
+
+const DISPATCH_QUEUE_STATUSES = ['ready_dispatch', 'awaiting_tracking'] as const;
+
+function fulfillmentQueueBaseQuery() {
+  return supabase
+    .from('commerce_orders')
+    .select(FULFILLMENT_QUEUE_SELECT)
+    .is('deleted_at', null)
+    .neq('oms_status', 'cancelled');
+}
+
+function mapFulfillmentQueueRow(
+  row: Record<string, unknown>,
+  wallet: Awaited<ReturnType<typeof shiprocketService.getWalletBalance>> | null
+) {
+  const pickLists = normalizePickLists<{
+    id: string;
+    status: string;
+    pick_list_lines: Array<{ id: string; qty_required?: number }>;
+  }>(row.pick_lists);
+  const orderLines = normalizeRelation<{
+    qty_ordered: number;
+    qty_cancelled: number | null;
+    product_title?: string;
+    sku?: string | null;
+  }>(row.commerce_order_lines);
+  const pick = pickLists[0];
+  const pickItemCount = pickListLineCount(pickLists);
+  const orderItemCount = orderLines.reduce(
+    (sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)),
+    0
+  );
+  const stockIssue =
+    orderItemCount === 0
+      ? 'no_order_lines'
+      : pickItemCount === 0
+        ? 'no_stock_reserved'
+        : null;
+  const missingProducts =
+    stockIssue === 'no_stock_reserved'
+      ? orderLines.map((l) => l.product_title).filter(Boolean).slice(0, 2)
+      : [];
+  const shipAddr = row.shipping_address as Record<string, unknown> | null;
+  const customerName = shipAddr?.name
+    ? String(shipAddr.name)
+    : shipAddr?.first_name
+      ? String(shipAddr.first_name)
+      : null;
+
+  return {
+    id: row.id,
+    orderName: row.order_name ?? row.shopify_order_id ?? String(row.id).slice(0, 8),
+    customerName,
+    courier: row.courier_name ?? '—',
+    itemCount: pickItemCount,
+    orderItemCount,
+    stockIssue,
+    missingProducts,
+    priority: row.fulfillment_priority ?? 'normal',
+    omsStatus: row.oms_status,
+    shippingMethod: normalizeShippingMethod(row.shipping_method),
+    trackingStatus: row.tracking_status ? String(row.tracking_status) : null,
+    needsManualTracking:
+      normalizeShippingMethod(row.shipping_method) === 'manual' &&
+      row.oms_status === 'awaiting_tracking',
+    awb: row.tracking_awb,
+    pickListId: pick?.id ?? null,
+    shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(
+      row.shiprocket_error as string | null,
+      wallet
+    ),
+    isCod: row.is_cod,
+    totalAmount: row.total_amount,
+    createdAt: row.created_at,
+    assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
+  };
+}
+
 export const fulfillmentService = {
   repairPendingCommerceOrders,
 
@@ -217,89 +301,34 @@ export const fulfillmentService = {
       }
     }
 
-    const { data, error } = await supabase
-      .from('commerce_orders')
-      .select(
-        `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
-         shipping_method, tracking_status,
-         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
-         assigned_employee_name, assigned_batch_id,
-         pick_lists(id, status, pick_list_lines(id, qty_required)),
-         commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`
-      )
-      .is('deleted_at', null)
-      .neq('oms_status', 'cancelled')
-      .in('oms_status', [...FULFILLMENT_STATUSES])
-      .order('fulfillment_priority', { ascending: false })
-      .order('created_at', { ascending: true })
-      .limit(opts?.limit ?? 80);
-    throwIfSupabaseError(error, 'Fulfillment queue');
-
+    const limit = opts?.limit ?? 80;
     const wallet = await shiprocketService.getWalletBalance().catch(() => null);
 
-    return (data ?? []).map((row) => {
-      const pickLists = normalizePickLists<{
-        id: string;
-        status: string;
-        pick_list_lines: Array<{ id: string; qty_required?: number }>;
-      }>(row.pick_lists);
-      const orderLines = normalizeRelation<{
-        qty_ordered: number;
-        qty_cancelled: number | null;
-        product_title?: string;
-        sku?: string | null;
-      }>(row.commerce_order_lines);
-      const pick = pickLists[0];
-      const pickItemCount = pickListLineCount(pickLists);
-      const orderItemCount = orderLines.reduce(
-        (sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)),
-        0
-      );
-      const stockIssue =
-        orderItemCount === 0
-          ? 'no_order_lines'
-          : pickItemCount === 0
-            ? 'no_stock_reserved'
-            : null;
-      const missingProducts =
-        stockIssue === 'no_stock_reserved'
-          ? orderLines.map((l) => l.product_title).filter(Boolean).slice(0, 2)
-          : [];
-      const shipAddr = row.shipping_address as Record<string, unknown> | null;
-      const customerName = shipAddr?.name
-        ? String(shipAddr.name)
-        : shipAddr?.first_name
-          ? String(shipAddr.first_name)
-          : null;
+    const [mainResult, dispatchResult] = await Promise.all([
+      fulfillmentQueueBaseQuery()
+        .in('oms_status', [...FULFILLMENT_STATUSES])
+        .order('fulfillment_priority', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(limit),
+      fulfillmentQueueBaseQuery()
+        .in('oms_status', [...DISPATCH_QUEUE_STATUSES])
+        .order('fulfillment_priority', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(200),
+    ]);
+    throwIfSupabaseError(mainResult.error, 'Fulfillment queue');
+    throwIfSupabaseError(dispatchResult.error, 'Fulfillment dispatch queue');
 
-      return {
-        id: row.id,
-        orderName: row.order_name ?? row.shopify_order_id ?? row.id.slice(0, 8),
-        customerName,
-        courier: row.courier_name ?? '—',
-        itemCount: pickItemCount,
-        orderItemCount,
-        stockIssue,
-        missingProducts,
-        priority: row.fulfillment_priority ?? 'normal',
-        omsStatus: row.oms_status,
-        shippingMethod: normalizeShippingMethod(row.shipping_method),
-        trackingStatus: row.tracking_status ? String(row.tracking_status) : null,
-        needsManualTracking:
-          normalizeShippingMethod(row.shipping_method) === 'manual' &&
-          row.oms_status === 'awaiting_tracking',
-        awb: row.tracking_awb,
-        pickListId: pick?.id ?? null,
-        shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(
-          row.shiprocket_error as string | null,
-          wallet
-        ),
-        isCod: row.is_cod,
-        totalAmount: row.total_amount,
-        createdAt: row.created_at,
-        assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
-      };
-    });
+    const merged = new Map<string, Record<string, unknown>>();
+    for (const row of dispatchResult.data ?? []) {
+      merged.set(String(row.id), row as Record<string, unknown>);
+    }
+    for (const row of mainResult.data ?? []) {
+      const id = String(row.id);
+      if (!merged.has(id)) merged.set(id, row as Record<string, unknown>);
+    }
+
+    return [...merged.values()].map((row) => mapFulfillmentQueueRow(row, wallet));
   },
 
   async getOrderDetail(commerceOrderId: string) {

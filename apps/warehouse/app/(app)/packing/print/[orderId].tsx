@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { tokens, warehouseClient, type PrintableDoc, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, Loading, Panel } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 const DOC_CHECKLIST = [
   { key: 'tax_invoice', label: 'Invoice' },
@@ -16,6 +17,7 @@ export default function PrintDocumentsScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const { canWrite } = useStaffAuth();
+  const { refreshQueue, refreshStats } = useWarehouseQueue();
   const [detail, setDetail] = useState<WarehouseOrderDetail | null>(null);
   const [docs, setDocs] = useState<PrintableDoc[]>([]);
   const [error, setError] = useState('');
@@ -61,6 +63,8 @@ export default function PrintDocumentsScreen() {
     setError('');
     try {
       await warehouseClient.markLabelPrinted(orderId);
+      void refreshQueue({ force: true });
+      void refreshStats({ force: true });
       setMessage('Labels marked printed');
       router.push('/(app)/packing/complete');
     } catch (e) {

@@ -242,6 +242,16 @@ export async function updatePortalAddress(body: {
   });
 }
 
+export async function updateFarmerPreferredLanguage(
+  preferredLanguage: 'en' | 'hi' | 'ml' | 'ta' | 'kn'
+): Promise<FarmerProfile> {
+  const data = await farmerApi<{ ok: boolean; profile: FarmerProfile }>('/api/v1/farmer/portal/language', {
+    method: 'PATCH',
+    body: JSON.stringify({ preferredLanguage }),
+  });
+  return data.profile;
+}
+
 export async function fetchOrderTracking(orderId: string): Promise<PortalTracking> {
   return farmerApi<PortalTracking>(`/api/v1/farmer/portal/orders/${encodeURIComponent(orderId)}/tracking`);
 }

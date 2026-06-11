@@ -6,11 +6,13 @@ import { tokens, warehouseClient } from '@morbeez/shared';
 import { AlertBox, Btn, Loading, Panel } from '@morbeez/ui-native';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function LabelVerifyScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const { canWrite } = useStaffAuth();
+  const { refreshQueue, refreshStats } = useWarehouseQueue();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [wrongLabel, setWrongLabel] = useState('');
@@ -28,6 +30,8 @@ export default function LabelVerifyScreen() {
       if (r.matched) {
         setCode('');
         setMessage(r.message ?? 'Label verified — paste on parcel');
+        void refreshQueue({ force: true });
+        void refreshStats({ force: true });
         router.replace(`/(app)/packing/print/${orderId}`);
       } else {
         void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

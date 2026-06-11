@@ -1,10 +1,10 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
-import { tokens } from '@morbeez/shared';
+import { t, tokens } from '@morbeez/shared';
 import { MorbeezLogo } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
-import { LocaleProvider } from '@/context/LocaleContext';
+import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { OfflineProvider } from '@/context/OfflineContext';
 import { ShopCartProvider } from '@/context/ShopCartContext';
 import { RoiFilterProvider } from '@/context/RoiFilterContext';
@@ -53,6 +53,56 @@ const header = {
   headerTintColor: '#fff' as const,
 };
 
+function AppStack() {
+  const { locale } = useLocale();
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="order/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('orderTracking', locale)} /> }} />
+      <Stack.Screen name="address" options={{ ...header, presentation: 'modal', headerTitle: () => <BrandedHeaderTitle title={t('deliveryAddress', locale)} /> }} />
+      <Stack.Screen name="orders/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('orders', locale)} /> }} />
+      <Stack.Screen name="reports/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('soilReports', locale)} /> }} />
+      <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('recommendations', locale)} /> }} />
+      <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('recommendation', locale)} /> }} />
+      <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('block', locale)} /> }} />
+      <Stack.Screen name="fields/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('myBlocks', locale)} /> }} />
+      <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('block', locale)} /> }} />
+      <Stack.Screen name="scan/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('aiScan', locale)} /> }} />
+      <Stack.Screen name="scan/history" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('scanHistory', locale)} /> }} />
+      <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('aiScan', locale)} /> }} />
+      <Stack.Screen name="market/trends/[crop]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('trendAnalytics', locale)} /> }} />
+      <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('activities', locale)} /> }} />
+      <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addActivity', locale)} /> }} />
+      <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addExpenseHeader', locale)} /> }} />
+      <Stack.Screen name="roi/quick-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addExpenseHeader', locale)} /> }} />
+      <Stack.Screen name="roi/quick-expense/amount" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('enterAmount', locale)} /> }} />
+      <Stack.Screen name="roi/labour-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addLabour', locale)} /> }} />
+      <Stack.Screen name="roi/harvest" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('harvest', locale)} /> }} />
+      <Stack.Screen name="roi/transactions/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('transactions', locale)} /> }} />
+      <Stack.Screen name="roi/transactions/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addTransactionHeader', locale)} /> }} />
+      <Stack.Screen name="roi/transactions/add-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addExpenseHeader', locale)} /> }} />
+      <Stack.Screen name="roi/transactions/add-income" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addIncomeHeader', locale)} /> }} />
+      <Stack.Screen name="roi/transactions/edit/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('editTransactionHeader', locale)} /> }} />
+      <Stack.Screen name="roi/expense-book" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('expenseBook', locale)} /> }} />
+      <Stack.Screen name="roi/analytics" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('analytics', locale)} /> }} />
+      <Stack.Screen name="roi/start-cycle" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('startNewCycle', locale)} /> }} />
+      <Stack.Screen name="roi/history/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('cropHistory', locale)} /> }} />
+      <Stack.Screen name="roi/history/[seasonId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('history', locale)} /> }} />
+      <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('roi', locale)} /> }} />
+      <Stack.Screen name="intel/weather-market" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('weatherMarket', locale)} /> }} />
+      <Stack.Screen name="intel/notifications" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('notifications', locale)} /> }} />
+      <Stack.Screen name="shop/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('shop', locale)} /> }} />
+      <Stack.Screen name="shop/category/[slug]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('shop', locale)} /> }} />
+      <Stack.Screen name="shop/cart" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('cart', locale)} /> }} />
+      <Stack.Screen name="shop/checkout" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('checkout', locale)} /> }} />
+      <Stack.Screen name="shop/success" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('orderSuccess', locale)} />, headerBackVisible: false }} />
+    </Stack>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
@@ -60,59 +110,17 @@ export default function RootLayout() {
         <OfflineProvider>
           <FarmerAuthProvider>
             <RoiFilterProvider>
-            <HomeDashboardProvider>
-            <ShopCartProvider>
-              <AuthGate>
-            <Stack screenOptions={{ headerShown: false }}>
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(auth)" />
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="order/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Order tracking" /> }} />
-              <Stack.Screen name="address" options={{ ...header, presentation: 'modal', headerTitle: () => <BrandedHeaderTitle title="Delivery address" /> }} />
-              <Stack.Screen name="orders/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Orders" /> }} />
-              <Stack.Screen name="reports/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Soil reports" /> }} />
-              <Stack.Screen name="recommendations/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendations" /> }} />
-              <Stack.Screen name="recommendations/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Recommendation" /> }} />
-              <Stack.Screen name="fields/form" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Block" /> }} />
-              <Stack.Screen name="fields/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="My blocks" /> }} />
-              <Stack.Screen name="fields/[blockId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Block" /> }} />
-              <Stack.Screen name="scan/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI crop scan" /> }} />
-              <Stack.Screen name="scan/history" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Scan history" /> }} />
-              <Stack.Screen name="scan/[sessionId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="AI scan result" /> }} />
-              <Stack.Screen name="market/trends/[crop]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Market trends" /> }} />
-              <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Activities" /> }} />
-              <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add activity" /> }} />
-              <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
-              <Stack.Screen name="roi/quick-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
-              <Stack.Screen name="roi/quick-expense/amount" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Enter amount" /> }} />
-              <Stack.Screen name="roi/labour-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add labour" /> }} />
-              <Stack.Screen name="roi/harvest" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Harvest" /> }} />
-              <Stack.Screen name="roi/transactions/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Transactions" /> }} />
-              <Stack.Screen name="roi/transactions/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add transaction" /> }} />
-              <Stack.Screen name="roi/transactions/add-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add expense" /> }} />
-              <Stack.Screen name="roi/transactions/add-income" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Add income" /> }} />
-              <Stack.Screen name="roi/transactions/edit/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Edit transaction" /> }} />
-              <Stack.Screen name="roi/expense-book" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Expense book" /> }} />
-              <Stack.Screen name="roi/analytics" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI analytics" /> }} />
-              <Stack.Screen name="roi/start-cycle" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Start crop cycle" /> }} />
-              <Stack.Screen name="roi/history/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Crop history" /> }} />
-              <Stack.Screen name="roi/history/[seasonId]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Season details" /> }} />
-              <Stack.Screen name="intel/roi" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="ROI dashboard" /> }} />
-              <Stack.Screen name="intel/weather-market" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Weather & market" /> }} />
-              <Stack.Screen name="intel/notifications" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Notifications" /> }} />
-              <Stack.Screen name="shop/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Product" /> }} />
-              <Stack.Screen name="shop/category/[slug]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Products" /> }} />
-              <Stack.Screen name="shop/cart" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Smart cart" /> }} />
-              <Stack.Screen name="shop/checkout" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Checkout" /> }} />
-              <Stack.Screen name="shop/success" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Order placed" />, headerBackVisible: false }} />
-            </Stack>
-          </AuthGate>
-        </ShopCartProvider>
-            </HomeDashboardProvider>
+              <HomeDashboardProvider>
+                <ShopCartProvider>
+                  <AuthGate>
+                    <AppStack />
+                  </AuthGate>
+                </ShopCartProvider>
+              </HomeDashboardProvider>
             </RoiFilterProvider>
-      </FarmerAuthProvider>
+          </FarmerAuthProvider>
         </OfflineProvider>
-    </LocaleProvider>
+      </LocaleProvider>
     </ErrorBoundary>
   );
 }

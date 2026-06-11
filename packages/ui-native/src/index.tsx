@@ -9,6 +9,8 @@ import {
   type ViewProps,
 } from 'react-native';
 import { tokens } from '@morbeez/shared';
+import type { AppLocale } from '@morbeez/shared';
+import { APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
 import { MorbeezLogo } from './MorbeezLogo';
 
 export { MorbeezLogo } from './MorbeezLogo';
@@ -210,6 +212,28 @@ export function HubTabs<T extends string>({
             {tab.label}
           </Text>
         </Pressable>
+      ))}
+    </View>
+  );
+}
+
+/** Language picker — farmer-friendly locale labels (en, hi, ml, ta, kn). */
+export function LanguagePicker({
+  locale,
+  onChange,
+}: {
+  locale: AppLocale;
+  onChange: (locale: AppLocale) => void;
+}) {
+  return (
+    <View style={styles.langRow}>
+      {APP_LOCALES.map((code) => (
+        <Btn
+          key={code}
+          label={LOCALE_LABELS[code]}
+          variant={locale === code ? 'primary' : 'secondary'}
+          onPress={() => onChange(code)}
+        />
       ))}
     </View>
   );
@@ -439,6 +463,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginBottom: tokens.spacing.md,
+  },
+  langRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   tab: {
     paddingVertical: 8,

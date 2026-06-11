@@ -129,18 +129,27 @@ export const warehouseClient = {
     orderId: string,
     code: string
   ): Promise<{ ok: boolean; matched: boolean; error?: string; message?: string }> {
-    return staffApi(`${WMS}/fulfillment/orders/${orderId}/verify-label`, {
-      method: 'POST',
-      body: JSON.stringify({ code: code.trim() }),
-    });
+    const r = await staffApi<{ ok: boolean; matched: boolean; error?: string; message?: string }>(
+      `${WMS}/fulfillment/orders/${orderId}/verify-label`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ code: code.trim() }),
+      }
+    );
+    invalidateCachedResponses('warehouse-');
+    return r;
   },
 
   async markPacked(orderId: string) {
-    return staffApi(`${WMS}/fulfillment/orders/${orderId}/mark-packed`, { method: 'POST', body: '{}' });
+    const r = await staffApi(`${WMS}/fulfillment/orders/${orderId}/mark-packed`, { method: 'POST', body: '{}' });
+    invalidateCachedResponses('warehouse-');
+    return r;
   },
 
   async markLabelPrinted(orderId: string) {
-    return staffApi(`${WMS}/fulfillment/orders/${orderId}/mark-label-printed`, { method: 'POST', body: '{}' });
+    const r = await staffApi(`${WMS}/fulfillment/orders/${orderId}/mark-label-printed`, { method: 'POST', body: '{}' });
+    invalidateCachedResponses('warehouse-');
+    return r;
   },
 
   async generateAwb(orderId: string, forceRecreate = false) {
@@ -190,7 +199,7 @@ export const warehouseClient = {
   },
 
   async saveManualLogistics(orderId: string, payload: LRUpdatePayload) {
-    return staffApi(`${WMS}/fulfillment/orders/${orderId}/manual-logistics`, {
+    const r = await staffApi(`${WMS}/fulfillment/orders/${orderId}/manual-logistics`, {
       method: 'POST',
       body: JSON.stringify({
         courierName: payload.courierName,
@@ -199,6 +208,8 @@ export const warehouseClient = {
         notifyCustomer: payload.notifyCustomer ?? false,
       }),
     });
+    invalidateCachedResponses('warehouse-');
+    return r;
   },
 
   async getEmployees(): Promise<WarehouseEmployee[]> {
@@ -280,7 +291,9 @@ export const warehouseClient = {
   },
 
   async confirmDispatch(orderId: string) {
-    return staffApi(`${WMS}/orders/${orderId}/confirm-dispatch`, { method: 'POST', body: '{}' });
+    const r = await staffApi(`${WMS}/orders/${orderId}/confirm-dispatch`, { method: 'POST', body: '{}' });
+    invalidateCachedResponses('warehouse-');
+    return r;
   },
 
   async setShippingMethod(orderId: string, method: 'shiprocket' | 'manual') {

@@ -14,6 +14,25 @@ export declare const farmerPortalService: {
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
         hasPassword: boolean;
+        preferredLanguage: string;
+        createdAt: unknown;
+    }>;
+    updatePreferredLanguage(farmerId: string, preferredLanguage: string): Promise<{
+        id: unknown;
+        email: unknown;
+        firstName: unknown;
+        lastName: unknown;
+        name: unknown;
+        phone: unknown;
+        village: unknown;
+        district: {} | null;
+        state: {} | null;
+        pincode: {} | null;
+        shippingAddress: {} | null;
+        deliveryPincode: {} | null;
+        newsletterSubscribed: unknown;
+        hasPassword: boolean;
+        preferredLanguage: string;
         createdAt: unknown;
     }>;
     getSummary(farmerId: string): Promise<{
@@ -287,6 +306,7 @@ export declare const farmerPortalService: {
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
         hasPassword: boolean;
+        preferredLanguage: string;
         createdAt: unknown;
     }>;
 };

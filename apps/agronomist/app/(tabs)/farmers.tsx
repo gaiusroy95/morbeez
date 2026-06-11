@@ -1,29 +1,53 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { agronomistClient, type AgronomistFarmerSearchRow, tokens } from '@morbeez/shared';
+import { agronomistClient, t, type AgronomistFarmerSearchRow, tokens } from '@morbeez/shared';
 import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
 import { FarmerCard } from '@/components/FarmerCard';
+import { useLocale } from '@/context/LocaleContext';
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'assigned', label: 'Assigned' },
-  { id: 'follow_up_due', label: 'Follow-up' },
-  { id: 'escalation_open', label: 'Escalations' },
-  { id: 'recently_visited', label: 'Recent' },
-  { id: 'nearby', label: 'Nearby' },
+const FILTER_IDS = [
+  'all',
+  'assigned',
+  'follow_up_due',
+  'escalation_open',
+  'recently_visited',
+  'nearby',
 ] as const;
 
-type FilterId = (typeof FILTERS)[number]['id'];
+type FilterId = (typeof FILTER_IDS)[number];
+
+function filterLabel(id: FilterId, locale: ReturnType<typeof useLocale>['locale']) {
+  switch (id) {
+    case 'all':
+      return t('filterAll', locale);
+    case 'assigned':
+      return t('assigned', locale);
+    case 'follow_up_due':
+      return t('filterFollowUp', locale);
+    case 'escalation_open':
+      return t('filterEscalations', locale);
+    case 'recently_visited':
+      return t('filterRecent', locale);
+    case 'nearby':
+      return t('filterNearby', locale);
+  }
+}
 
 export default function FarmersScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
   const [farmers, setFarmers] = useState<AgronomistFarmerSearchRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  const filters = useMemo(
+    () => FILTER_IDS.map((id) => ({ id, label: filterLabel(id, locale) })),
+    [locale]
+  );
 
   const load = useCallback(async () => {
     setError('');
@@ -35,18 +59,18 @@ export default function FarmersScreen() {
       });
       setFarmers(rows);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load farmers');
+      setError(e instanceof Error ? e.message : t('loadingFarmers', locale));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [query, filter]);
+  }, [query, filter, locale]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading && farmers.length === 0) return <Loading label="Loading farmers…" />;
+  if (loading && farmers.length === 0) return <Loading label={t('loadingFarmers', locale)} />;
 
   return (
     <View style={styles.root}>
@@ -68,7 +92,7 @@ export default function FarmersScreen() {
             {error ? <AlertBox>{error}</AlertBox> : null}
             <TextInput
               style={styles.search}
-              placeholder="Search name, phone, village…"
+              placeholder={t('searchFarmers', locale)}
               placeholderTextColor={tokens.textMuted}
               value={query}
               onChangeText={setQuery}
@@ -76,7 +100,7 @@ export default function FarmersScreen() {
               returnKeyType="search"
             />
             <View style={styles.chips}>
-              {FILTERS.map((f) => (
+              {filters.map((f) => (
                 <Pressable
                   key={f.id}
                   onPress={() => setFilter(f.id)}
@@ -97,8 +121,8 @@ export default function FarmersScreen() {
         ListEmptyComponent={
           <EmptyState>
             {query.trim() || filter !== 'all'
-              ? 'No farmers match your search.'
-              : 'No farmers registered yet. Try searching by name or phone.'}
+              ? t('noFarmersMatch', locale)
+              : t('noFarmersYet', locale)}
           </EmptyState>
         }
       />

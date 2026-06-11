@@ -169,6 +169,14 @@ export const farmerPortalService = {
     async getProfile(farmerId) {
         return farmerAuthService.me(farmerId);
     },
+    async updatePreferredLanguage(farmerId, preferredLanguage) {
+        const { error } = await supabase
+            .from('farmers')
+            .update({ preferred_language: preferredLanguage })
+            .eq('id', farmerId);
+        throwIfSupabaseError(error, 'Could not update language');
+        return farmerAuthService.me(farmerId);
+    },
     async getSummary(farmerId) {
         const [profile, blocksRes, ordersRes, recsRes, soilRes, roiRes, notifRes] = await Promise.all([
             farmerAuthService.me(farmerId),

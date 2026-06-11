@@ -18,4 +18,6 @@ export * from './types/intel';
 export * from './shop/index';
 export * from './i18n/index';
 export * from './api/roi-helpers';
+export { buildTaxInvoiceHtml, TAX_INVOICE_CSS } from './print/tax-invoice-html';
+export type { TaxInvoiceCompany, TaxInvoiceRenderOptions } from './print/tax-invoice-html';
 export { createStaffAuth } from './auth/staff-auth-context';

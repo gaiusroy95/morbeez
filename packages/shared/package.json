@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./theme": "./src/theme/tokens.ts",
     "./staff": "./src/api/staff-client.ts",
-    "./farmer": "./src/api/farmer-client.ts"
+    "./farmer": "./src/api/farmer-client.ts",
+    "./print/tax-invoice-html": "./src/print/tax-invoice-html.ts"
   },
   "dependencies": {
     "expo-secure-store": "^56.0.4"

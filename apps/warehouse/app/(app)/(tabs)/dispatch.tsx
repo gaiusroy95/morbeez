@@ -21,7 +21,7 @@ function parseDispatchTab(raw: string | string[] | undefined): DispatchTab {
 export default function DispatchQueueScreen() {
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const { queue, queueLoading, refreshing, error, refreshQueue } = useWarehouseQueue();
+  const { queue, stats, queueLoading, refreshing, error, refreshQueue, refreshStats } = useWarehouseQueue();
   const [tab, setTab] = useState<DispatchTab>(() => parseDispatchTab(tabParam));
 
   useEffect(() => {
@@ -30,6 +30,8 @@ export default function DispatchQueueScreen() {
 
   const ready = useMemo(() => filterDispatchQueue(queue), [queue]);
   const lrPending = useMemo(() => filterLrPending(queue), [queue]);
+  const readyCount = stats?.readyDispatch ?? ready.length;
+  const lrCount = stats?.awaitingTracking ?? stats?.lrPending ?? lrPending.length;
   const filtered = tab === 'ready' ? ready : lrPending;
 
   const grouped = useMemo(() => {
@@ -51,7 +53,13 @@ export default function DispatchQueueScreen() {
         data={grouped}
         keyExtractor={([key]) => key}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => void refreshQueue({ force: true })} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              void refreshQueue({ force: true });
+              void refreshStats({ force: true });
+            }}
+          />
         }
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -59,8 +67,8 @@ export default function DispatchQueueScreen() {
             {error ? <AlertBox>{error}</AlertBox> : null}
             <HubTabs
               tabs={[
-                { id: 'ready' as const, label: `Ready (${ready.length})` },
-                { id: 'lr_pending' as const, label: `LR pending (${lrPending.length})` },
+                { id: 'ready' as const, label: `Ready (${readyCount})` },
+                { id: 'lr_pending' as const, label: `LR pending (${lrCount})` },
               ]}
               active={tab}
               onChange={setTab}

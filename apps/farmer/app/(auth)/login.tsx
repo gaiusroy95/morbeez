@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { farmerLogin, phoneForCheckout, sendOtp, t, verifyOtp } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -75,15 +75,7 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>{t('appTagline', locale)}</Text>
 
           <Text style={styles.label}>{t('language', locale)}</Text>
-          <HubTabs
-            tabs={[
-              { id: 'en' as const, label: 'English' },
-              { id: 'hi' as const, label: 'हिंदी' },
-              { id: 'ml' as const, label: 'മലയാളം' },
-            ]}
-            active={locale}
-            onChange={setLocale}
-          />
+          <LanguagePicker locale={locale} onChange={setLocale} />
 
           {error ? <AlertBox>{error}</AlertBox> : null}
           {devOtpHint ? <AlertBox>{devOtpHint}</AlertBox> : null}

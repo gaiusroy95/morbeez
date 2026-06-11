@@ -5,11 +5,13 @@ import { tokens, warehouseClient, type ShippingBox, type WarehouseOrderDetail } 
 import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function PackOrderScreen() {
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const { admin, canWrite } = useStaffAuth();
+  const { refreshQueue, refreshStats } = useWarehouseQueue();
   const [detail, setDetail] = useState<WarehouseOrderDetail | null>(null);
   const [boxes, setBoxes] = useState<ShippingBox[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState('');
@@ -152,6 +154,8 @@ export default function PackOrderScreen() {
     setBusy(true);
     try {
       await warehouseClient.markPacked(orderId);
+      void refreshQueue({ force: true });
+      void refreshStats({ force: true });
       const refreshed = await warehouseClient.getOrder(orderId);
       const status = refreshed.order.oms_status;
       if (status === 'awaiting_label_verification') {

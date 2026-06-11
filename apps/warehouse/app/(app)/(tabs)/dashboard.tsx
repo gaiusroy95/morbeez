@@ -1,26 +1,28 @@
 import { useMemo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { tokens } from '@morbeez/shared';
+import { t, tokens } from '@morbeez/shared';
 import { AlertBox, Btn, DonutChart, Loading, StatCard } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { admin } = useStaffAuth();
+  const { locale } = useLocale();
   const { stats, statsLoading, refreshing, error, refreshStats, refreshQueue } = useWarehouseQueue();
 
   const progressSegments = useMemo(() => {
     if (!stats) return [];
     return [
-      { label: 'Assigned', value: stats.pendingOrders ?? 0, color: tokens.green100 },
-      { label: 'Picking', value: stats.picking ?? 0, color: tokens.green400 },
-      { label: 'Packing', value: stats.packing ?? stats.packed ?? 0, color: tokens.green500 },
-      { label: 'Ready', value: stats.readyDispatch ?? 0, color: tokens.green700 },
-      { label: 'LR Pending', value: stats.awaitingTracking ?? stats.lrPending ?? 0, color: tokens.warning },
+      { label: t('assigned', locale), value: stats.pendingOrders ?? 0, color: tokens.green100 },
+      { label: t('picking', locale), value: stats.picking ?? 0, color: tokens.green400 },
+      { label: t('packing', locale), value: stats.packing ?? stats.packed ?? 0, color: tokens.green500 },
+      { label: t('readyDispatch', locale), value: stats.readyDispatch ?? 0, color: tokens.green700 },
+      { label: t('lrPending', locale), value: stats.awaitingTracking ?? stats.lrPending ?? 0, color: tokens.warning },
     ].filter((s) => s.value > 0);
-  }, [stats]);
+  }, [stats, locale]);
 
   const totalActive = useMemo(() => progressSegments.reduce((s, x) => s + x.value, 0), [progressSegments]);
 
@@ -29,7 +31,7 @@ export default function DashboardScreen() {
     void refreshQueue({ force: true });
   };
 
-  if (statsLoading && !stats) return <Loading label="Loading dashboard…" />;
+  if (statsLoading && !stats) return <Loading label={t('loadingDashboard', locale)} />;
 
   return (
     <ScrollView
@@ -43,37 +45,40 @@ export default function DashboardScreen() {
       }
     >
       {error ? <AlertBox>{error}</AlertBox> : null}
-      <Text style={styles.greeting}>Hello{admin?.fullName ? `, ${admin.fullName}` : ''}</Text>
-      <Text style={styles.subtitle}>Today&apos;s fulfillment overview</Text>
+      <Text style={styles.greeting}>
+        {t('hello', locale)}
+        {admin?.fullName ? `, ${admin.fullName}` : ''}
+      </Text>
+      <Text style={styles.subtitle}>{t('todaysFulfillmentOverview', locale)}</Text>
 
       <View style={styles.statsGrid}>
         <StatCard
-          label="Assigned"
+          label={t('assigned', locale)}
           value={stats?.pendingOrders ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/picking', params: { tab: 'assigned' } })}
         />
         <StatCard
-          label="Picking"
+          label={t('picking', locale)}
           value={stats?.picking ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/picking', params: { tab: 'in_progress' } })}
         />
         <StatCard
-          label="Packing"
+          label={t('packing', locale)}
           value={stats?.packing ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/packing', params: { tab: 'packing' } })}
         />
         <StatCard
-          label="Awaiting pack"
+          label={t('awaitingPack', locale)}
           value={stats?.packed ?? stats?.readyToPack ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/packing', params: { tab: 'awaiting_pack' } })}
         />
         <StatCard
-          label="Ready dispatch"
+          label={t('readyDispatch', locale)}
           value={stats?.readyDispatch ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/dispatch', params: { tab: 'ready' } })}
         />
         <StatCard
-          label="LR pending"
+          label={t('lrPending', locale)}
           value={stats?.awaitingTracking ?? stats?.lrPending ?? 0}
           onPress={() => router.push({ pathname: '/(app)/(tabs)/dispatch', params: { tab: 'lr_pending' } })}
         />
@@ -81,16 +86,16 @@ export default function DashboardScreen() {
 
       {progressSegments.length > 0 ? (
         <View style={styles.progressCard}>
-          <Text style={styles.cardTitle}>Today&apos;s progress</Text>
+          <Text style={styles.cardTitle}>{t('todaysProgress', locale)}</Text>
           <DonutChart segments={progressSegments} size={160} />
           <Text style={styles.progressMeta}>{totalActive} active orders in pipeline</Text>
         </View>
       ) : null}
 
       <View style={styles.actions}>
-        <Btn label="Go to picking" onPress={() => router.push('/(app)/(tabs)/picking')} />
-        <Btn label="Go to packing" onPress={() => router.push('/(app)/(tabs)/packing')} variant="secondary" />
-        <Btn label="Go to dispatch" onPress={() => router.push('/(app)/(tabs)/dispatch')} variant="secondary" />
+        <Btn label={t('goToPicking', locale)} onPress={() => router.push('/(app)/(tabs)/picking')} />
+        <Btn label={t('goToPacking', locale)} onPress={() => router.push('/(app)/(tabs)/packing')} variant="secondary" />
+        <Btn label={t('goToDispatch', locale)} onPress={() => router.push('/(app)/(tabs)/dispatch')} variant="secondary" />
       </View>
     </ScrollView>
   );

@@ -27,6 +27,7 @@ function publicFarmer(row) {
         deliveryPincode: row.delivery_pincode ?? null,
         newsletterSubscribed: row.newsletter_subscribed,
         hasPassword: Boolean(row.password_hash),
+        preferredLanguage: row.preferred_language ? String(row.preferred_language) : 'en',
         createdAt: row.created_at,
     };
 }

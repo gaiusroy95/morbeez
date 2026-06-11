@@ -17,6 +17,7 @@ import {
   StaticSelect,
 } from '../components/ui';
 import { CompanySettingsPanel } from '../components/settings/CompanySettingsPanel';
+import { LanguageDictionaryPanel } from '../components/settings/LanguageDictionaryPanel';
 
 type Staff = {
   id: string;
@@ -61,6 +62,7 @@ export function SettingsPage({ canRead, canWrite }: { canRead: boolean; canWrite
   return (
     <div className="space-y-6">
       <CompanySettingsPanel canWrite={canWrite} />
+      <LanguageDictionaryPanel canWrite={canWrite} />
       <p className="muted">
         Staff accounts and RBAC. For full employee workspace, use <strong>Employees</strong> in the sidebar.
       </p>

@@ -7,6 +7,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { logAdminMutation } from '../../lib/admin-mutation-audit.js';
 import { assertSuperAdminDeactivationAllowed } from '../../lib/admin-guards.js';
 import { companySettingsService } from '../../services/admin/company-settings.service.js';
+import { translationDictionaryService } from '../../services/admin/translation-dictionary.service.js';
 
 export async function osSettingsRoutes(app: FastifyInstance): Promise<void> {
   const api = '/morbeez-staff/api/v1/os/settings';
@@ -151,5 +152,104 @@ export async function osSettingsRoutes(app: FastifyInstance): Promise<void> {
       resourceId: id,
     });
     return reply.send({ ok: true });
+  });
+
+  app.get(`${api}/translations`, async (request, reply) => {
+    await assertModuleAccess(request, 'settings', 'read');
+    const q = request.query as {
+      category?: string;
+      appScope?: string;
+      status?: string;
+      q?: string;
+    };
+    const rows = await translationDictionaryService.list({
+      category: (q.category as never) ?? 'all',
+      appScope: (q.appScope as never) ?? 'all',
+      status: (q.status as never) ?? 'all',
+      q: q.q,
+    });
+    return reply.send({ ok: true, rows });
+  });
+
+  app.post(`${api}/translations`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'settings', 'write');
+    const body = z
+      .object({
+        id: z.string().uuid().optional(),
+        dictKey: z.string().min(1).max(120),
+        category: z
+          .enum(['ui_labels', 'advisory_text', 'notification_text', 'error_messages', 'content'])
+          .optional(),
+        appScope: z.enum(['all', 'farmer', 'agronomist', 'warehouse']).optional(),
+        valueEn: z.string().min(1).max(2000),
+        valueHi: z.string().max(2000).nullable().optional(),
+        valueMl: z.string().max(2000).nullable().optional(),
+        valueTa: z.string().max(2000).nullable().optional(),
+        valueKn: z.string().max(2000).nullable().optional(),
+        translate: z.boolean().optional(),
+        status: z.enum(['draft', 'approved', 'archived']).optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      })
+      .parse(request.body ?? {});
+    const row = await translationDictionaryService.upsert(body);
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: body.id ? 'update' : 'create',
+      resource: 'translation_dictionary',
+      resourceId: row.id,
+      details: { dictKey: row.dictKey, status: row.status },
+    });
+    return reply.send({ ok: true, row });
+  });
+
+  app.patch(`${api}/translations/:id/status`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'settings', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ status: z.enum(['draft', 'approved', 'archived']) }).parse(request.body ?? {});
+    const row = await translationDictionaryService.setStatus(id, body.status);
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'update',
+      resource: 'translation_dictionary',
+      resourceId: id,
+      details: { status: body.status },
+    });
+    return reply.send({ ok: true, row });
+  });
+
+  app.delete(`${api}/translations/:id`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'settings', 'write');
+    const { id } = request.params as { id: string };
+    await translationDictionaryService.delete(id);
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'delete',
+      resource: 'translation_dictionary',
+      resourceId: id,
+    });
+    return reply.send({ ok: true });
+  });
+
+  app.post(`${api}/translations/publish`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'settings', 'write');
+    const body = z
+      .object({
+        locale: z.enum(['en', 'hi', 'ml', 'ta', 'kn']).optional(),
+        appScope: z.enum(['all', 'farmer', 'agronomist', 'warehouse']).optional(),
+      })
+      .parse(request.body ?? {});
+    const result = await translationDictionaryService.publishPack(body);
+    await logAdminMutation({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'update',
+      resource: 'i18n_pack_meta',
+      resourceId: 'bulk',
+      details: result,
+    });
+    return reply.send({ ok: true, ...result });
   });
 }

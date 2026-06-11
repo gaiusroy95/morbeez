@@ -1,31 +1,57 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { formatDate, tokens, type AgronomistTaskItem } from '@morbeez/shared';
+import { formatDate, t, tokens, type AgronomistTaskItem } from '@morbeez/shared';
 import { AlertBox, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
 import { useAgronomistQueue } from '@/context/AgronomistQueueContext';
+import { useLocale } from '@/context/LocaleContext';
 
-const FILTERS = [
-  { id: 'all', label: 'All' },
-  { id: 'visit', label: 'Visits' },
-  { id: 'follow_up', label: 'Follow-ups' },
-  { id: 'callback', label: 'Callbacks' },
-  { id: 'escalation', label: 'Escalations' },
-  { id: 'ai_review', label: 'AI review' },
-  { id: 'finding_review', label: 'Findings' },
+const FILTER_IDS = [
+  'all',
+  'visit',
+  'follow_up',
+  'callback',
+  'escalation',
+  'ai_review',
+  'finding_review',
 ] as const;
 
-type FilterId = (typeof FILTERS)[number]['id'];
+type FilterId = (typeof FILTER_IDS)[number];
+
+function filterLabel(id: FilterId, locale: ReturnType<typeof useLocale>['locale']) {
+  switch (id) {
+    case 'all':
+      return t('filterAll', locale);
+    case 'visit':
+      return t('filterVisits', locale);
+    case 'follow_up':
+      return t('filterFollowUp', locale);
+    case 'callback':
+      return t('callbacks', locale);
+    case 'escalation':
+      return t('filterEscalations', locale);
+    case 'ai_review':
+      return t('aiReview', locale);
+    case 'finding_review':
+      return t('findingReview', locale);
+  }
+}
 
 export default function TasksScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const params = useLocalSearchParams<{ filter?: string }>();
-  const initialFilter = (FILTERS.find((f) => f.id === params.filter)?.id ?? 'all') as FilterId;
+  const initialFilter = (FILTER_IDS.find((f) => f === params.filter) ?? 'all') as FilterId;
   const [filter, setFilter] = useState<FilterId>(initialFilter);
   const { tasks, loading, refreshing, error, refresh } = useAgronomistQueue();
 
+  const filters = useMemo(
+    () => FILTER_IDS.map((id) => ({ id, label: filterLabel(id, locale) })),
+    [locale]
+  );
+
   useEffect(() => {
-    const next = FILTERS.find((f) => f.id === params.filter)?.id;
+    const next = FILTER_IDS.find((f) => f === params.filter);
     if (next) setFilter(next);
   }, [params.filter]);
 
@@ -35,7 +61,7 @@ export default function TasksScreen() {
 
   const filtered = useMemo(() => {
     if (filter === 'all') return tasks;
-    return tasks.filter((t) => t.kind === filter);
+    return tasks.filter((task) => task.kind === filter);
   }, [tasks, filter]);
 
   const openTask = useCallback(
@@ -59,16 +85,16 @@ export default function TasksScreen() {
     [router]
   );
 
-  if (loading && tasks.length === 0) return <Loading label="Loading tasks…" />;
+  if (loading && tasks.length === 0) return <Loading label={t('loadingTasks', locale)} />;
 
   return (
     <View style={styles.root}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
-        <HubTabs tabs={[...FILTERS]} active={filter} onChange={setFilter} />
+        <HubTabs tabs={filters} active={filter} onChange={setFilter} />
       </ScrollView>
       <FlatList
         data={filtered}
-        keyExtractor={(t) => t.id}
+        keyExtractor={(task) => task.id}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -85,7 +111,7 @@ export default function TasksScreen() {
             onPress={() => openTask(item)}
           />
         )}
-        ListEmptyComponent={<EmptyState>No tasks in this filter.</EmptyState>}
+        ListEmptyComponent={<EmptyState>{t('noTasksInFilter', locale)}</EmptyState>}
       />
     </View>
   );

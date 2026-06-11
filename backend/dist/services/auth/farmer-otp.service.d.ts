@@ -21,6 +21,7 @@ export declare const farmerOtpService: {
             deliveryPincode: {} | null;
             newsletterSubscribed: unknown;
             hasPassword: boolean;
+            preferredLanguage: string;
             createdAt: unknown;
         };
     }>;

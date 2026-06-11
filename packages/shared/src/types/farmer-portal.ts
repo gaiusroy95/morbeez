@@ -147,4 +147,5 @@ export type FarmerProfile = {
   district?: string | null;
   village?: string | null;
   hasPassword?: boolean;
+  preferredLanguage?: string | null;
 };

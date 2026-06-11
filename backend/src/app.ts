@@ -21,6 +21,7 @@ import { shopifyProxyRoutes } from './routes/proxy/shopify-proxy.routes.js';
 import { advisoryRoutes } from './routes/api/advisory.routes.js';
 import { authRoutes } from './routes/api/auth.routes.js';
 import { farmerPortalRoutes } from './routes/api/farmer-portal.routes.js';
+import { i18nRoutes } from './routes/api/i18n.routes.js';
 import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
 import { storeRoutes } from './routes/api/store.routes.js';
@@ -112,6 +113,7 @@ export async function buildApp() {
   await app.register(whatsappWebhookRoutes);
   await app.register(authRoutes);
   await app.register(farmerPortalRoutes);
+  await app.register(i18nRoutes);
   await app.register(storeRoutes);
   await app.register(checkoutRoutes);
   await app.register(quotesRoutes);

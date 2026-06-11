@@ -31,6 +31,7 @@ export declare const farmerAuthService: {
             deliveryPincode: {} | null;
             newsletterSubscribed: unknown;
             hasPassword: boolean;
+            preferredLanguage: string;
             createdAt: unknown;
         };
     }>;
@@ -51,6 +52,7 @@ export declare const farmerAuthService: {
             deliveryPincode: {} | null;
             newsletterSubscribed: unknown;
             hasPassword: boolean;
+            preferredLanguage: string;
             createdAt: unknown;
         };
     }>;
@@ -69,6 +71,7 @@ export declare const farmerAuthService: {
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
         hasPassword: boolean;
+        preferredLanguage: string;
         createdAt: unknown;
     }>;
 };

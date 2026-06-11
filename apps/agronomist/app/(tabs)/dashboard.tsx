@@ -1,29 +1,31 @@
 import { useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { tokens } from '@morbeez/shared';
+import { t, tokens } from '@morbeez/shared';
 import { AlertBox, Loading, QuickActionGrid, StatCard } from '@morbeez/ui-native';
 import { useAgronomistDashboard } from '@/context/AgronomistDashboardContext';
+import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { admin } = useStaffAuth();
+  const { locale } = useLocale();
   const { dashboard, loading, refreshing, error, refresh } = useAgronomistDashboard();
 
   const quickActions = useMemo(
     () => [
-      { id: 'visit', label: 'Start visit', onPress: () => router.push('/(tabs)/visits') },
-      { id: 'farmers', label: 'Find farmer', onPress: () => router.push('/(tabs)/farmers') },
-      { id: 'routes', label: 'Route planner', onPress: () => router.push('/route') },
-      { id: 'map', label: 'Farmer map', onPress: () => router.push('/map') },
-      { id: 'tasks', label: 'Task hub', onPress: () => router.push('/(tabs)/tasks') },
-      { id: 'queue', label: 'Finding queue', onPress: () => router.push('/(tabs)/tasks') },
+      { id: 'visit', label: t('startVisit', locale), onPress: () => router.push('/(tabs)/visits') },
+      { id: 'farmers', label: t('findFarmer', locale), onPress: () => router.push('/(tabs)/farmers') },
+      { id: 'routes', label: t('routePlanner', locale), onPress: () => router.push('/route') },
+      { id: 'map', label: t('farmerMap', locale), onPress: () => router.push('/map') },
+      { id: 'tasks', label: t('taskHub', locale), onPress: () => router.push('/(tabs)/tasks') },
+      { id: 'queue', label: t('findingQueue', locale), onPress: () => router.push('/(tabs)/tasks') },
     ],
-    [router]
+    [router, locale]
   );
 
-  if (loading && !dashboard) return <Loading label="Loading dashboard…" />;
+  if (loading && !dashboard) return <Loading label={t('loadingDashboard', locale)} />;
 
   return (
     <ScrollView
@@ -34,51 +36,54 @@ export default function DashboardScreen() {
       }
     >
       {error ? <AlertBox>{error}</AlertBox> : null}
-      <Text style={styles.greeting}>Hello{admin?.fullName ? `, ${admin.fullName}` : ''}</Text>
-      <Text style={styles.subtitle}>Today&apos;s overview</Text>
+      <Text style={styles.greeting}>
+        {t('hello', locale)}
+        {admin?.fullName ? `, ${admin.fullName}` : ''}
+      </Text>
+      <Text style={styles.subtitle}>{t('todaysOverview', locale)}</Text>
 
       <View style={styles.statsGrid}>
         <StatCard
-          label="Visits today"
+          label={t('visitsToday', locale)}
           value={dashboard?.todaysVisits ?? 0}
           onPress={() => router.push('/(tabs)/visits')}
         />
         <StatCard
-          label="Routes"
+          label={t('routesToday', locale)}
           value={dashboard?.routesToday ?? 0}
           onPress={() => router.push('/route')}
         />
         <StatCard
-          label="Follow-ups"
+          label={t('followUp', locale)}
           value={dashboard?.pendingFollowUps ?? 0}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { filter: 'follow_up' } })}
         />
         <StatCard
-          label="Callbacks"
+          label={t('callbacks', locale)}
           value={dashboard?.pendingCallbacks ?? 0}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { filter: 'callback' } })}
         />
         <StatCard
-          label="Escalations"
+          label={t('escalations', locale)}
           value={dashboard?.openEscalations ?? 0}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { filter: 'escalation' } })}
         />
         <StatCard
-          label="AI cases"
+          label={t('aiCases', locale)}
           value={dashboard?.aiReviewCases ?? 0}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { filter: 'ai_review' } })}
         />
         <StatCard
-          label="Findings"
+          label={t('findings', locale)}
           value={dashboard?.findingReviewQueue ?? 0}
           onPress={() => router.push({ pathname: '/(tabs)/tasks', params: { filter: 'finding_review' } })}
         />
-        <StatCard label="Soil reports" value={dashboard?.newSoilReports ?? 0} />
+        <StatCard label={t('soilReports', locale)} value={dashboard?.newSoilReports ?? 0} />
       </View>
 
       {(dashboard?.focusFarmers?.length ?? 0) > 0 ? (
         <View style={styles.focusSection}>
-          <Text style={styles.sectionTitle}>Focus farmers</Text>
+          <Text style={styles.sectionTitle}>{t('focusFarmers', locale)}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.focusRow}>
             {dashboard!.focusFarmers.map((f) => (
               <Pressable
@@ -99,7 +104,7 @@ export default function DashboardScreen() {
         </View>
       ) : null}
 
-      <Text style={styles.sectionTitle}>Quick actions</Text>
+      <Text style={styles.sectionTitle}>{t('quickActions', locale)}</Text>
       <QuickActionGrid actions={quickActions} />
     </ScrollView>
   );

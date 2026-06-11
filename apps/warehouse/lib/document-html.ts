@@ -1,3 +1,5 @@
+import { buildTaxInvoiceHtml, TAX_INVOICE_CSS, type TaxInvoiceRenderOptions } from '@morbeez/shared';
+
 export type PrintDocType =
   | 'picking_slip'
   | 'packing_slip'
@@ -46,6 +48,7 @@ const BASE_CSS = `
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .label-box { border: 2px solid #000; padding: 12px; max-width: 400px; }
   .qr { font-size: 18px; font-weight: 700; letter-spacing: 1px; word-break: break-all; }
+  ${TAX_INVOICE_CSS}
 `;
 
 function pickingSlipHtml(doc: Record<string, unknown>): string {
@@ -94,34 +97,15 @@ function courierLabelHtml(doc: Record<string, unknown>): string {
     </div>`;
 }
 
-function taxInvoiceHtml(doc: Record<string, unknown>, company: PrintPayload['company']): string {
-  const lines = (doc.lines as Array<Record<string, unknown>>) ?? [];
-  const rows = lines
-    .map(
-      (l, i) =>
-        `<tr><td>${i + 1}</td><td>${esc(l.description)}<br/><span class="muted">${esc(l.sku)}</span></td><td>${esc(l.hsnCode)}</td><td>${esc(l.qty)}</td><td>${formatInr(l.unitPrice)}</td><td>${formatInr(l.lineTotal ?? l.unitPrice)}</td></tr>`
-    )
-    .join('');
-  return `
-    <div class="header">
-      <div><h1>${esc(company.companyName)}</h1><p class="muted">${esc(company.formattedAddress)}</p>${company.gstin ? `<p>GSTIN ${esc(company.gstin)}</p>` : ''}</div>
-      <div><h2>TAX INVOICE</h2><p># ${esc(doc.invoiceNumber)}</p><p>Date: ${esc(doc.invoiceDate)}</p></div>
-    </div>
-    <p><strong>Bill to:</strong> ${esc(doc.customerName)}</p>
-    <table><thead><tr><th>#</th><th>Item</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table>
-    <p><strong>Total:</strong> ${formatInr(doc.total)}</p>
-    <p class="muted">${esc(doc.totalInWords)}</p>`;
-}
-
 function returnInspectionHtml(doc: Record<string, unknown>): string {
   return `<p><strong>Return:</strong> ${esc(doc.returnNumber ?? doc.id)}</p><p>Status: ${esc(doc.status)}</p><p>${esc(doc.notes)}</p>`;
 }
 
-export function buildDocumentHtml(payload: PrintPayload): string {
+export function buildDocumentHtml(payload: PrintPayload, options?: TaxInvoiceRenderOptions): string {
   const { company, document: doc, type } = payload;
   let body = '';
   if (type === 'tax_invoice') {
-    body = taxInvoiceHtml(doc, company);
+    body = buildTaxInvoiceHtml(doc, company, options);
   } else if (type === 'picking_slip') {
     body = pickingSlipHtml(doc);
   } else if (type === 'packing_slip') {

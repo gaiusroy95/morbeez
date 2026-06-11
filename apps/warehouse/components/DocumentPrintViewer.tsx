@@ -6,6 +6,7 @@ import * as Sharing from 'expo-sharing';
 import { warehouseClient } from '@morbeez/shared';
 import { AlertBox, Btn } from '@morbeez/ui-native';
 import { buildDocumentHtml, type PrintDocType } from '@/lib/document-html';
+import { INVOICE_LOGO_URI } from '@/lib/invoice-logo';
 
 type Props = {
   docType: PrintDocType;
@@ -23,7 +24,11 @@ export function DocumentPrintViewer({ docType, entityId }: Props) {
     setLoading(true);
     try {
       const data = await warehouseClient.fetchDocument(docType, entityId);
-      setHtml(buildDocumentHtml(data));
+      setHtml(
+        buildDocumentHtml(data, {
+          fallbackLogoUrl: INVOICE_LOGO_URI,
+        })
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Document not found');
     } finally {

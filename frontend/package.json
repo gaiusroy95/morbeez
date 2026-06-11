@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@morbeez/shared": "file:../packages/shared",
     "@supabase/supabase-js": "^2.106.2",
     "@tailwindcss/postcss": "^4.3.0",
     "@vitejs/plugin-react": "^6.0.1",
