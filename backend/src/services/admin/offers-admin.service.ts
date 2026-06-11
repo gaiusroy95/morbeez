@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { shopifyCampaignsService } from '../shopify/shopify-campaigns.service.js';
 
 export type OfferTab = 'all' | 'active' | 'upcoming' | 'expired';
 
@@ -201,6 +202,14 @@ export const offersAdminService = {
       .select('*')
       .single();
     throwIfSupabaseError(error, 'Could not create coupon');
-    return mapCoupon(data as CouponRow);
+    const coupon = mapCoupon(data as CouponRow);
+    void shopifyCampaignsService.syncCoupon({
+      code: coupon.code,
+      discountLabel: coupon.discount,
+      minOrderAmount: coupon.minOrder,
+      usageLimit: input.usageLimit,
+      validUntil: input.validUntil,
+    });
+    return coupon;
   },
 };

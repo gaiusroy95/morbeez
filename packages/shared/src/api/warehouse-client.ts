@@ -24,14 +24,17 @@ import type {
 export {
   buildOrderTimeline,
   filterDispatchQueue,
+  filterHandedOverToday,
   filterLrPending,
   filterPackQueue,
   filterPackQueueByTab,
   filterPickQueue,
+  formatCompletedTime,
   isPickingQueueOrder,
   isWarehouseManagerRole,
   queueFilterBucket,
   warehouseModulesForRole,
+  type DispatchQueueTab,
   type PackQueueTab,
   type PickQueueTab,
 } from './warehouse-queue';
@@ -39,6 +42,12 @@ export {
 const WMS = `${STAFF_API_V1}/os/warehouse`;
 const WAREHOUSE_STATS_TTL_MS = 30_000;
 const WAREHOUSE_QUEUE_TTL_MS = 45_000;
+const WAREHOUSE_COMPLETED_TTL_MS = 45_000;
+
+export type WarehouseCompletedToday = {
+  packedToday: QueueOrder[];
+  handedOverToday: QueueOrder[];
+};
 
 export const warehouseClient = {
   async getStats(opts?: { force?: boolean }): Promise<WarehouseStats> {
@@ -68,6 +77,28 @@ export const warehouseClient = {
           `${WMS}/fulfillment/queue${q ? `?${q}` : ''}`
         );
         return r.queue ?? [];
+      },
+      { force }
+    );
+  },
+
+  async getCompletedToday(opts?: { limit?: number; force?: boolean }): Promise<WarehouseCompletedToday> {
+    const { force, limit } = opts ?? {};
+    const cacheKey = `warehouse-completed-today:${limit ?? 50}`;
+    return fetchWithCache(
+      cacheKey,
+      WAREHOUSE_COMPLETED_TTL_MS,
+      async () => {
+        const params = new URLSearchParams();
+        if (limit) params.set('limit', String(limit));
+        const q = params.toString();
+        const r = await staffApi<{ ok: boolean } & WarehouseCompletedToday>(
+          `${WMS}/fulfillment/completed-today${q ? `?${q}` : ''}`
+        );
+        return {
+          packedToday: r.packedToday ?? [],
+          handedOverToday: r.handedOverToday ?? [],
+        };
       },
       { force }
     );
@@ -174,6 +205,13 @@ export const warehouseClient = {
     return staffApi(`${WMS}/fulfillment/orders/${orderId}/package/confirm`, {
       method: 'POST',
       body: JSON.stringify({ autoAwb }),
+    });
+  },
+
+  async packageSelectBox(orderId: string, boxId: string, boxCount?: number) {
+    return staffApi(`${WMS}/fulfillment/orders/${orderId}/package/select-box`, {
+      method: 'POST',
+      body: JSON.stringify({ boxId, ...(boxCount != null ? { boxCount } : {}) }),
     });
   },
 

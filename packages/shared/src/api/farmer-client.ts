@@ -219,6 +219,22 @@ export async function fetchPortalSoilReports(): Promise<PortalSoilReport[]> {
   return data.reports ?? [];
 }
 
+export async function createFarmerSoilReport(body: {
+  blockId: string;
+  reportedAt?: string;
+  macro?: Record<string, string>;
+  micro?: Record<string, string>;
+  remarks?: string;
+  imageData?: string;
+  mimeType?: string;
+}): Promise<{ id: string; blockId: string }> {
+  const data = await farmerApi<{ ok: boolean; report: { id: string; blockId: string } }>(
+    '/api/v1/farmer/portal/soil-reports',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return data.report;
+}
+
 export async function fetchPortalRoi(): Promise<PortalRoi> {
   const data = await farmerApi<{ ok: boolean } & PortalRoi>('/api/v1/farmer/portal/roi');
   return data;
@@ -752,6 +768,19 @@ export async function fetchRoiActivityTypes(crop?: string): Promise<RoiActivityT
   }));
 }
 
+export async function createFarmerActivityType(body: {
+  activityName: string;
+  crop?: string;
+  category?: string;
+  icon?: string;
+}): Promise<RoiActivityType> {
+  const data = await farmerApi<{ ok: boolean; type: RoiActivityType }>(
+    '/api/v1/farmer/portal/roi/activity-types',
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return data.type;
+}
+
 function roiQuery(filter?: RoiFilterState): string {
   const params = new URLSearchParams();
   if (filter?.crop) params.set('crop', filter.crop);
@@ -800,6 +829,7 @@ export async function fetchRoiTransactions(opts?: {
   type?: 'expense' | 'income';
   from?: string;
   to?: string;
+  categoryId?: string;
   page?: number;
   limit?: number;
 }): Promise<{ transactions: TransactionRow[]; pagination: { page: number; limit: number; total: number } }> {
@@ -810,6 +840,7 @@ export async function fetchRoiTransactions(opts?: {
   if (opts?.type) params.set('type', opts.type);
   if (opts?.from) params.set('from', opts.from);
   if (opts?.to) params.set('to', opts.to);
+  if (opts?.categoryId) params.set('categoryId', opts.categoryId);
   if (opts?.page) params.set('page', String(opts.page));
   if (opts?.limit) params.set('limit', String(opts.limit));
   const q = params.toString();

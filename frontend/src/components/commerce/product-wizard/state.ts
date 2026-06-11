@@ -22,7 +22,6 @@ export function defaultWizardState(): WizardFormState {
       category: '',
       subCategory: '',
       formulationType: '',
-      technicalContent: '',
       casNumber: '',
       hsnCode: '',
       productType: '',
@@ -96,13 +95,18 @@ export function mergeIntelligence(
       ...state.basic,
       brandName: String(basic.brandName ?? state.basic.brandName),
       tradeName: String(basic.tradeName ?? ag.tradeName ?? state.basic.tradeName),
-      technicalName: String(basic.technicalName ?? ag.technicalName ?? state.basic.technicalName),
+      technicalName: String(
+        basic.technicalName ??
+          ag.technicalName ??
+          basic.technicalContent ??
+          ag.technicalContent ??
+          state.basic.technicalName
+      ),
       category: String(basic.category ?? ag.category ?? state.basic.category),
       subCategory: String(basic.subCategory ?? ag.subCategory ?? state.basic.subCategory),
       formulationType: String(
         basic.formulationType ?? ag.productType ?? state.basic.formulationType
       ),
-      technicalContent: String(basic.technicalContent ?? state.basic.technicalContent),
       casNumber: String(basic.casNumber ?? state.basic.casNumber),
       hsnCode: String(basic.hsnCode ?? state.basic.hsnCode),
       productType: String(basic.productType ?? state.basic.productType),

@@ -6,6 +6,7 @@ export type WarehouseStats = {
   pendingOrders?: number;
   readyToPack?: number;
   packedToday?: number;
+  handedOverToday?: number;
   courierPending?: number;
   failedAwb?: number;
   picking?: number;
@@ -102,6 +103,8 @@ export type QueueOrder = {
   isCod?: boolean;
   totalAmount?: number;
   createdAt?: string;
+  packedAt?: string | null;
+  shippedAt?: string | null;
   assignedEmployee?: string | null;
 };
 
@@ -201,6 +204,7 @@ export type WarehouseOrderDetail = {
     suggestedBoxCode?: string;
     suggestedBoxName?: string;
     packagingCategoryName?: string;
+    boxCount?: number;
     lengthCm?: number;
     breadthCm?: number;
     heightCm?: number;
@@ -214,10 +218,10 @@ export type WarehouseOrderDetail = {
 
 export type PackForm = {
   boxId?: string;
-  lengthCm: number;
-  breadthCm: number;
-  heightCm: number;
-  weightKg: number;
+  lengthCm?: number;
+  breadthCm?: number;
+  heightCm?: number;
+  weightKg?: number;
   packedBy?: string;
   freeSample?: boolean;
 };
@@ -233,10 +237,11 @@ export type ShippingBox = {
   id: string;
   code: string;
   name: string;
-  length_cm: number;
-  breadth_cm: number;
-  height_cm: number;
-  max_weight_kg?: number;
+  lengthCm: number;
+  breadthCm: number;
+  heightCm: number;
+  maxWeightKg?: number;
+  tareWeightKg?: number;
 };
 
 export type WarehouseMaster = {

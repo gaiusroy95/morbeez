@@ -57,6 +57,11 @@ function activeFulfillmentOrdersQuery() {
     .neq('oms_status', 'cancelled');
 }
 
+function startOfTodayIstIso(): string {
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+  return `${dateKey}T00:00:00+05:30`;
+}
+
 async function repairPendingCommerceOrders(limit = 100) {
   const { data, error } = await supabase
     .from('commerce_orders')
@@ -90,7 +95,7 @@ async function repairPendingCommerceOrders(limit = 100) {
 }
 
 const FULFILLMENT_QUEUE_SELECT = `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
-         shipping_method, tracking_status,
+         shipping_method, tracking_status, packed_at, shipped_at,
          fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
          assigned_employee_name, assigned_batch_id,
          pick_lists(id, status, pick_list_lines(id, qty_required)),
@@ -169,6 +174,8 @@ function mapFulfillmentQueueRow(
     isCod: row.is_cod,
     totalAmount: row.total_amount,
     createdAt: row.created_at,
+    packedAt: (row.packed_at as string | null) ?? null,
+    shippedAt: (row.shipped_at as string | null) ?? null,
     assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
   };
 }
@@ -177,15 +184,26 @@ export const fulfillmentService = {
   repairPendingCommerceOrders,
 
   async getStats() {
-    const [pending, picking, packing, packed, lrPending, readyDispatch, completed] = await Promise.all([
-      activeFulfillmentOrdersQuery().in('oms_status', ['assigned', 'confirmed', 'awb_generated']),
-      activeFulfillmentOrdersQuery().eq('oms_status', 'picking'),
-      activeFulfillmentOrdersQuery().in('oms_status', ['packing', 'packaging_estimated', 'ready_for_courier']),
-      activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'awaiting_label_verification']),
-      activeFulfillmentOrdersQuery().eq('oms_status', 'awaiting_tracking'),
-      activeFulfillmentOrdersQuery().eq('oms_status', 'ready_dispatch'),
-      activeFulfillmentOrdersQuery().in('oms_status', ['shipped', 'delivered', 'completed']),
-    ]);
+    const startIst = startOfTodayIstIso();
+    const todayBase = () =>
+      supabase
+        .from('commerce_orders')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null)
+        .neq('oms_status', 'cancelled');
+
+    const [pending, picking, packing, packed, lrPending, readyDispatch, completed, packedToday, handedOverToday] =
+      await Promise.all([
+        activeFulfillmentOrdersQuery().in('oms_status', ['assigned', 'confirmed', 'awb_generated']),
+        activeFulfillmentOrdersQuery().eq('oms_status', 'picking'),
+        activeFulfillmentOrdersQuery().in('oms_status', ['packing', 'packaging_estimated', 'ready_for_courier']),
+        activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'awaiting_label_verification']),
+        activeFulfillmentOrdersQuery().eq('oms_status', 'awaiting_tracking'),
+        activeFulfillmentOrdersQuery().eq('oms_status', 'ready_dispatch'),
+        activeFulfillmentOrdersQuery().in('oms_status', ['shipped', 'delivered', 'completed']),
+        todayBase().gte('packed_at', startIst),
+        todayBase().gte('shipped_at', startIst),
+      ]);
 
     const pendingCount = pending.count ?? 0;
     const pickingCount = picking.count ?? 0;
@@ -206,9 +224,39 @@ export const fulfillmentService = {
       readyToPack: packedCount,
       readyDispatch: readyCount,
       awaitingTracking: lrCount,
-      packedToday: packedCount,
+      packedToday: packedToday.count ?? 0,
+      handedOverToday: handedOverToday.count ?? 0,
       courierPending: lrCount,
       failedAwb: 0,
+    };
+  },
+
+  async getCompletedToday(opts?: { limit?: number }) {
+    const limit = opts?.limit ?? 50;
+    const startIst = startOfTodayIstIso();
+    const wallet = await shiprocketService.getWalletBalance().catch(() => null);
+
+    const [packedResult, handedOverResult] = await Promise.all([
+      fulfillmentQueueBaseQuery()
+        .gte('packed_at', startIst)
+        .order('packed_at', { ascending: false })
+        .limit(limit),
+      fulfillmentQueueBaseQuery()
+        .gte('shipped_at', startIst)
+        .in('oms_status', ['shipped', 'delivered', 'completed'])
+        .order('shipped_at', { ascending: false })
+        .limit(limit),
+    ]);
+    throwIfSupabaseError(packedResult.error, 'Packed today queue');
+    throwIfSupabaseError(handedOverResult.error, 'Handed over today queue');
+
+    return {
+      packedToday: (packedResult.data ?? []).map((row) =>
+        mapFulfillmentQueueRow(row as Record<string, unknown>, wallet)
+      ),
+      handedOverToday: (handedOverResult.data ?? []).map((row) =>
+        mapFulfillmentQueueRow(row as Record<string, unknown>, wallet)
+      ),
     };
   },
 
@@ -499,6 +547,7 @@ export const fulfillmentService = {
             packageWeightKg: packageEstimate.packageWeightKg,
             volumetricWeightKg: packageEstimate.volumetricWeightKg,
             billingWeightKg: packageEstimate.billingWeightKg,
+            boxCount: packageEstimate.boxCount,
             overridden: Boolean(order.package_overridden),
             confirmedAt: order.package_confirmed_at ?? null,
             courierPayload: packageEstimate.courierPayload,
@@ -545,6 +594,7 @@ export const fulfillmentService = {
         entityId: commerceOrderId,
         details: {
           box: estimate.suggestedBox.code,
+          boxCount: estimate.boxCount,
           weight: estimate.packageWeightKg,
           billingWeight: estimate.billingWeightKg,
         },
@@ -590,6 +640,10 @@ export const fulfillmentService = {
     }
 
     return estimate;
+  },
+
+  async selectPackageBox(commerceOrderId: string, boxId: string, boxCount?: number) {
+    return packageRuleEngineService.recalculateWithSelectedBox(commerceOrderId, boxId, boxCount);
   },
 
   async listShippingBoxes() {

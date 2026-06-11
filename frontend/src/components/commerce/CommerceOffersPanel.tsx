@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
 import { Alert, DataTable, EmptyState, Loading, StaticSelect, TableWrap, inputClass } from '../ui';
-import { CommerceRegistryBanner } from './CommerceRegistryBanner';
+import { CommerceShopifySyncBanner } from './CommerceShopifySyncBanner';
 import { CommercePromoHeader } from './CommercePromoHeader';
 import { CommercePromoTabs } from './CommercePromoTabs';
 import { CommerceEditIcon } from './CommerceEditIcon';
@@ -171,7 +171,7 @@ export function CommerceOffersPanel({ canWrite }: Props) {
 
   return (
     <div className="commerce-promo route-offers offers-page">
-      <CommerceRegistryBanner />
+      <CommerceShopifySyncBanner label="Offers & coupons" />
       <div className="commerce-promo__registry">
         {error ? <Alert tone="error">{error}</Alert> : null}
       </div>

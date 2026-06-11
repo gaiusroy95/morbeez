@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
+import { CommerceShopifySyncBanner } from './CommerceShopifySyncBanner';
 import {
   Alert,
   Btn,
@@ -194,10 +195,7 @@ export function CommerceBannersPanel({ canWrite }: Props) {
 
   return (
     <div className="commerce-banners route-offers">
-      <Alert tone="info" className="commerce-registry-banner">
-        Banners are stored in Morbeez for scheduling and copy. The Shopify theme still uses its own
-        sections until you wire a sync (metaobjects or theme API).
-      </Alert>
+      <CommerceShopifySyncBanner label="Banners" />
       {error ? <Alert tone="error">{error}</Alert> : null}
       {loading ? <Loading /> : null}
 

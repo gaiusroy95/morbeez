@@ -14,6 +14,7 @@ export type SoilTypeOption = (typeof SOIL_TYPE_OPTIONS)[number];
 export type SoilLabMetrics = {
   version: 2;
   soilType?: string;
+  remarks?: string;
   macro: Record<string, SoilMetricValue>;
   micro: Record<string, SoilMetricValue>;
 };
@@ -35,6 +36,7 @@ export const SOIL_MACRO_FIELDS: SoilFieldDef[] = [
   { key: 'calcium', label: 'Calcium (Ca)', unit: 'ppm', group: 'macro' },
   { key: 'magnesium', label: 'Magnesium (Mg)', unit: 'ppm', group: 'macro' },
   { key: 'sulfur', label: 'Sulfur (S)', unit: 'ppm', group: 'macro' },
+  { key: 'sodium', label: 'Sodium (Na)', unit: 'meq/100g', group: 'macro' },
 ];
 
 export const SOIL_MICRO_FIELDS: SoilFieldDef[] = [
@@ -43,6 +45,7 @@ export const SOIL_MICRO_FIELDS: SoilFieldDef[] = [
   { key: 'iron', label: 'Iron (Fe)', unit: 'ppm', group: 'micro' },
   { key: 'manganese', label: 'Manganese (Mn)', unit: 'ppm', group: 'micro' },
   { key: 'copper', label: 'Copper (Cu)', unit: 'ppm', group: 'micro' },
+  { key: 'molybdenum', label: 'Molybdenum (Mo)', unit: 'ppm', group: 'micro' },
 ];
 
 export const ALL_SOIL_FIELDS = [...SOIL_MACRO_FIELDS, ...SOIL_MICRO_FIELDS];
@@ -63,6 +66,9 @@ export function normalizeSoilMetrics(raw: unknown): SoilLabMetrics {
   if (o.version === 2 && o.macro && o.micro) {
     if (typeof o.soilType === 'string' && o.soilType.trim()) {
       base.soilType = o.soilType.trim();
+    }
+    if (typeof o.remarks === 'string' && o.remarks.trim()) {
+      base.remarks = o.remarks.trim();
     }
     const macro = o.macro as Record<string, SoilMetricValue>;
     const micro = o.micro as Record<string, SoilMetricValue>;
@@ -97,11 +103,14 @@ export function normalizeSoilMetrics(raw: unknown): SoilLabMetrics {
 export function buildMetricsFromForm(
   macro: Record<string, string>,
   micro: Record<string, string>,
-  soilType?: string
+  soilType?: string,
+  remarks?: string
 ): SoilLabMetrics {
   const metrics = emptySoilLabMetrics();
   const st = soilType?.trim();
   if (st) metrics.soilType = st;
+  const rm = remarks?.trim();
+  if (rm) metrics.remarks = rm;
   for (const f of SOIL_MACRO_FIELDS) {
     const v = macro[f.key]?.trim();
     if (v) metrics.macro[f.key] = { value: v, unit: f.unit };

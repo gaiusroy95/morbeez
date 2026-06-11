@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
 import { Alert, Btn, DataTable, EmptyState, Loading, TableWrap, inputClass } from '../ui';
-import { CommerceRegistryBanner } from './CommerceRegistryBanner';
+import { CommerceShopifySyncBanner } from './CommerceShopifySyncBanner';
 import { CommercePromoHeader } from './CommercePromoHeader';
 import { FlashSaleStatusCell } from './FlashSaleStatusCell';
 type FlashSale = {
@@ -108,7 +108,7 @@ export function CommerceFlashSalesPanel({ canWrite }: Props) {
 
   return (
     <div className="commerce-promo route-flash-sales">
-      <CommerceRegistryBanner />
+      <CommerceShopifySyncBanner label="Flash sales" />
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       <CommercePromoHeader

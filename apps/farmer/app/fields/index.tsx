@@ -11,6 +11,8 @@ export default function BlocksListScreen() {
   const { locale } = useLocale();
   const [blocks, setBlocks] = useState<FieldBlock[]>([]);
   const [search, setSearch] = useState('');
+  const [cropFilter, setCropFilter] = useState<string | null>(null);
+  const [showCropFilter, setShowCropFilter] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,7 +33,10 @@ export default function BlocksListScreen() {
     void load();
   }, [load]);
 
+  const crops = [...new Set(blocks.map((b) => b.crop).filter(Boolean))];
+
   const filtered = blocks.filter((b) => {
+    if (cropFilter && b.crop !== cropFilter) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
     return `${b.name} ${b.crop}`.toLowerCase().includes(q);
@@ -57,13 +62,37 @@ export default function BlocksListScreen() {
             </View>
             <Btn label={`+ ${t('addBlock', locale)}`} onPress={() => router.push('/fields/form')} />
           </View>
-          <TextInput
-            style={styles.search}
-            value={search}
-            onChangeText={setSearch}
-            placeholder={t('searchBlocks', locale)}
-            placeholderTextColor={tokens.textMuted}
-          />
+          <View style={styles.searchRow}>
+            <TextInput
+              style={styles.search}
+              value={search}
+              onChangeText={setSearch}
+              placeholder={t('searchBlocks', locale)}
+              placeholderTextColor={tokens.textMuted}
+            />
+            <Pressable
+              style={[styles.filterBtn, (cropFilter || showCropFilter) && styles.filterBtnActive]}
+              onPress={() => setShowCropFilter((v) => !v)}
+            >
+              <Text style={[styles.filterBtnText, (cropFilter || showCropFilter) && styles.filterBtnTextActive]}>⏷</Text>
+            </Pressable>
+          </View>
+          {showCropFilter ? (
+            <View style={styles.filterChips}>
+              <Pressable style={styles.filterChip} onPress={() => { setCropFilter(null); setShowCropFilter(false); }}>
+                <Text style={styles.filterChipText}>{t('filterAll', locale)}</Text>
+              </Pressable>
+              {crops.map((c) => (
+                <Pressable
+                  key={c}
+                  style={[styles.filterChip, cropFilter === c && styles.filterChipActive]}
+                  onPress={() => setCropFilter(c)}
+                >
+                  <Text style={[styles.filterChipText, cropFilter === c && styles.filterChipTextActive]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
         </View>
       }
       ListFooterComponent={
@@ -98,7 +127,9 @@ const styles = StyleSheet.create({
   titleCol: { flex: 1 },
   title: { fontSize: 22, fontWeight: '800', color: tokens.text },
   subtitle: { fontSize: 13, color: tokens.textMuted, marginTop: 4 },
+  searchRow: { flexDirection: 'row', gap: 8, marginBottom: 8 },
   search: {
+    flex: 1,
     backgroundColor: tokens.card,
     borderWidth: 1,
     borderColor: tokens.border,
@@ -107,8 +138,31 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: tokens.text,
-    marginBottom: 12,
   },
+  filterBtn: {
+    width: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+  },
+  filterBtnActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  filterBtnText: { fontSize: 18, color: tokens.textMuted },
+  filterBtnTextActive: { color: tokens.green800 },
+  filterChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  filterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.border,
+  },
+  filterChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  filterChipText: { fontSize: 12, fontWeight: '600', color: tokens.text },
+  filterChipTextActive: { color: tokens.green800 },
   tipBox: {
     flexDirection: 'row',
     gap: 10,

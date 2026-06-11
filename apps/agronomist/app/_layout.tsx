@@ -1,8 +1,10 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { t, tokens } from '@morbeez/shared';
 import { MorbeezLogo } from '@morbeez/ui-native';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AgronomistDashboardProvider } from '@/context/AgronomistDashboardContext';
 import { AgronomistQueueProvider } from '@/context/AgronomistQueueContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
@@ -18,9 +20,11 @@ function BrandedHeaderTitle({ title }: { title: string }) {
 }
 
 function Gate({ children }: { children: React.ReactNode }) {
-  const { ready, authed } = useStaffAuth();
+  const { ready: authReady, authed } = useStaffAuth();
+  const { ready: localeReady } = useLocale();
   const segments = useSegments();
   const router = useRouter();
+  const ready = authReady && localeReady;
 
   useEffect(() => {
     if (!ready) return;
@@ -93,16 +97,20 @@ function RootStack() {
 
 export default function RootLayout() {
   return (
-    <LocaleProvider>
-      <StaffAuthProvider>
-        <AgronomistDashboardProvider>
-          <AgronomistQueueProvider>
-            <Gate>
-              <RootStack />
-            </Gate>
-          </AgronomistQueueProvider>
-        </AgronomistDashboardProvider>
-      </StaffAuthProvider>
-    </LocaleProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <LocaleProvider>
+          <StaffAuthProvider>
+            <AgronomistDashboardProvider>
+              <AgronomistQueueProvider>
+                <Gate>
+                  <RootStack />
+                </Gate>
+              </AgronomistQueueProvider>
+            </AgronomistDashboardProvider>
+          </StaffAuthProvider>
+        </LocaleProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

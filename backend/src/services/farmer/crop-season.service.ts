@@ -837,6 +837,7 @@ export const cropSeasonService = {
       type?: 'expense' | 'income';
       from?: string;
       to?: string;
+      categoryId?: string;
       page?: number;
       limit?: number;
     }
@@ -872,6 +873,7 @@ export const cropSeasonService = {
 
     if (opts.from) q = q.gte('entry_date', opts.from);
     if (opts.to) q = q.lte('entry_date', opts.to);
+    if (opts.categoryId) q = q.eq('category_id', opts.categoryId);
 
     const { data, error, count } = await q;
     throwIfSupabaseError(error, 'Could not load transactions');

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
 import { Alert, Btn, DataTable, EmptyState, Loading, TableWrap, inputClass } from '../ui';
-import { CommerceRegistryBanner } from './CommerceRegistryBanner';
+import { CommerceShopifySyncBanner } from './CommerceShopifySyncBanner';
 import { CommercePromoHeader } from './CommercePromoHeader';
 import { CommerceEditIcon } from './CommerceEditIcon';
 type Combo = {
@@ -125,7 +125,7 @@ export function CommerceCombosPanel({ canWrite }: Props) {
 
   return (
     <div className="commerce-promo route-combos">
-      <CommerceRegistryBanner />
+      <CommerceShopifySyncBanner label="Combos" />
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       <CommercePromoHeader

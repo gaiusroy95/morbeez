@@ -8,10 +8,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { warehouseClient, type QueueOrder, type WarehouseStats } from '@morbeez/shared';
+import {
+  warehouseClient,
+  type QueueOrder,
+  type WarehouseCompletedToday,
+  type WarehouseStats,
+} from '@morbeez/shared';
 
 type WarehouseQueueState = {
   queue: QueueOrder[];
+  completedToday: WarehouseCompletedToday;
   stats: WarehouseStats | null;
   queueLoading: boolean;
   statsLoading: boolean;
@@ -19,12 +25,16 @@ type WarehouseQueueState = {
   error: string;
   refreshQueue: (opts?: { repair?: boolean; force?: boolean }) => Promise<void>;
   refreshStats: (opts?: { force?: boolean }) => Promise<void>;
+  refreshCompletedToday: (opts?: { force?: boolean }) => Promise<void>;
 };
+
+const EMPTY_COMPLETED: WarehouseCompletedToday = { packedToday: [], handedOverToday: [] };
 
 const WarehouseQueueContext = createContext<WarehouseQueueState | null>(null);
 
 export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<QueueOrder[]>([]);
+  const [completedToday, setCompletedToday] = useState<WarehouseCompletedToday>(EMPTY_COMPLETED);
   const [stats, setStats] = useState<WarehouseStats | null>(null);
   const [queueLoading, setQueueLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -70,15 +80,26 @@ export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const refreshCompletedToday = useCallback(async (opts?: { force?: boolean }) => {
+    try {
+      const result = await warehouseClient.getCompletedToday({ limit: 50, force: opts?.force });
+      setCompletedToday(result);
+    } catch {
+      // Non-blocking — stats still show counts
+    }
+  }, []);
+
   useEffect(() => {
     void refreshQueue();
     void refreshStats();
+    void refreshCompletedToday();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
   }, []);
 
   const value = useMemo(
     () => ({
       queue,
+      completedToday,
       stats,
       queueLoading,
       statsLoading,
@@ -86,8 +107,20 @@ export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
       error,
       refreshQueue,
       refreshStats,
+      refreshCompletedToday,
     }),
-    [queue, stats, queueLoading, statsLoading, refreshing, error, refreshQueue, refreshStats]
+    [
+      queue,
+      completedToday,
+      stats,
+      queueLoading,
+      statsLoading,
+      refreshing,
+      error,
+      refreshQueue,
+      refreshStats,
+      refreshCompletedToday,
+    ]
   );
 
   return <WarehouseQueueContext.Provider value={value}>{children}</WarehouseQueueContext.Provider>;

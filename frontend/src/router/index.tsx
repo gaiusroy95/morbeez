@@ -14,6 +14,7 @@ import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { OpportunityDashboardPage } from '../pages/OpportunityDashboardPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
+import { AgronomistOperationsPage } from '../pages/AgronomistOperationsPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { AnalyticsHubPage } from '../pages/AnalyticsHubPage';
 import { CommerceHubPage } from '../pages/CommerceHubPage';
@@ -49,6 +50,11 @@ function OpportunityRoute() {
 }
 
 function AgronomistRoute() {
+  const { can } = useAuth();
+  return <AgronomistOperationsPage canWrite={can('agronomist', 'write')} />;
+}
+
+function AgronomistAiReviewRoute() {
   const { can } = useAuth();
   return <AgronomistHubPage canWrite={can('agronomist', 'write')} />;
 }
@@ -164,6 +170,14 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="agronomist">
                   <AgronomistRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistAiReview,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <AgronomistAiReviewRoute />
                 </ProtectedPage>
               ),
             },

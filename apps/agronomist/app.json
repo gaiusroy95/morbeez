@@ -4,7 +4,7 @@
     "slug": "morbeez-agronomist",
     "version": "1.0.0",
     "scheme": "morbeez-agronomist",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "plugins": [
       "expo-router"
     ],
@@ -14,11 +14,12 @@
     "android": {
       "package": "in.morbeez.agronomist",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1a4d32"
       }
     },
     "extra": {
+      "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
       "router": {},
       "eas": {
         "projectId": "228517c4-fa7e-41e1-82d7-bc59ec4ad992"

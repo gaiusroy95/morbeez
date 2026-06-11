@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,6 +8,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -21,7 +23,8 @@ import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
 
-const FOOTER_HEIGHT = 196;
+const FOOTER_BASE_HEIGHT = 168;
+const FOOTER_CONFIRM_EXTRA = 72;
 
 function StatBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -33,6 +36,9 @@ function StatBox({ label, value, accent }: { label: string; value: string; accen
 }
 
 export default function PickOrderScreen() {
+  const insets = useSafeAreaInsets();
+  const footerBottomPad =
+    Platform.OS === 'android' ? Math.max(insets.bottom, 28) : Math.max(insets.bottom, 12);
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const id = orderId;
   const router = useRouter();
@@ -216,6 +222,9 @@ export default function PickOrderScreen() {
   const canScan = Boolean(sessionId && canWrite && !busy && !currentRackComplete && !allRacksComplete);
   const canAdvance = Boolean(sessionId && canWrite && !busy && currentRackComplete && !allRacksComplete);
   const canPrint = Boolean(id && canWrite && !busy && allRacksComplete);
+  const hasManualCode = scanCode.trim().length > 0;
+  const footerHeight =
+    FOOTER_BASE_HEIGHT + footerBottomPad + (pickLookup ? FOOTER_CONFIRM_EXTRA : 0);
   const productTitle = focusLine ? ('productTitle' in focusLine ? focusLine.productTitle : '') : '';
   const qtyRequired = focusLine?.qtyRequired ?? 0;
   const qtyPicked = focusLine?.qtyPicked ?? 0;
@@ -226,7 +235,7 @@ export default function PickOrderScreen() {
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.content, { paddingBottom: FOOTER_HEIGHT + 16 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: footerHeight + 16 }]}
         keyboardShouldPersistTaps="handled"
       >
         {error ? <AlertBox>{error}</AlertBox> : null}
@@ -323,20 +332,10 @@ export default function PickOrderScreen() {
 
         {pickLookup ? (
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Confirm pick</Text>
+            <Text style={styles.confirmTitle}>Barcode matched</Text>
             <Text style={styles.productMeta}>
-              Picking {pickQty} of {pickLookup.remaining} remaining
+              {pickLookup.productTitle} — confirm quantity in the bar below
             </Text>
-            <TextInput
-              style={styles.qtyInput}
-              value={pickQty}
-              onChangeText={setPickQty}
-              keyboardType="numeric"
-              placeholder="Qty to pick"
-              placeholderTextColor={tokens.textMuted}
-            />
-            <Btn label={`Confirm pick (${pickQty})`} onPress={() => void confirmPick()} disabled={busy} />
-            <Btn label="Cancel" onPress={() => setPickLookup(null)} variant="secondary" />
           </View>
         ) : null}
 
@@ -414,67 +413,88 @@ export default function PickOrderScreen() {
             disabled={!canScan}
             hint="Point at product barcode"
           />
-          <View style={styles.footer}>
-            {allRacksComplete ? (
-              <Pressable
-                style={[styles.primaryFooterBtn, !canPrint ? styles.scanBtnDisabled : null]}
-                onPress={openPrintables}
-                disabled={!canPrint}
-              >
-                <Ionicons name="print-outline" size={22} color={tokens.card} />
-                <View style={styles.scanBtnTextWrap}>
-                  <Text style={styles.primaryFooterTitle}>OPEN PRINTABLES</Text>
-                  <Text style={styles.primaryFooterSub}>Labels, invoice & packing slip</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={tokens.card} />
-              </Pressable>
-            ) : currentRackComplete ? (
-              <Pressable
-                style={[styles.primaryFooterBtn, !canAdvance ? styles.scanBtnDisabled : null]}
-                onPress={() => void goNextRack()}
-                disabled={!canAdvance}
-              >
-                <Ionicons name="arrow-forward-circle" size={22} color={tokens.card} />
-                <View style={styles.scanBtnTextWrap}>
-                  <Text style={styles.primaryFooterTitle}>NEXT RACK</Text>
-                  <Text style={styles.primaryFooterSub}>
-                    {nextRack ? `Continue to ${nextRack}` : 'Advance to next rack'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={tokens.card} />
-              </Pressable>
-            ) : (
-              <Pressable
-                style={[styles.scanBtn, !canScan ? styles.scanBtnDisabled : null]}
-                onPress={() => setScannerOpen(true)}
-                disabled={!canScan}
-              >
-                <Ionicons name="barcode-outline" size={22} color={tokens.green700} />
-                <View style={styles.scanBtnTextWrap}>
-                  <Text style={styles.scanBtnTitle}>SCAN PRODUCT</Text>
-                  <Text style={styles.scanBtnSub}>Scan barcode to pick</Text>
-                </View>
-              </Pressable>
-            )}
-            {!currentRackComplete && !allRacksComplete ? (
+          <View style={[styles.footer, { paddingBottom: footerBottomPad }]}>
+            {pickLookup ? (
               <>
+                <Text style={styles.footerConfirmLabel} numberOfLines={2}>
+                  Pick {pickQty} of {pickLookup.remaining} remaining · {pickLookup.productTitle}
+                </Text>
                 <TextInput
-                  ref={wedgeRef}
-                  style={styles.wedgeInput}
-                  placeholder="Scan or enter barcode (BT wedge)"
+                  style={styles.qtyInput}
+                  value={pickQty}
+                  onChangeText={setPickQty}
+                  keyboardType="numeric"
+                  placeholder="Qty to pick"
                   placeholderTextColor={tokens.textMuted}
-                  value={scanCode}
-                  onChangeText={setScanCode}
-                  onSubmitEditing={() => void lookupBarcode()}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  editable={canScan}
-                  returnKeyType="done"
                 />
-                <View style={styles.hintBar}>
-                  <Ionicons name="checkmark-circle" size={18} color={tokens.green700} />
-                  <Text style={styles.hintBarText}>Scan the product barcode to pick</Text>
+                <Pressable
+                  style={[styles.primaryFooterBtn, busy ? styles.footerBtnDisabled : null]}
+                  onPress={() => void confirmPick()}
+                  disabled={busy}
+                >
+                  <Ionicons name="checkmark-circle" size={22} color={tokens.card} />
+                  <View style={styles.footerBtnTextWrap}>
+                    <Text style={styles.primaryFooterTitle}>CONFIRM PICK ({pickQty})</Text>
+                    <Text style={styles.primaryFooterSub}>Add picked quantity to this rack</Text>
+                  </View>
+                </Pressable>
+                <Pressable style={styles.cancelLink} onPress={() => setPickLookup(null)} disabled={busy}>
+                  <Text style={styles.cancelLinkText}>Cancel</Text>
+                </Pressable>
+              </>
+            ) : !currentRackComplete && !allRacksComplete ? (
+              <>
+                <View style={styles.barcodeRow}>
+                  <TextInput
+                    ref={wedgeRef}
+                    style={styles.barcodeInput}
+                    placeholder="Enter or scan barcode"
+                    placeholderTextColor={tokens.textMuted}
+                    value={scanCode}
+                    onChangeText={setScanCode}
+                    onSubmitEditing={() => void lookupBarcode()}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    editable={canScan}
+                    returnKeyType="done"
+                  />
+                  <Pressable
+                    style={[
+                      styles.lookupBtn,
+                      !canScan || !hasManualCode ? styles.footerBtnDisabled : null,
+                    ]}
+                    onPress={() => void lookupBarcode()}
+                    disabled={!canScan || !hasManualCode}
+                    accessibilityLabel="Look up barcode"
+                  >
+                    <Ionicons name="arrow-forward" size={22} color={tokens.card} />
+                  </Pressable>
                 </View>
+                <Pressable
+                  style={[styles.primaryFooterBtn, !canScan ? styles.footerBtnDisabled : null]}
+                  onPress={() => {
+                    if (hasManualCode) void lookupBarcode();
+                    else setScannerOpen(true);
+                  }}
+                  disabled={!canScan}
+                >
+                  <Ionicons
+                    name={hasManualCode ? 'search' : 'barcode-outline'}
+                    size={22}
+                    color={tokens.card}
+                  />
+                  <View style={styles.footerBtnTextWrap}>
+                    <Text style={styles.primaryFooterTitle}>
+                      {hasManualCode ? 'LOOK UP BARCODE' : 'SCAN PRODUCT'}
+                    </Text>
+                    <Text style={styles.primaryFooterSub}>
+                      {hasManualCode
+                        ? 'Use the barcode you entered'
+                        : 'Scan barcode with camera'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color={tokens.card} />
+                </Pressable>
               </>
             ) : allRacksComplete ? (
               <View style={styles.hintBar}>
@@ -487,6 +507,36 @@ export default function PickOrderScreen() {
                 <Text style={styles.hintBarText}>All items picked on this rack</Text>
               </View>
             )}
+
+            {!pickLookup && allRacksComplete ? (
+              <Pressable
+                style={[styles.primaryFooterBtn, !canPrint ? styles.footerBtnDisabled : null]}
+                onPress={openPrintables}
+                disabled={!canPrint}
+              >
+                <Ionicons name="print-outline" size={22} color={tokens.card} />
+                <View style={styles.footerBtnTextWrap}>
+                  <Text style={styles.primaryFooterTitle}>OPEN PRINTABLES</Text>
+                  <Text style={styles.primaryFooterSub}>Labels, invoice & packing slip</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={tokens.card} />
+              </Pressable>
+            ) : !pickLookup && currentRackComplete ? (
+              <Pressable
+                style={[styles.primaryFooterBtn, !canAdvance ? styles.footerBtnDisabled : null]}
+                onPress={() => void goNextRack()}
+                disabled={!canAdvance}
+              >
+                <Ionicons name="arrow-forward-circle" size={22} color={tokens.card} />
+                <View style={styles.footerBtnTextWrap}>
+                  <Text style={styles.primaryFooterTitle}>NEXT RACK</Text>
+                  <Text style={styles.primaryFooterSub}>
+                    {nextRack ? `Continue to ${nextRack}` : 'Advance to next rack'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={tokens.card} />
+              </Pressable>
+            ) : null}
           </View>
         </>
       ) : null}
@@ -676,25 +726,54 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 20,
+    elevation: 12,
     backgroundColor: tokens.card,
     borderTopWidth: 1,
     borderTopColor: tokens.border,
     paddingHorizontal: 16,
     paddingTop: 12,
-    paddingBottom: 16,
+    gap: 8,
   },
-  scanBtn: {
+  barcodeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    borderWidth: 2,
-    borderColor: tokens.green500,
-    borderRadius: tokens.radius,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    gap: 8,
   },
-  scanBtnDisabled: { opacity: 0.5 },
+  barcodeInput: {
+    flex: 1,
+    backgroundColor: tokens.bg,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: tokens.text,
+  },
+  lookupBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: tokens.radiusSm,
+    backgroundColor: tokens.green700,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerConfirmLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: tokens.green800,
+  },
+  cancelLink: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  cancelLinkText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: tokens.textMuted,
+  },
+  footerBtnDisabled: { opacity: 0.5 },
   primaryFooterBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,24 +782,10 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radius,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    marginBottom: 8,
   },
-  scanBtnTextWrap: { flex: 1 },
-  scanBtnTitle: { fontSize: 16, fontWeight: '800', color: tokens.green700, letterSpacing: 0.5 },
-  scanBtnSub: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
+  footerBtnTextWrap: { flex: 1 },
   primaryFooterTitle: { fontSize: 16, fontWeight: '800', color: tokens.card, letterSpacing: 0.5 },
   primaryFooterSub: { fontSize: 12, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
-  wedgeInput: {
-    backgroundColor: tokens.bg,
-    borderWidth: 1,
-    borderColor: tokens.border,
-    borderRadius: tokens.radiusSm,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 13,
-    color: tokens.text,
-    marginBottom: 8,
-  },
   hintBar: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../../lib/api';
 import { CrmModals, type CrmModalType } from './CrmModals';
 import { BlocksTab } from './BlocksTab';
@@ -21,6 +21,8 @@ import { OrderDetailModal, type OrderListRow } from './OrderDetailModal';
 import { FieldFindingsTab } from './FieldFindingsTab';
 import { FieldFindingDetailModal, type FieldFindingListRow } from './FieldFindingDetailModal';
 import { AgronomistTab, type AgronomistActivityRow } from './AgronomistTab';
+import { AgronomistTasksTab } from './AgronomistTasksTab';
+import '../styles/agronomist-ops.css';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
@@ -50,6 +52,7 @@ type Tab =
   | 'blocks'
   | 'findings'
   | 'agronomist'
+  | 'agronomist_tasks'
   | 'pending_tasks'
   | 'escalations'
   | 'notes'
@@ -105,6 +108,7 @@ type BlockRow = {
 type Props = {
   leadId: string;
   canWrite: boolean;
+  variant?: 'telecaller' | 'agronomist';
 };
 
 const LEAD_TABS: Array<{ id: Tab; label: string }> = [
@@ -114,6 +118,7 @@ const LEAD_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'blocks', label: 'Blocks' },
   { id: 'findings', label: 'Field findings' },
   { id: 'agronomist', label: 'Agronomist' },
+  { id: 'agronomist_tasks', label: 'Agronomist tasks' },
   { id: 'pending_tasks', label: 'Pending tasks' },
   { id: 'escalations', label: 'Escalations' },
   { id: 'notes', label: 'Notes' },
@@ -129,6 +134,7 @@ const TAB_ICONS: Record<Tab, string> = {
   blocks: '▦',
   findings: '🧪',
   agronomist: '🧑‍🌾',
+  agronomist_tasks: '📋',
   pending_tasks: '⏰',
   escalations: '⚠',
   notes: '📝',
@@ -137,7 +143,14 @@ const TAB_ICONS: Record<Tab, string> = {
   field_activity: '🌿',
 };
 
-export function LeadDetailPanel({ leadId, canWrite }: Props) {
+export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Props) {
+  const visibleTabs = useMemo(
+    () =>
+      variant === 'agronomist'
+        ? LEAD_TABS.filter((t) => !['orders', 'roi_tracker', 'whatsapp', 'interactions'].includes(t.id))
+        : LEAD_TABS,
+    [variant]
+  );
   const [tab, setTab] = useState<Tab>('overview');
   const [detail, setDetail] = useState<LeadDetail | null>(null);
   const [blocks, setBlocks] = useState<BlockRow[]>([]);
@@ -559,7 +572,7 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
           </div>
         </div>
         <nav className="tc-detail-tabs" role="tablist">
-          {LEAD_TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <button
               key={t.id}
               type="button"
@@ -952,6 +965,15 @@ export function LeadDetailPanel({ leadId, canWrite }: Props) {
                 setSelectedAgActivity(a);
               }
             }}
+          />
+        ) : null}
+
+        {tab === 'agronomist_tasks' ? (
+          <AgronomistTasksTab
+            leadId={leadId}
+            canWrite={canWrite}
+            refreshKey={dataVersion}
+            blocks={blocks.map((b) => ({ id: b.id, name: b.name, cropName: b.cropName }))}
           />
         ) : null}
 

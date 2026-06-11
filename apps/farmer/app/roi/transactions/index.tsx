@@ -83,7 +83,18 @@ export default function TransactionsScreen() {
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} />}
         ListHeaderComponent={
-          <Btn label={`+ ${t('addTransaction', locale)}`} onPress={() => router.push('/roi/transactions/add')} />
+          <View style={styles.addRow}>
+            <View style={styles.addBtn}>
+              <Btn label={t('income', locale)} onPress={() => router.push('/roi/transactions/add-income')} />
+            </View>
+            <View style={styles.addBtn}>
+              <Btn
+                label={t('expense', locale)}
+                variant="secondary"
+                onPress={() => router.push('/roi/transactions/add-expense')}
+              />
+            </View>
+          </View>
         }
         renderItem={({ item }) => (
           <Pressable style={styles.row} onPress={() => onRowPress(item)} onLongPress={() => onRowPress(item)}>
@@ -105,6 +116,8 @@ export default function TransactionsScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg, padding: 16, gap: 10 },
+  addRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  addBtn: { flex: 1 },
   row: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: tokens.border },
   main: { flex: 1 },
   label: { fontSize: 15, fontWeight: '600', color: tokens.text },

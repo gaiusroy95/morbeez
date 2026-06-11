@@ -22,6 +22,7 @@ import { trainingExportService } from '../../services/core/training-export.servi
 import { weatherCorrelationService } from '../../services/core/weather-correlation.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
+import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
 
 const draftSchema = z.object({
   findingId: z.string().uuid(),
@@ -543,6 +544,70 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const dashboard = await agronomistMobileService.getMobileDashboard(admin.email);
     return reply.send({ ok: true, dashboard });
+  });
+
+  app.get(`${api}/operations/tasks`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ status: z.enum(['pending', 'done', 'all']).optional() }).parse(request.query ?? {});
+    const tasks = await telecallerAdminService.listTasksForAgronomist(
+      admin.email,
+      q.status === 'all' ? undefined : { status: q.status ?? 'pending' }
+    );
+    return reply.send({ ok: true, tasks });
+  });
+
+  app.get(`${api}/operations/visits`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const visits = await telecallerAdminService.listScheduledVisitsForAgronomist(admin.email);
+    return reply.send({ ok: true, visits });
+  });
+
+  app.get(`${api}/operations/tasks/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { id } = request.params as { id: string };
+    const detail = await telecallerAdminService.getTaskDetail(id);
+    return reply.send({ ok: true, ...detail });
+  });
+
+  app.post(`${api}/operations/tasks/:id/comments`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ body: z.string().min(1).max(4000) }).parse(request.body);
+    const comment = await telecallerAdminService.addTaskComment(id, {
+      body: body.body,
+      authorEmail: admin.email,
+      authorRole: 'agronomist',
+      authorName: (admin as { fullName?: string }).fullName ?? admin.email,
+    });
+    return reply.status(201).send({ ok: true, comment });
+  });
+
+  app.patch(`${api}/operations/tasks/:id/complete`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { id } = request.params as { id: string };
+    await telecallerAdminService.completeTask(id);
+    return reply.send({ ok: true });
+  });
+
+  app.post(`${api}/operations/leads/:leadId/schedule-visit`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { leadId } = request.params as { leadId: string };
+    const body = z
+      .object({
+        title: z.string().optional(),
+        dueAt: z.string(),
+        notes: z.string().optional(),
+        blockId: z.string().uuid().optional(),
+      })
+      .parse(request.body);
+    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const result = await crmFarmerService.scheduleVisit(String(detail.lead.farmerId), leadId, {
+      ...body,
+      assignedAgronomist: admin.email,
+      assignedTo: admin.email,
+      createdBy: admin.email,
+    });
+    return reply.status(201).send({ ok: true, ...result });
   });
 
   app.get(`${api}/mobile/farmers`, async (request, reply) => {

@@ -101,10 +101,12 @@ export type PortalSoilReport = {
   blockId: string | null;
   blockName: string;
   dateLabel: string;
+  dapLabel?: string | null;
   health: string;
   healthLabel: string;
   pdfUrl: string | null;
   highlights: string[];
+  metrics?: Array<{ label: string; value: string }>;
 };
 
 export type PortalRoi = {

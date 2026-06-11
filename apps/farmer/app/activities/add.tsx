@@ -1,11 +1,24 @@
-import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createActivity, fetchFieldBlocks, fetchRoiActivityTypes, t, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, Loading, TextField } from '@morbeez/ui-native';
+import {
+  createActivity,
+  createFarmerActivityType,
+  fetchFieldBlocks,
+  fetchRoiActivityTypes,
+  t,
+  tokens,
+  type FieldBlock,
+  type RoiActivityType,
+} from '@morbeez/shared';
+import { AlertBox, DynamicSelect, Loading, TextField } from '@morbeez/ui-native';
+import { activityDap } from '@/components/fields/FieldBlockUi';
+import { StickySaveBar } from '@/components/roi/RoiFormFields';
 import { useLocale } from '@/context/LocaleContext';
 
 type ActType = 'spray_applied' | 'fertigation' | 'drench' | 'scouting' | 'irrigation' | 'other';
+
+type ActivityTypeOption = RoiActivityType & { mapped: ActType };
 
 function mapActivityType(name: string, category?: string): ActType {
   const n = name.toLowerCase();
@@ -13,58 +26,110 @@ function mapActivityType(name: string, category?: string): ActType {
   if (n.includes('spray') || c.includes('spray')) return 'spray_applied';
   if (n.includes('fert') || c.includes('fert')) return 'fertigation';
   if (n.includes('drench')) return 'drench';
-  if (n.includes('scout')) return 'scouting';
+  if (n.includes('scout') || n.includes('observation')) return 'scouting';
   if (n.includes('irrig')) return 'irrigation';
   return 'other';
+}
+
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+const DEFAULT_TYPES: ActivityTypeOption[] = [
+  { id: 'spray', activityName: 'Spray', icon: '🧴', mapped: 'spray_applied' },
+  { id: 'drench', activityName: 'Drenching', icon: '🚿', mapped: 'drench' },
+  { id: 'fert', activityName: 'Fertigation', icon: '💧', mapped: 'fertigation' },
+  { id: 'scout', activityName: 'Observation', icon: '👁', mapped: 'scouting' },
+];
+
+function toOptions(types: ActivityTypeOption[]) {
+  return types.map((type) => ({
+    key: type.id,
+    value: type.id,
+    label: `${type.icon ? `${type.icon} ` : ''}${type.activityName}`.trim(),
+  }));
 }
 
 export default function AddActivityScreen() {
   const router = useRouter();
   const { locale } = useLocale();
   const params = useLocalSearchParams<{ blockId?: string }>();
-  const [blocks, setBlocks] = useState<Array<{ id: string; name: string; crop: string }>>([]);
-  const [activityTypes, setActivityTypes] = useState<Array<{ id: string; label: string; mapped: ActType }>>([]);
+  const [blocks, setBlocks] = useState<FieldBlock[]>([]);
+  const [activityTypes, setActivityTypes] = useState<ActivityTypeOption[]>(DEFAULT_TYPES);
   const [blockId, setBlockId] = useState('');
   const [activityTypeId, setActivityTypeId] = useState('');
   const [activityType, setActivityType] = useState<ActType>('spray_applied');
   const [activityDate, setActivityDate] = useState(new Date().toISOString().slice(0, 10));
-  const [productUsed, setProductUsed] = useState('');
-  const [quantity, setQuantity] = useState('');
-  const [notes, setNotes] = useState('');
+  const [activityDetails, setActivityDetails] = useState('');
   const [costInr, setCostInr] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [typesLoading, setTypesLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const selectedBlock = useMemo(() => blocks.find((b) => b.id === blockId) ?? null, [blocks, blockId]);
+
+  const loadTypes = useCallback(async (crop?: string, keepId?: string) => {
+    setTypesLoading(true);
+    try {
+      const types = await fetchRoiActivityTypes(crop);
+      const mapped = (types.length ? types : DEFAULT_TYPES).map((type) => ({
+        ...type,
+        mapped: mapActivityType(type.activityName, type.category),
+      }));
+      setActivityTypes(mapped);
+      const current = keepId ?? activityTypeId;
+      if (!mapped.some((type) => type.id === current)) {
+        const first = mapped[0];
+        if (first) {
+          setActivityTypeId(first.id);
+          setActivityType(first.mapped);
+        }
+      }
+    } finally {
+      setTypesLoading(false);
+    }
+  }, [activityTypeId]);
 
   useEffect(() => {
     void fetchFieldBlocks()
-      .then(async (b) => {
-        setBlocks(b.map((x) => ({ id: x.id, name: x.name, crop: x.crop })));
-        const bid = params.blockId ? String(params.blockId) : b[0]?.id ?? '';
+      .then(async (rows) => {
+        setBlocks(rows);
+        const bid = params.blockId ? String(params.blockId) : rows[0]?.id ?? '';
         setBlockId(bid);
-        const crop = b.find((x) => x.id === bid)?.crop;
-        const types = await fetchRoiActivityTypes(crop);
-        const mapped = types.map((t) => ({
-          id: t.id,
-          label: t.activityName,
-          mapped: mapActivityType(t.activityName, t.category),
-        }));
-        setActivityTypes(mapped.length ? mapped : [
-          { id: 'spray', label: 'Spray', mapped: 'spray_applied' as ActType },
-          { id: 'fert', label: 'Fertigation', mapped: 'fertigation' as ActType },
-          { id: 'scout', label: 'Scouting', mapped: 'scouting' as ActType },
-        ]);
-        setActivityTypeId(mapped[0]?.id ?? 'spray');
-        setActivityType(mapped[0]?.mapped ?? 'spray_applied');
+        const crop = rows.find((b) => b.id === bid)?.crop;
+        await loadTypes(crop);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load fields'))
       .finally(() => setLoading(false));
-  }, [params.blockId]);
+  }, [params.blockId, loadTypes]);
+
+  const dap = activityDap(selectedBlock?.plantingDate, activityDate);
+
+  function onBlockChange(id: string) {
+    setBlockId(id);
+    const crop = blocks.find((b) => b.id === id)?.crop;
+    void loadTypes(crop, activityTypeId);
+  }
 
   function onTypeChange(id: string) {
     setActivityTypeId(id);
-    const found = activityTypes.find((t) => t.id === id);
+    const found = activityTypes.find((type) => type.id === id);
     if (found) setActivityType(found.mapped);
+  }
+
+  async function addActivityType(name: string) {
+    const created = await createFarmerActivityType({
+      activityName: name,
+      crop: selectedBlock?.crop,
+    });
+    const option: ActivityTypeOption = {
+      ...created,
+      mapped: mapActivityType(created.activityName, created.category),
+    };
+    setActivityTypes((prev) => [...prev, option]);
+    setActivityTypeId(option.id);
+    setActivityType(option.mapped);
   }
 
   async function save() {
@@ -76,11 +141,10 @@ export default function AddActivityScreen() {
         blockId,
         activityType,
         activityDate,
-        productUsed: productUsed.trim() || undefined,
-        quantity: quantity.trim() || undefined,
-        notes: notes.trim() || undefined,
+        productUsed: activityDetails.trim() || undefined,
+        notes: activityDetails.trim() || undefined,
         costInr: costInr ? Number(costInr) : undefined,
-        activityTypeId: activityTypeId && !['spray', 'fert', 'scout'].includes(activityTypeId) ? activityTypeId : undefined,
+        activityTypeId: isUuid(activityTypeId) ? activityTypeId : undefined,
       });
       router.back();
     } catch (e) {
@@ -92,28 +156,81 @@ export default function AddActivityScreen() {
 
   if (loading) return <Loading label={t('loading', locale)} />;
 
+  const blockOptions = blocks.map((b) => ({
+    key: b.id,
+    value: b.id,
+    label: `${b.crop} · ${b.name}`,
+  }));
+
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      {error ? <AlertBox>{error}</AlertBox> : null}
-      {blocks.length ? (
-        <HubTabs tabs={blocks.map((b) => ({ id: b.id, label: b.name }))} active={blockId} onChange={setBlockId} />
-      ) : null}
-      <HubTabs
-        tabs={activityTypes.map((t) => ({ id: t.id, label: t.label }))}
-        active={activityTypeId}
-        onChange={onTypeChange}
+    <View style={styles.root}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        {error ? <AlertBox>{error}</AlertBox> : null}
+
+        <DynamicSelect
+          label={t('field', locale)}
+          placeholder={t('selectBlock', locale)}
+          value={blockId}
+          options={blockOptions}
+          onChange={onBlockChange}
+        />
+
+        <DynamicSelect
+          label={t('activityType', locale)}
+          placeholder={t('activityType', locale)}
+          value={activityTypeId}
+          options={toOptions(activityTypes)}
+          loading={typesLoading}
+          allowAdd
+          addPlaceholder={t('activityType', locale)}
+          addButtonLabel={t('addActivityType', locale)}
+          onChange={onTypeChange}
+          onAdd={addActivityType}
+        />
+
+        <TextField label={t('activityDate', locale)} value={activityDate} onChangeText={setActivityDate} placeholder="YYYY-MM-DD" />
+
+        {dap != null ? (
+          <View style={styles.dapBox}>
+            <Text style={styles.dapText}>
+              {t('dapAuto', locale).replace('{dap}', String(dap))}
+            </Text>
+          </View>
+        ) : null}
+
+        <TextField
+          label={t('activityDetails', locale)}
+          value={activityDetails}
+          onChangeText={setActivityDetails}
+          multiline
+          maxLength={250}
+          autoCapitalize="sentences"
+          placeholder={'MKP 1kg\nSeaweed 250ml'}
+        />
+        <Text style={styles.charCount}>{activityDetails.length}/250</Text>
+
+        <TextField label={t('amount', locale)} value={costInr} onChangeText={setCostInr} keyboardType="numeric" />
+      </ScrollView>
+
+      <StickySaveBar
+        label={saving ? t('loading', locale) : t('saveActivity', locale)}
+        onPress={() => void save()}
+        disabled={saving}
       />
-      <TextField label={t('entryDate', locale)} value={activityDate} onChangeText={setActivityDate} />
-      <TextField label="Product used" value={productUsed} onChangeText={setProductUsed} autoCapitalize="words" />
-      <TextField label="Quantity" value={quantity} onChangeText={setQuantity} />
-      <TextField label={t('amount', locale)} value={costInr} onChangeText={setCostInr} keyboardType="numeric" />
-      <TextField label={t('comments', locale)} value={notes} onChangeText={setNotes} autoCapitalize="sentences" />
-      <Btn label={t('save', locale)} onPress={() => void save()} disabled={saving} />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: tokens.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  root: { flex: 1, backgroundColor: tokens.bg },
+  scroll: { flex: 1 },
+  content: { padding: 16, paddingBottom: 100, gap: 4 },
+  dapBox: {
+    backgroundColor: tokens.green100,
+    borderRadius: tokens.radiusSm,
+    padding: 12,
+    marginBottom: 8,
+  },
+  dapText: { fontSize: 14, fontWeight: '700', color: tokens.green800 },
+  charCount: { fontSize: 12, color: tokens.textMuted, textAlign: 'right', marginTop: -8, marginBottom: 8 },
 });

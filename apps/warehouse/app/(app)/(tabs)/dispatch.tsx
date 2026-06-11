@@ -1,11 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { filterDispatchQueue, filterLrPending, tokens, type QueueOrder } from '@morbeez/shared';
+import {
+  filterDispatchQueue,
+  filterHandedOverToday,
+  filterLrPending,
+  formatCompletedTime,
+  t,
+  tokens,
+  type DispatchQueueTab,
+  type QueueOrder,
+} from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
-
-type DispatchTab = 'ready' | 'lr_pending';
 
 function groupKey(row: QueueOrder): string {
   if (row.shippingMethod === 'manual' || row.needsManualTracking) return 'Manual courier';
@@ -13,16 +21,28 @@ function groupKey(row: QueueOrder): string {
   return row.courier || 'Other';
 }
 
-function parseDispatchTab(raw: string | string[] | undefined): DispatchTab {
+function parseDispatchTab(raw: string | string[] | undefined): DispatchQueueTab {
   const v = Array.isArray(raw) ? raw[0] : raw;
-  return v === 'lr_pending' ? 'lr_pending' : 'ready';
+  if (v === 'lr_pending' || v === 'handed_over') return v;
+  return 'ready';
 }
 
 export default function DispatchQueueScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const { queue, stats, queueLoading, refreshing, error, refreshQueue, refreshStats } = useWarehouseQueue();
-  const [tab, setTab] = useState<DispatchTab>(() => parseDispatchTab(tabParam));
+  const {
+    queue,
+    completedToday,
+    stats,
+    queueLoading,
+    refreshing,
+    error,
+    refreshQueue,
+    refreshStats,
+    refreshCompletedToday,
+  } = useWarehouseQueue();
+  const [tab, setTab] = useState<DispatchQueueTab>(() => parseDispatchTab(tabParam));
 
   useEffect(() => {
     if (tabParam) setTab(parseDispatchTab(tabParam));
@@ -30,9 +50,14 @@ export default function DispatchQueueScreen() {
 
   const ready = useMemo(() => filterDispatchQueue(queue), [queue]);
   const lrPending = useMemo(() => filterLrPending(queue), [queue]);
+  const handedOver = useMemo(
+    () => filterHandedOverToday(completedToday.handedOverToday),
+    [completedToday.handedOverToday]
+  );
   const readyCount = stats?.readyDispatch ?? ready.length;
   const lrCount = stats?.awaitingTracking ?? stats?.lrPending ?? lrPending.length;
-  const filtered = tab === 'ready' ? ready : lrPending;
+  const handedOverCount = stats?.handedOverToday ?? handedOver.length;
+  const filtered = tab === 'ready' ? ready : tab === 'lr_pending' ? lrPending : handedOver;
 
   const grouped = useMemo(() => {
     const map = new Map<string, QueueOrder[]>();
@@ -58,6 +83,7 @@ export default function DispatchQueueScreen() {
             onRefresh={() => {
               void refreshQueue({ force: true });
               void refreshStats({ force: true });
+              void refreshCompletedToday({ force: true });
             }}
           />
         }
@@ -67,8 +93,9 @@ export default function DispatchQueueScreen() {
             {error ? <AlertBox>{error}</AlertBox> : null}
             <HubTabs
               tabs={[
-                { id: 'ready' as const, label: `Ready (${readyCount})` },
-                { id: 'lr_pending' as const, label: `LR pending (${lrCount})` },
+                { id: 'ready' as const, label: `${t('readyDispatch', locale)} (${readyCount})` },
+                { id: 'lr_pending' as const, label: `${t('lrPending', locale)} (${lrCount})` },
+                { id: 'handed_over' as const, label: `${t('handedOver', locale)} (${handedOverCount})` },
               ]}
               active={tab}
               onChange={setTab}
@@ -83,30 +110,45 @@ export default function DispatchQueueScreen() {
         renderItem={({ item: [group, rows] }) => (
           <View style={styles.group}>
             <Text style={styles.groupTitle}>{group}</Text>
-            {rows.map((row) => (
-              <View key={row.id} style={styles.cardWrap}>
-                <ListCard
-                  title={row.orderName}
-                  subtitle={[row.customerName, row.awb ? `AWB ${row.awb}` : row.courier].filter(Boolean).join(' · ')}
-                  meta={row.omsStatus}
-                  onPress={() =>
-                    tab === 'lr_pending'
-                      ? router.push(`/(app)/dispatch/lr-update/${row.id}`)
-                      : router.push(`/(app)/dispatch/${row.id}`)
-                  }
-                />
-                <View style={styles.cardAction}>
-                  {tab === 'lr_pending' ? (
-                    <Btn label="Update LR" onPress={() => router.push(`/(app)/dispatch/lr-update/${row.id}`)} />
-                  ) : (
-                    <Btn label="Open dispatch" onPress={() => router.push(`/(app)/dispatch/${row.id}`)} />
-                  )}
+            {rows.map((row) => {
+              const handedOverAt = formatCompletedTime(row.shippedAt, locale);
+              return (
+                <View key={row.id} style={styles.cardWrap}>
+                  <ListCard
+                    title={row.orderName}
+                    subtitle={[row.customerName, row.awb ? `AWB ${row.awb}` : row.courier].filter(Boolean).join(' · ')}
+                    meta={
+                      tab === 'handed_over' && handedOverAt
+                        ? `Handed over ${handedOverAt}`
+                        : row.omsStatus
+                    }
+                    onPress={() =>
+                      tab === 'lr_pending'
+                        ? router.push(`/(app)/dispatch/lr-update/${row.id}`)
+                        : tab === 'handed_over'
+                          ? router.push(`/(app)/dispatch/${row.id}`)
+                          : router.push(`/(app)/dispatch/${row.id}`)
+                    }
+                  />
+                  {tab !== 'handed_over' ? (
+                    <View style={styles.cardAction}>
+                      {tab === 'lr_pending' ? (
+                        <Btn label="Update LR" onPress={() => router.push(`/(app)/dispatch/lr-update/${row.id}`)} />
+                      ) : (
+                        <Btn label="Open dispatch" onPress={() => router.push(`/(app)/dispatch/${row.id}`)} />
+                      )}
+                    </View>
+                  ) : null}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
-        ListEmptyComponent={<EmptyState>No orders in this dispatch bucket.</EmptyState>}
+        ListEmptyComponent={
+          <EmptyState>
+            {tab === 'handed_over' ? t('noHandedOverToday', locale) : 'No orders in this dispatch bucket.'}
+          </EmptyState>
+        }
       />
     </View>
   );

@@ -48,11 +48,10 @@ import {
 
 } from '@morbeez/ui-native';
 
-import { ActiveCyclesScroller, RoiAnalyticsPreview, RoiExpenseBookPreview, RoiHistoryPreview, RoiTransactionsPreview } from '@/components/roi/RoiInlinePanels';
+import { ActiveCyclesScroller, RoiExpenseBookPreview } from '@/components/roi/RoiInlinePanels';
+import { RoiTransactionsPreview } from '@/components/roi/RoiTransactionsPreview';
 
 import { FinishCycleFlow } from '@/components/roi/FinishCycleFlow';
-
-import { PieDonutChart } from '@/components/roi/PieDonutChart';
 
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 
@@ -62,7 +61,7 @@ import { useLocale } from '@/context/LocaleContext';
 
 
 
-type RoiSubTab = 'overview' | 'transactions' | 'analytics' | 'history' | 'expenseBook';
+type RoiSubTab = 'transactions' | 'expenseBook';
 
 
 
@@ -80,7 +79,7 @@ export default function RoiTabScreen() {
 
   const [activeCycles, setActiveCycles] = useState<Awaited<ReturnType<typeof fetchRoiHistoryV2>>['active']>([]);
 
-  const [subTab, setSubTab] = useState<RoiSubTab>('overview');
+  const [subTab, setSubTab] = useState<RoiSubTab>('transactions');
 
   const [error, setError] = useState('');
 
@@ -144,7 +143,7 @@ export default function RoiTabScreen() {
 
       setFinishOpen(false);
 
-      setSubTab('history');
+      router.push('/roi/history');
 
       await load();
 
@@ -174,31 +173,15 @@ export default function RoiTabScreen() {
 
   const status = data?.cropStatus;
 
-  const segments =
-
-    data?.breakdown
-
-      .filter((s) => s.value > 0)
-
-      .map((s) => ({ label: s.label, value: s.value, color: s.color })) ?? [];
-
-  const totalExpense = segments.reduce((s, x) => s + x.value, 0);
-
   const farmScope = !filter.crop && !filter.blockId;
 
 
 
   const subTabs: Array<{ id: RoiSubTab; label: string }> = [
 
-    { id: 'overview', label: t('overview', locale) },
-
     { id: 'transactions', label: t('transactions', locale) },
 
     ...(vis?.showExpenseBook ? [{ id: 'expenseBook' as const, label: t('expenseBook', locale) }] : []),
-
-    { id: 'analytics', label: t('analytics', locale) },
-
-    { id: 'history', label: t('history', locale) },
 
   ];
 
@@ -386,13 +369,19 @@ export default function RoiTabScreen() {
 
             {
 
-              id: 'add',
+              id: 'finish',
 
-              label: t('addTransaction', locale),
+              label: t('finishCropCycle', locale),
 
-              subtitle: t('addTransactionSub', locale),
+              subtitle: t('finishCropCycleSub', locale),
 
-              onPress: () => router.push('/roi/transactions/add'),
+              onPress: () => {
+
+                if (status?.seasonId) setFinishOpen(true);
+
+                else router.push('/roi/start-cycle');
+
+              },
 
             },
 
@@ -404,7 +393,7 @@ export default function RoiTabScreen() {
 
               subtitle: t('viewPastCycles', locale),
 
-              onPress: () => setSubTab('history'),
+              onPress: () => router.push('/roi/history'),
 
             },
 
@@ -430,63 +419,7 @@ export default function RoiTabScreen() {
 
 
 
-        {subTab === 'overview' && segments.length ? (
-
-          <Panel title={t('expenseBreakdown', locale)}>
-
-            <PieDonutChart
-
-              segments={segments}
-
-              centerLabel={t('spent', locale)}
-
-              centerValue={formatInr(totalExpense)}
-
-              formatValue={formatInr}
-
-            />
-
-          </Panel>
-
-        ) : null}
-
-
-
-        {subTab === 'overview' && data?.recentTransactions.length ? (
-
-          <Panel title={t('recentExpenses', locale)}>
-
-            {data.recentTransactions.slice(0, 5).map((tx) => (
-
-              <View key={tx.id} style={styles.txRow}>
-
-                <Text style={styles.txLabel} numberOfLines={1}>
-
-                  {tx.dateLabel} · {tx.label}
-
-                </Text>
-
-                <Text style={[styles.txAmt, tx.type === 'income' ? styles.income : styles.expense]}>
-
-                  {tx.type === 'income' ? '+' : '-'}
-
-                  {formatInr(tx.amountInr)}
-
-                </Text>
-
-              </View>
-
-            ))}
-
-            <Btn label={t('openFullLedger', locale)} variant="secondary" onPress={() => router.push('/roi/transactions')} />
-
-          </Panel>
-
-        ) : null}
-
-
-
-        {subTab === 'transactions' ? <RoiTransactionsPreview filter={filter} locale={locale} /> : null}
+        {subTab === 'transactions' ? <RoiTransactionsPreview filter={filter} locale={locale} limit={10} /> : null}
 
         {subTab === 'expenseBook' && vis?.showExpenseBook ? (
 
@@ -494,38 +427,23 @@ export default function RoiTabScreen() {
 
         ) : null}
 
-        {subTab === 'analytics' ? <RoiAnalyticsPreview filter={filter} locale={locale} /> : null}
-
-        {subTab === 'history' ? <RoiHistoryPreview locale={locale} /> : null}
-
       </ScrollView>
 
 
 
       <View style={styles.footer}>
-
-        <Btn label={t('addTransaction', locale)} onPress={() => router.push('/roi/transactions/add')} />
-
-        {status?.seasonId ? (
-
-          <Btn
-
-            label={finishing ? t('loading', locale) : t('finishCropCycle', locale)}
-
-            variant="secondary"
-
-            onPress={() => setFinishOpen(true)}
-
-            disabled={finishing}
-
-          />
-
-        ) : (
-
-          <Btn label={t('startNewCycle', locale)} variant="secondary" onPress={() => router.push('/roi/start-cycle')} />
-
-        )}
-
+        <View style={styles.footerRow}>
+          <View style={styles.footerBtn}>
+            <Btn label={t('income', locale)} onPress={() => router.push('/roi/transactions/add-income')} />
+          </View>
+          <View style={styles.footerBtn}>
+            <Btn
+              label={t('expense', locale)}
+              variant="secondary"
+              onPress={() => router.push('/roi/transactions/add-expense')}
+            />
+          </View>
+        </View>
       </View>
 
 
@@ -578,18 +496,9 @@ const styles = StyleSheet.create({
 
   farmTitle: { fontSize: 18, fontWeight: '800', color: tokens.text, marginBottom: 8 },
 
-  txRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8, gap: 8 },
-
-  txLabel: { flex: 1, fontSize: 13, color: tokens.text },
-
-  txAmt: { fontSize: 13, fontWeight: '700' },
-
-  income: { color: tokens.green800 },
-
-  expense: { color: tokens.text },
-
-  footer: { padding: 16, gap: 8, borderTopWidth: 1, borderTopColor: tokens.border, backgroundColor: tokens.bg },
-
+  footer: { padding: 16, borderTopWidth: 1, borderTopColor: tokens.border, backgroundColor: tokens.bg },
+  footerRow: { flexDirection: 'row', gap: 8 },
+  footerBtn: { flex: 1 },
 });
 
 

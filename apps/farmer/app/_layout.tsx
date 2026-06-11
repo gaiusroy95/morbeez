@@ -76,6 +76,7 @@ function AppStack() {
       <Stack.Screen name="market/trends/[crop]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('trendAnalytics', locale)} /> }} />
       <Stack.Screen name="activities/index" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('activities', locale)} /> }} />
       <Stack.Screen name="activities/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addActivity', locale)} /> }} />
+      <Stack.Screen name="soil/add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addSoilTest', locale)} /> }} />
       <Stack.Screen name="intel/roi-add" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addExpenseHeader', locale)} /> }} />
       <Stack.Screen name="roi/quick-expense" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('addExpenseHeader', locale)} /> }} />
       <Stack.Screen name="roi/quick-expense/amount" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('enterAmount', locale)} /> }} />

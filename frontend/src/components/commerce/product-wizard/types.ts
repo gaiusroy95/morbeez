@@ -38,7 +38,6 @@ export type WizardFormState = {
     category: string;
     subCategory: string;
     formulationType: string;
-    technicalContent: string;
     casNumber: string;
     hsnCode: string;
     productType: string;

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { paths, toPath } from '../lib/routes';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
@@ -237,6 +239,15 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div className="agronomist-hub">
+      <div className="agro-ops-head" style={{ marginBottom: 12 }}>
+        <div>
+          <h1 className="page-title">AI Review Center</h1>
+          <p className="page-subtitle muted">
+            Image review, case review, training export — day-to-day farmer work lives in{' '}
+            <Link to={toPath(paths.agronomist)}>Agronomist Operations</Link>.
+          </p>
+        </div>
+      </div>
       <p className="muted" style={{ marginBottom: 12 }}>
         Field findings → AI draft → review → Super Admin approval → WhatsApp
       </p>

@@ -6,55 +6,15 @@ import {
   fetchExpenseBook,
   fetchRoiAnalytics,
   fetchRoiHistoryV2,
-  fetchRoiTransactions,
   formatInr,
   t,
   tokens,
   type ExpenseBookGroup,
   type RoiAnalytics,
   type RoiFilterState,
-  type TransactionRow,
 } from '@morbeez/shared';
 import { Btn, KeyValueRow, Panel } from '@morbeez/ui-native';
 import { PieDonutChart } from './PieDonutChart';
-
-export function RoiTransactionsPreview({
-  filter,
-  locale,
-  limit = 8,
-}: {
-  filter: RoiFilterState;
-  locale: Parameters<typeof t>[1];
-  limit?: number;
-}) {
-  const router = useRouter();
-  const [rows, setRows] = useState<TransactionRow[]>([]);
-
-  useEffect(() => {
-    void fetchRoiTransactions({
-      crop: filter.crop ?? undefined,
-      blockId: filter.blockId ?? undefined,
-      limit: limit + 5,
-    }).then((r) => setRows(r.transactions.slice(0, limit)));
-  }, [filter, limit]);
-
-  return (
-    <Panel title={t('transactions', locale)}>
-      {rows.map((tx) => (
-        <View key={tx.id} style={styles.txRow}>
-          <Text style={styles.txLabel} numberOfLines={1}>
-            {tx.dateLabel} · {tx.label}
-          </Text>
-          <Text style={[styles.txAmt, tx.type === 'income' ? styles.income : styles.expense]}>
-            {tx.type === 'income' ? '+' : '-'}
-            {formatInr(tx.amountInr)}
-          </Text>
-        </View>
-      ))}
-      <Btn label={t('openFullLedger', locale)} variant="secondary" onPress={() => router.push('/roi/transactions')} />
-    </Panel>
-  );
-}
 
 export function RoiExpenseBookPreview({ filter, locale }: { filter: RoiFilterState; locale: Parameters<typeof t>[1] }) {
   const router = useRouter();

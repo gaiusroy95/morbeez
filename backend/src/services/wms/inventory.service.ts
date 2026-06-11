@@ -9,6 +9,7 @@ import { warehouseService } from './warehouse.service.js';
 
 export type ProductPackagingProfile = {
   itemWeightKg: number | null;
+  unitsPerBox: number | null;
   packagingCategoryId: string | null;
   packagingCategoryName: string | null;
   preferredBoxId: string | null;
@@ -49,7 +50,7 @@ export type InventoryItemRow = {
 };
 
 const INVENTORY_PACKAGING_SELECT =
-  'id, sku, product_title, item_weight_kg, packaging_category_id, preferred_box_id, is_fragile, is_liquid, stackable';
+  'id, sku, product_title, item_weight_kg, units_per_box, packaging_category_id, preferred_box_id, is_fragile, is_liquid, stackable';
 
 type PackagingLookup = {
   categories: Map<string, string>;
@@ -95,6 +96,10 @@ function mapPackagingProfile(
     itemWeightKg:
       row.item_weight_kg != null && Number(row.item_weight_kg) > 0
         ? Number(row.item_weight_kg)
+        : null,
+    unitsPerBox:
+      row.units_per_box != null && Number(row.units_per_box) > 0
+        ? Number(row.units_per_box)
         : null,
     packagingCategoryId: categoryId,
     packagingCategoryName: categoryId ? (lookup?.categories.get(categoryId) ?? null) : null,
@@ -244,6 +249,7 @@ export const inventoryService = {
       packagingCategoryId?: string | null;
       preferredBoxCode?: string | null;
       preferredBoxId?: string | null;
+      unitsPerBox?: number | null;
       isFragile?: boolean;
       isLiquid?: boolean;
       stackable?: boolean;
@@ -257,6 +263,7 @@ export const inventoryService = {
       input.packagingCategoryId !== undefined ||
       input.preferredBoxCode !== undefined ||
       input.preferredBoxId !== undefined ||
+      input.unitsPerBox !== undefined ||
       input.isFragile !== undefined ||
       input.isLiquid !== undefined ||
       input.stackable !== undefined;
@@ -271,6 +278,7 @@ export const inventoryService = {
     if (input.packagingCategoryId !== undefined) patch.packaging_category_id = input.packagingCategoryId;
     if (input.preferredBoxCode !== undefined) patch.preferred_box_code = input.preferredBoxCode;
     if (input.preferredBoxId !== undefined) patch.preferred_box_id = input.preferredBoxId;
+    if (input.unitsPerBox !== undefined) patch.units_per_box = input.unitsPerBox;
     if (input.isFragile !== undefined) patch.is_fragile = input.isFragile;
     if (input.isLiquid !== undefined) patch.is_liquid = input.isLiquid;
     if (input.stackable !== undefined) patch.stackable = input.stackable;

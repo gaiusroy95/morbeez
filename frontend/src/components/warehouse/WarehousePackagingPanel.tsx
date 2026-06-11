@@ -37,6 +37,7 @@ type ShippingBox = {
   breadthCm: number;
   heightCm: number;
   maxWeightKg: number;
+  tareWeightKg?: number;
   packagingType: string | null;
   active: boolean;
 };
@@ -88,6 +89,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
   const [boxW, setBoxW] = useState('');
   const [boxH, setBoxH] = useState('');
   const [boxMaxW, setBoxMaxW] = useState('');
+  const [boxTare, setBoxTare] = useState('0.1');
   const [boxType, setBoxType] = useState('standard');
 
   const [ruleCategoryId, setRuleCategoryId] = useState('');
@@ -162,6 +164,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
         breadthCm: Number(boxW),
         heightCm: Number(boxH),
         maxWeightKg: Number(boxMaxW),
+        tareWeightKg: boxTare.trim() ? Number(boxTare) : 0.1,
         packagingType: boxType,
         liquidFriendly: boxType === 'liquid_safe',
       }),
@@ -297,6 +300,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
               <input className={inputClass} placeholder="W cm" value={boxW} onChange={(e) => setBoxW(e.target.value)} inputMode="decimal" />
               <input className={inputClass} placeholder="H cm" value={boxH} onChange={(e) => setBoxH(e.target.value)} inputMode="decimal" />
               <input className={inputClass} placeholder="Max kg" value={boxMaxW} onChange={(e) => setBoxMaxW(e.target.value)} inputMode="decimal" />
+              <input className={inputClass} placeholder="Empty box tare (kg)" value={boxTare} onChange={(e) => setBoxTare(e.target.value)} inputMode="decimal" />
               <StaticSelect
                 value={boxType}
                 onChange={setBoxType}
@@ -319,6 +323,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
                     <Th>Name</Th>
                     <Th>L×W×H (cm)</Th>
                     <Th>Max kg</Th>
+                    <Th>Tare kg</Th>
                     <Th>Type</Th>
                     <Th>Active</Th>
                   </tr>
@@ -330,6 +335,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
                       <Td>{r.name}</Td>
                       <Td>{r.lengthCm}×{r.breadthCm}×{r.heightCm}</Td>
                       <Td>{r.maxWeightKg}</Td>
+                      <Td>{r.tareWeightKg ?? 0.1}</Td>
                       <Td>{r.packagingType ?? '—'}</Td>
                       <Td>
                         {canWrite ? (

@@ -94,8 +94,15 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
       {
         id: 'agronomist',
         path: toPath(paths.agronomist),
-        label: 'Field workflow',
+        label: 'Operations',
         icon: 'farmers',
+        module: 'agronomist',
+      },
+      {
+        id: 'agronomist-ai',
+        path: toPath(paths.agronomistAiReview),
+        label: 'AI Review Center',
+        icon: 'ai',
         module: 'agronomist',
       },
       {
@@ -185,6 +192,12 @@ export function defaultExpandedGroups(pathname: string): string[] {
 
 export function isNavItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === toPath(paths.employees)) {
+    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+  }
+  if (itemPath === toPath(paths.agronomist)) {
+    return pathname === itemPath;
+  }
+  if (itemPath === toPath(paths.agronomistAiReview)) {
     return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
   }
   return pathname === itemPath;

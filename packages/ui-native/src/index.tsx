@@ -14,6 +14,7 @@ import { APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
 import { MorbeezLogo } from './MorbeezLogo';
 
 export { MorbeezLogo } from './MorbeezLogo';
+export { DynamicSelect, type DynamicSelectOption } from './DynamicSelect';
 export {
   HealthBadge,
   FieldCard,
@@ -258,6 +259,7 @@ export function TextField({
   placeholder,
   accessibilityLabel,
   maxLength,
+  multiline,
 }: {
   label: string;
   value: string;
@@ -268,12 +270,13 @@ export function TextField({
   placeholder?: string;
   accessibilityLabel?: string;
   maxLength?: number;
+  multiline?: boolean;
 }) {
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, multiline && styles.inputMultiline]}
         value={value}
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
@@ -283,6 +286,8 @@ export function TextField({
         placeholderTextColor={tokens.textMuted}
         accessibilityLabel={accessibilityLabel ?? label}
         maxLength={maxLength}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'auto'}
       />
     </View>
   );
@@ -527,6 +532,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: tokens.text,
+  },
+  inputMultiline: {
+    minHeight: 96,
+    paddingTop: 12,
   },
   passwordRow: {
     flexDirection: 'row',

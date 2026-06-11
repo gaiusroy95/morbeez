@@ -123,14 +123,6 @@ export function Step1BasicInformation({
               onChange={(name) => patchBasic({ formulationType: name })}
             />
           </WizardField>
-          <WizardField label="Technical Content" required>
-            <input
-              className={pwInputClass()}
-              value={b.technicalContent}
-              onChange={(e) => patchBasic({ technicalContent: e.target.value })}
-              placeholder="Chlorantraniliprole 18.5 % w/w"
-            />
-          </WizardField>
           <WizardField label="CAS Number">
             <input
               className={pwInputClass()}

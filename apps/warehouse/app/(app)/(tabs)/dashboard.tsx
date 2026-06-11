@@ -11,7 +11,7 @@ export default function DashboardScreen() {
   const router = useRouter();
   const { admin } = useStaffAuth();
   const { locale } = useLocale();
-  const { stats, statsLoading, refreshing, error, refreshStats, refreshQueue } = useWarehouseQueue();
+  const { stats, statsLoading, refreshing, error, refreshStats, refreshQueue, refreshCompletedToday } = useWarehouseQueue();
 
   const progressSegments = useMemo(() => {
     if (!stats) return [];
@@ -29,6 +29,7 @@ export default function DashboardScreen() {
   const refreshAll = () => {
     void refreshStats({ force: true });
     void refreshQueue({ force: true });
+    void refreshCompletedToday({ force: true });
   };
 
   if (statsLoading && !stats) return <Loading label={t('loadingDashboard', locale)} />;
@@ -84,6 +85,20 @@ export default function DashboardScreen() {
         />
       </View>
 
+      <Text style={styles.sectionTitle}>{t('todaysCompleted', locale)}</Text>
+      <View style={styles.statsGrid}>
+        <StatCard
+          label={t('packingCompletedToday', locale)}
+          value={stats?.packedToday ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/packing', params: { tab: 'completed_today' } })}
+        />
+        <StatCard
+          label={t('handedOverToday', locale)}
+          value={stats?.handedOverToday ?? 0}
+          onPress={() => router.push({ pathname: '/(app)/(tabs)/dispatch', params: { tab: 'handed_over' } })}
+        />
+      </View>
+
       {progressSegments.length > 0 ? (
         <View style={styles.progressCard}>
           <Text style={styles.cardTitle}>{t('todaysProgress', locale)}</Text>
@@ -106,6 +121,7 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   greeting: { fontSize: 22, fontWeight: '700', color: tokens.text, marginBottom: 4 },
   subtitle: { fontSize: 14, color: tokens.textMuted, marginBottom: 16 },
+  sectionTitle: { fontSize: 15, fontWeight: '600', color: tokens.text, marginBottom: 8 },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   progressCard: {
     backgroundColor: tokens.card,

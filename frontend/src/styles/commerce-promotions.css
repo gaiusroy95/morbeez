@@ -9,6 +9,12 @@
   gap: 0;
 }
 
+.commerce-products__shopify-ok a {
+  color: #1b5e20;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .commerce-registry-banner {
   margin-bottom: 16px;
 }

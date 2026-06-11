@@ -125,17 +125,17 @@ export const agronomistMobileService = {
         .from('crm_tasks')
         .select('id', { count: 'exact', head: true })
         .eq('task_type', 'visit')
-        .eq('assigned_to', email)
+        .or(`assigned_agronomist.eq.${email},assigned_to.eq.${email}`)
         .gte('due_at', todayStart)
         .lte('due_at', todayEnd)
-        .in('status', ['pending', 'open', 'in_progress']),
+        .eq('status', 'pending'),
       supabase
         .from('crm_tasks')
         .select('id', { count: 'exact', head: true })
-        .eq('assigned_to', email)
+        .or(`assigned_agronomist.eq.${email},assigned_to.eq.${email}`)
         .in('task_type', ['follow_up', 'call', 'other'])
         .lte('due_at', todayEnd)
-        .in('status', ['pending', 'open', 'in_progress']),
+        .eq('status', 'pending'),
       supabase
         .from('callback_requests')
         .select('id', { count: 'exact', head: true })
@@ -282,13 +282,14 @@ export const agronomistMobileService = {
   async getWorkspaceSummary(farmerId: string) {
     const { data: farmer, error } = await supabase
       .from('farmers')
-      .select('id, phone, name, first_name, last_name, district, total_acres')
+      .select('id, phone, name, first_name, last_name, district')
       .eq('id', farmerId)
       .single();
     throwIfSupabaseError(error, 'Farmer not found');
     if (!farmer) throw new NotFoundError('Farmer not found');
 
     const blocks = await blockService.listByFarmer(farmerId);
+    const acreage = blocks.reduce((s, b) => s + (b.acreage_decimal ?? 0), 0) || null;
     const leadId = await resolveLeadId(farmerId);
 
     const { data: lastVisit } = await supabase
@@ -323,7 +324,7 @@ export const agronomistMobileService = {
         name,
         phone: farmer.phone ? String(farmer.phone) : null,
         district: farmer.district ? String(farmer.district) : null,
-        acreage: farmer.total_acres != null ? Number(farmer.total_acres) : null,
+        acreage,
       },
       leadId,
       healthStatus: openEscalations ? 'alert' : 'stable',
@@ -376,7 +377,6 @@ export const agronomistMobileService = {
 
   async listUnifiedTasks(agentEmail: string, filter?: string) {
     const email = agentEmail.trim().toLowerCase();
-    const todayEnd = `${todayIsoDate()}T23:59:59.999Z`;
     const tasks: Array<{
       id: string;
       kind: string;
@@ -392,13 +392,12 @@ export const agronomistMobileService = {
     if (!filter || filter === 'visit' || filter === 'all') {
       const { data } = await supabase
         .from('crm_tasks')
-        .select('id, title, task_type, due_at, status, farmer_id, lead_id')
-        .eq('assigned_to', email)
+        .select('id, title, task_type, due_at, status, farmer_id, lead_id, block_id, notes')
         .eq('task_type', 'visit')
-        .lte('due_at', todayEnd)
-        .in('status', ['pending', 'open', 'in_progress'])
+        .or(`assigned_agronomist.eq.${email},assigned_to.eq.${email}`)
+        .eq('status', 'pending')
         .order('due_at', { ascending: true })
-        .limit(30);
+        .limit(50);
       for (const t of data ?? []) {
         const entityId = String(t.id);
         tasks.push({
@@ -418,13 +417,12 @@ export const agronomistMobileService = {
     if (!filter || filter === 'follow_up' || filter === 'all') {
       const { data } = await supabase
         .from('crm_tasks')
-        .select('id, title, task_type, due_at, status, farmer_id, lead_id')
-        .eq('assigned_to', email)
+        .select('id, title, task_type, due_at, status, farmer_id, lead_id, priority, task_category')
+        .or(`assigned_agronomist.eq.${email},assigned_to.eq.${email}`)
         .in('task_type', ['follow_up', 'call', 'other'])
-        .lte('due_at', todayEnd)
-        .in('status', ['pending', 'open', 'in_progress'])
+        .eq('status', 'pending')
         .order('due_at', { ascending: true })
-        .limit(30);
+        .limit(50);
       for (const t of data ?? []) {
         const entityId = String(t.id);
         tasks.push({

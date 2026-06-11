@@ -117,11 +117,84 @@ function pageNumbers(current: number, total: number): Array<number | 'ellipsis'>
   return pages;
 }
 
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current);
+  return cells.map((c) => c.trim());
+}
+
+function parseProductImportCsv(text: string): Array<{
+  id?: string;
+  title: string;
+  category?: string;
+  brand?: string;
+  status?: string;
+}> {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase());
+  const idx = (name: string) => headers.indexOf(name);
+
+  const idIdx = idx('id');
+  const titleIdx = idx('title');
+  const categoryIdx = idx('category');
+  const brandIdx = idx('brand');
+  const statusIdx = idx('status');
+
+  if (titleIdx < 0) return [];
+
+  const rows: Array<{
+    id?: string;
+    title: string;
+    category?: string;
+    brand?: string;
+    status?: string;
+  }> = [];
+
+  for (const line of lines.slice(1)) {
+    const cells = parseCsvLine(line);
+    const title = cells[titleIdx]?.trim();
+    if (!title) continue;
+    rows.push({
+      id: idIdx >= 0 ? cells[idIdx]?.trim() || undefined : undefined,
+      title,
+      category: categoryIdx >= 0 ? cells[categoryIdx]?.trim() || undefined : undefined,
+      brand: brandIdx >= 0 ? cells[brandIdx]?.trim() || undefined : undefined,
+      status: statusIdx >= 0 ? cells[statusIdx]?.trim() || undefined : undefined,
+    });
+  }
+
+  return rows;
+}
+
 export function CommerceAllProductsPanel({ canWrite }: Props) {
   const navigate = useNavigate();
   const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState(0);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [stats, setStats] = useState<ProductStats | null>(null);
   const [categories, setCategories] = useState<string[]>([]);
@@ -331,6 +404,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   }
 
   function exportCsv() {
+    setNotice('');
     const header = ['ID', 'Title', 'Category', 'Brand', 'Variants', 'Inventory', 'Status'];
     const rows = products.map((p) =>
       [
@@ -352,6 +426,50 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     a.download = `products-page-${page}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleImportFile(file: File) {
+    if (!canWrite) return;
+    setImporting(true);
+    setError('');
+    setNotice('');
+    try {
+      const text = await file.text();
+      const rows = parseProductImportCsv(text);
+      setImportPreview(rows.length);
+      if (!rows.length) {
+        setError('No valid product rows found. Use the Export CSV format (Title column required).');
+        return;
+      }
+      const result = await api<{
+        ok: boolean;
+        created: number;
+        updated: number;
+        failed: Array<{ row: number; title: string; error: string }>;
+      }>('/morbeez-staff/api/v1/products/import', {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
+      });
+      setImportOpen(false);
+      setNotice(
+        `Import complete: ${result.created} created, ${result.updated} updated${
+          result.failed?.length ? `, ${result.failed.length} failed` : ''
+        }.`
+      );
+      if (result.failed?.length) {
+        setError(
+          result.failed
+            .slice(0, 3)
+            .map((f) => `Row ${f.row} (${f.title}): ${f.error}`)
+            .join(' · ')
+        );
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed');
+    } finally {
+      setImporting(false);
+    }
   }
 
   function hideProduct(product: ProductRow) {
@@ -492,7 +610,13 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
           <button
             type="button"
             className="commerce-products__btn commerce-products__btn--outline"
-            onClick={() => setError('Import will be available in a future release.')}
+            disabled={!canWrite}
+            onClick={() => {
+              setError('');
+              setNotice('');
+              setImportPreview(0);
+              setImportOpen(true);
+            }}
           >
             <span aria-hidden>↓</span> Import
           </button>
@@ -515,6 +639,12 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
           ) : null}
         </div>
       </header>
+
+      {notice ? (
+        <div className="commerce-products__notice" role="status">
+          {notice}
+        </div>
+      ) : null}
 
       {error ? (
         <div className="commerce-products__error" role="alert">
@@ -951,6 +1081,47 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
       </ProductActionMenu>
 
       {confirmModal}
+
+      {importOpen ? (
+        <Modal
+          title="Import products from CSV"
+          onClose={() => !importing && setImportOpen(false)}
+          onSave={() => setImportOpen(false)}
+          saveLabel="Close"
+          saving={importing}
+        >
+          <div className="space-y-3 text-sm text-slate-700">
+            <p>
+              Upload a CSV exported from this page. Required column: <strong>Title</strong>.
+              Optional: ID (updates existing Shopify product), Category, Brand, Status.
+            </p>
+            <p className="text-xs text-slate-500">
+              New rows without an ID are created as draft products in Shopify. Download{' '}
+              <a
+                href="/product-import-template.csv"
+                download="product-import-template.csv"
+                className="font-semibold text-emerald-700 underline"
+              >
+                product-import-template.csv
+              </a>{' '}
+              for the correct column format.
+            </p>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              disabled={importing}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleImportFile(file);
+                e.target.value = '';
+              }}
+            />
+            {importPreview > 0 && importing ? (
+              <p className="text-slate-500">Importing {importPreview} products…</p>
+            ) : null}
+          </div>
+        </Modal>
+      ) : null}
 
       {viewProduct ? (
         <Modal

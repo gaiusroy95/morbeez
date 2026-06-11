@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { tokens, warehouseClient, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
@@ -8,6 +9,8 @@ import { useStaffAuth } from '@/context/StaffAuth';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function PackOrderScreen() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 16);
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const { admin, canWrite } = useStaffAuth();
@@ -15,10 +18,7 @@ export default function PackOrderScreen() {
   const [detail, setDetail] = useState<WarehouseOrderDetail | null>(null);
   const [boxes, setBoxes] = useState<ShippingBox[]>([]);
   const [selectedBoxId, setSelectedBoxId] = useState('');
-  const [lengthCm, setLengthCm] = useState('');
-  const [breadthCm, setBreadthCm] = useState('');
-  const [heightCm, setHeightCm] = useState('');
-  const [weight, setWeight] = useState('');
+  const [boxCount, setBoxCount] = useState('1');
   const [shippingMethod, setShippingMethod] = useState<'shiprocket' | 'manual'>('shiprocket');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -34,17 +34,17 @@ export default function PackOrderScreen() {
         warehouseClient.getShippingBoxes().catch(() => []),
       ]);
       setDetail(d);
-      setBoxes(b);
+      const activeBoxes = b.filter((box) => box.code);
+      setBoxes(activeBoxes);
       const pkg = d.package;
       const sm = d.shippingMethod ?? (d.order.shipping_method === 'manual' ? 'manual' : 'shiprocket');
       setShippingMethod(sm);
-      if (pkg?.lengthCm) setLengthCm(String(pkg.lengthCm));
-      if (pkg?.breadthCm) setBreadthCm(String(pkg.breadthCm));
-      if (pkg?.heightCm) setHeightCm(String(pkg.heightCm));
-      if (pkg?.packageWeightKg) setWeight(String(pkg.packageWeightKg));
-      else if (pkg?.estimatedWeightKg) setWeight(String(pkg.estimatedWeightKg));
-      const match = b.find((x) => x.code === pkg?.suggestedBoxCode);
+      if (pkg?.boxCount != null && pkg.boxCount > 0) {
+        setBoxCount(String(pkg.boxCount));
+      }
+      const match = activeBoxes.find((x) => x.code === pkg?.suggestedBoxCode);
       if (match) setSelectedBoxId(match.id);
+      else if (activeBoxes[0]) setSelectedBoxId(activeBoxes[0].id);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load order');
     } finally {
@@ -56,11 +56,35 @@ export default function PackOrderScreen() {
     void load();
   }, [load]);
 
-  function selectBox(box: ShippingBox) {
+  useEffect(() => {
+    if (!orderId || !canWrite || loading || detail?.package?.billingWeightKg) return;
+    void warehouseClient.packageEstimate(orderId).then(() => load());
+  }, [orderId, canWrite, loading, detail?.package?.billingWeightKg, load]);
+
+  async function applyPackage(boxId = selectedBoxId) {
+    if (!orderId || !canWrite || !boxId) return;
+    const count = Number(boxCount);
+    if (!count || count < 1) {
+      setError('Enter a valid number of boxes (1 or more)');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await warehouseClient.packageSelectBox(orderId, boxId, count);
+      const box = boxes.find((b) => b.id === boxId);
+      setMessage(`Package updated — ${count} × ${box?.code ?? 'box'}`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not calculate package');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function pickBox(box: ShippingBox) {
     setSelectedBoxId(box.id);
-    setLengthCm(String(box.length_cm));
-    setBreadthCm(String(box.breadth_cm));
-    setHeightCm(String(box.height_cm));
+    void applyPackage(box.id);
   }
 
   async function setMethod(method: 'shiprocket' | 'manual') {
@@ -93,54 +117,17 @@ export default function PackOrderScreen() {
     }
   }
 
-  async function estimatePackage() {
+  async function confirmPackage() {
     if (!orderId || !canWrite) return;
-    setBusy(true);
-    try {
-      await warehouseClient.packageEstimate(orderId);
-      setMessage('Package estimate updated');
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Estimate failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveOverride() {
-    if (!orderId || !canWrite) return;
-    const l = Number(lengthCm);
-    const b = Number(breadthCm);
-    const h = Number(heightCm);
-    const w = Number(weight);
-    if (!l || !b || !h || !w) {
-      setError('Enter valid length, breadth, height, and weight');
+    if (!selectedBoxId) {
+      setError('Select a box and calculate package first');
       return;
     }
     setBusy(true);
     try {
-      await warehouseClient.packageOverride(orderId, {
-        boxId: selectedBoxId || undefined,
-        lengthCm: l,
-        breadthCm: b,
-        heightCm: h,
-        weightKg: w,
-      });
-      setMessage('Package dimensions saved');
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Override failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function confirmPackage() {
-    if (!orderId || !canWrite) return;
-    setBusy(true);
-    try {
+      await applyPackage(selectedBoxId);
       await warehouseClient.packageConfirm(orderId, shippingMethod !== 'manual');
-      setMessage('Package confirmed');
+      setMessage('Package confirmed for courier');
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Confirm failed');
@@ -176,9 +163,14 @@ export default function PackOrderScreen() {
   const pkg = detail?.package;
   const needsPickSetup = !detail?.pickList?.id;
   const diag = detail?.shiprocketDiagnostics;
+  const selectedBox = boxes.find((b) => b.id === selectedBoxId);
+  const tareKg = selectedBox?.tareWeightKg ?? 0.1;
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={[styles.content, { paddingBottom: 24 + bottomPad }]}
+    >
       {error ? <AlertBox>{error}</AlertBox> : null}
       {message ? <Text style={styles.success}>{message}</Text> : null}
 
@@ -199,9 +191,6 @@ export default function PackOrderScreen() {
       <Panel title={order?.order_name ?? 'Pack order'}>
         <KeyValueRow label="Status" value={order?.oms_status ?? '—'} />
         <KeyValueRow label="Packed by" value={admin?.fullName ?? admin?.email ?? '—'} />
-        {detail?.assignment?.batchId ? (
-          <KeyValueRow label="Label batch" value={detail.assignment.batchId.slice(0, 8)} />
-        ) : null}
       </Panel>
 
       <Panel title="Shipping method">
@@ -216,13 +205,11 @@ export default function PackOrderScreen() {
       </Panel>
 
       <Panel title="Package">
-        {pkg ? (
-          <>
-            <KeyValueRow label="Box" value={pkg.suggestedBoxName ?? pkg.suggestedBoxCode ?? '—'} />
-            <KeyValueRow label="Category" value={pkg.packagingCategoryName ?? '—'} />
-            <KeyValueRow label="Billing weight" value={pkg.billingWeightKg ? `${pkg.billingWeightKg} kg` : '—'} />
-          </>
-        ) : null}
+        <Text style={styles.hint}>
+          Box sizes and tare weights come from Warehouse → Packaging → Box types. Product unit
+          weight and units-per-box come from Inventory → product packaging.
+        </Text>
+
         {boxes.length > 0 ? (
           <>
             <Text style={styles.label}>Select box</Text>
@@ -231,24 +218,73 @@ export default function PackOrderScreen() {
                 <Btn
                   key={box.id}
                   label={box.code}
-                  onPress={() => selectBox(box)}
+                  onPress={() => pickBox(box)}
                   variant={selectedBoxId === box.id ? 'primary' : 'secondary'}
+                  disabled={busy || !canWrite}
                 />
               ))}
             </ScrollView>
+            {selectedBox ? (
+              <Text style={styles.boxMeta}>
+                {selectedBox.name} · {selectedBox.lengthCm}×{selectedBox.breadthCm}×
+                {selectedBox.heightCm} cm · max {selectedBox.maxWeightKg ?? '—'} kg · tare{' '}
+                {tareKg} kg
+              </Text>
+            ) : null}
           </>
         ) : null}
-        <TextInput style={styles.input} value={lengthCm} onChangeText={setLengthCm} keyboardType="decimal-pad" placeholder="Length (cm)" placeholderTextColor={tokens.textMuted} />
-        <TextInput style={styles.input} value={breadthCm} onChangeText={setBreadthCm} keyboardType="decimal-pad" placeholder="Breadth (cm)" placeholderTextColor={tokens.textMuted} />
-        <TextInput style={styles.input} value={heightCm} onChangeText={setHeightCm} keyboardType="decimal-pad" placeholder="Height (cm)" placeholderTextColor={tokens.textMuted} />
-        <TextInput style={styles.input} value={weight} onChangeText={setWeight} keyboardType="decimal-pad" placeholder="Weight (kg)" placeholderTextColor={tokens.textMuted} />
-        <Btn label="Save dimensions" onPress={saveOverride} disabled={busy || !canWrite} variant="secondary" />
-        <Btn label="Recalculate estimate" onPress={estimatePackage} disabled={busy || !canWrite} variant="secondary" />
+
+        <Text style={styles.label}>Number of boxes</Text>
+        <View style={styles.boxCountRow}>
+          <TextInput
+            style={styles.boxCountInput}
+            value={boxCount}
+            onChangeText={setBoxCount}
+            keyboardType="number-pad"
+            placeholder="e.g. 10"
+            placeholderTextColor={tokens.textMuted}
+            editable={canWrite && !busy}
+          />
+          <Btn
+            label="Calculate"
+            onPress={() => void applyPackage()}
+            disabled={busy || !canWrite || !selectedBoxId}
+            variant="secondary"
+          />
+        </View>
+        <Text style={styles.formulaHint}>
+          Gross weight = product weight + (number of boxes × box tare). Courier is told how many
+          boxes to expect.
+        </Text>
+
+        {pkg ? (
+          <View style={styles.summary}>
+            <KeyValueRow label="Box" value={pkg.suggestedBoxName ?? pkg.suggestedBoxCode ?? '—'} />
+            <KeyValueRow label="Boxes for courier" value={pkg.boxCount != null ? String(pkg.boxCount) : '—'} />
+            <KeyValueRow
+              label="Product weight"
+              value={pkg.estimatedWeightKg != null ? `${pkg.estimatedWeightKg} kg` : '—'}
+            />
+            <KeyValueRow
+              label="Gross weight"
+              value={pkg.packageWeightKg != null ? `${pkg.packageWeightKg} kg` : '—'}
+            />
+            <KeyValueRow
+              label="Billing weight"
+              value={pkg.billingWeightKg != null ? `${pkg.billingWeightKg} kg` : '—'}
+            />
+          </View>
+        ) : null}
+
         <Btn label="Confirm package" onPress={confirmPackage} disabled={busy || !canWrite} />
         <Btn label="Mark packed" onPress={markPacked} disabled={busy || !canWrite} />
       </Panel>
 
-      <Btn label="Print documents" onPress={() => router.push(`/(app)/packing/print/${orderId}`)} variant="secondary" />
+      <Btn
+        label="Print documents"
+        onPress={() => router.push(`/(app)/packing/print/${orderId}`)}
+        variant="secondary"
+      />
 
       {orderId ? (
         <ExceptionPanel
@@ -266,20 +302,32 @@ export default function PackOrderScreen() {
 
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: tokens.bg },
-  content: { padding: 16, paddingBottom: 32, gap: 8 },
+  content: { padding: 16, gap: 8 },
   success: { color: tokens.green700, marginBottom: 8, fontSize: 14 },
-  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 8 },
+  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10, lineHeight: 18 },
+  formulaHint: { fontSize: 12, color: tokens.textMuted, marginBottom: 12, lineHeight: 17 },
   label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 8 },
-  boxRow: { marginBottom: 8, maxHeight: 48 },
-  input: {
+  boxRow: { marginBottom: 6, maxHeight: 48 },
+  boxMeta: { fontSize: 12, color: tokens.textMuted, marginBottom: 12 },
+  boxCountRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  boxCountInput: {
+    flex: 1,
     backgroundColor: tokens.card,
     borderWidth: 1,
     borderColor: tokens.border,
     borderRadius: tokens.radiusSm,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
-    marginVertical: 4,
+    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: '700',
     color: tokens.text,
+  },
+  summary: {
+    backgroundColor: tokens.green100,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.green500,
+    padding: 12,
+    marginBottom: 12,
   },
 });

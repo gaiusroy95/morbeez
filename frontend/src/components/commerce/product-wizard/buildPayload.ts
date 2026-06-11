@@ -59,6 +59,7 @@ export function buildWizardPayload(
     intelligence: {
       basic: {
         ...state.basic,
+        technicalContent: state.basic.technicalName.trim(),
         benefits: state.basic.benefits.filter((b) => b.trim()),
         variants: state.basic.variants,
       },
@@ -69,7 +70,7 @@ export function buildWizardPayload(
         category: state.basic.category,
         subCategory: state.basic.subCategory,
         productType: state.basic.formulationType,
-        technicalContent: state.basic.technicalContent,
+        technicalContent: state.basic.technicalName.trim(),
         modeOfAction: state.basic.modeOfAction,
         modeOfEntry: state.basic.modeOfEntry,
         recommendedCrops: crops.join(', '),

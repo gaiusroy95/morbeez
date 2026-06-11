@@ -2587,6 +2587,28 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, product });
   });
 
+  app.post(`${api}/products/import`, async (request, reply) => {
+    requireAdminRole(request, 'admin', 'manager');
+    const body = z
+      .object({
+        rows: z
+          .array(
+            z.object({
+              id: z.string().optional(),
+              title: z.string().min(1),
+              category: z.string().optional(),
+              brand: z.string().optional(),
+              status: z.string().optional(),
+            })
+          )
+          .min(1)
+          .max(500),
+      })
+      .parse(request.body);
+    const result = await shopifyProductsService.importRows(body.rows);
+    return reply.send({ ok: true, ...result });
+  });
+
   app.get(`${api}/products`, async (request, reply) => {
     requireAdmin(request);
     const q = request.query as {

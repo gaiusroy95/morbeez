@@ -544,6 +544,45 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, tasks });
   });
 
+  app.get(`${api}/leads/:id/agronomist-tasks`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { id } = request.params as { id: string };
+    const tasks = await telecallerAdminService.listLeadAgronomistTasks(id);
+    return reply.send({ ok: true, tasks });
+  });
+
+  app.get(`${api}/agronomists`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const agronomists = await telecallerAdminService.listAssignableAgronomists();
+    return reply.send({ ok: true, agronomists });
+  });
+
+  app.get(`${api}/tasks/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { id } = request.params as { id: string };
+    const detail = await telecallerAdminService.getTaskDetail(id);
+    return reply.send({ ok: true, ...detail });
+  });
+
+  app.post(`${api}/tasks/:id/comments`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        body: z.string().min(1).max(4000),
+        authorRole: z.enum(['telecaller', 'agronomist']).optional(),
+      })
+      .parse(request.body);
+    const role = body.authorRole ?? (admin.role === 'agronomist' ? 'agronomist' : 'telecaller');
+    const comment = await telecallerAdminService.addTaskComment(id, {
+      body: body.body,
+      authorEmail: admin.email,
+      authorRole: role,
+      authorName: (admin as { fullName?: string }).fullName ?? admin.email,
+    });
+    return reply.status(201).send({ ok: true, comment });
+  });
+
   app.get(`${api}/leads/:id/escalations`, async (request, reply) => {
     await assertModuleAccess(request, 'telecaller_crm', 'read');
     const { id } = request.params as { id: string };
@@ -762,6 +801,21 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         dueAt: z.string().optional(),
         notes: z.string().optional(),
         taskType: z.string().optional(),
+        blockId: z.string().uuid().optional(),
+        priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+        assignedAgronomist: z.string().email().optional(),
+        issueDescription: z.string().max(2000).optional(),
+        taskCategory: z
+          .enum([
+            'call_farmer',
+            'visit_request',
+            'recommendation',
+            'soil_test_review',
+            'disease_review',
+            'other',
+          ])
+          .optional(),
+        initialComment: z.string().max(4000).optional(),
       })
       .parse(request.body);
     const task = await telecallerAdminService.createTask(id, body, admin.email);
@@ -1023,6 +1077,7 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     const result = await crmFarmerService.scheduleVisit(detail.lead.farmerId as string, id, {
       ...body,
       assignedTo: admin.email,
+      createdBy: admin.email,
     });
     return reply.status(201).send({ ok: true, ...result });
   });

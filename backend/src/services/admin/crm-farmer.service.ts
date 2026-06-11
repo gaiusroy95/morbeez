@@ -592,13 +592,21 @@ export const crmFarmerService = {
 
   async createSoilReport(
     farmerId: string,
-    input: { blockId?: string; metrics?: Record<string, unknown>; pdfUrl?: string; uploadedBy?: string }
+    input: {
+      blockId?: string;
+      metrics?: Record<string, unknown>;
+      pdfUrl?: string;
+      uploadedBy?: string;
+      reportedAt?: string;
+    }
   ) {
+    const reportedAt = input.reportedAt?.trim();
     const { data, error } = await supabase
       .from('crm_soil_reports')
       .insert({
         farmer_id: farmerId,
         block_id: input.blockId,
+        reported_at: reportedAt ? new Date(reportedAt).toISOString() : undefined,
         metrics: (input.metrics
           ? normalizeSoilMetrics(input.metrics)
           : emptySoilLabMetrics()) as unknown as Record<string, unknown>,
@@ -1690,22 +1698,49 @@ export const crmFarmerService = {
     }));
   },
 
+  async resolveAgronomistEmail(farmerId: string): Promise<string | null> {
+    const { data } = await supabase
+      .from('farmer_agronomist_assignments')
+      .select('email')
+      .eq('farmer_id', farmerId)
+      .eq('status', 'active')
+      .maybeSingle();
+    const email = data?.email ? String(data.email).trim().toLowerCase() : '';
+    return email || null;
+  },
+
   async scheduleVisit(
     farmerId: string,
     leadId: string | null,
-    input: { title?: string; dueAt: string; notes?: string; blockId?: string; assignedTo?: string }
+    input: {
+      title?: string;
+      dueAt: string;
+      notes?: string;
+      blockId?: string;
+      assignedTo?: string;
+      assignedAgronomist?: string;
+      createdBy?: string;
+    }
   ) {
     const due = new Date(input.dueAt);
     if (Number.isNaN(due.getTime())) throw new ValidationError('Invalid visit date');
     const title = input.title?.trim() || 'Field visit';
+    const agronomistEmail =
+      input.assignedAgronomist?.trim().toLowerCase() ||
+      (await this.resolveAgronomistEmail(farmerId));
+    const assignee = agronomistEmail ?? input.assignedTo;
+
     const { data, error } = await supabase
       .from('crm_tasks')
       .insert({
         farmer_id: farmerId,
         lead_id: leadId,
         block_id: input.blockId ?? null,
-        assigned_to: input.assignedTo,
+        assigned_to: assignee,
+        assigned_agronomist: agronomistEmail,
+        created_by: input.createdBy ?? input.assignedTo ?? null,
         task_type: 'visit',
+        task_category: 'visit_request',
         title,
         notes: input.notes,
         due_at: due.toISOString(),
@@ -1715,15 +1750,23 @@ export const crmFarmerService = {
       .single();
     throwIfSupabaseError(error, 'Could not schedule visit');
 
+    if (agronomistEmail) {
+      await supabase
+        .from('farmer_agronomist_assignments')
+        .update({ next_visit_at: due.toISOString(), updated_at: new Date().toISOString() })
+        .eq('farmer_id', farmerId)
+        .eq('status', 'active');
+    }
+
     const taskId = data?.id ? String(data.id) : '';
-    if (taskId && input.assignedTo) {
+    if (taskId && assignee) {
       const { farmerEventCaptureService } = await import(
         '../intelligence/farmer-event-capture.service.js'
       );
       void farmerEventCaptureService.trackSiteVisitScheduled({
         farmerId,
         taskId,
-        employeeEmail: input.assignedTo,
+        employeeEmail: assignee,
         dueAt: due.toISOString(),
         blockId: input.blockId ?? null,
       });
@@ -1735,7 +1778,7 @@ export const crmFarmerService = {
       start: due,
       description: input.notes ?? 'Scheduled from Morbeez CRM',
     });
-    return { task: data, icsContent: ics, icsFilename: 'morbeez-visit.ics' };
+    return { task: data, icsContent: ics, icsFilename: 'morbeez-visit.ics', assignedAgronomist: agronomistEmail };
   },
 
   async createManualOrder(

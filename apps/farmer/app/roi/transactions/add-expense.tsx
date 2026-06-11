@@ -1,8 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { createQuickExpense, createFarmerCategory, fetchRoiCategories, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, TextField } from '@morbeez/ui-native';
+import {
+  createQuickExpense,
+  createFarmerCategory,
+  fetchRoiCategories,
+  tokens,
+  type FarmerCategory,
+} from '@morbeez/shared';
+import { AlertBox, DynamicSelect, TextField } from '@morbeez/ui-native';
 import { RoiFormPickers, StickySaveBar, useRoiFormContext } from '@/components/roi/RoiFormFields';
 
 export default function AddExpenseScreen() {
@@ -11,20 +17,32 @@ export default function AddExpenseScreen() {
   const { crop, blockId, blocks, crops, entryDate, setEntryDate, setBlockId, onCropChange } = useRoiFormContext(
     params.blockId ? String(params.blockId) : undefined
   );
-  const [categories, setCategories] = useState<Array<{ id: string; name: string; icon: string | null }>>([]);
+  const [categories, setCategories] = useState<FarmerCategory[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
-  const [customName, setCustomName] = useState('');
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    void fetchRoiCategories().then((cats) => {
-      setCategories(cats);
-      if (cats[0]) setCategoryId(cats[0].id);
-    });
+    void fetchRoiCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats[0]) setCategoryId(cats[0].id);
+      })
+      .finally(() => setLoadingCategories(false));
   }, []);
+
+  const categoryOptions = useMemo(
+    () =>
+      categories.map((c) => ({
+        key: c.id,
+        value: c.id,
+        label: `${c.icon ? `${c.icon} ` : ''}${c.name}`.trim(),
+      })),
+    [categories]
+  );
 
   async function save() {
     const amt = Number(amount);
@@ -44,12 +62,10 @@ export default function AddExpenseScreen() {
     }
   }
 
-  async function addCategory() {
-    if (!customName.trim()) return;
-    const cat = await createFarmerCategory({ name: customName.trim() });
-    setCategories((c) => [...c, cat]);
+  async function addCategory(name: string) {
+    const cat = await createFarmerCategory({ name });
+    setCategories((prev) => [...prev, cat]);
     setCategoryId(cat.id);
-    setCustomName('');
   }
 
   return (
@@ -69,20 +85,18 @@ export default function AddExpenseScreen() {
           onBlockChange={setBlockId}
           onDateChange={setEntryDate}
         />
-        <Text style={styles.label}>Category</Text>
-        <View style={styles.chips}>
-          {categories.map((c) => (
-            <Pressable
-              key={c.id}
-              style={[styles.chip, categoryId === c.id && styles.chipOn]}
-              onPress={() => setCategoryId(c.id)}
-            >
-              <Text>{c.icon ?? '•'} {c.name}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <TextField label="Custom category" value={customName} onChangeText={setCustomName} />
-        <Btn label="Add category" variant="secondary" onPress={() => void addCategory()} />
+        <DynamicSelect
+          label="Category"
+          placeholder="Select category"
+          value={categoryId}
+          options={categoryOptions}
+          loading={loadingCategories}
+          allowAdd
+          addPlaceholder="Custom category"
+          addButtonLabel="Add category"
+          onChange={(id) => setCategoryId(id)}
+          onAdd={addCategory}
+        />
         <TextField label="Amount (₹)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
         <TextField label="Description" value={note} onChangeText={setNote} />
       </ScrollView>
@@ -95,8 +109,4 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 100, gap: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginTop: 8 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: tokens.green100 },
-  chipOn: { backgroundColor: tokens.green500 },
 });

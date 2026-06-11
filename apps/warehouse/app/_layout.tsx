@@ -1,6 +1,7 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
 import { LocaleProvider } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
@@ -29,15 +30,17 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <LocaleProvider>
-      <StaffAuthProvider>
-        <Gate>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(app)" />
-          </Stack>
-        </Gate>
-      </StaffAuthProvider>
-    </LocaleProvider>
+    <SafeAreaProvider>
+      <LocaleProvider>
+        <StaffAuthProvider>
+          <Gate>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(app)" />
+            </Stack>
+          </Gate>
+        </StaffAuthProvider>
+      </LocaleProvider>
+    </SafeAreaProvider>
   );
 }

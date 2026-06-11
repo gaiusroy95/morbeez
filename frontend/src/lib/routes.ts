@@ -12,6 +12,7 @@ export const paths = {
   opportunity: 'opportunity',
   productGaps: 'product-gaps',
   agronomist: 'agronomist',
+  agronomistAiReview: 'agronomist/ai-review',
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
@@ -64,7 +65,12 @@ export const ROUTE_META: Record<
     module: 'intelligence',
     pageKey: 'gaps',
   },
-  [toPath(paths.agronomist)]: { title: 'Agronomist Hub', module: 'agronomist', pageKey: 'agronomist' },
+  [toPath(paths.agronomist)]: { title: 'Agronomist Operations', module: 'agronomist', pageKey: 'agronomist' },
+  [toPath(paths.agronomistAiReview)]: {
+    title: 'AI Review Center',
+    module: 'agronomist',
+    pageKey: 'agronomist-ai',
+  },
   [toPath(paths.approvals)]: {
     title: 'Recommendation Approvals',
     module: 'approve_recommendations',

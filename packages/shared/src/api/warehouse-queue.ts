@@ -34,7 +34,7 @@ export function filterPickQueue(rows: QueueOrder[], tab: PickQueueTab): QueueOrd
   return base.filter((r) => !r.stockIssue && r.omsStatus === 'picking');
 }
 
-export type PackQueueTab = 'all' | 'packing' | 'awaiting_pack';
+export type PackQueueTab = 'all' | 'packing' | 'awaiting_pack' | 'completed_today';
 
 export function filterPackQueueByTab(rows: QueueOrder[], tab: PackQueueTab): QueueOrder[] {
   const base = filterPackQueue(rows);
@@ -61,6 +61,25 @@ export function filterDispatchQueue(rows: QueueOrder[]): QueueOrder[] {
 
 export function filterLrPending(rows: QueueOrder[]): QueueOrder[] {
   return rows.filter((r) => LR_STATUSES.has(r.omsStatus) || r.needsManualTracking);
+}
+
+export type DispatchQueueTab = 'ready' | 'lr_pending' | 'handed_over';
+
+export function filterHandedOverToday(rows: QueueOrder[]): QueueOrder[] {
+  return rows;
+}
+
+export function formatCompletedTime(iso: string | null | undefined, locale = 'en-IN'): string | null {
+  if (!iso) return null;
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return null;
+  }
 }
 
 export function warehouseModulesForRole(role: string | undefined): WarehouseMobileModule[] {

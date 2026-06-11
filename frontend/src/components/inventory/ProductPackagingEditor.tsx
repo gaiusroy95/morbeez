@@ -7,6 +7,7 @@ import { WMS_API } from '../warehouse/warehouse-api';
 
 export type ProductPackagingProfile = {
   itemWeightKg: number | null;
+  unitsPerBox: number | null;
   packagingCategoryId: string | null;
   packagingCategoryName: string | null;
   preferredBoxId: string | null;
@@ -47,6 +48,7 @@ export function ProductPackagingEditor({
   const [saving, setSaving] = useState(false);
 
   const [weightKg, setWeightKg] = useState('');
+  const [unitsPerBox, setUnitsPerBox] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [boxId, setBoxId] = useState('');
   const [isFragile, setIsFragile] = useState(false);
@@ -75,6 +77,7 @@ export function ProductPackagingEditor({
     void loadMasters();
     const p = packaging;
     setWeightKg(p?.itemWeightKg != null ? String(p.itemWeightKg) : '');
+    setUnitsPerBox(p?.unitsPerBox != null ? String(p.unitsPerBox) : '');
     setCategoryId(p?.packagingCategoryId ?? '');
     setBoxId(p?.preferredBoxId ?? '');
     setIsFragile(Boolean(p?.isFragile));
@@ -88,6 +91,7 @@ export function ProductPackagingEditor({
       setError('');
       try {
         const weight = weightKg.trim() ? Number(weightKg) : null;
+        const units = unitsPerBox.trim() ? Number(unitsPerBox) : null;
         const r = await api<{
           ok: boolean;
           item: {
@@ -98,6 +102,7 @@ export function ProductPackagingEditor({
           method: 'PATCH',
           body: JSON.stringify({
             itemWeightKg: weight,
+            unitsPerBox: units,
             packagingCategoryId: categoryId || null,
             preferredBoxId: boxId || null,
             isFragile,
@@ -108,6 +113,7 @@ export function ProductPackagingEditor({
         });
         const saved = r.item.packaging ?? {
           itemWeightKg: weight,
+          unitsPerBox: units,
           packagingCategoryId: categoryId || null,
           packagingCategoryName:
             categories.find((c) => c.id === categoryId)?.name ?? null,
@@ -157,7 +163,16 @@ export function ProductPackagingEditor({
                 className={inputClass}
                 value={weightKg}
                 onChange={(e) => setWeightKg(e.target.value)}
-                placeholder="e.g. 1"
+                placeholder="e.g. 0.113 for 1 L liquid"
+                inputMode="decimal"
+              />
+            </Field>
+            <Field label="Units per shipping box">
+              <input
+                className={inputClass}
+                value={unitsPerBox}
+                onChange={(e) => setUnitsPerBox(e.target.value)}
+                placeholder="e.g. 10 (10 L per box → 100 L order = 10 boxes)"
                 inputMode="decimal"
               />
             </Field>

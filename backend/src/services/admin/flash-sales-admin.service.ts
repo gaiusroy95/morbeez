@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { shopifyCampaignsService } from '../shopify/shopify-campaigns.service.js';
 
 export type FlashSaleTab = 'all' | 'live' | 'upcoming' | 'completed';
 
@@ -179,6 +180,14 @@ export const flashSalesAdminService = {
       .select('*')
       .single();
     throwIfSupabaseError(error, 'Could not create flash sale');
-    return mapFlash(data as FlashRow);
+    const sale = mapFlash(data as FlashRow);
+    if (input.shopifyProductId?.trim()) {
+      void shopifyCampaignsService.syncFlashSalePrice({
+        shopifyProductId: input.shopifyProductId.trim(),
+        flashPrice: input.flashPrice,
+        originalPrice: input.originalPrice,
+      });
+    }
+    return sale;
   },
 };
