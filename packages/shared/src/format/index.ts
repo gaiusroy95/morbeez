@@ -34,13 +34,15 @@ export function roleLabel(role: string): string {
 
 export function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
   try {
-    return new Date(iso).toLocaleDateString('en-IN', {
+    return d.toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
     });
   } catch {
-    return String(iso);
+    return '—';
   }
 }

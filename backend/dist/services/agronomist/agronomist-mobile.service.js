@@ -18,6 +18,19 @@ function haversineKm(lat1, lng1, lat2, lng2) {
 function todayIsoDate() {
     return new Date().toISOString().slice(0, 10);
 }
+/** preferred_time is free text in DB — only expose parseable ISO timestamps as due dates. */
+function parseOptionalDueAt(value) {
+    if (!value?.trim())
+        return null;
+    const v = value.trim();
+    if (v === 'any' || v === 'asap')
+        return null;
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? null : v;
+}
+function taskKey(kind, entityId) {
+    return `${kind}-${entityId}`;
+}
 function normalizeJoinRow(raw) {
     if (!raw)
         return null;
@@ -312,8 +325,9 @@ export const agronomistMobileService = {
                 .order('due_at', { ascending: true })
                 .limit(30);
             for (const t of data ?? []) {
+                const entityId = String(t.id);
                 tasks.push({
-                    id: String(t.id),
+                    id: taskKey('visit', entityId),
                     kind: 'visit',
                     title: String(t.title ?? 'Scheduled visit'),
                     subtitle: 'Visit task',
@@ -321,7 +335,7 @@ export const agronomistMobileService = {
                     status: String(t.status),
                     farmerId: t.farmer_id ? String(t.farmer_id) : null,
                     leadId: t.lead_id ? String(t.lead_id) : null,
-                    refId: String(t.id),
+                    refId: entityId,
                 });
             }
         }
@@ -336,8 +350,9 @@ export const agronomistMobileService = {
                 .order('due_at', { ascending: true })
                 .limit(30);
             for (const t of data ?? []) {
+                const entityId = String(t.id);
                 tasks.push({
-                    id: String(t.id),
+                    id: taskKey('follow_up', entityId),
                     kind: 'follow_up',
                     title: String(t.title ?? 'Follow-up'),
                     subtitle: String(t.task_type),
@@ -345,7 +360,7 @@ export const agronomistMobileService = {
                     status: String(t.status),
                     farmerId: t.farmer_id ? String(t.farmer_id) : null,
                     leadId: t.lead_id ? String(t.lead_id) : null,
-                    refId: String(t.id),
+                    refId: entityId,
                 });
             }
         }
@@ -353,7 +368,7 @@ export const agronomistMobileService = {
             const callbacks = await this.listCallbacks(email);
             for (const c of callbacks) {
                 tasks.push({
-                    id: c.id,
+                    id: taskKey('callback', c.id),
                     kind: 'callback',
                     title: c.reason ?? 'Callback',
                     subtitle: c.farmerName ?? c.phone ?? 'Farmer',
@@ -364,11 +379,31 @@ export const agronomistMobileService = {
                 });
             }
         }
+        const aiReviewEscalationIds = new Set();
+        if (!filter || filter === 'ai_review' || filter === 'all') {
+            const queue = await agronomistCaseReviewService.listQueue({ status: 'open', page: 1, limit: 15 });
+            for (const c of queue.items ?? []) {
+                const entityId = String(c.id);
+                aiReviewEscalationIds.add(entityId);
+                tasks.push({
+                    id: taskKey('ai_review', entityId),
+                    kind: 'ai_review',
+                    title: String(c.reason ?? 'AI review'),
+                    subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
+                    dueAt: c.createdAt ? String(c.createdAt) : null,
+                    status: String(c.status ?? 'open'),
+                    farmerId: null,
+                    refId: entityId,
+                });
+            }
+        }
         if (!filter || filter === 'escalation' || filter === 'all') {
             const esc = await this.listEscalations({ status: 'open' });
             for (const e of esc) {
+                if ((!filter || filter === 'all') && aiReviewEscalationIds.has(e.id))
+                    continue;
                 tasks.push({
-                    id: e.id,
+                    id: taskKey('escalation', e.id),
                     kind: 'escalation',
                     title: e.summary ?? e.type,
                     subtitle: e.farmerName ?? 'Escalation',
@@ -379,33 +414,19 @@ export const agronomistMobileService = {
                 });
             }
         }
-        if (!filter || filter === 'ai_review' || filter === 'all') {
-            const queue = await agronomistCaseReviewService.listQueue({ status: 'open', page: 1, limit: 15 });
-            for (const c of queue.items ?? []) {
-                tasks.push({
-                    id: String(c.id),
-                    kind: 'ai_review',
-                    title: String(c.reason ?? 'AI review'),
-                    subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
-                    dueAt: c.createdAt ? String(c.createdAt) : null,
-                    status: String(c.status ?? 'open'),
-                    farmerId: null,
-                    refId: String(c.id),
-                });
-            }
-        }
         if (!filter || filter === 'finding_review' || filter === 'all') {
             const fq = await agronomistWorkflowService.listReviewQueue(15);
             for (const raw of fq.items ?? []) {
                 const item = raw;
+                const entityId = item.finding.id;
                 tasks.push({
-                    id: item.finding.id,
+                    id: taskKey('finding_review', entityId),
                     kind: 'finding_review',
                     title: item.farmer?.name ?? item.farmer?.phone ?? 'Finding review',
                     subtitle: `${item.finding.blockName} · ${item.finding.cropType}`,
                     dueAt: item.finding.visitedAt,
                     status: item.existingRecommendation?.status ?? 'pending',
-                    refId: item.finding.id,
+                    refId: entityId,
                 });
             }
         }
@@ -429,7 +450,7 @@ export const agronomistMobileService = {
                 reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
                 status: String(r.status),
                 requestedAt: String(r.created_at),
-                dueAt: r.preferred_time ? String(r.preferred_time) : null,
+                dueAt: parseOptionalDueAt(r.preferred_time ? String(r.preferred_time) : null),
             };
         });
     },
