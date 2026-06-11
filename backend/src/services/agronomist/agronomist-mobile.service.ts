@@ -22,6 +22,20 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeJoinRow(raw: unknown): Record<string, unknown> | null {
+  if (!raw) return null;
+  if (Array.isArray(raw)) return (raw[0] as Record<string, unknown>) ?? null;
+  return raw as Record<string, unknown>;
+}
+
+function farmerDisplayName(row: Record<string, unknown> | null): string | null {
+  if (!row) return null;
+  const first = String(row.first_name ?? '').trim();
+  const last = String(row.last_name ?? '').trim();
+  const combined = [first, last].filter(Boolean).join(' ');
+  return combined || String(row.name ?? '').trim() || null;
+}
+
 async function resolveLeadId(farmerId: string): Promise<string | null> {
   const { data } = await supabase
     .from('leads')
@@ -313,17 +327,18 @@ export const agronomistMobileService = {
 
     const { data: soil } = await supabase
       .from('crm_soil_reports')
-      .select('id, report_type, report_url, created_at, block_name')
+      .select('id, pdf_url, created_at, reported_at, block_id, farm_blocks(name)')
       .eq('farmer_id', farmerId)
       .order('created_at', { ascending: false })
       .limit(30);
     for (const r of soil ?? []) {
+      const block = normalizeJoinRow(r.farm_blocks);
       docs.push({
         id: String(r.id),
         type: 'soil_report',
-        title: `${r.report_type ?? 'Soil'} — ${r.block_name ?? 'Block'}`,
-        url: r.report_url ? String(r.report_url) : null,
-        createdAt: String(r.created_at),
+        title: `Soil report — ${String(block?.name ?? 'Block')}`,
+        url: r.pdf_url ? String(r.pdf_url) : null,
+        createdAt: String(r.created_at ?? r.reported_at),
       });
     }
 
@@ -554,7 +569,7 @@ export const agronomistMobileService = {
   async listEscalations(opts?: { status?: string; farmerId?: string }) {
     let query = supabase
       .from('agronomist_escalations')
-      .select('id, farmer_id, escalation_type, status, summary, created_at, farmers(name)')
+      .select('id, farmer_id, reason, priority, status, created_at, farmers(name, first_name, last_name)')
       .order('created_at', { ascending: false })
       .limit(50);
 
@@ -569,14 +584,14 @@ export const agronomistMobileService = {
     throwIfSupabaseError(error, 'Could not load escalations');
 
     return (data ?? []).map((r) => {
-      const f = r.farmers as { name?: string } | null;
+      const f = normalizeJoinRow(r.farmers);
       return {
         id: String(r.id),
         farmerId: r.farmer_id ? String(r.farmer_id) : null,
-        farmerName: f?.name ?? null,
-        type: String(r.escalation_type ?? 'review'),
+        farmerName: farmerDisplayName(f),
+        type: String(r.priority ?? 'normal'),
         status: String(r.status),
-        summary: r.summary ? String(r.summary) : null,
+        summary: r.reason ? String(r.reason) : null,
         createdAt: String(r.created_at),
       };
     });
