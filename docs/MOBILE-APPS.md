@@ -24,6 +24,8 @@ npm run dev:farmer
 
 Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env`.
 
+**OTP login:** Farmer and warehouse apps default to mobile OTP. WhatsApp delivers the code in production — set `WHATSAPP_OTP_TEMPLATE` on the backend (approved Meta/Ads Gyani template with one body variable for the code). Staff OTP requires the employee's mobile in HR (`employee_profiles.personal_mobile`). Apply migration `20260688000000_farmer_otp_mobile_source.sql` and `20260689000000_staff_otp_challenges.sql`.
+
 ## Farmer app — mockup-aligned structure
 
 **Bottom tabs:** Home · Market · ROI · Shop · Profile

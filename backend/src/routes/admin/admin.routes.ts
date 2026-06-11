@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { adminAuthService } from '../../services/auth/admin-auth.service.js';
+import { staffOtpService } from '../../services/auth/staff-otp.service.js';
 import { adminDashboardService } from '../../services/admin/admin-dashboard.service.js';
 import { superAdminMonitorService } from '../../services/admin/super-admin-monitor.service.js';
 import { farmersAdminService } from '../../services/admin/farmers-admin.service.js';
@@ -66,6 +67,15 @@ import { payrollGeneratorService } from '../../services/admin/payroll-generator.
 const loginSchema = z.object({
   email: z.string().email().max(255),
   password: z.string().min(1).max(128),
+});
+
+const otpSendSchema = z.object({
+  phone: z.string().min(10).max(20),
+});
+
+const otpVerifySchema = z.object({
+  phone: z.string().min(10).max(20),
+  code: z.string().min(4).max(8),
 });
 
 const farmerUpdateSchema = z.object({
@@ -247,6 +257,18 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   app.post(`${api}/auth/login`, async (request, reply) => {
     const body = loginSchema.parse(request.body);
     const result = await adminAuthService.login(body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/auth/otp/send`, async (request, reply) => {
+    const body = otpSendSchema.parse(request.body);
+    const result = await staffOtpService.sendOtp(body.phone, request.ip);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/auth/otp/verify`, async (request, reply) => {
+    const body = otpVerifySchema.parse(request.body);
+    const result = await staffOtpService.verifyOtp(body.phone, body.code);
     return reply.send({ ok: true, ...result });
   });
 

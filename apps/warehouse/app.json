@@ -5,8 +5,12 @@
     "version": "1.0.0",
     "scheme": "morbeez-warehouse",
     "icon": "./assets/app-icon.png",
-    "plugins": ["expo-router"],
-    "ios": { "bundleIdentifier": "in.morbeez.warehouse" },
+    "plugins": [
+      "expo-router"
+    ],
+    "ios": {
+      "bundleIdentifier": "in.morbeez.warehouse"
+    },
     "android": {
       "package": "in.morbeez.warehouse",
       "adaptiveIcon": {
@@ -18,7 +22,9 @@
     "extra": {
       "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
       "router": {},
-      "eas": {}
+      "eas": {
+        "projectId": "a26f388d-7a11-4b6c-902a-8de5609bb79e"
+      }
     }
   }
 }

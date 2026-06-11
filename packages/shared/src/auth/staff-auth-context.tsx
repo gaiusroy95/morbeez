@@ -14,6 +14,7 @@ import {
   fetchStaffSession,
   getStaffToken,
   staffLogin,
+  verifyStaffOtp,
   type ApiModule,
   type SessionAdmin,
 } from '../api/staff-client';
@@ -28,6 +29,7 @@ type StaffAuthState = {
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  loginWithOtp: (phone: string, code: string) => Promise<void>;
 };
 
 export function createStaffAuth(requiredModule: string, requireWrite = false) {
@@ -82,6 +84,19 @@ export function createStaffAuth(requiredModule: string, requireWrite = false) {
       []
     );
 
+    const loginWithOtp = useCallback(
+      async (phone: string, code: string) => {
+        await verifyStaffOtp(phone, code);
+        const session = await fetchStaffSession();
+        assertModuleAccess(session.modules, requiredModule, requireWrite ? 'write' : 'read');
+        setAdmin(session.admin);
+        setModules(session.modules);
+        setAuthed(true);
+        setReady(true);
+      },
+      []
+    );
+
     const logout = useCallback(async () => {
       await clearStaffToken();
       setAuthed(false);
@@ -100,8 +115,9 @@ export function createStaffAuth(requiredModule: string, requireWrite = false) {
         logout,
         refresh,
         login,
+        loginWithOtp,
       }),
-      [ready, authed, admin, modules, logout, refresh, login]
+      [ready, authed, admin, modules, logout, refresh, login, loginWithOtp]
     );
 
     return <StaffAuthContext.Provider value={value}>{children}</StaffAuthContext.Provider>;

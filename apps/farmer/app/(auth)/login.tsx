@@ -17,6 +17,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [devOtpHint, setDevOtpHint] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function onEmailSubmit() {
@@ -35,11 +36,13 @@ export default function LoginScreen() {
 
   async function onSendOtp() {
     setError('');
+    setDevOtpHint('');
     setLoading(true);
     try {
       const phone = phoneForCheckout(mobile);
       if (phone.length !== 10) throw new Error('Enter a valid 10-digit mobile number');
-      await sendOtp(phone);
+      const result = await sendOtp(phone);
+      if (result.devOtp) setDevOtpHint(`Dev OTP: ${result.devOtp}`);
       setOtpStep('code');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not send OTP');
@@ -83,6 +86,7 @@ export default function LoginScreen() {
           />
 
           {error ? <AlertBox>{error}</AlertBox> : null}
+          {devOtpHint ? <AlertBox>{devOtpHint}</AlertBox> : null}
 
           {mode === 'otp' ? (
             <>

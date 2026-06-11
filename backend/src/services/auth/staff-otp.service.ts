@@ -2,11 +2,10 @@ import { createHash, randomInt } from 'crypto';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { UnauthorizedError, ValidationError } from '../../lib/errors.js';
-import { logger } from '../../lib/logger.js';
 import { env } from '../../config/env.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
-import { createFarmerToken } from '../../lib/jwt.js';
-import { farmerAuthService } from './farmer-auth.service.js';
+import { createAdminToken } from '../../lib/admin-jwt.js';
+import { adminAuthService } from './admin-auth.service.js';
 import { deliverOtpWhatsApp } from './otp-whatsapp.service.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
@@ -14,7 +13,7 @@ const MAX_SEND_PER_HOUR = 5;
 const MAX_VERIFY_ATTEMPTS = 5;
 
 function hashOtp(code: string, phone: string): string {
-  return createHash('sha256').update(`${phone}:${code}:${env.FARMER_JWT_SECRET}`).digest('hex');
+  return createHash('sha256').update(`${phone}:${code}:${env.ADMIN_JWT_SECRET}`).digest('hex');
 }
 
 function generateOtp(): string {
@@ -27,35 +26,61 @@ function tenDigitPhone(raw: string): string {
   return digits.slice(-10);
 }
 
-async function findFarmerByPhone(phone: string) {
-  const ten = tenDigitPhone(phone);
-  const { data: exact, error: exactErr } = await supabase
-    .from('farmers')
-    .select('*')
-    .eq('phone', phone)
-    .maybeSingle();
-  throwIfSupabaseError(exactErr, 'Could not load farmer account');
-  if (exact) return exact;
-
-  const { data: rows, error } = await supabase
-    .from('farmers')
-    .select('*')
-    .or(`phone.eq.${ten},phone.eq.91${ten}`)
-    .limit(1);
-  throwIfSupabaseError(error, 'Could not load farmer account');
-  return rows?.[0] ?? null;
+function profilePhoneMatches(profile: Record<string, unknown>, ten: string): boolean {
+  for (const field of ['personal_mobile', 'company_whatsapp', 'alternate_mobile']) {
+    const value = profile[field];
+    if (value && tenDigitPhone(String(value)) === ten) return true;
+  }
+  return false;
 }
 
-export const farmerOtpService = {
+async function findActiveAdminByPhone(phoneRaw: string) {
+  const ten = tenDigitPhone(phoneRaw);
+  if (ten.length !== 10 || !/^[6-9]/.test(ten)) {
+    throw new ValidationError('Enter a valid 10-digit Indian mobile number');
+  }
+
+  const { data: profiles, error } = await supabase
+    .from('employee_profiles')
+    .select('admin_user_id, status, personal_mobile, company_whatsapp, alternate_mobile')
+    .eq('status', 'active')
+    .not('admin_user_id', 'is', null);
+  throwIfSupabaseError(error, 'Could not load employee profiles');
+
+  const profile = (profiles ?? []).find((row) => profilePhoneMatches(row as Record<string, unknown>, ten));
+  if (!profile?.admin_user_id) {
+    throw new UnauthorizedError(
+      'No staff account is linked to this mobile number. Ask your manager to add it in HR.'
+    );
+  }
+
+  const { data: admin, error: adminErr } = await supabase
+    .from('admin_users')
+    .select('*')
+    .eq('id', profile.admin_user_id)
+    .maybeSingle();
+  throwIfSupabaseError(adminErr, 'Could not load staff account');
+
+  if (!admin?.active) throw new UnauthorizedError('Staff account is inactive');
+  if (!admin.email_verified_at && admin.role !== 'super_admin') {
+    throw new UnauthorizedError('Complete email verification using your invitation link');
+  }
+
+  return admin;
+}
+
+export const staffOtpService = {
   async sendOtp(phoneRaw: string, ipAddress?: string) {
     if (!isValidIndianPhone(phoneRaw)) {
       throw new ValidationError('Enter a valid 10-digit Indian mobile number');
     }
     const phone = normalizePhone(phoneRaw);
 
+    await findActiveAdminByPhone(phoneRaw);
+
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const { count, error: countErr } = await supabase
-      .from('farmer_otp_challenges')
+      .from('staff_otp_challenges')
       .select('id', { count: 'exact', head: true })
       .eq('phone', phone)
       .gte('created_at', since);
@@ -67,7 +92,7 @@ export const farmerOtpService = {
     const code = generateOtp();
     const expiresAt = new Date(Date.now() + OTP_TTL_MS).toISOString();
 
-    const { error } = await supabase.from('farmer_otp_challenges').insert({
+    const { error } = await supabase.from('staff_otp_challenges').insert({
       phone,
       code_hash: hashOtp(code, phone),
       expires_at: expiresAt,
@@ -82,8 +107,7 @@ export const farmerOtpService = {
         expiresInSeconds: Math.floor(OTP_TTL_MS / 1000),
         ...(!delivery.sent ? { devOtp: code } : {}),
       };
-    } catch (err) {
-      logger.error({ err, phone }, 'OTP WhatsApp send failed');
+    } catch {
       throw new ValidationError('Could not send OTP. Please try again shortly.');
     }
   },
@@ -96,8 +120,10 @@ export const farmerOtpService = {
     const code = String(codeRaw).replace(/\D/g, '');
     if (code.length !== 6) throw new ValidationError('Enter the 6-digit OTP');
 
+    const admin = await findActiveAdminByPhone(phoneRaw);
+
     const { data: challenge, error } = await supabase
-      .from('farmer_otp_challenges')
+      .from('staff_otp_challenges')
       .select('*')
       .eq('phone', phone)
       .order('created_at', { ascending: false })
@@ -115,43 +141,19 @@ export const farmerOtpService = {
 
     const valid = hashOtp(code, phone) === challenge.code_hash;
     await supabase
-      .from('farmer_otp_challenges')
+      .from('staff_otp_challenges')
       .update({ attempts: (challenge.attempts ?? 0) + 1 })
       .eq('id', challenge.id);
 
     if (!valid) throw new UnauthorizedError('Invalid OTP');
 
     const now = new Date().toISOString();
-    let farmerRow = await findFarmerByPhone(phone);
+    await supabase.from('admin_users').update({ last_login_at: now, updated_at: now }).eq('id', admin.id);
 
-    if (!farmerRow) {
-      const ten = tenDigitPhone(phone);
-      const { data: created, error: createErr } = await supabase
-        .from('farmers')
-        .insert({
-          phone: ten,
-          name: `Farmer ${ten.slice(-4)}`,
-          preferred_language: 'en',
-          source: 'mobile',
-          metadata: { signup_channel: 'mobile', whatsapp_opt_in: true },
-          last_login_at: now,
-          updated_at: now,
-        })
-        .select('*')
-        .single();
-      throwIfSupabaseError(createErr, 'Could not create farmer account');
-      farmerRow = created;
-    } else {
-      await supabase
-        .from('farmers')
-        .update({ last_login_at: now, updated_at: now })
-        .eq('id', farmerRow.id);
-    }
+    const email = String(admin.email ?? '');
+    const token = createAdminToken(String(admin.id), email, String(admin.role));
+    const profile = await adminAuthService.me(String(admin.id));
 
-    const email = farmerRow.email ? String(farmerRow.email) : `mobile+${tenDigitPhone(phone)}@morbeez.in`;
-    const token = createFarmerToken(String(farmerRow.id), email);
-    const profile = await farmerAuthService.me(String(farmerRow.id));
-
-    return { token, farmer: profile };
+    return { token, admin: profile };
   },
 };

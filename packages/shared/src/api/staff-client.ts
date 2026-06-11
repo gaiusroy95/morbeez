@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { parseApiError } from './errors';
-import { STAFF_API_V1, resolveStaffApiUrl } from './config';
+import { STAFF_API_V1, getApiOrigin, resolveStaffApiUrl } from './config';
 
 export const STAFF_TOKEN_KEY = 'morbeez_admin_token';
 
@@ -66,6 +66,12 @@ export async function clearStaffToken(): Promise<void> {
 }
 
 export async function staffApi<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  const origin = getApiOrigin();
+  if (!origin) {
+    throw new Error(
+      'API URL is not configured. Set EXPO_PUBLIC_API_BASE_URL in apps/warehouse/.env (local) or eas.json (builds).'
+    );
+  }
   const token = await getStoredToken();
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -96,6 +102,26 @@ export async function staffLogin(email: string, password: string) {
   }>(`${STAFF_API_V1}/auth/login`, {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+  });
+  await setStaffToken(data.token);
+  return data;
+}
+
+export async function sendStaffOtp(phone: string) {
+  return staffApi<{ ok: boolean; sent: boolean; expiresInSeconds: number; devOtp?: string }>(
+    `${STAFF_API_V1}/auth/otp/send`,
+    { method: 'POST', body: JSON.stringify({ phone }) }
+  );
+}
+
+export async function verifyStaffOtp(phone: string, code: string) {
+  const data = await staffApi<{
+    ok: boolean;
+    token: string;
+    admin: SessionAdmin;
+  }>(`${STAFF_API_V1}/auth/otp/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ phone, code }),
   });
   await setStaffToken(data.token);
   return data;

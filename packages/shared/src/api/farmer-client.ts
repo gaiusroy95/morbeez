@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { parseApiError } from './errors';
-import { resolveApiUrl } from './config';
+import { getApiOrigin, resolveApiUrl } from './config';
 import type {
   FarmerProfile,
   PortalAdvisory,
@@ -80,6 +80,12 @@ export async function clearFarmerToken(): Promise<void> {
 }
 
 export async function farmerApi<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
+  const origin = getApiOrigin();
+  if (!origin) {
+    throw new Error(
+      'API URL is not configured. Set EXPO_PUBLIC_API_BASE_URL in apps/farmer/.env (local) or eas.json (builds).'
+    );
+  }
   const token = await getStoredToken();
   const headers: Record<string, string> = {
     Accept: 'application/json',

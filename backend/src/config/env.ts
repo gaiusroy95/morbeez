@@ -51,6 +51,13 @@ const envSchema = z.object({
   ADS_GYANI_TEMPLATE_LANGUAGE: z.string().optional(),
   WHATSAPP_WELCOME_TEMPLATE: z.string().optional(),
   WHATSAPP_OUTBOUND_TEMPLATE: z.string().optional(),
+  /** Approved Meta/Ads Gyani template for login OTP (single body param = code). */
+  WHATSAPP_OTP_TEMPLATE: z.string().optional(),
+  /** When true, send login OTP via WhatsApp even if NODE_ENV is development/staging. */
+  OTP_SEND_VIA_WHATSAPP: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
   WHATSAPP_SESSION_HOURS: z.coerce.number().default(24),
   WHATSAPP_TYPING_SIMULATION: z
     .string()
