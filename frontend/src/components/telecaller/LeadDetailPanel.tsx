@@ -22,7 +22,7 @@ import { FieldFindingsTab } from './FieldFindingsTab';
 import { FieldFindingDetailModal, type FieldFindingListRow } from './FieldFindingDetailModal';
 import { AgronomistTab, type AgronomistActivityRow } from './AgronomistTab';
 import { AgronomistTasksTab } from './AgronomistTasksTab';
-import '../styles/agronomist-ops.css';
+import '../../styles/agronomist-ops.css';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
