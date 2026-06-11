@@ -294,7 +294,7 @@ export default function VisitScreen() {
       <Panel title="Observations">
         <TextInput
           style={[styles.input, styles.textArea]}
-          placeholder="What you see in the field…"
+          placeholder="What you observe on the farm…"
           placeholderTextColor={tokens.textMuted}
           value={observations}
           onChangeText={setObservations}
@@ -350,7 +350,7 @@ export default function VisitScreen() {
       </Panel>
 
       <Btn
-        label={saving ? 'Uploading…' : 'Submit field visit'}
+        label={saving ? 'Uploading…' : 'Submit visit'}
         onPress={submit}
         disabled={saving || !canWrite || loading}
       />

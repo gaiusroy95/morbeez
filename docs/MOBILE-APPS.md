@@ -1,17 +1,14 @@
 # Morbeez mobile apps
 
-Five focused Expo apps replace the old single `mobile/` staff console mirror.
+Three focused Expo apps replace the old single `mobile/` staff console mirror.
 
 ## Apps
 
 | App | Folder | Command | Auth |
 |-----|--------|---------|------|
 | **Farmer** (client) | `apps/farmer` | `npm run dev:farmer` | Farmer JWT (email or OTP) |
-| **Telecaller** | `apps/telecaller` | `npm run dev:telecaller` | Staff JWT + `telecaller_crm` |
 | **Pick & Pack** | `apps/warehouse` | `npm run dev:warehouse` | Staff JWT + `warehouse` write |
-| **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Staff JWT + `agronomist` |
-
-Legacy alias: `npm run dev:field` → same as `dev:agronomist`.
+| **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Staff JWT + `agronomist` (OTP or email) |
 
 Shared code: `packages/shared`, `packages/ui-native`.
 
@@ -26,7 +23,7 @@ npm run dev:farmer
 
 Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env`.
 
-**OTP login:** Farmer and warehouse apps default to mobile OTP. WhatsApp delivers the code in production — set `WHATSAPP_OTP_TEMPLATE` on the backend (approved Meta/Ads Gyani template with one body variable for the code). Staff OTP requires the employee's mobile in HR (`employee_profiles.personal_mobile`). Apply migration `20260688000000_farmer_otp_mobile_source.sql` and `20260689000000_staff_otp_challenges.sql`.
+**OTP login:** Farmer, warehouse, and agronomist apps default to mobile OTP. WhatsApp delivers the code in production — set `WHATSAPP_OTP_TEMPLATE` on the backend (approved Meta/Ads Gyani template with one body variable for the code). Staff OTP requires the employee's mobile in HR (`employee_profiles.personal_mobile`). Apply migration `20260688000000_farmer_otp_mobile_source.sql` and `20260689000000_staff_otp_challenges.sql`.
 
 ## Farmer app — mockup-aligned structure
 
@@ -96,11 +93,11 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route 
 8. Manual LR update → Save & notify customer (WhatsApp via backend event)
 9. Order timeline + authenticated print viewer
 
-## Agronomist app — field operations + farmer intelligence
+## Agronomist app — visits + farmer intelligence
 
 **Bottom tabs:** Dashboard · Farmers · Visits · Tasks · Profile
 
-**Stack flows:** farmer workspace (12 tabs) · field visit (check-in → questionnaire → photos → check-out) · finding review · AI case review · route planner · map view
+**Stack flows:** farmer workspace (12 tabs) · farm visit (check-in → questionnaire → photos → check-out) · finding review · AI case review · route planner · map view
 
 **Shared client:** `packages/shared/src/api/agronomist-client.ts`
 
@@ -125,7 +122,7 @@ Apply migration `20260703000000_agronomist_mobile.sql` for visit sessions + rout
 
 ### Agronomist smoke checklist
 
-1. Login as agronomist staff (email + password)
+1. Login as agronomist staff (mobile OTP or email + password)
 2. Dashboard widgets load; tap stat → Tasks/Farmers filtered
 3. Farmers: search, filter chips, open workspace
 4. Workspace: Overview + at least Crops, Findings, Recommendations tabs load
@@ -223,9 +220,8 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 | App | Status | Notes |
 |-----|--------|-------|
 | **Farmer** | Mockup-aligned | OTP login, market/ROI tabs, charts, shop polish, i18n en/hi/ml, offline cache |
-| **Telecaller** | Partial CRM | Lead workspace tabs vs full web panel. |
 | **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
-| **Field** | Visit + review | Agronomist finding queue. |
+| **Agronomist** | Visit + review | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner |
 
 ## Warehouse RBAC
 

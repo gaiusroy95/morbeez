@@ -35,7 +35,7 @@ export default function DashboardScreen() {
     >
       {error ? <AlertBox>{error}</AlertBox> : null}
       <Text style={styles.greeting}>Hello{admin?.fullName ? `, ${admin.fullName}` : ''}</Text>
-      <Text style={styles.subtitle}>Today&apos;s field overview</Text>
+      <Text style={styles.subtitle}>Today&apos;s overview</Text>
 
       <View style={styles.statsGrid}>
         <StatCard

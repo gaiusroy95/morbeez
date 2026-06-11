@@ -45,7 +45,7 @@ export default function ProfileScreen() {
         <KeyValueRow label="Role" value={admin?.role ?? '—'} />
       </Panel>
 
-      <Panel title="Field stats">
+      <Panel title="Your stats">
         <KeyValueRow label="Visits this month" value={String(profile?.visitsThisMonth ?? '—')} />
         <KeyValueRow label="Farmers assigned" value={String(profile?.assignedFarmers ?? '—')} />
         <KeyValueRow label="Open tasks" value={String(profile?.openTasks ?? '—')} />

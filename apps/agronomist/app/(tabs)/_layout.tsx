@@ -35,7 +35,7 @@ export default function TabsLayout() {
         name="visits"
         options={{
           title: 'Visits',
-          headerTitle: 'Field visits',
+          headerTitle: 'Visits',
           tabBarIcon: ({ color, size }) => <Ionicons name="leaf-outline" size={size} color={color} />,
         }}
       />

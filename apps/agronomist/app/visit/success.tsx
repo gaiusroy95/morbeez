@@ -19,7 +19,7 @@ export default function VisitSuccessScreen() {
     <View style={styles.root}>
       <Panel title="Visit saved">
         <Text style={styles.message}>
-          Field visit for {farmerName} at {blockName} was recorded successfully.
+          Visit for {farmerName} at {blockName} was recorded successfully.
         </Text>
         <Text style={styles.hint}>Check-out completed. You can review findings from the task hub.</Text>
       </Panel>

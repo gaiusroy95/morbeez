@@ -28,6 +28,33 @@ async function resolveLeadId(farmerId) {
         .maybeSingle();
     return data?.id ? String(data.id) : null;
 }
+function mapFarmerFromJoin(farmerId, f) {
+    return {
+        id: farmerId,
+        phone: f?.phone ? String(f.phone) : null,
+        name: [f?.first_name, f?.last_name].filter(Boolean).join(' ') ||
+            String(f?.name ?? '').trim() ||
+            'Farmer',
+        district: f?.district ? String(f.district) : null,
+        village: f?.village ? String(f.village) : null,
+        preferredLanguage: f?.preferred_language ? String(f.preferred_language) : 'en',
+    };
+}
+function farmersFromRelationRows(rows, limit) {
+    const seen = new Set();
+    const farmers = [];
+    for (const row of rows) {
+        const fid = String(row.farmer_id);
+        if (seen.has(fid))
+            continue;
+        seen.add(fid);
+        const joined = Array.isArray(row.farmers) ? row.farmers[0] : row.farmers;
+        farmers.push(mapFarmerFromJoin(fid, joined ?? null));
+        if (farmers.length >= limit)
+            break;
+    }
+    return farmers;
+}
 export const agronomistMobileService = {
     async getMobileDashboard(agentEmail) {
         const email = agentEmail.trim().toLowerCase();
@@ -93,35 +120,43 @@ export const agronomistMobileService = {
             const since90 = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
                 .from('crm_field_findings')
-                .select('farmer_id, farmers(id, phone, name, first_name, last_name, district, village)')
+                .select('farmer_id, farmers(id, phone, name, first_name, last_name, district, village, preferred_language)')
                 .eq('agronomist_name', email)
                 .gte('visited_at', since90)
                 .is('archived_at', null)
                 .order('visited_at', { ascending: false })
                 .limit(limit);
             throwIfSupabaseError(error, 'Could not load assigned farmers');
-            const seen = new Set();
-            farmers = [];
-            for (const row of data ?? []) {
-                const fid = String(row.farmer_id);
-                if (seen.has(fid))
-                    continue;
-                seen.add(fid);
-                const f = row.farmers;
-                farmers.push({
-                    id: fid,
-                    phone: f?.phone ? String(f.phone) : null,
-                    name: [f?.first_name, f?.last_name].filter(Boolean).join(' ') ||
-                        String(f?.name ?? '').trim() ||
-                        'Farmer',
-                    district: f?.district ? String(f.district) : null,
-                    village: f?.village ? String(f.village) : null,
-                    preferredLanguage: f?.preferred_language ? String(f.preferred_language) : 'en',
-                });
-            }
+            farmers = farmersFromRelationRows(data ?? [], limit);
+        }
+        if (!farmers.length && !opts.q?.trim() && opts.filter === 'follow_up_due') {
+            const todayEnd = `${todayIsoDate()}T23:59:59.999Z`;
+            const { data, error } = await supabase
+                .from('crm_tasks')
+                .select('farmer_id, farmers(id, phone, name, first_name, last_name, district, village, preferred_language)')
+                .eq('assigned_to', email)
+                .in('task_type', ['follow_up', 'call', 'other'])
+                .lte('due_at', todayEnd)
+                .in('status', ['pending', 'open', 'in_progress'])
+                .not('farmer_id', 'is', null)
+                .order('due_at', { ascending: true })
+                .limit(limit);
+            throwIfSupabaseError(error, 'Could not load follow-up farmers');
+            farmers = farmersFromRelationRows(data ?? [], limit);
+        }
+        if (!farmers.length && !opts.q?.trim() && opts.filter === 'escalation_open') {
+            const { data, error } = await supabase
+                .from('agronomist_escalations')
+                .select('farmer_id, farmers(id, phone, name, first_name, last_name, district, village, preferred_language)')
+                .in('status', ['pending', 'assigned', 'in_review'])
+                .not('farmer_id', 'is', null)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            throwIfSupabaseError(error, 'Could not load escalation farmers');
+            farmers = farmersFromRelationRows(data ?? [], limit);
         }
         if (!farmers.length && !opts.q?.trim()) {
-            farmers = await fieldPwaService.searchFarmers('a', Math.min(limit, 20));
+            farmers = await fieldPwaService.listRecentFarmers(limit);
         }
         const enriched = await Promise.all(farmers.map(async (f) => {
             const blocks = await blockService.listByFarmer(f.id);
@@ -363,7 +398,7 @@ export const agronomistMobileService = {
     async listCallbacks(_agentEmail) {
         const { data, error } = await supabase
             .from('callback_requests')
-            .select('id, farmer_id, reason, status, created_at, preferred_time, farmers(name, phone)')
+            .select('id, farmer_id, telecaller_notes, status, created_at, preferred_time, farmers(name, phone)')
             .in('status', ['pending', 'open', 'requested'])
             .order('created_at', { ascending: false })
             .limit(40);
@@ -375,7 +410,7 @@ export const agronomistMobileService = {
                 farmerId: String(r.farmer_id),
                 farmerName: f?.name ?? null,
                 phone: f?.phone ?? null,
-                reason: r.reason ? String(r.reason) : null,
+                reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
                 status: String(r.status),
                 requestedAt: String(r.created_at),
                 dueAt: r.preferred_time ? String(r.preferred_time) : null,
@@ -385,7 +420,7 @@ export const agronomistMobileService = {
     async updateCallback(id, status) {
         const { data, error } = await supabase
             .from('callback_requests')
-            .update({ status, updated_at: new Date().toISOString() })
+            .update({ status })
             .eq('id', id)
             .select('*')
             .single();
@@ -399,11 +434,10 @@ export const agronomistMobileService = {
             .from('callback_requests')
             .insert({
             farmer_id: input.farmerId,
-            reason: input.reason,
+            lead_id: leadId,
+            telecaller_notes: input.reason.slice(0, 500),
             status: 'pending',
             preferred_time: dueAt,
-            source: 'agronomist_app',
-            metadata: { createdBy: agentEmail },
         })
             .select('*')
             .single();

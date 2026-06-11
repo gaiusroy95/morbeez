@@ -9,11 +9,11 @@ export default ({ config }: { config: ExpoConfig }): ExpoConfig => ({
     'expo-router',
     [
       'expo-location',
-      { locationWhenInUsePermission: 'Capture GPS during field visits and route planning.' },
+      { locationWhenInUsePermission: 'Capture GPS during farm visits and route planning.' },
     ],
     [
       'expo-image-picker',
-      { photosPermission: 'Attach crop photos to field findings.', cameraPermission: 'Capture field visit photos.' },
+      { photosPermission: 'Attach crop photos to visit records.', cameraPermission: 'Capture visit photos.' },
     ],
   ],
 });

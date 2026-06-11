@@ -215,7 +215,7 @@ export default function FindingReviewScreen() {
       </Panel>
 
       {Array.isArray(finding.photoUrls) && finding.photoUrls.length > 0 ? (
-        <Panel title="Field photos">
+        <Panel title="Visit photos">
           <View style={styles.photoRow}>
             {finding.photoUrls
               .filter((url) => typeof url === 'string' && url.startsWith('http'))

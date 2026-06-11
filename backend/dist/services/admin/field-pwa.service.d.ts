@@ -1,11 +1,20 @@
 export declare const fieldPwaService: {
     searchFarmers(q: string, limit?: number): Promise<{
-        id: any;
-        phone: any;
+        id: string;
+        phone: string | null | undefined;
         name: string;
-        district: any;
-        village: any;
-        preferredLanguage: any;
+        district: string | null | undefined;
+        village: string | null | undefined;
+        preferredLanguage: string;
+    }[]>;
+    /** Recent farmers for browse lists (no search term required). */
+    listRecentFarmers(limit?: number): Promise<{
+        id: string;
+        phone: string | null | undefined;
+        name: string;
+        district: string | null | undefined;
+        village: string | null | undefined;
+        preferredLanguage: string;
     }[]>;
     getFarmerBlocks(farmerId: string): Promise<{
         id: string;

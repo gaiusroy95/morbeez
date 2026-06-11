@@ -30,12 +30,12 @@ export declare const agronomistMobileService: {
         healthStatus: string;
         lastVisitAt: string | null;
         openTaskCount: number;
-        id: any;
-        phone: any;
+        id: string;
+        phone: string | null | undefined;
         name: string;
-        district: any;
-        village: any;
-        preferredLanguage: any;
+        district: string | null | undefined;
+        village: string | null | undefined;
+        preferredLanguage: string;
     }[]>;
     getWorkspaceSummary(farmerId: string): Promise<{
         farmer: {

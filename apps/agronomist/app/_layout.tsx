@@ -56,7 +56,7 @@ export default function RootLayout() {
               <Stack.Screen
                 name="visit/index"
                 options={{
-                  headerTitle: () => <BrandedHeaderTitle title="Field visit" />,
+                  headerTitle: () => <BrandedHeaderTitle title="Farm visit" />,
                   presentation: 'modal',
                 }}
               />

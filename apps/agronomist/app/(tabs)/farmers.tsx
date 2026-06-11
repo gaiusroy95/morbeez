@@ -94,7 +94,13 @@ export default function FarmersScreen() {
             onOpenWorkspace={() => router.push(`/farmer/${item.id}`)}
           />
         )}
-        ListEmptyComponent={<EmptyState>No farmers match your search.</EmptyState>}
+        ListEmptyComponent={
+          <EmptyState>
+            {query.trim() || filter !== 'all'
+              ? 'No farmers match your search.'
+              : 'No farmers registered yet. Try searching by name or phone.'}
+          </EmptyState>
+        }
       />
     </View>
   );

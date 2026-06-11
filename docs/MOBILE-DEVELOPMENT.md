@@ -1,6 +1,6 @@
 # Mobile app development
 
-Four focused Expo apps under `apps/` replace the legacy single `mobile/` console mirror.
+Three focused Expo apps under `apps/` replace the legacy single `mobile/` console mirror.
 
 **See [MOBILE-APPS.md](./MOBILE-APPS.md) for full setup.**
 
@@ -12,9 +12,8 @@ cd backend && npm run dev
 
 # In another terminal — pick an app
 npm run dev:farmer
-npm run dev:telecaller
 npm run dev:warehouse
-npm run dev:field
+npm run dev:agronomist
 ```
 
 Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env` (use LAN IP on physical devices).
@@ -23,9 +22,8 @@ Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env` (use LAN IP on physical devi
 
 ```
 apps/farmer/       — client: shop + farmer workspace
-apps/telecaller/   — CRM
 apps/warehouse/    — pick & pack
-apps/field/        — field visits + agronomist queue
+apps/agronomist/   — agronomist visits + farmer intelligence
 packages/shared/   — API clients, auth, theme tokens
 packages/ui-native/ — shared RN UI components
 ```

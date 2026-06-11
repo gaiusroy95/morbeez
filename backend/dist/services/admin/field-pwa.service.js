@@ -4,6 +4,18 @@ import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from '../core/block.service.js';
 import { fieldStorageService } from '../core/field-storage.service.js';
 import { telecallerAdminService } from './telecaller-admin.service.js';
+function mapFarmerSearchRow(f) {
+    return {
+        id: f.id,
+        phone: f.phone,
+        name: [f.first_name, f.last_name].filter(Boolean).join(' ') ||
+            String(f.name ?? '').trim() ||
+            'Farmer',
+        district: f.district,
+        village: f.village,
+        preferredLanguage: f.preferred_language ?? 'en',
+    };
+}
 export const fieldPwaService = {
     async searchFarmers(q, limit = 20) {
         const term = q.trim();
@@ -23,16 +35,17 @@ export const fieldPwaService = {
         }
         const { data, error } = await query;
         throwIfSupabaseError(error, 'Could not search farmers');
-        return (data ?? []).map((f) => ({
-            id: f.id,
-            phone: f.phone,
-            name: [f.first_name, f.last_name].filter(Boolean).join(' ') ||
-                String(f.name ?? '').trim() ||
-                'Farmer',
-            district: f.district,
-            village: f.village,
-            preferredLanguage: f.preferred_language ?? 'en',
-        }));
+        return (data ?? []).map((f) => mapFarmerSearchRow(f));
+    },
+    /** Recent farmers for browse lists (no search term required). */
+    async listRecentFarmers(limit = 20) {
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('id, phone, name, first_name, last_name, district, village, preferred_language')
+            .order('updated_at', { ascending: false })
+            .limit(limit);
+        throwIfSupabaseError(error, 'Could not load farmers');
+        return (data ?? []).map((f) => mapFarmerSearchRow(f));
     },
     async getFarmerBlocks(farmerId) {
         const blocks = await blockService.listByFarmer(farmerId);
