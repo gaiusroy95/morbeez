@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { parseApiError } from './errors';
 import { getApiOrigin, resolveApiUrl } from './config';
+import { fetchWithCache } from './response-cache';
 import type {
   FarmerProfile,
   PortalAdvisory,
@@ -570,15 +571,20 @@ export async function fetchMarketCrops(): Promise<MarketCropItem[]> {
   return data.crops ?? [];
 }
 
+const MARKET_CACHE_TTL_MS = 120_000;
+
 export async function fetchMarketDashboard(crop?: string, market?: string): Promise<MarketDashboard> {
-  const qs = new URLSearchParams();
-  if (crop) qs.set('crop', crop);
-  if (market) qs.set('market', market);
-  const q = qs.toString();
-  const data = await farmerApi<{ ok: boolean; dashboard: MarketDashboard }>(
-    `/api/v1/farmer/portal/market/dashboard${q ? `?${q}` : ''}`
-  );
-  return data.dashboard;
+  const key = `market-dashboard:${crop ?? ''}:${market ?? ''}`;
+  return fetchWithCache(key, MARKET_CACHE_TTL_MS, async () => {
+    const qs = new URLSearchParams();
+    if (crop) qs.set('crop', crop);
+    if (market) qs.set('market', market);
+    const q = qs.toString();
+    const data = await farmerApi<{ ok: boolean; dashboard: MarketDashboard }>(
+      `/api/v1/farmer/portal/market/dashboard${q ? `?${q}` : ''}`
+    );
+    return data.dashboard;
+  });
 }
 
 export type MarketTrends = {
@@ -599,15 +605,18 @@ export async function fetchMarketTrends(
   range?: string,
   market?: string
 ): Promise<MarketTrends> {
-  const qs = new URLSearchParams();
-  if (crop) qs.set('crop', crop);
-  if (range) qs.set('range', range);
-  if (market) qs.set('market', market);
-  const q = qs.toString();
-  const data = await farmerApi<{ ok: boolean; trends: MarketTrends }>(
-    `/api/v1/farmer/portal/market/trends${q ? `?${q}` : ''}`
-  );
-  return data.trends;
+  const key = `market-trends:${crop ?? ''}:${range ?? ''}:${market ?? ''}`;
+  return fetchWithCache(key, MARKET_CACHE_TTL_MS, async () => {
+    const qs = new URLSearchParams();
+    if (crop) qs.set('crop', crop);
+    if (range) qs.set('range', range);
+    if (market) qs.set('market', market);
+    const q = qs.toString();
+    const data = await farmerApi<{ ok: boolean; trends: MarketTrends }>(
+      `/api/v1/farmer/portal/market/trends${q ? `?${q}` : ''}`
+    );
+    return data.trends;
+  });
 }
 
 export type MandiComparison = {
@@ -627,14 +636,17 @@ export type MandiComparison = {
 };
 
 export async function fetchMandiComparison(crop?: string, market?: string): Promise<MandiComparison> {
-  const qs = new URLSearchParams();
-  if (crop) qs.set('crop', crop);
-  if (market) qs.set('market', market);
-  const q = qs.toString();
-  const data = await farmerApi<{ ok: boolean; comparison: MandiComparison }>(
-    `/api/v1/farmer/portal/market/mandi-comparison${q ? `?${q}` : ''}`
-  );
-  return data.comparison;
+  const key = `mandi-comparison:${crop ?? ''}:${market ?? ''}`;
+  return fetchWithCache(key, MARKET_CACHE_TTL_MS, async () => {
+    const qs = new URLSearchParams();
+    if (crop) qs.set('crop', crop);
+    if (market) qs.set('market', market);
+    const q = qs.toString();
+    const data = await farmerApi<{ ok: boolean; comparison: MandiComparison }>(
+      `/api/v1/farmer/portal/market/mandi-comparison${q ? `?${q}` : ''}`
+    );
+    return data.comparison;
+  });
 }
 
 export type MultiCropComparison = {
@@ -656,11 +668,14 @@ export type MultiCropComparison = {
 };
 
 export async function fetchMultiCropComparison(market?: string): Promise<MultiCropComparison> {
-  const q = market ? `?market=${encodeURIComponent(market)}` : '';
-  const data = await farmerApi<{ ok: boolean; comparison: MultiCropComparison }>(
-    `/api/v1/farmer/portal/market/crop-comparison${q}`
-  );
-  return data.comparison;
+  const key = `crop-comparison:${market ?? ''}`;
+  return fetchWithCache(key, MARKET_CACHE_TTL_MS, async () => {
+    const q = market ? `?market=${encodeURIComponent(market)}` : '';
+    const data = await farmerApi<{ ok: boolean; comparison: MultiCropComparison }>(
+      `/api/v1/farmer/portal/market/crop-comparison${q}`
+    );
+    return data.comparison;
+  });
 }
 
 export type StoreBanner = {

@@ -1,34 +1,15 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { tokens, warehouseClient, type WarehouseStats } from '@morbeez/shared';
+import { tokens } from '@morbeez/shared';
 import { AlertBox, Btn, DonutChart, Loading, StatCard } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { admin } = useStaffAuth();
-  const [stats, setStats] = useState<WarehouseStats | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const s = await warehouseClient.getStats();
-      setStats(s);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load stats');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const { stats, statsLoading, refreshing, error, refreshStats, refreshQueue } = useWarehouseQueue();
 
   const progressSegments = useMemo(() => {
     if (!stats) return [];
@@ -43,14 +24,22 @@ export default function DashboardScreen() {
 
   const totalActive = useMemo(() => progressSegments.reduce((s, x) => s + x.value, 0), [progressSegments]);
 
-  if (loading) return <Loading label="Loading dashboard…" />;
+  const refreshAll = () => {
+    void refreshStats({ force: true });
+    void refreshQueue({ force: true });
+  };
+
+  if (statsLoading && !stats) return <Loading label="Loading dashboard…" />;
 
   return (
     <ScrollView
       style={styles.root}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={refreshAll}
+        />
       }
     >
       {error ? <AlertBox>{error}</AlertBox> : null}

@@ -94,18 +94,21 @@ export async function staffApi<T = unknown>(path: string, options: RequestInit =
   return data;
 }
 
-export async function staffLogin(phone: string, password: string, email?: string) {
+/** Sign in with work email or mobile + password (email if identifier contains `@`). */
+export async function staffLogin(identifier: string, password: string) {
+  const trimmed = identifier.trim();
+  if (!trimmed) throw new Error('Email is required');
+  const body = trimmed.includes('@')
+    ? { email: trimmed, password }
+    : { phone: trimmed, password };
+
   const data = await staffApi<{
     ok: boolean;
     token: string;
     admin: SessionAdmin;
   }>(`${STAFF_API_V1}/auth/login`, {
     method: 'POST',
-    body: JSON.stringify({
-      phone,
-      password,
-      ...(email?.trim() ? { email: email.trim() } : {}),
-    }),
+    body: JSON.stringify(body),
   });
   await setStaffToken(data.token);
   return data;

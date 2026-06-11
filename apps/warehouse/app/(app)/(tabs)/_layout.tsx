@@ -3,13 +3,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { MorbeezLogo } from '@morbeez/ui-native';
 import { tokens } from '@morbeez/shared';
 import { useWarehouseTabs } from '@/hooks/useWarehouseTabs';
+import { WarehouseQueueProvider } from '@/context/WarehouseQueueContext';
 
 export default function TabsLayout() {
   const { visibleTabs } = useWarehouseTabs();
   const hide = (tab: string) => (visibleTabs.includes(tab as never) ? undefined : null);
 
   return (
-    <Tabs
+    <WarehouseQueueProvider>
+      <Tabs
       screenOptions={{
         headerStyle: { backgroundColor: tokens.green800 },
         headerTintColor: '#fff',
@@ -62,5 +64,6 @@ export default function TabsLayout() {
         }}
       />
     </Tabs>
+    </WarehouseQueueProvider>
   );
 }

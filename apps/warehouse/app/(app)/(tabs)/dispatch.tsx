@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { filterDispatchQueue, filterLrPending, tokens, warehouseClient, type QueueOrder } from '@morbeez/shared';
+import { filterDispatchQueue, filterLrPending, tokens, type QueueOrder } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 type DispatchTab = 'ready' | 'lr_pending';
 
@@ -20,28 +21,8 @@ function parseDispatchTab(raw: string | string[] | undefined): DispatchTab {
 export default function DispatchQueueScreen() {
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const [queue, setQueue] = useState<QueueOrder[]>([]);
+  const { queue, queueLoading, refreshing, error, refreshQueue } = useWarehouseQueue();
   const [tab, setTab] = useState<DispatchTab>(() => parseDispatchTab(tabParam));
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const q = await warehouseClient.getQueue({ limit: 80 });
-      setQueue(q);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dispatch queue');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(() => {
     if (tabParam) setTab(parseDispatchTab(tabParam));
@@ -62,7 +43,7 @@ export default function DispatchQueueScreen() {
     return [...map.entries()];
   }, [filtered]);
 
-  if (loading) return <Loading label="Loading dispatch queue…" />;
+  if (queueLoading && !queue.length) return <Loading label="Loading dispatch queue…" />;
 
   return (
     <View style={styles.root}>
@@ -70,7 +51,7 @@ export default function DispatchQueueScreen() {
         data={grouped}
         keyExtractor={([key]) => key}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => void refreshQueue({ force: true })} />
         }
         contentContainerStyle={styles.content}
         ListHeaderComponent={

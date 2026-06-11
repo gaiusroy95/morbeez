@@ -20,6 +20,8 @@ import { confidenceLifecycleService } from '../../services/core/confidence-lifec
 import { outcomeReviewService } from '../../services/core/outcome-review.service.js';
 import { trainingExportService } from '../../services/core/training-export.service.js';
 import { weatherCorrelationService } from '../../services/core/weather-correlation.service.js';
+import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
+import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
 
 const draftSchema = z.object({
   findingId: z.string().uuid(),
@@ -535,5 +537,128 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     reply.header('Content-Type', exported.contentType);
     reply.header('Content-Disposition', `attachment; filename="${exported.filename}"`);
     return reply.send(exported.body);
+  });
+
+  app.get(`${api}/mobile/dashboard`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const dashboard = await agronomistMobileService.getMobileDashboard(admin.email);
+    return reply.send({ ok: true, dashboard });
+  });
+
+  app.get(`${api}/mobile/farmers`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z
+      .object({
+        q: z.string().optional(),
+        filter: z.enum(['assigned', 'recently_visited', 'follow_up_due', 'escalation_open', 'nearby']).optional(),
+        lat: z.coerce.number().optional(),
+        lng: z.coerce.number().optional(),
+        limit: z.coerce.number().int().min(1).max(80).optional(),
+      })
+      .parse(request.query ?? {});
+    const farmers = await agronomistMobileService.listMobileFarmers(admin.email, q);
+    return reply.send({ ok: true, farmers });
+  });
+
+  app.get(`${api}/farmers/:farmerId/workspace-summary`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { farmerId } = request.params as { farmerId: string };
+    const summary = await agronomistMobileService.getWorkspaceSummary(farmerId);
+    return reply.send({ ok: true, summary });
+  });
+
+  app.get(`${api}/farmers/:farmerId/documents`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { farmerId } = request.params as { farmerId: string };
+    const documents = await agronomistMobileService.listFarmerDocuments(farmerId);
+    return reply.send({ ok: true, documents });
+  });
+
+  app.get(`${api}/mobile/tasks`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ filter: z.string().optional() }).parse(request.query ?? {});
+    const tasks = await agronomistMobileService.listUnifiedTasks(admin.email, q.filter);
+    return reply.send({ ok: true, tasks });
+  });
+
+  app.get(`${api}/callbacks`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const callbacks = await agronomistMobileService.listCallbacks(admin.email);
+    return reply.send({ ok: true, callbacks });
+  });
+
+  app.patch(`${api}/callbacks/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ status: z.enum(['completed', 'cancelled', 'pending', 'open']) }).parse(request.body);
+    const row = await agronomistMobileService.updateCallback(id, body.status);
+    return reply.send({ ok: true, callback: row });
+  });
+
+  app.post(`${api}/callbacks`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        reason: z.string().min(1).max(500),
+        dueInDays: z.number().int().min(1).max(30).optional(),
+      })
+      .parse(request.body);
+    const row = await agronomistMobileService.createCallback(admin.email, body);
+    return reply.status(201).send({ ok: true, callback: row });
+  });
+
+  app.get(`${api}/mobile/escalations`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z
+      .object({ status: z.string().optional(), farmerId: z.string().uuid().optional() })
+      .parse(request.query ?? {});
+    const escalations = await agronomistMobileService.listEscalations(q);
+    return reply.send({ ok: true, escalations });
+  });
+
+  app.get(`${api}/mobile/profile`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const profile = await agronomistMobileService.getProfileStats(admin.email);
+    return reply.send({ ok: true, profile });
+  });
+
+  app.get(`${api}/routes`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ date: z.string().optional() }).parse(request.query ?? {});
+    const routes = await routePlannerService.listRoutes(admin.email, q.date);
+    return reply.send({ ok: true, routes });
+  });
+
+  app.post(`${api}/routes`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const body = z.object({ routeName: z.string().min(1).max(120) }).parse(request.body);
+    const route = await routePlannerService.createRoute(admin.email, body.routeName);
+    return reply.status(201).send({ ok: true, route });
+  });
+
+  app.post(`${api}/routes/:id/stops`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({ farmerId: z.string().uuid(), blockId: z.string().uuid().optional() })
+      .parse(request.body);
+    const stop = await routePlannerService.addStop(id, body.farmerId, body.blockId);
+    return reply.status(201).send({ ok: true, stop });
+  });
+
+  app.post(`${api}/routes/:id/optimize`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ lat: z.number().optional(), lng: z.number().optional() }).parse(request.body ?? {});
+    const route = await routePlannerService.optimizeRoute(id, body.lat, body.lng);
+    return reply.send({ ok: true, route });
+  });
+
+  app.get(`${api}/routes/:id`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { id } = request.params as { id: string };
+    const route = await routePlannerService.getRouteSummary(id);
+    return reply.send({ ok: true, route });
   });
 }

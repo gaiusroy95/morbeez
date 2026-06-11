@@ -1,6 +1,6 @@
 # Morbeez mobile apps
 
-Four focused Expo apps replace the old single `mobile/` staff console mirror.
+Five focused Expo apps replace the old single `mobile/` staff console mirror.
 
 ## Apps
 
@@ -9,7 +9,9 @@ Four focused Expo apps replace the old single `mobile/` staff console mirror.
 | **Farmer** (client) | `apps/farmer` | `npm run dev:farmer` | Farmer JWT (email or OTP) |
 | **Telecaller** | `apps/telecaller` | `npm run dev:telecaller` | Staff JWT + `telecaller_crm` |
 | **Pick & Pack** | `apps/warehouse` | `npm run dev:warehouse` | Staff JWT + `warehouse` write |
-| **Field Pro** | `apps/field` | `npm run dev:field` | Staff JWT + `agronomist` |
+| **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Staff JWT + `agronomist` |
+
+Legacy alias: `npm run dev:field` → same as `dev:agronomist`.
 
 Shared code: `packages/shared`, `packages/ui-native`.
 
@@ -93,6 +95,54 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route 
 7. Dispatch: generate AWB, assign rack, confirm shipped scan
 8. Manual LR update → Save & notify customer (WhatsApp via backend event)
 9. Order timeline + authenticated print viewer
+
+## Agronomist app — field operations + farmer intelligence
+
+**Bottom tabs:** Dashboard · Farmers · Visits · Tasks · Profile
+
+**Stack flows:** farmer workspace (12 tabs) · field visit (check-in → questionnaire → photos → check-out) · finding review · AI case review · route planner · map view
+
+**Shared client:** `packages/shared/src/api/agronomist-client.ts`
+
+**Contexts:** `AgronomistDashboardProvider`, `AgronomistQueueProvider` (prefetch dashboard + unified tasks)
+
+### Agronomist API (mobile)
+
+Base field: `/morbeez-staff/api/v1/os/field` · agronomist: `/morbeez-staff/api/v1/os/agronomist`
+
+| Area | Endpoints |
+|------|-----------|
+| Dashboard | `GET /mobile/dashboard` |
+| Farmers | `GET /mobile/farmers`, `GET /farmers/search`, `GET /farmers/:id/blocks` |
+| Workspace | `GET /farmers/:id/workspace-summary`, `GET /farmers/:id/documents`, `GET /farmers/:id/intelligence` |
+| Tasks | `GET /mobile/tasks`, `GET /callbacks`, `PATCH /callbacks/:id`, `GET /mobile/escalations` |
+| Visits | `POST /visits/sessions`, `PATCH /visits/sessions/:id/check-out`, `POST /visits`, `GET /visits/recent` |
+| Review | `GET /queue`, `GET /findings/:id`, `POST /drafts`, `GET /cases`, `POST /cases/:id/review` |
+| Routes | `GET|POST /routes`, `POST /routes/:id/stops`, `POST /routes/:id/optimize` |
+| Profile | `GET /mobile/profile`, `GET /workspace-intelligence` |
+
+Apply migration `20260703000000_agronomist_mobile.sql` for visit sessions + route planner tables.
+
+### Agronomist smoke checklist
+
+1. Login as agronomist staff (email + password)
+2. Dashboard widgets load; tap stat → Tasks/Farmers filtered
+3. Farmers: search, filter chips, open workspace
+4. Workspace: Overview + at least Crops, Findings, Recommendations tabs load
+5. Visits: search farmer → select block → check-in → submit visit → success screen
+6. Tasks: unified list (visits, follow-ups, finding review, AI cases)
+7. Finding review: AI suggest → draft → submit
+8. Routes: create route → add stop → optimize → Open Maps
+9. Map: nearby farmer pins
+10. Profile stats + sign out
+
+### Agronomist EAS
+
+```bash
+cd apps/agronomist
+cp .env.example .env
+npx eas build --platform android --profile preview
+```
 
 ## Farmer API (mobile)
 

@@ -130,13 +130,19 @@ export const fieldPwaService = {
         });
         return { finding, photoUrls };
     },
-    async listRecentVisits(_agronomistEmail, limit = 15) {
-        const { data, error } = await supabase
+    async listRecentVisits(agronomistEmail, limit = 15, farmerId) {
+        let query = supabase
             .from('crm_field_findings')
-            .select('id, farmer_id, block_name, crop_type, disease_pest, visited_at, photo_urls, farmers(name, phone)')
+            .select('id, farmer_id, block_name, crop_type, disease_pest, visited_at, photo_urls, agronomist_name, farmers(name, phone)')
             .is('archived_at', null)
             .order('visited_at', { ascending: false })
             .limit(limit);
+        const email = agronomistEmail.trim().toLowerCase();
+        if (email)
+            query = query.eq('agronomist_name', email);
+        if (farmerId)
+            query = query.eq('farmer_id', farmerId);
+        const { data, error } = await query;
         throwIfSupabaseError(error, 'Could not load recent visits');
         return data ?? [];
     },

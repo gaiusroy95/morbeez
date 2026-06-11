@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Morbeez Field Pro",
+    "slug": "morbeez-field",
+    "version": "1.0.0",
+    "scheme": "morbeez-field",
+    "icon": "./assets/icon.png",
+    "plugins": ["expo-router"],
+    "ios": { "bundleIdentifier": "in.morbeez.field" },
+    "android": {
+      "package": "in.morbeez.field",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#1a4d32"
+      }
+    }
+  }
+}

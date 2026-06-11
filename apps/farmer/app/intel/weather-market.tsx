@@ -38,9 +38,9 @@ export default function WeatherMarketScreen() {
       {market ? (
         <Panel title="Market prices">
           <Text style={styles.sub}>{market.crop} · {market.date}</Text>
-          {market.rows.map((r) => (
+          {market.rows.map((r, index) => (
             <KeyValueRow
-              key={r.marketName}
+              key={`${r.marketName}-${index}`}
               label={r.marketName}
               value={`₹${r.pricePerKg}/kg${r.trend ? ` (${r.trend})` : ''}`}
             />

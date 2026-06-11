@@ -216,6 +216,8 @@ export function CropMarketSelectors({
   selectedCrop,
   selectedMarket,
   favoriteCrop,
+  pendingCrop,
+  pendingMarket,
   onSelectCrop,
   onSelectMarket,
   cropLabel,
@@ -226,6 +228,8 @@ export function CropMarketSelectors({
   selectedCrop: string;
   selectedMarket: string | null;
   favoriteCrop?: string | null;
+  pendingCrop?: string | null;
+  pendingMarket?: string | null;
   onSelectCrop: (crop: string) => void;
   onSelectMarket: (market: string) => void;
   cropLabel: string;
@@ -238,16 +242,23 @@ export function CropMarketSelectors({
         <View style={styles.selectorChips}>
           {crops.map((c) => {
             const active = c.cropName === selectedCrop;
+            const pending = pendingCrop === c.cropName;
             return (
               <Pressable
                 key={c.id}
-                style={[styles.selectorChip, active && styles.selectorChipActive]}
+                style={[
+                  styles.selectorChip,
+                  active && styles.selectorChipActive,
+                  pending && styles.selectorChipPending,
+                ]}
                 onPress={() => onSelectCrop(c.cropName)}
+                disabled={pending}
               >
                 <Text style={[styles.selectorChipText, active && styles.selectorChipTextActive]}>
                   {c.icon ? `${c.icon} ` : '🌱 '}
                   {c.cropName.charAt(0).toUpperCase() + c.cropName.slice(1)}
                   {favoriteCrop === c.cropName ? ' ★' : ''}
+                  {pending ? ' …' : ''}
                 </Text>
               </Pressable>
             );
@@ -260,14 +271,21 @@ export function CropMarketSelectors({
           <View style={styles.selectorChips}>
             {markets.map((m) => {
               const active = m === selectedMarket;
+              const pending = pendingMarket === m;
               return (
                 <Pressable
                   key={m}
-                  style={[styles.selectorChip, active && styles.selectorChipActive]}
+                  style={[
+                    styles.selectorChip,
+                    active && styles.selectorChipActive,
+                    pending && styles.selectorChipPending,
+                  ]}
                   onPress={() => onSelectMarket(m)}
+                  disabled={pending}
                 >
                   <Text style={[styles.selectorChipText, active && styles.selectorChipTextActive]}>
                     📍 {m}
+                    {pending ? ' …' : ''}
                   </Text>
                 </Pressable>
               );
@@ -1046,6 +1064,7 @@ const styles = StyleSheet.create({
     borderColor: tokens.border,
   },
   selectorChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green700 },
+  selectorChipPending: { opacity: 0.65 },
   selectorChipText: { fontSize: 14, fontWeight: '600', color: tokens.text },
   selectorChipTextActive: { color: tokens.green800 },
   heroCard: {

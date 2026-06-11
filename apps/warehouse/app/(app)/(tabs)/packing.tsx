@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  filterPackQueueByTab,
-  tokens,
-  warehouseClient,
-  type PackQueueTab,
-  type QueueOrder,
-} from '@morbeez/shared';
+import { filterPackQueueByTab, tokens, type PackQueueTab } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 const TABS: Array<{ id: PackQueueTab; label: string }> = [
   { id: 'all', label: 'All' },
@@ -25,28 +20,8 @@ function parsePackTab(raw: string | string[] | undefined): PackQueueTab {
 export default function PackingQueueScreen() {
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const [queue, setQueue] = useState<QueueOrder[]>([]);
+  const { queue, queueLoading, refreshing, error, refreshQueue } = useWarehouseQueue();
   const [tab, setTab] = useState<PackQueueTab>(() => parsePackTab(tabParam));
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const q = await warehouseClient.getQueue({ limit: 80 });
-      setQueue(q);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load packing queue');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(() => {
     if (tabParam) setTab(parsePackTab(tabParam));
@@ -62,7 +37,7 @@ export default function PackingQueueScreen() {
     [queue]
   );
 
-  if (loading) return <Loading label="Loading packing queue…" />;
+  if (queueLoading && !queue.length) return <Loading label="Loading packing queue…" />;
 
   return (
     <View style={styles.root}>
@@ -70,7 +45,7 @@ export default function PackingQueueScreen() {
         data={filtered}
         keyExtractor={(r) => r.id}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
+          <RefreshControl refreshing={refreshing} onRefresh={() => void refreshQueue({ force: true })} />
         }
         contentContainerStyle={styles.content}
         ListHeaderComponent={

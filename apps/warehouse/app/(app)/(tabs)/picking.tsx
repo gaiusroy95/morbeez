@@ -1,14 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import {
-  filterPickQueue,
-  tokens,
-  warehouseClient,
-  type PickQueueTab,
-  type QueueOrder,
-} from '@morbeez/shared';
+import { filterPickQueue, tokens, type PickQueueTab } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 const TABS: Array<{ id: PickQueueTab; label: string }> = [
   { id: 'all', label: 'All' },
@@ -26,28 +21,8 @@ function parsePickTab(raw: string | string[] | undefined): PickQueueTab {
 export default function PickingQueueScreen() {
   const router = useRouter();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
-  const [queue, setQueue] = useState<QueueOrder[]>([]);
+  const { queue, queueLoading, refreshing, error, refreshQueue } = useWarehouseQueue();
   const [tab, setTab] = useState<PickQueueTab>(() => parsePickTab(tabParam));
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    setError('');
-    try {
-      const q = await warehouseClient.getQueue({ repair: true, limit: 80 });
-      setQueue(q);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load picking queue');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   useEffect(() => {
     if (tabParam) setTab(parsePickTab(tabParam));
@@ -64,7 +39,7 @@ export default function PickingQueueScreen() {
     [queue]
   );
 
-  if (loading) return <Loading label="Loading picking queue…" />;
+  if (queueLoading && !queue.length) return <Loading label="Loading picking queue…" />;
 
   return (
     <View style={styles.root}>
@@ -72,7 +47,10 @@ export default function PickingQueueScreen() {
         data={filtered}
         keyExtractor={(r) => r.id}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void refreshQueue({ repair: true, force: true })}
+          />
         }
         contentContainerStyle={styles.content}
         ListHeaderComponent={
@@ -86,7 +64,6 @@ export default function PickingQueueScreen() {
           </>
         }
         renderItem={({ item }) => {
-          const inProgress = item.omsStatus === 'picking';
           const rackHint = item.pickListId ? 'Pick list ready' : 'Awaiting pick list';
           return (
             <View>
@@ -98,14 +75,14 @@ export default function PickingQueueScreen() {
               />
               <View style={styles.cardAction}>
                 <Btn
-                  label={inProgress ? 'Resume picking' : 'Start picking'}
+                  label={item.omsStatus === 'picking' ? 'Continue pick' : 'Start pick'}
                   onPress={() => router.push(`/(app)/picking/${item.id}`)}
                 />
               </View>
             </View>
           );
         }}
-        ListEmptyComponent={<EmptyState>No orders in this picking bucket.</EmptyState>}
+        ListEmptyComponent={<EmptyState>No orders in this queue.</EmptyState>}
       />
     </View>
   );
@@ -114,5 +91,5 @@ export default function PickingQueueScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, paddingBottom: 32 },
-  cardAction: { marginTop: -4, marginBottom: 12, paddingHorizontal: 4 },
+  cardAction: { marginTop: -8, marginBottom: 12, paddingHorizontal: 4 },
 });

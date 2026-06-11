@@ -614,7 +614,13 @@ export const farmerPortalMobileService = {
         const cropType = (crop ?? block?.crop_type ?? 'ginger').toLowerCase();
         const today = new Date().toISOString().slice(0, 10);
         const { date, rows } = await fetchPriceRows(cropType, today);
-        const mapped = (rows ?? []).map((r) => {
+        const seenMarkets = new Set();
+        const mapped = (rows ?? []).flatMap((r) => {
+            const marketName = String(r.market_name);
+            const key = marketName.toLowerCase();
+            if (seenMarkets.has(key))
+                return [];
+            seenMarkets.add(key);
             const price = Number(r.price_per_kg);
             const last = r.last_year_price_per_kg != null ? Number(r.last_year_price_per_kg) : null;
             let trend = null;
@@ -626,12 +632,12 @@ export const farmerPortalMobileService = {
                 else
                     trend = 'flat';
             }
-            return {
-                marketName: String(r.market_name),
-                pricePerKg: price,
-                lastYearPricePerKg: last,
-                trend,
-            };
+            return [{
+                    marketName,
+                    pricePerKg: price,
+                    lastYearPricePerKg: last,
+                    trend,
+                }];
         });
         const top = mapped[0];
         const summary = top

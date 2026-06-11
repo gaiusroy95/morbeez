@@ -93,7 +93,7 @@ export declare const fieldPwaService: {
         };
         photoUrls: string[];
     }>;
-    listRecentVisits(_agronomistEmail: string, limit?: number): Promise<{
+    listRecentVisits(agronomistEmail: string, limit?: number, farmerId?: string): Promise<{
         id: any;
         farmer_id: any;
         block_name: any;
@@ -101,6 +101,7 @@ export declare const fieldPwaService: {
         disease_pest: any;
         visited_at: any;
         photo_urls: any;
+        agronomist_name: any;
         farmers: {
             name: any;
             phone: any;

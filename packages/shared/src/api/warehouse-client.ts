@@ -1,4 +1,5 @@
 import { STAFF_API_V1, resolveStaffApiUrl } from './config';
+import { fetchWithCache, invalidateCachedResponses } from './response-cache';
 import { staffApi } from './staff-client';
 import { buildOrderTimeline } from './warehouse-queue';
 import type {
@@ -36,22 +37,44 @@ export {
 } from './warehouse-queue';
 
 const WMS = `${STAFF_API_V1}/os/warehouse`;
+const WAREHOUSE_STATS_TTL_MS = 30_000;
+const WAREHOUSE_QUEUE_TTL_MS = 45_000;
 
 export const warehouseClient = {
-  async getStats(): Promise<WarehouseStats> {
-    const r = await staffApi<{ ok: boolean; stats: WarehouseStats }>(`${WMS}/fulfillment/stats`);
-    return r.stats;
+  async getStats(opts?: { force?: boolean }): Promise<WarehouseStats> {
+    return fetchWithCache(
+      'warehouse-stats',
+      WAREHOUSE_STATS_TTL_MS,
+      async () => {
+        const r = await staffApi<{ ok: boolean; stats: WarehouseStats }>(`${WMS}/fulfillment/stats`);
+        return r.stats;
+      },
+      opts
+    );
   },
 
-  async getQueue(opts?: { limit?: number; repair?: boolean }): Promise<QueueOrder[]> {
-    const params = new URLSearchParams();
-    if (opts?.limit) params.set('limit', String(opts.limit));
-    if (opts?.repair) params.set('repair', 'true');
-    const q = params.toString();
-    const r = await staffApi<{ ok: boolean; queue: QueueOrder[] }>(
-      `${WMS}/fulfillment/queue${q ? `?${q}` : ''}`
+  async getQueue(opts?: { limit?: number; repair?: boolean; force?: boolean }): Promise<QueueOrder[]> {
+    const { force, ...queryOpts } = opts ?? {};
+    const cacheKey = `warehouse-queue:${queryOpts.limit ?? 80}:${queryOpts.repair ? '1' : '0'}`;
+    return fetchWithCache(
+      cacheKey,
+      WAREHOUSE_QUEUE_TTL_MS,
+      async () => {
+        const params = new URLSearchParams();
+        if (queryOpts.limit) params.set('limit', String(queryOpts.limit));
+        if (queryOpts.repair) params.set('repair', 'true');
+        const q = params.toString();
+        const r = await staffApi<{ ok: boolean; queue: QueueOrder[] }>(
+          `${WMS}/fulfillment/queue${q ? `?${q}` : ''}`
+        );
+        return r.queue ?? [];
+      },
+      { force }
     );
-    return r.queue ?? [];
+  },
+
+  invalidateFulfillmentCache(): void {
+    invalidateCachedResponses('warehouse-');
   },
 
   async syncInventory(): Promise<{ queue: QueueOrder[]; syncedQty?: number; repaired?: number; failed?: number }> {

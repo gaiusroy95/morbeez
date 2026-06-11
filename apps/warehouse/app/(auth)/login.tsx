@@ -8,7 +8,7 @@ import { useStaffAuth } from '@/context/StaffAuth';
 export default function LoginScreen() {
   const { login, loginWithOtp } = useStaffAuth();
   const router = useRouter();
-  const [mode, setMode] = useState<'otp' | 'password'>('otp');
+  const [mode, setMode] = useState<'otp' | 'email'>('otp');
   const [otpStep, setOtpStep] = useState<'phone' | 'code'>('phone');
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
@@ -18,13 +18,13 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function onPasswordSubmit() {
+  async function onEmailSubmit() {
     setError('');
     setLoading(true);
     try {
-      const phone = phoneForCheckout(mobile);
-      if (phone.length !== 10) throw new Error('Enter a valid 10-digit mobile number');
-      await login(phone, password, email.trim() || undefined);
+      if (!email.trim()) throw new Error('Enter your work email');
+      if (!password) throw new Error('Enter your password');
+      await login(email.trim(), password);
       router.replace('/(app)');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Login failed');
@@ -79,7 +79,7 @@ export default function LoginScreen() {
               {otpStep === 'phone' ? (
                 <>
                   <TextField
-                    label="Mobile number *"
+                    label="Mobile number"
                     value={mobile}
                     onChangeText={setMobile}
                     keyboardType="phone-pad"
@@ -111,31 +111,25 @@ export default function LoginScreen() {
                   </Pressable>
                 </>
               )}
-              <Pressable onPress={() => setMode('password')} style={styles.linkWrap}>
-                <Text style={styles.linkText}>Use password instead</Text>
+              <Pressable onPress={() => setMode('email')} style={styles.linkWrap}>
+                <Text style={styles.linkText}>Use email instead</Text>
               </Pressable>
             </>
           ) : (
             <>
               <TextField
-                label="Mobile number *"
-                value={mobile}
-                onChangeText={setMobile}
-                keyboardType="phone-pad"
-                accessibilityLabel="Mobile number"
-              />
-              <TextField
-                label="Work email (optional)"
+                label="Work email"
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
-                accessibilityLabel="Work email optional"
+                autoCapitalize="none"
+                accessibilityLabel="Work email"
               />
-              <PasswordField label="Password" value={password} onChangeText={setPassword} />
+              <PasswordField label="Password" value={password} onChangeText={setPassword} accessibilityLabel="Password" />
               <Btn
                 label={loading ? 'Signing in…' : 'Sign in'}
-                onPress={() => void onPasswordSubmit()}
-                disabled={loading || mobile.replace(/\D/g, '').length < 10 || !password}
+                onPress={() => void onEmailSubmit()}
+                disabled={loading || !email.trim() || !password}
               />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
                 <Text style={styles.linkText}>Use mobile OTP instead</Text>

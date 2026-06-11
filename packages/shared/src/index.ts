@@ -4,6 +4,8 @@ export * from './api/errors';
 export * from './api/staff-client';
 export * from './api/farmer-client';
 export * from './api/warehouse-client';
+export * from './api/agronomist-client';
+export * from './types/agronomist';
 export * from './types/warehouse';
 export * from './format/index';
 export * from './types/farmer-portal';

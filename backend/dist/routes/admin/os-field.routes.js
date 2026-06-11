@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import { fieldPwaService } from '../../services/admin/field-pwa.service.js';
+import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
     mimeType: z.string().min(3).max(80),
@@ -47,7 +48,7 @@ export async function osFieldRoutes(app) {
     app.get(`${api}/visits/recent`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'read');
         const q = request.query;
-        const visits = await fieldPwaService.listRecentVisits(admin.email, q.limit ? Number(q.limit) : 15);
+        const visits = await fieldPwaService.listRecentVisits(admin.email, q.limit ? Number(q.limit) : 15, q.farmerId);
         return reply.send({ ok: true, visits });
     });
     app.post(`${api}/visits`, async (request, reply) => {
@@ -81,6 +82,35 @@ export async function osFieldRoutes(app) {
             agronomistEmail: admin.email,
         });
         return reply.status(201).send({ ok: true, ...result });
+    });
+    app.post(`${api}/visits/sessions`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const body = z
+            .object({
+            farmerId: z.string().uuid(),
+            blockId: z.string().uuid().optional(),
+            latitude: z.number().optional(),
+            longitude: z.number().optional(),
+        })
+            .parse(request.body);
+        const session = await agronomistMobileService.startVisitSession({
+            ...body,
+            agronomistEmail: admin.email,
+        });
+        return reply.status(201).send({ ok: true, session });
+    });
+    app.patch(`${api}/visits/sessions/:sessionId/check-out`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { sessionId } = request.params;
+        const body = z
+            .object({
+            latitude: z.number().optional(),
+            longitude: z.number().optional(),
+            fieldFindingId: z.string().uuid().optional(),
+        })
+            .parse(request.body ?? {});
+        const session = await agronomistMobileService.checkOutVisitSession(sessionId, body);
+        return reply.send({ ok: true, session });
     });
 }
 //# sourceMappingURL=os-field.routes.js.map
