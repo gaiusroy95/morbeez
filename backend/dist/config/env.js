@@ -45,6 +45,13 @@ const envSchema = z.object({
     ADS_GYANI_TEMPLATE_LANGUAGE: z.string().optional(),
     WHATSAPP_WELCOME_TEMPLATE: z.string().optional(),
     WHATSAPP_OUTBOUND_TEMPLATE: z.string().optional(),
+    /** Approved Meta/Ads Gyani template for login OTP (single body param = code). */
+    WHATSAPP_OTP_TEMPLATE: z.string().optional(),
+    /** When true, send login OTP via WhatsApp even if NODE_ENV is development/staging. */
+    OTP_SEND_VIA_WHATSAPP: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
     WHATSAPP_SESSION_HOURS: z.coerce.number().default(24),
     WHATSAPP_TYPING_SIMULATION: z
         .string()
@@ -69,6 +76,9 @@ const envSchema = z.object({
     CONSOLE_SHARED_PASSWORD: z.string().min(8).max(128).optional(),
     RATE_LIMIT_MAX: z.coerce.number().default(100),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
+    AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+    FARMER_SCAN_DAILY_QUOTA: z.coerce.number().default(20),
+    UPLOAD_BODY_LIMIT_BYTES: z.coerce.number().default(10_485_760),
     ENABLE_SHIPROCKET_AUTO_SHIP: z
         .string()
         .transform((v) => v === 'true')

@@ -1,24 +1,19 @@
 import { randomUUID } from 'crypto';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { NotFoundError, UnauthorizedError } from '../../lib/errors.js';
 import { logger } from '../../lib/logger.js';
 import { razorpayCheckoutService } from '../razorpay/razorpay.checkout.service.js';
 import { shopifyOrdersService } from '../shopify/shopify.orders.service.js';
 import { checkoutOmsBridgeService } from './checkout-oms-bridge.service.js';
+import { checkoutPricingService } from './checkout-pricing.service.js';
 function paiseTotal(lineItems) {
-    let total = 0;
-    for (const li of lineItems) {
-        if (!li.variantId || li.quantity < 1) {
-            throw new ValidationError('Invalid cart line item');
-        }
-        total += Math.round(li.price) * li.quantity;
-    }
-    return total;
+    return lineItems.reduce((total, li) => total + Math.round(li.price) * li.quantity, 0);
 }
 export const checkoutService = {
-    async createRazorpayCheckout(input) {
-        const amountPaise = paiseTotal(input.lineItems);
+    async createRazorpayCheckout(input, channel = 'website') {
+        const validatedLines = await checkoutPricingService.validateLineItems(input.lineItems);
+        const amountPaise = paiseTotal(validatedLines);
         const sessionId = randomUUID();
         const receipt = `mbz_${sessionId.replace(/-/g, '').slice(0, 18)}`;
         const rzOrder = await razorpayCheckoutService.createOrder({
@@ -33,8 +28,8 @@ export const checkoutService = {
             receipt,
             amount_paise: amountPaise,
             currency: 'INR',
-            line_items: input.lineItems,
-            customer: input.customer,
+            line_items: validatedLines,
+            customer: { ...input.customer, sourceChannel: channel },
             shipping: input.shipping,
             status: 'pending',
         });
@@ -85,6 +80,7 @@ export const checkoutService = {
         const customer = session.customer;
         const shipping = session.shipping;
         const lineItems = session.line_items;
+        const sourceChannel = customer.sourceChannel === 'mobile' ? 'mobile' : 'website';
         const totalInr = (session.amount_paise / 100).toFixed(2);
         const shopifyOrder = await shopifyOrdersService.createPaidOrder({
             email: customer.email,
@@ -109,7 +105,7 @@ export const checkoutService = {
             totalAmountInr: totalInr,
             razorpayPaymentId: input.razorpayPaymentId,
             razorpayOrderId: input.razorpayOrderId,
-            tags: 'razorpay-checkout,website',
+            tags: `razorpay-checkout,${sourceChannel}`,
         });
         await supabase
             .from('checkout_sessions')
@@ -147,6 +143,49 @@ export const checkoutService = {
             shopifyOrderId: shopifyOrder.shopifyOrderId,
             orderName: shopifyOrder.orderName,
             orderStatusUrl: shopifyOrder.orderStatusUrl,
+        };
+    },
+    async createCodCheckout(input, channel = 'mobile', farmerId) {
+        const validatedLines = await checkoutPricingService.validateLineItems(input.lineItems);
+        const totalInr = (paiseTotal(validatedLines) / 100).toFixed(2);
+        const sourceChannel = channel === 'mobile' ? 'mobile' : 'website';
+        const shopifyOrder = await shopifyOrdersService.createCodOrder({
+            email: input.customer.email,
+            phone: input.customer.phone,
+            lineItems: validatedLines.map((li) => ({
+                variantId: li.variantId,
+                quantity: li.quantity,
+                title: li.title,
+                unitPrice: li.price / 100,
+            })),
+            shipping: {
+                firstName: input.customer.firstName,
+                lastName: input.customer.lastName,
+                address1: input.shipping.address1,
+                address2: input.shipping.address2,
+                city: input.shipping.city,
+                province: input.shipping.province,
+                zip: input.shipping.zip,
+                country: input.shipping.country ?? 'IN',
+                phone: input.customer.phone,
+            },
+            totalAmountInr: totalInr,
+            note: farmerId ? `Farmer app COD · farmer ${farmerId}` : 'Farmer app COD',
+            tags: `razorpay-checkout,${sourceChannel},cod`,
+        });
+        try {
+            await checkoutOmsBridgeService.syncToWarehouse({
+                shopifyOrderId: shopifyOrder.shopifyOrderId,
+            });
+        }
+        catch (err) {
+            logger.error({ err, shopifyOrderId: shopifyOrder.shopifyOrderId }, 'Warehouse sync after COD checkout failed');
+        }
+        return {
+            shopifyOrderId: shopifyOrder.shopifyOrderId,
+            orderName: shopifyOrder.orderName,
+            orderStatusUrl: shopifyOrder.orderStatusUrl,
+            paymentMethod: 'cod',
         };
     },
 };

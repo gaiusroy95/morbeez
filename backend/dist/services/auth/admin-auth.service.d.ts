@@ -1,5 +1,6 @@
 export interface AdminLoginInput {
-    email: string;
+    phone?: string;
+    email?: string;
     password: string;
 }
 export declare const adminAuthService: {

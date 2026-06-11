@@ -26,12 +26,13 @@ function publicFarmer(row) {
         shippingAddress: row.shipping_address ?? null,
         deliveryPincode: row.delivery_pincode ?? null,
         newsletterSubscribed: row.newsletter_subscribed,
+        hasPassword: Boolean(row.password_hash),
         createdAt: row.created_at,
     };
 }
 export const farmerAuthService = {
     async signup(input) {
-        const email = normalizeEmail(input.email);
+        const email = input.email?.trim() ? normalizeEmail(input.email) : null;
         if (!input.acceptTerms) {
             throw new ValidationError('You must accept the Terms of Service and Privacy Policy');
         }
@@ -44,14 +45,16 @@ export const farmerAuthService = {
         const phone = normalizePhone(input.phone);
         const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
         const now = new Date().toISOString();
-        const { data: existingEmail, error: existingEmailErr } = await supabase
-            .from('farmers')
-            .select('id')
-            .eq('email', email)
-            .maybeSingle();
-        throwIfSupabaseError(existingEmailErr, 'Could not check existing account');
-        if (existingEmail)
-            throw new ConflictError('An account with this email already exists');
+        if (email) {
+            const { data: existingEmail, error: existingEmailErr } = await supabase
+                .from('farmers')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+            throwIfSupabaseError(existingEmailErr, 'Could not check existing account');
+            if (existingEmail)
+                throw new ConflictError('An account with this email already exists');
+        }
         const { data: existingPhone, error: existingPhoneErr } = await supabase
             .from('farmers')
             .select('*')
@@ -78,7 +81,7 @@ export const farmerAuthService = {
         };
         let data;
         if (existingPhone) {
-            if (existingPhone.email && existingPhone.email !== email) {
+            if (email && existingPhone.email && existingPhone.email !== email) {
                 throw new ConflictError('This WhatsApp number is already linked to another account');
             }
             if (existingPhone.password_hash) {
@@ -119,7 +122,7 @@ export const farmerAuthService = {
                 farmerId: String(data.id),
                 phone,
                 name: fullName,
-                email,
+                email: email ?? undefined,
                 channel: input.channel ?? 'website',
             });
             logger.info({
@@ -133,7 +136,7 @@ export const farmerAuthService = {
         catch (err) {
             logger.error({ err, farmerId: data.id, phone }, 'Signup telecaller lead failed');
         }
-        const token = createFarmerToken(data.id, email);
+        const token = createFarmerToken(data.id, email ?? phone);
         return { token, farmer: publicFarmer(data) };
     },
     async login(input) {
@@ -158,7 +161,7 @@ export const farmerAuthService = {
             .single();
         if (error || !data)
             throw new UnauthorizedError('Session invalid');
-        if (!data.email)
+        if (!data.email && !data.phone)
             throw new UnauthorizedError('Session invalid');
         return publicFarmer(data);
     },

@@ -598,14 +598,19 @@ export const farmerPortalMobileService = {
     farmerId: string,
     query: { blockId?: string; type?: string; from?: string; to?: string }
   ) {
+    const blocks = await blockService.listByFarmer(farmerId);
+    const blockNameById = new Map(blocks.map((b) => [b.id, blockDisplayName(b)]));
+
     let q = supabase
       .from('cultivation_activities')
-      .select('*, farm_blocks(name)')
+      .select('*')
       .eq('farmer_id', farmerId)
       .order('applied_at', { ascending: false })
       .limit(50);
 
-    if (query.blockId) q = q.eq('farm_block_id', query.blockId);
+    if (query.blockId) {
+      q = q.or(`farm_block_id.eq.${query.blockId},block_id.eq.${query.blockId}`);
+    }
     if (query.type) q = q.eq('activity_type', query.type);
     if (query.from) q = q.gte('applied_at', query.from);
     if (query.to) q = q.lte('applied_at', query.to);
@@ -615,11 +620,12 @@ export const farmerPortalMobileService = {
 
     return {
       activities: (data ?? []).map((a) => {
-        const block = a.farm_blocks as { name?: string } | null;
+        const resolvedBlockId = a.farm_block_id ?? a.block_id;
+        const blockIdStr = resolvedBlockId ? String(resolvedBlockId) : '';
         return {
           id: String(a.id),
-          blockId: String(a.farm_block_id),
-          blockName: block?.name ? String(block.name) : null,
+          blockId: blockIdStr,
+          blockName: blockIdStr ? (blockNameById.get(blockIdStr) ?? null) : null,
           activityType: String(a.activity_type ?? 'other'),
           activityLabel: String(a.activity_label ?? a.activity_type ?? 'Activity'),
           activityDate: String(a.applied_at).slice(0, 10),

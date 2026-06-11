@@ -300,10 +300,32 @@ export const roiFlowService = {
     },
     async handleButton(farmerId, phone, language, buttonId, send) {
         if (buttonId === 'roi.finish') {
-            const totals = await ledgerSummaryService.balanceForFarmer(farmerId);
-            const msg = language === 'ml'
-                ? `ഇന്നത്തെ ബാലൻസ്: ₹${totals.balance.toFixed(0)}\n(വരുമാനം ₹${totals.credits.toFixed(0)} − ചെലവ് ₹${totals.debits.toFixed(0)})`
-                : `Balance so far: ₹${totals.balance.toFixed(0)}\n(Income ₹${totals.credits.toFixed(0)} − Expense ₹${totals.debits.toFixed(0)})`;
+            const { data: activeSeason } = await supabase
+                .from('crop_seasons')
+                .select('id, crop, total_expense, total_income, net_profit')
+                .eq('farmer_id', farmerId)
+                .eq('season_status', 'active')
+                .order('start_date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            let msg;
+            if (activeSeason) {
+                const expense = Number(activeSeason.total_expense ?? 0);
+                const income = Number(activeSeason.total_income ?? 0);
+                const profit = Number(activeSeason.net_profit ?? income - expense);
+                const roiPct = expense > 0 ? Math.round((profit / expense) * 100) : 0;
+                msg =
+                    language === 'ml'
+                        ? `സീസൺ സംഗ്രഹം (${activeSeason.crop}):\nചെലവ് ₹${expense.toFixed(0)} · വരുമാനം ₹${income.toFixed(0)}${income > 0 ? ` · ലാഭം ₹${profit.toFixed(0)} (${roiPct}% ROI)` : ''}\n\nസീസൺ അവസാനിപ്പിക്കാൻ "finish cycle" ടൈപ്പ് ചെയ്യുക.`
+                        : `Season summary (${activeSeason.crop}):\nExpense ₹${expense.toFixed(0)} · Income ₹${income.toFixed(0)}${income > 0 ? ` · Profit ₹${profit.toFixed(0)} (${roiPct}% ROI)` : ''}\n\nType "finish cycle" to close this crop cycle.`;
+            }
+            else {
+                const totals = await ledgerSummaryService.balanceForFarmer(farmerId);
+                msg =
+                    language === 'ml'
+                        ? `ഇന്നത്തെ ബാലൻസ്: ₹${totals.balance.toFixed(0)}\n(വരുമാനം ₹${totals.credits.toFixed(0)} − ചെലവ് ₹${totals.debits.toFixed(0)})`
+                        : `Balance so far: ₹${totals.balance.toFixed(0)}\n(Income ₹${totals.credits.toFixed(0)} − Expense ₹${totals.debits.toFixed(0)})`;
+            }
             await send.text(phone, msg);
             await conversationSessionService.setState(farmerId, 'main_menu');
             return true;
@@ -333,11 +355,27 @@ export const roiFlowService = {
             debit_inr: dc.debit_inr,
             credit_inr: dc.credit_inr,
             amount_inr: params.amount,
+            season_id: params.seasonId ?? null,
         };
+        let seasonId = params.seasonId;
+        let blockId = params.blockId;
+        if (!seasonId) {
+            try {
+                const { cropSeasonService } = await import('../../farmer/crop-season.service.js');
+                const season = await cropSeasonService.ensureActiveSeason(params.farmerId, blockId);
+                seasonId = season.id;
+                blockId = blockId ?? season.block_id;
+            }
+            catch {
+                /* season optional for legacy */
+            }
+        }
         const { data, error } = await supabase
             .from('farmer_roi_entries')
             .insert({
             farmer_id: params.farmerId,
+            block_id: blockId ?? null,
+            season_id: seasonId ?? null,
             entry_type: params.entryType,
             amount_inr: params.amount,
             debit_inr: dc.debit_inr,
@@ -345,6 +383,12 @@ export const roiFlowService = {
             comments: params.comments?.slice(0, 500) ?? null,
             note: params.comments?.slice(0, 200) ?? null,
             entry_date: params.entryDate,
+            expense_type_id: params.expenseTypeId ?? null,
+            category_id: params.categoryId ?? null,
+            income_subtype: params.incomeSubtype ?? null,
+            labour_type_id: params.labourTypeId ?? null,
+            workers_count: params.workersCount ?? null,
+            commerce_order_id: params.commerceOrderId ?? null,
         })
             .select('id')
             .single();
@@ -376,13 +420,25 @@ export const roiFlowService = {
         const entryDate = ctx.roiPendingEntryDate ?? todayIstDate();
         if (!entryType || amount == null)
             return;
-        await this.recordEntry({
-            farmerId,
-            entryType,
-            amount,
-            entryDate,
-            comments,
-        });
+        if (entryType === 'harvest') {
+            const { cropSeasonService } = await import('../../farmer/crop-season.service.js');
+            await cropSeasonService.recordHarvestSale(farmerId, {
+                harvestDate: entryDate,
+                yieldKg: 1,
+                sellingPricePerKg: amount,
+                buyer: comments,
+            });
+        }
+        else {
+            await this.recordEntry({
+                farmerId,
+                entryType,
+                amount,
+                entryDate,
+                comments,
+                incomeSubtype: entryType === 'income' ? 'other' : undefined,
+            });
+        }
         await conversationSessionService.patchContext(farmerId, {
             roiPendingEntryType: undefined,
             roiPendingEntryDate: undefined,
@@ -406,6 +462,30 @@ export const roiFlowService = {
             return this.handleButton(params.farmerId, params.phone, params.language, params.text, params.send);
         }
         const ctx = await conversationSessionService.getContext(params.farmerId);
+        if (/^finish\s+cycle$/i.test(text)) {
+            const { cropSeasonService } = await import('../../farmer/crop-season.service.js');
+            const { data: activeSeason } = await supabase
+                .from('crop_seasons')
+                .select('id, crop')
+                .eq('farmer_id', params.farmerId)
+                .eq('season_status', 'active')
+                .order('start_date', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (!activeSeason) {
+                await params.send.text(params.phone, params.language === 'ml'
+                    ? 'സജീവ സീസൺ ഇല്ല.'
+                    : 'No active crop cycle to finish.');
+                return true;
+            }
+            const result = await cropSeasonService.finishSeason(params.farmerId, String(activeSeason.id));
+            const msg = params.language === 'ml'
+                ? `സീസൺ അവസാനിച്ചു ✅ ${activeSeason.crop}\nചെലവ് ₹${result.totalExpenseInr.toFixed(0)} · വരുമാനം ₹${result.totalIncomeInr.toFixed(0)} · ലാഭം ₹${result.netProfitInr.toFixed(0)}`
+                : `Cycle finished ✅ ${activeSeason.crop}\nExpense ₹${result.totalExpenseInr.toFixed(0)} · Income ₹${result.totalIncomeInr.toFixed(0)} · Profit ₹${result.netProfitInr.toFixed(0)}`;
+            await params.send.text(params.phone, msg);
+            await conversationSessionService.setState(params.farmerId, 'main_menu');
+            return true;
+        }
         if (/^edit\s+last$/i.test(text)) {
             await params.send.text(params.phone, params.language === 'ml'
                 ? 'എൻട്രി തിരുത്തൽ ടെലികോളർ CRM-ൽ മാത്രം. നിങ്ങളുടെ ഓഫീസുമായി ബന്ധപ്പെടുക.'

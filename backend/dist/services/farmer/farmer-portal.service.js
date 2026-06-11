@@ -7,6 +7,7 @@ import { farmerProductReviewService } from './farmer-product-review.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import { advisoryImageStorageService, resolveAdvisoryImageUrl, } from '../core/advisory-image-storage.service.js';
 import { cropImageReviewService } from '../core/crop-image-review.service.js';
+import { growthStageFromDap, cropCycleDays } from './crop-stage.service.js';
 import { normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 function formatDate(iso) {
     if (!iso)
@@ -48,18 +49,8 @@ function daysAfterPlanting(plantingDate) {
     const days = Math.floor((Date.now() - d.getTime()) / 86400000);
     return days >= 0 ? days : null;
 }
-function growthStageLabel(stage, dap) {
-    if (stage?.trim())
-        return stage.trim();
-    if (dap == null)
-        return 'Growing';
-    if (dap < 30)
-        return 'Early growth';
-    if (dap < 60)
-        return 'Vegetative growth';
-    if (dap < 120)
-        return 'Active development';
-    return 'Maturity phase';
+function growthStageLabel(crop, stage, dap) {
+    return growthStageFromDap(crop, dap, stage);
 }
 function scoreSoilReport(metrics) {
     const ph = Number(metrics.macro.ph?.value);
@@ -225,6 +216,64 @@ export const farmerPortalService = {
             profile.village,
             [profile.district, profile.state, profile.deliveryPincode || profile.pincode].filter(Boolean).join(', '),
         ].filter(Boolean);
+        const today = new Date().toISOString().slice(0, 10);
+        const monthStart = `${today.slice(0, 7)}-01`;
+        const todayExpense = (roiRes.entries ?? [])
+            .filter((e) => e.entryDate === today && e.creditInr == null)
+            .reduce((s, e) => s + (e.amountInr ?? 0), 0);
+        const monthExpense = (roiRes.entries ?? [])
+            .filter((e) => e.entryDate >= monthStart && e.creditInr == null)
+            .reduce((s, e) => s + (e.amountInr ?? 0), 0);
+        const cropType = primary?.crop_name ? String(primary.crop_name).toLowerCase() : 'ginger';
+        const { rows: priceRows, date: priceDate } = await (async () => {
+            const { data: rows } = await supabase
+                .from('crop_daily_prices')
+                .select('market_name, price_per_kg, last_year_price_per_kg')
+                .eq('crop_type', cropType)
+                .eq('price_date', today)
+                .eq('active', true)
+                .order('market_name')
+                .limit(1);
+            if (rows?.length)
+                return { date: today, rows };
+            const { data: fb } = await supabase
+                .from('crop_daily_prices')
+                .select('market_name, price_per_kg, last_year_price_per_kg, price_date')
+                .eq('crop_type', cropType)
+                .eq('active', true)
+                .order('price_date', { ascending: false })
+                .limit(1);
+            return { date: fb?.[0]?.price_date ? String(fb[0].price_date) : today, rows: fb ?? [] };
+        })();
+        const topPrice = priceRows?.[0];
+        let marketTrend = null;
+        if (topPrice?.last_year_price_per_kg != null) {
+            const p = Number(topPrice.price_per_kg);
+            const ly = Number(topPrice.last_year_price_per_kg);
+            if (p > ly * 1.02)
+                marketTrend = 'up';
+            else if (p < ly * 0.98)
+                marketTrend = 'down';
+            else
+                marketTrend = 'flat';
+        }
+        const tasks = [];
+        if (latestRec) {
+            tasks.push({
+                id: `rec-${latestRec.id}`,
+                label: String(latestRec.problem ?? latestRec.recommendation ?? 'Apply recommendation').slice(0, 80),
+                dueLabel: nextAdvisory,
+                href: `/recommendations/${latestRec.id}`,
+            });
+        }
+        if (latestRec?.follow_up_at && new Date(String(latestRec.follow_up_at)) > new Date()) {
+            tasks.push({
+                id: `follow-${latestRec.id}`,
+                label: 'Follow-up check due',
+                dueLabel: formatDate(String(latestRec.follow_up_at)),
+                href: `/recommendations/${latestRec.id}`,
+            });
+        }
         return {
             greetingName: [profile.firstName, profile.lastName].filter(Boolean).join(' ') || profile.name || 'Farmer',
             crop: primary
@@ -233,8 +282,10 @@ export const farmerPortalService = {
                     variety: primary.variety_name ? String(primary.variety_name) : null,
                     fieldSize: primary.area ? String(primary.area) : null,
                     blockName: String(primary.name ?? 'Field'),
-                    stage: growthStageLabel(primary.stage ? String(primary.stage) : null, dap),
+                    blockId: String(primary.id),
+                    stage: growthStageLabel(primary.crop_name ? String(primary.crop_name) : null, primary.stage ? String(primary.stage) : null, dap),
                     daysAfterPlanting: dap,
+                    cycleDays: cropCycleDays(primary.crop_name ? String(primary.crop_name) : null),
                 }
                 : null,
             shippingAddress: {
@@ -267,7 +318,9 @@ export const farmerPortalService = {
                 ? {
                     id: String(latestRec.id),
                     cropName: blockJoin?.crop_name ? String(blockJoin.crop_name) : primary?.crop_name ?? 'Crop',
-                    stage: primary ? growthStageLabel(primary.stage ? String(primary.stage) : null, dap) : null,
+                    stage: primary
+                        ? growthStageLabel(primary.crop_name ? String(primary.crop_name) : null, primary.stage ? String(primary.stage) : null, dap)
+                        : null,
                     dateLabel: formatDate(String(latestRec.created_at)),
                     dayLabel: dap != null ? `Day ${dap}` : null,
                     bullets: parseRecommendationBullets([latestRec.products, latestRec.dosage, latestRec.recommendation].filter(Boolean).join('\n')),
@@ -276,6 +329,21 @@ export const farmerPortalService = {
                 : null,
             recentOrder: orders[0] ? publicOrder(orders[0]) : null,
             notifications: notifRes,
+            todayMarket: topPrice
+                ? {
+                    crop: cropType,
+                    pricePerKg: Number(topPrice.price_per_kg),
+                    marketName: String(topPrice.market_name),
+                    trend: marketTrend,
+                    date: String(priceDate),
+                }
+                : null,
+            finance: {
+                todayExpenseInr: Math.round(todayExpense),
+                monthExpenseInr: Math.round(monthExpense),
+                projectedProfitInr: Math.max(0, Math.round(roiRes.summary.balance)),
+            },
+            tasks,
         };
     },
     async listOrders(farmerId) {
@@ -360,7 +428,9 @@ export const farmerPortalService = {
                 dateLabel: formatDate(String(r.created_at)),
                 cropName: block?.crop_name ? String(block.crop_name) : primary?.crop_name ?? 'Crop',
                 blockName: block?.name ? String(block.name) : null,
-                stage: primary ? growthStageLabel(primary.stage ? String(primary.stage) : null, dap) : null,
+                stage: primary
+                    ? growthStageLabel(primary.crop_name ? String(primary.crop_name) : null, primary.stage ? String(primary.stage) : null, dap)
+                    : null,
                 dayLabel: dap != null ? `Day ${dap}` : null,
                 title: r.problem ? String(r.problem) : 'Crop recommendation',
                 bullets: parseRecommendationBullets(text),
@@ -380,7 +450,7 @@ export const farmerPortalService = {
                 ? {
                     name: String(primary.crop_name ?? 'Crop'),
                     fieldSize: primary.area ? String(primary.area) : null,
-                    stage: growthStageLabel(primary.stage ? String(primary.stage) : null, dap),
+                    stage: growthStageLabel(primary.crop_name ? String(primary.crop_name) : null, primary.stage ? String(primary.stage) : null, dap),
                     daysAfterPlanting: dap,
                 }
                 : null,
@@ -405,7 +475,8 @@ export const farmerPortalService = {
                 const block = r.farm_blocks;
                 return {
                     id: String(r.id),
-                    blockName: block?.name ? String(block.name) : 'Field',
+                    blockId: r.block_id ? String(r.block_id) : null,
+                    blockName: block?.name ? String(block.name) : 'Block',
                     dateLabel: formatDate(String(r.reported_at)),
                     health: scoreSoilReport(metrics),
                     healthLabel: scoreSoilReport(metrics) === 'good'

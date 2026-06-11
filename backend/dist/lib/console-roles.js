@@ -7,6 +7,8 @@ export const CONSOLE_ROLES = [
     'agronomist',
     'manager',
     'viewer',
+    'warehouse',
+    'picker_packer',
 ];
 const STAFF_MANAGEMENT_ROLES = ['super_admin', 'admin'];
 const SUPER_ADMIN_ONLY_ROLES = ['super_admin'];
@@ -45,6 +47,9 @@ export function getRoleHomePath(role) {
             return '/telecaller';
         case 'viewer':
             return '/dashboard';
+        case 'warehouse':
+        case 'picker_packer':
+            return '/warehouse';
         case 'admin':
         case 'super_admin':
         default:

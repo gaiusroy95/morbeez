@@ -57,19 +57,24 @@ export default function BlockDetailScreen() {
   const load = useCallback(async () => {
     if (!blockId) return;
     setError('');
+    setLoading(true);
     try {
-      const [d, acts, reports, roi] = await Promise.all([
+      const [d, reports, roi] = await Promise.all([
         fetchFieldDetail(String(blockId)),
-        fetchActivities({ blockId: String(blockId) }),
         fetchPortalSoilReports(),
         fetchRoiSummary({ blockId: String(blockId) }),
       ]);
       setDetail(d);
-      setActivities(acts);
       setSoilReports(
         reports.filter((r) => r.blockId === String(blockId) || r.blockName === d.block.name)
       );
       setRoiSummary(roi);
+      try {
+        setActivities(await fetchActivities({ blockId: String(blockId) }));
+      } catch (e) {
+        setActivities([]);
+        setError(e instanceof Error ? e.message : 'Could not load activities');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load block');
     } finally {
@@ -134,7 +139,7 @@ export default function BlockDetailScreen() {
           <View style={styles.timeline}>
             {sortedActivities.length ? (
               sortedActivities.map((a, index) => (
-                <View key={a.id} style={styles.timelineRow}>
+                <View key={`${a.id}-${index}`} style={styles.timelineRow}>
                   <View style={styles.timelineRail}>
                     <View style={styles.timelineDot} />
                     {index < sortedActivities.length - 1 ? <View style={styles.timelineLine} /> : null}
@@ -167,8 +172,8 @@ export default function BlockDetailScreen() {
               <Panel title={`${t('latestSoilTest', locale)} · ${latestSoil.dateLabel}`}>
                 {latestSoil.highlights.length ? (
                   <View style={styles.metricsGrid}>
-                    {latestSoil.highlights.map((h) => (
-                      <View key={h} style={styles.metricCell}>
+                    {latestSoil.highlights.map((h, idx) => (
+                      <View key={`${h}-${idx}`} style={styles.metricCell}>
                         <Text style={styles.metricValue}>{h}</Text>
                       </View>
                     ))}

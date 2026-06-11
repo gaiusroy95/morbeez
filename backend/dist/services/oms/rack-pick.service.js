@@ -45,8 +45,11 @@ function resolveCurrentRack(session, lines, counts) {
         return null;
     const completed = (session.completed_racks ?? []);
     const stored = session.verified_rack ? String(session.verified_rack) : null;
-    if (stored && !completed.includes(stored) && !isRackComplete(stored, lines, counts)) {
-        return stored;
+    if (stored) {
+        if (!isRackComplete(stored, lines, counts))
+            return stored;
+        if (!allRacksComplete(lines, counts))
+            return stored;
     }
     return nextIncompleteRack(lines, counts, completed);
 }
@@ -205,18 +208,12 @@ async function confirmPick(packSessionId, lineId, qty) {
     }
     await supabase.from('pick_list_lines').update(lineUpdates).eq('id', lineId);
     let completed = [...ctx.completed];
-    let currentRack = ctx.currentRack;
+    const rackJustCompleted = ctx.currentRack != null && isRackComplete(ctx.currentRack, ctx.lines, counts);
     let scanComplete = false;
-    let advancedRack = null;
-    if (currentRack && isRackComplete(currentRack, ctx.lines, counts)) {
-        if (!completed.includes(currentRack))
-            completed.push(currentRack);
-        const nextRack = nextIncompleteRack(ctx.lines, counts, completed);
-        if (nextRack) {
-            currentRack = nextRack;
-            advancedRack = nextRack;
-        }
-        else if (allRacksComplete(ctx.lines, counts)) {
+    if (rackJustCompleted && ctx.currentRack) {
+        if (!completed.includes(ctx.currentRack))
+            completed.push(ctx.currentRack);
+        if (allRacksComplete(ctx.lines, counts)) {
             scanComplete = true;
             const commerceOrderId = ctx.session.pick_lists?.commerce_order_id;
             if (commerceOrderId) {
@@ -224,7 +221,7 @@ async function confirmPick(packSessionId, lineId, qty) {
             }
         }
     }
-    const verifiedRack = scanComplete ? null : currentRack;
+    const verifiedRack = scanComplete ? null : ctx.currentRack;
     await supabase
         .from('pack_sessions')
         .update({
@@ -238,16 +235,77 @@ async function confirmPick(packSessionId, lineId, qty) {
     return {
         ok: true,
         lineComplete: next >= required,
-        rackComplete: advancedRack != null || scanComplete,
-        advancedToRack: advancedRack,
+        rackComplete: rackJustCompleted,
+        advancedToRack: null,
         stage: refreshed.stage,
         printEnabled: refreshed.printEnabled,
         workflow: buildWorkflowPayload(refreshed),
         message: scanComplete
-            ? 'All racks complete — print label & invoice'
-            : advancedRack
-                ? `Rack complete — moved to ${advancedRack}`
+            ? 'All racks complete — open printables'
+            : rackJustCompleted
+                ? `Rack ${ctx.currentRack} complete — tap Next rack`
                 : `${line.product_title}: ${next}/${required} picked`,
+    };
+}
+async function advanceToNextRack(packSessionId) {
+    const ctx = await loadSessionContext(packSessionId);
+    if (ctx.stage === 'print') {
+        return {
+            ok: true,
+            stage: ctx.stage,
+            printEnabled: ctx.printEnabled,
+            workflow: buildWorkflowPayload(ctx),
+            message: 'All racks complete — open printables',
+        };
+    }
+    if (!ctx.currentRack) {
+        throw new AppError('No active rack', 409, 'NO_RACK');
+    }
+    if (!isRackComplete(ctx.currentRack, ctx.lines, ctx.counts)) {
+        throw new AppError('Finish picking all items on this rack first', 409, 'RACK_NOT_COMPLETE');
+    }
+    let completed = [...ctx.completed];
+    if (!completed.includes(ctx.currentRack))
+        completed.push(ctx.currentRack);
+    if (allRacksComplete(ctx.lines, ctx.counts)) {
+        const commerceOrderId = ctx.session.pick_lists?.commerce_order_id;
+        if (commerceOrderId) {
+            await invoiceService.generateTaxInvoice(String(commerceOrderId)).catch(() => undefined);
+        }
+        await supabase
+            .from('pack_sessions')
+            .update({
+            completed_racks: completed,
+            verified_rack: null,
+            scan_complete: true,
+        })
+            .eq('id', packSessionId);
+    }
+    else {
+        const nextRack = nextIncompleteRack(ctx.lines, ctx.counts, completed);
+        if (!nextRack) {
+            throw new AppError('No next rack available', 409, 'NO_NEXT_RACK');
+        }
+        await supabase
+            .from('pack_sessions')
+            .update({
+            completed_racks: completed,
+            verified_rack: nextRack,
+        })
+            .eq('id', packSessionId);
+    }
+    const refreshed = await loadSessionContext(packSessionId);
+    return {
+        ok: true,
+        stage: refreshed.stage,
+        printEnabled: refreshed.printEnabled,
+        advancedToRack: refreshed.currentRack,
+        workflow: buildWorkflowPayload(refreshed),
+        message: refreshed.stage === 'print'
+            ? 'All racks complete — open printables'
+            : refreshed.currentRack
+                ? `Moved to rack ${refreshed.currentRack}`
+                : 'Advanced to next rack',
     };
 }
 export const rackPickService = {
@@ -257,5 +315,6 @@ export const rackPickService = {
     buildWorkflowPayload,
     lookupBarcode,
     confirmPick,
+    advanceToNextRack,
 };
 //# sourceMappingURL=rack-pick.service.js.map

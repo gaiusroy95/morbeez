@@ -139,5 +139,33 @@ export const blockService = {
             throw new NotFoundError('Block not found after GPS update');
         return row;
     },
+    async updateBlock(blockId, farmerId, patch) {
+        const existing = await this.getById(blockId, farmerId);
+        if (!existing)
+            throw new NotFoundError('Field not found');
+        const update = { updated_at: new Date().toISOString() };
+        if (patch.name != null)
+            update.name = patch.name;
+        if (patch.cropType != null) {
+            update.crop_type = patch.cropType.toLowerCase();
+            update.crop_name = patch.cropType;
+        }
+        if (patch.acreage != null)
+            update.acreage_decimal = patch.acreage;
+        if (patch.plantingDate != null)
+            update.planting_date = patch.plantingDate;
+        if (patch.irrigationType != null)
+            update.irrigation_type = patch.irrigationType;
+        const { data, error } = await supabase
+            .from('farm_blocks')
+            .update(update)
+            .eq('id', blockId)
+            .eq('farmer_id', farmerId)
+            .select('*')
+            .single();
+        if (error)
+            throw error;
+        return this.withDap(mapBlock(data));
+    },
 };
 //# sourceMappingURL=block.service.js.map

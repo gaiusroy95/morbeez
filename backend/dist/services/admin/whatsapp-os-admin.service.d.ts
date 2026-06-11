@@ -124,7 +124,7 @@ export declare const whatsappOsAdminService: {
         followUpRequired?: boolean;
         followUpDate?: string | null;
         status?: "completed" | "pending" | "cancelled";
-        source?: "admin" | "telecaller" | "whatsapp" | "system";
+        source?: "admin" | "telecaller" | "whatsapp" | "system" | "mobile";
         assignedEmployee?: string;
     }): Promise<any>;
     syncFieldActivityToRoi(params: {

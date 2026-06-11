@@ -45,6 +45,10 @@ declare const envSchema: z.ZodObject<{
     ADS_GYANI_TEMPLATE_LANGUAGE: z.ZodOptional<z.ZodString>;
     WHATSAPP_WELCOME_TEMPLATE: z.ZodOptional<z.ZodString>;
     WHATSAPP_OUTBOUND_TEMPLATE: z.ZodOptional<z.ZodString>;
+    /** Approved Meta/Ads Gyani template for login OTP (single body param = code). */
+    WHATSAPP_OTP_TEMPLATE: z.ZodOptional<z.ZodString>;
+    /** When true, send login OTP via WhatsApp even if NODE_ENV is development/staging. */
+    OTP_SEND_VIA_WHATSAPP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     WHATSAPP_SESSION_HOURS: z.ZodDefault<z.ZodNumber>;
     WHATSAPP_TYPING_SIMULATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     WHATSAPP_TYPING_MIN_MS: z.ZodDefault<z.ZodNumber>;
@@ -66,6 +70,9 @@ declare const envSchema: z.ZodObject<{
     CONSOLE_SHARED_PASSWORD: z.ZodOptional<z.ZodString>;
     RATE_LIMIT_MAX: z.ZodDefault<z.ZodNumber>;
     RATE_LIMIT_WINDOW_MS: z.ZodDefault<z.ZodNumber>;
+    AUTH_RATE_LIMIT_MAX: z.ZodDefault<z.ZodNumber>;
+    FARMER_SCAN_DAILY_QUOTA: z.ZodDefault<z.ZodNumber>;
+    UPLOAD_BODY_LIMIT_BYTES: z.ZodDefault<z.ZodNumber>;
     ENABLE_SHIPROCKET_AUTO_SHIP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Create Shiprocket order + AWB when warehouse confirms (recommended). */
     ENABLE_SHIPROCKET_ON_CONFIRM: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
@@ -148,6 +155,7 @@ declare const envSchema: z.ZodObject<{
     SHIPROCKET_PICKUP_LOCATION: string;
     SHIPROCKET_PICKUP_PINCODE: string;
     WHATSAPP_PROVIDER: "cloud" | "wati" | "interakt" | "adsgyani";
+    OTP_SEND_VIA_WHATSAPP: boolean;
     WHATSAPP_SESSION_HOURS: number;
     WHATSAPP_TYPING_SIMULATION: boolean;
     WHATSAPP_TYPING_MIN_MS: number;
@@ -160,6 +168,9 @@ declare const envSchema: z.ZodObject<{
     ADMIN_JWT_SECRET: string;
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
+    AUTH_RATE_LIMIT_MAX: number;
+    FARMER_SCAN_DAILY_QUOTA: number;
+    UPLOAD_BODY_LIMIT_BYTES: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
     ENABLE_SHIPROCKET_ON_CONFIRM: boolean;
     ENABLE_SHIPROCKET_AFTER_PACK: boolean;
@@ -234,6 +245,7 @@ declare const envSchema: z.ZodObject<{
     ADS_GYANI_TEMPLATE_LANGUAGE?: string | undefined;
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;
@@ -295,6 +307,8 @@ declare const envSchema: z.ZodObject<{
     ADS_GYANI_TEMPLATE_LANGUAGE?: string | undefined;
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE?: string | undefined;
+    OTP_SEND_VIA_WHATSAPP?: string | undefined;
     WHATSAPP_SESSION_HOURS?: number | undefined;
     WHATSAPP_TYPING_SIMULATION?: string | undefined;
     WHATSAPP_TYPING_MIN_MS?: number | undefined;
@@ -310,6 +324,9 @@ declare const envSchema: z.ZodObject<{
     CONSOLE_SHARED_PASSWORD?: string | undefined;
     RATE_LIMIT_MAX?: number | undefined;
     RATE_LIMIT_WINDOW_MS?: number | undefined;
+    AUTH_RATE_LIMIT_MAX?: number | undefined;
+    FARMER_SCAN_DAILY_QUOTA?: number | undefined;
+    UPLOAD_BODY_LIMIT_BYTES?: number | undefined;
     ENABLE_SHIPROCKET_AUTO_SHIP?: string | undefined;
     ENABLE_SHIPROCKET_ON_CONFIRM?: string | undefined;
     ENABLE_SHIPROCKET_AFTER_PACK?: string | undefined;
@@ -380,6 +397,7 @@ export declare const env: {
     SHIPROCKET_PICKUP_LOCATION: string;
     SHIPROCKET_PICKUP_PINCODE: string;
     WHATSAPP_PROVIDER: "cloud" | "wati" | "interakt" | "adsgyani";
+    OTP_SEND_VIA_WHATSAPP: boolean;
     WHATSAPP_SESSION_HOURS: number;
     WHATSAPP_TYPING_SIMULATION: boolean;
     WHATSAPP_TYPING_MIN_MS: number;
@@ -392,6 +410,9 @@ export declare const env: {
     ADMIN_JWT_SECRET: string;
     RATE_LIMIT_MAX: number;
     RATE_LIMIT_WINDOW_MS: number;
+    AUTH_RATE_LIMIT_MAX: number;
+    FARMER_SCAN_DAILY_QUOTA: number;
+    UPLOAD_BODY_LIMIT_BYTES: number;
     ENABLE_SHIPROCKET_AUTO_SHIP: boolean;
     ENABLE_SHIPROCKET_ON_CONFIRM: boolean;
     ENABLE_SHIPROCKET_AFTER_PACK: boolean;
@@ -466,6 +487,7 @@ export declare const env: {
     ADS_GYANI_TEMPLATE_LANGUAGE?: string | undefined;
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;

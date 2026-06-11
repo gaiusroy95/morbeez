@@ -99,9 +99,72 @@ declare function confirmPick(packSessionId: string, lineId: string, qty: number)
     ok: boolean;
     lineComplete: boolean;
     rackComplete: boolean;
-    advancedToRack: string | null;
+    advancedToRack: null;
     stage: "picking" | "print";
     printEnabled: boolean;
+    workflow: {
+        stage: "picking" | "print";
+        step: number;
+        currentRack: string | null;
+        racks: {
+            rack: string;
+            lineCount: number;
+            totalQty: number;
+            pickedQty: number;
+            complete: boolean;
+            active: boolean;
+        }[];
+        currentRackLines: {
+            row: number;
+            id: string;
+            productTitle: string;
+            sku: string | null;
+            batchCode: string | null;
+            qtyRequired: number;
+            qtyPicked: number;
+            remaining: number;
+            complete: boolean;
+        }[];
+        printEnabled: boolean;
+    };
+    message: string;
+}>;
+declare function advanceToNextRack(packSessionId: string): Promise<{
+    ok: boolean;
+    stage: "print";
+    printEnabled: boolean;
+    workflow: {
+        stage: "picking" | "print";
+        step: number;
+        currentRack: string | null;
+        racks: {
+            rack: string;
+            lineCount: number;
+            totalQty: number;
+            pickedQty: number;
+            complete: boolean;
+            active: boolean;
+        }[];
+        currentRackLines: {
+            row: number;
+            id: string;
+            productTitle: string;
+            sku: string | null;
+            batchCode: string | null;
+            qtyRequired: number;
+            qtyPicked: number;
+            remaining: number;
+            complete: boolean;
+        }[];
+        printEnabled: boolean;
+    };
+    message: string;
+    advancedToRack?: undefined;
+} | {
+    ok: boolean;
+    stage: "picking" | "print";
+    printEnabled: boolean;
+    advancedToRack: string | null;
     workflow: {
         stage: "picking" | "print";
         step: number;
@@ -136,6 +199,7 @@ export declare const rackPickService: {
     buildWorkflowPayload: typeof buildWorkflowPayload;
     lookupBarcode: typeof lookupBarcode;
     confirmPick: typeof confirmPick;
+    advanceToNextRack: typeof advanceToNextRack;
 };
 export {};
 //# sourceMappingURL=rack-pick.service.d.ts.map

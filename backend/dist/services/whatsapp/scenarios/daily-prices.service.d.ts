@@ -7,7 +7,7 @@ type PriceRow = {
 };
 export declare const dailyPricesService: {
     formatForFarmer(farmerId: string, language: AdvisoryLanguage): Promise<string>;
-    formatRows(language: AdvisoryLanguage, crop: string, date: string, rows: PriceRow[]): string;
+    formatRows(language: AdvisoryLanguage, crop: string, date: string, rows: PriceRow[], weeklyPct?: number | null): string;
 };
 export {};
 //# sourceMappingURL=daily-prices.service.d.ts.map

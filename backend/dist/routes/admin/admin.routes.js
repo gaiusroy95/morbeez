@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { adminAuthService } from '../../services/auth/admin-auth.service.js';
+import { staffOtpService } from '../../services/auth/staff-otp.service.js';
 import { adminDashboardService } from '../../services/admin/admin-dashboard.service.js';
 import { superAdminMonitorService } from '../../services/admin/super-admin-monitor.service.js';
 import { farmersAdminService } from '../../services/admin/farmers-admin.service.js';
@@ -52,9 +53,21 @@ import { employeeReassignmentService } from '../../services/admin/employee-reass
 import { attendanceCalculatorService } from '../../services/admin/attendance-calculator.service.js';
 import { incentiveCalculatorService } from '../../services/admin/incentive-calculator.service.js';
 import { payrollGeneratorService } from '../../services/admin/payroll-generator.service.js';
-const loginSchema = z.object({
-    email: z.string().email().max(255),
+const loginSchema = z
+    .object({
+    phone: z.string().min(10).max(20).optional(),
+    email: z.string().email().max(255).optional(),
     password: z.string().min(1).max(128),
+})
+    .refine((body) => Boolean(body.phone?.trim() || body.email?.trim()), {
+    message: 'Mobile number or email is required',
+});
+const otpSendSchema = z.object({
+    phone: z.string().min(10).max(20),
+});
+const otpVerifySchema = z.object({
+    phone: z.string().min(10).max(20),
+    code: z.string().min(4).max(8),
 });
 const farmerUpdateSchema = z.object({
     firstName: z.string().min(1).max(80).optional(),
@@ -214,6 +227,16 @@ export async function adminRoutes(app) {
     app.post(`${api}/auth/login`, async (request, reply) => {
         const body = loginSchema.parse(request.body);
         const result = await adminAuthService.login(body);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/auth/otp/send`, async (request, reply) => {
+        const body = otpSendSchema.parse(request.body);
+        const result = await staffOtpService.sendOtp(body.phone, request.ip);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/auth/otp/verify`, async (request, reply) => {
+        const body = otpVerifySchema.parse(request.body);
+        const result = await staffOtpService.verifyOtp(body.phone, body.code);
         return reply.send({ ok: true, ...result });
     });
     app.get(`${api}/auth/me`, async (request, reply) => {

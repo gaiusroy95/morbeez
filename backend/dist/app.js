@@ -23,6 +23,7 @@ import { authRoutes } from './routes/api/auth.routes.js';
 import { farmerPortalRoutes } from './routes/api/farmer-portal.routes.js';
 import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
+import { storeRoutes } from './routes/api/store.routes.js';
 import { quotesRoutes } from './routes/api/quotes.routes.js';
 import { adminRoutes } from './routes/admin/admin.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
@@ -71,6 +72,7 @@ export async function buildApp() {
                 ? error.details.hint
                 : undefined;
             return reply.code(error.statusCode).send({
+                ok: false,
                 error: error.code,
                 message: error.message,
                 ...(hint ? { hint } : {}),
@@ -80,10 +82,10 @@ export async function buildApp() {
             const message = error.errors
                 .map((e) => (e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message))
                 .join('; ');
-            return reply.code(400).send({ error: 'VALIDATION_ERROR', message });
+            return reply.code(400).send({ ok: false, error: 'VALIDATION_ERROR', message });
         }
         logger.error({ err: error }, 'Unhandled error');
-        return reply.code(500).send({ error: 'INTERNAL_ERROR', message: 'Internal server error' });
+        return reply.code(500).send({ ok: false, error: 'INTERNAL_ERROR', message: 'Internal server error' });
     });
     registerEventHandlers();
     await app.register(healthRoutes);
@@ -94,6 +96,7 @@ export async function buildApp() {
     await app.register(whatsappWebhookRoutes);
     await app.register(authRoutes);
     await app.register(farmerPortalRoutes);
+    await app.register(storeRoutes);
     await app.register(checkoutRoutes);
     await app.register(quotesRoutes);
     await app.register(adminRoutes);

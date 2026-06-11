@@ -13,6 +13,7 @@ export declare const farmerPortalService: {
         shippingAddress: {} | null;
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
+        hasPassword: boolean;
         createdAt: unknown;
     }>;
     getSummary(farmerId: string): Promise<{
@@ -22,8 +23,10 @@ export declare const farmerPortalService: {
             variety: string | null;
             fieldSize: string | null;
             blockName: string;
+            blockId: string;
             stage: string;
             daysAfterPlanting: number | null;
+            cycleDays: number;
         } | null;
         shippingAddress: {
             name: unknown;
@@ -79,6 +82,24 @@ export declare const farmerPortalService: {
             message: string;
             atLabel: string;
             tone: string;
+        }[];
+        todayMarket: {
+            crop: string;
+            pricePerKg: number;
+            marketName: string;
+            trend: "flat" | "up" | "down" | null;
+            date: string;
+        } | null;
+        finance: {
+            todayExpenseInr: number;
+            monthExpenseInr: number;
+            projectedProfitInr: number;
+        };
+        tasks: {
+            id: string;
+            label: string;
+            dueLabel: string;
+            href: string;
         }[];
     }>;
     listOrders(farmerId: string): Promise<{
@@ -193,6 +214,7 @@ export declare const farmerPortalService: {
     listSoilReports(farmerId: string): Promise<{
         reports: {
             id: string;
+            blockId: string | null;
             blockName: string;
             dateLabel: string;
             health: "good" | "critical" | "monitor";
@@ -264,6 +286,7 @@ export declare const farmerPortalService: {
         shippingAddress: {} | null;
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
+        hasPassword: boolean;
         createdAt: unknown;
     }>;
 };

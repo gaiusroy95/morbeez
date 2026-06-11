@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
+import { requireFarmer } from '../../middleware/require-farmer.js';
 import { checkoutService } from '../../services/checkout/checkout.service.js';
 function assertCheckoutEnabled() {
     if (!env.ENABLE_RAZORPAY_CHECKOUT) {
@@ -14,6 +15,7 @@ const lineItemSchema = z.object({
     price: z.number().int().min(0),
 });
 const createSchema = z.object({
+    channel: z.enum(['website', 'mobile']).optional().default('website'),
     lineItems: z.array(lineItemSchema).min(1).max(50),
     customer: z.object({
         email: z.string().email().max(255),
@@ -48,13 +50,21 @@ export async function checkoutRoutes(app) {
     app.post('/api/v1/checkout/razorpay/create', async (request, reply) => {
         assertCheckoutEnabled();
         const body = createSchema.parse(request.body);
-        const result = await checkoutService.createRazorpayCheckout(body);
+        const { channel, ...checkoutBody } = body;
+        const result = await checkoutService.createRazorpayCheckout(checkoutBody, channel);
         return reply.send({ ok: true, ...result });
     });
     app.post('/api/v1/checkout/razorpay/verify', async (request, reply) => {
         assertCheckoutEnabled();
         const body = verifySchema.parse(request.body);
         const result = await checkoutService.verifyAndComplete(body);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post('/api/v1/checkout/cod/create', async (request, reply) => {
+        const { farmerId } = requireFarmer(request);
+        const body = createSchema.parse(request.body);
+        const { channel, ...checkoutBody } = body;
+        const result = await checkoutService.createCodCheckout(checkoutBody, channel, farmerId);
         return reply.send({ ok: true, ...result });
     });
 }

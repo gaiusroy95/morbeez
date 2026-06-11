@@ -54,6 +54,14 @@ export declare const roiFlowService: {
         amount: number;
         entryDate: string;
         comments?: string;
+        seasonId?: string;
+        blockId?: string;
+        expenseTypeId?: string;
+        categoryId?: string;
+        labourTypeId?: string;
+        workersCount?: number;
+        commerceOrderId?: string;
+        incomeSubtype?: string;
     }): Promise<string>;
     finalizePendingEntry(farmerId: string, phone: string, language: AdvisoryLanguage, send: ScenarioSenders, comments?: string): Promise<void>;
     tryHandleInbound(params: {

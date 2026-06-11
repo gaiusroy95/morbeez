@@ -485,6 +485,12 @@ export async function osWarehouseRoutes(app) {
         const detail = await fulfillmentService.getOrderDetail(id);
         return reply.send({ ok: true, ...detail });
     });
+    app.get(`${api}/fulfillment/orders/:id/timeline`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const { id } = request.params;
+        const timeline = await fulfillmentService.getOrderTimeline(id);
+        return reply.send({ ok: true, timeline });
+    });
     app.post(`${api}/fulfillment/orders/:id/rebuild-pick-list`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'write');
         const { id } = request.params;
@@ -692,6 +698,7 @@ export async function osWarehouseRoutes(app) {
             courierName: z.string().min(1).max(120),
             trackingAwb: z.string().min(1).max(80),
             trackingUrl: z.string().url().optional().nullable(),
+            notifyCustomer: z.boolean().optional(),
         })
             .parse(request.body);
         const order = await fulfillmentService.saveManualLogistics(id, body, request.adminEmail);
@@ -727,6 +734,12 @@ export async function osWarehouseRoutes(app) {
         })
             .parse(request.body);
         const result = await fulfillmentService.confirmPick(id, body.lineId, body.qty);
+        return reply.send(result);
+    });
+    app.post(`${api}/fulfillment/pack-sessions/:id/advance-rack`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const result = await fulfillmentService.advanceToNextRack(id);
         return reply.send(result);
     });
     app.post(`${api}/fulfillment/orders/:id/mark-packed`, async (request, reply) => {

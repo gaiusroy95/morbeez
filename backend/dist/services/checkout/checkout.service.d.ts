@@ -25,7 +25,7 @@ export interface CreateCheckoutInput {
     shipping: CheckoutShippingInput;
 }
 export declare const checkoutService: {
-    createRazorpayCheckout(input: CreateCheckoutInput): Promise<{
+    createRazorpayCheckout(input: CreateCheckoutInput, channel?: "website" | "mobile"): Promise<{
         sessionId: `${string}-${string}-${string}-${string}-${string}`;
         razorpayOrderId: string;
         amount: number;
@@ -51,6 +51,12 @@ export declare const checkoutService: {
         shopifyOrderId: string;
         orderName: string;
         orderStatusUrl: string | null;
+    }>;
+    createCodCheckout(input: CreateCheckoutInput, channel?: "website" | "mobile", farmerId?: string): Promise<{
+        shopifyOrderId: string;
+        orderName: string;
+        orderStatusUrl: string | null;
+        paymentMethod: "cod";
     }>;
 };
 //# sourceMappingURL=checkout.service.d.ts.map

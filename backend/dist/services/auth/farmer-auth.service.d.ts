@@ -1,5 +1,5 @@
 export interface SignupInput {
-    email: string;
+    email?: string;
     firstName: string;
     lastName: string;
     phone: string;
@@ -30,6 +30,7 @@ export declare const farmerAuthService: {
             shippingAddress: {} | null;
             deliveryPincode: {} | null;
             newsletterSubscribed: unknown;
+            hasPassword: boolean;
             createdAt: unknown;
         };
     }>;
@@ -49,6 +50,7 @@ export declare const farmerAuthService: {
             shippingAddress: {} | null;
             deliveryPincode: {} | null;
             newsletterSubscribed: unknown;
+            hasPassword: boolean;
             createdAt: unknown;
         };
     }>;
@@ -66,6 +68,7 @@ export declare const farmerAuthService: {
         shippingAddress: {} | null;
         deliveryPincode: {} | null;
         newsletterSubscribed: unknown;
+        hasPassword: boolean;
         createdAt: unknown;
     }>;
 };

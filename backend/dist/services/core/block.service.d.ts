@@ -51,5 +51,12 @@ export declare const blockService: {
         source: PlotLocationSource;
         farmerId?: string;
     }): Promise<BlockWithDap>;
+    updateBlock(blockId: string, farmerId: string, patch: {
+        name?: string;
+        cropType?: string;
+        acreage?: number;
+        plantingDate?: string;
+        irrigationType?: string;
+    }): Promise<BlockWithDap>;
 };
 //# sourceMappingURL=block.service.d.ts.map

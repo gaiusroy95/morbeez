@@ -13,7 +13,11 @@ export declare const fulfillmentService: {
         lrPending: number;
         completed: number;
         pendingOrders: number;
+        picking: number;
+        packing: number;
         readyToPack: number;
+        readyDispatch: number;
+        awaitingTracking: number;
         packedToday: number;
         courierPending: number;
         failedAwb: number;
@@ -164,6 +168,7 @@ export declare const fulfillmentService: {
         courierName: string;
         trackingAwb: string;
         trackingUrl?: string | null;
+        notifyCustomer?: boolean;
     }, actorEmail?: string): Promise<any>;
     provisionShipment(commerceOrderId: string, actorEmail?: string, opts?: {
         forceRecreate?: boolean;
@@ -250,9 +255,72 @@ export declare const fulfillmentService: {
         ok: boolean;
         lineComplete: boolean;
         rackComplete: boolean;
-        advancedToRack: string | null;
+        advancedToRack: null;
         stage: "picking" | "print";
         printEnabled: boolean;
+        workflow: {
+            stage: "picking" | "print";
+            step: number;
+            currentRack: string | null;
+            racks: {
+                rack: string;
+                lineCount: number;
+                totalQty: number;
+                pickedQty: number;
+                complete: boolean;
+                active: boolean;
+            }[];
+            currentRackLines: {
+                row: number;
+                id: string;
+                productTitle: string;
+                sku: string | null;
+                batchCode: string | null;
+                qtyRequired: number;
+                qtyPicked: number;
+                remaining: number;
+                complete: boolean;
+            }[];
+            printEnabled: boolean;
+        };
+        message: string;
+    }>;
+    advanceToNextRack(packSessionId: string): Promise<{
+        ok: boolean;
+        stage: "print";
+        printEnabled: boolean;
+        workflow: {
+            stage: "picking" | "print";
+            step: number;
+            currentRack: string | null;
+            racks: {
+                rack: string;
+                lineCount: number;
+                totalQty: number;
+                pickedQty: number;
+                complete: boolean;
+                active: boolean;
+            }[];
+            currentRackLines: {
+                row: number;
+                id: string;
+                productTitle: string;
+                sku: string | null;
+                batchCode: string | null;
+                qtyRequired: number;
+                qtyPicked: number;
+                remaining: number;
+                complete: boolean;
+            }[];
+            printEnabled: boolean;
+        };
+        message: string;
+        advancedToRack?: undefined;
+    } | {
+        ok: boolean;
+        stage: "picking" | "print";
+        printEnabled: boolean;
+        advancedToRack: string | null;
         workflow: {
             stage: "picking" | "print";
             step: number;
@@ -330,6 +398,13 @@ export declare const fulfillmentService: {
     }>;
     confirmOrder(commerceOrderId: string): Promise<any>;
     ensureInvoice(commerceOrderId: string): Promise<any>;
+    getOrderTimeline(commerceOrderId: string): Promise<{
+        key: string;
+        label: string;
+        status: "pending" | "done" | "current";
+        at: string | null;
+        detail: string | null;
+    }[]>;
 };
 export {};
 //# sourceMappingURL=fulfillment.service.d.ts.map

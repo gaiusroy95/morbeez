@@ -133,6 +133,34 @@ export async function osOperationsRoutes(app) {
         throwIfSupabaseError(error, 'Could not archive crop price');
         return reply.send({ ok: true });
     });
+    app.get(`${api}/crop-markets`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { farmerMarketPortalService } = await import('../../services/farmer/farmer-market-portal.service.js');
+        const crops = await farmerMarketPortalService.adminListCropMarkets();
+        return reply.send({ ok: true, crops });
+    });
+    app.post(`${api}/crop-markets`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            id: z.string().uuid().optional(),
+            cropName: z.string().min(1),
+            icon: z.string().nullable().optional(),
+            activeStatus: z.boolean().optional(),
+            displayOrder: z.number().int().optional(),
+        })
+            .parse(request.body);
+        const { farmerMarketPortalService } = await import('../../services/farmer/farmer-market-portal.service.js');
+        const crop = await farmerMarketPortalService.adminUpsertCropMarket(body);
+        return reply.send({ ok: true, crop });
+    });
+    app.delete(`${api}/crop-markets/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const { farmerMarketPortalService } = await import('../../services/farmer/farmer-market-portal.service.js');
+        await farmerMarketPortalService.adminArchiveCropMarket(id);
+        return reply.send({ ok: true });
+    });
     app.get(`${api}/field-activities/blocks`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = request.query;
@@ -223,6 +251,92 @@ export async function osOperationsRoutes(app) {
         const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
         await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
         const type = await whatsappOsAdminService.deleteFieldActivityType(id);
+        return reply.send({ ok: true, type });
+    });
+    app.get(`${api}/roi-expense-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const types = await cropSeasonService.adminListExpenseTypes();
+        return reply.send({ ok: true, types });
+    });
+    app.post(`${api}/roi-expense-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            expenseName: z.string().min(1).max(80),
+            icon: z.string().max(40).nullable().optional(),
+            color: z.string().max(40).nullable().optional(),
+            ledgerEntryType: z.enum(['labour', 'purchase', 'misc', 'harvest', 'income']).optional(),
+            sortOrder: z.number().int().min(0).max(999).optional(),
+        })
+            .parse(request.body);
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminCreateExpenseType(body);
+        return reply.status(201).send({ ok: true, type });
+    });
+    app.patch(`${api}/roi-expense-types/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            expenseName: z.string().min(1).max(80).optional(),
+            icon: z.string().max(40).nullable().optional(),
+            color: z.string().max(40).nullable().optional(),
+            ledgerEntryType: z.enum(['labour', 'purchase', 'misc', 'harvest', 'income']).optional(),
+            activeStatus: z.boolean().optional(),
+            sortOrder: z.number().int().min(0).max(999).optional(),
+        })
+            .parse(request.body);
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminUpdateExpenseType(id, body);
+        return reply.send({ ok: true, type });
+    });
+    app.delete(`${api}/roi-expense-types/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminDeleteExpenseType(id);
+        return reply.send({ ok: true, type });
+    });
+    app.get(`${api}/roi-labour-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const types = await cropSeasonService.adminListLabourTypes();
+        return reply.send({ ok: true, types });
+    });
+    app.post(`${api}/roi-labour-types`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            labourName: z.string().min(1).max(80),
+            icon: z.string().max(40).nullable().optional(),
+            sortOrder: z.number().int().min(0).max(999).optional(),
+        })
+            .parse(request.body);
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminCreateLabourType(body);
+        return reply.status(201).send({ ok: true, type });
+    });
+    app.patch(`${api}/roi-labour-types/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            labourName: z.string().min(1).max(80).optional(),
+            icon: z.string().max(40).nullable().optional(),
+            activeStatus: z.boolean().optional(),
+            sortOrder: z.number().int().min(0).max(999).optional(),
+        })
+            .parse(request.body);
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminUpdateLabourType(id, body);
+        return reply.send({ ok: true, type });
+    });
+    app.delete(`${api}/roi-labour-types/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
+        const type = await cropSeasonService.adminDeleteLabourType(id);
         return reply.send({ ok: true, type });
     });
     app.get(`${api}/field-activities/pending-tasks`, async (request, reply) => {
