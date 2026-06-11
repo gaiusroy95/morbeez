@@ -95,11 +95,10 @@ export const roiAggregationService = {
         const isIncome = e.entry_type === 'harvest' || e.entry_type === 'income';
         const amt = Number(e.amount_inr ?? 0);
         if (!isIncome) {
-          const cat =
-            (e.farmer_roi_categories as { name?: string; color?: string } | null) ??
-            (e.roi_expense_types as { expense_name?: string; color?: string } | null);
-          const label = cat?.name ?? String(e.entry_type);
-          const color = cat?.color ?? '#757575';
+          const roiCat = e.farmer_roi_categories as { name?: string; color?: string } | null;
+          const expCat = e.roi_expense_types as { expense_name?: string; color?: string } | null;
+          const label = roiCat?.name ?? expCat?.expense_name ?? String(e.entry_type);
+          const color = roiCat?.color ?? expCat?.color ?? '#757575';
           breakdown[label] = breakdown[label] ?? { value: 0, color };
           breakdown[label].value += e.debit_inr != null ? Number(e.debit_inr) : amt;
         }

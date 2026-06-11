@@ -325,12 +325,12 @@ export const farmerPortalService = {
             blockName: String(primary.name ?? 'Field'),
             blockId: String(primary.id),
             stage: growthStageLabel(
-              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.crop_name ? String(primary.crop_name) : null,
               primary.stage ? String(primary.stage) : null,
               dap
             ),
             daysAfterPlanting: dap,
-            cycleDays: cropCycleDays(primary.crop_type ? String(primary.crop_type) : primary.crop_name ? String(primary.crop_name) : null),
+            cycleDays: cropCycleDays(primary.crop_name ? String(primary.crop_name) : null),
           }
         : null,
       shippingAddress: {
@@ -365,7 +365,7 @@ export const farmerPortalService = {
             cropName: blockJoin?.crop_name ? String(blockJoin.crop_name) : primary?.crop_name ?? 'Crop',
             stage: primary
               ? growthStageLabel(
-                  primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+                  primary.crop_name ? String(primary.crop_name) : null,
                   primary.stage ? String(primary.stage) : null,
                   dap
                 )
@@ -500,7 +500,7 @@ export const farmerPortalService = {
         blockName: block?.name ? String(block.name) : null,
         stage: primary
           ? growthStageLabel(
-              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.crop_name ? String(primary.crop_name) : null,
               primary.stage ? String(primary.stage) : null,
               dap
             )
@@ -527,7 +527,7 @@ export const farmerPortalService = {
             name: String(primary.crop_name ?? 'Crop'),
             fieldSize: primary.area ? String(primary.area) : null,
             stage: growthStageLabel(
-              primary.crop_name ? String(primary.crop_name) : primary.crop_type ? String(primary.crop_type) : null,
+              primary.crop_name ? String(primary.crop_name) : null,
               primary.stage ? String(primary.stage) : null,
               dap
             ),

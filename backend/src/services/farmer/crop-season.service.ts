@@ -1016,7 +1016,7 @@ export const cropSeasonService = {
         blockName: blockMap.get(s.block_id) ?? null,
         dap: block ? blockService.computeDap(block) : s.dap,
         stageLabel: growthStageLabel(
-          block?.crop_type ?? block?.crop_name ?? s.crop_type,
+          block?.crop_name ?? block?.crop_type ?? s.crop,
           block?.stage,
           block ? blockService.computeDap(block) : s.dap
         ),
@@ -1077,7 +1077,7 @@ export const cropSeasonService = {
     });
     await supabase.from('farmer_roi_entries').delete().eq('id', entryId);
     if (existing.season_id) await recomputeSeasonTotals(String(existing.season_id));
-    return { ok: true };
+    return { id: entryId };
   },
 
   async getSeasonForFarmer(farmerId: string, seasonId: string): Promise<SeasonRow> {
