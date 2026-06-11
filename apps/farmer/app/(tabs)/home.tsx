@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LineChart } from 'react-native-gifted-charts';
+import { MarketTrendChart } from '@/components/market/MarketTrendChart';
 import {
   fetchMarketDashboard,
   fetchMarketTrends,
@@ -318,24 +318,11 @@ export default function HomeScreen() {
           lastYearLabel={t('lastYearLine', locale)}
           chart={
             overlayCurrent.length ? (
-              <View>
-                <LineChart
-                  key={`${displayCrop}-${displayTrendRange}-${overlayCurrent.length}`}
-                  data={overlayCurrent}
-                  data2={overlayPrevious.length ? overlayPrevious : undefined}
-                  color={tokens.green700}
-                  color2={tokens.textMuted}
-                  thickness={2}
-                  thickness2={2}
-                  hideDataPoints={overlayCurrent.length > 8}
-                  yAxisTextStyle={{ color: tokens.textMuted, fontSize: 10 }}
-                  xAxisLabelTextStyle={{ color: tokens.textMuted, fontSize: 9 }}
-                />
-                <View style={styles.legendRow}>
-                  {showCurrentYear ? <Text style={styles.legendCurrent}>● {t('thisYearLine', locale)}</Text> : null}
-                  {showLastYear ? <Text style={styles.legendPrev}>● {t('lastYearLine', locale)}</Text> : null}
-                </View>
-              </View>
+              <MarketTrendChart
+                chartKey={`${displayCrop}-${displayTrendRange}-${overlayCurrent.length}-${overlayPrevious.length}`}
+                current={overlayCurrent}
+                previous={overlayPrevious.length ? overlayPrevious : undefined}
+              />
             ) : (
               <Text style={styles.chartEmpty}>{t('noTrendData', locale)}</Text>
             )
@@ -360,13 +347,6 @@ export default function HomeScreen() {
             subtitle: t('aiScanSub', locale),
             icon: '📷',
             onPress: () => router.push('/scan'),
-          },
-          {
-            id: 'activities',
-            label: t('activities', locale),
-            subtitle: t('activitiesSub', locale),
-            icon: '📋',
-            onPress: () => router.push('/fields'),
           },
           {
             id: 'fields',
@@ -419,8 +399,5 @@ const styles = StyleSheet.create({
     zIndex: 2,
     borderRadius: tokens.radius,
   },
-  legendRow: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  legendCurrent: { fontSize: 12, color: tokens.green700 },
-  legendPrev: { fontSize: 12, color: tokens.textMuted },
   chartEmpty: { fontSize: 13, color: tokens.textMuted, paddingVertical: 24, textAlign: 'center' },
 });

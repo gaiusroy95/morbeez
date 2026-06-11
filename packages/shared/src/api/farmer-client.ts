@@ -20,7 +20,7 @@ import type {
   StoreProduct,
   StoreProductList,
 } from '../types/store';
-import type { FieldBlock, FieldDetail } from '../types/fields';
+import type { CropMaster, FieldBlock, FieldDetail } from '../types/fields';
 import type { ScanResult } from '../types/scan';
 import type { CultivationActivity } from '../types/activities';
 import type { FarmerRecommendation, RecommendationDetail } from '../types/recommendations';
@@ -392,6 +392,13 @@ export async function fetchPortalNotifications(): Promise<PortalNotification[]> 
 export async function fetchFieldBlocks(): Promise<FieldBlock[]> {
   const data = await farmerApi<{ ok: boolean; blocks: FieldBlock[] }>('/api/v1/farmer/portal/blocks');
   return data.blocks ?? [];
+}
+
+export async function fetchCropMasters(): Promise<CropMaster[]> {
+  const data = await farmerApi<{ ok: boolean; crops: CropMaster[] }>(
+    '/api/v1/farmer/portal/masters/crops'
+  );
+  return data.crops ?? [];
 }
 
 export async function createFieldBlock(body: {

@@ -79,6 +79,38 @@ function initials(name: string): string {
   );
 }
 
+type CrmTaskRow = Record<string, unknown>;
+
+function taskIssueFromRow(row: CrmTaskRow): string | null {
+  if (row.issue_description) return String(row.issue_description);
+  const notes = row.notes ? String(row.notes) : '';
+  if (!notes) return null;
+  const match = notes.match(/^Issue:\s*(.+)$/m);
+  return match?.[1]?.trim() || notes;
+}
+
+function mergeTaskNotes(notes?: string, issueDescription?: string): string | null {
+  const parts = [
+    notes?.trim(),
+    issueDescription?.trim() ? `Issue: ${issueDescription.trim()}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join('\n') : null;
+}
+
+function taskCategoryFromType(taskType: string): string {
+  if (taskType === 'visit') return 'visit_request';
+  if (taskType === 'call') return 'call_farmer';
+  return 'other';
+}
+
+function assignedAgronomistFromRow(row: CrmTaskRow): string | null {
+  if (row.assigned_agronomist) return String(row.assigned_agronomist);
+  return row.assigned_to ? String(row.assigned_to) : null;
+}
+
+const CRM_TASK_BASE_SELECT = `id, title, notes, task_type, status, due_at, assigned_to,
+  farmer_id, lead_id, block_id, created_at, updated_at`;
+
 function normalizePhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const digits = phone.replace(/\D/g, '');
@@ -838,19 +870,8 @@ export const telecallerAdminService = {
     const safeType = ['follow_up', 'call', 'whatsapp', 'visit', 'other'].includes(taskType)
       ? taskType
       : 'other';
-    const priority = ['low', 'medium', 'high', 'critical'].includes(input.priority ?? '')
-      ? input.priority
-      : 'medium';
-    const categories = [
-      'call_farmer',
-      'visit_request',
-      'recommendation',
-      'soil_test_review',
-      'disease_review',
-      'other',
-    ];
-    const taskCategory = categories.includes(input.taskCategory ?? '') ? input.taskCategory : 'other';
     const agronomistEmail = input.assignedAgronomist?.trim().toLowerCase() || null;
+    const notes = mergeTaskNotes(input.notes, input.issueDescription);
 
     const { data, error } = await supabase
       .from('crm_tasks')
@@ -860,13 +881,8 @@ export const telecallerAdminService = {
         block_id: input.blockId ?? null,
         interaction_log_id: input.interactionLogId ?? null,
         assigned_to: agronomistEmail ?? agentEmail,
-        assigned_agronomist: agronomistEmail,
-        created_by: agentEmail,
         title: input.title,
-        notes: input.notes,
-        issue_description: input.issueDescription ?? null,
-        priority,
-        task_category: taskCategory,
+        notes,
         due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
         task_type: safeType,
       })
@@ -894,15 +910,15 @@ export const telecallerAdminService = {
     const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
     if (!lead) throw new NotFoundError('Lead not found');
 
+    const agronomists = await this.listAssignableAgronomists();
+    const agronomistEmails = agronomists.map((a) => a.email);
+    if (!agronomistEmails.length) return [];
+
     const { data, error } = await supabase
       .from('crm_tasks')
-      .select(
-        `id, title, notes, issue_description, priority, task_category, task_type, status, due_at,
-         assigned_to, assigned_agronomist, created_by, block_id, created_at, updated_at,
-         farm_blocks(name, crop_name)`
-      )
+      .select(`${CRM_TASK_BASE_SELECT}, farm_blocks(name, crop_name)`)
       .eq('farmer_id', lead.farmer_id)
-      .not('assigned_agronomist', 'is', null)
+      .in('assigned_to', agronomistEmails)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(100);
@@ -910,18 +926,19 @@ export const telecallerAdminService = {
 
     return (data ?? []).map((row) => {
       const block = normalizeJoinRow(row.farm_blocks);
+      const taskType = String(row.task_type ?? 'other');
       return {
         id: String(row.id),
         title: String(row.title ?? 'Task'),
-        issue: row.issue_description ? String(row.issue_description) : row.notes ? String(row.notes) : null,
-        priority: String(row.priority ?? 'medium'),
-        taskCategory: String(row.task_category ?? 'other'),
-        taskType: String(row.task_type ?? 'other'),
+        issue: taskIssueFromRow(row),
+        priority: 'medium',
+        taskCategory: taskCategoryFromType(taskType),
+        taskType,
         status: String(row.status ?? 'pending'),
         dueAt: row.due_at ? String(row.due_at) : null,
         dueLabel: formatDateTime(row.due_at as string) ?? '—',
-        assignedAgronomist: row.assigned_agronomist ? String(row.assigned_agronomist) : null,
-        createdBy: row.created_by ? String(row.created_by) : null,
+        assignedAgronomist: assignedAgronomistFromRow(row),
+        createdBy: null,
         blockName: block?.name ? String(block.name) : null,
         cropName: block?.crop_name ? String(block.crop_name) : null,
         createdAt: row.created_at ? String(row.created_at) : null,
@@ -934,12 +951,11 @@ export const telecallerAdminService = {
     let query = supabase
       .from('crm_tasks')
       .select(
-        `id, title, notes, issue_description, priority, task_category, task_type, status, due_at,
-         farmer_id, lead_id, block_id, created_by, assigned_agronomist, created_at,
+        `${CRM_TASK_BASE_SELECT},
          farmers(name, first_name, last_name, district),
          farm_blocks(name, crop_name)`
       )
-      .eq('assigned_agronomist', email)
+      .eq('assigned_to', email)
       .neq('status', 'cancelled')
       .order('due_at', { ascending: true, nullsFirst: false })
       .limit(opts?.limit ?? 80);
@@ -953,13 +969,14 @@ export const telecallerAdminService = {
     return (data ?? []).map((row) => {
       const farmer = normalizeJoinRow(row.farmers);
       const block = normalizeJoinRow(row.farm_blocks);
+      const taskType = String(row.task_type ?? 'other');
       return {
         id: String(row.id),
         title: String(row.title ?? 'Task'),
-        issue: row.issue_description ? String(row.issue_description) : row.notes ? String(row.notes) : null,
-        priority: String(row.priority ?? 'medium'),
-        taskCategory: String(row.task_category ?? 'other'),
-        taskType: String(row.task_type ?? 'other'),
+        issue: taskIssueFromRow(row),
+        priority: 'medium',
+        taskCategory: taskCategoryFromType(taskType),
+        taskType,
         status: String(row.status ?? 'pending'),
         dueAt: row.due_at ? String(row.due_at) : null,
         dueLabel: formatDateTime(row.due_at as string) ?? '—',
@@ -968,7 +985,7 @@ export const telecallerAdminService = {
         farmerName: farmer ? displayFarmerName(farmer) : 'Farmer',
         blockName: block?.name ? String(block.name) : null,
         cropName: block?.crop_name ? String(block.crop_name) : null,
-        createdBy: row.created_by ? String(row.created_by) : null,
+        createdBy: null,
       };
     });
   },
@@ -982,7 +999,7 @@ export const telecallerAdminService = {
          farmers(name, first_name, last_name, district, village),
          farm_blocks(name, crop_name)`
       )
-      .eq('assigned_agronomist', email)
+      .eq('assigned_to', email)
       .eq('task_type', 'visit')
       .eq('status', 'pending')
       .order('due_at', { ascending: true })
@@ -1012,7 +1029,8 @@ export const telecallerAdminService = {
     const { data: task, error } = await supabase
       .from('crm_tasks')
       .select(
-        `*, farmers(name, first_name, last_name, phone, district),
+        `${CRM_TASK_BASE_SELECT},
+         farmers(name, first_name, last_name, phone, district),
          farm_blocks(name, crop_name),
          leads(id, farmer_id)`
       )
@@ -1021,31 +1039,33 @@ export const telecallerAdminService = {
     throwIfSupabaseError(error, 'Could not load task');
     if (!task) throw new NotFoundError('Task not found');
 
-    const { data: comments, error: commentsErr } = await supabase
+    let comments: Array<Record<string, unknown>> = [];
+    const { data: commentRows, error: commentsErr } = await supabase
       .from('crm_task_comments')
       .select('id, author_email, author_role, author_name, body, created_at')
       .eq('task_id', taskId)
       .order('created_at', { ascending: true });
-    throwIfSupabaseError(commentsErr, 'Could not load task comments');
+    if (!commentsErr) comments = commentRows ?? [];
 
     const farmer = normalizeJoinRow(task.farmers);
     const block = normalizeJoinRow(task.farm_blocks);
+    const taskType = String(task.task_type ?? 'other');
 
     return {
       task: {
         id: String(task.id),
         title: String(task.title ?? 'Task'),
-        issue: task.issue_description ? String(task.issue_description) : task.notes ? String(task.notes) : null,
+        issue: taskIssueFromRow(task),
         notes: task.notes ? String(task.notes) : null,
-        priority: String(task.priority ?? 'medium'),
-        taskCategory: String(task.task_category ?? 'other'),
-        taskType: String(task.task_type ?? 'other'),
+        priority: 'medium',
+        taskCategory: taskCategoryFromType(taskType),
+        taskType,
         status: String(task.status ?? 'pending'),
         dueAt: task.due_at ? String(task.due_at) : null,
         dueLabel: formatDateTime(task.due_at as string) ?? '—',
         assignedTo: task.assigned_to ? String(task.assigned_to) : null,
-        assignedAgronomist: task.assigned_agronomist ? String(task.assigned_agronomist) : null,
-        createdBy: task.created_by ? String(task.created_by) : null,
+        assignedAgronomist: assignedAgronomistFromRow(task),
+        createdBy: null,
         farmerId: task.farmer_id ? String(task.farmer_id) : null,
         leadId: task.lead_id ? String(task.lead_id) : null,
         blockId: task.block_id ? String(task.block_id) : null,
@@ -1081,18 +1101,38 @@ export const telecallerAdminService = {
       })
       .select()
       .single();
-    throwIfSupabaseError(error, 'Could not add comment');
 
-    await supabase.from('crm_tasks').update({ updated_at: new Date().toISOString() }).eq('id', taskId);
+    if (!error && data) {
+      await supabase.from('crm_tasks').update({ updated_at: new Date().toISOString() }).eq('id', taskId);
+      return {
+        id: String(data.id),
+        authorEmail: String(data.author_email),
+        authorRole: String(data.author_role),
+        authorName: data.author_name ? String(data.author_name) : null,
+        body: String(data.body),
+        createdAt: String(data.created_at),
+        atLabel: formatDateTime(data.created_at as string) ?? '—',
+      };
+    }
 
+    const { data: task } = await supabase.from('crm_tasks').select('notes').eq('id', taskId).maybeSingle();
+    const prefix = input.authorRole === 'agronomist' ? 'Agronomist' : 'Telecaller';
+    const line = `[${prefix}] ${input.body.trim()}`;
+    const merged = [task?.notes ? String(task.notes) : null, line].filter(Boolean).join('\n');
+    await supabase
+      .from('crm_tasks')
+      .update({ notes: merged, updated_at: new Date().toISOString() })
+      .eq('id', taskId);
+
+    const now = new Date().toISOString();
     return {
-      id: String(data.id),
-      authorEmail: String(data.author_email),
-      authorRole: String(data.author_role),
-      authorName: data.author_name ? String(data.author_name) : null,
-      body: String(data.body),
-      createdAt: String(data.created_at),
-      atLabel: formatDateTime(data.created_at as string) ?? '—',
+      id: taskId,
+      authorEmail: input.authorEmail.trim().toLowerCase(),
+      authorRole: input.authorRole,
+      authorName: input.authorName ?? null,
+      body: input.body.trim(),
+      createdAt: now,
+      atLabel: formatDateTime(now) ?? '—',
     };
   },
 

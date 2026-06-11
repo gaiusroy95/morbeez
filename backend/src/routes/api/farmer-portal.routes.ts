@@ -171,6 +171,19 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...result });
   });
 
+  app.get('/api/v1/farmer/portal/masters/crops', async (request, reply) => {
+    requireFarmer(request);
+    const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+    const items = await crmFarmerService.listMasters('crop');
+    return reply.send({
+      ok: true,
+      crops: (items ?? []).map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+      })),
+    });
+  });
+
   app.post('/api/v1/farmer/portal/blocks', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const body = z

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LineChart } from 'react-native-gifted-charts';
+import { MarketTrendChart } from '@/components/market/MarketTrendChart';
 import {
   fetchMarketDashboard,
   fetchMarketTrends,
@@ -229,22 +229,14 @@ export default function MarketTabScreen() {
           <>
             {overlayCurrent.length ? (
               <Panel title={t('thisYearVsLast', locale)}>
-                <LineChart
-                  key={`${displayCrop}-${overlayCurrent.length}`}
-                  data={overlayCurrent}
-                  data2={overlayPrevious.length ? overlayPrevious : undefined}
-                  color={tokens.green700}
-                  color2={tokens.textMuted}
-                  thickness={2}
-                  thickness2={2}
-                  hideDataPoints={overlayCurrent.length > 8}
-                  yAxisTextStyle={{ color: tokens.textMuted, fontSize: 10 }}
-                  xAxisLabelTextStyle={{ color: tokens.textMuted, fontSize: 9 }}
+                <MarketTrendChart
+                  chartKey={`${displayCrop}-${overlayCurrent.length}`}
+                  current={overlayCurrent}
+                  previous={overlayPrevious.length ? overlayPrevious : undefined}
+                  showLegend
+                  currentLabel={t('thisYearLine', locale)}
+                  previousLabel={t('lastYearLine', locale)}
                 />
-                <View style={styles.legendRow}>
-                  <Text style={styles.legendCurrent}>● This year</Text>
-                  <Text style={styles.legendPrev}>● Last year</Text>
-                </View>
               </Panel>
             ) : null}
             {trends?.insights?.length ? (
@@ -326,9 +318,6 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radius,
   },
   meta: { fontSize: 13, color: tokens.textMuted, marginBottom: 8 },
-  legendRow: { flexDirection: 'row', gap: 16, marginTop: 8 },
-  legendCurrent: { fontSize: 12, color: tokens.green700 },
-  legendPrev: { fontSize: 12, color: tokens.textMuted },
   insight: { fontSize: 14, color: tokens.text, lineHeight: 22, marginBottom: 6 },
   bestRow: {
     backgroundColor: tokens.green100,
