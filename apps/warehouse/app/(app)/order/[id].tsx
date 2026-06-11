@@ -1,78 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { STAFF_API_V1, staffApi, tokens } from '@morbeez/shared';
+import { tokens, warehouseClient, type PickLookup, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { useStaffAuth } from '@/context/StaffAuth';
-
-const WMS = `${STAFF_API_V1}/os/warehouse`;
-
-type RackLine = {
-  id: string;
-  productTitle: string;
-  sku: string | null;
-  batchCode: string | null;
-  qtyRequired: number;
-  qtyPicked: number;
-  remaining: number;
-  complete: boolean;
-};
-
-type RackProgress = {
-  rack: string;
-  lineCount: number;
-  totalQty: number;
-  pickedQty: number;
-  complete: boolean;
-  active: boolean;
-};
-
-type Workflow = {
-  stage: 'picking' | 'print';
-  step: number;
-  currentRack: string | null;
-  racks: RackProgress[];
-  currentRackLines: RackLine[];
-  printEnabled: boolean;
-};
-
-type PickLookup = {
-  lineId: string;
-  productTitle: string;
-  sku: string | null;
-  batchCode: string | null;
-  qtyRequired: number;
-  qtyPicked: number;
-  remaining: number;
-  defaultQty: number;
-};
-
-type OrderDetail = {
-  order: {
-    id: string;
-    order_name: string | null;
-    oms_status: string;
-    courier_name: string | null;
-    tracking_awb: string | null;
-    dispatch_rack: string | null;
-    shiprocket_error: string | null;
-    shipping_method?: string | null;
-  };
-  pickList: { id: string; picker_id?: string | null } | null;
-  packSession: { id: string } | null;
-  workflow: Workflow | null;
-  printEnabled: boolean;
-  customerSummary?: {
-    phone: string | null;
-    address: string | null;
-    isCod: boolean;
-    totalAmount: number;
-  };
-  shippingLabel?: {
-    qrCode: string;
-    labelVerified: boolean;
-  } | null;
-};
 
 const EXCEPTIONS = [
   { type: 'stock_missing', label: 'Stock missing' },
@@ -85,7 +17,7 @@ const EXCEPTIONS = [
 export default function OrderDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { canWrite } = useStaffAuth();
-  const [detail, setDetail] = useState<OrderDetail | null>(null);
+  const [detail, setDetail] = useState<WarehouseOrderDetail | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [scanCode, setScanCode] = useState('');
   const [labelScanCode, setLabelScanCode] = useState('');
@@ -103,20 +35,15 @@ export default function OrderDetailScreen() {
       if (!id) return;
       setError('');
       try {
-        const data = await staffApi<{ ok: boolean } & OrderDetail>(`${WMS}/fulfillment/orders/${id}`);
+        const data = await warehouseClient.getOrder(id);
         setDetail(data);
         if (data.packSession?.id) {
           setSessionId(data.packSession.id);
         } else if (canWrite && startSession && data.pickList) {
           try {
-            const sess = await staffApi<{ ok: boolean; session: { id: string } }>(
-              `${WMS}/fulfillment/orders/${id}/pack-session`,
-              { method: 'POST', body: '{}' }
-            );
-            setSessionId(sess.session.id);
-            const refreshed = await staffApi<{ ok: boolean } & OrderDetail>(
-              `${WMS}/fulfillment/orders/${id}`
-            );
+            const sid = await warehouseClient.startPackSession(id);
+            setSessionId(sid);
+            const refreshed = await warehouseClient.getOrder(id);
             setDetail(refreshed);
           } catch (e) {
             setSessionId('');
@@ -138,19 +65,17 @@ export default function OrderDetailScreen() {
     void load(true);
   }, [load]);
 
-  async function lookupBarcode() {
-    if (!sessionId || !scanCode.trim()) return;
+  async function lookupBarcode(code?: string) {
+    const value = (code ?? scanCode).trim();
+    if (!sessionId || !value) return;
     setScanMsg('');
     setError('');
     try {
-      const r = await staffApi<{ ok: boolean; error?: string } & Partial<PickLookup>>(
-        `${WMS}/fulfillment/pack-sessions/${sessionId}/lookup-barcode`,
-        { method: 'POST', body: JSON.stringify({ code: scanCode.trim() }) }
-      );
+      const r = await warehouseClient.lookupBarcode(sessionId, value);
       if (r.ok && r.lineId) {
         setPickLookup({
           lineId: r.lineId,
-          productTitle: r.productTitle ?? scanCode,
+          productTitle: r.productTitle ?? value,
           sku: r.sku ?? null,
           batchCode: r.batchCode ?? null,
           qtyRequired: r.qtyRequired ?? 1,
@@ -178,13 +103,7 @@ export default function OrderDetailScreen() {
     setBusy(true);
     setError('');
     try {
-      const r = await staffApi<{ ok: boolean; message?: string; stage?: string }>(
-        `${WMS}/fulfillment/pack-sessions/${sessionId}/confirm-pick`,
-        {
-          method: 'POST',
-          body: JSON.stringify({ lineId: pickLookup.lineId, qty }),
-        }
-      );
+      const r = await warehouseClient.confirmPick(sessionId, pickLookup.lineId, qty);
       setPickLookup(null);
       setMessage(r.message ?? (r.stage === 'print' ? 'All racks complete — ready to print' : 'Picked'));
       await load();
@@ -195,21 +114,14 @@ export default function OrderDetailScreen() {
     }
   }
 
-  async function verifyLabel() {
-    if (!id || !labelScanCode.trim() || !canWrite) return;
+  async function verifyLabel(code?: string) {
+    const value = (code ?? labelScanCode).trim();
+    if (!id || !value || !canWrite) return;
     setBusy(true);
     setWrongLabel('');
     setError('');
     try {
-      const r = await staffApi<{
-        ok: boolean;
-        matched: boolean;
-        error?: string;
-        message?: string;
-      }>(`${WMS}/fulfillment/orders/${id}/verify-label`, {
-        method: 'POST',
-        body: JSON.stringify({ code: labelScanCode.trim() }),
-      });
+      const r = await warehouseClient.verifyLabel(id, value);
       if (r.matched) {
         setLabelScanCode('');
         setMessage(r.message ?? 'Label verified');
@@ -224,15 +136,12 @@ export default function OrderDetailScreen() {
     }
   }
 
-  async function runAction(path: string, okMsg: string, body?: Record<string, unknown>) {
+  async function runAction(okMsg: string, fn: () => Promise<unknown>) {
     if (!id || !canWrite) return;
     setBusy(true);
     setError('');
     try {
-      await staffApi(`${WMS}/fulfillment/orders/${id}${path}`, {
-        method: 'POST',
-        body: body ? JSON.stringify(body) : '{}',
-      });
+      await fn();
       setMessage(okMsg);
       await load();
     } catch (e) {
@@ -243,7 +152,9 @@ export default function OrderDetailScreen() {
   }
 
   async function reportException(type: string) {
-    await runAction('/exception', 'Exception logged', { type, notes: `Reported from mobile: ${type}` });
+    await runAction('Exception logged', () =>
+      warehouseClient.reportException(id!, type, `Reported from mobile: ${type}`)
+    );
   }
 
   if (loading) return <Loading label="Loading order…" />;
@@ -274,9 +185,7 @@ export default function OrderDetailScreen() {
             />
           </>
         ) : null}
-        {order?.shiprocket_error ? (
-          <KeyValueRow label="Shiprocket" value={order.shiprocket_error} />
-        ) : null}
+        {order?.shiprocket_error ? <KeyValueRow label="Shiprocket" value={order.shiprocket_error} /> : null}
       </Panel>
 
       {workflow?.racks?.length ? (
@@ -306,16 +215,17 @@ export default function OrderDetailScreen() {
             />
           ) : (
             <>
+              <BarcodeScanner onScan={(code) => void lookupBarcode(code)} disabled={busy} />
               <TextInput
                 style={styles.input}
                 placeholder="Scan or enter barcode / SKU"
                 placeholderTextColor={tokens.textMuted}
                 value={scanCode}
                 onChangeText={setScanCode}
-                onSubmitEditing={lookupBarcode}
+                onSubmitEditing={() => void lookupBarcode()}
                 autoCapitalize="none"
               />
-              <Btn label="Lookup barcode" onPress={lookupBarcode} disabled={busy} variant="secondary" />
+              <Btn label="Lookup barcode" onPress={() => void lookupBarcode()} disabled={busy} variant="secondary" />
             </>
           )}
           {pickLookup ? (
@@ -357,27 +267,30 @@ export default function OrderDetailScreen() {
       ) : (
         <Panel title="Print & label">
           <Text style={styles.muted}>Picking complete — verify shipping label before dispatch.</Text>
+          <BarcodeScanner onScan={(code) => void verifyLabel(code)} disabled={busy} />
           <TextInput
             style={styles.input}
             placeholder="Scan label QR / barcode"
             placeholderTextColor={tokens.textMuted}
             value={labelScanCode}
             onChangeText={setLabelScanCode}
-            onSubmitEditing={verifyLabel}
+            onSubmitEditing={() => void verifyLabel()}
             autoCapitalize="none"
           />
-          <Btn label="Verify label" onPress={verifyLabel} disabled={busy || !canWrite} />
+          <Btn label="Verify label" onPress={() => void verifyLabel()} disabled={busy || !canWrite} />
           {detail?.shippingLabel?.labelVerified ? (
             <Text style={styles.success}>Label already verified</Text>
           ) : null}
           <Btn
             label="Mark packed"
-            onPress={() => runAction('/mark-packed', 'Order marked packed')}
+            onPress={() => runAction('Order marked packed', () => warehouseClient.markPacked(id!))}
             disabled={busy || !canWrite}
           />
           <Btn
             label="Generate AWB"
-            onPress={() => runAction('/generate-awb', 'AWB request sent', { forceRecreate: false })}
+            onPress={() =>
+              runAction('AWB request sent', () => warehouseClient.generateAwb(id!, false))
+            }
             disabled={busy || !canWrite}
             variant="secondary"
           />

@@ -6,19 +6,30 @@
     "orientation": "portrait",
     "scheme": "morbeez-farmer",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
-    "newArchEnabled": true,
+    "icon": "./assets/app-icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "in.morbeez.farmer"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1a4d32"
       },
       "package": "in.morbeez.farmer"
     },
-    "plugins": ["expo-router"]
+    "plugins": [
+      "expo-router"
+    ],
+    "owner": "kok-expo",
+    "extra": {
+      "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
+      "shopUrl": "https://morbeez-india.myshopify.com",
+      "shopifyThemeId": "186108281150",
+      "router": {},
+      "eas": {
+        "projectId": "4e834899-bd9a-404b-ba62-5acd769d52ba"
+      }
+    }
   }
 }

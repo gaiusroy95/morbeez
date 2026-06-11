@@ -36,6 +36,60 @@ Set `EXPO_PUBLIC_API_BASE_URL` in each app's `.env`.
 
 Fields and AI Scan are reachable from Home quick actions (not tab bar items).
 
+## Warehouse app — mockup-aligned structure
+
+**Bottom tabs:** Dashboard · Picking · Packing · Dispatch · More (role-filtered)
+
+| Role | Visible tabs |
+|------|----------------|
+| `picker_packer` | Picking, More |
+| `packer` | Packing, More |
+| `dispatcher` | Dispatch, More |
+| `warehouse` / manager / admin | All tabs |
+
+**Stack flows:** pick rack screen → rack complete → pack form → print documents → packing complete → dispatch / LR update → order timeline + documents.
+
+**Shared client:** `packages/shared/src/api/warehouse-client.ts` — typed wrappers for fulfillment APIs.
+
+**Camera barcode:** `components/BarcodeScanner.tsx` on pick, pack label verify, and legacy order screen (BT wedge `TextInput` fallback).
+
+### Warehouse API (mobile)
+
+Base: `/morbeez-staff/api/v1/os/warehouse`
+
+| Area | Endpoints |
+|------|-----------|
+| Dashboard | `GET /fulfillment/stats` |
+| Queues | `GET /fulfillment/queue`, `POST /fulfillment/sync-inventory` |
+| Pick | `GET /fulfillment/orders/:id`, `POST …/pack-session`, `POST /fulfillment/pack-sessions/:id/lookup-barcode`, `POST …/confirm-pick` |
+| Pack | `POST …/package/*`, `POST …/mark-packed`, `POST …/verify-label`, `POST …/rebuild-pick-list` |
+| Dispatch | `POST …/generate-awb`, `POST …/dispatch-rack`, dispatch-session scan, `confirm-dispatch` |
+| LR | `GET /masters?type=manual_courier`, `POST …/manual-logistics` (`notifyCustomer`) |
+| Label batches | `GET/POST /fulfillment/employees`, `assignable-orders`, `assign-batch`, `label-batches/*` |
+| Timeline | `GET /fulfillment/orders/:id/timeline`, `GET /documents/:type/:id` (in-app print viewer) |
+
+### Warehouse EAS
+
+```bash
+cd apps/warehouse
+npx eas init   # once — links projectId into app.json extra.eas
+npx eas build --platform android --profile preview
+```
+
+Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route `app/index.tsx` redirects into role default tab after login. Run `npx expo-doctor` — should pass 21/21 (`.expo/` is gitignored, not committed).
+
+### Warehouse smoke checklist
+
+1. Login as warehouse staff
+2. Dashboard stats load (picking / packing / ready dispatch buckets)
+3. Manager: More → Assign & print labels → create batch → print stack
+4. Picking: start session → barcode lookup → confirm pick → rack complete
+5. Packing: shipping method → package override → confirm → mark packed
+6. Label verify (batch orders) → print checklist → in-app document viewer
+7. Dispatch: generate AWB, assign rack, confirm shipped scan
+8. Manual LR update → Save & notify customer (WhatsApp via backend event)
+9. Order timeline + authenticated print viewer
+
 ## Farmer API (mobile)
 
 | Area | Endpoints |
@@ -92,6 +146,7 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 
 - Backend: `cd backend && npm test`
 - Farmer app: `cd apps/farmer && npm test && npm run typecheck`
+- Warehouse app: `cd apps/warehouse && npm test && npm run typecheck`
 
 ## Feature parity (vs web)
 
@@ -99,7 +154,7 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 |-----|--------|-------|
 | **Farmer** | Mockup-aligned | OTP login, market/ROI tabs, charts, shop polish, i18n en/hi/ml, offline cache |
 | **Telecaller** | Partial CRM | Lead workspace tabs vs full web panel. |
-| **Warehouse** | Fulfillment core | Queue, barcode, pick confirm. |
+| **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
 | **Field** | Visit + review | Agronomist finding queue. |
 
 ## Warehouse RBAC

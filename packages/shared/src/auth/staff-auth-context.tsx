@@ -16,7 +16,7 @@ import {
   staffLogin,
   type ApiModule,
   type SessionAdmin,
-} from '@morbeez/shared';
+} from '../api/staff-client';
 
 type StaffAuthState = {
   ready: boolean;

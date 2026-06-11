@@ -60,6 +60,7 @@ export default function RootLayout() {
             <ShopCartProvider>
               <AuthGate>
             <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" options={{ headerShown: false }} />
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="order/[id]" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title="Order tracking" /> }} />

@@ -1,7 +1,19 @@
 /** Resolve API origin from Expo public env (set per app in .env) */
 export function getApiOrigin(): string {
+  let fromExpoExtra = '';
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Constants = require('expo-constants').default as {
+      expoConfig?: { extra?: { apiBaseUrl?: string } };
+    };
+    fromExpoExtra = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '');
+  } catch {
+    fromExpoExtra = '';
+  }
+
   const raw =
     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_BASE_URL) ||
+    fromExpoExtra ||
     '';
   return String(raw).replace(/\/$/, '');
 }

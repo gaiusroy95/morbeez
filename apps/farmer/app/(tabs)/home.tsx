@@ -138,7 +138,7 @@ export default function HomeScreen() {
         ]}
       />
 
-      <Btn label={t('myFields', locale)} variant="secondary" onPress={() => router.push('/fields')} />
+      <Btn label={t('myFields', locale)} onPress={() => router.push('/fields')} />
     </ScrollView>
   );
 }

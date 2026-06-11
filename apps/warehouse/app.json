@@ -4,15 +4,21 @@
     "slug": "morbeez-warehouse",
     "version": "1.0.0",
     "scheme": "morbeez-warehouse",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "plugins": ["expo-router"],
     "ios": { "bundleIdentifier": "in.morbeez.warehouse" },
     "android": {
       "package": "in.morbeez.warehouse",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
+        "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1a4d32"
       }
+    },
+    "owner": "kok-expo",
+    "extra": {
+      "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
+      "router": {},
+      "eas": {}
     }
   }
 }

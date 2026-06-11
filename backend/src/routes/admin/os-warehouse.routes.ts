@@ -556,6 +556,13 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ...detail });
   });
 
+  app.get(`${api}/fulfillment/orders/:id/timeline`, async (request, reply) => {
+    await assertModuleAccess(request, 'warehouse', 'read');
+    const { id } = request.params as { id: string };
+    const timeline = await fulfillmentService.getOrderTimeline(id);
+    return reply.send({ ok: true, timeline });
+  });
+
   app.post(`${api}/fulfillment/orders/:id/rebuild-pick-list`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'write');
     const { id } = request.params as { id: string };
@@ -798,6 +805,7 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
         courierName: z.string().min(1).max(120),
         trackingAwb: z.string().min(1).max(80),
         trackingUrl: z.string().url().optional().nullable(),
+        notifyCustomer: z.boolean().optional(),
       })
       .parse(request.body);
     const order = await fulfillmentService.saveManualLogistics(

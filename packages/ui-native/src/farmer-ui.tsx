@@ -336,14 +336,14 @@ const styles = StyleSheet.create({
   productPrice: { fontSize: 14, fontWeight: '700', color: tokens.green800, marginTop: 4 },
   quickGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   quickBtn: {
-    backgroundColor: tokens.green100,
+    backgroundColor: tokens.green700,
     borderRadius: tokens.radiusSm,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderWidth: 1,
     borderColor: tokens.green500,
   },
-  quickBtnText: { fontSize: 13, fontWeight: '600', color: tokens.green800 },
+  quickBtnText: { fontSize: 13, fontWeight: '600', color: '#fff' },
   pressed: { opacity: 0.9 },
   marketCard: {
     backgroundColor: tokens.green800,

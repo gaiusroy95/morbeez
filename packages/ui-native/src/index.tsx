@@ -267,6 +267,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: tokens.green500,
   },
   btnSecondary: {
     backgroundColor: tokens.card,

@@ -19,6 +19,7 @@ import { checkoutOmsBridgeService } from '../checkout/checkout-oms-bridge.servic
 import { normalizeShippingMethod } from '../../lib/manual-couriers.js';
 import { packageRuleEngineService } from './package-rule-engine.service.js';
 import { shippingBoxService } from './shipping-box.service.js';
+import { eventBus } from '../../events/bus.js';
 
 const FULFILLMENT_STATUSES = [
   'assigned',
@@ -92,33 +93,37 @@ export const fulfillmentService = {
   repairPendingCommerceOrders,
 
   async getStats() {
-    const [pending, packed, lrPending, completed] = await Promise.all([
-      activeFulfillmentOrdersQuery().in('oms_status', [
-        'assigned',
-        'confirmed',
-        'awb_generated',
-        'picking',
-        'packing',
-      ]),
+    const [pending, picking, packing, packed, lrPending, readyDispatch, completed] = await Promise.all([
+      activeFulfillmentOrdersQuery().in('oms_status', ['assigned', 'confirmed', 'awb_generated']),
+      activeFulfillmentOrdersQuery().eq('oms_status', 'picking'),
+      activeFulfillmentOrdersQuery().in('oms_status', ['packing', 'packaging_estimated', 'ready_for_courier']),
       activeFulfillmentOrdersQuery().in('oms_status', ['packed', 'awaiting_label_verification']),
       activeFulfillmentOrdersQuery().eq('oms_status', 'awaiting_tracking'),
-      activeFulfillmentOrdersQuery().in('oms_status', [
-        'ready_dispatch',
-        'shipped',
-        'delivered',
-        'completed',
-      ]),
+      activeFulfillmentOrdersQuery().eq('oms_status', 'ready_dispatch'),
+      activeFulfillmentOrdersQuery().in('oms_status', ['shipped', 'delivered', 'completed']),
     ]);
 
+    const pendingCount = pending.count ?? 0;
+    const pickingCount = picking.count ?? 0;
+    const packingCount = packing.count ?? 0;
+    const packedCount = packed.count ?? 0;
+    const lrCount = lrPending.count ?? 0;
+    const readyCount = readyDispatch.count ?? 0;
+    const completedCount = completed.count ?? 0;
+
     return {
-      pending: pending.count ?? 0,
-      packed: packed.count ?? 0,
-      lrPending: lrPending.count ?? 0,
-      completed: completed.count ?? 0,
-      pendingOrders: pending.count ?? 0,
-      readyToPack: packed.count ?? 0,
-      packedToday: packed.count ?? 0,
-      courierPending: lrPending.count ?? 0,
+      pending: pendingCount + pickingCount + packingCount,
+      packed: packedCount,
+      lrPending: lrCount,
+      completed: readyCount + completedCount,
+      pendingOrders: pendingCount,
+      picking: pickingCount,
+      packing: packingCount,
+      readyToPack: packedCount,
+      readyDispatch: readyCount,
+      awaitingTracking: lrCount,
+      packedToday: packedCount,
+      courierPending: lrCount,
       failedAwb: 0,
     };
   },
@@ -608,6 +613,7 @@ export const fulfillmentService = {
       courierName: string;
       trackingAwb: string;
       trackingUrl?: string | null;
+      notifyCustomer?: boolean;
     },
     actorEmail?: string
   ) {
@@ -618,7 +624,7 @@ export const fulfillmentService = {
 
     const { data: order, error } = await supabase
       .from('commerce_orders')
-      .select('id, oms_status, shipping_method')
+      .select('id, oms_status, shipping_method, phone, shopify_order_id, order_name')
       .eq('id', commerceOrderId)
       .single();
     throwIfSupabaseError(error, 'Order for manual logistics');
@@ -660,6 +666,19 @@ export const fulfillmentService = {
         entityId: commerceOrderId,
         details: { courierName, trackingAwb },
       });
+    }
+
+    if (input.notifyCustomer) {
+      await eventBus.publish(
+        'shipment.dispatched',
+        {
+          awb: trackingAwb,
+          shopifyOrderId: order.shopify_order_id ? String(order.shopify_order_id) : undefined,
+          phone: order.phone ? String(order.phone) : undefined,
+          orderName: order.order_name ? String(order.order_name) : undefined,
+        },
+        'warehouse_manual_lr'
+      );
     }
 
     return updated;
@@ -1028,5 +1047,80 @@ export const fulfillmentService = {
       return invoiceService.repairTaxInvoice(existing.id);
     }
     return invoiceService.generateTaxInvoice(commerceOrderId);
+  },
+
+  async getOrderTimeline(commerceOrderId: string) {
+    const detail = await this.getOrderDetail(commerceOrderId);
+    const o = detail.order as Record<string, unknown>;
+    const status = String(o.oms_status ?? 'pending');
+    const rank = (s: string) => {
+      const order = [
+        'pending',
+        'confirmed',
+        'assigned',
+        'picking',
+        'packing',
+        'packed',
+        'awaiting_label_verification',
+        'ready_dispatch',
+        'awaiting_tracking',
+        'shipped',
+        'delivered',
+        'completed',
+      ];
+      const i = order.indexOf(s);
+      return i >= 0 ? i : 0;
+    };
+    const cur = rank(status);
+    const step = (
+      key: string,
+      label: string,
+      threshold: string,
+      at: string | null,
+      detailText?: string | null
+    ) => {
+      const t = rank(threshold);
+      let st: 'done' | 'current' | 'pending' = 'pending';
+      if (cur > t || ['delivered', 'completed', 'shipped'].includes(status)) {
+        if (cur >= t) st = 'done';
+      }
+      if (cur === t) st = 'current';
+      if (['delivered', 'completed'].includes(status) && key !== 'delivered') st = 'done';
+      if (['delivered', 'completed'].includes(status) && key === 'delivered') st = 'done';
+      return { key, label, status: st, at, detail: detailText ?? null };
+    };
+
+    return [
+      step('created', 'Created', 'pending', (o.created_at as string) ?? null, o.order_name as string),
+      step(
+        'picking',
+        'Picking',
+        'picking',
+        detail.assignment?.pickingStartedAt ?? null
+      ),
+      step('packing', 'Packing', 'packing', (o.package_confirmed_at as string) ?? null),
+      step(
+        'dispatch',
+        'Dispatched',
+        'ready_dispatch',
+        (o.shipped_at as string) ?? null,
+        o.tracking_awb as string
+      ),
+      step(
+        'lr',
+        'LR Updated',
+        'awaiting_tracking',
+        (o.label_verified_at as string) ?? null,
+        o.courier_name as string
+      ),
+      step(
+        'transit',
+        'In Transit',
+        'shipped',
+        (o.shipped_at as string) ?? null,
+        (o.tracking_status as string) ?? null
+      ),
+      step('delivered', 'Delivered', 'delivered', (o.delivered_at as string) ?? null),
+    ];
   },
 };

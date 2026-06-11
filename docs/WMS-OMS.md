@@ -52,6 +52,20 @@ Shopify order webhook
 | COD pending | GET | `/cod/pending` |
 | Finance | GET | `/finance/dashboard` |
 
+## Mobile Pick & Pack (`apps/warehouse`)
+
+| Screen | API |
+|--------|-----|
+| Dashboard | `GET /fulfillment/stats` (picking, packing, readyDispatch, awaitingTracking buckets) |
+| Picking queue | `GET /fulfillment/queue` |
+| Rack pick | `POST /fulfillment/orders/:id/pack-session`, pack-session lookup/confirm |
+| Packing | `POST …/package/*`, `POST …/mark-packed`, `POST …/verify-label`, `POST …/rebuild-pick-list` |
+| Print docs | `GET /documents/:type/:id` (in-app HTML viewer), `POST …/mark-label-printed` |
+| Label batches (manager) | `GET/POST /fulfillment/employees`, `assignable-orders`, `assign-batch`, `label-batches/*` |
+| Dispatch | `POST …/generate-awb`, `POST …/dispatch-rack`, dispatch-session scan, `confirm-dispatch` |
+| LR update | `POST …/manual-logistics` (`notifyCustomer: true` → WhatsApp via `shipment.dispatched`) |
+| Timeline | `GET /fulfillment/orders/:id/timeline` |
+
 ## GST logic
 
 - **Same state** (customer state = `COMPANY_STATE`): CGST 50% + SGST 50% of GST amount
@@ -69,4 +83,4 @@ Shopify order webhook
 
 ## Not yet in UI
 
-Console/mobile UI panels for warehouse are not included in this pass — use API or add Commerce → Warehouse tab next.
+Mobile covers floor pick/pack/dispatch/LR; web admin remains source for packaging rules admin, batch label print, returns inspection, and finance dashboards.
