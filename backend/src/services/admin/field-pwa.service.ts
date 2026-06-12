@@ -129,17 +129,17 @@ export const fieldPwaService = {
     ]);
 
     const rawById = new Map((blockRows ?? []).map((r) => [String(r.id), r]));
-    const findingByBlock = new Map<string, (typeof findings)[number]>();
+    const findingByBlock = new Map<string, NonNullable<typeof findings>[number]>();
     for (const f of findings ?? []) {
       const id = String(f.block_id);
       if (!findingByBlock.has(id)) findingByBlock.set(id, f);
     }
-    const soilByBlock = new Map<string, (typeof soils)[number]>();
+    const soilByBlock = new Map<string, NonNullable<typeof soils>[number]>();
     for (const s of soils ?? []) {
       const id = String(s.block_id);
       if (!soilByBlock.has(id)) soilByBlock.set(id, s);
     }
-    const activityByBlock = new Map<string, (typeof activities)[number]>();
+    const activityByBlock = new Map<string, NonNullable<typeof activities>[number]>();
     for (const a of activities ?? []) {
       const id = String(a.farm_block_id);
       if (!activityByBlock.has(id)) activityByBlock.set(id, a);

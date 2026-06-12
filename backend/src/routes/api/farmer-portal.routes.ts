@@ -184,6 +184,33 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     });
   });
 
+  app.get('/api/v1/farmer/portal/masters/application-methods', async (request, reply) => {
+    requireFarmer(request);
+    const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+    const items = await crmFarmerService.listMasters('application_method');
+    return reply.send({
+      ok: true,
+      methods: (items ?? []).map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+      })),
+    });
+  });
+
+  app.post('/api/v1/farmer/portal/masters/application-methods', async (request, reply) => {
+    requireFarmer(request);
+    const body = z.object({ name: z.string().min(1).max(120) }).parse(request.body);
+    const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+    const item = await crmFarmerService.createMaster({
+      masterType: 'application_method',
+      name: body.name,
+    });
+    return reply.status(201).send({
+      ok: true,
+      method: { id: String(item.id), name: String(item.name) },
+    });
+  });
+
   app.post('/api/v1/farmer/portal/blocks', async (request, reply) => {
     const { farmerId } = requireFarmer(request);
     const body = z
@@ -230,6 +257,38 @@ export async function farmerPortalRoutes(app: FastifyInstance): Promise<void> {
     parseUuid(id);
     const timeline = await farmerPortalMobileService.getBlockTimeline(farmerId, id);
     return reply.send({ ok: true, timeline });
+  });
+
+  app.post('/api/v1/farmer/portal/blocks/:id/field-findings', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { id } = request.params as { id: string };
+    parseUuid(id);
+    const body = z
+      .object({
+        diseasePest: z.string().max(500).optional(),
+        observations: z.string().max(4000).optional(),
+        diseaseTone: z.enum(['healthy', 'warning', 'danger']).optional(),
+        actionTaken: z.string().max(2000).optional(),
+      })
+      .parse(request.body);
+    const finding = await farmerPortalMobileService.createFieldFinding(farmerId, id, body);
+    return reply.status(201).send({ ok: true, finding });
+  });
+
+  app.post('/api/v1/farmer/portal/blocks/:id/recommendations', async (request, reply) => {
+    const { farmerId } = requireFarmer(request);
+    const { id } = request.params as { id: string };
+    parseUuid(id);
+    const body = z
+      .object({
+        problem: z.string().max(500).optional(),
+        recommendation: z.string().min(1).max(8000),
+        dosage: z.string().max(2000).optional(),
+        applicationMethod: z.string().max(120).optional(),
+      })
+      .parse(request.body);
+    const recommendation = await farmerPortalMobileService.createBlockRecommendation(farmerId, id, body);
+    return reply.status(201).send({ ok: true, recommendation });
   });
 
   app.post('/api/v1/farmer/portal/scan', { config: uploadBodyLimit }, async (request, reply) => {

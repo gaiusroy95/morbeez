@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   fetchActivities,
   fetchFieldDetail,
@@ -67,6 +67,12 @@ export default function BlockDetailScreen() {
     void load();
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => (a.activityDate < b.activityDate ? 1 : -1)),
     [activities]
@@ -98,7 +104,7 @@ export default function BlockDetailScreen() {
             { id: 'activities', label: t('activities', locale) },
             { id: 'soilTests', label: t('soilTests', locale) },
             { id: 'fieldFindings', label: t('fieldFindings', locale) },
-            { id: 'recommendations', label: t('recommendationsGiven', locale) },
+            { id: 'recommendations', label: t('recommendations', locale) },
           ]}
           active={tab}
           onChange={setTab}
@@ -129,12 +135,26 @@ export default function BlockDetailScreen() {
         ) : null}
       </ScrollView>
 
-      {tab === 'activities' ? (
+      {tab === 'activities' || tab === 'fieldFindings' || tab === 'recommendations' ? (
         <View style={styles.footer}>
-          <Btn
-            label={`+ ${t('addActivity', locale)}`}
-            onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })}
-          />
+          {tab === 'activities' ? (
+            <Btn
+              label={`+ ${t('addActivity', locale)}`}
+              onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })}
+            />
+          ) : null}
+          {tab === 'fieldFindings' ? (
+            <Btn
+              label={`+ ${t('addFieldFinding', locale)}`}
+              onPress={() => router.push({ pathname: '/findings/add', params: { blockId: b.id } })}
+            />
+          ) : null}
+          {tab === 'recommendations' ? (
+            <Btn
+              label={`+ ${t('addRecommendation', locale)}`}
+              onPress={() => router.push({ pathname: '/recommendations/add', params: { blockId: b.id } })}
+            />
+          ) : null}
         </View>
       ) : null}
     </View>

@@ -885,4 +885,85 @@ export const farmerPortalMobileService = {
       })),
     };
   },
+
+  async createFieldFinding(
+    farmerId: string,
+    blockId: string,
+    input: {
+      diseasePest?: string;
+      observations?: string;
+      diseaseTone?: 'healthy' | 'warning' | 'danger';
+      actionTaken?: string;
+    }
+  ) {
+    const block = await blockService.getById(blockId, farmerId);
+    if (!block) throw new NotFoundError('Field not found');
+    if (!input.diseasePest?.trim() && !input.observations?.trim()) {
+      throw new ValidationError('Describe the issue or observation');
+    }
+
+    let weatherSnapshotId: string | null = null;
+    let weatherContext: Record<string, unknown> = {};
+    const captured = await weatherSnapshotService.capture({
+      farmerId,
+      blockId,
+      eventType: 'field_finding',
+    });
+    if (captured) {
+      weatherSnapshotId = captured.snapshotId;
+      weatherContext = captured.context;
+    }
+
+    const { data, error } = await supabase
+      .from('crm_field_findings')
+      .insert({
+        farmer_id: farmerId,
+        block_id: blockId,
+        block_name: blockDisplayName(block),
+        crop_type: block.crop_type,
+        agronomist_name: 'Farmer',
+        agronomist_role: 'Farmer',
+        disease_pest: input.diseasePest?.trim() || 'Field observation',
+        observations: input.observations?.trim() || null,
+        disease_tone: input.diseaseTone ?? 'warning',
+        action_taken: input.actionTaken?.trim() || null,
+        visited_at: new Date().toISOString(),
+        weather_context: weatherContext,
+        weather_snapshot_id: weatherSnapshotId,
+      })
+      .select('id')
+      .single();
+    throwIfSupabaseError(error, 'Could not save field finding');
+    if (!data) throw new NotFoundError('Could not save field finding');
+    return { id: String(data.id) };
+  },
+
+  async createBlockRecommendation(
+    farmerId: string,
+    blockId: string,
+    input: {
+      problem?: string;
+      recommendation: string;
+      dosage?: string;
+      applicationMethod?: string;
+    }
+  ) {
+    const block = await blockService.getById(blockId, farmerId);
+    if (!block) throw new NotFoundError('Field not found');
+    if (!input.recommendation.trim()) {
+      throw new ValidationError('Recommendation text is required');
+    }
+
+    const { crmFarmerService } = await import('../admin/crm-farmer.service.js');
+    const rec = await crmFarmerService.createRecommendation(farmerId, null, {
+      blockId,
+      recType: 'farmer',
+      problem: input.problem?.trim() || undefined,
+      recommendation: input.recommendation.trim(),
+      dosage: input.dosage?.trim() || undefined,
+      applicationMethod: input.applicationMethod?.trim() || undefined,
+      recommendedBy: 'Farmer',
+    });
+    return { id: String(rec.id) };
+  },
 };

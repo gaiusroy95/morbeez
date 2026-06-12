@@ -235,6 +235,38 @@ export async function createFarmerSoilReport(body: {
   return data.report;
 }
 
+export async function createFarmerFieldFinding(
+  blockId: string,
+  body: {
+    diseasePest?: string;
+    observations?: string;
+    diseaseTone?: 'healthy' | 'warning' | 'danger';
+    actionTaken?: string;
+  }
+): Promise<{ id: string }> {
+  const data = await farmerApi<{ ok: boolean; finding: { id: string } }>(
+    `/api/v1/farmer/portal/blocks/${encodeURIComponent(blockId)}/field-findings`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return data.finding;
+}
+
+export async function createFarmerBlockRecommendation(
+  blockId: string,
+  body: {
+    problem?: string;
+    recommendation: string;
+    dosage?: string;
+    applicationMethod?: string;
+  }
+): Promise<{ id: string }> {
+  const data = await farmerApi<{ ok: boolean; recommendation: { id: string } }>(
+    `/api/v1/farmer/portal/blocks/${encodeURIComponent(blockId)}/recommendations`,
+    { method: 'POST', body: JSON.stringify(body) }
+  );
+  return data.recommendation;
+}
+
 export async function fetchPortalRoi(): Promise<PortalRoi> {
   const data = await farmerApi<{ ok: boolean } & PortalRoi>('/api/v1/farmer/portal/roi');
   return data;
@@ -399,6 +431,23 @@ export async function fetchCropMasters(): Promise<CropMaster[]> {
     '/api/v1/farmer/portal/masters/crops'
   );
   return data.crops ?? [];
+}
+
+export type ApplicationMethodMaster = { id: string; name: string };
+
+export async function fetchApplicationMethods(): Promise<ApplicationMethodMaster[]> {
+  const data = await farmerApi<{ ok: boolean; methods: ApplicationMethodMaster[] }>(
+    '/api/v1/farmer/portal/masters/application-methods'
+  );
+  return data.methods ?? [];
+}
+
+export async function createFarmerApplicationMethod(name: string): Promise<ApplicationMethodMaster> {
+  const data = await farmerApi<{ ok: boolean; method: ApplicationMethodMaster }>(
+    '/api/v1/farmer/portal/masters/application-methods',
+    { method: 'POST', body: JSON.stringify({ name }) }
+  );
+  return data.method;
 }
 
 export async function createFieldBlock(body: {

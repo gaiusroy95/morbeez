@@ -10,7 +10,7 @@ import {
   type FieldOverview,
   type PortalSoilReport,
 } from '@morbeez/shared';
-import { Btn, HealthBadge, StageProgressBar } from './farmer-ui';
+import { HealthBadge, StageProgressBar } from './farmer-ui';
 
 export function cropEmoji(crop: string): string {
   const c = crop.toLowerCase();
@@ -258,7 +258,9 @@ export function SoilTestsPanel({
       ) : null}
 
       {showAddButton && onNewTest ? (
-        <Btn label={`+ ${t('newSoilTest', loc)}`} variant="secondary" onPress={onNewTest} />
+        <Pressable style={styles.addSoilBtn} onPress={onNewTest} accessibilityRole="button">
+          <Text style={styles.addSoilBtnText}>+ {t('newSoilTest', loc)}</Text>
+        </Pressable>
       ) : null}
     </>
   );
@@ -431,6 +433,17 @@ const styles = StyleSheet.create({
   soilDate: { fontSize: 14, fontWeight: '700', color: tokens.text },
   soilDap: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
   soilMeta: { fontSize: 13, color: tokens.textMuted },
+  addSoilBtn: {
+    marginTop: 8,
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 2,
+    borderColor: tokens.green700,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+  },
+  addSoilBtnText: { fontSize: 15, fontWeight: '600', color: tokens.green800 },
   findingsList: { gap: 10 },
   findingCard: {
     backgroundColor: tokens.card,

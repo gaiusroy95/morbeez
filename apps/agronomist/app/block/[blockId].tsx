@@ -148,7 +148,7 @@ export default function AgronomistBlockDetailScreen() {
             { id: 'activities', label: 'Activities' },
             { id: 'soilTests', label: 'Soil tests' },
             { id: 'fieldFindings', label: 'Field findings' },
-            { id: 'recommendations', label: 'Recommendations given' },
+            { id: 'recommendations', label: 'Recommendations' },
           ]}
           active={tab}
           onChange={setTab}
