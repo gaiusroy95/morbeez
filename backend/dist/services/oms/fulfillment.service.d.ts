@@ -1,3 +1,4 @@
+import { type FulfillmentGates } from '../../lib/fulfillment-gates.js';
 declare const EXCEPTION_TYPES: readonly ["stock_missing", "wrong_barcode", "reprint_label", "courier_failed", "weight_mismatch"];
 export type FulfillmentExceptionType = (typeof EXCEPTION_TYPES)[number];
 declare function repairPendingCommerceOrders(limit?: number): Promise<{
@@ -19,8 +20,61 @@ export declare const fulfillmentService: {
         readyDispatch: number;
         awaitingTracking: number;
         packedToday: number;
+        handedOverToday: number;
         courierPending: number;
         failedAwb: number;
+    }>;
+    getCompletedToday(opts?: {
+        limit?: number;
+    }): Promise<{
+        packedToday: {
+            id: unknown;
+            orderName: {};
+            customerName: string | null;
+            courier: {};
+            itemCount: number;
+            orderItemCount: number;
+            stockIssue: string | null;
+            missingProducts: (string | undefined)[];
+            priority: {};
+            omsStatus: unknown;
+            shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
+            trackingStatus: string | null;
+            needsManualTracking: boolean;
+            awb: unknown;
+            pickListId: string;
+            shiprocketError: string | null;
+            isCod: unknown;
+            totalAmount: unknown;
+            createdAt: unknown;
+            packedAt: string | null;
+            shippedAt: string | null;
+            assignedEmployee: string | null;
+        }[];
+        handedOverToday: {
+            id: unknown;
+            orderName: {};
+            customerName: string | null;
+            courier: {};
+            itemCount: number;
+            orderItemCount: number;
+            stockIssue: string | null;
+            missingProducts: (string | undefined)[];
+            priority: {};
+            omsStatus: unknown;
+            shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
+            trackingStatus: string | null;
+            needsManualTracking: boolean;
+            awb: unknown;
+            pickListId: string;
+            shiprocketError: string | null;
+            isCod: unknown;
+            totalAmount: unknown;
+            createdAt: unknown;
+            packedAt: string | null;
+            shippedAt: string | null;
+            assignedEmployee: string | null;
+        }[];
     }>;
     repairStalePickLists(): Promise<{
         repaired: number;
@@ -38,25 +92,27 @@ export declare const fulfillmentService: {
         limit?: number;
         repair?: boolean;
     }): Promise<{
-        id: any;
-        orderName: any;
+        id: unknown;
+        orderName: {};
         customerName: string | null;
-        courier: any;
+        courier: {};
         itemCount: number;
         orderItemCount: number;
         stockIssue: string | null;
         missingProducts: (string | undefined)[];
-        priority: any;
-        omsStatus: any;
+        priority: {};
+        omsStatus: unknown;
         shippingMethod: import("../../lib/manual-couriers.js").ShippingMethod;
         trackingStatus: string | null;
         needsManualTracking: boolean;
-        awb: any;
+        awb: unknown;
         pickListId: string;
         shiprocketError: string | null;
-        isCod: any;
-        totalAmount: any;
-        createdAt: any;
+        isCod: unknown;
+        totalAmount: unknown;
+        createdAt: unknown;
+        packedAt: string | null;
+        shippedAt: string | null;
         assignedEmployee: string | null;
     }[]>;
     getOrderDetail(commerceOrderId: string): Promise<{
@@ -73,7 +129,7 @@ export declare const fulfillmentService: {
         suggestedDispatchRack: string | null;
         printEnabled: boolean;
         workflow: {
-            stage: "picking" | "print";
+            stage: "pack" | "picking";
             step: number;
             currentRack: string | null;
             racks: {
@@ -95,6 +151,7 @@ export declare const fulfillmentService: {
                 remaining: number;
                 complete: boolean;
             }[];
+            pickComplete: boolean;
             printEnabled: boolean;
         } | null;
         shiprocketDiagnostics: import("../shiprocket/shiprocket.service.js").ShiprocketDiagnostics | null;
@@ -140,6 +197,7 @@ export declare const fulfillmentService: {
             packageWeightKg: number;
             volumetricWeightKg: number;
             billingWeightKg: number;
+            boxCount: number;
             overridden: boolean;
             confirmedAt: any;
             courierPayload: {
@@ -150,6 +208,19 @@ export declare const fulfillmentService: {
             };
             lines: import("./package-rule-engine.service.js").PackageLineInsight[];
         } | null;
+    } & {
+        pickComplete: boolean;
+        printEnabled: boolean;
+        fulfillmentGates: FulfillmentGates;
+        workflow: {
+            stage: string;
+            step: number;
+            currentRack: string | null;
+            racks: unknown[];
+            currentRackLines: unknown[];
+            printEnabled?: boolean;
+            pickComplete?: boolean;
+        } | null | undefined;
     }>;
     estimatePackage(commerceOrderId: string): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
     confirmPackage(commerceOrderId: string, actorEmail?: string, opts?: {
@@ -162,6 +233,7 @@ export declare const fulfillmentService: {
         heightCm: number;
         weightKg: number;
     }, actorEmail?: string): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
+    selectPackageBox(commerceOrderId: string, boxId: string, boxCount?: number): Promise<import("./package-rule-engine.service.js").PackageEstimate>;
     listShippingBoxes(): Promise<import("./shipping-box.service.js").ShippingBox[]>;
     setShippingMethod(commerceOrderId: string, method: "shiprocket" | "manual", actorEmail?: string): Promise<any>;
     saveManualLogistics(commerceOrderId: string, input: {
@@ -256,10 +328,11 @@ export declare const fulfillmentService: {
         lineComplete: boolean;
         rackComplete: boolean;
         advancedToRack: null;
-        stage: "picking" | "print";
+        stage: "pack" | "picking";
+        pickComplete: boolean;
         printEnabled: boolean;
         workflow: {
-            stage: "picking" | "print";
+            stage: "pack" | "picking";
             step: number;
             currentRack: string | null;
             racks: {
@@ -281,16 +354,18 @@ export declare const fulfillmentService: {
                 remaining: number;
                 complete: boolean;
             }[];
+            pickComplete: boolean;
             printEnabled: boolean;
         };
         message: string;
     }>;
     advanceToNextRack(packSessionId: string): Promise<{
         ok: boolean;
-        stage: "print";
+        stage: "pack";
+        pickComplete: boolean;
         printEnabled: boolean;
         workflow: {
-            stage: "picking" | "print";
+            stage: "pack" | "picking";
             step: number;
             currentRack: string | null;
             racks: {
@@ -312,17 +387,19 @@ export declare const fulfillmentService: {
                 remaining: number;
                 complete: boolean;
             }[];
+            pickComplete: boolean;
             printEnabled: boolean;
         };
         message: string;
         advancedToRack?: undefined;
     } | {
         ok: boolean;
-        stage: "picking" | "print";
+        stage: "pack" | "picking";
+        pickComplete: boolean;
         printEnabled: boolean;
         advancedToRack: string | null;
         workflow: {
-            stage: "picking" | "print";
+            stage: "pack" | "picking";
             step: number;
             currentRack: string | null;
             racks: {
@@ -344,6 +421,7 @@ export declare const fulfillmentService: {
                 remaining: number;
                 complete: boolean;
             }[];
+            pickComplete: boolean;
             printEnabled: boolean;
         };
         message: string;

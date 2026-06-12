@@ -199,7 +199,31 @@ export const whatsappService = {
         const statuses = value?.statuses;
         if (!messages?.length) {
             if (statuses?.length) {
-                logger.debug({ statusCount: statuses.length }, 'Meta WhatsApp status webhook (delivery/read) — no inbound message');
+                const { broadcastCampaignService } = await import('./broadcasts/broadcast-campaign.service.js');
+                for (const st of statuses) {
+                    const messageId = String(st.id ?? '');
+                    const status = String(st.status ?? '');
+                    if (!messageId)
+                        continue;
+                    try {
+                        if (status === 'delivered') {
+                            await broadcastCampaignService.recordDeliveryStatus({
+                                whatsappMessageId: messageId,
+                                status: 'delivered',
+                            });
+                        }
+                        else if (status === 'read') {
+                            await broadcastCampaignService.recordDeliveryStatus({
+                                whatsappMessageId: messageId,
+                                status: 'read',
+                            });
+                        }
+                    }
+                    catch (err) {
+                        logger.warn({ err, messageId, status }, 'Broadcast delivery status update failed');
+                    }
+                }
+                logger.debug({ statusCount: statuses.length }, 'Meta WhatsApp status webhook (delivery/read) processed');
             }
             return;
         }

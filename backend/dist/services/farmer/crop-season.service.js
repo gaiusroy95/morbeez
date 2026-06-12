@@ -723,6 +723,8 @@ export const cropSeasonService = {
             q = q.gte('entry_date', opts.from);
         if (opts.to)
             q = q.lte('entry_date', opts.to);
+        if (opts.categoryId)
+            q = q.eq('category_id', opts.categoryId);
         const { data, error, count } = await q;
         throwIfSupabaseError(error, 'Could not load transactions');
         const rows = (data ?? []).filter((e) => {

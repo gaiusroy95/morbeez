@@ -1,5 +1,6 @@
 import { env } from '../../../config/env.js';
 import { AppError } from '../../../lib/errors.js';
+import type { TemplateSendParams } from '../whatsapp-outbound.types.js';
 
 /**
  * WATI adapter — same interface as Cloud API for provider swap.
@@ -25,7 +26,7 @@ export const watiWhatsAppProvider = {
     }
   },
 
-  async sendTemplate(to: string, templateName: string, params: { body: string[] }): Promise<void> {
+  async sendTemplate(to: string, templateName: string, params: TemplateSendParams): Promise<void> {
     if (!env.WATI_API_ENDPOINT || !env.WATI_ACCESS_TOKEN) {
       throw new AppError('WATI not configured', 503, 'WATI_NOT_CONFIGURED');
     }

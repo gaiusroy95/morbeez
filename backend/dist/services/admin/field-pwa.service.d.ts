@@ -17,6 +17,17 @@ export declare const fieldPwaService: {
         preferredLanguage: string;
     }[]>;
     getFarmerBlocks(farmerId: string): Promise<{
+        latestFindingLabel: string | null;
+        latestFieldActivity: string | null;
+        latestSoilTestAt: string | null;
+        needsAttention: boolean;
+        cropHealthLabel: string;
+        cropHealthStatus: string;
+        lastVisitAt: string | null;
+        lastVisitDap: number | null;
+        soilHealth: string;
+        soilHealthLabel: string;
+        soilHealthStatus: string;
         id: string;
         name: string;
         cropType: string;
@@ -26,6 +37,8 @@ export declare const fieldPwaService: {
         latitude: number | null;
         longitude: number | null;
         hasPlotGps: boolean;
+        acreage: number | null;
+        area: string | null;
     }[]>;
     saveBlockLocation(input: {
         blockId: string;

@@ -10,7 +10,7 @@ export type RackSessionContext = {
     counts: Record<string, number>;
     completed: string[];
     currentRack: string | null;
-    stage: 'picking' | 'print';
+    stage: 'picking' | 'pack';
     racks: Array<{
         rack: string;
         lineCount: number;
@@ -30,7 +30,7 @@ export type RackSessionContext = {
         remaining: number;
         complete: boolean;
     }>;
-    printEnabled: boolean;
+    pickComplete: boolean;
 };
 export type RackPickLine = {
     id: string;
@@ -46,7 +46,7 @@ export type RackPickLine = {
 };
 declare function normalizeRack(rack: string | null | undefined): string;
 declare function buildWorkflowPayload(ctx: RackSessionContext): {
-    stage: "picking" | "print";
+    stage: "pack" | "picking";
     step: number;
     currentRack: string | null;
     racks: {
@@ -68,6 +68,7 @@ declare function buildWorkflowPayload(ctx: RackSessionContext): {
         remaining: number;
         complete: boolean;
     }[];
+    pickComplete: boolean;
     printEnabled: boolean;
 };
 declare function loadSessionContext(packSessionId: string): Promise<RackSessionContext>;
@@ -100,10 +101,11 @@ declare function confirmPick(packSessionId: string, lineId: string, qty: number)
     lineComplete: boolean;
     rackComplete: boolean;
     advancedToRack: null;
-    stage: "picking" | "print";
+    stage: "pack" | "picking";
+    pickComplete: boolean;
     printEnabled: boolean;
     workflow: {
-        stage: "picking" | "print";
+        stage: "pack" | "picking";
         step: number;
         currentRack: string | null;
         racks: {
@@ -125,16 +127,18 @@ declare function confirmPick(packSessionId: string, lineId: string, qty: number)
             remaining: number;
             complete: boolean;
         }[];
+        pickComplete: boolean;
         printEnabled: boolean;
     };
     message: string;
 }>;
 declare function advanceToNextRack(packSessionId: string): Promise<{
     ok: boolean;
-    stage: "print";
+    stage: "pack";
+    pickComplete: boolean;
     printEnabled: boolean;
     workflow: {
-        stage: "picking" | "print";
+        stage: "pack" | "picking";
         step: number;
         currentRack: string | null;
         racks: {
@@ -156,17 +160,19 @@ declare function advanceToNextRack(packSessionId: string): Promise<{
             remaining: number;
             complete: boolean;
         }[];
+        pickComplete: boolean;
         printEnabled: boolean;
     };
     message: string;
     advancedToRack?: undefined;
 } | {
     ok: boolean;
-    stage: "picking" | "print";
+    stage: "pack" | "picking";
+    pickComplete: boolean;
     printEnabled: boolean;
     advancedToRack: string | null;
     workflow: {
-        stage: "picking" | "print";
+        stage: "pack" | "picking";
         step: number;
         currentRack: string | null;
         racks: {
@@ -188,6 +194,7 @@ declare function advanceToNextRack(packSessionId: string): Promise<{
             remaining: number;
             complete: boolean;
         }[];
+        pickComplete: boolean;
         printEnabled: boolean;
     };
     message: string;

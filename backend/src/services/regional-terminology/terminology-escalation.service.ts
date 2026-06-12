@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
+import { terminologyConceptSuggestService } from './terminology-concept-suggest.service.js';
 
 export const terminologyEscalationService = {
   /**
@@ -65,6 +66,7 @@ export const terminologyEscalationService = {
 
     throwIfSupabaseError(error, 'Could not create terminology escalation');
     await this.recordPattern(params.farmerId, termKey, params.language);
+    await terminologyConceptSuggestService.attachSuggestionToTask(String(data!.id)).catch(() => {});
     return { taskId: String(data!.id), created: true };
   },
 

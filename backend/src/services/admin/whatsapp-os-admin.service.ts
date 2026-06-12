@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { normalizePhone } from '../../lib/phone.js';
+import { terminologyConceptSuggestService } from '../regional-terminology/terminology-concept-suggest.service.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { learningLoopService } from '../core/learning-loop.service.js';
 
@@ -633,9 +634,11 @@ export const whatsappOsAdminService = {
     return data;
   },
 
-  async listTerminologyReviewTasks(status: string = 'open') {
-    const allowed = new Set(['open', 'in_review', 'resolved', 'dismissed', 'all']);
+  async listTerminologyReviewTasks(status: string = 'open', sourceChannel?: string) {
+    const allowed = new Set(['open', 'in_review', 'resolved', 'dismissed', 'rejected', 'all']);
     const s = allowed.has(status) ? status : 'open';
+    const sourceAllowed = new Set(['whatsapp', 'call', 'field', 'other']);
+    const source = sourceChannel && sourceAllowed.has(sourceChannel) ? sourceChannel : null;
 
     let q = supabase
       .from('terminology_review_tasks')
@@ -644,6 +647,7 @@ export const whatsappOsAdminService = {
       .limit(100);
 
     if (s !== 'all') q = q.eq('status', s);
+    if (source) q = q.eq('source_channel', source);
     const { data, error } = await q;
     throwIfSupabaseError(error, 'Could not load terminology tasks');
     return data ?? [];
@@ -701,6 +705,9 @@ export const whatsappOsAdminService = {
       .single();
 
     throwIfSupabaseError(error, 'Could not create terminology task');
+    if (data?.id) {
+      await terminologyConceptSuggestService.attachSuggestionToTask(String(data.id)).catch(() => {});
+    }
     return data;
   },
 

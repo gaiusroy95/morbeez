@@ -7,6 +7,7 @@ import { eventBus } from '../../events/bus.js';
 import { logger } from '../../lib/logger.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { leadService } from '../crm/lead.service.js';
+import { leadChannelFromUtm } from '../../domain/marketing/lead-attribution.js';
 
 export interface SignupInput {
   email?: string;
@@ -18,6 +19,9 @@ export interface SignupInput {
   newsletter: boolean;
   /** website (default) or mobile app */
   channel?: 'website' | 'mobile';
+  utmCampaign?: string;
+  utmSource?: string;
+  utmMedium?: string;
 }
 
 export interface LoginInput {
@@ -160,6 +164,11 @@ export const farmerAuthService = {
         name: fullName,
         email: email ?? undefined,
         channel: input.channel ?? 'website',
+        leadChannel: leadChannelFromUtm(input.utmSource, input.utmMedium),
+        campaignSource: input.utmCampaign ?? null,
+        utmCampaign: input.utmCampaign ?? null,
+        utmSource: input.utmSource ?? null,
+        utmMedium: input.utmMedium ?? null,
       });
       logger.info(
         {

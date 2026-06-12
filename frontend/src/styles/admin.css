@@ -6712,4 +6712,119 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   }
 }
 
-/* Agronomist Case Review â†’ see styles/case-review.css (imported by CaseReviewPanel) */
+/* Agronomist Case Review → see styles/case-review.css (imported by CaseReviewPanel) */
+
+.tc-call-intel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.tc-call-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tc-call-upload-label {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tc-call-duration input {
+  margin-left: 8px;
+  width: 72px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.tc-call-summary-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 12px 0 6px;
+}
+
+.tc-call-wa-suggest {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.tc-call-confirm-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tc-timeline-feed {
+  margin-top: 16px;
+}
+
+.tc-timeline-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tc-timeline-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tc-timeline-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.tc-timeline-head time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.tc-timeline-qc {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.tc-qc-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tc-qc-split {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 16px;
+}
+
+.tc-qc-transcript {
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 12px;
+  background: #f8fafc;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .tc-qc-split {
+    grid-template-columns: 1fr;
+  }
+}

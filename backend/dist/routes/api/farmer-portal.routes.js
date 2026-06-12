@@ -73,6 +73,22 @@ export async function farmerPortalRoutes(app) {
         const result = await farmerPortalService.listSoilReports(farmerId);
         return reply.send({ ok: true, ...result });
     });
+    app.post('/api/v1/farmer/portal/soil-reports', { config: uploadBodyLimit }, async (request, reply) => {
+        const { farmerId } = requireFarmer(request);
+        const body = z
+            .object({
+            blockId: z.string().uuid(),
+            reportedAt: z.string().min(8).optional(),
+            macro: z.record(z.string()).optional(),
+            micro: z.record(z.string()).optional(),
+            remarks: z.string().max(500).optional(),
+            imageData: imageDataSchema.optional(),
+            mimeType: z.string().optional(),
+        })
+            .parse(request.body);
+        const report = await farmerPortalService.createSoilReport(farmerId, body);
+        return reply.status(201).send({ ok: true, report });
+    });
     app.get('/api/v1/farmer/portal/roi', async (request, reply) => {
         const { farmerId } = requireFarmer(request);
         const result = await farmerPortalService.getRoi(farmerId);
@@ -135,6 +151,43 @@ export async function farmerPortalRoutes(app) {
         const result = await farmerPortalMobileService.listBlocks(farmerId);
         return reply.send({ ok: true, ...result });
     });
+    app.get('/api/v1/farmer/portal/masters/crops', async (request, reply) => {
+        requireFarmer(request);
+        const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+        const items = await crmFarmerService.listMasters('crop');
+        return reply.send({
+            ok: true,
+            crops: (items ?? []).map((row) => ({
+                id: String(row.id),
+                name: String(row.name),
+            })),
+        });
+    });
+    app.get('/api/v1/farmer/portal/masters/application-methods', async (request, reply) => {
+        requireFarmer(request);
+        const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+        const items = await crmFarmerService.listMasters('application_method');
+        return reply.send({
+            ok: true,
+            methods: (items ?? []).map((row) => ({
+                id: String(row.id),
+                name: String(row.name),
+            })),
+        });
+    });
+    app.post('/api/v1/farmer/portal/masters/application-methods', async (request, reply) => {
+        requireFarmer(request);
+        const body = z.object({ name: z.string().min(1).max(120) }).parse(request.body);
+        const { crmFarmerService } = await import('../../services/admin/crm-farmer.service.js');
+        const item = await crmFarmerService.createMaster({
+            masterType: 'application_method',
+            name: body.name,
+        });
+        return reply.status(201).send({
+            ok: true,
+            method: { id: String(item.id), name: String(item.name) },
+        });
+    });
     app.post('/api/v1/farmer/portal/blocks', async (request, reply) => {
         const { farmerId } = requireFarmer(request);
         const body = z
@@ -178,6 +231,36 @@ export async function farmerPortalRoutes(app) {
         parseUuid(id);
         const timeline = await farmerPortalMobileService.getBlockTimeline(farmerId, id);
         return reply.send({ ok: true, timeline });
+    });
+    app.post('/api/v1/farmer/portal/blocks/:id/field-findings', async (request, reply) => {
+        const { farmerId } = requireFarmer(request);
+        const { id } = request.params;
+        parseUuid(id);
+        const body = z
+            .object({
+            diseasePest: z.string().max(500).optional(),
+            observations: z.string().max(4000).optional(),
+            diseaseTone: z.enum(['healthy', 'warning', 'danger']).optional(),
+            actionTaken: z.string().max(2000).optional(),
+        })
+            .parse(request.body);
+        const finding = await farmerPortalMobileService.createFieldFinding(farmerId, id, body);
+        return reply.status(201).send({ ok: true, finding });
+    });
+    app.post('/api/v1/farmer/portal/blocks/:id/recommendations', async (request, reply) => {
+        const { farmerId } = requireFarmer(request);
+        const { id } = request.params;
+        parseUuid(id);
+        const body = z
+            .object({
+            problem: z.string().max(500).optional(),
+            recommendation: z.string().min(1).max(8000),
+            dosage: z.string().max(2000).optional(),
+            applicationMethod: z.string().max(120).optional(),
+        })
+            .parse(request.body);
+        const recommendation = await farmerPortalMobileService.createBlockRecommendation(farmerId, id, body);
+        return reply.status(201).send({ ok: true, recommendation });
     });
     app.post('/api/v1/farmer/portal/scan', { config: uploadBodyLimit }, async (request, reply) => {
         const { farmerId } = requireFarmer(request);
@@ -382,6 +465,33 @@ export async function farmerPortalRoutes(app) {
         });
         return reply.send({ ok: true, types });
     });
+    app.post('/api/v1/farmer/portal/roi/activity-types', async (request, reply) => {
+        requireFarmer(request);
+        const body = z
+            .object({
+            activityName: z.string().min(1).max(80),
+            crop: z.string().max(40).optional(),
+            category: z.string().max(40).optional(),
+            icon: z.string().max(16).optional(),
+        })
+            .parse(request.body);
+        const { whatsappOsAdminService } = await import('../../services/admin/whatsapp-os-admin.service.js');
+        const row = await whatsappOsAdminService.createFieldActivityType({
+            activityName: body.activityName,
+            crop: body.crop ?? null,
+            category: body.category,
+            icon: body.icon,
+        });
+        return reply.status(201).send({
+            ok: true,
+            type: {
+                id: String(row.id),
+                activityName: String(row.activity_name),
+                icon: row.icon ? String(row.icon) : null,
+                category: row.category ? String(row.category) : undefined,
+            },
+        });
+    });
     app.get('/api/v1/farmer/portal/roi/categories', async (request, reply) => {
         const { farmerId } = requireFarmer(request);
         const { cropSeasonService } = await import('../../services/farmer/crop-season.service.js');
@@ -525,6 +635,7 @@ export async function farmerPortalRoutes(app) {
             type: q.type === 'expense' || q.type === 'income' ? q.type : undefined,
             from: q.from,
             to: q.to,
+            categoryId: q.categoryId,
             page: q.page ? Number(q.page) : 1,
             limit: q.limit ? Number(q.limit) : 50,
         });

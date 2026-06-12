@@ -119,5 +119,107 @@ export declare const agronomistMobileService: {
         longitude?: number;
         fieldFindingId?: string;
     }): Promise<any>;
+    listFarmerRecommendations(farmerId: string, limit?: number): Promise<{
+        id: string;
+        farmerId: string;
+        blockId: string | null;
+        fieldFindingId: string | null;
+        issueDetected: string | null;
+        recommendationText: string;
+        dosage: string | null;
+        status: string;
+        createdAt: string;
+    }[]>;
+    createFarmerRecommendation(farmerId: string, createdBy: string, input: {
+        blockId?: string;
+        leadId?: string;
+        fieldFindingId?: string;
+        issueDetected?: string;
+        recommendationText: string;
+        dosage?: string;
+        weatherWarning?: string;
+        language?: string;
+    }): Promise<any>;
+    getBlockDetail(farmerId: string, blockId: string): Promise<{
+        block: {
+            latestFindingLabel: string | null;
+            latestFieldActivity: string | null;
+            latestSoilTestAt: string | null;
+            needsAttention: boolean;
+            cropHealthLabel: string;
+            cropHealthStatus: string;
+            lastVisitAt: string | null;
+            lastVisitDap: number | null;
+            soilHealth: string;
+            soilHealthLabel: string;
+            soilHealthStatus: string;
+            id: string;
+            name: string;
+            cropType: string;
+            plotLabel: string | null;
+            dap: number;
+            plantingDate: string | null;
+            latitude: number | null;
+            longitude: number | null;
+            hasPlotGps: boolean;
+            acreage: number | null;
+            area: string | null;
+        };
+        activities: {
+            id: string;
+            blockId: string;
+            blockName: string;
+            activityType: string;
+            activityLabel: string;
+            activityDate: string;
+            dateLabel: string;
+            notes: string | null;
+            costInr: number | null;
+            status: string;
+        }[];
+        soilReports: {
+            id: string;
+            blockId: string;
+            blockName: string;
+            dateLabel: string;
+            dapLabel: null;
+            health: string;
+            healthLabel: string;
+            pdfUrl: string | null;
+            highlights: never[];
+            metrics: never[];
+        }[];
+        fieldFindings: {
+            id: string;
+            visitedAt: string;
+            visitedLabel: string;
+            diseasePest: string | null;
+            observations: string | null;
+            diseaseTone: string;
+            cropHealthLabel: string;
+            cropHealthStatus: "critical" | "stable" | "monitor" | "alert";
+            agronomistName: string | null;
+            actionTaken: string | null;
+        }[];
+        blockRecommendations: ({
+            id: string;
+            title: string;
+            body: string;
+            dosage: string | null;
+            dateLabel: string;
+            status: string;
+            recommendedBy: string | null;
+            source: "crm";
+        } | {
+            id: string;
+            title: string;
+            body: string;
+            dosage: string | null;
+            dateLabel: string;
+            status: string;
+            recommendedBy: string | null;
+            source: "record";
+        })[];
+    }>;
 };
 //# sourceMappingURL=agronomist-mobile.service.d.ts.map

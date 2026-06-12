@@ -20,6 +20,8 @@ export declare const broadcastThrottleService: {
         cropType: string;
         dap?: number;
         ruleId?: string;
+        campaignId?: string;
+        whatsappMessageId?: string | null;
         messageBody: string;
         skipReason: string;
         priority: number;
@@ -30,6 +32,8 @@ export declare const broadcastThrottleService: {
         cropType: string;
         dap?: number;
         ruleId?: string;
+        campaignId?: string;
+        whatsappMessageId?: string | null;
         messageBody: string;
         priority: number;
     }): Promise<void>;
@@ -37,6 +41,7 @@ export declare const broadcastThrottleService: {
         farmerId: string;
         broadcastKind: BroadcastKind;
         cropType: string;
+        campaignId?: string;
         messageBody: string;
         error: string;
         priority: number;

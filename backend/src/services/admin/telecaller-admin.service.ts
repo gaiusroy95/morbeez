@@ -172,6 +172,20 @@ function mapLeadRow(row: Record<string, unknown>) {
     lastInteractionLabel: formatDateTime(row.last_interaction_at as string),
     leadScore: row.lead_score != null ? Number(row.lead_score) : 4.5,
     createdAt: row.created_at,
+    campaignSource: row.campaign_source ?? null,
+    leadChannel: row.lead_channel ?? null,
+    marketingOwnerId: row.marketing_owner_id ?? null,
+    marketingOwnerName: row.marketing_owner_name ?? null,
+    utmCampaign: row.utm_campaign ?? null,
+    utmSource: row.utm_source ?? null,
+    utmMedium: row.utm_medium ?? null,
+    attributionBadge: (() => {
+      const ch = row.lead_channel ? String(row.lead_channel) : null;
+      const camp = row.campaign_source ? String(row.campaign_source) : null;
+      if (!ch && !camp) return null;
+      const channelLabel = ch ? ch.charAt(0).toUpperCase() + ch.slice(1) : 'Unknown';
+      return camp ? `${channelLabel} · ${camp}` : channelLabel;
+    })(),
     farmerName: name,
     farmerInitials: initials(name),
     phone: farmer?.phone ?? null,
@@ -574,6 +588,13 @@ export const telecallerAdminService = {
         latitude?: number;
         longitude?: number;
       }>;
+      leadChannel?: string;
+      campaignSource?: string;
+      marketingOwnerId?: string | null;
+      marketingOwnerName?: string | null;
+      utmCampaign?: string;
+      utmSource?: string;
+      utmMedium?: string;
     },
     agentEmail: string
   ) {
@@ -585,6 +606,13 @@ export const telecallerAdminService = {
       notes: input.notes ?? input.farmerNotes,
       cropType: input.cropType ?? input.cropBlocks?.[0]?.cropName,
       district: input.district,
+      leadChannel: input.leadChannel,
+      campaignSource: input.campaignSource,
+      marketingOwnerId: input.marketingOwnerId,
+      marketingOwnerName: input.marketingOwnerName,
+      utmCampaign: input.utmCampaign,
+      utmSource: input.utmSource,
+      utmMedium: input.utmMedium,
     });
 
     const { telecallerFarmerProfileService } = await import('./telecaller-farmer-profile.service.js');
@@ -661,6 +689,13 @@ export const telecallerAdminService = {
       followUpAt?: string | null;
       assignedTo?: string | null;
       priority?: string;
+      leadChannel?: string | null;
+      campaignSource?: string | null;
+      marketingOwnerId?: string | null;
+      marketingOwnerName?: string | null;
+      utmCampaign?: string | null;
+      utmSource?: string | null;
+      utmMedium?: string | null;
     },
     agentEmail: string
   ) {
@@ -670,6 +705,13 @@ export const telecallerAdminService = {
     if (patch.followUpAt !== undefined) updates.follow_up_at = patch.followUpAt;
     if (patch.assignedTo !== undefined) updates.assigned_to = patch.assignedTo;
     if (patch.priority) updates.priority = patch.priority;
+    if (patch.leadChannel !== undefined) updates.lead_channel = patch.leadChannel;
+    if (patch.campaignSource !== undefined) updates.campaign_source = patch.campaignSource;
+    if (patch.marketingOwnerId !== undefined) updates.marketing_owner_id = patch.marketingOwnerId;
+    if (patch.marketingOwnerName !== undefined) updates.marketing_owner_name = patch.marketingOwnerName;
+    if (patch.utmCampaign !== undefined) updates.utm_campaign = patch.utmCampaign;
+    if (patch.utmSource !== undefined) updates.utm_source = patch.utmSource;
+    if (patch.utmMedium !== undefined) updates.utm_medium = patch.utmMedium;
 
     const { data, error } = await supabase
       .from('leads')
@@ -1226,22 +1268,60 @@ export const telecallerAdminService = {
     const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
     if (!lead) throw new NotFoundError('Lead not found');
 
-    const { error } = await supabase.from('crm_call_logs').insert({
-      farmer_id: lead.farmer_id,
-      lead_id: leadId,
-      agent_email: agentEmail,
-      direction: 'outbound',
-      outcome: input.outcome ?? 'completed',
-      duration_seconds: input.durationSeconds ?? 0,
-      notes: input.notes,
-    });
+    const outcome = input.outcome ?? 'connected';
+    const summary = input.notes?.trim() || `Call: ${outcome}`;
+
+    const { data: callRow, error } = await supabase
+      .from('crm_call_logs')
+      .insert({
+        farmer_id: lead.farmer_id,
+        lead_id: leadId,
+        agent_email: agentEmail,
+        direction: 'outbound',
+        outcome,
+        duration_seconds: input.durationSeconds ?? 0,
+        notes: input.notes,
+        processing_status: input.notes ? 'confirmed' : 'pending',
+        recording_provider: 'manual',
+      })
+      .select('id')
+      .single();
 
     throwIfSupabaseError(error, 'Could not log call');
-    await logInteraction(
+
+    const interaction = await crmFarmerService.createInteraction(
       lead.farmer_id as string,
-      'call',
-      `Call: ${input.outcome ?? 'completed'}${input.notes ? ` — ${input.notes}` : ''}`
+      leadId,
+      {
+        interactionType: 'Phone Call',
+        channel: 'call',
+        summary,
+        outcome,
+        doneBy: agentEmail,
+        doneByRole: 'telecaller',
+      }
     );
+
+    if (callRow?.id && interaction?.id) {
+      await supabase
+        .from('crm_call_logs')
+        .update({ interaction_log_id: interaction.id, updated_at: new Date().toISOString() })
+        .eq('id', callRow.id);
+    }
+
+    const { farmerEventCaptureService } = await import(
+      '../intelligence/farmer-event-capture.service.js'
+    );
+    void farmerEventCaptureService.trackInteractionSession({
+      farmerId: String(lead.farmer_id),
+      interactionLogId: String(interaction.id),
+      interactionType: 'Phone Call',
+      workflowStatus: 'Closed',
+      escalated: false,
+      outcome,
+      employeeEmail: agentEmail,
+    });
+
     await touchLead(leadId, lead.farmer_id as string);
     return this.getLeadDetail(leadId);
   },

@@ -18,6 +18,7 @@ import {
 } from '../components/ui';
 import { CompanySettingsPanel } from '../components/settings/CompanySettingsPanel';
 import { LanguageDictionaryPanel } from '../components/settings/LanguageDictionaryPanel';
+import { OperationsSystemConfigPanel } from '../components/operations/OperationsSystemConfigPanel';
 
 type Staff = {
   id: string;
@@ -63,6 +64,7 @@ export function SettingsPage({ canRead, canWrite }: { canRead: boolean; canWrite
     <div className="space-y-6">
       <CompanySettingsPanel canWrite={canWrite} />
       <LanguageDictionaryPanel canWrite={canWrite} />
+      {canWrite ? <OperationsSystemConfigPanel /> : null}
       <p className="muted">
         Staff accounts and RBAC. For full employee workspace, use <strong>Employees</strong> in the sidebar.
       </p>

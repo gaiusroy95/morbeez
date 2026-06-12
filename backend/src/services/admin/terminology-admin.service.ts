@@ -1,0 +1,490 @@
+import { supabase } from '../../lib/supabase.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { learningLoopService } from '../core/learning-loop.service.js';
+import { terminologyDictionaryService } from '../regional-terminology/terminology-dictionary.service.js';
+import { terminologyEscalationService } from '../regional-terminology/terminology-escalation.service.js';
+import { terminologyConceptSuggestService } from '../regional-terminology/terminology-concept-suggest.service.js';
+
+const CONCEPT_CATEGORIES = [
+  'general',
+  'disease',
+  'pest',
+  'nutrient_deficiency',
+  'growth_issue',
+  'weather_impact',
+] as const;
+
+function mapTermRow(row: Record<string, unknown>) {
+  const concept = row.agronomy_concepts as Record<string, unknown> | null;
+  const aliases = (row.terminology_term_aliases as Array<{ alias: string; language: string }> | null) ?? [];
+  return {
+    id: String(row.id),
+    term: String(row.term),
+    language: String(row.language ?? 'en'),
+    meaning: String(row.meaning),
+    standardTerm: row.standard_term ? String(row.standard_term) : null,
+    localScript: row.local_script ? String(row.local_script) : null,
+    cropType: row.crop_type ? String(row.crop_type) : null,
+    district: row.district ? String(row.district) : null,
+    state: row.state ? String(row.state) : null,
+    status: String(row.status ?? 'active'),
+    replyPreferred: Boolean(row.reply_preferred ?? true),
+    usageCount: Number(row.usage_count ?? 0),
+    conceptId: row.concept_id ? String(row.concept_id) : null,
+    conceptName: concept?.name ? String(concept.name) : null,
+    conceptCode: concept?.concept_code ? String(concept.concept_code) : null,
+    conceptCategory: concept?.category ? String(concept.category) : null,
+    aliases: aliases.map((a) => ({ alias: String(a.alias), language: String(a.language) })),
+    updatedAt: String(row.updated_at ?? row.created_at),
+  };
+}
+
+export const terminologyAdminService = {
+  async getSummary() {
+    const [
+      { count: pending },
+      { count: approved },
+      { count: learned },
+      { count: concepts },
+    ] = await Promise.all([
+      supabase
+        .from('terminology_review_tasks')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['open', 'in_review']),
+      supabase
+        .from('terminology_review_tasks')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'resolved'),
+      supabase
+        .from('agronomy_terms')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active'),
+      supabase.from('agronomy_concepts').select('id', { count: 'exact', head: true }),
+    ]);
+    return {
+      pendingTerms: pending ?? 0,
+      approvedTerms: approved ?? 0,
+      learnedTerminologies: learned ?? 0,
+      totalConcepts: concepts ?? 0,
+    };
+  },
+
+  async listConcepts() {
+    const [{ data: concepts, error }, { data: terms, error: termErr }] = await Promise.all([
+      supabase.from('agronomy_concepts').select('*').order('name'),
+      supabase.from('agronomy_terms').select('concept_id, status').eq('status', 'active'),
+    ]);
+    throwIfSupabaseError(error, 'Could not load concepts');
+    throwIfSupabaseError(termErr, 'Could not load term counts');
+    const counts = new Map<string, number>();
+    for (const t of terms ?? []) {
+      if (t.concept_id) counts.set(String(t.concept_id), (counts.get(String(t.concept_id)) ?? 0) + 1);
+    }
+    return (concepts ?? []).map((row) => ({
+      id: String(row.id),
+      conceptCode: row.concept_code ? String(row.concept_code) : null,
+      name: String(row.name),
+      category: String(row.category),
+      termCount: counts.get(String(row.id)) ?? 0,
+      createdAt: String(row.created_at),
+    }));
+  },
+
+  async createConcept(input: { name: string; category?: string }) {
+    const category = input.category ?? 'general';
+    if (!CONCEPT_CATEGORIES.includes(category as (typeof CONCEPT_CATEGORIES)[number])) {
+      throw new ValidationError('Invalid concept category');
+    }
+    const conceptCode = await terminologyConceptSuggestService.nextConceptCode(category);
+    const { data, error } = await supabase
+      .from('agronomy_concepts')
+      .insert({
+        name: input.name.trim(),
+        category,
+        concept_code: conceptCode,
+      })
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Could not create concept');
+    return data;
+  },
+
+  async listLearnedTerminologies(params?: {
+    search?: string;
+    language?: string;
+    district?: string;
+    status?: string;
+  }) {
+    let q = supabase
+      .from('agronomy_terms')
+      .select('*, agronomy_concepts(name, category, concept_code), terminology_term_aliases(alias, language)')
+      .order('usage_count', { ascending: false })
+      .limit(300);
+
+    if (params?.language) q = q.eq('language', params.language);
+    if (params?.district) q = q.eq('district', params.district);
+    if (params?.status && params.status !== 'all') q = q.eq('status', params.status);
+    else q = q.eq('status', 'active');
+
+    const { data, error } = await q;
+    throwIfSupabaseError(error, 'Could not load learned terminologies');
+    let rows = (data ?? []).map((r) => mapTermRow(r as Record<string, unknown>));
+
+    if (params?.search?.trim()) {
+      const s = params.search.toLowerCase();
+      rows = rows.filter(
+        (r) =>
+          r.term.toLowerCase().includes(s) ||
+          (r.conceptName ?? '').toLowerCase().includes(s) ||
+          (r.standardTerm ?? '').toLowerCase().includes(s) ||
+          r.aliases.some((a) => a.alias.toLowerCase().includes(s))
+      );
+    }
+
+    return rows;
+  },
+
+  async getRegionalTerm(termId: string) {
+    const { data, error } = await supabase
+      .from('agronomy_terms')
+      .select('*, agronomy_concepts(name, category, concept_code), terminology_term_aliases(alias, language)')
+      .eq('id', termId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load term');
+    if (!data) throw new NotFoundError('Term not found');
+    return mapTermRow(data as Record<string, unknown>);
+  },
+
+  async updateRegionalTerm(
+    termId: string,
+    input: {
+      term?: string;
+      language?: string;
+      district?: string | null;
+      state?: string | null;
+      meaning?: string;
+      standardTerm?: string;
+      conceptId?: string | null;
+      replyPreferred?: boolean;
+      status?: 'active' | 'inactive';
+      aliases?: string[];
+    }
+  ) {
+    const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (input.term !== undefined) patch.term = input.term.trim().toLowerCase();
+    if (input.language !== undefined) patch.language = input.language;
+    if (input.district !== undefined) patch.district = input.district;
+    if (input.state !== undefined) patch.state = input.state;
+    if (input.meaning !== undefined) patch.meaning = input.meaning.trim().slice(0, 500);
+    if (input.standardTerm !== undefined) patch.standard_term = input.standardTerm?.trim().slice(0, 200) ?? null;
+    if (input.conceptId !== undefined) patch.concept_id = input.conceptId;
+    if (input.replyPreferred !== undefined) patch.reply_preferred = input.replyPreferred;
+    if (input.status !== undefined) patch.status = input.status;
+
+    const { data, error } = await supabase
+      .from('agronomy_terms')
+      .update(patch)
+      .eq('id', termId)
+      .select('*, agronomy_concepts(name, category, concept_code), terminology_term_aliases(alias, language)')
+      .single();
+    throwIfSupabaseError(error, 'Could not update term');
+
+    if (input.aliases) {
+      await supabase.from('terminology_term_aliases').delete().eq('term_id', termId);
+      const language = input.language ?? String(data.language ?? 'en');
+      for (const alias of input.aliases) {
+        const a = alias.trim().toLowerCase();
+        if (!a) continue;
+        await supabase.from('terminology_term_aliases').insert({
+          term_id: termId,
+          alias: a,
+          language,
+        });
+      }
+    }
+
+    await terminologyEscalationService.recordLearningHistory({
+      term: String(data.term),
+      language: String(data.language ?? 'en'),
+      meaning: String(data.meaning),
+      standardTerm: data.standard_term ? String(data.standard_term) : null,
+      cropType: data.crop_type ? String(data.crop_type) : null,
+      district: data.district ? String(data.district) : null,
+      action: 'updated',
+      metadata: { termId },
+    });
+
+    return this.getRegionalTerm(termId);
+  },
+
+  async listRegionalTerms(params?: { search?: string; language?: string; district?: string }) {
+    return this.listLearnedTerminologies(params);
+  },
+
+  async listLocalizationProfiles(params?: { language?: string; district?: string }) {
+    let q = supabase.from('terminology_localization_profiles').select('*').order('language');
+    if (params?.language) q = q.eq('language', params.language);
+    if (params?.district) q = q.eq('district', params.district);
+    const { data, error } = await q;
+    throwIfSupabaseError(error, 'Could not load localization profiles');
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      language: String(row.language),
+      district: row.district ? String(row.district) : null,
+      state: row.state ? String(row.state) : null,
+      preferredTerms: row.preferred_terms ?? [],
+      responseStyle: String(row.response_style ?? 'simple_farmer'),
+      updatedAt: String(row.updated_at),
+    }));
+  },
+
+  async upsertLocalizationProfile(input: {
+    language: string;
+    district?: string | null;
+    state?: string | null;
+    preferredTerms?: unknown[];
+    responseStyle?: string;
+  }) {
+    const { data, error } = await supabase
+      .from('terminology_localization_profiles')
+      .upsert(
+        {
+          language: input.language,
+          district: input.district ?? null,
+          state: input.state ?? null,
+          preferred_terms: input.preferredTerms ?? [],
+          response_style: input.responseStyle ?? 'simple_farmer',
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'language,district_key' }
+      )
+      .select('*')
+      .single();
+    throwIfSupabaseError(error, 'Could not save localization profile');
+    return data;
+  },
+
+  async approveTask(
+    taskId: string,
+    input: {
+      conceptId?: string;
+      conceptName?: string;
+      conceptCategory?: string;
+      meaning: string;
+      standardTerm?: string;
+      replyPreferred?: boolean;
+      examples?: string[];
+      aliases?: string[];
+      resolvedBy?: string;
+    }
+  ) {
+    const { data: task, error: taskErr } = await supabase
+      .from('terminology_review_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+    throwIfSupabaseError(taskErr, 'Could not load task');
+    if (!task) throw new NotFoundError('Task not found');
+
+    let conceptId = input.conceptId;
+    if (!conceptId && input.conceptName?.trim()) {
+      const created = await this.createConcept({
+        name: input.conceptName.trim(),
+        category: input.conceptCategory,
+      });
+      conceptId = String(created.id);
+    }
+
+    const entry = await terminologyDictionaryService.upsertApproved({
+      term: String(task.term),
+      language: String(task.language ?? 'ml'),
+      meaning: input.meaning,
+      standardTerm: input.standardTerm ?? input.meaning,
+      cropType: task.crop_type ? String(task.crop_type) : null,
+      district: task.district ? String(task.district) : null,
+      approvedBy: input.resolvedBy,
+    });
+
+    await supabase
+      .from('agronomy_terms')
+      .update({
+        concept_id: conceptId ?? null,
+        reply_preferred: input.replyPreferred ?? true,
+        usage_count: Number(task.occurrence_count ?? 1),
+        state: task.district ? null : null,
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', entry.id);
+
+    const aliases = input.aliases?.length
+      ? input.aliases
+      : [String(task.unknown_word ?? task.term)];
+    for (const alias of aliases) {
+      const a = alias.trim().toLowerCase();
+      if (!a || a === entry.term) continue;
+      await supabase.from('terminology_term_aliases').upsert(
+        {
+          term_id: entry.id,
+          alias: a,
+          language: String(task.language ?? 'ml'),
+        },
+        { onConflict: 'term_id,alias,language' }
+      );
+    }
+
+    const examples = input.examples?.length
+      ? input.examples
+      : [String(task.raw_message ?? task.context_text ?? task.term)];
+    for (const msg of examples) {
+      if (!msg.trim()) continue;
+      await supabase.from('terminology_term_examples').insert({
+        term_id: entry.id,
+        message: msg.trim().slice(0, 500),
+        farmer_language: String(task.language ?? 'ml'),
+      });
+    }
+
+    const { data: updated, error } = await supabase
+      .from('terminology_review_tasks')
+      .update({
+        status: 'resolved',
+        resolution_meaning: input.meaning,
+        standard_term: input.standardTerm ?? input.meaning,
+        resolved_at: new Date().toISOString(),
+        resolved_by: input.resolvedBy ?? null,
+      })
+      .eq('id', taskId)
+      .select('*, farmers(phone, name, district, state, preferred_language)')
+      .single();
+    throwIfSupabaseError(error, 'Could not resolve task');
+
+    await terminologyEscalationService.recordLearningHistory({
+      term: String(task.term),
+      language: String(task.language ?? 'ml'),
+      meaning: input.meaning,
+      standardTerm: input.standardTerm ?? input.meaning,
+      cropType: task.crop_type ? String(task.crop_type) : null,
+      district: task.district ? String(task.district) : null,
+      action: 'approved',
+      taskId,
+      farmerId: task.farmer_id ? String(task.farmer_id) : null,
+      approvedBy: input.resolvedBy,
+    });
+
+    await learningLoopService
+      .onTerminologyResolved({
+        taskId,
+        term: String(task.term),
+        language: String(task.language ?? 'ml'),
+        meaning: input.meaning,
+        standardTerm: input.standardTerm ?? input.meaning,
+        cropType: task.crop_type ? String(task.crop_type) : null,
+        district: task.district ? String(task.district) : null,
+        resolvedBy: input.resolvedBy,
+        farmerId: task.farmer_id ? String(task.farmer_id) : null,
+      })
+      .catch(() => {});
+
+    if (conceptId && task.district) {
+      await this.syncProfilePreferredTerm({
+        language: String(task.language ?? 'ml'),
+        district: String(task.district),
+        conceptId,
+        termId: entry.id,
+        regionalTerm: String(task.unknown_word ?? task.term),
+      }).catch(() => {});
+    }
+
+    return updated;
+  },
+
+  async syncProfilePreferredTerm(params: {
+    language: string;
+    district: string;
+    conceptId: string;
+    termId: string;
+    regionalTerm: string;
+  }) {
+    const { data: existing } = await supabase
+      .from('terminology_localization_profiles')
+      .select('*')
+      .eq('language', params.language)
+      .eq('district', params.district)
+      .maybeSingle();
+
+    const preferred = Array.isArray(existing?.preferred_terms) ? [...existing.preferred_terms] : [];
+    const idx = preferred.findIndex(
+      (p: { conceptId?: string }) => String(p.conceptId) === params.conceptId
+    );
+    const entry = {
+      conceptId: params.conceptId,
+      termId: params.termId,
+      regionalTerm: params.regionalTerm,
+    };
+    if (idx >= 0) preferred[idx] = entry;
+    else preferred.push(entry);
+
+    await this.upsertLocalizationProfile({
+      language: params.language,
+      district: params.district,
+      preferredTerms: preferred,
+      responseStyle: existing?.response_style ? String(existing.response_style) : 'simple_farmer',
+    });
+  },
+
+  async rejectTask(taskId: string, resolvedBy?: string, reason?: string) {
+    const { data: task, error: taskErr } = await supabase
+      .from('terminology_review_tasks')
+      .select('*')
+      .eq('id', taskId)
+      .maybeSingle();
+    throwIfSupabaseError(taskErr, 'Could not load task');
+    if (!task) throw new NotFoundError('Task not found');
+
+    const { data, error } = await supabase
+      .from('terminology_review_tasks')
+      .update({
+        status: 'rejected',
+        resolved_at: new Date().toISOString(),
+        resolved_by: resolvedBy ?? null,
+        resolution_meaning: reason?.trim().slice(0, 500) ?? 'Rejected by agronomist',
+      })
+      .eq('id', taskId)
+      .select('*, farmers(phone, name, district, state, preferred_language)')
+      .single();
+    throwIfSupabaseError(error, 'Could not reject task');
+
+    await terminologyEscalationService.recordLearningHistory({
+      term: String(task.term),
+      language: String(task.language ?? 'ml'),
+      meaning: reason?.trim() || 'rejected',
+      standardTerm: task.standard_term ? String(task.standard_term) : null,
+      cropType: task.crop_type ? String(task.crop_type) : null,
+      district: task.district ? String(task.district) : null,
+      action: 'rejected',
+      taskId,
+      farmerId: task.farmer_id ? String(task.farmer_id) : null,
+      approvedBy: resolvedBy,
+      metadata: { reason },
+    });
+
+    return data;
+  },
+
+  async skipTask(taskId: string, resolvedBy?: string) {
+    const { data, error } = await supabase
+      .from('terminology_review_tasks')
+      .update({
+        status: 'dismissed',
+        resolved_at: new Date().toISOString(),
+        resolved_by: resolvedBy ?? null,
+      })
+      .eq('id', taskId)
+      .select('*, farmers(phone, name, district, state, preferred_language)')
+      .single();
+    throwIfSupabaseError(error, 'Could not skip task');
+    return data;
+  },
+};

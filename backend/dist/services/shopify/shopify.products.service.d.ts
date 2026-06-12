@@ -316,6 +316,21 @@ export declare const shopifyProductsService: {
         published: number;
         failed: string[];
     }>;
+    importRows(rows: Array<{
+        id?: string;
+        title: string;
+        category?: string;
+        brand?: string;
+        status?: string;
+    }>): Promise<{
+        created: number;
+        updated: number;
+        failed: {
+            row: number;
+            title: string;
+            error: string;
+        }[];
+    }>;
     archiveMany(ids: string[]): Promise<{
         archived: string[];
         failed: string[];

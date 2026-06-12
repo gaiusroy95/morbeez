@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import {
   createCheckout,
@@ -32,7 +33,9 @@ type CheckoutDraft = {
 
 export default function CheckoutScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { items, totalPaise, clearCart } = useShopCart();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 0);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +85,22 @@ export default function CheckoutScreen() {
     void SecureStore.setItemAsync(CHECKOUT_DRAFT_KEY, JSON.stringify(draft)).catch(() => undefined);
   }, [email, phone, firstName, lastName, address1, address2, city, state, zip]);
 
+  function validateCheckoutForm(): string | null {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      return 'Enter a valid email address';
+    }
+    const checkoutPhone = phoneForCheckout(phone);
+    if (checkoutPhone.length < 10) return 'Enter a valid 10-digit phone number';
+    if (!firstName.trim()) return 'Enter your first name';
+    if (!lastName.trim()) return 'Enter your last name';
+    if (address1.trim().length < 3) return 'Enter your delivery address';
+    if (city.trim().length < 2) return 'Enter your city';
+    if (state.trim().length < 2) return 'Enter your state';
+    if (zip.trim().length < 4) return 'Enter a valid PIN code';
+    return null;
+  }
+
   function checkoutPayload() {
     return {
       lineItems: items.map((item) => ({
@@ -109,6 +128,11 @@ export default function CheckoutScreen() {
 
   async function startPayment() {
     setError('');
+    const validationError = validateCheckoutForm();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     setPaying(true);
     try {
       if (paymentMethod === 'cod') {
@@ -125,14 +149,15 @@ export default function CheckoutScreen() {
             productSummary: items.map((i) => i.title).join(', ').slice(0, 200),
           },
         });
+        setPaying(false);
         return;
       }
       const order = await createCheckout(checkoutPayload());
       setRazorpayOrder(order);
       setShowPayment(true);
+      // Keep paying=true until Razorpay modal completes (success, cancel, or error).
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start checkout');
-    } finally {
       setPaying(false);
     }
   }
@@ -171,7 +196,13 @@ export default function CheckoutScreen() {
 
   return (
     <>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <View style={styles.root}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[styles.content, { paddingBottom: 120 + bottomPad }]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+        >
         {error ? <AlertBox>{error}</AlertBox> : null}
 
         <Panel title={`Order total · ${formatPaise(totalPaise)}`}>
@@ -209,20 +240,23 @@ export default function CheckoutScreen() {
           />
           <Text style={styles.note}>GST invoice will be shared on WhatsApp after delivery.</Text>
         </Panel>
+        </ScrollView>
 
-        <Btn
-          label={
-            paying
-              ? 'Please wait…'
-              : paymentMethod === 'cod'
-                ? `Place COD order · ${formatPaise(totalPaise)}`
-                : `Pay ${formatPaise(totalPaise)} with Razorpay`
-          }
-          onPress={() => void startPayment()}
-          disabled={paying}
-          accessibilityLabel="Complete checkout"
-        />
-      </ScrollView>
+        <View style={[styles.footer, { paddingBottom: 16 + bottomPad }]}>
+          <Btn
+            label={
+              paying
+                ? 'Please wait…'
+                : paymentMethod === 'cod'
+                  ? `Place COD order · ${formatPaise(totalPaise)}`
+                  : `Pay ${formatPaise(totalPaise)} with Razorpay`
+            }
+            onPress={() => void startPayment()}
+            disabled={paying}
+            accessibilityLabel="Complete checkout"
+          />
+        </View>
+      </View>
 
       <RazorpayCheckoutModal
         visible={showPayment}
@@ -231,10 +265,12 @@ export default function CheckoutScreen() {
         onCancel={() => {
           setShowPayment(false);
           setRazorpayOrder(null);
+          setPaying(false);
         }}
         onError={(message) => {
           setShowPayment(false);
           setRazorpayOrder(null);
+          setPaying(false);
           setError(message);
         }}
       />
@@ -243,8 +279,16 @@ export default function CheckoutScreen() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: tokens.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  root: { flex: 1, backgroundColor: tokens.bg },
+  scroll: { flex: 1 },
+  content: { padding: 16 },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: tokens.border,
+    backgroundColor: tokens.bg,
+  },
   line: { fontSize: 13, color: tokens.text, marginBottom: 6, lineHeight: 18 },
   note: { fontSize: 12, color: tokens.textMuted, marginTop: 8 },
 });

@@ -8,6 +8,7 @@ export type SoilTypeOption = (typeof SOIL_TYPE_OPTIONS)[number];
 export type SoilLabMetrics = {
     version: 2;
     soilType?: string;
+    remarks?: string;
     macro: Record<string, SoilMetricValue>;
     micro: Record<string, SoilMetricValue>;
 };
@@ -22,7 +23,7 @@ export declare const SOIL_MICRO_FIELDS: SoilFieldDef[];
 export declare const ALL_SOIL_FIELDS: SoilFieldDef[];
 export declare function emptySoilLabMetrics(): SoilLabMetrics;
 export declare function normalizeSoilMetrics(raw: unknown): SoilLabMetrics;
-export declare function buildMetricsFromForm(macro: Record<string, string>, micro: Record<string, string>, soilType?: string): SoilLabMetrics;
+export declare function buildMetricsFromForm(macro: Record<string, string>, micro: Record<string, string>, soilType?: string, remarks?: string): SoilLabMetrics;
 export declare function metricsToForm(metrics: SoilLabMetrics): {
     macro: Record<string, string>;
     micro: Record<string, string>;

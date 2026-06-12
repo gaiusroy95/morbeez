@@ -9,6 +9,7 @@ import { runRoiDailyPromptsNow } from '../../services/whatsapp/roi/roi-daily-pro
 import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
 import { operationsMessagingService } from '../../services/admin/operations-messaging.service.js';
+import { terminologyAdminService } from '../../services/admin/terminology-admin.service.js';
 import { fetchWeatherForecast, resolveCoords, } from '../../services/whatsapp/pipeline/weather-fetch.service.js';
 const broadcastKindEnum = z.enum([
     'cultivation_schedule',
@@ -522,6 +523,123 @@ export async function osOperationsRoutes(app) {
         });
         return reply.send({ ok: true, task });
     });
+    app.get(`${api}/terminology/summary`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const summary = await terminologyAdminService.getSummary();
+        return reply.send({ ok: true, summary });
+    });
+    app.get(`${api}/terminology/concepts`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const concepts = await terminologyAdminService.listConcepts();
+        return reply.send({ ok: true, concepts });
+    });
+    app.post(`${api}/terminology/concepts`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            name: z.string().min(1).max(200),
+            category: z
+                .enum(['general', 'disease', 'pest', 'nutrient_deficiency', 'growth_issue', 'weather_impact'])
+                .optional(),
+        })
+            .parse(request.body);
+        const concept = await terminologyAdminService.createConcept(body);
+        return reply.status(201).send({ ok: true, concept });
+    });
+    app.get(`${api}/terminology/terms`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const terms = await terminologyAdminService.listRegionalTerms(q);
+        return reply.send({ ok: true, terms });
+    });
+    app.patch(`${api}/terminology/tasks/:id/approve`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            conceptId: z.string().uuid().optional(),
+            conceptName: z.string().max(200).optional(),
+            conceptCategory: z
+                .enum(['general', 'disease', 'pest', 'nutrient_deficiency', 'growth_issue', 'weather_impact'])
+                .optional(),
+            meaning: z.string().min(1).max(500),
+            standardTerm: z.string().max(200).optional(),
+            replyPreferred: z.boolean().optional(),
+            examples: z.array(z.string()).optional(),
+            aliases: z.array(z.string()).optional(),
+        })
+            .parse(request.body);
+        const task = await terminologyAdminService.approveTask(id, {
+            ...body,
+            resolvedBy: admin.email,
+        });
+        return reply.send({ ok: true, task });
+    });
+    app.patch(`${api}/terminology/tasks/:id/skip`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const task = await terminologyAdminService.skipTask(id, admin.email);
+        return reply.send({ ok: true, task });
+    });
+    app.patch(`${api}/terminology/tasks/:id/reject`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z.object({ reason: z.string().max(500).optional() }).parse(request.body ?? {});
+        const task = await terminologyAdminService.rejectTask(id, admin.email, body.reason);
+        return reply.send({ ok: true, task });
+    });
+    app.get(`${api}/terminology/learned`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const terms = await terminologyAdminService.listLearnedTerminologies(q);
+        return reply.send({ ok: true, terms });
+    });
+    app.get(`${api}/terminology/terms/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { id } = request.params;
+        const term = await terminologyAdminService.getRegionalTerm(id);
+        return reply.send({ ok: true, term });
+    });
+    app.patch(`${api}/terminology/terms/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            term: z.string().min(1).max(120).optional(),
+            language: z.string().max(10).optional(),
+            district: z.string().max(120).nullable().optional(),
+            state: z.string().max(120).nullable().optional(),
+            meaning: z.string().max(500).optional(),
+            standardTerm: z.string().max(200).optional(),
+            conceptId: z.string().uuid().nullable().optional(),
+            replyPreferred: z.boolean().optional(),
+            status: z.enum(['active', 'inactive']).optional(),
+            aliases: z.array(z.string()).optional(),
+        })
+            .parse(request.body);
+        const term = await terminologyAdminService.updateRegionalTerm(id, body);
+        return reply.send({ ok: true, term });
+    });
+    app.get(`${api}/terminology/localization-profiles`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const profiles = await terminologyAdminService.listLocalizationProfiles(q);
+        return reply.send({ ok: true, profiles });
+    });
+    app.put(`${api}/terminology/localization-profiles`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            language: z.string().min(2).max(10),
+            district: z.string().max(120).nullable().optional(),
+            state: z.string().max(120).nullable().optional(),
+            preferredTerms: z.array(z.unknown()).optional(),
+            responseStyle: z.string().max(80).optional(),
+        })
+            .parse(request.body);
+        const profile = await terminologyAdminService.upsertLocalizationProfile(body);
+        return reply.send({ ok: true, profile });
+    });
     app.get(`${api}/weather-rules`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const { data, error } = await supabase
@@ -569,12 +687,101 @@ export async function osOperationsRoutes(app) {
         const q = request.query;
         const templates = await operationsMessagingService.listLanguageTemplates({
             templateKey: q.templateKey,
-            language: q.language,
             status: q.status,
+            category: q.category,
+            search: q.search,
         });
         return reply.send({ ok: true, templates });
     });
+    app.get(`${api}/language-templates/:templateKey`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { templateKey } = request.params;
+        const template = await operationsMessagingService.getLanguageTemplate(decodeURIComponent(templateKey));
+        return reply.send({ ok: true, template });
+    });
     app.post(`${api}/language-templates`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            templateKey: z.string().min(1).max(80),
+            displayName: z.string().max(200).optional(),
+            category: z
+                .enum(['general', 'onboarding', 'advisory', 'orders', 'broadcast', 'notification'])
+                .optional(),
+            channel: z.enum(['session', 'meta_template']).optional(),
+            metaTemplateName: z.string().optional(),
+            masterLanguage: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
+            initialBody: z.string().optional(),
+        })
+            .parse(request.body);
+        const template = await operationsMessagingService.createLanguageTemplateDefinition(body);
+        return reply.status(201).send({ ok: true, template });
+    });
+    app.put(`${api}/language-templates/:templateKey`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { templateKey } = request.params;
+        const body = z
+            .object({
+            displayName: z.string().optional(),
+            category: z
+                .enum(['general', 'onboarding', 'advisory', 'orders', 'broadcast', 'notification'])
+                .optional(),
+            channel: z.enum(['session', 'meta_template']).optional(),
+            metaTemplateName: z.string().nullable().optional(),
+            status: z
+                .enum(['draft', 'in_translation', 'under_review', 'approved', 'archived'])
+                .optional(),
+            masterLanguage: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
+            languages: z
+                .record(z.enum(['en', 'ml', 'ta', 'kn', 'hi']), z.object({
+                bodyText: z.string().optional(),
+                headerText: z.string().optional(),
+                footerText: z.string().optional(),
+                status: z.enum(['draft', 'approved', 'archived']).optional(),
+            }))
+                .optional(),
+        })
+            .parse(request.body);
+        const template = await operationsMessagingService.saveLanguageTemplateBundle(decodeURIComponent(templateKey), body);
+        return reply.send({ ok: true, template });
+    });
+    app.post(`${api}/language-templates/:templateKey/duplicate`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { templateKey } = request.params;
+        const body = z.object({ newKey: z.string().min(1).max(80) }).parse(request.body);
+        const template = await operationsMessagingService.duplicateLanguageTemplate(decodeURIComponent(templateKey), body.newKey);
+        return reply.status(201).send({ ok: true, template });
+    });
+    app.post(`${api}/language-templates/:templateKey/preview`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const { templateKey } = request.params;
+        const body = z
+            .object({
+            language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
+            variables: z.record(z.string()).optional(),
+        })
+            .parse(request.body ?? {});
+        const preview = await operationsMessagingService.previewLanguageTemplate(decodeURIComponent(templateKey), body.language ?? 'en', body.variables);
+        return reply.send({ ok: true, preview });
+    });
+    app.post(`${api}/language-templates/:templateKey/translate`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { templateKey } = request.params;
+        const body = z
+            .object({
+            targetLanguages: z.array(z.enum(['en', 'ml', 'ta', 'kn', 'hi'])).min(1),
+        })
+            .parse(request.body);
+        const template = await operationsMessagingService.translateLanguageTemplate(decodeURIComponent(templateKey), body.targetLanguages);
+        return reply.send({ ok: true, template });
+    });
+    app.post(`${api}/language-templates/:templateKey/copy-to-all`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const { templateKey } = request.params;
+        const template = await operationsMessagingService.copyLanguageTemplateToAll(decodeURIComponent(templateKey));
+        return reply.send({ ok: true, template });
+    });
+    app.post(`${api}/language-templates/legacy`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'write');
         const body = z
             .object({

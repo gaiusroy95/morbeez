@@ -61,15 +61,23 @@ export const adsgyaniWhatsAppProvider = {
     },
     async sendTemplate(to, templateName, params) {
         const path = env.ADS_GYANI_SEND_TEMPLATE_PATH ?? '/contact/send-template-message';
+        const language = params.language ?? env.ADS_GYANI_TEMPLATE_LANGUAGE ?? 'en';
         const payload = {
             phone_number: phoneForApi(to),
             template_name: templateName,
-            template_language: env.ADS_GYANI_TEMPLATE_LANGUAGE ?? 'en',
+            template_language: language,
+            contact: {
+                country: 'india',
+                language_code: language.slice(0, 2),
+            },
         };
         params.body.forEach((value, i) => {
             if (i < 4)
                 payload[`field_${i + 1}`] = value;
         });
+        if (params.copyCode) {
+            payload.copy_code = params.copyCode;
+        }
         await postJson(path, payload);
     },
 };

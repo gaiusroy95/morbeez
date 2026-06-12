@@ -76,10 +76,18 @@ export const regionalTerminologyProcessor = {
         };
     },
     localizeOutbound(text, detection, language) {
+        return responseLocalizationService.localizeSync({
+            standardResponse: text,
+            detection,
+            language,
+        });
+    },
+    async localizeOutboundAsync(text, detection, language, district) {
         return responseLocalizationService.localize({
             standardResponse: text,
             detection,
             language,
+            district,
         });
     },
     pendingFarmerCopy(language) {

@@ -14,6 +14,9 @@ const signupSchema = z.object({
     acceptTerms: z.literal(true),
     newsletter: z.boolean().default(false),
     channel: z.enum(['website', 'mobile']).optional(),
+    utmCampaign: z.string().max(200).optional(),
+    utmSource: z.string().max(200).optional(),
+    utmMedium: z.string().max(200).optional(),
 });
 const loginSchema = z.object({
     email: z.string().email().max(255),

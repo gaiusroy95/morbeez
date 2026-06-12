@@ -376,7 +376,7 @@ export declare const printableDocumentService: {
             return_number: any;
             status: any;
         }[];
-        printables: ({
+        printables: NonNullable<{
             type: "tax_invoice";
             id: any;
             label: string;
@@ -396,7 +396,8 @@ export declare const printableDocumentService: {
             type: "courier_label";
             id: string;
             label: string;
-        } | null)[];
+        } | null>[];
+        fulfillmentGates: import("../../lib/fulfillment-gates.js").FulfillmentGates;
     }>;
 };
 //# sourceMappingURL=printable-document.service.d.ts.map

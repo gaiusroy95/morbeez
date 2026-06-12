@@ -49,6 +49,61 @@ interface CropRow {
   archived_at?: string | null;
 }
 
+const FARMER_PAGE_SIZE = 2000;
+
+async function loadFarmerPages(options?: { farmerId?: string }): Promise<
+  Array<{
+    id: string;
+    phone: string | null;
+    preferred_language: string | null;
+    district: string | null;
+    farm_blocks: CropRow[] | null;
+  }>
+> {
+  if (options?.farmerId) {
+    const { data, error } = await supabase
+      .from('farmers')
+      .select(
+        'id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)'
+      )
+      .eq('id', options.farmerId)
+      .not('phone', 'is', null)
+      .limit(1);
+    if (error) throw error;
+    return (data ?? []) as Array<{
+      id: string;
+      phone: string | null;
+      preferred_language: string | null;
+      district: string | null;
+      farm_blocks: CropRow[] | null;
+    }>;
+  }
+
+  const rows: Array<{
+    id: string;
+    phone: string | null;
+    preferred_language: string | null;
+    district: string | null;
+    farm_blocks: CropRow[] | null;
+  }> = [];
+  let offset = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from('farmers')
+      .select(
+        'id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)'
+      )
+      .not('phone', 'is', null)
+      .range(offset, offset + FARMER_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = (data ?? []) as typeof rows;
+    rows.push(...page);
+    if (page.length < FARMER_PAGE_SIZE) break;
+    offset += FARMER_PAGE_SIZE;
+  }
+  return rows;
+}
+
 export const broadcastEngineService = {
   async runDailyMarketPriceBroadcast(options?: {
     farmerId?: string;
@@ -62,24 +117,15 @@ export const broadcastEngineService = {
       errors: [],
     };
 
-    let farmerQuery = supabase
-      .from('farmers')
-      .select(
-        'id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)'
-      )
-      .not('phone', 'is', null);
-
-    if (options?.farmerId) {
-      farmerQuery = farmerQuery.eq('id', options.farmerId);
-    }
-
-    const { data: farmers, error } = await farmerQuery.limit(options?.farmerId ? 1 : 5000);
-    if (error) {
-      result.errors.push(error.message);
+    let farmers: Awaited<ReturnType<typeof loadFarmerPages>>;
+    try {
+      farmers = await loadFarmerPages(options);
+    } catch (err) {
+      result.errors.push(err instanceof Error ? err.message : 'Could not load farmers');
       return result;
     }
 
-    for (const row of farmers ?? []) {
+    for (const row of farmers) {
       if (!row.phone) continue;
       result.farmersScanned++;
 
@@ -346,26 +392,17 @@ export const broadcastEngineService = {
       return result;
     }
 
-    let farmerQuery = supabase
-      .from('farmers')
-      .select(
-        'id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)'
-      )
-      .not('phone', 'is', null);
-
-    if (options?.farmerId) {
-      farmerQuery = farmerQuery.eq('id', options.farmerId);
-    }
-
-    const { data: farmers, error } = await farmerQuery.limit(options?.farmerId ? 1 : 5000);
-    if (error) {
-      result.errors.push(error.message);
+    let farmers: Awaited<ReturnType<typeof loadFarmerPages>>;
+    try {
+      farmers = await loadFarmerPages(options);
+    } catch (err) {
+      result.errors.push(err instanceof Error ? err.message : 'Could not load farmers');
       return result;
     }
 
     const isoWeekday = todayIsoWeekday();
 
-    for (const row of farmers ?? []) {
+    for (const row of farmers) {
       if (!row.phone) continue;
       result.farmersScanned++;
 

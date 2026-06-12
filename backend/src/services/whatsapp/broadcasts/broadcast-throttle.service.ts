@@ -108,6 +108,8 @@ export const broadcastThrottleService = {
     cropType: string;
     dap?: number;
     ruleId?: string;
+    campaignId?: string;
+    whatsappMessageId?: string | null;
     messageBody: string;
     skipReason: string;
     priority: number;
@@ -118,6 +120,8 @@ export const broadcastThrottleService = {
       crop_type: params.cropType,
       dap_at_send: params.dap ?? null,
       rule_id: params.ruleId ?? null,
+      campaign_id: params.campaignId ?? null,
+      whatsapp_message_id: params.whatsappMessageId ?? null,
       message_body: params.messageBody.slice(0, 2000),
       status: 'skipped',
       skip_reason: params.skipReason,
@@ -131,6 +135,8 @@ export const broadcastThrottleService = {
     cropType: string;
     dap?: number;
     ruleId?: string;
+    campaignId?: string;
+    whatsappMessageId?: string | null;
     messageBody: string;
     priority: number;
   }): Promise<void> {
@@ -140,6 +146,8 @@ export const broadcastThrottleService = {
       crop_type: params.cropType,
       dap_at_send: params.dap ?? null,
       rule_id: params.ruleId ?? null,
+      campaign_id: params.campaignId ?? null,
+      whatsapp_message_id: params.whatsappMessageId ?? null,
       message_body: params.messageBody.slice(0, 2000),
       status: 'sent',
       priority: params.priority,
@@ -150,6 +158,7 @@ export const broadcastThrottleService = {
     farmerId: string;
     broadcastKind: BroadcastKind;
     cropType: string;
+    campaignId?: string;
     messageBody: string;
     error: string;
     priority: number;
@@ -158,6 +167,7 @@ export const broadcastThrottleService = {
       farmer_id: params.farmerId,
       broadcast_kind: params.broadcastKind,
       crop_type: params.cropType,
+      campaign_id: params.campaignId ?? null,
       message_body: params.messageBody.slice(0, 2000),
       status: 'failed',
       skip_reason: params.error.slice(0, 200),

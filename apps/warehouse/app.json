@@ -15,7 +15,7 @@
       "package": "in.morbeez.warehouse",
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
-        "backgroundColor": "#1a4d32"
+        "backgroundColor": "#246d26"
       },
       "softwareKeyboardLayoutMode": "resize"
     },

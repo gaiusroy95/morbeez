@@ -56,7 +56,7 @@ export interface DiagnoseInput {
   imageMimeType?: string;
   /** Supabase storage path in advisory-images (set when farmer photo is persisted). */
   imageStoragePath?: string;
-  channel: 'api' | 'whatsapp' | 'web';
+  channel: 'api' | 'whatsapp' | 'web' | 'telecaller';
   /** WhatsApp pipeline: minimal history string (low token cost) */
   compactHistory?: string;
   /** Environmental + regional context (weather, season, nearby cases) */

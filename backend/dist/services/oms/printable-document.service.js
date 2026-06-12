@@ -6,6 +6,7 @@ import { computeInclusiveGstBreakup, finalizeInclusiveInvoiceTotals, halfGstRate
 import { companySettingsService } from '../admin/company-settings.service.js';
 import { invoiceService } from './invoice.service.js';
 import { returnWorkflowService } from './return-workflow.service.js';
+import { computeFulfillmentGates, isPrintableDocAvailable } from '../../lib/fulfillment-gates.js';
 function formatAddress(addr) {
     if (!addr)
         return [];
@@ -390,6 +391,25 @@ export const printableDocumentService = {
             .select('id')
             .eq('commerce_order_id', commerceOrderId)
             .maybeSingle();
+        const { data: order } = await supabase
+            .from('commerce_orders')
+            .select('shipping_method, tracking_awb, package_status')
+            .eq('id', commerceOrderId)
+            .maybeSingle();
+        const { data: packSession } = pickList?.id
+            ? await supabase
+                .from('pack_sessions')
+                .select('scan_complete')
+                .eq('pick_list_id', pickList.id)
+                .eq('status', 'open')
+                .maybeSingle()
+            : { data: null };
+        const gates = computeFulfillmentGates({
+            pickComplete: Boolean(packSession?.scan_complete),
+            packageStatus: order?.package_status,
+            shippingMethod: order?.shipping_method,
+            trackingAwb: order?.tracking_awb,
+        });
         const { data: invoices } = await supabase
             .from('invoices')
             .select('id, document_type, invoice_number, status, issued_at')
@@ -423,7 +443,10 @@ export const printableDocumentService = {
                     id: r.id,
                     label: `Return ${r.return_number}`,
                 })),
-            ].filter(Boolean),
+            ]
+                .filter((doc) => Boolean(doc))
+                .filter((doc) => isPrintableDocAvailable(String(doc.type), gates)),
+            fulfillmentGates: gates,
         };
     },
 };

@@ -85,6 +85,37 @@ export declare const farmerPortalMobileService: {
             at: string;
             atLabel: string;
         }[];
+        fieldFindings: {
+            id: string;
+            visitedAt: string;
+            visitedLabel: string;
+            diseasePest: string | null;
+            observations: string | null;
+            diseaseTone: string;
+            cropHealthLabel: string;
+            cropHealthStatus: "critical" | "stable" | "monitor" | "alert";
+            agronomistName: string | null;
+            actionTaken: string | null;
+        }[];
+        blockRecommendations: ({
+            id: string;
+            title: string;
+            body: string;
+            dosage: string | null;
+            dateLabel: string;
+            status: string;
+            recommendedBy: string | null;
+            source: "crm";
+        } | {
+            id: string;
+            title: string;
+            body: string;
+            dosage: string | null;
+            dateLabel: string;
+            status: string;
+            recommendedBy: string | null;
+            source: "record";
+        })[];
     }>;
     getBlockTimeline(farmerId: string, blockId: string): Promise<{
         id: string;
@@ -318,6 +349,22 @@ export declare const farmerPortalMobileService: {
             note: string | null;
             icon: string | null;
         }[];
+    }>;
+    createFieldFinding(farmerId: string, blockId: string, input: {
+        diseasePest?: string;
+        observations?: string;
+        diseaseTone?: "healthy" | "warning" | "danger";
+        actionTaken?: string;
+    }): Promise<{
+        id: string;
+    }>;
+    createBlockRecommendation(farmerId: string, blockId: string, input: {
+        problem?: string;
+        recommendation: string;
+        dosage?: string;
+        applicationMethod?: string;
+    }): Promise<{
+        id: string;
     }>;
 };
 //# sourceMappingURL=farmer-portal-mobile.service.d.ts.map

@@ -20,6 +20,7 @@ import { normalizeShippingMethod } from '../../lib/manual-couriers.js';
 import { packageRuleEngineService } from './package-rule-engine.service.js';
 import { shippingBoxService } from './shipping-box.service.js';
 import { eventBus } from '../../events/bus.js';
+import { computeFulfillmentGates, workflowStageFromGates, } from '../../lib/fulfillment-gates.js';
 const FULFILLMENT_STATUSES = [
     'assigned',
     'confirmed',
@@ -51,6 +52,36 @@ function activeFulfillmentOrdersQuery() {
         .is('deleted_at', null)
         .neq('oms_status', 'cancelled');
 }
+function startOfTodayIstIso() {
+    const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    return `${dateKey}T00:00:00+05:30`;
+}
+function applyFulfillmentGatesToDetail(detail) {
+    const pickComplete = Boolean(detail.packSession?.scan_complete);
+    const gates = computeFulfillmentGates({
+        pickComplete,
+        packageStatus: detail.package?.status ?? detail.order.package_status,
+        shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
+        trackingAwb: detail.order.tracking_awb,
+    });
+    const stage = workflowStageFromGates(gates);
+    const workflow = detail.workflow
+        ? {
+            ...detail.workflow,
+            stage,
+            step: stage === 'print' ? 3 : stage === 'pack' ? 2 : 1,
+            pickComplete: gates.pickComplete,
+            printEnabled: gates.printEnabled,
+        }
+        : null;
+    return {
+        ...detail,
+        pickComplete: gates.pickComplete,
+        printEnabled: gates.printEnabled,
+        fulfillmentGates: gates,
+        workflow,
+    };
+}
 async function repairPendingCommerceOrders(limit = 100) {
     const { data, error } = await supabase
         .from('commerce_orders')
@@ -79,10 +110,76 @@ async function repairPendingCommerceOrders(limit = 100) {
     }
     return { repaired, failed, scanned: data?.length ?? 0 };
 }
+const FULFILLMENT_QUEUE_SELECT = `id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
+         shipping_method, tracking_status, packed_at, shipped_at,
+         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
+         assigned_employee_name, assigned_batch_id,
+         pick_lists(id, status, pick_list_lines(id, qty_required)),
+         commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`;
+const DISPATCH_QUEUE_STATUSES = ['ready_dispatch', 'awaiting_tracking'];
+function fulfillmentQueueBaseQuery() {
+    return supabase
+        .from('commerce_orders')
+        .select(FULFILLMENT_QUEUE_SELECT)
+        .is('deleted_at', null)
+        .neq('oms_status', 'cancelled');
+}
+function mapFulfillmentQueueRow(row, wallet) {
+    const pickLists = normalizePickLists(row.pick_lists);
+    const orderLines = normalizeRelation(row.commerce_order_lines);
+    const pick = pickLists[0];
+    const pickItemCount = pickListLineCount(pickLists);
+    const orderItemCount = orderLines.reduce((sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)), 0);
+    const stockIssue = orderItemCount === 0
+        ? 'no_order_lines'
+        : pickItemCount === 0
+            ? 'no_stock_reserved'
+            : null;
+    const missingProducts = stockIssue === 'no_stock_reserved'
+        ? orderLines.map((l) => l.product_title).filter(Boolean).slice(0, 2)
+        : [];
+    const shipAddr = row.shipping_address;
+    const customerName = shipAddr?.name
+        ? String(shipAddr.name)
+        : shipAddr?.first_name
+            ? String(shipAddr.first_name)
+            : null;
+    return {
+        id: row.id,
+        orderName: row.order_name ?? row.shopify_order_id ?? String(row.id).slice(0, 8),
+        customerName,
+        courier: row.courier_name ?? '—',
+        itemCount: pickItemCount,
+        orderItemCount,
+        stockIssue,
+        missingProducts,
+        priority: row.fulfillment_priority ?? 'normal',
+        omsStatus: row.oms_status,
+        shippingMethod: normalizeShippingMethod(row.shipping_method),
+        trackingStatus: row.tracking_status ? String(row.tracking_status) : null,
+        needsManualTracking: normalizeShippingMethod(row.shipping_method) === 'manual' &&
+            row.oms_status === 'awaiting_tracking',
+        awb: row.tracking_awb,
+        pickListId: pick?.id ?? null,
+        shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(row.shiprocket_error, wallet),
+        isCod: row.is_cod,
+        totalAmount: row.total_amount,
+        createdAt: row.created_at,
+        packedAt: row.packed_at ?? null,
+        shippedAt: row.shipped_at ?? null,
+        assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
+    };
+}
 export const fulfillmentService = {
     repairPendingCommerceOrders,
     async getStats() {
-        const [pending, picking, packing, packed, lrPending, readyDispatch, completed] = await Promise.all([
+        const startIst = startOfTodayIstIso();
+        const todayBase = () => supabase
+            .from('commerce_orders')
+            .select('id', { count: 'exact', head: true })
+            .is('deleted_at', null)
+            .neq('oms_status', 'cancelled');
+        const [pending, picking, packing, packed, lrPending, readyDispatch, completed, packedToday, handedOverToday] = await Promise.all([
             activeFulfillmentOrdersQuery().in('oms_status', ['assigned', 'confirmed', 'awb_generated']),
             activeFulfillmentOrdersQuery().eq('oms_status', 'picking'),
             activeFulfillmentOrdersQuery().in('oms_status', ['packing', 'packaging_estimated', 'ready_for_courier']),
@@ -90,6 +187,8 @@ export const fulfillmentService = {
             activeFulfillmentOrdersQuery().eq('oms_status', 'awaiting_tracking'),
             activeFulfillmentOrdersQuery().eq('oms_status', 'ready_dispatch'),
             activeFulfillmentOrdersQuery().in('oms_status', ['shipped', 'delivered', 'completed']),
+            todayBase().gte('packed_at', startIst),
+            todayBase().gte('shipped_at', startIst),
         ]);
         const pendingCount = pending.count ?? 0;
         const pickingCount = picking.count ?? 0;
@@ -109,9 +208,32 @@ export const fulfillmentService = {
             readyToPack: packedCount,
             readyDispatch: readyCount,
             awaitingTracking: lrCount,
-            packedToday: packedCount,
+            packedToday: packedToday.count ?? 0,
+            handedOverToday: handedOverToday.count ?? 0,
             courierPending: lrCount,
             failedAwb: 0,
+        };
+    },
+    async getCompletedToday(opts) {
+        const limit = opts?.limit ?? 50;
+        const startIst = startOfTodayIstIso();
+        const wallet = await shiprocketService.getWalletBalance().catch(() => null);
+        const [packedResult, handedOverResult] = await Promise.all([
+            fulfillmentQueueBaseQuery()
+                .gte('packed_at', startIst)
+                .order('packed_at', { ascending: false })
+                .limit(limit),
+            fulfillmentQueueBaseQuery()
+                .gte('shipped_at', startIst)
+                .in('oms_status', ['shipped', 'delivered', 'completed'])
+                .order('shipped_at', { ascending: false })
+                .limit(limit),
+        ]);
+        throwIfSupabaseError(packedResult.error, 'Packed today queue');
+        throwIfSupabaseError(handedOverResult.error, 'Handed over today queue');
+        return {
+            packedToday: (packedResult.data ?? []).map((row) => mapFulfillmentQueueRow(row, wallet)),
+            handedOverToday: (handedOverResult.data ?? []).map((row) => mapFulfillmentQueueRow(row, wallet)),
         };
     },
     async repairStalePickLists() {
@@ -194,66 +316,32 @@ export const fulfillmentService = {
                 logger.error({ err }, 'Fulfillment queue repair failed');
             }
         }
-        const { data, error } = await supabase
-            .from('commerce_orders')
-            .select(`id, order_name, shopify_order_id, oms_status, courier_name, tracking_awb,
-         shipping_method, tracking_status,
-         fulfillment_priority, is_cod, total_amount, created_at, shiprocket_error, shipping_address,
-         assigned_employee_name, assigned_batch_id,
-         pick_lists(id, status, pick_list_lines(id, qty_required)),
-         commerce_order_lines(id, qty_ordered, qty_cancelled, product_title, sku)`)
-            .is('deleted_at', null)
-            .neq('oms_status', 'cancelled')
-            .in('oms_status', [...FULFILLMENT_STATUSES])
-            .order('fulfillment_priority', { ascending: false })
-            .order('created_at', { ascending: true })
-            .limit(opts?.limit ?? 80);
-        throwIfSupabaseError(error, 'Fulfillment queue');
+        const limit = opts?.limit ?? 80;
         const wallet = await shiprocketService.getWalletBalance().catch(() => null);
-        return (data ?? []).map((row) => {
-            const pickLists = normalizePickLists(row.pick_lists);
-            const orderLines = normalizeRelation(row.commerce_order_lines);
-            const pick = pickLists[0];
-            const pickItemCount = pickListLineCount(pickLists);
-            const orderItemCount = orderLines.reduce((sum, l) => sum + Math.max(0, Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0)), 0);
-            const stockIssue = orderItemCount === 0
-                ? 'no_order_lines'
-                : pickItemCount === 0
-                    ? 'no_stock_reserved'
-                    : null;
-            const missingProducts = stockIssue === 'no_stock_reserved'
-                ? orderLines.map((l) => l.product_title).filter(Boolean).slice(0, 2)
-                : [];
-            const shipAddr = row.shipping_address;
-            const customerName = shipAddr?.name
-                ? String(shipAddr.name)
-                : shipAddr?.first_name
-                    ? String(shipAddr.first_name)
-                    : null;
-            return {
-                id: row.id,
-                orderName: row.order_name ?? row.shopify_order_id ?? row.id.slice(0, 8),
-                customerName,
-                courier: row.courier_name ?? '—',
-                itemCount: pickItemCount,
-                orderItemCount,
-                stockIssue,
-                missingProducts,
-                priority: row.fulfillment_priority ?? 'normal',
-                omsStatus: row.oms_status,
-                shippingMethod: normalizeShippingMethod(row.shipping_method),
-                trackingStatus: row.tracking_status ? String(row.tracking_status) : null,
-                needsManualTracking: normalizeShippingMethod(row.shipping_method) === 'manual' &&
-                    row.oms_status === 'awaiting_tracking',
-                awb: row.tracking_awb,
-                pickListId: pick?.id ?? null,
-                shiprocketError: shiprocketService.formatShiprocketErrorForDisplay(row.shiprocket_error, wallet),
-                isCod: row.is_cod,
-                totalAmount: row.total_amount,
-                createdAt: row.created_at,
-                assignedEmployee: row.assigned_employee_name ? String(row.assigned_employee_name) : null,
-            };
-        });
+        const [mainResult, dispatchResult] = await Promise.all([
+            fulfillmentQueueBaseQuery()
+                .in('oms_status', [...FULFILLMENT_STATUSES])
+                .order('fulfillment_priority', { ascending: false })
+                .order('created_at', { ascending: true })
+                .limit(limit),
+            fulfillmentQueueBaseQuery()
+                .in('oms_status', [...DISPATCH_QUEUE_STATUSES])
+                .order('fulfillment_priority', { ascending: false })
+                .order('created_at', { ascending: true })
+                .limit(200),
+        ]);
+        throwIfSupabaseError(mainResult.error, 'Fulfillment queue');
+        throwIfSupabaseError(dispatchResult.error, 'Fulfillment dispatch queue');
+        const merged = new Map();
+        for (const row of dispatchResult.data ?? []) {
+            merged.set(String(row.id), row);
+        }
+        for (const row of mainResult.data ?? []) {
+            const id = String(row.id);
+            if (!merged.has(id))
+                merged.set(id, row);
+        }
+        return [...merged.values()].map((row) => mapFulfillmentQueueRow(row, wallet));
     },
     async getOrderDetail(commerceOrderId) {
         let order = await omsWorkflowService.getOrderWorkflow(commerceOrderId);
@@ -350,7 +438,7 @@ export const fulfillmentService = {
                 .maybeSingle();
             labelBatch = batch;
         }
-        return {
+        return applyFulfillmentGatesToDetail({
             order,
             pickList,
             packSession,
@@ -410,13 +498,14 @@ export const fulfillmentService = {
                     packageWeightKg: packageEstimate.packageWeightKg,
                     volumetricWeightKg: packageEstimate.volumetricWeightKg,
                     billingWeightKg: packageEstimate.billingWeightKg,
+                    boxCount: packageEstimate.boxCount,
                     overridden: Boolean(order.package_overridden),
                     confirmedAt: order.package_confirmed_at ?? null,
                     courierPayload: packageEstimate.courierPayload,
                     lines: packageEstimate.lines,
                 }
                 : null,
-        };
+        });
     },
     async estimatePackage(commerceOrderId) {
         const estimate = await packageRuleEngineService.estimateForOrder(commerceOrderId);
@@ -449,6 +538,7 @@ export const fulfillmentService = {
                 entityId: commerceOrderId,
                 details: {
                     box: estimate.suggestedBox.code,
+                    boxCount: estimate.boxCount,
                     weight: estimate.packageWeightKg,
                     billingWeight: estimate.billingWeightKg,
                 },
@@ -475,6 +565,9 @@ export const fulfillmentService = {
             });
         }
         return estimate;
+    },
+    async selectPackageBox(commerceOrderId, boxId, boxCount) {
+        return packageRuleEngineService.recalculateWithSelectedBox(commerceOrderId, boxId, boxCount);
     },
     async listShippingBoxes() {
         return shippingBoxService.listAll();

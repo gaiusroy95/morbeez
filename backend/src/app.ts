@@ -15,6 +15,7 @@ import { shopifyWebhookRoutes } from './routes/webhooks/shopify.routes.js';
 import { razorpayWebhookRoutes } from './routes/webhooks/razorpay.routes.js';
 import { shiprocketWebhookRoutes } from './routes/webhooks/shiprocket.routes.js';
 import { whatsappWebhookRoutes } from './routes/webhooks/whatsapp.routes.js';
+import { exotelWebhookRoutes } from './routes/webhooks/exotel.routes.js';
 import { farmersRoutes } from './routes/api/farmers.routes.js';
 import { leadsRoutes } from './routes/api/leads.routes.js';
 import { shopifyProxyRoutes } from './routes/proxy/shopify-proxy.routes.js';
@@ -111,6 +112,7 @@ export async function buildApp() {
   await app.register(razorpayWebhookRoutes);
   await app.register(shiprocketWebhookRoutes);
   await app.register(whatsappWebhookRoutes);
+  await app.register(exotelWebhookRoutes);
   await app.register(authRoutes);
   await app.register(farmerPortalRoutes);
   await app.register(i18nRoutes);

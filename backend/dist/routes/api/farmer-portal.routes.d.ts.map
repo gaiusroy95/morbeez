@@ -1,1 +1,1 @@
-{"version":3,"file":"farmer-portal.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/api/farmer-portal.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AA4B/C;;GAEG;AACH,wBAAsB,kBAAkB,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAgpB5E"}
+{"version":3,"file":"farmer-portal.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/api/farmer-portal.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AA4B/C;;GAEG;AACH,wBAAsB,kBAAkB,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAuwB5E"}

@@ -1,5 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
+import {
+  createTemplateDefinition,
+  fetchGroupedTemplates,
+  TEMPLATE_CATEGORIES,
+  TEMPLATE_LANGUAGES,
+  type GroupedLanguageTemplate,
+} from '../../lib/language-templates-api';
+import { paths, toPath } from '../../lib/routes';
 import { Field, Modal, inputClass } from '../Modal';
 import { StaticSelect } from '../ui';
 
@@ -214,184 +223,180 @@ function QuickReplyModal({
 }
 
 export function LanguageTemplatesPanel({
-  templates,
   canWrite,
   statusFilter,
+  categoryFilter,
+  search = '',
   onStatusChange,
-  onRefresh,
+  onCategoryChange,
 }: {
-  templates: LangTemplate[];
   canWrite: boolean;
   statusFilter: string;
+  categoryFilter: string;
+  search?: string;
   onStatusChange: (s: string) => void;
-  onRefresh: () => void;
+  onCategoryChange: (s: string) => void;
 }) {
-  const [modal, setModal] = useState<LangTemplate | null | 'new'>(null);
+  const navigate = useNavigate();
+  const [templates, setTemplates] = useState<GroupedLanguageTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showNew, setShowNew] = useState(false);
+  const [newForm, setNewForm] = useState({ templateKey: '', displayName: '', category: 'general' });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const d = await fetchGroupedTemplates({
+        status: statusFilter,
+        category: categoryFilter,
+        search: search || undefined,
+      });
+      setTemplates(d.templates ?? []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load templates');
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, categoryFilter, search]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const visible = useMemo(() => templates, [templates]);
+
+  async function createNew() {
+    const d = await createTemplateDefinition({
+      templateKey: newForm.templateKey,
+      displayName: newForm.displayName || undefined,
+      category: newForm.category,
+    });
+    setShowNew(false);
+    navigate(toPath(paths.operationsLanguageTemplate.replace(':templateKey', d.template.templateKey)));
+  }
 
   return (
     <div>
+      <p className="mb-3 text-sm text-slate-600">
+        Manage multilingual message templates from a single record per template key.
+      </p>
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <StaticSelect
           className="rounded border border-slate-200 px-2 py-1 text-sm"
           value={statusFilter}
           onChange={onStatusChange}
-          options={['all', 'draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
+          options={['all', 'draft', 'in_translation', 'under_review', 'approved', 'archived'].map((s) => ({
+            value: s,
+            label: s.replace(/_/g, ' '),
+          }))}
+        />
+        <StaticSelect
+          className="rounded border border-slate-200 px-2 py-1 text-sm"
+          value={categoryFilter}
+          onChange={onCategoryChange}
+          options={[{ value: 'all', label: 'All categories' }, ...TEMPLATE_CATEGORIES.map((c) => c)]}
         />
         {canWrite ? (
           <button
             type="button"
-            onClick={() => setModal('new')}
+            onClick={() => setShowNew(true)}
             className="ml-auto rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white"
           >
             + Template
           </button>
         ) : null}
       </div>
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-3">Key</th>
-              <th className="px-4 py-3">Lang</th>
-              <th className="px-4 py-3">Channel</th>
-              <th className="px-4 py-3">Body</th>
-              <th className="px-4 py-3">Status</th>
-              {canWrite ? <th className="px-4 py-3" /> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-mono text-xs">{t.template_key}</td>
-                <td className="px-4 py-3 uppercase">{t.language}</td>
-                <td className="px-4 py-3">{t.channel}</td>
-                <td className="max-w-xs truncate px-4 py-3">{t.body_text}</td>
-                <td className="px-4 py-3 capitalize">{t.status}</td>
-                {canWrite ? (
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      className="text-xs text-emerald-700 hover:underline"
-                      onClick={() => setModal(t)}
-                    >
-                      Edit
-                    </button>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {loading ? <p className="text-sm text-slate-500">Loading templates…</p> : null}
+      <div className="space-y-3">
+        {visible.map((t) => (
+          <div
+            key={t.templateKey}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="font-medium text-slate-900">{t.displayName}</h3>
+                <p className="text-xs text-slate-500">
+                  {t.templateKey} · {t.category} · {t.channel}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs capitalize">
+                  {t.status.replace(/_/g, ' ')}
+                </span>
+                <span className="text-sm font-semibold text-emerald-700">{t.completionRate}%</span>
+                <button
+                  type="button"
+                  className="text-sm text-emerald-700 hover:underline"
+                  onClick={() =>
+                    navigate(
+                      toPath(paths.operationsLanguageTemplate.replace(':templateKey', t.templateKey))
+                    )
+                  }
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {TEMPLATE_LANGUAGES.map((lang) => (
+                <span
+                  key={lang.code}
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    t.languageComplete?.[lang.code]
+                      ? 'bg-emerald-50 text-emerald-800'
+                      : 'bg-red-50 text-red-700'
+                  }`}
+                >
+                  {lang.label} {t.languageComplete?.[lang.code] ? '✓' : '✗'}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+        {!loading && visible.length === 0 ? (
+          <p className="text-center text-sm text-slate-500">No templates yet.</p>
+        ) : null}
       </div>
-      {modal ? (
-        <LangTemplateModal
-          row={modal === 'new' ? null : modal}
-          onClose={() => setModal(null)}
-          onSaved={() => {
-            setModal(null);
-            onRefresh();
-          }}
-        />
+      {showNew ? (
+        <Modal
+          title="New template"
+          onClose={() => setShowNew(false)}
+          onSave={() => void createNew()}
+          saveLabel="Create"
+        >
+          <div className="space-y-3">
+            <Field label="Template key">
+              <input
+                className={inputClass}
+                placeholder="welcome_farmer"
+                value={newForm.templateKey}
+                onChange={(e) => setNewForm((f) => ({ ...f, templateKey: e.target.value }))}
+              />
+            </Field>
+            <Field label="Display name">
+              <input
+                className={inputClass}
+                placeholder="Welcome Farmer"
+                value={newForm.displayName}
+                onChange={(e) => setNewForm((f) => ({ ...f, displayName: e.target.value }))}
+              />
+            </Field>
+            <Field label="Category">
+              <StaticSelect
+                className={inputClass}
+                value={newForm.category}
+                onChange={(v) => setNewForm((f) => ({ ...f, category: v }))}
+                options={TEMPLATE_CATEGORIES.map((c) => c)}
+              />
+            </Field>
+          </div>
+        </Modal>
       ) : null}
     </div>
-  );
-}
-
-function LangTemplateModal({
-  row,
-  onClose,
-  onSaved,
-}: {
-  row: LangTemplate | null;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [err, setErr] = useState('');
-  const [f, setF] = useState({
-    templateKey: row?.template_key ?? '',
-    language: row?.language ?? 'en',
-    channel: row?.channel ?? 'session',
-    bodyText: row?.body_text ?? '',
-    metaTemplateName: row?.meta_template_name ?? '',
-    status: row?.status ?? 'draft',
-  });
-
-  async function save() {
-    setSaving(true);
-    setErr('');
-    try {
-      await api(`${base}/language-templates`, {
-        method: 'POST',
-        body: JSON.stringify({
-          id: row?.id,
-          templateKey: f.templateKey,
-          language: f.language,
-          channel: f.channel,
-          bodyText: f.bodyText,
-          metaTemplateName: f.metaTemplateName || undefined,
-          status: f.status,
-        }),
-      });
-      onSaved();
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Save failed');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal title={row ? 'Edit template' : 'Add template'} onClose={onClose} onSave={() => save()} saving={saving}>
-      {err ? <p className="mb-3 text-sm text-red-600">{err}</p> : null}
-      <p className="mb-3 text-xs text-slate-500">Use {'{{name}}'} for variables in session messages.</p>
-      <div className="space-y-3">
-        <Field label="Template key">
-          <input className={inputClass} value={f.templateKey} onChange={(e) => setF({ ...f, templateKey: e.target.value })} />
-        </Field>
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="Language">
-            <StaticSelect
-              className={inputClass}
-              value={f.language}
-              onChange={(value) => setF({ ...f, language: value })}
-              options={LANGS.map((l) => ({ value: l, label: l }))}
-            />
-          </Field>
-          <Field label="Channel">
-            <StaticSelect
-              className={inputClass}
-              value={f.channel}
-              onChange={(value) => setF({ ...f, channel: value })}
-              options={[
-                { value: 'session', label: 'session' },
-                { value: 'meta_template', label: 'meta_template' },
-              ]}
-            />
-          </Field>
-        </div>
-        <Field label="Body text">
-          <textarea className={inputClass} rows={4} value={f.bodyText} onChange={(e) => setF({ ...f, bodyText: e.target.value })} />
-        </Field>
-        {f.channel === 'meta_template' ? (
-          <Field label="Meta template name">
-            <input
-              className={inputClass}
-              value={f.metaTemplateName}
-              onChange={(e) => setF({ ...f, metaTemplateName: e.target.value })}
-            />
-          </Field>
-        ) : null}
-        <Field label="Status">
-          <StaticSelect
-            className={inputClass}
-            value={f.status}
-            onChange={(value) => setF({ ...f, status: value })}
-            options={['draft', 'approved', 'archived'].map((s) => ({ value: s, label: s }))}
-          />
-        </Field>
-      </div>
-    </Modal>
   );
 }
 
@@ -438,6 +443,11 @@ export function AutomationJobsPanel({
 
   return (
     <div>
+      <h2 className="mb-2 text-lg font-semibold text-slate-900">Job monitor</h2>
+      <p className="mb-4 text-sm text-slate-600">
+        Background follow-up and reminder jobs (WhatsApp, cultivation prompts). For campaign automation, use
+        Campaign rules under Automation.
+      </p>
       {stats ? (
         <div className="mb-4 flex flex-wrap gap-2 text-xs">
           <StatChip label="Due now" value={stats.dueNow ?? 0} tone="amber" />

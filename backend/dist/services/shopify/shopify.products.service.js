@@ -358,6 +358,58 @@ export const shopifyProductsService = {
         clearProductListCache();
         return { published: active.length - failed.length, failed };
     },
+    async importRows(rows) {
+        const created = [];
+        const updated = [];
+        const failed = [];
+        const normalizeStatus = (raw) => {
+            const s = String(raw ?? '').trim().toLowerCase();
+            if (s === 'active')
+                return 'active';
+            if (s === 'draft' || s === 'inactive')
+                return 'draft';
+            if (s === 'archived')
+                return 'archived';
+            return undefined;
+        };
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const title = String(row.title ?? '').trim();
+            if (!title) {
+                failed.push({ row: i + 1, title: '—', error: 'Title is required' });
+                continue;
+            }
+            const payload = {
+                title,
+                vendor: row.brand?.trim() || undefined,
+                productType: row.category?.trim() || undefined,
+                status: normalizeStatus(row.status),
+            };
+            try {
+                const id = String(row.id ?? '').trim();
+                if (id && /^\d+$/.test(id)) {
+                    await this.update(id, payload);
+                    updated.push(id);
+                }
+                else {
+                    const product = await this.create({
+                        ...payload,
+                        status: payload.status ?? 'draft',
+                    });
+                    created.push(String(product.id));
+                }
+            }
+            catch (err) {
+                failed.push({
+                    row: i + 1,
+                    title,
+                    error: err instanceof Error ? err.message : 'Import failed',
+                });
+            }
+        }
+        clearProductListCache();
+        return { created: created.length, updated: updated.length, failed };
+    },
     async archiveMany(ids) {
         const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
         const archived = [];

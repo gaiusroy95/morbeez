@@ -1,12 +1,15 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatPaise, tokens } from '@morbeez/shared';
 import { Btn, EmptyState, Panel } from '@morbeez/ui-native';
 import { useShopCart } from '@/context/ShopCartContext';
 
 export default function CartScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { items, totalPaise, setQuantity, removeItem } = useShopCart();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 0);
 
   if (!items.length) {
     return (
@@ -18,7 +21,8 @@ export default function CartScreen() {
   }
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <View style={styles.root}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: 140 + bottomPad }]}>
       <Panel title="Smart cart">
         <Text style={styles.hint}>
           Items from recommendations and recovery kits appear here. Adjust quantities before checkout.
@@ -62,16 +66,28 @@ export default function CartScreen() {
           <Text style={styles.summaryValue}>{formatPaise(totalPaise)}</Text>
         </View>
       </Panel>
+      </ScrollView>
 
-      <Btn label={`Checkout · ${formatPaise(totalPaise)}`} onPress={() => router.push('/shop/checkout')} />
-      <Btn label="Continue shopping" variant="secondary" onPress={() => router.back()} />
-    </ScrollView>
+      <View style={[styles.footer, { paddingBottom: 16 + bottomPad }]}>
+        <Btn label={`Checkout · ${formatPaise(totalPaise)}`} onPress={() => router.push('/shop/checkout')} />
+        <Btn label="Continue shopping" variant="secondary" onPress={() => router.back()} />
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: tokens.bg },
-  content: { padding: 16, paddingBottom: 32 },
+  root: { flex: 1, backgroundColor: tokens.bg },
+  scroll: { flex: 1 },
+  content: { padding: 16 },
+  footer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: tokens.border,
+    backgroundColor: tokens.bg,
+  },
   emptyWrap: { flex: 1, backgroundColor: tokens.bg, padding: 16, gap: 16, justifyContent: 'center' },
   row: {
     flexDirection: 'row',

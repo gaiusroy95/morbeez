@@ -649,7 +649,12 @@ export function LeadOperationsTable({
         return (
           <div className="tc-lq-farmer">
             <span className="tc-avatar-sm">{lead.farmerInitials}</span>
-            <strong>{lead.farmerName}</strong>
+            <div>
+              <strong>{lead.farmerName}</strong>
+              {lead.attributionBadge ? (
+                <div className="mt-0.5 text-[10px] font-medium text-indigo-700">{lead.attributionBadge}</div>
+              ) : null}
+            </div>
           </div>
         );
       case 'cropAcreage':

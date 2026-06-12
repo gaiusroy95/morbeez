@@ -47,6 +47,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_OUTBOUND_TEMPLATE: z.ZodOptional<z.ZodString>;
     /** Approved Meta/Ads Gyani template for login OTP (single body param = code). */
     WHATSAPP_OTP_TEMPLATE: z.ZodOptional<z.ZodString>;
+    WHATSAPP_OTP_TEMPLATE_LANGUAGE: z.ZodOptional<z.ZodString>;
     /** When true, send login OTP via WhatsApp even if NODE_ENV is development/staging. */
     OTP_SEND_VIA_WHATSAPP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     WHATSAPP_SESSION_HOURS: z.ZodDefault<z.ZodNumber>;
@@ -246,6 +247,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
     WHATSAPP_OTP_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE_LANGUAGE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;
@@ -308,6 +310,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
     WHATSAPP_OTP_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE_LANGUAGE?: string | undefined;
     OTP_SEND_VIA_WHATSAPP?: string | undefined;
     WHATSAPP_SESSION_HOURS?: number | undefined;
     WHATSAPP_TYPING_SIMULATION?: string | undefined;
@@ -488,6 +491,7 @@ export declare const env: {
     WHATSAPP_WELCOME_TEMPLATE?: string | undefined;
     WHATSAPP_OUTBOUND_TEMPLATE?: string | undefined;
     WHATSAPP_OTP_TEMPLATE?: string | undefined;
+    WHATSAPP_OTP_TEMPLATE_LANGUAGE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;

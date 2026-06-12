@@ -18,6 +18,7 @@ export declare const farmerMarketPortalService: {
         favoriteCrop: string;
         crops: CropMarketItem[];
         date: string;
+        priceIsToday: boolean;
         districtLabel: {};
         selectedMarket: string;
         primaryMarket: string;

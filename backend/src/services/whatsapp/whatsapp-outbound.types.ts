@@ -1,7 +1,14 @@
+export type TemplateSendParams = {
+  body: string[];
+  /** OTP / coupon code for Meta authentication templates (Ads Gyani `copy_code`). */
+  copyCode?: string;
+  language?: string;
+};
+
 export interface WhatsAppProvider {
   sendText(to: string, text: string): Promise<void>;
   sendImage?: (to: string, imageUrl: string, caption?: string) => Promise<void>;
-  sendTemplate(to: string, name: string, params: { body: string[] }): Promise<void>;
+  sendTemplate(to: string, name: string, params: TemplateSendParams): Promise<void>;
   /** Optional: WhatsApp interactive list (Cloud API supports). */
   sendList?: (params: {
     to: string;

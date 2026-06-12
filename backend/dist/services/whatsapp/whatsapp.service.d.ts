@@ -1,8 +1,6 @@
 declare function getProvider(): {
     sendText(to: string, text: string): Promise<void>;
-    sendTemplate(to: string, templateName: string, params: {
-        body: string[];
-    }): Promise<void>;
+    sendTemplate(to: string, templateName: string, params: import("./whatsapp-outbound.types.js").TemplateSendParams): Promise<void>;
 };
 /** Ads Gyani Settings → API & Webhook: { contact, message } */
 export declare function parseAdsGyaniWebhook(payload: Record<string, unknown>): {

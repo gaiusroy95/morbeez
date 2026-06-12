@@ -6,6 +6,8 @@ export type PackageLineInsight = {
     qty: number;
     unitWeightKg: number;
     lineWeightKg: number;
+    unitsPerBox: number | null;
+    boxCount: number;
     packagingCategoryId: string | null;
     packagingCategoryName: string | null;
     preferredBoxId: string | null;
@@ -20,6 +22,7 @@ export type PackageEstimate = {
     packagingCategoryId: string | null;
     packagingCategoryName: string | null;
     matchedRuleId: string | null;
+    boxCount: number;
     lengthCm: number;
     breadthCm: number;
     heightCm: number;
@@ -38,6 +41,7 @@ export type PackageEstimate = {
 };
 export declare const packageRuleEngineService: {
     estimateForOrder(commerceOrderId: string): Promise<PackageEstimate>;
+    recalculateWithSelectedBox(commerceOrderId: string, boxId: string, boxCountOverride?: number): Promise<PackageEstimate>;
     persistEstimate(commerceOrderId: string, estimate: PackageEstimate): Promise<void>;
     ensureEstimated(commerceOrderId: string): Promise<PackageEstimate>;
     buildEstimateFromOrder(order: Record<string, unknown>): Promise<PackageEstimate>;

@@ -6,7 +6,7 @@ import { shopifyAdmin } from '../shopify/shopify.client.js';
 import { shopifyInventoryService } from '../shopify/shopify.inventory.service.js';
 import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { warehouseService } from './warehouse.service.js';
-const INVENTORY_PACKAGING_SELECT = 'id, sku, product_title, item_weight_kg, packaging_category_id, preferred_box_id, is_fragile, is_liquid, stackable';
+const INVENTORY_PACKAGING_SELECT = 'id, sku, product_title, item_weight_kg, units_per_box, packaging_category_id, preferred_box_id, is_fragile, is_liquid, stackable';
 async function loadPackagingLookups(categoryIds, boxIds) {
     const categories = new Map();
     const boxes = new Map();
@@ -36,6 +36,9 @@ function mapPackagingProfile(row, lookup) {
     return {
         itemWeightKg: row.item_weight_kg != null && Number(row.item_weight_kg) > 0
             ? Number(row.item_weight_kg)
+            : null,
+        unitsPerBox: row.units_per_box != null && Number(row.units_per_box) > 0
+            ? Number(row.units_per_box)
             : null,
         packagingCategoryId: categoryId,
         packagingCategoryName: categoryId ? (lookup?.categories.get(categoryId) ?? null) : null,
@@ -134,6 +137,7 @@ export const inventoryService = {
             input.packagingCategoryId !== undefined ||
             input.preferredBoxCode !== undefined ||
             input.preferredBoxId !== undefined ||
+            input.unitsPerBox !== undefined ||
             input.isFragile !== undefined ||
             input.isLiquid !== undefined ||
             input.stackable !== undefined;
@@ -155,6 +159,8 @@ export const inventoryService = {
             patch.preferred_box_code = input.preferredBoxCode;
         if (input.preferredBoxId !== undefined)
             patch.preferred_box_id = input.preferredBoxId;
+        if (input.unitsPerBox !== undefined)
+            patch.units_per_box = input.unitsPerBox;
         if (input.isFragile !== undefined)
             patch.is_fragile = input.isFragile;
         if (input.isLiquid !== undefined)

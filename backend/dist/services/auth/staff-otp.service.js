@@ -6,7 +6,7 @@ import { env } from '../../config/env.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { createAdminToken } from '../../lib/admin-jwt.js';
 import { adminAuthService } from './admin-auth.service.js';
-import { deliverOtpWhatsApp } from './otp-whatsapp.service.js';
+import { deliverOtpWhatsApp, otpDeliveryErrorMessage } from './otp-whatsapp.service.js';
 import { findActiveAdminByPhone } from './staff-phone-lookup.js';
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_SEND_PER_HOUR = 5;
@@ -51,8 +51,8 @@ export const staffOtpService = {
                 ...(!delivery.sent ? { devOtp: code } : {}),
             };
         }
-        catch {
-            throw new ValidationError('Could not send OTP. Please try again shortly.');
+        catch (err) {
+            throw new ValidationError(otpDeliveryErrorMessage(err));
         }
     },
     async verifyOtp(phoneRaw, codeRaw) {

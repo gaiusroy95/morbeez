@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { shopifyCampaignsService } from '../shopify/shopify-campaigns.service.js';
 function resolveOfferStatus(startsAt, endsAt) {
     const now = Date.now();
     const start = new Date(startsAt).getTime();
@@ -142,7 +143,15 @@ export const offersAdminService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not create coupon');
-        return mapCoupon(data);
+        const coupon = mapCoupon(data);
+        void shopifyCampaignsService.syncCoupon({
+            code: coupon.code,
+            discountLabel: coupon.discount,
+            minOrderAmount: coupon.minOrder,
+            usageLimit: input.usageLimit,
+            validUntil: input.validUntil,
+        });
+        return coupon;
     },
 };
 //# sourceMappingURL=offers-admin.service.js.map

@@ -39,18 +39,40 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
         icon: 'phone',
         module: 'telecaller_crm',
       },
+      {
+        id: 'telecaller-qc',
+        path: `${toPath(paths.telecaller)}?view=qc`,
+        label: 'Call QC',
+        icon: 'analytics',
+        module: 'telecaller_crm',
+      },
     ],
   },
   {
-    id: 'ops',
-    label: 'Operations',
-    icon: 'operations',
+    id: 'crm-ai',
+    label: 'CRM & AI',
+    icon: 'ai',
     module: 'operations',
     children: [
       {
         id: 'operations',
         path: toPath(paths.operations),
-        label: 'Messaging & rules',
+        label: 'Terminology & concepts',
+        icon: 'operations',
+        module: 'operations',
+      },
+    ],
+  },
+  {
+    id: 'ops',
+    label: 'Communications',
+    icon: 'operations',
+    module: 'operations',
+    children: [
+      {
+        id: 'broadcasts',
+        path: toPath(paths.broadcasts),
+        label: 'Broadcasts',
         icon: 'operations',
         module: 'operations',
       },
@@ -182,7 +204,9 @@ export function filterNav(modules: ApiModule[]): typeof NAV_GROUPS {
 }
 
 export function defaultExpandedGroups(pathname: string): string[] {
-  const base = ['telecaller', 'ops', 'intel', 'agro'];
+  const base = ['telecaller', 'crm-ai', 'ops', 'intel', 'agro'];
+  if (pathname.startsWith(toPath(paths.broadcasts))) base.push('ops');
+  if (pathname.startsWith(toPath(paths.operations))) base.push('ops');
   if (pathname.startsWith(toPath(paths.commerce))) base.push('commerce');
   if (pathname.startsWith(toPath(paths.warehouse))) base.push('more');
   if (pathname.startsWith(toPath(paths.seo))) base.push('more');
@@ -200,5 +224,11 @@ export function isNavItemActive(pathname: string, itemPath: string): boolean {
   if (itemPath === toPath(paths.agronomistAiReview)) {
     return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
   }
-  return pathname === itemPath;
+  if (itemPath === toPath(paths.operations)) {
+    return pathname === itemPath || pathname.startsWith(`${itemPath}/`) || pathname.startsWith(toPath(paths.broadcasts));
+  }
+  if (itemPath.startsWith(toPath(paths.telecaller))) {
+    return pathname.startsWith(toPath(paths.telecaller));
+  }
+  return pathname === itemPath || pathname.startsWith(`${itemPath.split('?')[0]}/`);
 }

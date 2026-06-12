@@ -55,6 +55,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;
@@ -95,6 +103,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;
@@ -213,6 +229,13 @@ export declare const telecallerAdminService: {
             latitude?: number;
             longitude?: number;
         }>;
+        leadChannel?: string;
+        campaignSource?: string;
+        marketingOwnerId?: string | null;
+        marketingOwnerName?: string | null;
+        utmCampaign?: string;
+        utmSource?: string;
+        utmMedium?: string;
     }, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
@@ -232,6 +255,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;
@@ -324,6 +355,13 @@ export declare const telecallerAdminService: {
         followUpAt?: string | null;
         assignedTo?: string | null;
         priority?: string;
+        leadChannel?: string | null;
+        campaignSource?: string | null;
+        marketingOwnerId?: string | null;
+        marketingOwnerName?: string | null;
+        utmCampaign?: string | null;
+        utmSource?: string | null;
+        utmMedium?: string | null;
     }, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
@@ -343,6 +381,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;
@@ -482,6 +528,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;
@@ -575,7 +629,116 @@ export declare const telecallerAdminService: {
         taskType?: string;
         blockId?: string;
         interactionLogId?: string;
+        priority?: string;
+        assignedAgronomist?: string;
+        issueDescription?: string;
+        taskCategory?: string;
+        initialComment?: string;
     }, agentEmail: string): Promise<any>;
+    listLeadAgronomistTasks(leadId: string): Promise<{
+        id: string;
+        title: string;
+        issue: string | null;
+        priority: string;
+        taskCategory: string;
+        taskType: string;
+        status: string;
+        dueAt: string | null;
+        dueLabel: string;
+        assignedAgronomist: string | null;
+        createdBy: null;
+        blockName: string | null;
+        cropName: string | null;
+        createdAt: string | null;
+    }[]>;
+    listTasksForAgronomist(agronomistEmail: string, opts?: {
+        status?: string;
+        limit?: number;
+    }): Promise<{
+        id: string;
+        title: string;
+        issue: string | null;
+        priority: string;
+        taskCategory: string;
+        taskType: string;
+        status: string;
+        dueAt: string | null;
+        dueLabel: string;
+        farmerId: string | null;
+        leadId: string | null;
+        farmerName: string;
+        blockName: string | null;
+        cropName: string | null;
+        createdBy: null;
+    }[]>;
+    listScheduledVisitsForAgronomist(agronomistEmail: string, opts?: {
+        limit?: number;
+    }): Promise<{
+        id: string;
+        title: string;
+        dueAt: string | null;
+        dueLabel: string;
+        farmerId: string | null;
+        leadId: string | null;
+        farmerName: string;
+        location: string | null;
+        blockName: string | null;
+        cropName: string | null;
+        notes: string | null;
+    }[]>;
+    getTaskDetail(taskId: string): Promise<{
+        task: {
+            id: string;
+            title: string;
+            issue: string | null;
+            notes: string | null;
+            priority: string;
+            taskCategory: string;
+            taskType: string;
+            status: string;
+            dueAt: string | null;
+            dueLabel: string;
+            assignedTo: string | null;
+            assignedAgronomist: string | null;
+            createdBy: null;
+            farmerId: string | null;
+            leadId: string | null;
+            blockId: string | null;
+            farmerName: string;
+            farmerPhone: string | null;
+            blockName: string | null;
+            cropName: string | null;
+        };
+        comments: {
+            id: string;
+            authorEmail: string;
+            authorRole: string;
+            authorName: string | null;
+            body: string;
+            createdAt: string;
+            atLabel: string;
+        }[];
+    }>;
+    addTaskComment(taskId: string, input: {
+        body: string;
+        authorEmail: string;
+        authorRole: "telecaller" | "agronomist" | "system";
+        authorName?: string;
+    }): Promise<{
+        id: string;
+        authorEmail: string;
+        authorRole: string;
+        authorName: string | null;
+        body: string;
+        createdAt: string;
+        atLabel: string;
+    }>;
+    listAssignableAgronomists(): Promise<{
+        id: string;
+        name: string;
+        email: string;
+        employeeCode: string | null;
+    }[]>;
     updateTask(taskId: string, input: {
         title?: string;
         notes?: string;
@@ -610,6 +773,14 @@ export declare const telecallerAdminService: {
             lastInteractionLabel: string | null;
             leadScore: number;
             createdAt: unknown;
+            campaignSource: {} | null;
+            leadChannel: {} | null;
+            marketingOwnerId: {} | null;
+            marketingOwnerName: {} | null;
+            utmCampaign: {} | null;
+            utmSource: {} | null;
+            utmMedium: {} | null;
+            attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
             phone: {} | null;

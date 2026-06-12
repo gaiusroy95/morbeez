@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTelecallerHeader } from '../context/TelecallerHeaderContext';
 import { api } from '../lib/api';
 import { LeadDetailPanel } from '../components/telecaller/LeadDetailPanel';
 import { LeadOperationsTable } from '../components/telecaller/lead-queue/LeadOperationsTable';
 import type { OperationalLead } from '../components/telecaller/lead-queue/lead-queue-types';
 import { EscalationsPanel } from '../components/telecaller/EscalationsPanel';
+import { TelecallerQcDashboard } from '../components/telecaller/TelecallerQcDashboard';
 import { TelecallerIntelligenceBar } from '../components/telecaller/TelecallerIntelligenceBar';
 import { MyEarningsPanel } from '../components/telecaller/MyEarningsPanel';
 import { Field, Modal, inputClass } from '../components/Modal';
@@ -70,13 +72,16 @@ function isDueTodayIso(iso: string | undefined): boolean {
   );
 }
 
-type CrmView = 'workspace' | 'escalations';
+type CrmView = 'workspace' | 'escalations' | 'qc';
 type WorkspaceViewMode = 'list' | 'detail';
 type CrmNotification = { id: string; message: string; at: string };
 
 export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
+  const [searchParams] = useSearchParams();
   const { patchHeader } = useTelecallerHeader();
-  const [crmView, setCrmView] = useState<CrmView>('workspace');
+  const [crmView, setCrmView] = useState<CrmView>(() =>
+    searchParams.get('view') === 'qc' ? 'qc' : 'workspace'
+  );
   const [pendingEscalations, setPendingEscalations] = useState(0);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [leads, setLeads] = useState<LeadRow[]>([]);
@@ -405,12 +410,14 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       <HubTabs
         tabs={[
           { id: 'workspace' as const, label: 'Workspace' },
+          { id: 'qc' as const, label: 'Call QC' },
           { id: 'escalations' as const, label: 'Escalations', badge: pendingEscalations },
         ]}
         active={crmView}
         onChange={setCrmView}
       />
 
+      {crmView === 'qc' ? <TelecallerQcDashboard /> : null}
       {crmView === 'escalations' ? <EscalationsPanel canWrite={canWrite} /> : null}
 
       {crmView === 'workspace' && showNewLead && canWrite ? (
@@ -579,6 +586,19 @@ function NewLeadModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [gpsEditor, setGpsEditor] = useState({ latitude: '', longitude: '' });
+  const [leadChannel, setLeadChannel] = useState('field');
+  const [campaignSource, setCampaignSource] = useState('');
+  const [marketingOwnerId, setMarketingOwnerId] = useState('');
+  const [marketingOwnerName, setMarketingOwnerName] = useState('');
+  const [marketingOwners, setMarketingOwners] = useState<Array<{ id: string; fullName: string }>>([]);
+
+  useEffect(() => {
+    void api<{ ok: boolean; owners: Array<{ id: string; fullName: string }> }>(
+      `${base}/marketing-owners`
+    )
+      .then((res) => setMarketingOwners(res.owners ?? []))
+      .catch(() => undefined);
+  }, [base]);
 
   const completionCount = [
     phone.trim().length >= 10,
@@ -652,6 +672,10 @@ function NewLeadModal({
                 cropType: primaryCropName || blocks[0]?.cropName,
               }))
             : undefined,
+          leadChannel,
+          campaignSource: campaignSource.trim() || undefined,
+          marketingOwnerId: marketingOwnerId || null,
+          marketingOwnerName: marketingOwnerName.trim() || undefined,
         }),
       });
       onCreated(res.lead.id);
@@ -741,6 +765,60 @@ function NewLeadModal({
                 <input className={inputClass} value={whatsappPhone} onChange={(e) => setWhatsappPhone(e.target.value)} />
               </Field>
             ) : null}
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase text-indigo-800">Marketing attribution</h4>
+          <p className="mb-2 text-xs text-slate-600">
+            Channel + campaign required for marketer scorecards. Telecaller manual leads default to field
+            visits.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Lead channel">
+              <StaticSelect
+                className={inputClass}
+                value={leadChannel}
+                onChange={setLeadChannel}
+                options={[
+                  { value: 'meta', label: 'Meta' },
+                  { value: 'instagram', label: 'Instagram' },
+                  { value: 'google', label: 'Google' },
+                  { value: 'whatsapp', label: 'WhatsApp' },
+                  { value: 'field', label: 'Field / telecaller' },
+                  { value: 'referral', label: 'Referral' },
+                  { value: 'organic', label: 'Organic' },
+                  { value: 'other', label: 'Other' },
+                ]}
+              />
+            </Field>
+            <Field label="Campaign name">
+              <input
+                className={inputClass}
+                value={campaignSource}
+                onChange={(e) => setCampaignSource(e.target.value)}
+                placeholder="e.g. Wayanad Ginger June"
+              />
+            </Field>
+            <Field label="In-house marketer">
+              <StaticSelect
+                className={inputClass}
+                value={marketingOwnerId}
+                onChange={setMarketingOwnerId}
+                options={[
+                  { value: '', label: 'Select employee…' },
+                  ...marketingOwners.map((o) => ({ value: o.id, label: o.fullName })),
+                ]}
+              />
+            </Field>
+            <Field label="External agency / freelancer">
+              <input
+                className={inputClass}
+                value={marketingOwnerName}
+                onChange={(e) => setMarketingOwnerName(e.target.value)}
+                placeholder="If not an employee"
+              />
+            </Field>
           </div>
         </section>
 

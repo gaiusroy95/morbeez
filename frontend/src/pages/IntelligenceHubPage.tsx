@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSyncConsoleSearchMode } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
@@ -27,8 +28,14 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'rotation', label: 'Resistance rotation' },
 ];
 
+function isIntelligenceTab(value: string | null): value is Tab {
+  return TABS.some((t) => t.id === value);
+}
+
 export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
-  const [tab, setTab] = useState<Tab>('weather');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [tab, setTab] = useState<Tab>(() => (isIntelligenceTab(tabFromUrl) ? tabFromUrl : 'weather'));
   const [search, setSearch] = useState('');
   const [cropFilter, setCropFilter] = useState('');
   const searchDefaults = defaultsForPage('intelligence');
@@ -37,6 +44,21 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
     search,
     setSearch,
     searchDefaults.placeholder ?? 'Search rules, templates, tasks…'
+  );
+
+  useEffect(() => {
+    if (isIntelligenceTab(tabFromUrl)) setTab(tabFromUrl);
+  }, [tabFromUrl]);
+
+  const onTabChange = useCallback(
+    (next: Tab) => {
+      setTab(next);
+      const params = new URLSearchParams(searchParams);
+      if (next === 'weather') params.delete('tab');
+      else params.set('tab', next);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams]
   );
 
   const [error, setError] = useState('');
@@ -142,7 +164,7 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
       </p>
       {!canWrite ? <ReadOnlyBanner /> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
-      <HubTabs tabs={TABS} active={tab} onChange={setTab} />
+      <HubTabs tabs={TABS} active={tab} onChange={onTabChange} />
 
       {tab !== 'pincode' && tab !== 'spray' ? (
         <div className="mt-4 flex items-center gap-2">

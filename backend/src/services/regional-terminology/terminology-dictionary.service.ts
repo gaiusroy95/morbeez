@@ -22,7 +22,31 @@ function mapRow(row: Record<string, unknown>): TerminologyDictionaryEntry {
     cropType: row.crop_type ? String(row.crop_type) : null,
     district: row.district ? String(row.district) : null,
     confidence: Number(row.confidence ?? 0.7),
+    replyPreferred: row.reply_preferred !== false,
+    conceptId: row.concept_id ? String(row.concept_id) : null,
   };
+}
+
+async function lookupAlias(
+  token: string,
+  language: AdvisoryLanguage,
+  opts?: { cropType?: string | null; district?: string | null }
+): Promise<TerminologyDictionaryEntry | null> {
+  const key = token.trim().toLowerCase();
+  const { data: aliasRow, error } = await supabase
+    .from('terminology_term_aliases')
+    .select('term_id, agronomy_terms(*)')
+    .eq('alias', key)
+    .eq('language', language)
+    .limit(1)
+    .maybeSingle();
+  throwIfSupabaseError(error, 'Could not lookup terminology alias');
+  const rawTerm = aliasRow?.agronomy_terms as unknown;
+  const termRow = (Array.isArray(rawTerm) ? rawTerm[0] : rawTerm) as Record<string, unknown> | null | undefined;
+  if (!termRow || String(termRow.status ?? 'active') !== 'active') return null;
+  if (opts?.cropType && termRow.crop_type && String(termRow.crop_type) !== opts.cropType) return null;
+  if (opts?.district && termRow.district && String(termRow.district) !== opts.district) return null;
+  return mapRow(termRow);
 }
 
 export const terminologyDictionaryService = {
@@ -53,7 +77,8 @@ export const terminologyDictionaryService = {
       .from('agronomy_terms')
       .select('*')
       .eq('term', key)
-      .eq('language', language);
+      .eq('language', language)
+      .eq('status', 'active');
 
     if (opts?.cropType) q = q.or(`crop_type.is.null,crop_type.eq.${opts.cropType}`);
 
@@ -61,12 +86,16 @@ export const terminologyDictionaryService = {
     throwIfSupabaseError(error, 'Could not lookup terminology');
     if (data) return mapRow(data as Record<string, unknown>);
 
+    const aliasHit = await lookupAlias(key, language, opts);
+    if (aliasHit) return aliasHit;
+
     if (opts?.district) {
       const { data: dRow, error: dErr } = await supabase
         .from('agronomy_terms')
         .select('*')
         .eq('term', key)
         .eq('district', opts.district)
+        .eq('status', 'active')
         .limit(1)
         .maybeSingle();
       throwIfSupabaseError(dErr, 'Could not lookup terminology by district');

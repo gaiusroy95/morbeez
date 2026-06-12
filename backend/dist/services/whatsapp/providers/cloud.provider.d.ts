@@ -1,8 +1,7 @@
+import type { TemplateSendParams } from '../whatsapp-outbound.types.js';
 export declare const cloudWhatsAppProvider: {
     sendText(to: string, text: string): Promise<void>;
-    sendTemplate(to: string, templateName: string, params: {
-        body: string[];
-    }): Promise<void>;
+    sendTemplate(to: string, templateName: string, params: TemplateSendParams): Promise<void>;
     /** Interactive list (use for >3 options like language selection/menu). */
     sendList(params: {
         to: string;

@@ -60,6 +60,8 @@ export const terminologyDetectionEngine = {
                     standardTerm: entry.standardTerm ?? entry.meaning,
                     confidence: entry.confidence,
                     source: entry.id.startsWith('builtin:') ? 'builtin' : 'dictionary',
+                    replyPreferred: entry.replyPreferred !== false,
+                    conceptId: entry.conceptId ?? null,
                 });
             }
             else {

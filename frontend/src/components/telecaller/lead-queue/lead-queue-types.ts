@@ -28,6 +28,9 @@ export type OperationalLead = {
   dap: number | null;
   healthStatus: string | null;
   createdAtLabel: string;
+  attributionBadge?: string | null;
+  leadChannel?: string | null;
+  campaignSource?: string | null;
 };
 
 export type QueueSummary = {

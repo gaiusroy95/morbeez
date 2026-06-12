@@ -16,6 +16,7 @@ export const SOIL_MACRO_FIELDS = [
     { key: 'calcium', label: 'Calcium (Ca)', unit: 'ppm', group: 'macro' },
     { key: 'magnesium', label: 'Magnesium (Mg)', unit: 'ppm', group: 'macro' },
     { key: 'sulfur', label: 'Sulfur (S)', unit: 'ppm', group: 'macro' },
+    { key: 'sodium', label: 'Sodium (Na)', unit: 'meq/100g', group: 'macro' },
 ];
 export const SOIL_MICRO_FIELDS = [
     { key: 'zinc', label: 'Zinc (Zn)', unit: 'ppm', group: 'micro' },
@@ -23,6 +24,7 @@ export const SOIL_MICRO_FIELDS = [
     { key: 'iron', label: 'Iron (Fe)', unit: 'ppm', group: 'micro' },
     { key: 'manganese', label: 'Manganese (Mn)', unit: 'ppm', group: 'micro' },
     { key: 'copper', label: 'Copper (Cu)', unit: 'ppm', group: 'micro' },
+    { key: 'molybdenum', label: 'Molybdenum (Mo)', unit: 'ppm', group: 'micro' },
 ];
 export const ALL_SOIL_FIELDS = [...SOIL_MACRO_FIELDS, ...SOIL_MICRO_FIELDS];
 export function emptySoilLabMetrics() {
@@ -42,6 +44,9 @@ export function normalizeSoilMetrics(raw) {
     if (o.version === 2 && o.macro && o.micro) {
         if (typeof o.soilType === 'string' && o.soilType.trim()) {
             base.soilType = o.soilType.trim();
+        }
+        if (typeof o.remarks === 'string' && o.remarks.trim()) {
+            base.remarks = o.remarks.trim();
         }
         const macro = o.macro;
         const micro = o.micro;
@@ -73,11 +78,14 @@ export function normalizeSoilMetrics(raw) {
     }
     return base;
 }
-export function buildMetricsFromForm(macro, micro, soilType) {
+export function buildMetricsFromForm(macro, micro, soilType, remarks) {
     const metrics = emptySoilLabMetrics();
     const st = soilType?.trim();
     if (st)
         metrics.soilType = st;
+    const rm = remarks?.trim();
+    if (rm)
+        metrics.remarks = rm;
     for (const f of SOIL_MACRO_FIELDS) {
         const v = macro[f.key]?.trim();
         if (v)

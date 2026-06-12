@@ -9,6 +9,13 @@ export declare const responseLocalizationService: {
         standardResponse: string;
         detection: TerminologyDetectionResult | null;
         language: AdvisoryLanguage;
+        district?: string | null;
+    }): Promise<string>;
+    /** Sync wrapper for callers that cannot await. */
+    localizeSync(params: {
+        standardResponse: string;
+        detection: TerminologyDetectionResult | null;
+        language: AdvisoryLanguage;
     }): string;
     farmerPendingCopy(language: AdvisoryLanguage): string;
 };

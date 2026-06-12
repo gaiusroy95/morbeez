@@ -17,6 +17,7 @@ import { CommerceCombosPanel } from '../components/commerce/CommerceCombosPanel'
 import { CommerceFlashSalesPanel } from '../components/commerce/CommerceFlashSalesPanel';
 import { CommerceLogisticsPanel } from '../components/commerce/CommerceLogisticsPanel';
 import { CommerceBannersPanel } from '../components/commerce/CommerceBannersPanel';
+import { MarketingPerformancePanel } from '../components/commerce/MarketingPerformancePanel';
 
 type Tab =
   | 'products'
@@ -27,7 +28,8 @@ type Tab =
   | 'offers'
   | 'combos'
   | 'flash'
-  | 'banners';
+  | 'banners'
+  | 'marketing';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'products', label: 'Products' },
@@ -39,6 +41,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'combos', label: 'Combos' },
   { id: 'flash', label: 'Flash sales' },
   { id: 'banners', label: 'Banners' },
+  { id: 'marketing', label: 'Marketing' },
 ];
 
 function isCommerceTab(value: string | null): value is Tab {
@@ -51,7 +54,8 @@ function isCommerceTab(value: string | null): value is Tab {
     value === 'offers' ||
     value === 'combos' ||
     value === 'flash' ||
-    value === 'banners'
+    value === 'banners' ||
+    value === 'marketing'
   );
 }
 
@@ -137,7 +141,7 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'flash' ? <CommerceFlashSalesPanel canWrite={canWrite} /> : null}
       {tab === 'logistics' ? <CommerceLogisticsPanel canWrite={canWrite} /> : null}
       {tab === 'banners' ? <CommerceBannersPanel canWrite={canWrite} /> : null}
-
+      {tab === 'marketing' ? <MarketingPerformancePanel canWrite={canWrite} /> : null}
     </div>
   );
 }

@@ -10,6 +10,7 @@ import { weatherSnapshotService } from '../core/weather-snapshot.service.js';
 import { whatsappOsAdminService } from '../admin/whatsapp-os-admin.service.js';
 import { roiFlowService } from '../whatsapp/roi/roi-flow.service.js';
 import { growthStageFromDap } from './crop-stage.service.js';
+import { cropHealthFromTone } from '../../lib/block-health.js';
 function formatDate(iso) {
     if (!iso)
         return '—';
@@ -222,6 +223,69 @@ export const farmerPortalMobileService = {
         const health = healthFromSoil((await supabase.from('farm_blocks').select('soil_health').eq('id', blockId).maybeSingle()).data
             ?.soil_health);
         const timeline = await this.getBlockTimeline(farmerId, blockId);
+        const [{ data: findingRows }, { data: crmRecRows }, { data: recordRows }] = await Promise.all([
+            supabase
+                .from('crm_field_findings')
+                .select('id, visited_at, disease_pest, observations, disease_tone, agronomist_name, action_taken')
+                .eq('farmer_id', farmerId)
+                .eq('block_id', blockId)
+                .is('archived_at', null)
+                .order('visited_at', { ascending: false })
+                .limit(20),
+            supabase
+                .from('crm_recommendations')
+                .select('id, problem, recommendation, dosage, created_at, status, recommended_by')
+                .eq('farmer_id', farmerId)
+                .eq('block_id', blockId)
+                .neq('status', 'archived')
+                .order('created_at', { ascending: false })
+                .limit(20),
+            supabase
+                .from('recommendation_records')
+                .select('id, issue_detected, recommendation_text, dosage, created_at, status, created_by')
+                .eq('farmer_id', farmerId)
+                .eq('block_id', blockId)
+                .in('status', ['approved', 'communicated', 'applied', 'pending_approval'])
+                .order('created_at', { ascending: false })
+                .limit(20),
+        ]);
+        const fieldFindings = (findingRows ?? []).map((r) => {
+            const health = cropHealthFromTone(r.disease_tone);
+            return {
+                id: String(r.id),
+                visitedAt: String(r.visited_at),
+                visitedLabel: formatDate(String(r.visited_at)),
+                diseasePest: r.disease_pest ? String(r.disease_pest) : null,
+                observations: r.observations ? String(r.observations) : null,
+                diseaseTone: String(r.disease_tone ?? 'warning'),
+                cropHealthLabel: health.cropHealthLabel,
+                cropHealthStatus: health.cropHealthStatus,
+                agronomistName: r.agronomist_name ? String(r.agronomist_name) : null,
+                actionTaken: r.action_taken ? String(r.action_taken) : null,
+            };
+        });
+        const blockRecommendations = [
+            ...(crmRecRows ?? []).map((r) => ({
+                id: String(r.id),
+                title: r.problem ? String(r.problem) : 'Recommendation',
+                body: r.recommendation ? String(r.recommendation) : '',
+                dosage: r.dosage ? String(r.dosage) : null,
+                dateLabel: formatDate(String(r.created_at)),
+                status: String(r.status ?? 'active'),
+                recommendedBy: r.recommended_by ? String(r.recommended_by) : null,
+                source: 'crm',
+            })),
+            ...(recordRows ?? []).map((r) => ({
+                id: String(r.id),
+                title: r.issue_detected ? String(r.issue_detected) : 'Agronomist recommendation',
+                body: String(r.recommendation_text ?? ''),
+                dosage: r.dosage ? String(r.dosage) : null,
+                dateLabel: formatDate(String(r.created_at)),
+                status: String(r.status ?? 'approved'),
+                recommendedBy: r.created_by ? String(r.created_by) : null,
+                source: 'record',
+            })),
+        ].sort((a, b) => b.dateLabel.localeCompare(a.dateLabel));
         return {
             block: {
                 id: block.id,
@@ -244,6 +308,8 @@ export const farmerPortalMobileService = {
                 healthScore: health.status === 'stable' ? 85 : health.status === 'monitor' ? 65 : 45,
             },
             timeline,
+            fieldFindings,
+            blockRecommendations,
         };
     },
     async getBlockTimeline(farmerId, blockId) {
@@ -688,6 +754,67 @@ export const farmerPortalMobileService = {
                 icon: e.icon,
             })),
         };
+    },
+    async createFieldFinding(farmerId, blockId, input) {
+        const block = await blockService.getById(blockId, farmerId);
+        if (!block)
+            throw new NotFoundError('Field not found');
+        if (!input.diseasePest?.trim() && !input.observations?.trim()) {
+            throw new ValidationError('Describe the issue or observation');
+        }
+        let weatherSnapshotId = null;
+        let weatherContext = {};
+        const captured = await weatherSnapshotService.capture({
+            farmerId,
+            blockId,
+            eventType: 'field_finding',
+        });
+        if (captured) {
+            weatherSnapshotId = captured.snapshotId;
+            weatherContext = captured.context;
+        }
+        const { data, error } = await supabase
+            .from('crm_field_findings')
+            .insert({
+            farmer_id: farmerId,
+            block_id: blockId,
+            block_name: blockDisplayName(block),
+            crop_type: block.crop_type,
+            agronomist_name: 'Farmer',
+            agronomist_role: 'Farmer',
+            disease_pest: input.diseasePest?.trim() || 'Field observation',
+            observations: input.observations?.trim() || null,
+            disease_tone: input.diseaseTone ?? 'warning',
+            action_taken: input.actionTaken?.trim() || null,
+            visited_at: new Date().toISOString(),
+            weather_context: weatherContext,
+            weather_snapshot_id: weatherSnapshotId,
+        })
+            .select('id')
+            .single();
+        throwIfSupabaseError(error, 'Could not save field finding');
+        if (!data)
+            throw new NotFoundError('Could not save field finding');
+        return { id: String(data.id) };
+    },
+    async createBlockRecommendation(farmerId, blockId, input) {
+        const block = await blockService.getById(blockId, farmerId);
+        if (!block)
+            throw new NotFoundError('Field not found');
+        if (!input.recommendation.trim()) {
+            throw new ValidationError('Recommendation text is required');
+        }
+        const { crmFarmerService } = await import('../admin/crm-farmer.service.js');
+        const rec = await crmFarmerService.createRecommendation(farmerId, null, {
+            blockId,
+            recType: 'farmer',
+            problem: input.problem?.trim() || undefined,
+            recommendation: input.recommendation.trim(),
+            dosage: input.dosage?.trim() || undefined,
+            applicationMethod: input.applicationMethod?.trim() || undefined,
+            recommendedBy: 'Farmer',
+        });
+        return { id: String(rec.id) };
     },
 };
 //# sourceMappingURL=farmer-portal-mobile.service.js.map

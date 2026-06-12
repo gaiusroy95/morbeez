@@ -26,6 +26,8 @@ import '../../styles/agronomist-ops.css';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
+import { CallIntelligencePanel } from './CallIntelligencePanel';
+import { LeadTimelineFeed } from './LeadTimelineFeed';
 
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
@@ -76,6 +78,11 @@ type LeadDetail = {
     notes: string | null;
     assignedTo?: string | null;
     lastInteractionLabel?: string | null;
+    leadChannel?: string | null;
+    campaignSource?: string | null;
+    marketingOwnerId?: string | null;
+    marketingOwnerName?: string | null;
+    attributionBadge?: string | null;
   };
   farmer: {
     pincode?: string | null;
@@ -182,6 +189,13 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
   const [selectedFinding, setSelectedFinding] = useState<FieldFindingListRow | null>(null);
   const [selectedAgActivity, setSelectedAgActivity] = useState<AgronomistActivityRow | null>(null);
   const [archiveModal, setArchiveModal] = useState<{ path: string; label: string } | null>(null);
+  const [marketingOwners, setMarketingOwners] = useState<Array<{ id: string; fullName: string }>>([]);
+  const [attributionDraft, setAttributionDraft] = useState({
+    leadChannel: '',
+    campaignSource: '',
+    marketingOwnerId: '',
+    marketingOwnerName: '',
+  });
   const { profile: intelProfile, loading: intelLoading } = useFarmerIntelligenceProfile(leadId);
 
   const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -201,6 +215,12 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
     try {
       const d = await api<LeadDetail & { ok: boolean }>(`${base}/leads/${leadId}`);
       setDetail(d);
+      setAttributionDraft({
+        leadChannel: String(d.lead.leadChannel ?? ''),
+        campaignSource: String(d.lead.campaignSource ?? ''),
+        marketingOwnerId: String(d.lead.marketingOwnerId ?? ''),
+        marketingOwnerName: String(d.lead.marketingOwnerName ?? ''),
+      });
       await loadBlocks();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load lead');
@@ -208,6 +228,32 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
       setLoading(false);
     }
   }, [leadId, loadBlocks]);
+
+  useEffect(() => {
+    void api<{ ok: boolean; owners: Array<{ id: string; fullName: string }> }>(
+      `${base}/marketing-owners`
+    )
+      .then((res) => setMarketingOwners(res.owners ?? []))
+      .catch(() => undefined);
+  }, [base]);
+
+  async function saveAttribution() {
+    if (!canWrite) return;
+    try {
+      await api(`${base}/leads/${leadId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          leadChannel: attributionDraft.leadChannel || null,
+          campaignSource: attributionDraft.campaignSource.trim() || null,
+          marketingOwnerId: attributionDraft.marketingOwnerId || null,
+          marketingOwnerName: attributionDraft.marketingOwnerName.trim() || null,
+        }),
+      });
+      bumpData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update attribution');
+    }
+  }
 
   const bumpData = useCallback(() => {
     setDataVersion((v) => v + 1);
@@ -412,6 +458,14 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                     <>
                       <span className="tc-detail-dot">•</span>
                       Pincode: {l.pincode}
+                    </>
+                  ) : null}
+                  {l.attributionBadge ? (
+                    <>
+                      <span className="tc-detail-dot">•</span>
+                      <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-medium text-indigo-800">
+                        {l.attributionBadge}
+                      </span>
                     </>
                   ) : null}
                 </p>
@@ -782,6 +836,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                     </strong>
                   </div>
                 </footer>
+                <LeadTimelineFeed leadId={leadId} refreshKey={dataVersion} />
               </div>
 
               <aside className="tc-overview-sidebar">
@@ -796,6 +851,69 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                     <p className="tc-empty-row">No follow-up scheduled</p>
                   )}
                 </article>
+
+                <article className="tc-sidebar-card">
+                  <h3>Marketing attribution</h3>
+                  {canWrite ? (
+                    <div className="space-y-2 text-sm">
+                      <StaticSelect
+                        className="tc-stage-select w-full"
+                        value={attributionDraft.leadChannel}
+                        onChange={(v) => setAttributionDraft((d) => ({ ...d, leadChannel: v }))}
+                        options={[
+                          { value: '', label: 'Channel…' },
+                          { value: 'meta', label: 'Meta' },
+                          { value: 'instagram', label: 'Instagram' },
+                          { value: 'google', label: 'Google' },
+                          { value: 'whatsapp', label: 'WhatsApp' },
+                          { value: 'field', label: 'Field' },
+                          { value: 'referral', label: 'Referral' },
+                          { value: 'organic', label: 'Organic' },
+                          { value: 'other', label: 'Other' },
+                        ]}
+                      />
+                      <input
+                        className="tc-stage-select w-full"
+                        placeholder="Campaign name"
+                        value={attributionDraft.campaignSource}
+                        onChange={(e) =>
+                          setAttributionDraft((d) => ({ ...d, campaignSource: e.target.value }))
+                        }
+                      />
+                      <StaticSelect
+                        className="tc-stage-select w-full"
+                        value={attributionDraft.marketingOwnerId}
+                        onChange={(v) => setAttributionDraft((d) => ({ ...d, marketingOwnerId: v }))}
+                        options={[
+                          { value: '', label: 'In-house marketer…' },
+                          ...marketingOwners.map((o) => ({ value: o.id, label: o.fullName })),
+                        ]}
+                      />
+                      <input
+                        className="tc-stage-select w-full"
+                        placeholder="External agency name"
+                        value={attributionDraft.marketingOwnerName}
+                        onChange={(e) =>
+                          setAttributionDraft((d) => ({ ...d, marketingOwnerName: e.target.value }))
+                        }
+                      />
+                      <button type="button" className="tc-note-save-btn" onClick={() => void saveAttribution()}>
+                        Save attribution
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="tc-empty-row">{l.attributionBadge ?? 'Not attributed'}</p>
+                  )}
+                </article>
+
+                {canWrite ? (
+                  <CallIntelligencePanel
+                    leadId={leadId}
+                    farmerPhone={l.phone}
+                    canWrite={canWrite}
+                    onConfirmed={bumpData}
+                  />
+                ) : null}
 
                 {canWrite ? (
                   <article className="tc-sidebar-card">

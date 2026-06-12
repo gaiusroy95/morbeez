@@ -21,6 +21,13 @@ function displayFarmerName(row) {
         return combined;
     return String(row.name ?? '').trim() || 'Farmer';
 }
+function normalizeJoinRow(raw) {
+    if (!raw)
+        return null;
+    if (Array.isArray(raw))
+        return raw[0] ?? null;
+    return raw;
+}
 function initials(name) {
     return (name
         .split(/\s+/)
@@ -29,6 +36,36 @@ function initials(name) {
         .map((p) => p[0]?.toUpperCase() ?? '')
         .join('') || 'F');
 }
+function taskIssueFromRow(row) {
+    if (row.issue_description)
+        return String(row.issue_description);
+    const notes = row.notes ? String(row.notes) : '';
+    if (!notes)
+        return null;
+    const match = notes.match(/^Issue:\s*(.+)$/m);
+    return match?.[1]?.trim() || notes;
+}
+function mergeTaskNotes(notes, issueDescription) {
+    const parts = [
+        notes?.trim(),
+        issueDescription?.trim() ? `Issue: ${issueDescription.trim()}` : null,
+    ].filter(Boolean);
+    return parts.length ? parts.join('\n') : null;
+}
+function taskCategoryFromType(taskType) {
+    if (taskType === 'visit')
+        return 'visit_request';
+    if (taskType === 'call')
+        return 'call_farmer';
+    return 'other';
+}
+function assignedAgronomistFromRow(row) {
+    if (row.assigned_agronomist)
+        return String(row.assigned_agronomist);
+    return row.assigned_to ? String(row.assigned_to) : null;
+}
+const CRM_TASK_BASE_SELECT = `id, title, notes, task_type, status, due_at, assigned_to,
+  farmer_id, lead_id, block_id, created_at, updated_at`;
 function normalizePhone(phone) {
     if (!phone)
         return null;
@@ -90,6 +127,21 @@ function mapLeadRow(row) {
         lastInteractionLabel: formatDateTime(row.last_interaction_at),
         leadScore: row.lead_score != null ? Number(row.lead_score) : 4.5,
         createdAt: row.created_at,
+        campaignSource: row.campaign_source ?? null,
+        leadChannel: row.lead_channel ?? null,
+        marketingOwnerId: row.marketing_owner_id ?? null,
+        marketingOwnerName: row.marketing_owner_name ?? null,
+        utmCampaign: row.utm_campaign ?? null,
+        utmSource: row.utm_source ?? null,
+        utmMedium: row.utm_medium ?? null,
+        attributionBadge: (() => {
+            const ch = row.lead_channel ? String(row.lead_channel) : null;
+            const camp = row.campaign_source ? String(row.campaign_source) : null;
+            if (!ch && !camp)
+                return null;
+            const channelLabel = ch ? ch.charAt(0).toUpperCase() + ch.slice(1) : 'Unknown';
+            return camp ? `${channelLabel} · ${camp}` : channelLabel;
+        })(),
         farmerName: name,
         farmerInitials: initials(name),
         phone: farmer?.phone ?? null,
@@ -418,6 +470,13 @@ export const telecallerAdminService = {
             notes: input.notes ?? input.farmerNotes,
             cropType: input.cropType ?? input.cropBlocks?.[0]?.cropName,
             district: input.district,
+            leadChannel: input.leadChannel,
+            campaignSource: input.campaignSource,
+            marketingOwnerId: input.marketingOwnerId,
+            marketingOwnerName: input.marketingOwnerName,
+            utmCampaign: input.utmCampaign,
+            utmSource: input.utmSource,
+            utmMedium: input.utmMedium,
         });
         const { telecallerFarmerProfileService } = await import('./telecaller-farmer-profile.service.js');
         await telecallerFarmerProfileService.applyProfileOnCreate(result.farmer.id, {
@@ -488,6 +547,20 @@ export const telecallerAdminService = {
             updates.assigned_to = patch.assignedTo;
         if (patch.priority)
             updates.priority = patch.priority;
+        if (patch.leadChannel !== undefined)
+            updates.lead_channel = patch.leadChannel;
+        if (patch.campaignSource !== undefined)
+            updates.campaign_source = patch.campaignSource;
+        if (patch.marketingOwnerId !== undefined)
+            updates.marketing_owner_id = patch.marketingOwnerId;
+        if (patch.marketingOwnerName !== undefined)
+            updates.marketing_owner_name = patch.marketingOwnerName;
+        if (patch.utmCampaign !== undefined)
+            updates.utm_campaign = patch.utmCampaign;
+        if (patch.utmSource !== undefined)
+            updates.utm_source = patch.utmSource;
+        if (patch.utmMedium !== undefined)
+            updates.utm_medium = patch.utmMedium;
         const { data, error } = await supabase
             .from('leads')
             .update(updates)
@@ -645,6 +718,8 @@ export const telecallerAdminService = {
         const safeType = ['follow_up', 'call', 'whatsapp', 'visit', 'other'].includes(taskType)
             ? taskType
             : 'other';
+        const agronomistEmail = input.assignedAgronomist?.trim().toLowerCase() || null;
+        const notes = mergeTaskNotes(input.notes, input.issueDescription);
         const { data, error } = await supabase
             .from('crm_tasks')
             .insert({
@@ -652,9 +727,9 @@ export const telecallerAdminService = {
             lead_id: leadId,
             block_id: input.blockId ?? null,
             interaction_log_id: input.interactionLogId ?? null,
-            assigned_to: agentEmail,
+            assigned_to: agronomistEmail ?? agentEmail,
             title: input.title,
-            notes: input.notes,
+            notes,
             due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
             task_type: safeType,
         })
@@ -664,7 +739,238 @@ export const telecallerAdminService = {
         if (input.dueAt) {
             await supabase.from('leads').update({ follow_up_at: input.dueAt }).eq('id', leadId);
         }
+        if (input.initialComment?.trim()) {
+            await this.addTaskComment(String(data.id), {
+                body: input.initialComment.trim(),
+                authorEmail: agentEmail,
+                authorRole: 'telecaller',
+            });
+        }
         return data;
+    },
+    async listLeadAgronomistTasks(leadId) {
+        const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
+        if (!lead)
+            throw new NotFoundError('Lead not found');
+        const agronomists = await this.listAssignableAgronomists();
+        const agronomistEmails = agronomists.map((a) => a.email);
+        if (!agronomistEmails.length)
+            return [];
+        const { data, error } = await supabase
+            .from('crm_tasks')
+            .select(`${CRM_TASK_BASE_SELECT}, farm_blocks(name, crop_name)`)
+            .eq('farmer_id', lead.farmer_id)
+            .in('assigned_to', agronomistEmails)
+            .neq('status', 'cancelled')
+            .order('created_at', { ascending: false })
+            .limit(100);
+        throwIfSupabaseError(error, 'Could not load agronomist tasks');
+        return (data ?? []).map((row) => {
+            const block = normalizeJoinRow(row.farm_blocks);
+            const taskType = String(row.task_type ?? 'other');
+            return {
+                id: String(row.id),
+                title: String(row.title ?? 'Task'),
+                issue: taskIssueFromRow(row),
+                priority: 'medium',
+                taskCategory: taskCategoryFromType(taskType),
+                taskType,
+                status: String(row.status ?? 'pending'),
+                dueAt: row.due_at ? String(row.due_at) : null,
+                dueLabel: formatDateTime(row.due_at) ?? '—',
+                assignedAgronomist: assignedAgronomistFromRow(row),
+                createdBy: null,
+                blockName: block?.name ? String(block.name) : null,
+                cropName: block?.crop_name ? String(block.crop_name) : null,
+                createdAt: row.created_at ? String(row.created_at) : null,
+            };
+        });
+    },
+    async listTasksForAgronomist(agronomistEmail, opts) {
+        const email = agronomistEmail.trim().toLowerCase();
+        let query = supabase
+            .from('crm_tasks')
+            .select(`${CRM_TASK_BASE_SELECT},
+         farmers(name, first_name, last_name, district),
+         farm_blocks(name, crop_name)`)
+            .eq('assigned_to', email)
+            .neq('status', 'cancelled')
+            .order('due_at', { ascending: true, nullsFirst: false })
+            .limit(opts?.limit ?? 80);
+        if (opts?.status === 'pending')
+            query = query.eq('status', 'pending');
+        else if (opts?.status === 'done')
+            query = query.eq('status', 'done');
+        const { data, error } = await query;
+        throwIfSupabaseError(error, 'Could not load agronomist tasks');
+        return (data ?? []).map((row) => {
+            const farmer = normalizeJoinRow(row.farmers);
+            const block = normalizeJoinRow(row.farm_blocks);
+            const taskType = String(row.task_type ?? 'other');
+            return {
+                id: String(row.id),
+                title: String(row.title ?? 'Task'),
+                issue: taskIssueFromRow(row),
+                priority: 'medium',
+                taskCategory: taskCategoryFromType(taskType),
+                taskType,
+                status: String(row.status ?? 'pending'),
+                dueAt: row.due_at ? String(row.due_at) : null,
+                dueLabel: formatDateTime(row.due_at) ?? '—',
+                farmerId: row.farmer_id ? String(row.farmer_id) : null,
+                leadId: row.lead_id ? String(row.lead_id) : null,
+                farmerName: farmer ? displayFarmerName(farmer) : 'Farmer',
+                blockName: block?.name ? String(block.name) : null,
+                cropName: block?.crop_name ? String(block.crop_name) : null,
+                createdBy: null,
+            };
+        });
+    },
+    async listScheduledVisitsForAgronomist(agronomistEmail, opts) {
+        const email = agronomistEmail.trim().toLowerCase();
+        const { data, error } = await supabase
+            .from('crm_tasks')
+            .select(`id, title, notes, status, due_at, farmer_id, lead_id, block_id,
+         farmers(name, first_name, last_name, district, village),
+         farm_blocks(name, crop_name)`)
+            .eq('assigned_to', email)
+            .eq('task_type', 'visit')
+            .eq('status', 'pending')
+            .order('due_at', { ascending: true })
+            .limit(opts?.limit ?? 50);
+        throwIfSupabaseError(error, 'Could not load scheduled visits');
+        return (data ?? []).map((row) => {
+            const farmer = normalizeJoinRow(row.farmers);
+            const block = normalizeJoinRow(row.farm_blocks);
+            return {
+                id: String(row.id),
+                title: String(row.title ?? 'Field visit'),
+                dueAt: row.due_at ? String(row.due_at) : null,
+                dueLabel: formatDateTime(row.due_at) ?? '—',
+                farmerId: row.farmer_id ? String(row.farmer_id) : null,
+                leadId: row.lead_id ? String(row.lead_id) : null,
+                farmerName: farmer ? displayFarmerName(farmer) : 'Farmer',
+                location: farmer?.district ? String(farmer.district) : null,
+                blockName: block?.name ? String(block.name) : null,
+                cropName: block?.crop_name ? String(block.crop_name) : null,
+                notes: row.notes ? String(row.notes) : null,
+            };
+        });
+    },
+    async getTaskDetail(taskId) {
+        const { data: task, error } = await supabase
+            .from('crm_tasks')
+            .select(`${CRM_TASK_BASE_SELECT},
+         farmers(name, first_name, last_name, phone, district),
+         farm_blocks(name, crop_name),
+         leads(id, farmer_id)`)
+            .eq('id', taskId)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load task');
+        if (!task)
+            throw new NotFoundError('Task not found');
+        let comments = [];
+        const { data: commentRows, error: commentsErr } = await supabase
+            .from('crm_task_comments')
+            .select('id, author_email, author_role, author_name, body, created_at')
+            .eq('task_id', taskId)
+            .order('created_at', { ascending: true });
+        if (!commentsErr)
+            comments = commentRows ?? [];
+        const farmer = normalizeJoinRow(task.farmers);
+        const block = normalizeJoinRow(task.farm_blocks);
+        const taskType = String(task.task_type ?? 'other');
+        return {
+            task: {
+                id: String(task.id),
+                title: String(task.title ?? 'Task'),
+                issue: taskIssueFromRow(task),
+                notes: task.notes ? String(task.notes) : null,
+                priority: 'medium',
+                taskCategory: taskCategoryFromType(taskType),
+                taskType,
+                status: String(task.status ?? 'pending'),
+                dueAt: task.due_at ? String(task.due_at) : null,
+                dueLabel: formatDateTime(task.due_at) ?? '—',
+                assignedTo: task.assigned_to ? String(task.assigned_to) : null,
+                assignedAgronomist: assignedAgronomistFromRow(task),
+                createdBy: null,
+                farmerId: task.farmer_id ? String(task.farmer_id) : null,
+                leadId: task.lead_id ? String(task.lead_id) : null,
+                blockId: task.block_id ? String(task.block_id) : null,
+                farmerName: farmer ? displayFarmerName(farmer) : 'Farmer',
+                farmerPhone: farmer?.phone ? String(farmer.phone) : null,
+                blockName: block?.name ? String(block.name) : null,
+                cropName: block?.crop_name ? String(block.crop_name) : null,
+            },
+            comments: (comments ?? []).map((c) => ({
+                id: String(c.id),
+                authorEmail: String(c.author_email),
+                authorRole: String(c.author_role),
+                authorName: c.author_name ? String(c.author_name) : null,
+                body: String(c.body),
+                createdAt: String(c.created_at),
+                atLabel: formatDateTime(c.created_at) ?? '—',
+            })),
+        };
+    },
+    async addTaskComment(taskId, input) {
+        const { data, error } = await supabase
+            .from('crm_task_comments')
+            .insert({
+            task_id: taskId,
+            author_email: input.authorEmail.trim().toLowerCase(),
+            author_role: input.authorRole,
+            author_name: input.authorName ?? null,
+            body: input.body.trim(),
+        })
+            .select()
+            .single();
+        if (!error && data) {
+            await supabase.from('crm_tasks').update({ updated_at: new Date().toISOString() }).eq('id', taskId);
+            return {
+                id: String(data.id),
+                authorEmail: String(data.author_email),
+                authorRole: String(data.author_role),
+                authorName: data.author_name ? String(data.author_name) : null,
+                body: String(data.body),
+                createdAt: String(data.created_at),
+                atLabel: formatDateTime(data.created_at) ?? '—',
+            };
+        }
+        const { data: task } = await supabase.from('crm_tasks').select('notes').eq('id', taskId).maybeSingle();
+        const prefix = input.authorRole === 'agronomist' ? 'Agronomist' : 'Telecaller';
+        const line = `[${prefix}] ${input.body.trim()}`;
+        const merged = [task?.notes ? String(task.notes) : null, line].filter(Boolean).join('\n');
+        await supabase
+            .from('crm_tasks')
+            .update({ notes: merged, updated_at: new Date().toISOString() })
+            .eq('id', taskId);
+        const now = new Date().toISOString();
+        return {
+            id: taskId,
+            authorEmail: input.authorEmail.trim().toLowerCase(),
+            authorRole: input.authorRole,
+            authorName: input.authorName ?? null,
+            body: input.body.trim(),
+            createdAt: now,
+            atLabel: formatDateTime(now) ?? '—',
+        };
+    },
+    async listAssignableAgronomists() {
+        const { data, error } = await supabase
+            .from('employee_profiles')
+            .select('id, full_name, email, employee_code, status')
+            .eq('role', 'agronomist')
+            .eq('status', 'active')
+            .order('full_name', { ascending: true });
+        throwIfSupabaseError(error, 'Could not load agronomists');
+        return (data ?? []).map((row) => ({
+            id: String(row.id),
+            name: String(row.full_name ?? row.email),
+            email: String(row.email).trim().toLowerCase(),
+            employeeCode: row.employee_code ? String(row.employee_code) : null,
+        }));
     },
     async updateTask(taskId, input) {
         const updates = { updated_at: new Date().toISOString() };

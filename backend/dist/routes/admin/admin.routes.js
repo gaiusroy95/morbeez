@@ -13,6 +13,7 @@ import { combosAdminService } from '../../services/admin/combos-admin.service.js
 import { flashSalesAdminService } from '../../services/admin/flash-sales-admin.service.js';
 import { shiprocketAdminService } from '../../services/admin/shiprocket-admin.service.js';
 import { bannersAdminService } from '../../services/admin/banners-admin.service.js';
+import { bannersThemeSyncService } from '../../services/admin/banners-theme-sync.service.js';
 import { aiAdvisoryAdminService } from '../../services/admin/ai-advisory-admin.service.js';
 import { aiMappingAdminService } from '../../services/admin/ai-mapping-admin.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
@@ -29,6 +30,7 @@ import { marketInsightAdminService } from '../../services/admin/market-insight-a
 import { crmInternalNotesService } from '../../services/admin/crm-internal-notes.service.js';
 import { osFoundationRoutes } from './os-foundation.routes.js';
 import { osOperationsRoutes } from './os-operations.routes.js';
+import { osBroadcastRoutes } from './os-broadcast.routes.js';
 import { osTelecallerRoutes } from './os-telecaller.routes.js';
 import { osIntelligenceRoutes } from './os-intelligence.routes.js';
 import { osAgronomistRoutes } from './os-agronomist.routes.js';
@@ -37,6 +39,7 @@ import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
+import { osMarketingRoutes } from './os-marketing.routes.js';
 import { getModulesForRole, canApproveRecommendations, assertModuleAccess, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
 import { CONSOLE_ROLES } from '../../lib/console-roles.js';
 import { requireAdmin, requireAdminRole } from '../../middleware/adminAuth.js';
@@ -680,6 +683,12 @@ export async function adminRoutes(app) {
             : 'all';
         const result = await bannersAdminService.list({ tab, placement });
         return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/banners/sync-from-theme`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const result = await bannersThemeSyncService.syncFromShopifyTheme();
+        const listed = await bannersAdminService.list({ tab: 'all' });
+        return reply.send({ ok: true, ...result, tabCounts: listed.tabCounts, banners: listed.banners });
     });
     app.get(`${api}/banners/:id`, async (request, reply) => {
         requireAdmin(request);
@@ -2247,6 +2256,25 @@ export async function adminRoutes(app) {
         const product = await shopifyProductsService.publishToStorefront(id);
         return reply.send({ ok: true, product });
     });
+    app.post(`${api}/products/import`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const body = z
+            .object({
+            rows: z
+                .array(z.object({
+                id: z.string().optional(),
+                title: z.string().min(1),
+                category: z.string().optional(),
+                brand: z.string().optional(),
+                status: z.string().optional(),
+            }))
+                .min(1)
+                .max(500),
+        })
+            .parse(request.body);
+        const result = await shopifyProductsService.importRows(body.rows);
+        return reply.send({ ok: true, ...result });
+    });
     app.get(`${api}/products`, async (request, reply) => {
         requireAdmin(request);
         const q = request.query;
@@ -2398,6 +2426,7 @@ export async function adminRoutes(app) {
     });
     await app.register(osFoundationRoutes);
     await app.register(osOperationsRoutes);
+    await app.register(osBroadcastRoutes);
     await app.register(osTelecallerRoutes);
     await app.register(osIntelligenceRoutes);
     await app.register(osAgronomistRoutes);
@@ -2406,6 +2435,7 @@ export async function adminRoutes(app) {
     await app.register(osSettingsRoutes);
     await app.register(osWarehouseRoutes);
     await app.register(osPricingRoutes);
+    await app.register(osMarketingRoutes);
     const { osSeoRoutes } = await import('./os-seo.routes.js');
     await app.register(osSeoRoutes);
 }

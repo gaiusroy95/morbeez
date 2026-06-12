@@ -1,3 +1,4 @@
+import { type TemplateLanguage, type TemplateVariableContext } from './language-template-variables.js';
 export type QuickReplyCategory = 'general' | 'telecaller' | 'advisory' | 'orders' | 'broadcast';
 export declare const operationsMessagingService: {
     listQuickReplies(category?: string): Promise<any[]>;
@@ -27,7 +28,202 @@ export declare const operationsMessagingService: {
         templateKey?: string;
         language?: string;
         status?: string;
-    }): Promise<any[]>;
+        category?: string;
+        search?: string;
+    }): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }[]>;
+    getLanguageTemplate(templateKey: string): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    createLanguageTemplateDefinition(input: {
+        templateKey: string;
+        displayName?: string;
+        category?: string;
+        channel?: "session" | "meta_template";
+        metaTemplateName?: string;
+        masterLanguage?: TemplateLanguage;
+        initialBody?: string;
+    }): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    saveLanguageTemplateBundle(templateKey: string, input: {
+        displayName?: string;
+        category?: string;
+        channel?: "session" | "meta_template";
+        metaTemplateName?: string | null;
+        status?: string;
+        masterLanguage?: TemplateLanguage;
+        languages?: Partial<Record<TemplateLanguage, {
+            bodyText?: string;
+            headerText?: string;
+            footerText?: string;
+            status?: string;
+        }>>;
+    }): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    duplicateLanguageTemplate(templateKey: string, newKey: string): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    previewLanguageTemplate(templateKey: string, language: TemplateLanguage, variables?: TemplateVariableContext): Promise<{
+        language: "en" | "ml" | "ta" | "kn" | "hi";
+        rendered: string;
+        raw: string;
+    }>;
+    copyLanguageTemplateToAll(templateKey: string): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
+    translateLanguageTemplate(templateKey: string, targetLanguages: TemplateLanguage[]): Promise<{
+        templateKey: string;
+        displayName: string;
+        category: string;
+        channel: string;
+        metaTemplateName: string | null;
+        status: string;
+        variableSchema: string[];
+        workflowJson: Record<string, unknown>;
+        masterLanguage: string;
+        languages: Record<string, {
+            id?: string;
+            bodyText: string;
+            headerText: string | null;
+            footerText: string | null;
+            status: string;
+            channel: string;
+            metaTemplateName: string | null;
+        }>;
+        completionRate: number;
+        languageComplete: Record<string, boolean>;
+        createdAt: string;
+        updatedAt: string;
+    }>;
     upsertLanguageTemplate(row: {
         id?: string;
         templateKey: string;

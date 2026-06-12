@@ -7,6 +7,7 @@ import { eventBus } from '../../events/bus.js';
 import { logger } from '../../lib/logger.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { leadService } from '../crm/lead.service.js';
+import { leadChannelFromUtm } from '../../domain/marketing/lead-attribution.js';
 function normalizeEmail(email) {
     return email.trim().toLowerCase();
 }
@@ -125,6 +126,11 @@ export const farmerAuthService = {
                 name: fullName,
                 email: email ?? undefined,
                 channel: input.channel ?? 'website',
+                leadChannel: leadChannelFromUtm(input.utmSource, input.utmMedium),
+                campaignSource: input.utmCampaign ?? null,
+                utmCampaign: input.utmCampaign ?? null,
+                utmSource: input.utmSource ?? null,
+                utmMedium: input.utmMedium ?? null,
             });
             logger.info({
                 farmerId: data.id,

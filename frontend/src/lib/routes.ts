@@ -8,6 +8,15 @@ export const paths = {
   dashboard: 'dashboard',
   telecaller: 'telecaller',
   operations: 'operations',
+  operationsLanguageTemplate: 'operations/language-templates/:templateKey',
+  broadcasts: 'broadcasts',
+  broadcastsNew: 'broadcasts/new',
+  broadcastsScheduled: 'broadcasts/scheduled',
+  broadcastsSent: 'broadcasts/sent',
+  broadcastsTemplates: 'broadcasts/templates',
+  broadcastsAutomation: 'broadcasts/automation',
+  broadcastsAnalytics: 'broadcasts/analytics',
+  broadcastsAdmin: 'broadcasts/admin',
   intelligence: 'intelligence',
   opportunity: 'opportunity',
   productGaps: 'product-gaps',
@@ -46,9 +55,54 @@ export const ROUTE_META: Record<
     pageKey: 'telecaller',
   },
   [toPath(paths.operations)]: {
-    title: 'Operations Center',
+    title: 'Operations Hub',
     module: 'operations',
     pageKey: 'operations',
+  },
+  [toPath(paths.operationsLanguageTemplate)]: {
+    title: 'Language Template Editor',
+    module: 'operations',
+    pageKey: 'operations',
+  },
+  [toPath(paths.broadcasts)]: {
+    title: 'Broadcast Hub',
+    module: 'operations',
+    pageKey: 'broadcasts',
+  },
+  [toPath(paths.broadcastsNew)]: {
+    title: 'Create Broadcast',
+    module: 'operations',
+    pageKey: 'broadcasts-new',
+  },
+  [toPath(paths.broadcastsScheduled)]: {
+    title: 'Scheduled Broadcasts',
+    module: 'operations',
+    pageKey: 'broadcasts-scheduled',
+  },
+  [toPath(paths.broadcastsSent)]: {
+    title: 'Sent Broadcasts',
+    module: 'operations',
+    pageKey: 'broadcasts-sent',
+  },
+  [toPath(paths.broadcastsTemplates)]: {
+    title: 'Broadcast Templates',
+    module: 'operations',
+    pageKey: 'broadcasts-templates',
+  },
+  [toPath(paths.broadcastsAutomation)]: {
+    title: 'Broadcast Automation',
+    module: 'operations',
+    pageKey: 'broadcasts-automation',
+  },
+  [toPath(paths.broadcastsAnalytics)]: {
+    title: 'Broadcast Analytics',
+    module: 'operations',
+    pageKey: 'broadcasts-analytics',
+  },
+  [toPath(paths.broadcastsAdmin)]: {
+    title: 'Broadcast Admin',
+    module: 'operations',
+    pageKey: 'broadcasts-admin',
   },
   [toPath(paths.intelligence)]: {
     title: 'Agriculture Intelligence',
@@ -91,6 +145,16 @@ export const ROUTE_META: Record<
 
 export function matchRouteMeta(pathname: string): { title: string; module: string; pageKey: string } {
   const key = pathname.endsWith('/') && pathname.length > 1 ? pathname.slice(0, -1) : pathname;
+  if (key.startsWith('/operations/language-templates/')) {
+    return ROUTE_META[toPath(paths.operationsLanguageTemplate)] ?? {
+      title: 'Language Template Editor',
+      module: 'operations',
+      pageKey: 'operations',
+    };
+  }
+  if (key.startsWith('/broadcasts')) {
+    return ROUTE_META[key] ?? { title: 'Broadcast Hub', module: 'operations', pageKey: 'broadcasts' };
+  }
   if (key.startsWith('/employees/') && key !== '/employees') {
     return { title: 'Employee Details', module: 'settings', pageKey: 'employees' };
   }

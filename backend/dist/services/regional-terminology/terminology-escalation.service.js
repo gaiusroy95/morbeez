@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { terminologyConceptSuggestService } from './terminology-concept-suggest.service.js';
 export const terminologyEscalationService = {
     /**
      * Stage 4 — create or bump priority for unknown regional word (does not guess meaning).
@@ -51,6 +52,7 @@ export const terminologyEscalationService = {
             .single();
         throwIfSupabaseError(error, 'Could not create terminology escalation');
         await this.recordPattern(params.farmerId, termKey, params.language);
+        await terminologyConceptSuggestService.attachSuggestionToTask(String(data.id)).catch(() => { });
         return { taskId: String(data.id), created: true };
     },
     async recordPattern(farmerId, term, language) {

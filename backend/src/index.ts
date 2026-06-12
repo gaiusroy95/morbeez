@@ -5,6 +5,7 @@ import { startOutboxWorkerIfEnabled } from './services/events/outbox.worker.js';
 import { startAdvisoryAutomationWorker } from './services/automation/advisory-automation.worker.js';
 import { startRetentionCleanupWorker } from './services/retention/retention-cleanup.worker.js';
 import { startWhatsAppBroadcastWorker } from './services/whatsapp/broadcasts/whatsapp-broadcast.worker.js';
+import { startBroadcastCampaignWorker } from './services/whatsapp/broadcasts/broadcast-campaign.worker.js';
 import { startMarketInsightBroadcastWorker } from './services/whatsapp/market-insights/market-insight-broadcast.worker.js';
 import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-prompt.worker.js';
 import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
@@ -15,6 +16,7 @@ async function main() {
   startAdvisoryAutomationWorker();
   startRetentionCleanupWorker();
   startWhatsAppBroadcastWorker();
+  startBroadcastCampaignWorker();
   startMarketInsightBroadcastWorker();
   startRoiDailyPromptWorker();
   startFarmerOpportunityScoreWorker();

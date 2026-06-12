@@ -20,6 +20,7 @@ export declare const regionalTerminologyProcessor: {
         reduceAiConfidence: boolean;
     }>;
     localizeOutbound(text: string, detection: TerminologyDetectionResult | null, language: AdvisoryLanguage): string;
+    localizeOutboundAsync(text: string, detection: TerminologyDetectionResult | null, language: AdvisoryLanguage, district?: string | null): Promise<string>;
     pendingFarmerCopy(language: AdvisoryLanguage): string;
 };
 export {};

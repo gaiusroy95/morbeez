@@ -318,6 +318,7 @@ export declare const crmFarmerService: {
         metrics?: Record<string, unknown>;
         pdfUrl?: string;
         uploadedBy?: string;
+        reportedAt?: string;
     }): Promise<any>;
     listRecommendations(farmerId: string, page?: number, limit?: number): Promise<{
         recommendations: {
@@ -920,16 +921,20 @@ export declare const crmFarmerService: {
         taskType: any;
         notes: any;
     }[]>;
+    resolveAgronomistEmail(farmerId: string): Promise<string | null>;
     scheduleVisit(farmerId: string, leadId: string | null, input: {
         title?: string;
         dueAt: string;
         notes?: string;
         blockId?: string;
         assignedTo?: string;
+        assignedAgronomist?: string;
+        createdBy?: string;
     }): Promise<{
         task: any;
         icsContent: string;
         icsFilename: string;
+        assignedAgronomist: string | null;
     }>;
     createManualOrder(farmerId: string, leadId: string | null, input: {
         blockId?: string;

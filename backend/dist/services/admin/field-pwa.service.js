@@ -4,6 +4,39 @@ import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from '../core/block.service.js';
 import { fieldStorageService } from '../core/field-storage.service.js';
 import { telecallerAdminService } from './telecaller-admin.service.js';
+function soilHealthMeta(raw) {
+    const health = String(raw ?? 'good').toLowerCase();
+    if (health === 'good') {
+        return { soilHealth: health, soilHealthLabel: 'Good', soilHealthStatus: 'stable' };
+    }
+    if (health === 'medium') {
+        return { soilHealth: health, soilHealthLabel: 'Average', soilHealthStatus: 'monitor' };
+    }
+    return { soilHealth: health, soilHealthLabel: 'Need assistance', soilHealthStatus: 'alert' };
+}
+function cropHealthFromTone(tone) {
+    const t = String(tone ?? '').toLowerCase();
+    if (t === 'healthy') {
+        return { cropHealthLabel: 'Good', cropHealthStatus: 'stable' };
+    }
+    if (t === 'warning') {
+        return { cropHealthLabel: 'Average', cropHealthStatus: 'monitor' };
+    }
+    if (t === 'danger') {
+        return { cropHealthLabel: 'Need assistance', cropHealthStatus: 'alert' };
+    }
+    return { cropHealthLabel: '—', cropHealthStatus: 'monitor' };
+}
+function dapAtDate(plantingDate, atIso) {
+    if (!plantingDate || !atIso)
+        return null;
+    const start = new Date(String(plantingDate).slice(0, 10));
+    const at = new Date(String(atIso).slice(0, 10));
+    start.setHours(0, 0, 0, 0);
+    at.setHours(0, 0, 0, 0);
+    const dap = Math.floor((at.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+    return dap >= 0 ? dap : null;
+}
 function mapFarmerSearchRow(f) {
     return {
         id: f.id,
@@ -49,17 +82,91 @@ export const fieldPwaService = {
     },
     async getFarmerBlocks(farmerId) {
         const blocks = await blockService.listByFarmer(farmerId);
-        return blocks.map((b) => ({
-            id: b.id,
-            name: b.name,
-            cropType: b.crop_type,
-            plotLabel: b.plot_label,
-            dap: b.dap,
-            plantingDate: b.planting_date,
-            latitude: b.latitude,
-            longitude: b.longitude,
-            hasPlotGps: b.latitude != null && b.longitude != null,
-        }));
+        if (!blocks.length)
+            return [];
+        const blockIds = blocks.map((b) => b.id);
+        const [{ data: blockRows }, { data: findings }, { data: soils }, { data: activities }] = await Promise.all([
+            supabase
+                .from('farm_blocks')
+                .select('id, soil_health, last_visit_at, area, acreage_decimal')
+                .in('id', blockIds),
+            supabase
+                .from('crm_field_findings')
+                .select('block_id, disease_tone, disease_pest, observations, visited_at')
+                .eq('farmer_id', farmerId)
+                .in('block_id', blockIds)
+                .is('archived_at', null)
+                .order('visited_at', { ascending: false }),
+            supabase
+                .from('crm_soil_reports')
+                .select('block_id, reported_at')
+                .eq('farmer_id', farmerId)
+                .in('block_id', blockIds)
+                .order('reported_at', { ascending: false }),
+            supabase
+                .from('cultivation_activities')
+                .select('farm_block_id, activity_label, activity_type, applied_at')
+                .in('farm_block_id', blockIds)
+                .order('applied_at', { ascending: false }),
+        ]);
+        const rawById = new Map((blockRows ?? []).map((r) => [String(r.id), r]));
+        const findingByBlock = new Map();
+        for (const f of findings ?? []) {
+            const id = String(f.block_id);
+            if (!findingByBlock.has(id))
+                findingByBlock.set(id, f);
+        }
+        const soilByBlock = new Map();
+        for (const s of soils ?? []) {
+            const id = String(s.block_id);
+            if (!soilByBlock.has(id))
+                soilByBlock.set(id, s);
+        }
+        const activityByBlock = new Map();
+        for (const a of activities ?? []) {
+            const id = String(a.farm_block_id);
+            if (!activityByBlock.has(id))
+                activityByBlock.set(id, a);
+        }
+        const mapped = blocks.map((b) => {
+            const raw = rawById.get(b.id);
+            const finding = findingByBlock.get(b.id);
+            const soil = soilByBlock.get(b.id);
+            const activity = activityByBlock.get(b.id);
+            const soilMeta = soilHealthMeta(raw?.soil_health);
+            const cropMeta = cropHealthFromTone(finding?.disease_tone);
+            const lastVisitAt = (finding?.visited_at ? String(finding.visited_at) : null) ??
+                (raw?.last_visit_at ? String(raw.last_visit_at) : null);
+            const latestFindingLabel = (finding?.disease_pest ? String(finding.disease_pest) : null) ??
+                (finding?.observations ? String(finding.observations).slice(0, 80) : null);
+            const needsAttention = cropMeta.cropHealthStatus === 'alert' ||
+                soilMeta.soilHealthStatus === 'alert' ||
+                String(finding?.disease_tone ?? '') === 'danger';
+            return {
+                id: b.id,
+                name: b.name,
+                cropType: b.crop_type,
+                plotLabel: b.plot_label,
+                dap: b.dap,
+                plantingDate: b.planting_date,
+                latitude: b.latitude,
+                longitude: b.longitude,
+                hasPlotGps: b.latitude != null && b.longitude != null,
+                acreage: b.acreage_decimal ?? (raw?.acreage_decimal != null ? Number(raw.acreage_decimal) : null),
+                area: raw?.area ? String(raw.area) : null,
+                ...soilMeta,
+                lastVisitAt,
+                lastVisitDap: dapAtDate(b.planting_date, lastVisitAt),
+                ...cropMeta,
+                latestFindingLabel,
+                latestFieldActivity: activity
+                    ? String(activity.activity_label ?? activity.activity_type ?? '')
+                    : null,
+                latestSoilTestAt: soil?.reported_at ? String(soil.reported_at) : null,
+                needsAttention,
+            };
+        });
+        return mapped.sort((a, b) => Number(b.needsAttention) - Number(a.needsAttention));
     },
     async saveBlockLocation(input) {
         return blockService.updatePlotLocation(input.blockId, {

@@ -107,10 +107,24 @@ export const regionalTerminologyProcessor = {
     detection: TerminologyDetectionResult | null,
     language: AdvisoryLanguage
   ): string {
+    return responseLocalizationService.localizeSync({
+      standardResponse: text,
+      detection,
+      language,
+    });
+  },
+
+  async localizeOutboundAsync(
+    text: string,
+    detection: TerminologyDetectionResult | null,
+    language: AdvisoryLanguage,
+    district?: string | null
+  ): Promise<string> {
     return responseLocalizationService.localize({
       standardResponse: text,
       detection,
       language,
+      district,
     });
   },
 

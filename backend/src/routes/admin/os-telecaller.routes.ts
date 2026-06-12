@@ -25,6 +25,15 @@ import {
 import { userTablePreferencesService } from '../../services/admin/user-table-preferences.service.js';
 import { agronomistCaseReviewService } from '../../services/admin/agronomist-case-review.service.js';
 
+const callOutcomeEnum = z.enum([
+  'answered',
+  'connected',
+  'callback',
+  'no_answer',
+  'busy',
+  'completed',
+]);
+
 const leadStageEnum = z.enum([
   'new_lead',
   'interested',
@@ -259,6 +268,15 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, preferences: prefs });
   });
 
+  app.get(`${api}/marketing-owners`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { marketingPerformanceService } = await import(
+      '../../services/admin/marketing-performance.service.js'
+    );
+    const owners = await marketingPerformanceService.listMarketingOwners();
+    return reply.send({ ok: true, owners });
+  });
+
   app.get(`${api}/leads/:id`, async (request, reply) => {
     await assertModuleAccess(request, 'telecaller_crm', 'read');
     const { id } = request.params as { id: string };
@@ -276,6 +294,16 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
         followUpAt: z.string().nullable().optional(),
         assignedTo: z.string().nullable().optional(),
         priority: z.string().optional(),
+        leadChannel: z
+          .enum(['meta', 'instagram', 'google', 'referral', 'organic', 'whatsapp', 'field', 'other'])
+          .nullable()
+          .optional(),
+        campaignSource: z.string().nullable().optional(),
+        marketingOwnerId: z.string().uuid().nullable().optional(),
+        marketingOwnerName: z.string().nullable().optional(),
+        utmCampaign: z.string().nullable().optional(),
+        utmSource: z.string().nullable().optional(),
+        utmMedium: z.string().nullable().optional(),
       })
       .parse(request.body);
     const detail = await telecallerAdminService.updateLead(id, body, admin.email);
@@ -756,6 +784,15 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
             })
           )
           .optional(),
+        leadChannel: z
+          .enum(['meta', 'instagram', 'google', 'referral', 'organic', 'whatsapp', 'field', 'other'])
+          .optional(),
+        campaignSource: z.string().optional(),
+        marketingOwnerId: z.string().uuid().nullable().optional(),
+        marketingOwnerName: z.string().optional(),
+        utmCampaign: z.string().optional(),
+        utmSource: z.string().optional(),
+        utmMedium: z.string().optional(),
       })
       .parse(request.body);
     const detail = await telecallerAdminService.createLead(body, admin.email);
@@ -783,13 +820,166 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const body = z
       .object({
-        outcome: z.string().optional(),
+        outcome: callOutcomeEnum.optional(),
         notes: z.string().optional(),
         durationSeconds: z.number().int().optional(),
       })
       .parse(request.body);
     const detail = await telecallerAdminService.logCall(id, body, admin.email);
     return reply.send({ ok: true, ...detail });
+  });
+
+  app.post(`${api}/leads/:id/calls/upload`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        audioBase64: z.string().optional(),
+        filename: z.string().optional(),
+        mimeType: z.string().optional(),
+        transcript: z.string().optional(),
+        outcome: callOutcomeEnum.optional(),
+        durationSeconds: z.number().int().optional(),
+        recordingProvider: z.enum(['app_upload', 'voice_note', 'exotel']).optional(),
+      })
+      .parse(request.body);
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const result = await callIntelligenceService.uploadAndProcess({
+      leadId: id,
+      agentEmail: admin.email,
+      ...body,
+    });
+    return reply.status(201).send({ ok: true, call: result.call });
+  });
+
+  app.get(`${api}/calls/:callId`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { callId } = request.params as { callId: string };
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const call = await callIntelligenceService.getCall(callId);
+    return reply.send({ ok: true, call });
+  });
+
+  app.post(`${api}/calls/:callId/reprocess`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { callId } = request.params as { callId: string };
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const result = await callIntelligenceService.processCall(callId);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/calls/:callId/confirm`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { callId } = request.params as { callId: string };
+    const body = z
+      .object({
+        acceptStage: z.boolean().optional(),
+        stage: leadStageEnum.optional(),
+      })
+      .parse(request.body ?? {});
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const result = await callIntelligenceService.confirmCall(callId, {
+      ...body,
+      agentEmail: admin.email,
+    });
+    return reply.send(result);
+  });
+
+  app.post(`${api}/calls/:callId/diagnosis`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { callId } = request.params as { callId: string };
+    const body = z
+      .object({
+        imageBase64: z.string().optional(),
+        imageMimeType: z.string().optional(),
+      })
+      .parse(request.body ?? {});
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const diagnosis = await callIntelligenceService.runDiagnosis(callId, body);
+    return reply.send({ ok: true, diagnosis });
+  });
+
+  app.get(`${api}/leads/:id/timeline`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { id } = request.params as { id: string };
+    const { callIntelligenceService } = await import(
+      '../../services/call-intelligence/call-intelligence.service.js'
+    );
+    const timeline = await callIntelligenceService.getLeadTimeline(id);
+    return reply.send({ ok: true, ...timeline });
+  });
+
+  app.get(`${api}/qc/overview`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { days?: string; agentEmail?: string };
+    const { callQcService } = await import('../../services/call-intelligence/call-qc.service.js');
+    const days = q.days ? Number(q.days) : 7;
+    const overview = await callQcService.getOverview(days, q.agentEmail);
+    return reply.send({ ok: true, overview });
+  });
+
+  app.get(`${api}/qc/flagged`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { days?: string };
+    const { callQcService } = await import('../../services/call-intelligence/call-qc.service.js');
+    const calls = await callQcService.listFlaggedCalls(q.days ? Number(q.days) : 7);
+    return reply.send({ ok: true, calls });
+  });
+
+  app.get(`${api}/mobile/dashboard`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const dashboard = await telecallerMobileService.getDashboard(admin.email);
+    return reply.send({ ok: true, ...dashboard });
+  });
+
+  app.get(`${api}/mobile/leads`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { scope?: string; limit?: string };
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const leads = await telecallerMobileService.listLeads(admin.email, {
+      scope: q.scope === 'all' ? 'all' : 'mine',
+      limit: q.limit ? Number(q.limit) : 40,
+    });
+    return reply.send({ ok: true, leads });
+  });
+
+  app.get(`${api}/mobile/follow-ups`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as { status?: string };
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const tasks = await telecallerMobileService.listFollowUps(admin.email, q.status ?? 'pending');
+    return reply.send({ ok: true, tasks });
+  });
+
+  app.post(`${api}/exotel/click-to-call`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const body = z
+      .object({ leadId: z.string().uuid(), farmerPhone: z.string().min(10) })
+      .parse(request.body);
+    const { exotelService } = await import('../../services/call-intelligence/exotel.service.js');
+    const result = await exotelService.initiateClickToCall({
+      leadId: body.leadId,
+      farmerPhone: body.farmerPhone,
+      agentEmail: admin.email,
+    });
+    return reply.send({ ok: true, ...result });
   });
 
   app.post(`${api}/leads/:id/tasks`, async (request, reply) => {

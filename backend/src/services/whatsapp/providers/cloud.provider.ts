@@ -1,5 +1,6 @@
 import { env } from '../../../config/env.js';
 import { AppError } from '../../../lib/errors.js';
+import type { TemplateSendParams } from '../whatsapp-outbound.types.js';
 
 const GRAPH = 'https://graph.facebook.com/v21.0';
 
@@ -33,13 +34,29 @@ export const cloudWhatsAppProvider = {
   async sendTemplate(
     to: string,
     templateName: string,
-    params: { body: string[] }
+    params: TemplateSendParams
   ): Promise<void> {
     if (!env.WHATSAPP_PHONE_NUMBER_ID || !env.WHATSAPP_ACCESS_TOKEN) {
       throw new AppError('WhatsApp Cloud API not configured', 503, 'WHATSAPP_NOT_CONFIGURED');
     }
 
     const phone = to.replace(/\D/g, '');
+    const components: Array<Record<string, unknown>> = [];
+    if (params.body.length) {
+      components.push({
+        type: 'body',
+        parameters: params.body.map((t) => ({ type: 'text', text: t })),
+      });
+    }
+    if (params.copyCode) {
+      components.push({
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [{ type: 'text', text: params.copyCode }],
+      });
+    }
+
     const res = await fetch(`${GRAPH}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: 'POST',
       headers: {
@@ -52,13 +69,8 @@ export const cloudWhatsAppProvider = {
         type: 'template',
         template: {
           name: templateName,
-          language: { code: 'en' },
-          components: [
-            {
-              type: 'body',
-              parameters: params.body.map((t) => ({ type: 'text', text: t })),
-            },
-          ],
+          language: { code: params.language ?? 'en' },
+          components,
         },
       }),
     });

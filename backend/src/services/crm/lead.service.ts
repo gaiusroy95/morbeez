@@ -3,15 +3,8 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { eventBus } from '../../events/bus.js';
 import { farmerService } from '../farmer/farmer.service.js';
 import { normalizePhone } from '../../lib/phone.js';
-
-const STAGE_RANK: Record<string, number> = {
-  new_lead: 1,
-  interested: 2,
-  follow_up: 3,
-  recommendation: 4,
-  order_placed: 5,
-  repeat_customer: 6,
-};
+import type { LeadChannel } from '../../domain/marketing/lead-attribution.js';
+import { STAGE_RANK } from '../../domain/marketing/lead-attribution.js';
 
 const PRIORITY_RANK: Record<string, number> = {
   low: 1,
@@ -42,6 +35,12 @@ export type EnsureLeadInput = {
   referral_source?: string | null;
   affiliate_source?: string | null;
   whatsapp_profile_name?: string | null;
+  lead_channel?: LeadChannel | string | null;
+  marketing_owner_id?: string | null;
+  marketing_owner_name?: string | null;
+  utm_campaign?: string | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
   /** Append notes to existing lead instead of replacing. */
   mergeNotes?: boolean;
 };
@@ -105,6 +104,11 @@ export const leadService = {
     name?: string;
     email?: string;
     channel?: 'website' | 'mobile' | 'shopify';
+    leadChannel?: LeadChannel | string | null;
+    campaignSource?: string | null;
+    utmCampaign?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
   }): Promise<{ lead: Record<string, unknown>; created: boolean; merged: boolean }> {
     const phone = normalizePhone(input.phone);
     const channel = input.channel ?? 'website';
@@ -122,6 +126,11 @@ export const leadService = {
       priority: 'normal',
       notes: signupNotes({ channel, name: input.name, email: input.email }),
       mergeNotes: true,
+      lead_channel: input.leadChannel ?? (channel === 'mobile' ? 'organic' : 'organic'),
+      campaign_source: input.campaignSource ?? input.utmCampaign ?? null,
+      utm_campaign: input.utmCampaign ?? null,
+      utm_source: input.utmSource ?? null,
+      utm_medium: input.utmMedium ?? null,
     });
 
     return { lead, created, merged: !created };
@@ -180,6 +189,12 @@ export const leadService = {
       if (input.referral_source) patch.referral_source = input.referral_source;
       if (input.affiliate_source) patch.affiliate_source = input.affiliate_source;
       if (input.whatsapp_profile_name) patch.whatsapp_profile_name = input.whatsapp_profile_name;
+      if (input.lead_channel) patch.lead_channel = input.lead_channel;
+      if (input.marketing_owner_id !== undefined) patch.marketing_owner_id = input.marketing_owner_id;
+      if (input.marketing_owner_name !== undefined) patch.marketing_owner_name = input.marketing_owner_name;
+      if (input.utm_campaign) patch.utm_campaign = input.utm_campaign;
+      if (input.utm_source) patch.utm_source = input.utm_source;
+      if (input.utm_medium) patch.utm_medium = input.utm_medium;
 
       if (input.notes) {
         patch.notes = input.mergeNotes
@@ -214,6 +229,12 @@ export const leadService = {
         referral_source: input.referral_source ?? null,
         affiliate_source: input.affiliate_source ?? null,
         whatsapp_profile_name: input.whatsapp_profile_name ?? null,
+        lead_channel: input.lead_channel ?? null,
+        marketing_owner_id: input.marketing_owner_id ?? null,
+        marketing_owner_name: input.marketing_owner_name ?? null,
+        utm_campaign: input.utm_campaign ?? null,
+        utm_source: input.utm_source ?? null,
+        utm_medium: input.utm_medium ?? null,
         last_interaction_at: now,
       })
       .select()
@@ -243,6 +264,13 @@ export const leadService = {
     notes?: string;
     cropType?: string;
     district?: string;
+    leadChannel?: LeadChannel | string | null;
+    campaignSource?: string | null;
+    marketingOwnerId?: string | null;
+    marketingOwnerName?: string | null;
+    utmCampaign?: string | null;
+    utmSource?: string | null;
+    utmMedium?: string | null;
   }) {
     const farmer = await farmerService.upsertByPhone({
       phone: input.phone,
@@ -264,6 +292,13 @@ export const leadService = {
       priority: input.intent === 'callback' ? 'high' : 'normal',
       notes: input.notes,
       mergeNotes: true,
+      lead_channel: input.leadChannel ?? null,
+      campaign_source: input.campaignSource ?? null,
+      marketing_owner_id: input.marketingOwnerId ?? null,
+      marketing_owner_name: input.marketingOwnerName ?? null,
+      utm_campaign: input.utmCampaign ?? null,
+      utm_source: input.utmSource ?? null,
+      utm_medium: input.utmMedium ?? null,
     });
 
     if (input.intent === 'quotation' && created) {

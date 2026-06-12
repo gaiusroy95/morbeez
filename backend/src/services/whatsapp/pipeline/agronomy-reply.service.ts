@@ -49,11 +49,13 @@ export async function tryAgronomyReply(params: {
     language: params.language,
   });
 
-  const localize = (body: string) =>
-    regionalTerminologyProcessor.localizeOutbound(
+  const farmerDistrict = memory.district ?? null;
+  const localize = async (body: string) =>
+    regionalTerminologyProcessor.localizeOutboundAsync(
       body,
       params.terminologyDetection ?? null,
-      params.language
+      params.language,
+      farmerDistrict
     );
   const baseMeta = { cropType: memory.cropType };
 
@@ -65,7 +67,7 @@ export async function tryAgronomyReply(params: {
     activePlotId: memory.activePlotId,
   });
   if (verified) {
-    const body = localize(
+    const body = await localize(
       verifiedAdvisoryLearningService.formatFarmerMessage(verified.advisory, params.language)
     );
     const outbound = await replyAttributionService.deliverAttributedReply({
@@ -126,7 +128,7 @@ export async function tryAgronomyReply(params: {
   if (pair) {
     const lookup = await compatibilityLookupService.lookup(pair.productA, pair.productB);
     if (lookup.found) {
-      const reply = localize(
+      const reply = await localize(
         farmerReplyPolishService.isEnabled()
           ? await farmerReplyPolishService.polishCompatibilityReply({
               lookup,
@@ -155,7 +157,7 @@ export async function tryAgronomyReply(params: {
         memory,
       });
       if (kb) {
-        await sendAttributed(localize(kb.text), kb.module);
+        await sendAttributed(await localize(kb.text), kb.module);
         return true;
       }
       await params.sendText(
@@ -186,11 +188,11 @@ export async function tryAgronomyReply(params: {
         memory,
       });
       if (kb) {
-        await sendAttributed(localize(kb.text), kb.module);
+        await sendAttributed(await localize(kb.text), kb.module);
         return true;
       }
       await sendAttributed(
-        localize(farmerMemoryService.memoryAwareFallback(memory, params.language)),
+        await localize(farmerMemoryService.memoryAwareFallback(memory, params.language)),
         'knowledge_fallback'
       );
       return true;
@@ -205,6 +207,6 @@ export async function tryAgronomyReply(params: {
     farmerName: params.farmerName,
     memory,
   });
-  await sendAttributed(localize(reply), 'conversational_openai');
+  await sendAttributed(await localize(reply), 'conversational_openai');
   return true;
 }

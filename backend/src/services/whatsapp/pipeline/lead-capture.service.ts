@@ -22,6 +22,12 @@ export const leadCaptureService = {
       .eq('farmer_id', farmer.id);
     const hadHistoricalLead = (historicalLeadCount ?? 0) > 0;
 
+    const referral = msg.attribution?.referralSource ?? 'whatsapp';
+    const leadChannel =
+      referral === 'meta' || String(referral).toLowerCase().includes('meta')
+        ? 'meta'
+        : 'whatsapp';
+
     await leadService.ensureLeadForFarmer({
       farmerId: farmer.id,
       intent: 'general',
@@ -30,8 +36,9 @@ export const leadCaptureService = {
       stage: 'new_lead',
       notes: msg.text?.slice(0, 300) || `Inbound ${msg.msgType}`,
       mergeNotes: true,
+      lead_channel: leadChannel,
       campaign_source: msg.attribution?.campaignSource ?? null,
-      referral_source: msg.attribution?.referralSource ?? 'whatsapp',
+      referral_source: referral,
       affiliate_source: msg.attribution?.affiliateSource ?? null,
       whatsapp_profile_name: msg.profileName ?? null,
     });

@@ -1,5 +1,6 @@
 export type ProductPackagingProfile = {
     itemWeightKg: number | null;
+    unitsPerBox: number | null;
     packagingCategoryId: string | null;
     packagingCategoryName: string | null;
     preferredBoxId: string | null;
@@ -64,6 +65,7 @@ export declare const inventoryService: {
         packagingCategoryId?: string | null;
         preferredBoxCode?: string | null;
         preferredBoxId?: string | null;
+        unitsPerBox?: number | null;
         isFragile?: boolean;
         isLiquid?: boolean;
         stackable?: boolean;

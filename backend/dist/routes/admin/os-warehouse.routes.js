@@ -212,6 +212,7 @@ export async function osWarehouseRoutes(app) {
             packagingCategoryId: z.string().uuid().nullable().optional(),
             preferredBoxCode: z.string().max(20).nullable().optional(),
             preferredBoxId: z.string().uuid().nullable().optional(),
+            unitsPerBox: z.number().positive().nullable().optional(),
             isFragile: z.boolean().optional(),
             isLiquid: z.boolean().optional(),
             stackable: z.boolean().optional(),
@@ -464,6 +465,14 @@ export async function osWarehouseRoutes(app) {
         const stats = await fulfillmentService.getStats();
         return reply.send({ ok: true, stats });
     });
+    app.get(`${api}/fulfillment/completed-today`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'read');
+        const q = request.query;
+        const result = await fulfillmentService.getCompletedToday({
+            limit: q.limit ? Number(q.limit) : undefined,
+        });
+        return reply.send({ ok: true, ...result });
+    });
     app.get(`${api}/fulfillment/queue`, async (request, reply) => {
         await assertModuleAccess(request, 'warehouse', 'read');
         const q = request.query;
@@ -673,6 +682,18 @@ export async function osWarehouseRoutes(app) {
         const { id } = request.params;
         const body = z.object({ autoAwb: z.boolean().optional() }).parse(request.body ?? {});
         const estimate = await fulfillmentService.confirmPackage(id, request.adminEmail, { autoAwb: body.autoAwb });
+        return reply.send({ ok: true, estimate });
+    });
+    app.post(`${api}/fulfillment/orders/:id/package/select-box`, async (request, reply) => {
+        await assertModuleAccess(request, 'warehouse', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            boxId: z.string().uuid(),
+            boxCount: z.number().int().min(1).max(999).optional(),
+        })
+            .parse(request.body);
+        const estimate = await fulfillmentService.selectPackageBox(id, body.boxId, body.boxCount);
         return reply.send({ ok: true, estimate });
     });
     app.post(`${api}/fulfillment/orders/:id/package/override`, async (request, reply) => {

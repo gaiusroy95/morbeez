@@ -46,7 +46,7 @@ export const interaktWhatsAppProvider = {
                 type: 'Template',
                 data: {
                     templateName,
-                    languageCode: 'en',
+                    languageCode: params.language ?? 'en',
                     bodyValues: params.body,
                 },
             }),

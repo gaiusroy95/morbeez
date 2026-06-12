@@ -8,6 +8,37 @@ import { seasonalPriorityService } from '../pipeline/seasonal-priority.service.j
 import { computeDap, dapInTargetRange, todayIsoWeekday } from './dap.service.js';
 import { weatherAlertsService } from '../scenarios/weather-alerts.service.js';
 import { dailyPricesService } from '../scenarios/daily-prices.service.js';
+const FARMER_PAGE_SIZE = 2000;
+async function loadFarmerPages(options) {
+    if (options?.farmerId) {
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)')
+            .eq('id', options.farmerId)
+            .not('phone', 'is', null)
+            .limit(1);
+        if (error)
+            throw error;
+        return (data ?? []);
+    }
+    const rows = [];
+    let offset = 0;
+    while (true) {
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)')
+            .not('phone', 'is', null)
+            .range(offset, offset + FARMER_PAGE_SIZE - 1);
+        if (error)
+            throw error;
+        const page = (data ?? []);
+        rows.push(...page);
+        if (page.length < FARMER_PAGE_SIZE)
+            break;
+        offset += FARMER_PAGE_SIZE;
+    }
+    return rows;
+}
 export const broadcastEngineService = {
     async runDailyMarketPriceBroadcast(options) {
         const result = {
@@ -17,19 +48,15 @@ export const broadcastEngineService = {
             failed: 0,
             errors: [],
         };
-        let farmerQuery = supabase
-            .from('farmers')
-            .select('id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)')
-            .not('phone', 'is', null);
-        if (options?.farmerId) {
-            farmerQuery = farmerQuery.eq('id', options.farmerId);
+        let farmers;
+        try {
+            farmers = await loadFarmerPages(options);
         }
-        const { data: farmers, error } = await farmerQuery.limit(options?.farmerId ? 1 : 5000);
-        if (error) {
-            result.errors.push(error.message);
+        catch (err) {
+            result.errors.push(err instanceof Error ? err.message : 'Could not load farmers');
             return result;
         }
-        for (const row of farmers ?? []) {
+        for (const row of farmers) {
             if (!row.phone)
                 continue;
             result.farmersScanned++;
@@ -254,20 +281,16 @@ export const broadcastEngineService = {
             result.errors.push('No active broadcast rules');
             return result;
         }
-        let farmerQuery = supabase
-            .from('farmers')
-            .select('id, phone, preferred_language, district, farm_blocks(crop_type, planting_date, created_at, is_primary, archived_at)')
-            .not('phone', 'is', null);
-        if (options?.farmerId) {
-            farmerQuery = farmerQuery.eq('id', options.farmerId);
+        let farmers;
+        try {
+            farmers = await loadFarmerPages(options);
         }
-        const { data: farmers, error } = await farmerQuery.limit(options?.farmerId ? 1 : 5000);
-        if (error) {
-            result.errors.push(error.message);
+        catch (err) {
+            result.errors.push(err instanceof Error ? err.message : 'Could not load farmers');
             return result;
         }
         const isoWeekday = todayIsoWeekday();
-        for (const row of farmers ?? []) {
+        for (const row of farmers) {
             if (!row.phone)
                 continue;
             result.farmersScanned++;

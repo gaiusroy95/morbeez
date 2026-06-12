@@ -1,6 +1,7 @@
 import { env } from '../../../config/env.js';
 import { AppError } from '../../../lib/errors.js';
 import { normalizePhone } from '../../../lib/phone.js';
+import type { TemplateSendParams } from '../whatsapp-outbound.types.js';
 
 /**
  * Ads Gyani (adsgyani.in) — WA Mantra REST API v1.0
@@ -70,20 +71,24 @@ export const adsgyaniWhatsAppProvider = {
     });
   },
 
-  async sendTemplate(
-    to: string,
-    templateName: string,
-    params: { body: string[] }
-  ): Promise<void> {
+  async sendTemplate(to: string, templateName: string, params: TemplateSendParams): Promise<void> {
     const path = env.ADS_GYANI_SEND_TEMPLATE_PATH ?? '/contact/send-template-message';
+    const language = params.language ?? env.ADS_GYANI_TEMPLATE_LANGUAGE ?? 'en';
     const payload: Record<string, unknown> = {
       phone_number: phoneForApi(to),
       template_name: templateName,
-      template_language: env.ADS_GYANI_TEMPLATE_LANGUAGE ?? 'en',
+      template_language: language,
+      contact: {
+        country: 'india',
+        language_code: language.slice(0, 2),
+      },
     };
     params.body.forEach((value, i) => {
       if (i < 4) payload[`field_${i + 1}`] = value;
     });
+    if (params.copyCode) {
+      payload.copy_code = params.copyCode;
+    }
     await postJson(path, payload);
   },
 };

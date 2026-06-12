@@ -10,6 +10,8 @@ export type TerminologyDictionaryEntry = {
   cropType: string | null;
   district: string | null;
   confidence: number;
+  replyPreferred?: boolean;
+  conceptId?: string | null;
 };
 
 export type DetectedTerm = {
@@ -19,6 +21,8 @@ export type DetectedTerm = {
   standardTerm?: string;
   confidence: number;
   source: 'builtin' | 'dictionary' | 'unknown';
+  replyPreferred?: boolean;
+  conceptId?: string | null;
 };
 
 export type TerminologyDetectionResult = {

@@ -15,8 +15,22 @@ export const PAGE_SEARCH_DEFAULTS: Record<string, PageSearchDefaults> = {
   telecaller: { mode: 'none' },
   operations: {
     mode: 'local',
-    placeholder: 'Search broadcasts, prices, terminology…',
+    placeholder: 'Search prices, terms, quick replies, templates…',
   },
+  broadcasts: {
+    mode: 'local',
+    placeholder: 'Search campaigns, rules, deliveries…',
+  },
+  'broadcasts-new': { mode: 'none' },
+  'broadcasts-scheduled': { mode: 'local', placeholder: 'Search scheduled campaigns…' },
+  'broadcasts-sent': { mode: 'local', placeholder: 'Search deliveries…' },
+  'broadcasts-templates': { mode: 'local', placeholder: 'Search templates…' },
+  'broadcasts-automation': {
+    mode: 'local',
+    placeholder: 'Search broadcast rules…',
+  },
+  'broadcasts-analytics': { mode: 'none' },
+  'broadcasts-admin': { mode: 'local', placeholder: 'Search pending approvals…' },
   intelligence: {
     mode: 'local',
     placeholder: 'Search rules, templates, tasks…',

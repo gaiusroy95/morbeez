@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Morbeez Telecaller",
+    "slug": "morbeez-telecaller",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "morbeez-telecaller",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "icon": "./assets/app-icon.png",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.morbeez.telecaller"
+    },
+    "android": {
+      "package": "in.morbeez.telecaller",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon.png",
+        "backgroundColor": "#246d26"
+      }
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

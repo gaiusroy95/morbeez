@@ -7,7 +7,7 @@ import { env } from '../../config/env.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { createFarmerToken } from '../../lib/jwt.js';
 import { farmerAuthService } from './farmer-auth.service.js';
-import { deliverOtpWhatsApp } from './otp-whatsapp.service.js';
+import { deliverOtpWhatsApp, otpDeliveryErrorMessage } from './otp-whatsapp.service.js';
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_SEND_PER_HOUR = 5;
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -76,7 +76,7 @@ export const farmerOtpService = {
         }
         catch (err) {
             logger.error({ err, phone }, 'OTP WhatsApp send failed');
-            throw new ValidationError('Could not send OTP. Please try again shortly.');
+            throw new ValidationError(otpDeliveryErrorMessage(err));
         }
     },
     async verifyOtp(phoneRaw, codeRaw) {

@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { farmerAuthService } from '../auth/farmer-auth.service.js';
 import { telecallerFarmerOrdersService, } from '../admin/telecaller-farmer-orders.service.js';
 import { farmerProductReviewService } from './farmer-product-review.service.js';
@@ -8,7 +8,19 @@ import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import { advisoryImageStorageService, resolveAdvisoryImageUrl, } from '../core/advisory-image-storage.service.js';
 import { cropImageReviewService } from '../core/crop-image-review.service.js';
 import { growthStageFromDap, cropCycleDays } from './crop-stage.service.js';
-import { normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
+import { normalizeSoilMetrics, SOIL_MACRO_FIELDS, buildMetricsFromForm, hasAnyMetricValue } from '../soil/soil-lab-metrics.js';
+import { crmFarmerService } from '../admin/crm-farmer.service.js';
+function soilMetricCells(metrics) {
+    return SOIL_MACRO_FIELDS.slice(0, 6)
+        .map((f) => {
+        const v = metrics.macro[f.key];
+        if (!v?.value)
+            return null;
+        const unit = f.unit ? ` ${f.unit}` : '';
+        return { label: f.label, value: `${v.value}${unit}` };
+    })
+        .filter(Boolean);
+}
 function formatDate(iso) {
     if (!iso)
         return '—';
@@ -22,6 +34,16 @@ function formatDate(iso) {
     catch {
         return String(iso);
     }
+}
+function dapLabelFromPlanting(plantingDate, at) {
+    if (!plantingDate)
+        return null;
+    const start = new Date(String(plantingDate).slice(0, 10));
+    const end = new Date(String(at).slice(0, 10));
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+        return null;
+    const dap = Math.max(0, Math.floor((end.getTime() - start.getTime()) / 86400000));
+    return `DAP ${dap}`;
 }
 function formatDateTime(iso) {
     if (!iso)
@@ -472,39 +494,73 @@ export const farmerPortalService = {
     async listSoilReports(farmerId) {
         const { data, error } = await supabase
             .from('crm_soil_reports')
-            .select('id, reported_at, pdf_url, metrics, block_id, farm_blocks(name)')
+            .select('id, reported_at, pdf_url, metrics, block_id, farm_blocks(name, planting_date)')
             .eq('farmer_id', farmerId)
             .order('reported_at', { ascending: false })
             .limit(20);
         throwIfSupabaseError(error, 'Could not load soil reports');
+        const reports = await Promise.all((data ?? []).map(async (r) => {
+            const metrics = normalizeSoilMetrics(r.metrics);
+            const block = r.farm_blocks;
+            const reportedAt = String(r.reported_at);
+            const metricCells = soilMetricCells(metrics);
+            const rawPdf = r.pdf_url ? String(r.pdf_url) : null;
+            const pdfUrl = rawPdf
+                ? /^https?:\/\//i.test(rawPdf)
+                    ? rawPdf
+                    : ((await resolveAdvisoryImageUrl(rawPdf)) ?? rawPdf)
+                : null;
+            return {
+                id: String(r.id),
+                blockId: r.block_id ? String(r.block_id) : null,
+                blockName: block?.name ? String(block.name) : 'Block',
+                dateLabel: formatDate(reportedAt),
+                dapLabel: dapLabelFromPlanting(block?.planting_date ?? null, reportedAt),
+                health: scoreSoilReport(metrics),
+                healthLabel: scoreSoilReport(metrics) === 'good'
+                    ? 'Good'
+                    : scoreSoilReport(metrics) === 'monitor'
+                        ? 'Monitor'
+                        : 'Needs attention',
+                pdfUrl,
+                metrics: metricCells,
+                highlights: metricCells.map((m) => `${m.label}: ${m.value}`),
+            };
+        }));
+        return { reports };
+    },
+    async createSoilReport(farmerId, input) {
+        const { data: block, error: blockErr } = await supabase
+            .from('farm_blocks')
+            .select('id')
+            .eq('farmer_id', farmerId)
+            .eq('id', input.blockId)
+            .is('archived_at', null)
+            .maybeSingle();
+        throwIfSupabaseError(blockErr, 'Could not verify block');
+        if (!block)
+            throw new NotFoundError('Block not found');
+        const metrics = buildMetricsFromForm(input.macro ?? {}, input.micro ?? {}, undefined, input.remarks);
+        if (!hasAnyMetricValue(metrics) && !input.imageData?.trim()) {
+            throw new ValidationError('Enter at least one soil parameter or upload a lab report');
+        }
+        let pdfUrl;
+        if (input.imageData?.trim()) {
+            const path = await advisoryImageStorageService.uploadFromBase64(farmerId, input.imageData, input.mimeType ?? 'image/jpeg');
+            if (!path)
+                throw new NotFoundError('Could not upload report — try a smaller image (max 8MB)');
+            pdfUrl = path;
+        }
+        const report = await crmFarmerService.createSoilReport(farmerId, {
+            blockId: input.blockId,
+            metrics: metrics,
+            pdfUrl,
+            uploadedBy: 'farmer_app',
+            reportedAt: input.reportedAt,
+        });
         return {
-            reports: (data ?? []).map((r) => {
-                const metrics = normalizeSoilMetrics(r.metrics);
-                const block = r.farm_blocks;
-                return {
-                    id: String(r.id),
-                    blockId: r.block_id ? String(r.block_id) : null,
-                    blockName: block?.name ? String(block.name) : 'Block',
-                    dateLabel: formatDate(String(r.reported_at)),
-                    health: scoreSoilReport(metrics),
-                    healthLabel: scoreSoilReport(metrics) === 'good'
-                        ? 'Good'
-                        : scoreSoilReport(metrics) === 'monitor'
-                            ? 'Monitor'
-                            : 'Needs attention',
-                    pdfUrl: r.pdf_url ? String(r.pdf_url) : null,
-                    highlights: [
-                        metrics.macro.ph?.value ? `pH ${metrics.macro.ph.value}` : null,
-                        metrics.macro.nitrogen?.value ? `N ${metrics.macro.nitrogen.value} ${metrics.macro.nitrogen.unit}` : null,
-                        metrics.macro.phosphorus?.value
-                            ? `P ${metrics.macro.phosphorus.value} ${metrics.macro.phosphorus.unit}`
-                            : null,
-                        metrics.macro.potassium?.value
-                            ? `K ${metrics.macro.potassium.value} ${metrics.macro.potassium.unit}`
-                            : null,
-                    ].filter(Boolean),
-                };
-            }),
+            id: String(report?.id ?? ''),
+            blockId: input.blockId,
         };
     },
     async getRoi(farmerId) {

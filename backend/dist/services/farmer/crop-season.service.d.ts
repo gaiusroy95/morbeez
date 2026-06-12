@@ -261,6 +261,7 @@ export declare const cropSeasonService: {
         type?: "expense" | "income";
         from?: string;
         to?: string;
+        categoryId?: string;
         page?: number;
         limit?: number;
     }): Promise<{

@@ -21,6 +21,7 @@ import { trainingExportService } from '../../services/core/training-export.servi
 import { weatherCorrelationService } from '../../services/core/weather-correlation.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
+import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
 const draftSchema = z.object({
     findingId: z.string().uuid(),
     farmerId: z.string().uuid(),
@@ -504,6 +505,61 @@ export async function osAgronomistRoutes(app) {
         const dashboard = await agronomistMobileService.getMobileDashboard(admin.email);
         return reply.send({ ok: true, dashboard });
     });
+    app.get(`${api}/operations/tasks`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z.object({ status: z.enum(['pending', 'done', 'all']).optional() }).parse(request.query ?? {});
+        const tasks = await telecallerAdminService.listTasksForAgronomist(admin.email, q.status === 'all' ? undefined : { status: q.status ?? 'pending' });
+        return reply.send({ ok: true, tasks });
+    });
+    app.get(`${api}/operations/visits`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'read');
+        const visits = await telecallerAdminService.listScheduledVisitsForAgronomist(admin.email);
+        return reply.send({ ok: true, visits });
+    });
+    app.get(`${api}/operations/tasks/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getTaskDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/operations/tasks/:id/comments`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { id } = request.params;
+        const body = z.object({ body: z.string().min(1).max(4000) }).parse(request.body);
+        const comment = await telecallerAdminService.addTaskComment(id, {
+            body: body.body,
+            authorEmail: admin.email,
+            authorRole: 'agronomist',
+            authorName: admin.fullName ?? admin.email,
+        });
+        return reply.status(201).send({ ok: true, comment });
+    });
+    app.patch(`${api}/operations/tasks/:id/complete`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { id } = request.params;
+        await telecallerAdminService.completeTask(id);
+        return reply.send({ ok: true });
+    });
+    app.post(`${api}/operations/leads/:leadId/schedule-visit`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { leadId } = request.params;
+        const body = z
+            .object({
+            title: z.string().optional(),
+            dueAt: z.string(),
+            notes: z.string().optional(),
+            blockId: z.string().uuid().optional(),
+        })
+            .parse(request.body);
+        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const result = await crmFarmerService.scheduleVisit(String(detail.lead.farmerId), leadId, {
+            ...body,
+            assignedAgronomist: admin.email,
+            assignedTo: admin.email,
+            createdBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, ...result });
+    });
     app.get(`${api}/mobile/farmers`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'read');
         const q = z
@@ -529,6 +585,37 @@ export async function osAgronomistRoutes(app) {
         const { farmerId } = request.params;
         const documents = await agronomistMobileService.listFarmerDocuments(farmerId);
         return reply.send({ ok: true, documents });
+    });
+    app.get(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const q = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() }).parse(request.query ?? {});
+        const recommendations = await agronomistMobileService.listFarmerRecommendations(farmerId, q.limit ?? 20);
+        return reply.send({ ok: true, recommendations });
+    });
+    app.get(`${api}/farmers/:farmerId/blocks/:blockId/detail`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId, blockId } = request.params;
+        const detail = await agronomistMobileService.getBlockDetail(farmerId, blockId);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            leadId: z.string().uuid().optional(),
+            fieldFindingId: z.string().uuid().optional(),
+            issueDetected: z.string().max(500).optional(),
+            recommendationText: z.string().min(1).max(8000),
+            dosage: z.string().max(2000).optional(),
+            weatherWarning: z.string().max(500).optional(),
+            language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
+        })
+            .parse(request.body);
+        const recommendation = await agronomistMobileService.createFarmerRecommendation(farmerId, admin.email, body);
+        return reply.status(201).send({ ok: true, recommendation });
     });
     app.get(`${api}/mobile/tasks`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'read');

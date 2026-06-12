@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { shopifyCampaignsService } from '../shopify/shopify-campaigns.service.js';
 function calcDiscount(original, flash) {
     if (original <= 0)
         return 0;
@@ -131,7 +132,15 @@ export const flashSalesAdminService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not create flash sale');
-        return mapFlash(data);
+        const sale = mapFlash(data);
+        if (input.shopifyProductId?.trim()) {
+            void shopifyCampaignsService.syncFlashSalePrice({
+                shopifyProductId: input.shopifyProductId.trim(),
+                flashPrice: input.flashPrice,
+                originalPrice: input.originalPrice,
+            });
+        }
+        return sale;
     },
 };
 //# sourceMappingURL=flash-sales-admin.service.js.map

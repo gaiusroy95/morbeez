@@ -7,6 +7,138 @@ import { packagingCategoryService } from './packaging-category.service.js';
 import { packageRuleService } from './package-rule.service.js';
 import { packagingSettingsService } from './packaging-settings.service.js';
 import { orderPackageService } from './order-package.service.js';
+function boxesForLine(qty, unitsPerBox) {
+    if (!unitsPerBox || unitsPerBox <= 0)
+        return 1;
+    return Math.max(1, Math.ceil(qty / unitsPerBox));
+}
+function buildPackageEstimate(commerceOrderId, box, ruleId, source, dominantCategoryId, dominantCategoryName, contentWeight, boxCount, analyses, settings) {
+    const packageWeight = contentWeight + boxCount * box.tareWeightKg;
+    const volKg = volumetricWeightKg(box.lengthCm, box.breadthCm, box.heightCm, settings.volumetricDivisorCm);
+    const billKg = billingWeightKg(packageWeight, box.lengthCm, box.breadthCm, box.heightCm, settings);
+    const courierPayload = buildCourierPayload({
+        length: box.lengthCm,
+        breadth: box.breadthCm,
+        height: box.heightCm,
+        weight: packageWeight,
+        billingWeight: billKg,
+    }, settings);
+    return {
+        commerceOrderId,
+        suggestedBox: box,
+        packagingCategoryId: dominantCategoryId,
+        packagingCategoryName: dominantCategoryName,
+        matchedRuleId: ruleId,
+        boxCount,
+        lengthCm: box.lengthCm,
+        breadthCm: box.breadthCm,
+        heightCm: box.heightCm,
+        estimatedWeightKg: Math.round(contentWeight * 1000) / 1000,
+        packageWeightKg: Math.round(packageWeight * 1000) / 1000,
+        billingWeightKg: billKg,
+        volumetricWeightKg: volKg,
+        courierPayload: {
+            length: courierPayload.length,
+            breadth: courierPayload.breadth,
+            height: courierPayload.height,
+            weight: courierPayload.billingWeight,
+        },
+        lines: analyses,
+        meta: {
+            boxSelectionSource: source,
+            matchedRuleId: ruleId,
+            packagingCategoryId: dominantCategoryId,
+            volumetricWeightKg: volKg,
+            boxCount,
+            settings,
+        },
+    };
+}
+async function analyzeOrderLines(commerceOrderId) {
+    const settings = await packagingSettingsService.getSettings();
+    const { data: lines, error: lineErr } = await supabase
+        .from('commerce_order_lines')
+        .select(`id, product_title, variant_title, sku, qty_ordered, qty_cancelled, inventory_item_id,
+       inventory_items(
+         item_weight_kg, units_per_box, packaging_category_id, preferred_box_id,
+         is_fragile, is_liquid, stackable,
+         packaging_categories(id, name, priority)
+       )`)
+        .eq('commerce_order_id', commerceOrderId);
+    throwIfSupabaseError(lineErr, 'Load order lines');
+    const activeLines = (lines ?? []).filter((l) => Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0) > 0);
+    if (!activeLines.length) {
+        throw new AppError('Order has no shippable lines', 409, 'NO_LINES');
+    }
+    const generalCategory = await packagingCategoryService.getGeneralCategory();
+    const analyses = [];
+    let contentWeight = 0;
+    let totalBoxCount = 0;
+    let dominantCategoryId = generalCategory.id;
+    let dominantCategoryName = generalCategory.name;
+    let dominantLineWeight = -1;
+    let preferredBoxId = null;
+    for (const line of activeLines) {
+        const qty = Number(line.qty_ordered) - Number(line.qty_cancelled ?? 0);
+        const invRaw = line.inventory_items;
+        const inv = Array.isArray(invRaw) ? (invRaw[0] ?? null) : invRaw;
+        const catRaw = inv?.packaging_categories;
+        const cat = Array.isArray(catRaw) ? (catRaw[0] ?? null) : catRaw;
+        let unitWeight = inv?.item_weight_kg != null && Number(inv.item_weight_kg) > 0
+            ? Number(inv.item_weight_kg)
+            : settings.defaultUnitWeightKg;
+        const weightSource = inv?.item_weight_kg != null && Number(inv.item_weight_kg) > 0
+            ? 'catalog'
+            : 'settings_default';
+        const unitsPerBox = inv?.units_per_box != null && Number(inv.units_per_box) > 0
+            ? Number(inv.units_per_box)
+            : null;
+        const lineBoxCount = boxesForLine(qty, unitsPerBox);
+        totalBoxCount += lineBoxCount;
+        const lineWeight = unitWeight * qty;
+        contentWeight += lineWeight;
+        const categoryId = cat?.id
+            ? String(cat.id)
+            : inv?.packaging_category_id
+                ? String(inv.packaging_category_id)
+                : generalCategory.id;
+        const categoryName = cat?.name ? String(cat.name) : generalCategory.name;
+        if (lineWeight > dominantLineWeight) {
+            dominantLineWeight = lineWeight;
+            dominantCategoryId = categoryId;
+            dominantCategoryName = categoryName;
+        }
+        const linePreferredBoxId = inv?.preferred_box_id ? String(inv.preferred_box_id) : null;
+        if (linePreferredBoxId && !preferredBoxId)
+            preferredBoxId = linePreferredBoxId;
+        analyses.push({
+            lineId: String(line.id),
+            productTitle: String(line.product_title),
+            sku: line.sku ? String(line.sku) : null,
+            qty,
+            unitWeightKg: unitWeight,
+            lineWeightKg: lineWeight,
+            unitsPerBox,
+            boxCount: lineBoxCount,
+            packagingCategoryId: categoryId,
+            packagingCategoryName: categoryName,
+            preferredBoxId: linePreferredBoxId,
+            isFragile: Boolean(inv?.is_fragile),
+            isLiquid: Boolean(inv?.is_liquid),
+            stackable: inv?.stackable !== false,
+            weightSource,
+        });
+    }
+    return {
+        settings,
+        analyses,
+        contentWeight,
+        totalBoxCount: Math.max(1, totalBoxCount),
+        dominantCategoryId,
+        dominantCategoryName,
+        preferredBoxId,
+    };
+}
 async function resolveBoxFromRules(totalContentWeightKg, dominantCategoryId, preferredBoxId) {
     if (preferredBoxId) {
         try {
@@ -45,107 +177,30 @@ export const packageRuleEngineService = {
             throw new AppError(orderErr.message, 500, 'DB_ERROR');
         if (!order)
             throw new NotFoundError('Order not found');
-        const settings = await packagingSettingsService.getSettings();
-        const { data: lines, error: lineErr } = await supabase
-            .from('commerce_order_lines')
-            .select(`id, product_title, variant_title, sku, qty_ordered, qty_cancelled, inventory_item_id,
-         inventory_items(
-           item_weight_kg, packaging_category_id, preferred_box_id,
-           is_fragile, is_liquid, stackable,
-           packaging_categories(id, name, priority)
-         )`)
-            .eq('commerce_order_id', commerceOrderId);
-        throwIfSupabaseError(lineErr, 'Load order lines');
-        const activeLines = (lines ?? []).filter((l) => Number(l.qty_ordered) - Number(l.qty_cancelled ?? 0) > 0);
-        if (!activeLines.length) {
-            throw new AppError('Order has no shippable lines', 409, 'NO_LINES');
+        const analysis = await analyzeOrderLines(commerceOrderId);
+        const { box, ruleId, source } = await resolveBoxFromRules(analysis.contentWeight, analysis.dominantCategoryId, analysis.preferredBoxId);
+        return buildPackageEstimate(commerceOrderId, box, ruleId, source, analysis.dominantCategoryId, analysis.dominantCategoryName, analysis.contentWeight, analysis.totalBoxCount, analysis.analyses, analysis.settings);
+    },
+    async recalculateWithSelectedBox(commerceOrderId, boxId, boxCountOverride) {
+        const box = await shippingBoxService.getById(boxId);
+        if (!box.active)
+            throw new AppError('Selected box is inactive', 409, 'BOX_INACTIVE');
+        const analysis = await analyzeOrderLines(commerceOrderId);
+        const boxCount = boxCountOverride != null && boxCountOverride >= 1
+            ? Math.floor(boxCountOverride)
+            : analysis.totalBoxCount;
+        const perBoxContent = analysis.contentWeight / boxCount;
+        if (perBoxContent > box.maxWeightKg) {
+            throw new AppError(`Box ${box.code} max ${box.maxWeightKg} kg but ~${Math.round(perBoxContent * 1000) / 1000} kg per box is required. Choose a larger box or increase box count.`, 409, 'BOX_TOO_SMALL');
         }
-        const generalCategory = await packagingCategoryService.getGeneralCategory();
-        const analyses = [];
-        let contentWeight = 0;
-        let dominantCategoryId = generalCategory.id;
-        let dominantCategoryName = generalCategory.name;
-        let dominantLineWeight = -1;
-        let preferredBoxId = null;
-        for (const line of activeLines) {
-            const qty = Number(line.qty_ordered) - Number(line.qty_cancelled ?? 0);
-            const invRaw = line.inventory_items;
-            const inv = Array.isArray(invRaw) ? (invRaw[0] ?? null) : invRaw;
-            const catRaw = inv?.packaging_categories;
-            const cat = Array.isArray(catRaw) ? (catRaw[0] ?? null) : catRaw;
-            let unitWeight = inv?.item_weight_kg != null && Number(inv.item_weight_kg) > 0
-                ? Number(inv.item_weight_kg)
-                : settings.defaultUnitWeightKg;
-            const weightSource = inv?.item_weight_kg != null && Number(inv.item_weight_kg) > 0
-                ? 'catalog'
-                : 'settings_default';
-            const lineWeight = unitWeight * qty;
-            contentWeight += lineWeight;
-            const categoryId = cat?.id ? String(cat.id) : inv?.packaging_category_id ? String(inv.packaging_category_id) : generalCategory.id;
-            const categoryName = cat?.name ? String(cat.name) : generalCategory.name;
-            if (lineWeight > dominantLineWeight) {
-                dominantLineWeight = lineWeight;
-                dominantCategoryId = categoryId;
-                dominantCategoryName = categoryName;
-            }
-            const linePreferredBoxId = inv?.preferred_box_id ? String(inv.preferred_box_id) : null;
-            if (linePreferredBoxId && !preferredBoxId)
-                preferredBoxId = linePreferredBoxId;
-            analyses.push({
-                lineId: String(line.id),
-                productTitle: String(line.product_title),
-                sku: line.sku ? String(line.sku) : null,
-                qty,
-                unitWeightKg: unitWeight,
-                lineWeightKg: lineWeight,
-                packagingCategoryId: categoryId,
-                packagingCategoryName: categoryName,
-                preferredBoxId: linePreferredBoxId,
-                isFragile: Boolean(inv?.is_fragile),
-                isLiquid: Boolean(inv?.is_liquid),
-                stackable: inv?.stackable !== false,
-                weightSource,
-            });
-        }
-        const { box, ruleId, source } = await resolveBoxFromRules(contentWeight, dominantCategoryId, preferredBoxId);
-        const packageWeight = contentWeight + box.tareWeightKg;
-        const volKg = volumetricWeightKg(box.lengthCm, box.breadthCm, box.heightCm, settings.volumetricDivisorCm);
-        const billKg = billingWeightKg(packageWeight, box.lengthCm, box.breadthCm, box.heightCm, settings);
-        const courierPayload = buildCourierPayload({
-            length: box.lengthCm,
-            breadth: box.breadthCm,
-            height: box.heightCm,
-            weight: packageWeight,
-            billingWeight: billKg,
-        }, settings);
-        return {
-            commerceOrderId,
-            suggestedBox: box,
-            packagingCategoryId: dominantCategoryId,
-            packagingCategoryName: dominantCategoryName,
-            matchedRuleId: ruleId,
-            lengthCm: box.lengthCm,
-            breadthCm: box.breadthCm,
-            heightCm: box.heightCm,
-            estimatedWeightKg: Math.round(contentWeight * 1000) / 1000,
-            packageWeightKg: Math.round(packageWeight * 1000) / 1000,
-            billingWeightKg: billKg,
-            volumetricWeightKg: volKg,
-            courierPayload: {
-                length: courierPayload.length,
-                breadth: courierPayload.breadth,
-                height: courierPayload.height,
-                weight: courierPayload.billingWeight,
-            },
-            lines: analyses,
-            meta: {
-                boxSelectionSource: source,
-                matchedRuleId: ruleId,
-                packagingCategoryId: dominantCategoryId,
-                volumetricWeightKg: volKg,
-                settings,
-            },
+        const estimate = buildPackageEstimate(commerceOrderId, box, null, boxCountOverride != null ? 'warehouse_manual_box_count' : 'warehouse_selected_box', analysis.dominantCategoryId, analysis.dominantCategoryName, analysis.contentWeight, boxCount, analysis.analyses, analysis.settings);
+        estimate.meta = {
+            ...estimate.meta,
+            suggestedBoxCount: analysis.totalBoxCount,
+            boxCountSource: boxCountOverride != null ? 'manual' : 'auto',
         };
+        await this.persistEstimate(commerceOrderId, estimate);
+        return estimate;
     },
     async persistEstimate(commerceOrderId, estimate) {
         const { data: current, error: curErr } = await supabase
@@ -164,6 +219,7 @@ export const packageRuleEngineService = {
             estimated_weight_kg: estimate.estimatedWeightKg,
             package_weight_kg: estimate.packageWeightKg,
             billing_weight_kg: estimate.billingWeightKg,
+            package_box_count: estimate.boxCount,
             package_overridden: false,
             package_estimate_meta: {
                 lines: estimate.lines,
@@ -189,7 +245,7 @@ export const packageRuleEngineService = {
     async ensureEstimated(commerceOrderId) {
         const { data: order, error } = await supabase
             .from('commerce_orders')
-            .select('id, package_status, suggested_box_id, package_length_cm, package_breadth_cm, package_height_cm, estimated_weight_kg, package_weight_kg, billing_weight_kg, package_estimate_meta, package_overridden, confirmed_box_id')
+            .select('id, package_status, suggested_box_id, package_length_cm, package_breadth_cm, package_height_cm, estimated_weight_kg, package_weight_kg, billing_weight_kg, package_box_count, package_estimate_meta, package_overridden, confirmed_box_id')
             .eq('id', commerceOrderId)
             .single();
         throwIfSupabaseError(error, 'Load order package');
@@ -228,6 +284,7 @@ export const packageRuleEngineService = {
             packagingCategoryId: meta.packagingCategoryId ? String(meta.packagingCategoryId) : null,
             packagingCategoryName: meta.packagingCategoryName ? String(meta.packagingCategoryName) : null,
             matchedRuleId: meta.matchedRuleId ? String(meta.matchedRuleId) : null,
+            boxCount: Number(order.package_box_count ?? meta.boxCount ?? 1),
             lengthCm,
             breadthCm,
             heightCm,
@@ -258,6 +315,7 @@ export const packageRuleEngineService = {
             package_height_cm: estimate.heightCm,
             package_weight_kg: estimate.packageWeightKg,
             billing_weight_kg: estimate.billingWeightKg,
+            package_box_count: estimate.boxCount,
             package_confirmed_at: now,
             package_confirmed_by: actorEmail ?? null,
             package_overridden: false,
@@ -337,6 +395,7 @@ export const packageRuleEngineService = {
             packagingCategoryId: null,
             packagingCategoryName: null,
             matchedRuleId: null,
+            boxCount: 1,
             lengthCm: input.lengthCm,
             breadthCm: input.breadthCm,
             heightCm: input.heightCm,

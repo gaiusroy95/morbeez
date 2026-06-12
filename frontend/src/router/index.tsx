@@ -10,6 +10,15 @@ import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import { TelecallerCrmPage } from '../pages/TelecallerCrmPage';
 import { OperationsCenterPage } from '../pages/OperationsCenterPage';
+import { LanguageTemplateEditorPage } from '../pages/operations/LanguageTemplateEditorPage';
+import { BroadcastDashboardPage } from '../pages/broadcasts/BroadcastDashboardPage';
+import { BroadcastCreatePage } from '../pages/broadcasts/BroadcastCreatePage';
+import { BroadcastScheduledPage } from '../pages/broadcasts/BroadcastScheduledPage';
+import { BroadcastSentPage } from '../pages/broadcasts/BroadcastSentPage';
+import { BroadcastTemplatesPage } from '../pages/broadcasts/BroadcastTemplatesPage';
+import { BroadcastAnalyticsPage } from '../pages/broadcasts/BroadcastAnalyticsPage';
+import { BroadcastAutomationPage } from '../pages/broadcasts/BroadcastAutomationPage';
+import { BroadcastAdminPage } from '../pages/broadcasts/BroadcastAdminPage';
 import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { OpportunityDashboardPage } from '../pages/OpportunityDashboardPage';
@@ -37,6 +46,34 @@ function TelecallerRoute() {
 function OperationsRoute() {
   const { can } = useAuth();
   return <OperationsCenterPage canWrite={can('operations', 'write')} />;
+}
+
+function LanguageTemplateEditorRoute() {
+  const { can } = useAuth();
+  return <LanguageTemplateEditorPage canWrite={can('operations', 'write')} />;
+}
+
+function BroadcastRoute({ page }: { page: 'dashboard' | 'new' | 'scheduled' | 'sent' | 'templates' | 'analytics' | 'automation' | 'admin' }) {
+  const { can } = useAuth();
+  const canWrite = can('operations', 'write');
+  switch (page) {
+    case 'dashboard':
+      return <BroadcastDashboardPage canWrite={canWrite} />;
+    case 'new':
+      return <BroadcastCreatePage canWrite={canWrite} />;
+    case 'scheduled':
+      return <BroadcastScheduledPage />;
+    case 'sent':
+      return <BroadcastSentPage />;
+    case 'templates':
+      return <BroadcastTemplatesPage canWrite={canWrite} />;
+    case 'analytics':
+      return <BroadcastAnalyticsPage />;
+    case 'automation':
+      return <BroadcastAutomationPage canWrite={canWrite} />;
+    case 'admin':
+      return <BroadcastAdminPage canWrite={canWrite} />;
+  }
 }
 
 function IntelligenceRoute() {
@@ -138,6 +175,78 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="operations">
                   <OperationsRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.operationsLanguageTemplate,
+              element: (
+                <ProtectedPage module="operations">
+                  <LanguageTemplateEditorRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcasts,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="dashboard" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsNew,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="new" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsScheduled,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="scheduled" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsSent,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="sent" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsTemplates,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="templates" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsAutomation,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="automation" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsAnalytics,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="analytics" />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.broadcastsAdmin,
+              element: (
+                <ProtectedPage module="operations">
+                  <BroadcastRoute page="admin" />
                 </ProtectedPage>
               ),
             },

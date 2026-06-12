@@ -236,11 +236,28 @@ export declare const farmerPortalService: {
             blockId: string | null;
             blockName: string;
             dateLabel: string;
+            dapLabel: string | null;
             health: "good" | "critical" | "monitor";
             healthLabel: string;
             pdfUrl: string | null;
+            metrics: {
+                label: string;
+                value: string;
+            }[];
             highlights: string[];
         }[];
+    }>;
+    createSoilReport(farmerId: string, input: {
+        blockId: string;
+        reportedAt?: string;
+        macro?: Record<string, string>;
+        micro?: Record<string, string>;
+        remarks?: string;
+        imageData?: string;
+        mimeType?: string;
+    }): Promise<{
+        id: string;
+        blockId: string;
     }>;
     getRoi(farmerId: string): Promise<{
         summary: {

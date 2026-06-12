@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { normalizePhone } from '../../lib/phone.js';
+import { terminologyConceptSuggestService } from '../regional-terminology/terminology-concept-suggest.service.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { learningLoopService } from '../core/learning-loop.service.js';
 function normalizeExpense(value) {
@@ -532,7 +533,7 @@ export const whatsappOsAdminService = {
         return data;
     },
     async listTerminologyReviewTasks(status = 'open') {
-        const allowed = new Set(['open', 'in_review', 'resolved', 'dismissed', 'all']);
+        const allowed = new Set(['open', 'in_review', 'resolved', 'dismissed', 'rejected', 'all']);
         const s = allowed.has(status) ? status : 'open';
         let q = supabase
             .from('terminology_review_tasks')
@@ -586,6 +587,9 @@ export const whatsappOsAdminService = {
             .select('*, farmers(phone, name, district, state, preferred_language)')
             .single();
         throwIfSupabaseError(error, 'Could not create terminology task');
+        if (data?.id) {
+            await terminologyConceptSuggestService.attachSuggestionToTask(String(data.id)).catch(() => { });
+        }
         return data;
     },
     async updateTerminologyTask(id, patch) {

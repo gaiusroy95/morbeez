@@ -1,10 +1,11 @@
 import { paths, toPath } from './routes';
+import { operationsHomePath } from './operations-hub-nav';
 
 /** Default landing path after login (relative to router basename, usually `/`). */
 export function getRoleHomePath(role: string | undefined | null): string {
   switch (role) {
     case 'operations':
-      return toPath(paths.operations);
+      return operationsHomePath(role);
     case 'telecaller':
       return toPath(paths.telecaller);
     case 'agronomist':

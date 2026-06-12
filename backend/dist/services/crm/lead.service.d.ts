@@ -1,3 +1,4 @@
+import type { LeadChannel } from '../../domain/marketing/lead-attribution.js';
 export type EnsureLeadInput = {
     farmerId: string;
     intent?: 'quotation' | 'callback' | 'support' | 'dealer' | 'general';
@@ -12,6 +13,12 @@ export type EnsureLeadInput = {
     referral_source?: string | null;
     affiliate_source?: string | null;
     whatsapp_profile_name?: string | null;
+    lead_channel?: LeadChannel | string | null;
+    marketing_owner_id?: string | null;
+    marketing_owner_name?: string | null;
+    utm_campaign?: string | null;
+    utm_source?: string | null;
+    utm_medium?: string | null;
     /** Append notes to existing lead instead of replacing. */
     mergeNotes?: boolean;
 };
@@ -27,6 +34,11 @@ export declare const leadService: {
         name?: string;
         email?: string;
         channel?: "website" | "mobile" | "shopify";
+        leadChannel?: LeadChannel | string | null;
+        campaignSource?: string | null;
+        utmCampaign?: string | null;
+        utmSource?: string | null;
+        utmMedium?: string | null;
     }): Promise<{
         lead: Record<string, unknown>;
         created: boolean;
@@ -53,6 +65,13 @@ export declare const leadService: {
         notes?: string;
         cropType?: string;
         district?: string;
+        leadChannel?: LeadChannel | string | null;
+        campaignSource?: string | null;
+        marketingOwnerId?: string | null;
+        marketingOwnerName?: string | null;
+        utmCampaign?: string | null;
+        utmSource?: string | null;
+        utmMedium?: string | null;
     }): Promise<{
         lead: Record<string, unknown>;
         farmer: any;

@@ -1,6 +1,7 @@
 import { env } from '../../../config/env.js';
 import { AppError } from '../../../lib/errors.js';
 import { normalizePhone } from '../../../lib/phone.js';
+import type { TemplateSendParams } from '../whatsapp-outbound.types.js';
 
 const BASE = 'https://api.interakt.ai/v1/public';
 
@@ -37,7 +38,7 @@ export const interaktWhatsAppProvider = {
   async sendTemplate(
     to: string,
     templateName: string,
-    params: { body: string[] }
+    params: TemplateSendParams
   ): Promise<void> {
     if (!env.INTERAKT_API_KEY) {
       throw new AppError('Interakt not configured', 503, 'INTERAKT_NOT_CONFIGURED');
@@ -56,7 +57,7 @@ export const interaktWhatsAppProvider = {
         type: 'Template',
         data: {
           templateName,
-          languageCode: 'en',
+          languageCode: params.language ?? 'en',
           bodyValues: params.body,
         },
       }),

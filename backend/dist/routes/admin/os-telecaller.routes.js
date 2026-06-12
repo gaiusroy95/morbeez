@@ -181,6 +181,12 @@ export async function osTelecallerRoutes(app) {
         const prefs = await userTablePreferencesService.upsert(admin.email, body.tableName, body);
         return reply.send({ ok: true, preferences: prefs });
     });
+    app.get(`${api}/marketing-owners`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { marketingPerformanceService } = await import('../../services/admin/marketing-performance.service.js');
+        const owners = await marketingPerformanceService.listMarketingOwners();
+        return reply.send({ ok: true, owners });
+    });
     app.get(`${api}/leads/:id`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');
         const { id } = request.params;
@@ -197,6 +203,16 @@ export async function osTelecallerRoutes(app) {
             followUpAt: z.string().nullable().optional(),
             assignedTo: z.string().nullable().optional(),
             priority: z.string().optional(),
+            leadChannel: z
+                .enum(['meta', 'instagram', 'google', 'referral', 'organic', 'whatsapp', 'field', 'other'])
+                .nullable()
+                .optional(),
+            campaignSource: z.string().nullable().optional(),
+            marketingOwnerId: z.string().uuid().nullable().optional(),
+            marketingOwnerName: z.string().nullable().optional(),
+            utmCampaign: z.string().nullable().optional(),
+            utmSource: z.string().nullable().optional(),
+            utmMedium: z.string().nullable().optional(),
         })
             .parse(request.body);
         const detail = await telecallerAdminService.updateLead(id, body, admin.email);
@@ -410,6 +426,41 @@ export async function osTelecallerRoutes(app) {
         const tasks = await telecallerAdminService.listLeadPendingTasks(id);
         return reply.send({ ok: true, tasks });
     });
+    app.get(`${api}/leads/:id/agronomist-tasks`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const tasks = await telecallerAdminService.listLeadAgronomistTasks(id);
+        return reply.send({ ok: true, tasks });
+    });
+    app.get(`${api}/agronomists`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const agronomists = await telecallerAdminService.listAssignableAgronomists();
+        return reply.send({ ok: true, agronomists });
+    });
+    app.get(`${api}/tasks/:id`, async (request, reply) => {
+        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        const { id } = request.params;
+        const detail = await telecallerAdminService.getTaskDetail(id);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.post(`${api}/tasks/:id/comments`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            body: z.string().min(1).max(4000),
+            authorRole: z.enum(['telecaller', 'agronomist']).optional(),
+        })
+            .parse(request.body);
+        const role = body.authorRole ?? (admin.role === 'agronomist' ? 'agronomist' : 'telecaller');
+        const comment = await telecallerAdminService.addTaskComment(id, {
+            body: body.body,
+            authorEmail: admin.email,
+            authorRole: role,
+            authorName: admin.fullName ?? admin.email,
+        });
+        return reply.status(201).send({ ok: true, comment });
+    });
     app.get(`${api}/leads/:id/escalations`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');
         const { id } = request.params;
@@ -562,6 +613,15 @@ export async function osTelecallerRoutes(app) {
                 longitude: z.number().min(68).max(97.5).optional(),
             }))
                 .optional(),
+            leadChannel: z
+                .enum(['meta', 'instagram', 'google', 'referral', 'organic', 'whatsapp', 'field', 'other'])
+                .optional(),
+            campaignSource: z.string().optional(),
+            marketingOwnerId: z.string().uuid().nullable().optional(),
+            marketingOwnerName: z.string().optional(),
+            utmCampaign: z.string().optional(),
+            utmSource: z.string().optional(),
+            utmMedium: z.string().optional(),
         })
             .parse(request.body);
         const detail = await telecallerAdminService.createLead(body, admin.email);
@@ -604,6 +664,21 @@ export async function osTelecallerRoutes(app) {
             dueAt: z.string().optional(),
             notes: z.string().optional(),
             taskType: z.string().optional(),
+            blockId: z.string().uuid().optional(),
+            priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+            assignedAgronomist: z.string().email().optional(),
+            issueDescription: z.string().max(2000).optional(),
+            taskCategory: z
+                .enum([
+                'call_farmer',
+                'visit_request',
+                'recommendation',
+                'soil_test_review',
+                'disease_review',
+                'other',
+            ])
+                .optional(),
+            initialComment: z.string().max(4000).optional(),
         })
             .parse(request.body);
         const task = await telecallerAdminService.createTask(id, body, admin.email);
@@ -846,6 +921,7 @@ export async function osTelecallerRoutes(app) {
         const result = await crmFarmerService.scheduleVisit(detail.lead.farmerId, id, {
             ...body,
             assignedTo: admin.email,
+            createdBy: admin.email,
         });
         return reply.status(201).send({ ok: true, ...result });
     });

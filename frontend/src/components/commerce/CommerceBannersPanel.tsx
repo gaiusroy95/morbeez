@@ -82,6 +82,8 @@ export function CommerceBannersPanel({ canWrite }: Props) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
+  const [syncing, setSyncing] = useState(false);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -193,6 +195,31 @@ export function CommerceBannersPanel({ canWrite }: Props) {
     }
   }
 
+  async function importFromTheme() {
+    if (!canWrite) return;
+    setSyncing(true);
+    setError('');
+    try {
+      const d = await api<{
+        ok: boolean;
+        imported: number;
+        created: number;
+        updated: number;
+        banners: Banner[];
+        tabCounts: typeof tabCounts;
+      }>('/morbeez-staff/api/v1/banners/sync-from-theme', { method: 'POST' });
+      setBanners(d.banners ?? []);
+      setTabCounts(d.tabCounts ?? { all: 0, active: 0, upcoming: 0, expired: 0 });
+      if ((d.imported ?? 0) === 0) {
+        setError('No hero or seasonal sections found in the live Shopify theme.');
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not import from Shopify theme');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <div className="commerce-banners route-offers">
       <CommerceShopifySyncBanner label="Banners" />
@@ -204,12 +231,22 @@ export function CommerceBannersPanel({ canWrite }: Props) {
           title="Storefront banners"
           actions={
             canWrite ? (
-              <Btn variant="primary" onClick={openCreate}>
-                + New banner
-              </Btn>
+              <div className="flex flex-wrap gap-2 justify-end">
+                <Btn variant="secondary" onClick={() => void importFromTheme()} disabled={syncing}>
+                  {syncing ? 'Importing…' : 'Import from Shopify theme'}
+                </Btn>
+                <Btn variant="primary" onClick={openCreate}>
+                  + New banner
+                </Btn>
+              </div>
             ) : null
           }
         >
+          <p className="text-sm text-slate-600 mb-3">
+            Banners here power the farmer app shop and API storefront promos. Homepage hero slides in the Shopify
+            theme editor are not listed automatically — use <strong>Import from Shopify theme</strong> to pull hero
+            carousel and seasonal campaign sections from your live theme.
+          </p>
           <div className="commerce-subtabs offers-tabs">
             {TABS.map((t) => (
               <button
@@ -288,7 +325,10 @@ export function CommerceBannersPanel({ canWrite }: Props) {
                 ) : (
                   <tr>
                     <td colSpan={6}>
-                      <EmptyState>No banners in this tab.</EmptyState>
+                      <EmptyState>
+                        No banners in this tab.
+                        {canWrite ? ' Import from your Shopify theme or create a new banner.' : null}
+                      </EmptyState>
                     </td>
                   </tr>
                 )}

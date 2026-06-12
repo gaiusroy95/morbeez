@@ -53,6 +53,7 @@ const envSchema = z.object({
   WHATSAPP_OUTBOUND_TEMPLATE: z.string().optional(),
   /** Approved Meta/Ads Gyani template for login OTP (single body param = code). */
   WHATSAPP_OTP_TEMPLATE: z.string().optional(),
+  WHATSAPP_OTP_TEMPLATE_LANGUAGE: z.string().optional(),
   /** When true, send login OTP via WhatsApp even if NODE_ENV is development/staging. */
   OTP_SEND_VIA_WHATSAPP: z
     .string()
@@ -235,6 +236,12 @@ const envSchema = z.object({
   GSC_CLIENT_ID: z.string().optional(),
   GSC_CLIENT_SECRET: z.string().optional(),
   GSC_REFRESH_TOKEN: z.string().optional(),
+
+  /** Exotel click-to-call + recording webhooks (Phase 7). */
+  EXOTEL_SID: z.string().optional(),
+  EXOTEL_TOKEN: z.string().optional(),
+  EXOTEL_CALLER_ID: z.string().optional(),
+  EXOTEL_SUBDOMAIN: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
