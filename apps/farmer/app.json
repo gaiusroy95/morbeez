@@ -16,7 +16,8 @@
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1a4d32"
       },
-      "package": "in.morbeez.farmer"
+      "package": "in.morbeez.farmer",
+      "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
       "expo-router"

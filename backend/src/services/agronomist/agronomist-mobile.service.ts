@@ -2,11 +2,14 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { fieldPwaService } from '../admin/field-pwa.service.js';
+import { crmFarmerService } from '../admin/crm-farmer.service.js';
+import { cropHealthFromTone } from '../../lib/block-health.js';
 import { blockService } from '../core/block.service.js';
 import { agronomistIntelligenceService } from '../intelligence/agronomist-intelligence.service.js';
 import { agronomistCaseReviewService } from '../admin/agronomist-case-review.service.js';
 import { agronomistWorkflowService } from '../admin/agronomist-workflow.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
+import { recommendationRecordsService } from '../core/recommendation-records.service.js';
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const r = 6371;
@@ -706,5 +709,158 @@ export const agronomistMobileService = {
       .single();
     throwIfSupabaseError(error, 'Could not check out');
     return data;
+  },
+
+  async listFarmerRecommendations(farmerId: string, limit = 20) {
+    const rows = await recommendationRecordsService.listByFarmer(farmerId, limit);
+    return rows.map((r) => ({
+      id: String(r.id),
+      farmerId: String(r.farmer_id),
+      blockId: r.block_id ? String(r.block_id) : null,
+      fieldFindingId: r.field_finding_id ? String(r.field_finding_id) : null,
+      issueDetected: r.issue_detected ? String(r.issue_detected) : null,
+      recommendationText: String(r.recommendation_text ?? ''),
+      dosage: r.dosage ? String(r.dosage) : null,
+      status: String(r.status),
+      createdAt: String(r.created_at),
+    }));
+  },
+
+  async createFarmerRecommendation(
+    farmerId: string,
+    createdBy: string,
+    input: {
+      blockId?: string;
+      leadId?: string;
+      fieldFindingId?: string;
+      issueDetected?: string;
+      recommendationText: string;
+      dosage?: string;
+      weatherWarning?: string;
+      language?: string;
+    }
+  ) {
+    return recommendationRecordsService.create({
+      farmerId,
+      blockId: input.blockId,
+      leadId: input.leadId,
+      fieldFindingId: input.fieldFindingId,
+      source: input.fieldFindingId ? 'field_finding' : 'agronomist',
+      issueDetected: input.issueDetected,
+      recommendationText: input.recommendationText,
+      dosage: input.dosage,
+      weatherWarning: input.weatherWarning,
+      language: input.language,
+      createdBy,
+      status: 'draft',
+    });
+  },
+
+  async getBlockDetail(farmerId: string, blockId: string) {
+    const blocks = await fieldPwaService.getFarmerBlocks(farmerId);
+    const block = blocks.find((b) => b.id === blockId);
+    if (!block) throw new NotFoundError('Block not found');
+
+    const [activitiesRes, soilRows, findingsRes, crmRecs, recordRows] = await Promise.all([
+      supabase
+        .from('cultivation_activities')
+        .select('id, activity_label, activity_type, applied_at, notes, cost_inr')
+        .eq('farmer_id', farmerId)
+        .eq('farm_block_id', blockId)
+        .order('applied_at', { ascending: false })
+        .limit(30),
+      crmFarmerService.listSoilReports(farmerId, blockId).catch(() => []),
+      supabase
+        .from('crm_field_findings')
+        .select('id, visited_at, disease_pest, observations, disease_tone, agronomist_name, action_taken')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .is('archived_at', null)
+        .order('visited_at', { ascending: false })
+        .limit(20),
+      crmFarmerService.listRecommendationsForBlock(farmerId, blockId),
+      supabase
+        .from('recommendation_records')
+        .select('id, issue_detected, recommendation_text, dosage, created_at, status, created_by')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .not('status', 'in', '(draft,cancelled,rejected)')
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    const fmt = (iso: string) =>
+      new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    const activities = (activitiesRes.data ?? []).map((a) => ({
+      id: String(a.id),
+      blockId,
+      blockName: block.name,
+      activityType: String(a.activity_type ?? 'other'),
+      activityLabel: String(a.activity_label ?? a.activity_type ?? 'Activity'),
+      activityDate: String(a.applied_at).slice(0, 10),
+      dateLabel: fmt(String(a.applied_at)),
+      notes: a.notes ? String(a.notes) : null,
+      costInr: a.cost_inr != null ? Number(a.cost_inr) : null,
+      status: 'completed',
+    }));
+
+    const fieldFindings = (findingsRes.data ?? []).map((r) => {
+      const health = cropHealthFromTone(r.disease_tone as string | null);
+      return {
+        id: String(r.id),
+        visitedAt: String(r.visited_at),
+        visitedLabel: fmt(String(r.visited_at)),
+        diseasePest: r.disease_pest ? String(r.disease_pest) : null,
+        observations: r.observations ? String(r.observations) : null,
+        diseaseTone: String(r.disease_tone ?? 'warning'),
+        cropHealthLabel: health.cropHealthLabel,
+        cropHealthStatus: health.cropHealthStatus,
+        agronomistName: r.agronomist_name ? String(r.agronomist_name) : null,
+        actionTaken: r.action_taken ? String(r.action_taken) : null,
+      };
+    });
+
+    const blockRecommendations = [
+      ...crmRecs.map((r) => ({
+        id: String(r.id),
+        title: r.problem ? String(r.problem) : 'Recommendation',
+        body: r.recommendation ? String(r.recommendation) : '',
+        dosage: r.dosage ? String(r.dosage) : null,
+        dateLabel: String(r.dateLabel ?? '—'),
+        status: String(r.status ?? 'active'),
+        recommendedBy: r.recommendedBy ? String(r.recommendedBy) : null,
+        source: 'crm' as const,
+      })),
+      ...(recordRows.data ?? []).map((r) => ({
+        id: String(r.id),
+        title: r.issue_detected ? String(r.issue_detected) : 'Agronomist recommendation',
+        body: String(r.recommendation_text ?? ''),
+        dosage: r.dosage ? String(r.dosage) : null,
+        dateLabel: fmt(String(r.created_at)),
+        status: String(r.status ?? 'approved'),
+        recommendedBy: r.created_by ? String(r.created_by) : null,
+        source: 'record' as const,
+      })),
+    ];
+
+    return {
+      block,
+      activities,
+      soilReports: (soilRows as Array<Record<string, unknown>>).map((s) => ({
+        id: String(s.id),
+        blockId,
+        blockName: block.name,
+        dateLabel: s.reported_at ? fmt(String(s.reported_at)) : '—',
+        dapLabel: null,
+        health: 'good',
+        healthLabel: 'Soil report',
+        pdfUrl: s.pdf_url ? String(s.pdf_url) : null,
+        highlights: [],
+        metrics: [],
+      })),
+      fieldFindings,
+      blockRecommendations,
+    };
   },
 };

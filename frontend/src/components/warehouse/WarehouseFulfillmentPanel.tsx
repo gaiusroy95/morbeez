@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { computeFulfillmentGates, type FulfillmentGates } from '@morbeez/shared';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
@@ -83,11 +84,12 @@ type RackProgress = {
 };
 
 type Workflow = {
-  stage: 'picking' | 'print';
+  stage: 'picking' | 'pack' | 'print';
   step: number;
   currentRack: string | null;
   racks: RackProgress[];
   currentRackLines: RackLine[];
+  pickComplete?: boolean;
   printEnabled: boolean;
 };
 
@@ -130,10 +132,12 @@ type OrderDetail = {
     created_at?: string;
   };
   pickList: { id: string; picker_id?: string | null } | null;
-  packSession: { id: string } | null;
+  packSession: { id: string; scan_complete?: boolean } | null;
   invoice: { id: string; invoice_number: string } | null;
   suggestedDispatchRack: string | null;
+  pickComplete?: boolean;
   printEnabled: boolean;
+  fulfillmentGates?: FulfillmentGates;
   workflow: Workflow | null;
   customerSummary?: {
     phone: string | null;
@@ -511,7 +515,7 @@ export function WarehouseFulfillmentPanel({
       setPickLookup(null);
       setSuccess(r.message ?? 'Picked');
       if (selectedId) await loadDetail(selectedId);
-      if (r.stage === 'print') setSuccess('All racks complete — open Print queue');
+      if (r.stage === 'pack') setSuccess('All racks complete — confirm package & transport');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Confirm pick failed');
     } finally {
@@ -714,23 +718,38 @@ export function WarehouseFulfillmentPanel({
 
   const workflow = detail?.workflow;
   const order = detail?.order;
+  const fulfillmentGates = useMemo(() => {
+    if (!detail) return null;
+    return (
+      detail.fulfillmentGates ??
+      computeFulfillmentGates({
+        pickComplete: Boolean(detail.pickComplete ?? detail.packSession?.scan_complete),
+        packageStatus: detail.package?.status,
+        shippingMethod: detail.shippingMethod ?? order?.shipping_method,
+        trackingAwb: order?.tracking_awb,
+      })
+    );
+  }, [detail, order?.shipping_method, order?.tracking_awb]);
   const shippingMethod =
+    fulfillmentGates?.shippingMethod ??
     detail?.shippingMethod ??
     (order?.shipping_method === 'manual' ? 'manual' : 'shiprocket');
   const isManualShipping = shippingMethod === 'manual';
-  const printStage = workflow?.stage === 'print' || detail?.printEnabled;
+  const pickComplete = fulfillmentGates?.pickComplete ?? false;
+  const packStage = Boolean(pickComplete && fulfillmentGates?.packRequired);
+  const printStage = Boolean(fulfillmentGates?.printEnabled);
   const awaitingTracking = order?.oms_status === 'awaiting_tracking';
   const awbPendingShipment = Boolean(order?.shiprocket_shipment_id && !order?.tracking_awb);
   const awbIssue =
     !isManualShipping &&
     Boolean(
-      !order?.tracking_awb ||
+      fulfillmentGates?.awbPending ||
         detail?.shiprocketErrorDisplay ||
         order?.shiprocket_error ||
         awbPendingShipment
     );
-  const awbRetryAllowed = awbIssue;
-  const showPrintActions = printStage || awbIssue || isManualShipping || awaitingTracking;
+  const awbRetryAllowed = awbIssue && fulfillmentGates?.packageConfirmed;
+  const showPrintActions = printStage || awaitingTracking;
   const invoiceReady = Boolean(detail?.invoice);
   const awbAssignAvailable = detail?.awbAssignAvailable !== false && !isManualShipping;
   const packageInfo = detail?.package;
@@ -1017,11 +1036,26 @@ export function WarehouseFulfillmentPanel({
                     ✓
                   </span>
                   <div>
-                    <strong>All racks picked</strong>
+                    <strong>Ready to print</strong>
                     <p>
                       {usesBatchLabels
-                        ? 'Pack the order, then mark packed and verify the pre-printed label from your tray.'
-                        : 'Use the Print queue panel to generate AWB, print label & invoice, then mark packed.'}
+                        ? 'Print invoice & packing slip, mark packed, then verify pre-printed label QR.'
+                        : isManualShipping
+                          ? 'Print invoice & packing slip, then mark packed. LR can be updated later.'
+                          : 'Print Shiprocket label & invoice, then mark packed.'}
+                    </p>
+                  </div>
+                </div>
+              ) : packStage && !awaitingLabel ? (
+                <div className="pp-complete-card">
+                  <span className="pp-complete-icon" aria-hidden>
+                    📦
+                  </span>
+                  <div>
+                    <strong>Picking complete — pack order</strong>
+                    <p>
+                      Select box type, enter number of boxes, confirm package, then choose Shiprocket or
+                      manual transport.
                     </p>
                   </div>
                 </div>
@@ -1467,11 +1501,21 @@ export function WarehouseFulfillmentPanel({
                   <div className="pp-next-step-card pp-next-step-card--ready">
                     <span aria-hidden>🖨</span>
                     <p>
-                      <strong>Printables ready</strong>
+                      <strong>Print documents</strong>
                       <span>
-                        {usesBatchLabels
-                          ? 'Print invoice, mark as packed, then verify pre-printed label QR.'
-                          : 'Print shipping label & invoice, then mark as packed.'}
+                        {isManualShipping
+                          ? 'Print invoice & packing slip, then mark packed.'
+                          : 'AWB assigned — print Shiprocket label & invoice.'}
+                      </span>
+                    </p>
+                  </div>
+                ) : packStage ? (
+                  <div className="pp-next-step-card pp-next-step-card--warn">
+                    <span aria-hidden>📦</span>
+                    <p>
+                      <strong>Pack order</strong>
+                      <span>
+                        Confirm box dimensions and transport before AWB or printing.
                       </span>
                     </p>
                   </div>
@@ -1482,10 +1526,8 @@ export function WarehouseFulfillmentPanel({
                       <strong>AWB pending</strong>
                       <span>
                         {packageNeedsConfirm
-                          ? 'Confirm package dimensions first, then assign AWB.'
-                          : printStage
-                            ? 'Assign AWB when ready. Invoice and label print stay available if courier or wallet fails.'
-                            : 'AWB generates after package confirm. Complete picking to mark packed.'}
+                          ? 'Confirm package (box + weight) first, then assign AWB.'
+                          : 'Package confirmed — assign Shiprocket AWB before printing label.'}
                       </span>
                     </p>
                     {canWrite && awbAssignAvailable && !order.tracking_awb ? (

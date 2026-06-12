@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { phoneForCheckout, sendStaffOtp, t, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 
@@ -68,8 +68,7 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollScreen centered contentContainerStyle={styles.scroll}>
           <MorbeezLogo height={48} style={styles.logo} />
           <Text style={styles.title}>{t('morbeezAgronomist', locale)}</Text>
           <Text style={styles.subtitle}>{t('agronomistTagline', locale)}</Text>
@@ -147,14 +146,13 @@ export default function LoginScreen() {
               </Pressable>
             </>
           )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollScreen>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  scroll: { paddingTop: 0 },
   logo: { alignSelf: 'center', marginBottom: 20 },
   title: { fontSize: 26, fontWeight: '700', color: tokens.green800, marginBottom: 8 },
   subtitle: { fontSize: 15, color: tokens.textMuted, marginBottom: 24 },

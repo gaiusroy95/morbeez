@@ -136,7 +136,14 @@ export const warehouseClient = {
     sessionId: string,
     lineId: string,
     qty: number
-  ): Promise<{ ok: boolean; message?: string; stage?: string; rackComplete?: boolean; printEnabled?: boolean }> {
+  ): Promise<{
+    ok: boolean;
+    message?: string;
+    stage?: string;
+    rackComplete?: boolean;
+    pickComplete?: boolean;
+    printEnabled?: boolean;
+  }> {
     return staffApi(`${WMS}/fulfillment/pack-sessions/${sessionId}/confirm-pick`, {
       method: 'POST',
       body: JSON.stringify({ lineId, qty }),
@@ -147,6 +154,7 @@ export const warehouseClient = {
     ok: boolean;
     message?: string;
     stage?: string;
+    pickComplete?: boolean;
     printEnabled?: boolean;
     advancedToRack?: string | null;
   }> {

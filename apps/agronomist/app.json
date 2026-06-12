@@ -16,7 +16,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1a4d32"
-      }
+      },
+      "softwareKeyboardLayoutMode": "resize"
     },
     "extra": {
       "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",

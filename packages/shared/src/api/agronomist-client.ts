@@ -6,6 +6,7 @@ import type {
   AgronomistCallbackRow,
   AgronomistDashboard,
   AgronomistDocumentRow,
+  AgronomistRecommendationRow,
   AgronomistEscalationRow,
   AgronomistFarmerSearchRow,
   AgronomistRouteSummary,
@@ -15,6 +16,9 @@ import type {
   FieldVisitQuestion,
   ReviewQueueItem,
 } from '../types/agronomist';
+import type { BlockFieldFinding, BlockRecommendationItem } from '../types/fields';
+import type { CultivationActivity } from '../types/activities';
+import type { PortalSoilReport } from '../types/farmer-portal';
 
 const FIELD = `${STAFF_API_V1}/os/field`;
 const AGRO = `${STAFF_API_V1}/os/agronomist`;
@@ -77,6 +81,44 @@ export const agronomistClient = {
       `${AGRO}/farmers/${farmerId}/documents`
     );
     return r.documents ?? [];
+  },
+
+  async listFarmerRecommendations(farmerId: string, limit = 20): Promise<AgronomistRecommendationRow[]> {
+    const r = await staffApi<{ ok: boolean; recommendations: AgronomistRecommendationRow[] }>(
+      `${AGRO}/farmers/${farmerId}/recommendations?limit=${limit}`
+    );
+    return r.recommendations ?? [];
+  },
+
+  async createFarmerRecommendation(
+    farmerId: string,
+    body: {
+      blockId?: string;
+      leadId?: string;
+      fieldFindingId?: string;
+      issueDetected?: string;
+      recommendationText: string;
+      dosage?: string;
+      weatherWarning?: string;
+      language?: string;
+    }
+  ) {
+    return staffApi<{ ok: boolean; recommendation: AgronomistRecommendationRow }>(
+      `${AGRO}/farmers/${farmerId}/recommendations`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  },
+
+  async getBlockDetail(farmerId: string, blockId: string) {
+    const r = await staffApi<{
+      ok: boolean;
+      block: AgronomistBlockRow;
+      activities: CultivationActivity[];
+      soilReports: PortalSoilReport[];
+      fieldFindings: BlockFieldFinding[];
+      blockRecommendations: BlockRecommendationItem[];
+    }>(`${AGRO}/farmers/${farmerId}/blocks/${encodeURIComponent(blockId)}/detail`);
+    return r;
   },
 
   async getFarmerIntelligence(farmerId: string) {

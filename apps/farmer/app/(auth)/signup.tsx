@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { farmerSignup, phoneForCheckout, t, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -55,8 +55,7 @@ export default function SignupScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollScreen contentContainerStyle={styles.scroll}>
           <MorbeezLogo height={44} style={styles.logo} />
           <Text style={styles.title}>{t('createAccount', locale)}</Text>
           {error ? <AlertBox>{error}</AlertBox> : null}
@@ -78,14 +77,13 @@ export default function SignupScreen() {
           <PasswordField label={t('confirmPassword', locale)} value={confirmPassword} onChangeText={setConfirmPassword} />
           <Btn label={loading ? 'Creating…' : t('createAccount', locale)} onPress={() => void onSubmit()} disabled={loading} />
           <Btn label="Back to sign in" onPress={() => router.back()} variant="secondary" />
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollScreen>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { padding: 24, paddingTop: 48 },
+  scroll: { paddingTop: 48 },
   logo: { alignSelf: 'center', marginBottom: 20 },
   title: {
     fontSize: 24,

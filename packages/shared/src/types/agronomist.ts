@@ -23,6 +23,19 @@ export type AgronomistBlockRow = {
   latitude?: number | null;
   longitude?: number | null;
   hasPlotGps?: boolean;
+  acreage?: number | null;
+  area?: string | null;
+  soilHealth?: string | null;
+  soilHealthLabel?: string;
+  soilHealthStatus?: string;
+  lastVisitAt?: string | null;
+  lastVisitDap?: number | null;
+  cropHealthLabel?: string;
+  cropHealthStatus?: string;
+  latestFindingLabel?: string | null;
+  latestFieldActivity?: string | null;
+  latestSoilTestAt?: string | null;
+  needsAttention?: boolean;
 };
 
 export type AgronomistDashboard = {
@@ -128,6 +141,18 @@ export type AgronomistDocumentRow = {
   type: string;
   title: string;
   url: string | null;
+  createdAt: string;
+};
+
+export type AgronomistRecommendationRow = {
+  id: string;
+  farmerId: string;
+  blockId: string | null;
+  fieldFindingId: string | null;
+  issueDetected: string | null;
+  recommendationText: string;
+  dosage: string | null;
+  status: string;
   createdAt: string;
 };
 

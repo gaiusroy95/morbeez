@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text } from 'react-native';
 import { Link, useRouter } from 'expo-router';
 import { farmerLogin, phoneForCheckout, sendOtp, t, verifyOtp } from '@morbeez/shared';
-import { AlertBox, Btn, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, LanguagePicker, MorbeezLogo, PasswordField, Screen, TextField } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -68,8 +68,7 @@ export default function LoginScreen() {
 
   return (
     <Screen>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAwareScrollScreen centered contentContainerStyle={styles.scroll}>
           <MorbeezLogo height={48} style={styles.logo} />
           <Text style={styles.title}>Morbeez Farmer</Text>
           <Text style={styles.subtitle}>{t('appTagline', locale)}</Text>
@@ -135,15 +134,13 @@ export default function LoginScreen() {
           <Link href="/(auth)/signup" style={styles.linkWrap}>
             <Text style={styles.linkText}>{t('createAccount', locale)}</Text>
           </Link>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollScreen>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
+  scroll: { paddingTop: 0 },
   logo: { alignSelf: 'center', marginBottom: 20 },
   title: { fontSize: 28, fontWeight: '700', color: '#1a1a1a', marginBottom: 8, textAlign: 'center' },
   subtitle: { fontSize: 15, color: '#666', marginBottom: 20, textAlign: 'center' },

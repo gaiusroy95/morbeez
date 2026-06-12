@@ -8,6 +8,7 @@ import {
   fetchPortalSummary,
   fetchWeatherIntel,
   formatDateInLocale,
+  resolveMarketRateDisplay,
   t,
   tokens,
   type MarketDashboard,
@@ -205,6 +206,20 @@ export default function HomeScreen() {
     [showLastYear, trends?.overlayPrevious]
   );
 
+  const marketRate = useMemo(() => {
+    if (!dashboard) return null;
+    const resolved = resolveMarketRateDisplay(dashboard, (d) => formatDateInLocale(d, locale));
+    if (!resolved) return null;
+    return {
+      ...resolved,
+      rateLabel: t(resolved.rateLabelKey, locale),
+      updatedOnLabel: resolved.updatedOnLabel
+        ? t('priceUpdatedOn', locale).replace('{date}', resolved.updatedOnLabel)
+        : null,
+      pendingMessage: resolved.pending ? t('marketRatePending', locale) : null,
+    };
+  }, [dashboard, locale]);
+
   const greetingName = farmer?.firstName ?? summary?.greetingName?.split(' ')[0] ?? 'Farmer';
 
   if ((loading && !summary) || !filtersReady) return <Loading label={t('loading', locale)} />;
@@ -273,19 +288,22 @@ export default function HomeScreen() {
           </View>
         ) : null}
 
-        {dashboard?.todayPrice != null ? (
+        {marketRate && (marketRate.showPrice || marketRate.pending) ? (
           <HomeHeroCard
             cropName={heroCropName}
             cropIcon={cropItem?.icon}
             dap={dap}
             cycleDays={cycleDays}
             stage={stage}
-            marketName={dashboard.selectedMarket ?? dashboard.districtLabel}
-            pricePerKg={dashboard.todayPrice}
-            dailyChangePct={dashboard.dailyChangePct}
-            lastYearPrice={dashboard.lastYearSameDayPricePerKg}
-            differenceInr={dashboard.differenceInr}
-            yoyPct={dashboard.yoyPct}
+            marketName={dashboard!.selectedMarket ?? dashboard!.districtLabel}
+            pricePerKg={marketRate.showPrice ? marketRate.pricePerKg : null}
+            rateLabel={marketRate.rateLabel}
+            priceUpdatedOn={marketRate.updatedOnLabel}
+            pendingRateMessage={marketRate.pendingMessage}
+            dailyChangePct={marketRate.showPrice ? dashboard!.dailyChangePct : null}
+            lastYearPrice={marketRate.showPrice ? dashboard!.lastYearSameDayPricePerKg : null}
+            differenceInr={marketRate.showPrice ? dashboard!.differenceInr : null}
+            yoyPct={marketRate.showPrice ? dashboard!.yoyPct : null}
             labels={{
               currentRate: t('currentMarketRate', locale),
               lastYearSameDay: t('lastYearSameDay', locale),

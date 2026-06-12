@@ -639,6 +639,40 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, documents });
   });
 
+  app.get(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { farmerId } = request.params as { farmerId: string };
+    const q = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() }).parse(request.query ?? {});
+    const recommendations = await agronomistMobileService.listFarmerRecommendations(farmerId, q.limit ?? 20);
+    return reply.send({ ok: true, recommendations });
+  });
+
+  app.get(`${api}/farmers/:farmerId/blocks/:blockId/detail`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { farmerId, blockId } = request.params as { farmerId: string; blockId: string };
+    const detail = await agronomistMobileService.getBlockDetail(farmerId, blockId);
+    return reply.send({ ok: true, ...detail });
+  });
+
+  app.post(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { farmerId } = request.params as { farmerId: string };
+    const body = z
+      .object({
+        blockId: z.string().uuid().optional(),
+        leadId: z.string().uuid().optional(),
+        fieldFindingId: z.string().uuid().optional(),
+        issueDetected: z.string().max(500).optional(),
+        recommendationText: z.string().min(1).max(8000),
+        dosage: z.string().max(2000).optional(),
+        weatherWarning: z.string().max(500).optional(),
+        language: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).optional(),
+      })
+      .parse(request.body);
+    const recommendation = await agronomistMobileService.createFarmerRecommendation(farmerId, admin.email, body);
+    return reply.status(201).send({ ok: true, recommendation });
+  });
+
   app.get(`${api}/mobile/tasks`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const q = z.object({ filter: z.string().optional() }).parse(request.query ?? {});

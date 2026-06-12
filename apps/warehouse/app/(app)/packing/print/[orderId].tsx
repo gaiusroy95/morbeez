@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { tokens, warehouseClient, type PrintableDoc, type WarehouseOrderDetail } from '@morbeez/shared';
+import { computeFulfillmentGates, tokens, warehouseClient, type PrintableDoc, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, Loading, Panel } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
@@ -47,10 +47,33 @@ export default function PrintDocumentsScreen() {
     void load();
   }, [load]);
 
+  const gates = detail
+    ? detail.fulfillmentGates ??
+      computeFulfillmentGates({
+        pickComplete: Boolean(detail.pickComplete ?? detail.packSession?.scan_complete),
+        packageStatus: detail.package?.status,
+        shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
+        trackingAwb: detail.order.tracking_awb,
+      })
+    : null;
+
+  useEffect(() => {
+    if (loading || !orderId || !detail || !gates) return;
+    if (gates.printEnabled) return;
+    if (gates.pickComplete && gates.packRequired) {
+      router.replace(`/(app)/packing/${orderId}`);
+    } else if (gates.pickComplete && !gates.packageConfirmed) {
+      router.replace(`/(app)/packing/${orderId}`);
+    } else if (!gates.pickComplete) {
+      router.replace(`/(app)/picking/${orderId}`);
+    }
+  }, [loading, orderId, detail, gates, router]);
+
   const shippingMethod = detail?.shippingMethod ?? detail?.order.shipping_method;
   const isManual = shippingMethod === 'manual';
   const hasAwb = Boolean(detail?.order.tracking_awb);
   const canMarkPrinted = hasAwb && !isManual;
+  const printReady = gates?.printEnabled ?? false;
 
   function openDoc(type: string, id: string) {
     setPrinted((p) => ({ ...p, [`${type}:${id}`]: true }));
@@ -75,6 +98,13 @@ export default function PrintDocumentsScreen() {
   }
 
   if (loading) return <Loading label="Loading documents…" />;
+  if (!printReady) {
+    return (
+      <View style={styles.blocked}>
+        <Loading label="Redirecting to pack step…" />
+      </View>
+    );
+  }
 
   const findDoc = (type: string) => docs.find((d) => d.type === type);
 
@@ -116,18 +146,20 @@ export default function PrintDocumentsScreen() {
           {canMarkPrinted ? (
             <Btn label="Mark labels printed" onPress={markLabelPrinted} disabled={busy} />
           ) : isManual ? (
-            <Btn
-              label="Continue to LR update"
-              onPress={() => router.push(`/(app)/dispatch/lr-update/${orderId}`)}
-            />
+            <>
+              <Btn
+                label="Continue to LR update"
+                onPress={() => router.push(`/(app)/dispatch/lr-update/${orderId}`)}
+              />
+              <Btn
+                label="Mark packed & dispatch staging"
+                onPress={() => router.push('/(app)/packing/complete')}
+                variant="secondary"
+              />
+            </>
           ) : (
             <Text style={styles.hint}>Generate AWB before marking labels printed.</Text>
           )}
-          <Btn
-            label="Skip to complete"
-            onPress={() => router.push('/(app)/packing/complete')}
-            variant="secondary"
-          />
         </>
       ) : null}
     </ScrollView>
@@ -137,6 +169,7 @@ export default function PrintDocumentsScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, paddingBottom: 32, gap: 8 },
+  blocked: { flex: 1, backgroundColor: tokens.bg },
   success: { color: tokens.green700, marginBottom: 8, fontSize: 14 },
   hint: { fontSize: 13, color: tokens.textMuted, marginVertical: 8 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },

@@ -20,6 +20,11 @@ import { normalizeShippingMethod } from '../../lib/manual-couriers.js';
 import { packageRuleEngineService } from './package-rule-engine.service.js';
 import { shippingBoxService } from './shipping-box.service.js';
 import { eventBus } from '../../events/bus.js';
+import {
+  computeFulfillmentGates,
+  workflowStageFromGates,
+  type FulfillmentGates,
+} from '../../lib/fulfillment-gates.js';
 
 const FULFILLMENT_STATUSES = [
   'assigned',
@@ -60,6 +65,56 @@ function activeFulfillmentOrdersQuery() {
 function startOfTodayIstIso(): string {
   const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
   return `${dateKey}T00:00:00+05:30`;
+}
+
+function applyFulfillmentGatesToDetail<T extends Record<string, unknown>>(
+  detail: T & {
+    order: { shipping_method?: string | null; tracking_awb?: string | null; package_status?: string | null };
+    packSession?: { scan_complete?: boolean } | null;
+    package?: { status?: string } | null;
+    shippingMethod?: string | null;
+    workflow?: {
+      stage: string;
+      step: number;
+      currentRack: string | null;
+      racks: unknown[];
+      currentRackLines: unknown[];
+      printEnabled?: boolean;
+      pickComplete?: boolean;
+    } | null;
+    printEnabled?: boolean;
+  }
+): T & {
+  pickComplete: boolean;
+  printEnabled: boolean;
+  fulfillmentGates: FulfillmentGates;
+  workflow: typeof detail.workflow;
+} {
+  const pickComplete = Boolean(detail.packSession?.scan_complete);
+  const gates = computeFulfillmentGates({
+    pickComplete,
+    packageStatus: detail.package?.status ?? detail.order.package_status,
+    shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
+    trackingAwb: detail.order.tracking_awb,
+  });
+  const stage = workflowStageFromGates(gates);
+  const workflow = detail.workflow
+    ? {
+        ...detail.workflow,
+        stage,
+        step: stage === 'print' ? 3 : stage === 'pack' ? 2 : 1,
+        pickComplete: gates.pickComplete,
+        printEnabled: gates.printEnabled,
+      }
+    : null;
+
+  return {
+    ...detail,
+    pickComplete: gates.pickComplete,
+    printEnabled: gates.printEnabled,
+    fulfillmentGates: gates,
+    workflow,
+  };
 }
 
 async function repairPendingCommerceOrders(limit = 100) {
@@ -486,7 +541,7 @@ export const fulfillmentService = {
       labelBatch = batch;
     }
 
-    return {
+    return applyFulfillmentGatesToDetail({
       order,
       pickList,
       packSession,
@@ -554,7 +609,7 @@ export const fulfillmentService = {
             lines: packageEstimate.lines,
           }
         : null,
-    };
+    });
   },
 
   async estimatePackage(commerceOrderId: string) {

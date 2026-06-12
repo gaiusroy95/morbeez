@@ -305,6 +305,9 @@ export function HomeHeroCard({
   stage,
   marketName,
   pricePerKg,
+  rateLabel,
+  priceUpdatedOn,
+  pendingRateMessage,
   dailyChangePct,
   lastYearPrice,
   differenceInr,
@@ -317,7 +320,10 @@ export function HomeHeroCard({
   cycleDays: number | null;
   stage: string;
   marketName: string;
-  pricePerKg: number;
+  pricePerKg?: number | null;
+  rateLabel?: string;
+  priceUpdatedOn?: string | null;
+  pendingRateMessage?: string | null;
   dailyChangePct?: number | null;
   lastYearPrice?: number | null;
   differenceInr?: number | null;
@@ -336,6 +342,7 @@ export function HomeHeroCard({
     dailyChangePct != null && dailyChangePct !== 0
       ? `${dailyChangePct > 0 ? '↑' : '↓'} ${Math.abs(dailyChangePct)}% from yesterday`
       : null;
+  const showPrice = pricePerKg != null;
 
   return (
     <View style={styles.heroCard}>
@@ -353,23 +360,37 @@ export function HomeHeroCard({
           </View>
         </View>
         <View style={styles.heroPriceCol}>
-          <Text style={styles.heroRateLabel}>{labels.currentRate}</Text>
-          <Text style={styles.heroPrice}>₹{pricePerKg}/kg</Text>
-          {dailyTrend ? <Text style={styles.heroDailyTrend}>{dailyTrend}</Text> : null}
+          {pendingRateMessage ? (
+            <>
+              <Text style={styles.heroRateLabel}>{labels.currentRate}</Text>
+              <Text style={styles.heroPendingRate}>{pendingRateMessage}</Text>
+            </>
+          ) : showPrice ? (
+            <>
+              <Text style={styles.heroRateLabel}>{rateLabel ?? labels.currentRate}</Text>
+              <Text style={styles.heroPrice}>₹{pricePerKg}/kg</Text>
+              {priceUpdatedOn ? <Text style={styles.heroUpdatedOn}>{priceUpdatedOn}</Text> : null}
+              {dailyTrend ? <Text style={styles.heroDailyTrend}>{dailyTrend}</Text> : null}
+            </>
+          ) : null}
         </View>
       </View>
-      <View style={styles.heroDivider} />
-      <View style={styles.heroYoYRow}>
-        <Text style={styles.heroYoYItem}>
-          {labels.lastYearSameDay}: {lastYearPrice != null ? `₹${lastYearPrice}/kg` : '—'}
-        </Text>
-        <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
-          {labels.difference}: {differenceInr != null ? `${differenceInr >= 0 ? '+' : ''}₹${differenceInr}/kg` : '—'}
-        </Text>
-        <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
-          {labels.yoyChange}: {yoyPct != null ? `${yoyPct >= 0 ? '+' : ''}${yoyPct}%` : '—'}
-        </Text>
-      </View>
+      {showPrice ? (
+        <>
+          <View style={styles.heroDivider} />
+          <View style={styles.heroYoYRow}>
+            <Text style={styles.heroYoYItem}>
+              {labels.lastYearSameDay}: {lastYearPrice != null ? `₹${lastYearPrice}/kg` : '—'}
+            </Text>
+            <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
+              {labels.difference}: {differenceInr != null ? `${differenceInr >= 0 ? '+' : ''}₹${differenceInr}/kg` : '—'}
+            </Text>
+            <Text style={[styles.heroYoYItem, styles.heroYoYPos]}>
+              {labels.yoyChange}: {yoyPct != null ? `${yoyPct >= 0 ? '+' : ''}${yoyPct}%` : '—'}
+            </Text>
+          </View>
+        </>
+      ) : null}
       <Text style={styles.heroMarketMeta}>{marketName}</Text>
     </View>
   );
@@ -491,13 +512,19 @@ export function MarketRateCard({
   crop,
   marketName,
   pricePerKg,
+  rateLabel,
+  priceUpdatedOn,
+  pendingRateMessage,
   trend,
   dailyChangeInr,
   onPress,
 }: {
   crop: string;
   marketName: string;
-  pricePerKg: number;
+  pricePerKg?: number | null;
+  rateLabel?: string;
+  priceUpdatedOn?: string | null;
+  pendingRateMessage?: string | null;
   trend?: 'up' | 'down' | 'flat' | null;
   dailyChangeInr?: number | null;
   onPress?: () => void;
@@ -512,11 +539,19 @@ export function MarketRateCard({
     <View style={styles.marketCard}>
       <Text style={styles.marketCrop}>{crop}</Text>
       <Text style={styles.marketName}>{marketName}</Text>
-      <View style={styles.marketPriceRow}>
-        <Text style={styles.marketPrice}>₹{pricePerKg}/kg</Text>
-        {trend ? <Text style={[styles.marketTrend, { color: trendColor }]}>{arrow}</Text> : null}
-      </View>
-      {changeLabel ? <Text style={[styles.marketChange, { color: trendColor }]}>{changeLabel}</Text> : null}
+      {pendingRateMessage ? (
+        <Text style={styles.marketPending}>{pendingRateMessage}</Text>
+      ) : pricePerKg != null ? (
+        <>
+          {rateLabel ? <Text style={styles.marketRateLabel}>{rateLabel}</Text> : null}
+          <View style={styles.marketPriceRow}>
+            <Text style={styles.marketPrice}>₹{pricePerKg}/kg</Text>
+            {trend ? <Text style={[styles.marketTrend, { color: trendColor }]}>{arrow}</Text> : null}
+          </View>
+          {priceUpdatedOn ? <Text style={styles.marketUpdatedOn}>{priceUpdatedOn}</Text> : null}
+          {changeLabel ? <Text style={[styles.marketChange, { color: trendColor }]}>{changeLabel}</Text> : null}
+        </>
+      ) : null}
     </View>
   );
   if (onPress) return <Pressable onPress={onPress}>{inner}</Pressable>;
@@ -1000,7 +1035,10 @@ const styles = StyleSheet.create({
   },
   marketCrop: { fontSize: 12, color: '#c8e6c9', fontWeight: '600', textTransform: 'uppercase' },
   marketName: { fontSize: 13, color: '#e8f5e9', marginTop: 4 },
-  marketPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  marketRateLabel: { fontSize: 11, color: '#c8e6c9', marginTop: 8 },
+  marketPending: { fontSize: 14, fontWeight: '600', color: '#fef3c7', marginTop: 10 },
+  marketUpdatedOn: { fontSize: 11, color: '#c8e6c9', marginTop: 4 },
+  marketPriceRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   marketPrice: { fontSize: 28, fontWeight: '800', color: '#fff' },
   marketTrend: { fontSize: 22, fontWeight: '700' },
   marketChange: { fontSize: 14, fontWeight: '600', marginTop: 6, color: '#e8f5e9' },
@@ -1099,6 +1137,8 @@ const styles = StyleSheet.create({
   heroPriceCol: { alignItems: 'flex-end' },
   heroRateLabel: { fontSize: 11, color: '#c8e6c9' },
   heroPrice: { fontSize: 26, fontWeight: '800', color: '#fff', marginTop: 4 },
+  heroPendingRate: { fontSize: 13, fontWeight: '600', color: '#fef3c7', marginTop: 6, textAlign: 'right', maxWidth: 150 },
+  heroUpdatedOn: { fontSize: 10, color: '#c8e6c9', marginTop: 4, textAlign: 'right' },
   heroDailyTrend: { fontSize: 12, fontWeight: '600', color: tokens.green500, marginTop: 4 },
   heroDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.2)', marginVertical: 12 },
   heroYoYRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

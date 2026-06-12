@@ -12,6 +12,7 @@ import { roiFlowService } from '../whatsapp/roi/roi-flow.service.js';
 import type { RoiEntryType } from '../admin/farmer-roi-admin.service.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import { growthStageFromDap } from './crop-stage.service.js';
+import { cropHealthFromTone } from '../../lib/block-health.js';
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -273,6 +274,72 @@ export const farmerPortalMobileService = {
 
     const timeline = await this.getBlockTimeline(farmerId, blockId);
 
+    const [{ data: findingRows }, { data: crmRecRows }, { data: recordRows }] = await Promise.all([
+      supabase
+        .from('crm_field_findings')
+        .select('id, visited_at, disease_pest, observations, disease_tone, agronomist_name, action_taken')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .is('archived_at', null)
+        .order('visited_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('crm_recommendations')
+        .select('id, problem, recommendation, dosage, created_at, status, recommended_by')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .neq('status', 'archived')
+        .order('created_at', { ascending: false })
+        .limit(20),
+      supabase
+        .from('recommendation_records')
+        .select('id, issue_detected, recommendation_text, dosage, created_at, status, created_by')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .in('status', ['approved', 'communicated', 'applied', 'pending_approval'])
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    const fieldFindings = (findingRows ?? []).map((r) => {
+      const health = cropHealthFromTone(r.disease_tone as string | null);
+      return {
+        id: String(r.id),
+        visitedAt: String(r.visited_at),
+        visitedLabel: formatDate(String(r.visited_at)),
+        diseasePest: r.disease_pest ? String(r.disease_pest) : null,
+        observations: r.observations ? String(r.observations) : null,
+        diseaseTone: String(r.disease_tone ?? 'warning'),
+        cropHealthLabel: health.cropHealthLabel,
+        cropHealthStatus: health.cropHealthStatus,
+        agronomistName: r.agronomist_name ? String(r.agronomist_name) : null,
+        actionTaken: r.action_taken ? String(r.action_taken) : null,
+      };
+    });
+
+    const blockRecommendations = [
+      ...(crmRecRows ?? []).map((r) => ({
+        id: String(r.id),
+        title: r.problem ? String(r.problem) : 'Recommendation',
+        body: r.recommendation ? String(r.recommendation) : '',
+        dosage: r.dosage ? String(r.dosage) : null,
+        dateLabel: formatDate(String(r.created_at)),
+        status: String(r.status ?? 'active'),
+        recommendedBy: r.recommended_by ? String(r.recommended_by) : null,
+        source: 'crm' as const,
+      })),
+      ...(recordRows ?? []).map((r) => ({
+        id: String(r.id),
+        title: r.issue_detected ? String(r.issue_detected) : 'Agronomist recommendation',
+        body: String(r.recommendation_text ?? ''),
+        dosage: r.dosage ? String(r.dosage) : null,
+        dateLabel: formatDate(String(r.created_at)),
+        status: String(r.status ?? 'approved'),
+        recommendedBy: r.created_by ? String(r.created_by) : null,
+        source: 'record' as const,
+      })),
+    ].sort((a, b) => b.dateLabel.localeCompare(a.dateLabel));
+
     return {
       block: {
         id: block.id,
@@ -295,6 +362,8 @@ export const farmerPortalMobileService = {
         healthScore: health.status === 'stable' ? 85 : health.status === 'monitor' ? 65 : 45,
       },
       timeline,
+      fieldFindings,
+      blockRecommendations,
     };
   },
 

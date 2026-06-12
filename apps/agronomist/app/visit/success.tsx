@@ -9,11 +9,13 @@ export default function VisitSuccessScreen() {
     farmerName?: string;
     blockName?: string;
     findingId?: string;
+    recommendationAdded?: string;
   }>();
 
   const farmerName = String(params.farmerName ?? 'Farmer');
   const blockName = String(params.blockName ?? 'Block');
   const findingId = params.findingId ? String(params.findingId) : '';
+  const recommendationAdded = params.recommendationAdded === '1';
 
   return (
     <View style={styles.root}>
@@ -21,11 +23,15 @@ export default function VisitSuccessScreen() {
         <Text style={styles.message}>
           Visit for {farmerName} at {blockName} was recorded successfully.
         </Text>
-        <Text style={styles.hint}>Check-out completed. You can review findings from the task hub.</Text>
+        {recommendationAdded ? (
+          <Text style={styles.hint}>Recommendation draft saved with this visit.</Text>
+        ) : (
+          <Text style={styles.hint}>Check-out completed. You can review findings from the task hub.</Text>
+        )}
       </Panel>
       <View style={styles.actions}>
         {findingId ? (
-          <Btn label="Review finding" onPress={() => router.replace(`/finding/${findingId}`)} />
+          <Btn label="Review finding & recommendation" onPress={() => router.replace(`/finding/${findingId}`)} />
         ) : null}
         <Btn label="Back to dashboard" onPress={() => router.replace('/(tabs)/dashboard')} variant="secondary" />
         <Btn label="Start another visit" onPress={() => router.replace('/(tabs)/visits')} variant="secondary" />

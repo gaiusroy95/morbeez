@@ -4,6 +4,10 @@ import { farmerAuthService } from '../auth/farmer-auth.service.js';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+function istDateKey(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+}
+
 type PriceRow = {
   market_name: string;
   price_per_kg: number;
@@ -298,7 +302,7 @@ export const farmerMarketPortalService = {
       }));
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateKey();
     const { rows } = await fetchPriceRows(crop, today);
     return (rows ?? []).map((r, idx) => ({
       id: String(r.market_name),
@@ -313,8 +317,9 @@ export const farmerMarketPortalService = {
     const block = await blockService.getPrimaryBlock(farmerId);
     const crops = await listActiveCrops();
     const cropType = (crop ?? block?.crop_type ?? crops[0]?.cropName ?? 'ginger').toLowerCase();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateKey();
     const { date, rows } = await fetchPriceRows(cropType, today, market);
+    const priceIsToday = date === today;
 
     const mapped = (rows ?? []).map(mapPriceRow);
     const preferredMarket = market ?? mapped[0]?.marketName ?? 'Kochi';
@@ -348,6 +353,7 @@ export const farmerMarketPortalService = {
       favoriteCrop,
       crops,
       date,
+      priceIsToday,
       districtLabel,
       selectedMarket: top?.marketName ?? null,
       primaryMarket: top?.marketName ?? null,
@@ -376,7 +382,7 @@ export const farmerMarketPortalService = {
     const block = await blockService.getPrimaryBlock(farmerId);
     const crops = await listActiveCrops();
     const cropType = (crop ?? block?.crop_type ?? crops[0]?.cropName ?? 'ginger').toLowerCase();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateKey();
     const { date, rows } = await fetchPriceRows(cropType, today, market);
     const marketName = market ?? (rows?.[0]?.market_name ? String(rows[0].market_name) : 'Kochi');
     const allPoints = await fetchMonthlySeries(cropType, marketName, date);
@@ -417,7 +423,7 @@ export const farmerMarketPortalService = {
   async getMandiComparison(farmerId: string, crop?: string, market?: string) {
     const block = await blockService.getPrimaryBlock(farmerId);
     const cropType = (crop ?? block?.crop_type ?? 'ginger').toLowerCase();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateKey();
     const { date, rows } = await fetchPriceRows(cropType, today);
 
     const mapped = (rows ?? []).map(mapPriceRow);
@@ -445,7 +451,7 @@ export const farmerMarketPortalService = {
     const block = await blockService.getPrimaryBlock(farmerId);
     const defaultMarket = market ?? 'Kochi';
     const crops = await listActiveCrops();
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateKey();
     const favoriteCrop = block?.crop_type?.toLowerCase() ?? null;
 
     const items = await Promise.all(

@@ -3,6 +3,7 @@ import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, tokens, type AgronomistBlockRow } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, ListCard, Panel } from '@morbeez/ui-native';
+import { AgronomistBlockCard } from '@/components/AgronomistBlockCard';
 
 type Farmer = { id: string; name: string; phone: string | null; district: string | null };
 type ListItem = Farmer | AgronomistBlockRow;
@@ -52,18 +53,13 @@ export default function VisitsScreen() {
     }
   }
 
-  function startVisit(block: AgronomistBlockRow) {
+  function openBlock(block: AgronomistBlockRow) {
     if (!selectedFarmer) return;
-    router.push({
-      pathname: '/visit',
-      params: {
-        farmerId: selectedFarmer.id,
-        blockId: block.id,
-        blockName: block.name,
-        cropType: block.cropType,
-        farmerName: selectedFarmer.name,
-      },
+    const qs = new URLSearchParams({
+      farmerId: selectedFarmer.id,
+      farmerName: selectedFarmer.name,
     });
+    router.push(`/block/${block.id}?${qs.toString()}`);
   }
 
   const listData: ListItem[] = selectedFarmer ? blocks : farmers;
@@ -102,11 +98,7 @@ export default function VisitsScreen() {
         }
         renderItem={({ item }) =>
           selectedFarmer && isBlock(item) ? (
-            <ListCard
-              title={item.name}
-              subtitle={[item.cropType, item.plotLabel].filter(Boolean).join(' · ')}
-              onPress={() => startVisit(item)}
-            />
+            <AgronomistBlockCard block={item} onPress={() => openBlock(item)} />
           ) : !selectedFarmer && !isBlock(item) ? (
             <ListCard
               title={item.name}

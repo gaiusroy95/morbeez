@@ -14,7 +14,7 @@ export type RackSessionContext = {
   counts: Record<string, number>;
   completed: string[];
   currentRack: string | null;
-  stage: 'picking' | 'print';
+  stage: 'picking' | 'pack';
   racks: Array<{
     rack: string;
     lineCount: number;
@@ -34,7 +34,7 @@ export type RackSessionContext = {
     remaining: number;
     complete: boolean;
   }>;
-  printEnabled: boolean;
+  pickComplete: boolean;
 };
 
 export type RackPickLine = {
@@ -111,14 +111,15 @@ function resolveCurrentRack(
 }
 
 function buildWorkflowPayload(ctx: RackSessionContext) {
-  const step = ctx.stage === 'print' ? 3 : 1;
+  const step = ctx.stage === 'pack' ? 2 : 1;
   return {
     stage: ctx.stage,
     step,
     currentRack: ctx.currentRack,
     racks: ctx.racks,
     currentRackLines: ctx.currentRackLines,
-    printEnabled: ctx.printEnabled,
+    pickComplete: ctx.pickComplete,
+    printEnabled: false,
   };
 }
 
@@ -135,7 +136,8 @@ async function loadSessionContext(packSessionId: string): Promise<RackSessionCon
     const counts = (session.line_scan_counts ?? {}) as Record<string, number>;
     const completed = (session.completed_racks ?? []) as string[];
     const currentRack = resolveCurrentRack(session, lines, counts);
-    const stage = session.scan_complete ? 'print' : 'picking';
+    const pickComplete = Boolean(session.scan_complete);
+    const stage = pickComplete ? 'pack' : 'picking';
 
     const racks = sortRacks(lines.map((l) => normalizeRack(l.rack_location))).map((rack) => {
       const subset = rackLines(lines, rack);
@@ -175,10 +177,10 @@ async function loadSessionContext(packSessionId: string): Promise<RackSessionCon
       counts,
       completed,
       currentRack,
-      stage: stage as 'picking' | 'print',
+      stage: stage as 'picking' | 'pack',
       racks,
       currentRackLines,
-      printEnabled: Boolean(session.scan_complete),
+      pickComplete,
     };
 }
 
@@ -196,8 +198,8 @@ async function initSessionRack(packSessionId: string) {
 
 async function lookupBarcode(packSessionId: string, scannedCode: string) {
   const ctx = await loadSessionContext(packSessionId);
-    if (ctx.stage === 'print') {
-      return { ok: false, error: 'All racks picked — proceed to print' };
+    if (ctx.stage === 'pack') {
+      return { ok: false, error: 'All racks picked — continue to pack order' };
     }
     if (!ctx.currentRack) {
       return { ok: false, error: 'No active rack for this order' };
@@ -245,8 +247,8 @@ async function confirmPick(packSessionId: string, lineId: string, qty: number) {
     }
 
     const ctx = await loadSessionContext(packSessionId);
-    if (ctx.stage === 'print') {
-      throw new AppError('Picking already complete', 409, 'PICKING_DONE');
+    if (ctx.stage === 'pack') {
+      throw new AppError('Picking already complete — continue to pack order', 409, 'PICKING_DONE');
     }
     if (!ctx.currentRack) {
       throw new AppError('No active rack', 409, 'NO_RACK');
@@ -318,10 +320,11 @@ async function confirmPick(packSessionId: string, lineId: string, qty: number) {
       rackComplete: rackJustCompleted,
       advancedToRack: null,
       stage: refreshed.stage,
-      printEnabled: refreshed.printEnabled,
+      pickComplete: refreshed.pickComplete,
+      printEnabled: false,
       workflow: buildWorkflowPayload(refreshed),
       message: scanComplete
-        ? 'All racks complete — open printables'
+        ? 'All racks complete — continue to pack order'
         : rackJustCompleted
           ? `Rack ${ctx.currentRack} complete — tap Next rack`
           : `${line.product_title}: ${next}/${required} picked`,
@@ -330,13 +333,14 @@ async function confirmPick(packSessionId: string, lineId: string, qty: number) {
 
 async function advanceToNextRack(packSessionId: string) {
   const ctx = await loadSessionContext(packSessionId);
-  if (ctx.stage === 'print') {
+  if (ctx.stage === 'pack') {
     return {
       ok: true,
       stage: ctx.stage,
-      printEnabled: ctx.printEnabled,
+      pickComplete: ctx.pickComplete,
+      printEnabled: false,
       workflow: buildWorkflowPayload(ctx),
-      message: 'All racks complete — open printables',
+      message: 'All racks complete — continue to pack order',
     };
   }
   if (!ctx.currentRack) {
@@ -380,12 +384,13 @@ async function advanceToNextRack(packSessionId: string) {
   return {
     ok: true,
     stage: refreshed.stage,
-    printEnabled: refreshed.printEnabled,
+    pickComplete: refreshed.pickComplete,
+    printEnabled: false,
     advancedToRack: refreshed.currentRack,
     workflow: buildWorkflowPayload(refreshed),
     message:
-      refreshed.stage === 'print'
-        ? 'All racks complete — open printables'
+      refreshed.stage === 'pack'
+        ? 'All racks complete — continue to pack order'
         : refreshed.currentRack
           ? `Moved to rack ${refreshed.currentRack}`
           : 'Advanced to next rack',

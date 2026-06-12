@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { tokens, warehouseClient, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
+import { computeFulfillmentGates, tokens, warehouseClient, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
@@ -127,8 +127,23 @@ export default function PackOrderScreen() {
     try {
       await applyPackage(selectedBoxId);
       await warehouseClient.packageConfirm(orderId, shippingMethod !== 'manual');
-      setMessage('Package confirmed for courier');
-      await load();
+      const refreshed = await warehouseClient.getOrder(orderId);
+      setDetail(refreshed);
+      const gates =
+        refreshed.fulfillmentGates ??
+        computeFulfillmentGates({
+          pickComplete: Boolean(refreshed.pickComplete ?? refreshed.packSession?.scan_complete),
+          packageStatus: refreshed.package?.status,
+          shippingMethod: refreshed.shippingMethod ?? refreshed.order.shipping_method,
+          trackingAwb: refreshed.order.tracking_awb,
+        });
+      if (gates.awbPending) {
+        setMessage('Package confirmed — generating Shiprocket AWB…');
+      } else if (gates.printEnabled) {
+        setMessage('Package confirmed — ready to print documents');
+      } else {
+        setMessage('Package confirmed for courier');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Confirm failed');
     } finally {
@@ -145,10 +160,23 @@ export default function PackOrderScreen() {
       void refreshStats({ force: true });
       const refreshed = await warehouseClient.getOrder(orderId);
       const status = refreshed.order.oms_status;
+      const refreshedGates =
+        refreshed.fulfillmentGates ??
+        computeFulfillmentGates({
+          pickComplete: Boolean(refreshed.pickComplete ?? refreshed.packSession?.scan_complete),
+          packageStatus: refreshed.package?.status,
+          shippingMethod: refreshed.shippingMethod ?? refreshed.order.shipping_method,
+          trackingAwb: refreshed.order.tracking_awb,
+        });
       if (status === 'awaiting_label_verification') {
         router.replace(`/(app)/packing/verify/${orderId}`);
-      } else {
+      } else if (refreshedGates.printEnabled) {
         router.push(`/(app)/packing/print/${orderId}`);
+      } else if (refreshedGates.shippingMethod === 'manual') {
+        router.push(`/(app)/dispatch/lr-update/${orderId}`);
+      } else {
+        setDetail(refreshed);
+        setMessage('Marked packed — complete AWB before printing label');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Mark packed failed');
@@ -156,6 +184,19 @@ export default function PackOrderScreen() {
       setBusy(false);
     }
   }
+
+  const gates = useMemo(() => {
+    if (!detail) return null;
+    return (
+      detail.fulfillmentGates ??
+      computeFulfillmentGates({
+        pickComplete: Boolean(detail.pickComplete ?? detail.packSession?.scan_complete),
+        packageStatus: detail.package?.status,
+        shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
+        trackingAwb: detail.order.tracking_awb,
+      })
+    );
+  }, [detail]);
 
   if (loading) return <Loading label="Loading pack details…" />;
 
@@ -188,20 +229,20 @@ export default function PackOrderScreen() {
         </Panel>
       ) : null}
 
+      {!gates?.pickComplete ? (
+        <Panel title="Picking not complete">
+          <Text style={styles.hint}>Finish picking all racks before packing this order.</Text>
+          <Btn
+            label="Back to picking"
+            onPress={() => router.push(`/(app)/picking/${orderId}`)}
+            variant="secondary"
+          />
+        </Panel>
+      ) : null}
+
       <Panel title={order?.order_name ?? 'Pack order'}>
         <KeyValueRow label="Status" value={order?.oms_status ?? '—'} />
         <KeyValueRow label="Packed by" value={admin?.fullName ?? admin?.email ?? '—'} />
-      </Panel>
-
-      <Panel title="Shipping method">
-        <HubTabs
-          tabs={[
-            { id: 'shiprocket' as const, label: 'Shiprocket' },
-            { id: 'manual' as const, label: 'Manual LR' },
-          ]}
-          active={shippingMethod}
-          onChange={(m) => void setMethod(m)}
-        />
       </Panel>
 
       <Panel title="Package">
@@ -276,15 +317,41 @@ export default function PackOrderScreen() {
           </View>
         ) : null}
 
-        <Btn label="Confirm package" onPress={confirmPackage} disabled={busy || !canWrite} />
-        <Btn label="Mark packed" onPress={markPacked} disabled={busy || !canWrite} />
+        <Btn label="Confirm package" onPress={confirmPackage} disabled={busy || !canWrite || !gates?.pickComplete} />
+        <Btn label="Mark packed" onPress={markPacked} disabled={busy || !canWrite || !gates?.packageConfirmed} />
       </Panel>
 
-      <Btn
-        label="Print documents"
-        onPress={() => router.push(`/(app)/packing/print/${orderId}`)}
-        variant="secondary"
-      />
+      <Panel title="Transport">
+        <Text style={styles.hint}>Choose Shiprocket (auto AWB) or manual logistics (LR updated later).</Text>
+        <HubTabs
+          tabs={[
+            { id: 'shiprocket' as const, label: 'Shiprocket' },
+            { id: 'manual' as const, label: 'Manual LR' },
+          ]}
+          active={shippingMethod}
+          onChange={(m) => void setMethod(m)}
+        />
+        {gates?.awbPending ? (
+          <Text style={styles.warn}>AWB pending — confirm package to generate Shiprocket label.</Text>
+        ) : null}
+        {gates?.printEnabled ? (
+          <Text style={styles.success}>Ready to print — open documents below.</Text>
+        ) : null}
+      </Panel>
+
+      {gates?.printEnabled ? (
+        <Btn
+          label="Print documents"
+          onPress={() => router.push(`/(app)/packing/print/${orderId}`)}
+        />
+      ) : gates?.pickComplete && gates.packageConfirmed && shippingMethod === 'shiprocket' && !order?.tracking_awb ? (
+        <Panel title="AWB pending">
+          <Text style={styles.hint}>
+            Shiprocket AWB was not assigned yet. Retry from staff portal or confirm package again after
+            fixing wallet/courier issues.
+          </Text>
+        </Panel>
+      ) : null}
 
       {orderId ? (
         <ExceptionPanel
@@ -304,6 +371,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, gap: 8 },
   success: { color: tokens.green700, marginBottom: 8, fontSize: 14 },
+  warn: { color: tokens.warning, marginBottom: 8, fontSize: 13 },
   hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10, lineHeight: 18 },
   formulaHint: { fontSize: 12, color: tokens.textMuted, marginBottom: 12, lineHeight: 17 },
   label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 8 },

@@ -39,7 +39,33 @@ export type FieldTimelineItem = {
   atLabel: string;
 };
 
+export type BlockFieldFinding = {
+  id: string;
+  visitedAt: string;
+  visitedLabel: string;
+  diseasePest: string | null;
+  observations: string | null;
+  diseaseTone: string;
+  cropHealthLabel: string;
+  cropHealthStatus: FieldHealthStatus;
+  agronomistName: string | null;
+  actionTaken: string | null;
+};
+
+export type BlockRecommendationItem = {
+  id: string;
+  title: string;
+  body: string;
+  dosage: string | null;
+  dateLabel: string;
+  status: string;
+  recommendedBy: string | null;
+  source: 'crm' | 'record';
+};
+
 export type FieldDetail = {
   block: FieldOverview;
   timeline: FieldTimelineItem[];
+  fieldFindings?: BlockFieldFinding[];
+  blockRecommendations?: BlockRecommendationItem[];
 };

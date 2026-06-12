@@ -130,11 +130,12 @@ export type RackProgress = {
 };
 
 export type PickWorkflow = {
-  stage: 'picking' | 'print';
+  stage: 'picking' | 'pack' | 'print';
   step: number;
   currentRack: string | null;
   racks: RackProgress[];
   currentRackLines: RackLine[];
+  pickComplete?: boolean;
   printEnabled: boolean;
 };
 
@@ -173,7 +174,16 @@ export type WarehouseOrderDetail = {
   packSession: { id: string; scan_complete?: boolean } | null;
   invoice: { id: string; invoice_number: string } | null;
   suggestedDispatchRack: string | null;
+  pickComplete?: boolean;
   printEnabled: boolean;
+  fulfillmentGates?: {
+    pickComplete: boolean;
+    packRequired: boolean;
+    printEnabled: boolean;
+    awbPending: boolean;
+    shippingMethod: 'shiprocket' | 'manual';
+    packageConfirmed: boolean;
+  };
   workflow: PickWorkflow | null;
   shippingMethod?: 'shiprocket' | 'manual';
   awbAssignAvailable?: boolean;

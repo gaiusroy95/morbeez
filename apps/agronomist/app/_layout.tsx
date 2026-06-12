@@ -90,6 +90,14 @@ function RootStack() {
         name="route/[id]"
         options={{ headerTitle: () => <BrandedHeaderTitle title={t('routeDetail', locale)} /> }}
       />
+      <Stack.Screen
+        name="block/[blockId]"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Block" /> }}
+      />
+      <Stack.Screen
+        name="recommendation/add"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Add recommendation" /> }}
+      />
       <Stack.Screen name="map" options={{ headerTitle: () => <BrandedHeaderTitle title={t('farmerMap', locale)} /> }} />
     </Stack>
   );

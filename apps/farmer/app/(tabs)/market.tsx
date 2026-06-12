@@ -7,6 +7,8 @@ import {
   fetchMarketTrends,
   fetchMandiComparison,
   fetchMultiCropComparison,
+  formatDateInLocale,
+  resolveMarketRateDisplay,
   t,
   tokens,
   type MandiComparison,
@@ -109,6 +111,20 @@ export default function MarketTabScreen() {
   const overlayPrevious =
     trends?.overlayPrevious?.map((p) => ({ value: p.value, label: p.label })) ?? [];
 
+  const marketRate = useMemo(() => {
+    if (!dashboard) return null;
+    const resolved = resolveMarketRateDisplay(dashboard, (d) => formatDateInLocale(d, locale));
+    if (!resolved) return null;
+    return {
+      ...resolved,
+      rateLabel: t(resolved.rateLabelKey, locale),
+      updatedOnLabel: resolved.updatedOnLabel
+        ? t('priceUpdatedOn', locale).replace('{date}', resolved.updatedOnLabel)
+        : null,
+      pendingMessage: resolved.pending ? t('marketRatePending', locale) : null,
+    };
+  }, [dashboard, locale]);
+
   if (loading && !dashboard) return <Loading label={t('loading', locale)} />;
 
   return (
@@ -200,26 +216,29 @@ export default function MarketTabScreen() {
           </View>
         ) : null}
 
-        {tab === 'today' && dashboard?.todayPrice ? (
+        {tab === 'today' && marketRate && (marketRate.showPrice || marketRate.pending) ? (
           <>
             <MarketRateCard
               crop={cropTitle(displayCrop)}
-              marketName={dashboard.selectedMarket ?? dashboard.districtLabel}
-              pricePerKg={dashboard.todayPrice}
-              trend={dashboard.dailyTrend ?? dashboard.trend}
-              dailyChangeInr={dashboard.dailyChangeInr}
+              marketName={dashboard!.selectedMarket ?? dashboard!.districtLabel}
+              pricePerKg={marketRate.showPrice ? marketRate.pricePerKg : null}
+              rateLabel={marketRate.rateLabel}
+              priceUpdatedOn={marketRate.updatedOnLabel}
+              pendingRateMessage={marketRate.pendingMessage}
+              trend={marketRate.showPrice ? dashboard!.dailyTrend ?? dashboard!.trend : null}
+              dailyChangeInr={marketRate.showPrice ? dashboard!.dailyChangeInr : null}
               onPress={() => router.push(`/market/trends/${displayCrop}`)}
             />
-            {dashboard.weeklyTrendPct != null ? (
+            {marketRate.showPrice && dashboard!.weeklyTrendPct != null ? (
               <Text style={styles.meta}>
-                {t('weeklyTrend', locale)}: {dashboard.weeklyTrendPct > 0 ? '+' : ''}
-                {dashboard.weeklyTrendPct}%
+                {t('weeklyTrend', locale)}: {dashboard!.weeklyTrendPct > 0 ? '+' : ''}
+                {dashboard!.weeklyTrendPct}%
               </Text>
             ) : null}
-            {dashboard.yoyPct != null ? (
+            {marketRate.showPrice && dashboard!.yoyPct != null ? (
               <Text style={styles.meta}>
-                {t('thisYearVsLast', locale)}: {dashboard.yoyPct > 0 ? '+' : ''}
-                {dashboard.yoyPct}%
+                {t('thisYearVsLast', locale)}: {dashboard!.yoyPct > 0 ? '+' : ''}
+                {dashboard!.yoyPct}%
               </Text>
             ) : null}
           </>

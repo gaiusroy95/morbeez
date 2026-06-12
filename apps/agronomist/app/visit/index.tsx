@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Image,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -12,7 +11,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { agronomistClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, Loading, Panel } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, Panel, TextField } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type Question = {
@@ -57,6 +56,10 @@ export default function VisitScreen() {
   const [gpsLon, setGpsLon] = useState<number | null>(null);
   const [gpsStatus, setGpsStatus] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
+  const [showRecommendation, setShowRecommendation] = useState(false);
+  const [recIssue, setRecIssue] = useState('');
+  const [recText, setRecText] = useState('');
+  const [recDosage, setRecDosage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -150,6 +153,13 @@ export default function VisitScreen() {
     }
   }
 
+  function openRecommendation() {
+    setShowRecommendation(true);
+    if (!recIssue.trim() && diseasePest.trim()) {
+      setRecIssue(diseasePest.trim());
+    }
+  }
+
   async function submit() {
     if (!canWrite || !farmerId || !blockId) return;
     for (const q of questions) {
@@ -192,6 +202,17 @@ export default function VisitScreen() {
           ? String((visitResult as { finding?: { id?: string } }).finding?.id ?? '')
           : '';
 
+      if (findingId && recText.trim() && canWrite) {
+        await agronomistClient.saveDraft({
+          findingId,
+          farmerId,
+          blockId,
+          issueDetected: recIssue.trim() || diseasePest.trim() || undefined,
+          recommendationText: recText.trim(),
+          dosage: recDosage.trim() || undefined,
+        });
+      }
+
       if (sessionRef.current) {
         await agronomistClient.checkOutVisitSession(sessionRef.current, {
           latitude: gpsLat ?? undefined,
@@ -202,7 +223,12 @@ export default function VisitScreen() {
 
       router.replace({
         pathname: '/visit/success',
-        params: { farmerName, blockName, findingId: findingId || undefined },
+        params: {
+          farmerName,
+          blockName,
+          findingId: findingId || undefined,
+          recommendationAdded: recText.trim() ? '1' : undefined,
+        },
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Submit failed');
@@ -214,7 +240,7 @@ export default function VisitScreen() {
   if (loading) return <Loading label="Starting visit session…" />;
 
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+    <KeyboardAwareScrollScreen contentContainerStyle={styles.content}>
       <Text style={styles.heading}>{blockName || 'Block'}</Text>
       <Text style={styles.subheading}>{[farmerName, cropType].filter(Boolean).join(' · ')}</Text>
 
@@ -349,17 +375,54 @@ export default function VisitScreen() {
         </View>
       </Panel>
 
+      <Panel title="Recommendations">
+        {!showRecommendation ? (
+          <>
+            <Text style={styles.hint}>Add treatment or follow-up advice for this visit.</Text>
+            <Btn label="Add recommendation" onPress={openRecommendation} variant="secondary" disabled={!canWrite} />
+          </>
+        ) : (
+          <>
+            <TextField
+              label="Issue / problem"
+              value={recIssue}
+              onChangeText={setRecIssue}
+              placeholder="From observation or disease field"
+            />
+            <Text style={styles.qLabel}>Recommendation *</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              value={recText}
+              onChangeText={setRecText}
+              multiline
+              placeholder="What should the farmer do?"
+              placeholderTextColor={tokens.textMuted}
+            />
+            <TextField label="Dosage" value={recDosage} onChangeText={setRecDosage} placeholder="Product, rate, method" />
+            <Btn
+              label="Open full recommendation form"
+              variant="secondary"
+              onPress={() =>
+                router.push({
+                  pathname: '/recommendation/add',
+                  params: { farmerId, blockId, findingId: '' },
+                })
+              }
+            />
+          </>
+        )}
+      </Panel>
+
       <Btn
         label={saving ? 'Uploading…' : 'Submit visit'}
         onPress={submit}
         disabled={saving || !canWrite || loading}
       />
-    </ScrollView>
+    </KeyboardAwareScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, paddingBottom: 40 },
   heading: { fontSize: 20, fontWeight: '700', color: tokens.text },
   subheading: { fontSize: 14, color: tokens.textMuted, marginBottom: 12 },

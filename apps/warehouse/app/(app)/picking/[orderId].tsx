@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -24,7 +25,6 @@ import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 const FOOTER_BASE_HEIGHT = 168;
-const FOOTER_CONFIRM_EXTRA = 72;
 
 function StatBox({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
@@ -44,6 +44,7 @@ export default function PickOrderScreen() {
   const router = useRouter();
   const { canWrite } = useStaffAuth();
   const wedgeRef = useRef<TextInput>(null);
+  const qtyInputRef = useRef<TextInput>(null);
   const [detail, setDetail] = useState<WarehouseOrderDetail | null>(null);
   const [sessionId, setSessionId] = useState('');
   const [scanCode, setScanCode] = useState('');
@@ -91,6 +92,12 @@ export default function PickOrderScreen() {
     void load(true);
   }, [load]);
 
+  useEffect(() => {
+    if (!pickLookup) return;
+    const timer = setTimeout(() => qtyInputRef.current?.focus(), 250);
+    return () => clearTimeout(timer);
+  }, [pickLookup]);
+
   const workflow = detail?.workflow;
   const racks = workflow?.racks ?? [];
   const lines = workflow?.currentRackLines ?? [];
@@ -126,8 +133,13 @@ export default function PickOrderScreen() {
   }, [lines, activeRack]);
 
   const allRacksComplete = useMemo(
-    () => Boolean(detail?.printEnabled || workflow?.stage === 'print'),
-    [detail?.printEnabled, workflow?.stage]
+    () =>
+      Boolean(
+        detail?.pickComplete ??
+          detail?.packSession?.scan_complete ??
+          (detail?.workflow?.stage === 'pack' || detail?.workflow?.stage === 'print')
+      ),
+    [detail?.pickComplete, detail?.packSession?.scan_complete, detail?.workflow?.stage]
   );
 
   const focusLine: RackLine | PickLookup | null = useMemo(() => {
@@ -177,8 +189,8 @@ export default function PickOrderScreen() {
       setPickLookup(null);
       setMessage(
         r.message ??
-          (r.printEnabled || r.stage === 'print'
-            ? 'All racks complete — open printables'
+          (r.stage === 'pack'
+            ? 'All racks complete — continue to pack order'
             : r.rackComplete
               ? 'Rack complete — tap Next rack'
               : 'Picked')
@@ -199,8 +211,8 @@ export default function PickOrderScreen() {
       const r = await warehouseClient.advanceToNextRack(sessionId);
       setMessage(
         r.message ??
-          (r.printEnabled || r.stage === 'print'
-            ? 'All racks complete — open printables'
+          (r.stage === 'pack'
+            ? 'All racks complete — continue to pack order'
             : 'Next rack ready')
       );
       await load();
@@ -211,9 +223,9 @@ export default function PickOrderScreen() {
     }
   }
 
-  function openPrintables() {
+  function openPackOrder() {
     if (!id) return;
-    router.push(`/(app)/packing/print/${id}`);
+    router.push(`/(app)/packing/${id}`);
   }
 
   if (loading) return <Loading label="Loading pick session…" />;
@@ -221,10 +233,9 @@ export default function PickOrderScreen() {
   const order = detail?.order;
   const canScan = Boolean(sessionId && canWrite && !busy && !currentRackComplete && !allRacksComplete);
   const canAdvance = Boolean(sessionId && canWrite && !busy && currentRackComplete && !allRacksComplete);
-  const canPrint = Boolean(id && canWrite && !busy && allRacksComplete);
+  const canContinueToPack = Boolean(id && canWrite && !busy && allRacksComplete);
   const hasManualCode = scanCode.trim().length > 0;
-  const footerHeight =
-    FOOTER_BASE_HEIGHT + footerBottomPad + (pickLookup ? FOOTER_CONFIRM_EXTRA : 0);
+  const footerHeight = FOOTER_BASE_HEIGHT + footerBottomPad;
   const productTitle = focusLine ? ('productTitle' in focusLine ? focusLine.productTitle : '') : '';
   const qtyRequired = focusLine?.qtyRequired ?? 0;
   const qtyPicked = focusLine?.qtyPicked ?? 0;
@@ -331,11 +342,9 @@ export default function PickOrderScreen() {
         )}
 
         {pickLookup ? (
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Barcode matched</Text>
-            <Text style={styles.productMeta}>
-              {pickLookup.productTitle} — confirm quantity in the bar below
-            </Text>
+          <View style={styles.confirmHintCard}>
+            <Ionicons name="barcode-outline" size={18} color={tokens.green700} />
+            <Text style={styles.confirmHintText}>Barcode matched — enter quantity in the popup</Text>
           </View>
         ) : null}
 
@@ -386,8 +395,10 @@ export default function PickOrderScreen() {
 
         {allRacksComplete ? (
           <View style={styles.rackCompleteBanner}>
-            <Ionicons name="print-outline" size={20} color={tokens.green700} />
-            <Text style={styles.rackCompleteText}>All racks picked. Open printables to finish.</Text>
+            <Ionicons name="cube-outline" size={20} color={tokens.green700} />
+            <Text style={styles.rackCompleteText}>
+              All racks picked. Continue to pack — select box, transport, then print labels.
+            </Text>
           </View>
         ) : null}
 
@@ -405,6 +416,71 @@ export default function PickOrderScreen() {
 
       {sessionId ? (
         <>
+          <Modal
+            visible={Boolean(pickLookup)}
+            transparent
+            animationType="fade"
+            onRequestClose={() => {
+              if (!busy) setPickLookup(null);
+            }}
+          >
+            <View style={styles.overlayRoot}>
+              <Pressable
+                style={styles.overlayBackdrop}
+                onPress={() => {
+                  if (!busy) setPickLookup(null);
+                }}
+              />
+              {pickLookup ? (
+                <View style={styles.overlayCard}>
+                  <Text style={styles.overlayTitle}>Barcode matched</Text>
+                  <Text style={styles.overlayProduct} numberOfLines={2}>
+                    {pickLookup.productTitle}
+                  </Text>
+                  <Text style={styles.overlaySub}>
+                    Up to {pickLookup.remaining} remaining for this scan
+                  </Text>
+
+                  <View style={styles.bigQtyRow}>
+                    <View style={styles.bigQtyBox}>
+                      <Text style={styles.bigQtyLabel}>Required</Text>
+                      <Text style={styles.bigQtyValue}>{pickLookup.qtyRequired}</Text>
+                    </View>
+                    <View style={[styles.bigQtyBox, styles.bigQtyBoxInput]}>
+                      <Text style={styles.bigQtyLabel}>Enter qty</Text>
+                      <TextInput
+                        ref={qtyInputRef}
+                        style={styles.bigQtyInput}
+                        value={pickQty}
+                        onChangeText={setPickQty}
+                        keyboardType="number-pad"
+                        selectTextOnFocus
+                        maxLength={4}
+                        returnKeyType="done"
+                        onSubmitEditing={() => void confirmPick()}
+                      />
+                    </View>
+                  </View>
+
+                  <Pressable
+                    style={[styles.overlayConfirmBtn, busy ? styles.footerBtnDisabled : null]}
+                    onPress={() => void confirmPick()}
+                    disabled={busy}
+                  >
+                    <Ionicons name="checkmark-circle" size={24} color={tokens.card} />
+                    <View style={styles.footerBtnTextWrap}>
+                      <Text style={styles.primaryFooterTitle}>CONFIRM PICK ({pickQty || '0'})</Text>
+                      <Text style={styles.primaryFooterSub}>Add picked quantity to this rack</Text>
+                    </View>
+                  </Pressable>
+                  <Pressable style={styles.cancelLink} onPress={() => setPickLookup(null)} disabled={busy}>
+                    <Text style={styles.cancelLinkText}>Cancel</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+            </View>
+          </Modal>
+
           <BarcodeScanner
             hideTrigger
             open={scannerOpen}
@@ -414,35 +490,7 @@ export default function PickOrderScreen() {
             hint="Point at product barcode"
           />
           <View style={[styles.footer, { paddingBottom: footerBottomPad }]}>
-            {pickLookup ? (
-              <>
-                <Text style={styles.footerConfirmLabel} numberOfLines={2}>
-                  Pick {pickQty} of {pickLookup.remaining} remaining · {pickLookup.productTitle}
-                </Text>
-                <TextInput
-                  style={styles.qtyInput}
-                  value={pickQty}
-                  onChangeText={setPickQty}
-                  keyboardType="numeric"
-                  placeholder="Qty to pick"
-                  placeholderTextColor={tokens.textMuted}
-                />
-                <Pressable
-                  style={[styles.primaryFooterBtn, busy ? styles.footerBtnDisabled : null]}
-                  onPress={() => void confirmPick()}
-                  disabled={busy}
-                >
-                  <Ionicons name="checkmark-circle" size={22} color={tokens.card} />
-                  <View style={styles.footerBtnTextWrap}>
-                    <Text style={styles.primaryFooterTitle}>CONFIRM PICK ({pickQty})</Text>
-                    <Text style={styles.primaryFooterSub}>Add picked quantity to this rack</Text>
-                  </View>
-                </Pressable>
-                <Pressable style={styles.cancelLink} onPress={() => setPickLookup(null)} disabled={busy}>
-                  <Text style={styles.cancelLinkText}>Cancel</Text>
-                </Pressable>
-              </>
-            ) : !currentRackComplete && !allRacksComplete ? (
+            {!currentRackComplete && !allRacksComplete && !pickLookup ? (
               <>
                 <View style={styles.barcodeRow}>
                   <TextInput
@@ -498,8 +546,8 @@ export default function PickOrderScreen() {
               </>
             ) : allRacksComplete ? (
               <View style={styles.hintBar}>
-                <Ionicons name="print-outline" size={18} color={tokens.green700} />
-                <Text style={styles.hintBarText}>Picking complete — print documents</Text>
+                <Ionicons name="cube-outline" size={18} color={tokens.green700} />
+                <Text style={styles.hintBarText}>Picking complete — pack order next</Text>
               </View>
             ) : (
               <View style={styles.hintBar}>
@@ -510,14 +558,14 @@ export default function PickOrderScreen() {
 
             {!pickLookup && allRacksComplete ? (
               <Pressable
-                style={[styles.primaryFooterBtn, !canPrint ? styles.footerBtnDisabled : null]}
-                onPress={openPrintables}
-                disabled={!canPrint}
+                style={[styles.primaryFooterBtn, !canContinueToPack ? styles.footerBtnDisabled : null]}
+                onPress={openPackOrder}
+                disabled={!canContinueToPack}
               >
-                <Ionicons name="print-outline" size={22} color={tokens.card} />
+                <Ionicons name="cube-outline" size={22} color={tokens.card} />
                 <View style={styles.footerBtnTextWrap}>
-                  <Text style={styles.primaryFooterTitle}>OPEN PRINTABLES</Text>
-                  <Text style={styles.primaryFooterSub}>Labels, invoice & packing slip</Text>
+                  <Text style={styles.primaryFooterTitle}>CONTINUE TO PACK</Text>
+                  <Text style={styles.primaryFooterSub}>Box, transport & labels</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={tokens.card} />
               </Pressable>
@@ -662,25 +710,102 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 11, color: tokens.textMuted, marginBottom: 4 },
   statValue: { fontSize: 22, fontWeight: '800', color: tokens.text },
   statAccent: { color: tokens.warning },
-  confirmCard: {
+  confirmHintCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     backgroundColor: tokens.green100,
     borderRadius: tokens.radius,
     borderWidth: 1,
     borderColor: tokens.green500,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
-    gap: 8,
   },
-  confirmTitle: { fontSize: 16, fontWeight: '700', color: tokens.green800 },
-  qtyInput: {
+  confirmHintText: { flex: 1, fontSize: 14, fontWeight: '600', color: tokens.green800 },
+  overlayRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  overlayBackdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  overlayCard: {
     backgroundColor: tokens.card,
+    borderRadius: tokens.radius,
     borderWidth: 1,
     borderColor: tokens.border,
-    borderRadius: tokens.radiusSm,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    fontSize: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 16,
+  },
+  overlayTitle: { fontSize: 20, fontWeight: '800', color: tokens.green800, textAlign: 'center' },
+  overlayProduct: {
+    fontSize: 16,
+    fontWeight: '600',
     color: tokens.text,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  overlaySub: {
+    fontSize: 14,
+    color: tokens.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 20,
+  },
+  bigQtyRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  bigQtyBox: {
+    flex: 1,
+    minHeight: 132,
+    borderWidth: 2,
+    borderColor: tokens.border,
+    borderRadius: tokens.radius,
+    backgroundColor: tokens.bg,
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bigQtyBoxInput: {
+    borderColor: tokens.green500,
+    backgroundColor: tokens.green100,
+  },
+  bigQtyLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: tokens.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  bigQtyValue: {
+    fontSize: 56,
+    fontWeight: '800',
+    color: tokens.text,
+    lineHeight: 64,
+  },
+  bigQtyInput: {
+    width: '100%',
+    minHeight: 64,
+    fontSize: 56,
+    fontWeight: '800',
+    color: tokens.green800,
+    textAlign: 'center',
+    paddingVertical: 0,
+  },
+  overlayConfirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: tokens.green700,
+    borderRadius: tokens.radius,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
   },
   lineRow: {
     paddingVertical: 10,
@@ -758,11 +883,6 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.green700,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  footerConfirmLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: tokens.green800,
   },
   cancelLink: {
     alignItems: 'center',

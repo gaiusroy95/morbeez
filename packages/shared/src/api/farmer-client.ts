@@ -577,6 +577,7 @@ export type MarketDashboard = {
   favoriteCrop: string;
   crops: MarketCropItem[];
   date: string;
+  priceIsToday?: boolean;
   districtLabel: string;
   selectedMarket: string | null;
   primaryMarket: string | null;

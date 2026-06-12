@@ -7,8 +7,15 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { agronomistClient, formatDate, tokens, type AgronomistWorkspaceSummary } from '@morbeez/shared';
+import { useRouter, useFocusEffect } from 'expo-router';
+import {
+  agronomistClient,
+  formatDate,
+  tokens,
+  type AgronomistBlockRow,
+  type AgronomistRecommendationRow,
+  type AgronomistWorkspaceSummary,
+} from '@morbeez/shared';
 import {
   AlertBox,
   Btn,
@@ -19,6 +26,8 @@ import {
   Panel,
   TextField,
 } from '@morbeez/ui-native';
+import { RecommendationSection } from '@/components/RecommendationSection';
+import { AgronomistBlockCard } from '@/components/AgronomistBlockCard';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type Tab =
@@ -41,7 +50,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'blocks', label: 'Blocks' },
   { id: 'visits', label: 'Visits' },
   { id: 'findings', label: 'Findings' },
-  { id: 'recommendations', label: 'Recs' },
+  { id: 'recommendations', label: 'Recommendations' },
   { id: 'documents', label: 'Docs' },
   { id: 'orders', label: 'Orders' },
   { id: 'tasks', label: 'Tasks' },
@@ -61,6 +70,7 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
   const leadId = summary.leadId;
   const [tab, setTab] = useState<Tab>('overview');
   const [tabData, setTabData] = useState<unknown[]>([]);
+  const [recommendations, setRecommendations] = useState<AgronomistRecommendationRow[]>([]);
   const [intel, setIntel] = useState<Record<string, unknown> | null>(null);
   const [leadDetail, setLeadDetail] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
@@ -68,6 +78,24 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
   const [callbackReason, setCallbackReason] = useState('');
 
   const phone = String(summary.farmer.phone ?? '').replace(/\D/g, '');
+
+  const loadRecommendations = useCallback(async () => {
+    try {
+      setRecommendations(await agronomistClient.listFarmerRecommendations(farmerId, 20));
+    } catch {
+      setRecommendations([]);
+    }
+  }, [farmerId]);
+
+  useEffect(() => {
+    void loadRecommendations();
+  }, [loadRecommendations]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadRecommendations();
+    }, [loadRecommendations])
+  );
 
   const loadTab = useCallback(async () => {
     setError('');
@@ -111,12 +139,9 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
           break;
         }
         case 'recommendations': {
-          if (!leadId) {
-            setTabData([]);
-            break;
-          }
-          const r = await agronomistClient.getLeadRecommendations(leadId);
-          setTabData(r.recommendations ?? []);
+          const rows = await agronomistClient.listFarmerRecommendations(farmerId, 30);
+          setRecommendations(rows);
+          setTabData(rows);
           break;
         }
         case 'documents': {
@@ -179,17 +204,13 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
     await loadTab();
   }
 
-  function startVisit(block: Record<string, unknown>) {
-    router.push({
-      pathname: '/visit',
-      params: {
-        farmerId,
-        blockId: String(block.id ?? ''),
-        blockName: String(block.name ?? 'Block'),
-        cropType: String(block.cropType ?? ''),
-        farmerName: summary.farmer.name,
-      },
+  function openBlock(block: AgronomistBlockRow) {
+    const qs = new URLSearchParams({
+      farmerId,
+      farmerName: summary.farmer.name,
     });
+    if (leadId) qs.set('leadId', leadId);
+    router.push(`/block/${block.id}?${qs.toString()}`);
   }
 
   return (
@@ -221,28 +242,43 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
       {loading ? <Loading label="Loading…" /> : null}
 
       {tab === 'overview' ? (
-        <Panel title="Summary">
-          <KeyValueRow label="Pending tasks" value={String(summary.pendingTaskCount)} />
-          <KeyValueRow label="Open escalations" value={String(summary.openEscalationCount)} />
-          {leadDetail?.lead ? (
-            <Text style={styles.body}>
-              {String((leadDetail.lead as Record<string, unknown>).stageLabel ?? 'Lead linked')}
-            </Text>
-          ) : (
-            <Text style={styles.muted}>No telecaller lead linked yet.</Text>
-          )}
-        </Panel>
+        <>
+          <Panel title="Summary">
+            <KeyValueRow label="Pending tasks" value={String(summary.pendingTaskCount)} />
+            <KeyValueRow label="Open escalations" value={String(summary.openEscalationCount)} />
+            {leadDetail?.lead ? (
+              <Text style={styles.body}>
+                {String((leadDetail.lead as Record<string, unknown>).stageLabel ?? 'Lead linked')}
+              </Text>
+            ) : (
+              <Text style={styles.muted}>No telecaller lead linked yet.</Text>
+            )}
+          </Panel>
+          <RecommendationSection
+            farmerId={farmerId}
+            leadId={leadId}
+            recommendations={recommendations}
+            compact
+          />
+        </>
+      ) : tab === 'recommendations' ? (
+        <RecommendationSection
+          farmerId={farmerId}
+          leadId={leadId}
+          recommendations={recommendations}
+        />
       ) : tab === 'blocks' ? (
         <FlatList
-          data={tabData as Array<Record<string, unknown>>}
-          keyExtractor={(b, i) => String(b.id ?? i)}
+          data={tabData as AgronomistBlockRow[]}
+          keyExtractor={(b) => b.id}
           contentContainerStyle={styles.listPad}
+          ListHeaderComponent={
+            <Text style={styles.blocksHint}>
+              Blocks needing attention appear first. Tap a block to open details.
+            </Text>
+          }
           renderItem={({ item }) => (
-            <ListCard
-              title={String(item.name ?? 'Block')}
-              subtitle={[item.cropType, item.plotLabel].filter(Boolean).join(' · ')}
-              onPress={() => startVisit(item)}
-            />
+            <AgronomistBlockCard block={item} onPress={() => openBlock(item)} />
           )}
           ListEmptyComponent={<Text style={styles.muted}>No blocks</Text>}
         />
@@ -329,5 +365,6 @@ const styles = StyleSheet.create({
   listPad: { padding: 12, paddingBottom: 32 },
   body: { fontSize: 14, color: tokens.text, lineHeight: 20 },
   muted: { padding: 16, color: tokens.textMuted, textAlign: 'center' },
+  blocksHint: { fontSize: 13, color: tokens.textMuted, marginBottom: 12, lineHeight: 18 },
   compose: { padding: 12, borderBottomWidth: 1, borderBottomColor: tokens.border },
 });

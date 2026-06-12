@@ -11,16 +11,20 @@ import {
   type FieldDetail,
   type PortalSoilReport,
 } from '@morbeez/shared';
-import { AlertBox, Btn, Loading } from '@morbeez/ui-native';
 import {
   ActivityTimeline,
+  AlertBox,
+  BlockRecommendationsPanel,
   BlockSummaryCard,
+  Btn,
+  FieldFindingsPanel,
+  Loading,
+  ScrollableUnderlineTabs,
   SoilTestsPanel,
-  UnderlineTabs,
-} from '@/components/fields/FieldBlockUi';
+} from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
-type BlockTab = 'activities' | 'soilTests';
+type BlockTab = 'activities' | 'soilTests' | 'fieldFindings' | 'recommendations';
 
 export default function BlockDetailScreen() {
   const router = useRouter();
@@ -72,18 +76,29 @@ export default function BlockDetailScreen() {
   if (!detail) return <AlertBox>{error || 'Block not found'}</AlertBox>;
 
   const b = detail.block;
+  const latestFinding = detail.fieldFindings?.[0];
+  const extraRows = [
+    latestFinding?.visitedLabel
+      ? { label: 'Last visit', value: latestFinding.visitedLabel }
+      : null,
+    latestFinding?.cropHealthLabel && latestFinding.cropHealthLabel !== '—'
+      ? { label: 'Crop health', value: latestFinding.cropHealthLabel }
+      : null,
+  ].filter(Boolean) as Array<{ label: string; value: string }>;
 
   return (
     <View style={styles.root}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {error ? <AlertBox>{error}</AlertBox> : null}
 
-        <BlockSummaryCard block={b} locale={locale} />
+        <BlockSummaryCard block={b} locale={locale} extraRows={extraRows} />
 
-        <UnderlineTabs
+        <ScrollableUnderlineTabs
           tabs={[
             { id: 'activities', label: t('activities', locale) },
             { id: 'soilTests', label: t('soilTests', locale) },
+            { id: 'fieldFindings', label: t('fieldFindings', locale) },
+            { id: 'recommendations', label: t('recommendationsGiven', locale) },
           ]}
           active={tab}
           onChange={setTab}
@@ -101,10 +116,16 @@ export default function BlockDetailScreen() {
           <SoilTestsPanel
             reports={soilReports}
             locale={locale}
-            onNewTest={() =>
-              router.push({ pathname: '/soil/add', params: { blockId: b.id } })
-            }
+            onNewTest={() => router.push({ pathname: '/soil/add', params: { blockId: b.id } })}
           />
+        ) : null}
+
+        {tab === 'fieldFindings' ? (
+          <FieldFindingsPanel findings={detail.fieldFindings ?? []} locale={locale} />
+        ) : null}
+
+        {tab === 'recommendations' ? (
+          <BlockRecommendationsPanel items={detail.blockRecommendations ?? []} locale={locale} />
         ) : null}
       </ScrollView>
 
