@@ -22,5 +22,10 @@ export default defineConfig(({ mode }) => {
     preview: {
       port: 5173,
     },
+    build: {
+      rollupOptions: {
+        external: ['react-native', 'expo-secure-store'],
+      },
+    },
   };
 });

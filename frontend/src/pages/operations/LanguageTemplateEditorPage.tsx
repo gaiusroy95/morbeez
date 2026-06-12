@@ -14,7 +14,7 @@ import {
   type TemplateLanguage,
 } from '../../lib/language-templates-api';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, PageShell, ReadOnlyBanner, StaticSelect } from '../ui';
+import { Alert, PageShell, ReadOnlyBanner, StaticSelect } from '../../components/ui';
 
 const STATUS_OPTIONS = [
   'draft',

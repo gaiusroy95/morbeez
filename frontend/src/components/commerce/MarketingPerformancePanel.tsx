@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { Alert, Btn, DataTable, EmptyState, Loading, Modal, StaticSelect, TableWrap, inputClass } from '../ui';
+import { Alert, Btn, DataTable, EmptyState, Loading, StaticSelect, TableWrap } from '../ui';
+import { Modal, inputClass } from '../Modal';
 
 type PeriodDays = 7 | 30 | 90;
 

@@ -47,7 +47,7 @@ export const SECTION_DESCRIPTIONS: Record<OpsSection, string> = {
   market: 'Daily mandi prices, farmer market preferences, and field GPS for price personalization.',
 };
 
-const DEFAULT_TAB: Record<OpsSection, OpsSubTab> = {
+export const DEFAULT_TAB: Record<OpsSection, OpsSubTab> = {
   communications: 'broadcasts',
   knowledge: 'terminology',
   automation: 'campaignRules',

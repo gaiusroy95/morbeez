@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { OPERATIONS_API, type BroadcastDelivery, type BroadcastRule } from '../../lib/broadcast-api';
 import { matchesSearch } from '../../lib/search-filter';
@@ -125,7 +125,7 @@ export function BroadcastAutomationPanel({
     });
   }
 
-  async function saveRule(e: FormEvent) {
+  async function saveRule(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!canWrite) return;
     await api(`${base}/broadcasts/rules`, {

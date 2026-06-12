@@ -1,4 +1,4 @@
-import { computeFulfillmentGates, type FulfillmentGates } from '@morbeez/shared';
+import { computeFulfillmentGates, type FulfillmentGates } from '@morbeez/shared/fulfillment/fulfillment-gates';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
