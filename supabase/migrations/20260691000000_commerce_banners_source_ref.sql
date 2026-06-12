@@ -61,4 +61,4 @@ VALUES
     TRUE,
     'theme:seasonal:seasonal'
   )
-ON CONFLICT (source_ref) DO NOTHING;
+ON CONFLICT (source_ref) WHERE (source_ref IS NOT NULL) DO NOTHING;

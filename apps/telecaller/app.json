@@ -19,9 +19,18 @@
         "backgroundColor": "#246d26"
       }
     },
-    "plugins": ["expo-router"],
+    "plugins": [
+      "expo-router"
+    ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
+      "eas": {
+        "projectId": "ec66920f-2334-4e22-8650-cf5dd8021774"
+      },
+      "router": {}
     }
   }
 }
