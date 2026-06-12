@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
-  createFarmerApplicationMethod,
   createFarmerBlockRecommendation,
   fetchApplicationMethods,
   fetchFieldBlocks,
@@ -37,22 +36,10 @@ export default function AddBlockRecommendationScreen() {
   const [dosage, setDosage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
-  const [methodsLoading, setMethodsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const selectedBlock = useMemo(() => blocks.find((b) => b.id === blockId) ?? null, [blocks, blockId]);
   const methodOptions = useMemo(() => toMethodOptions(methods), [methods]);
-
-  const loadMethods = useCallback(async () => {
-    setMethodsLoading(true);
-    try {
-      setMethods(await fetchApplicationMethods());
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load application methods');
-    } finally {
-      setMethodsLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     void Promise.all([fetchFieldBlocks(), fetchApplicationMethods()])
@@ -65,13 +52,6 @@ export default function AddBlockRecommendationScreen() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Could not load form'))
       .finally(() => setLoading(false));
   }, [params.blockId]);
-
-  async function addApplicationMethod(name: string) {
-    const created = await createFarmerApplicationMethod(name);
-    await loadMethods();
-    setApplicationMethodId(created.id);
-    setApplicationMethodName(created.name);
-  }
 
   async function save() {
     if (!blockId) {
@@ -146,15 +126,10 @@ export default function AddBlockRecommendationScreen() {
           placeholder={t('applicationMethod', locale)}
           value={applicationMethodId}
           options={methodOptions}
-          loading={methodsLoading}
-          allowAdd
-          addPlaceholder={t('applicationMethod', locale)}
-          addButtonLabel={t('addApplicationMethod', locale)}
           onChange={(value, option) => {
             setApplicationMethodId(value);
             setApplicationMethodName(option?.label ?? '');
           }}
-          onAdd={addApplicationMethod}
         />
       </ScrollView>
 
