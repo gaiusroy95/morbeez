@@ -11,6 +11,7 @@
     "./theme": "./src/theme/tokens.ts",
     "./staff": "./src/api/staff-client.ts",
     "./farmer": "./src/api/farmer-client.ts",
+    "./fulfillment/fulfillment-gates": "./src/fulfillment/fulfillment-gates.ts",
     "./print/tax-invoice-html": "./src/print/tax-invoice-html.ts"
   },
   "dependencies": {

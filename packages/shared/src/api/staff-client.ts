@@ -1,5 +1,4 @@
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { deleteSessionItem, readSessionItem, writeSessionItem } from './secure-storage';
 import { parseApiError } from './errors';
 import { STAFF_API_V1, getApiOrigin, resolveStaffApiUrl } from './config';
 
@@ -27,30 +26,15 @@ export type SessionPayload = {
 };
 
 async function getStoredToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    try {
-      return sessionStorage.getItem(STAFF_TOKEN_KEY);
-    } catch {
-      return null;
-    }
-  }
-  return SecureStore.getItemAsync(STAFF_TOKEN_KEY);
+  return readSessionItem(STAFF_TOKEN_KEY);
 }
 
 async function setStoredToken(token: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    sessionStorage.setItem(STAFF_TOKEN_KEY, token);
-    return;
-  }
-  await SecureStore.setItemAsync(STAFF_TOKEN_KEY, token);
+  await writeSessionItem(STAFF_TOKEN_KEY, token);
 }
 
 async function clearStoredToken(): Promise<void> {
-  if (Platform.OS === 'web') {
-    sessionStorage.removeItem(STAFF_TOKEN_KEY);
-    return;
-  }
-  await SecureStore.deleteItemAsync(STAFF_TOKEN_KEY);
+  await deleteSessionItem(STAFF_TOKEN_KEY);
 }
 
 export async function getStaffToken(): Promise<string | null> {

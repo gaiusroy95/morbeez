@@ -1,5 +1,4 @@
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import { deletePersistedItem, readPersistedItem, writePersistedItem } from './secure-storage';
 import { parseApiError } from './errors';
 import { getApiOrigin, resolveApiUrl } from './config';
 import { fetchWithCache } from './response-cache';
@@ -55,30 +54,15 @@ function getWebStorage(): Storage | null {
 }
 
 async function getStoredToken(): Promise<string | null> {
-  if (Platform.OS === 'web') {
-    try {
-      return getWebStorage()?.getItem(FARMER_TOKEN_KEY) ?? null;
-    } catch {
-      return null;
-    }
-  }
-  return SecureStore.getItemAsync(FARMER_TOKEN_KEY);
+  return readPersistedItem(FARMER_TOKEN_KEY);
 }
 
 async function setStoredToken(token: string): Promise<void> {
-  if (Platform.OS === 'web') {
-    getWebStorage()?.setItem(FARMER_TOKEN_KEY, token);
-    return;
-  }
-  await SecureStore.setItemAsync(FARMER_TOKEN_KEY, token);
+  await writePersistedItem(FARMER_TOKEN_KEY, token);
 }
 
 async function clearStoredToken(): Promise<void> {
-  if (Platform.OS === 'web') {
-    getWebStorage()?.removeItem(FARMER_TOKEN_KEY);
-    return;
-  }
-  await SecureStore.deleteItemAsync(FARMER_TOKEN_KEY);
+  await deletePersistedItem(FARMER_TOKEN_KEY);
 }
 
 /** True when the server rejected credentials (not a transient network failure). */
