@@ -142,8 +142,18 @@ export async function osFieldRoutes(app) {
     app.get(`${api}/farmers/:farmerId/field-findings`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'read');
         const { farmerId } = request.params;
-        const q = request.query;
-        const findings = await fieldVisitService.listFarmerFieldFindings(farmerId, q.limit ? Number(q.limit) : 30);
+        const q = z
+            .object({
+            limit: z.coerce.number().int().min(1).max(50).optional(),
+            status: z.enum(['open', 'monitoring', 'resolved']).optional(),
+            blockId: z.string().uuid().optional(),
+        })
+            .parse(request.query ?? {});
+        const findings = await fieldVisitService.listFarmerFieldFindings(farmerId, {
+            limit: q.limit ?? 30,
+            status: q.status,
+            blockId: q.blockId,
+        });
         return reply.send({ ok: true, findings });
     });
     app.post(`${api}/visits/v2`, async (request, reply) => {

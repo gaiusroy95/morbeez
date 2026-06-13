@@ -198,19 +198,28 @@ export const partnerMobileService = {
     async listVisits(partnerId, limit = 40) {
         const { data, error } = await supabase
             .from('crm_field_findings')
-            .select('id, farmer_id, block_id, summary, visited_at, created_at, farmers(name, first_name, last_name)')
+            .select('id, farmer_id, block_id, block_name, disease_pest, observations, visited_at, created_at, farmers(name, first_name, last_name)')
             .eq('partner_id', partnerId)
             .is('archived_at', null)
             .order('visited_at', { ascending: false })
             .limit(limit);
         throwIfSupabaseError(error, 'Could not list visits');
-        return (data ?? []).map((v) => ({
-            id: String(v.id),
-            farmerId: String(v.farmer_id),
-            blockId: v.block_id ? String(v.block_id) : null,
-            visitedAt: String(v.visited_at ?? v.created_at),
-            summary: String(v.summary ?? ''),
-        }));
+        return (data ?? []).map((v) => {
+            const farmerRaw = v.farmers;
+            const farmer = Array.isArray(farmerRaw) ? farmerRaw[0] : farmerRaw;
+            const first = String(farmer?.first_name ?? '').trim();
+            const last = String(farmer?.last_name ?? '').trim();
+            const farmerName = [first, last].filter(Boolean).join(' ') || String(farmer?.name ?? '').trim() || undefined;
+            const summary = String(v.disease_pest ?? v.observations ?? v.block_name ?? '').slice(0, 120);
+            return {
+                id: String(v.id),
+                farmerId: String(v.farmer_id),
+                farmerName,
+                blockId: v.block_id ? String(v.block_id) : null,
+                visitedAt: String(v.visited_at ?? v.created_at),
+                summary: summary || undefined,
+            };
+        });
     },
     async listNotifications(partnerId) {
         const notifications = [];

@@ -4,6 +4,6 @@ export declare const partnerTrainingService: {
     getProgress(partnerId: string): Promise<any[]>;
     recordModuleComplete(partnerId: string, moduleId: string): Promise<any>;
     listCertificationAttempts(partnerId: string): Promise<any[]>;
-    recordCertificationAttempt(partnerId: string, score: number, passed: boolean): Promise<any>;
+    recordCertificationAttempt(partnerId: string, score: number, passed: boolean, attemptType?: "online" | "field"): Promise<any>;
 };
 //# sourceMappingURL=partner-training.service.d.ts.map

@@ -15,7 +15,6 @@ export const partnerTrainingService = {
         const { data, error } = await supabase
             .from('partner_training_modules')
             .select('*')
-            .eq('is_active', true)
             .order('sort_order', { ascending: true });
         throwIfSupabaseError(error, 'Could not list training modules');
         return data ?? [];
@@ -36,7 +35,6 @@ export const partnerTrainingService = {
             module_id: moduleId,
             status: 'completed',
             completed_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
         }, { onConflict: 'partner_id,module_id' })
             .select('*')
             .single();
@@ -48,19 +46,19 @@ export const partnerTrainingService = {
             .from('partner_certification_attempts')
             .select('*')
             .eq('partner_id', partnerId)
-            .order('attempted_at', { ascending: false })
+            .order('created_at', { ascending: false })
             .limit(20);
         throwIfSupabaseError(error, 'Could not list certification attempts');
         return data ?? [];
     },
-    async recordCertificationAttempt(partnerId, score, passed) {
+    async recordCertificationAttempt(partnerId, score, passed, attemptType = 'online') {
         const { data, error } = await supabase
             .from('partner_certification_attempts')
             .insert({
             partner_id: partnerId,
+            attempt_type: attemptType,
             score,
             passed,
-            attempted_at: new Date().toISOString(),
         })
             .select('*')
             .single();

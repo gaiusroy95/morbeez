@@ -682,10 +682,31 @@ export const agronomistMobileService = {
             costInr: a.cost_inr != null ? Number(a.cost_inr) : null,
             status: 'completed',
         }));
+        const findingIds = (findingsRes.data ?? []).map((r) => String(r.id));
+        const issueCounts = new Map();
+        const recCounts = new Map();
+        if (findingIds.length) {
+            const [{ data: issueRows }, { data: recRows }] = await Promise.all([
+                supabase.from('visit_issues').select('field_finding_id').in('field_finding_id', findingIds),
+                supabase
+                    .from('recommendation_records')
+                    .select('field_finding_id')
+                    .in('field_finding_id', findingIds),
+            ]);
+            for (const row of issueRows ?? []) {
+                const fid = String(row.field_finding_id);
+                issueCounts.set(fid, (issueCounts.get(fid) ?? 0) + 1);
+            }
+            for (const row of recRows ?? []) {
+                const fid = String(row.field_finding_id);
+                recCounts.set(fid, (recCounts.get(fid) ?? 0) + 1);
+            }
+        }
         const fieldFindings = (findingsRes.data ?? []).map((r) => {
+            const id = String(r.id);
             const health = cropHealthFromTone(r.disease_tone);
             return {
-                id: String(r.id),
+                id,
                 visitedAt: String(r.visited_at),
                 visitedLabel: fmt(String(r.visited_at)),
                 diseasePest: r.disease_pest ? String(r.disease_pest) : null,
@@ -695,6 +716,8 @@ export const agronomistMobileService = {
                 cropHealthStatus: health.cropHealthStatus,
                 agronomistName: r.agronomist_name ? String(r.agronomist_name) : null,
                 actionTaken: r.action_taken ? String(r.action_taken) : null,
+                issueCount: issueCounts.get(id) ?? 0,
+                recommendationCount: recCounts.get(id) ?? 0,
             };
         });
         const blockRecommendations = [
@@ -883,21 +906,32 @@ export const agronomistMobileService = {
         throwIfSupabaseError(error, 'Could not create reminder');
         return data;
     },
-    async listFarmerVisits(farmerId, limit = 30) {
-        const { data: findings, error } = await supabase
+    async listFarmerVisits(farmerId, options = {}) {
+        const limit = options.limit ?? 30;
+        let findingsQuery = supabase
             .from('crm_field_findings')
             .select('id, block_id, block_name, crop_type, visited_at, dap_at_visit, disease_pest, observations, block_health')
             .eq('farmer_id', farmerId)
             .is('archived_at', null)
             .order('visited_at', { ascending: false })
             .limit(limit);
+        if (options.blockId) {
+            findingsQuery = findingsQuery.eq('block_id', options.blockId);
+        }
+        const { data: findings, error } = await findingsQuery;
         throwIfSupabaseError(error, 'Could not load visits');
         const findingIds = (findings ?? []).map((f) => String(f.id));
         let issueCounts = new Map();
         let recCounts = new Map();
+        let topIssuesByFinding = new Map();
+        let statusesByFinding = new Map();
         if (findingIds.length) {
             const [{ data: issues }, { data: recs }] = await Promise.all([
-                supabase.from('visit_issues').select('field_finding_id').in('field_finding_id', findingIds),
+                supabase
+                    .from('visit_issues')
+                    .select('field_finding_id, issue_name, status, sort_order')
+                    .in('field_finding_id', findingIds)
+                    .order('sort_order', { ascending: true }),
                 supabase
                     .from('recommendation_records')
                     .select('field_finding_id')
@@ -906,13 +940,21 @@ export const agronomistMobileService = {
             for (const i of issues ?? []) {
                 const fid = String(i.field_finding_id);
                 issueCounts.set(fid, (issueCounts.get(fid) ?? 0) + 1);
+                const names = topIssuesByFinding.get(fid) ?? [];
+                if (i.issue_name && names.length < 3) {
+                    names.push(String(i.issue_name));
+                    topIssuesByFinding.set(fid, names);
+                }
+                const statuses = statusesByFinding.get(fid) ?? new Set();
+                statuses.add(String(i.status ?? 'open').toLowerCase());
+                statusesByFinding.set(fid, statuses);
             }
             for (const r of recs ?? []) {
                 const fid = String(r.field_finding_id);
                 recCounts.set(fid, (recCounts.get(fid) ?? 0) + 1);
             }
         }
-        return (findings ?? []).map((f) => {
+        const rows = (findings ?? []).map((f) => {
             const id = String(f.id);
             return {
                 id,
@@ -925,8 +967,16 @@ export const agronomistMobileService = {
                 recommendationCount: recCounts.get(id) ?? 0,
                 summary: String(f.disease_pest ?? f.observations ?? '').slice(0, 120),
                 blockHealth: f.block_health ? String(f.block_health) : null,
+                topIssueNames: topIssuesByFinding.get(id) ?? [],
+                _statuses: statusesByFinding.get(id) ?? new Set(),
             };
         });
+        if (!options.status) {
+            return rows.map(({ _statuses: _, ...row }) => row);
+        }
+        return rows
+            .filter((row) => row._statuses.has(options.status))
+            .map(({ _statuses: _, ...row }) => row);
     },
     async listNotifications(agentEmail) {
         void agentEmail;

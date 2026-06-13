@@ -207,6 +207,8 @@ export declare const agronomistMobileService: {
             cropHealthStatus: "critical" | "stable" | "monitor" | "alert";
             agronomistName: string | null;
             actionTaken: string | null;
+            issueCount: number;
+            recommendationCount: number;
         }[];
         blockRecommendations: ({
             id: string;
@@ -594,7 +596,11 @@ export declare const agronomistMobileService: {
         dueAt?: string;
         assignTo?: "agronomist" | "telecaller";
     }): Promise<any>;
-    listFarmerVisits(farmerId: string, limit?: number): Promise<{
+    listFarmerVisits(farmerId: string, options?: {
+        limit?: number;
+        status?: "open" | "monitoring" | "resolved";
+        blockId?: string;
+    }): Promise<{
         id: string;
         blockId: string | null;
         blockName: string;
@@ -605,6 +611,7 @@ export declare const agronomistMobileService: {
         recommendationCount: number;
         summary: string;
         blockHealth: string | null;
+        topIssueNames: string[];
     }[]>;
     listNotifications(agentEmail: string): Promise<{
         id: string;

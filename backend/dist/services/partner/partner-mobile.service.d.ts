@@ -79,9 +79,10 @@ export declare const partnerMobileService: {
     listVisits(partnerId: string, limit?: number): Promise<{
         id: string;
         farmerId: string;
+        farmerName: string | undefined;
         blockId: string | null;
         visitedAt: string;
-        summary: string;
+        summary: string | undefined;
     }[]>;
     listNotifications(partnerId: string): Promise<{
         id: string;
@@ -140,9 +141,10 @@ export declare const partnerMobileService: {
         recentVisits: {
             id: string;
             farmerId: string;
+            farmerName: string | undefined;
             blockId: string | null;
             visitedAt: string;
-            summary: string;
+            summary: string | undefined;
         }[];
     }>;
     createSupportRequest(partnerId: string, farmerId: string, input: {

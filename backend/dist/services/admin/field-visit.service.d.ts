@@ -30,16 +30,22 @@ export declare const fieldVisitService: {
         measurements: any[];
         recommendations: any[];
     }>;
-    listFarmerFieldFindings(farmerId: string, limit?: number): Promise<{
-        id: any;
-        block_id: any;
-        block_name: any;
-        crop_type: any;
-        visited_at: any;
-        disease_pest: any;
-        observations: any;
-        block_health: any;
-        dap_at_visit: any;
+    listFarmerFieldFindings(farmerId: string, options?: {
+        limit?: number;
+        status?: "open" | "monitoring" | "resolved";
+        blockId?: string;
+    }): Promise<{
+        id: string;
+        blockId: string | null;
+        blockName: string;
+        cropType: string | null;
+        visitedAt: string;
+        dapAtVisit: number | null;
+        issueCount: number;
+        recommendationCount: number;
+        summary: string;
+        blockHealth: string | null;
+        topIssueNames: string[];
     }[]>;
     submitStructuredVisit(input: StructuredFieldVisitInput, agronomistEmail: string): Promise<{
         findingId: string;
