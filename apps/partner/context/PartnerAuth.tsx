@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   partnerClient,
+  partnerLogin,
   partnerLogout,
   verifyPartnerOtp,
   type PartnerProfile,
@@ -11,6 +12,7 @@ type PartnerAuthContextValue = {
   authed: boolean;
   partner: PartnerProfile | null;
   loginWithOtp: (phone: string, code: string) => Promise<void>;
+  loginWithPassword: (phone: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -40,6 +42,11 @@ export function PartnerAuthProvider({ children }: { children: React.ReactNode })
     setPartner(r.partner);
   }, []);
 
+  const loginWithPassword = useCallback(async (phone: string, password: string) => {
+    const r = await partnerLogin(phone, password);
+    setPartner(r.partner);
+  }, []);
+
   const logout = useCallback(async () => {
     await partnerLogout();
     setPartner(null);
@@ -51,10 +58,11 @@ export function PartnerAuthProvider({ children }: { children: React.ReactNode })
       authed: Boolean(partner),
       partner,
       loginWithOtp,
+      loginWithPassword,
       logout,
       refresh,
     }),
-    [ready, partner, loginWithOtp, logout, refresh]
+    [ready, partner, loginWithOtp, loginWithPassword, logout, refresh]
   );
 
   return <PartnerAuthContext.Provider value={value}>{children}</PartnerAuthContext.Provider>;

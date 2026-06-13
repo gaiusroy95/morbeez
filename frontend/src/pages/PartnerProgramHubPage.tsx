@@ -52,36 +52,36 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     setError('');
     try {
       if (tab === 'partners') {
-        const r = await api.get<{ ok: boolean; partners: PartnerRow[] }>(base);
+        const r = await api<{ ok: boolean; partners: PartnerRow[] }>(base);
         setPartners(r.partners ?? []);
       } else if (tab === 'applications') {
-        const r = await api.get<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
+        const r = await api<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
           `${base}/applications/list`
         );
         setApplications(r.applications ?? []);
       } else if (tab === 'onboarding') {
         const [appsRes, modRes] = await Promise.all([
-          api.get<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
+          api<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
             `${base}/applications/list`
           ),
-          api.get<{ ok: boolean; modules: Array<Record<string, unknown>> }>(
+          api<{ ok: boolean; modules: Array<Record<string, unknown>> }>(
             `${base}/training/modules`
           ),
         ]);
         setApplications(appsRes.applications ?? []);
         setTrainingModules(modRes.modules ?? []);
       } else if (tab === 'settings') {
-        const r = await api.get<{ ok: boolean; settings: Array<Record<string, unknown>> }>(
+        const r = await api<{ ok: boolean; settings: Array<Record<string, unknown>> }>(
           `${base}/settings/list`
         );
         setSettings(r.settings ?? []);
       } else if (tab === 'commission') {
-        const r = await api.get<{ ok: boolean; rules: Array<Record<string, unknown>> }>(
+        const r = await api<{ ok: boolean; rules: Array<Record<string, unknown>> }>(
           `${base}/commission/list`
         );
         setCommissionRules(r.rules ?? []);
       } else if (tab === 'events') {
-        const r = await api.get<{ ok: boolean; events: Array<Record<string, unknown>> }>(
+        const r = await api<{ ok: boolean; events: Array<Record<string, unknown>> }>(
           `${base}/events/list`
         );
         setEvents(r.events ?? []);
@@ -99,7 +99,10 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     if (!canWrite) return;
     setBusy(true);
     try {
-      await api.patch(`${base}/${id}/status`, { status: 'active', reason: 'Admin activation' });
+      await api(`${base}/${id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'active', reason: 'Admin activation' }),
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Activation failed');
@@ -112,7 +115,10 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     if (!canWrite) return;
     setBusy(true);
     try {
-      await api.post(`${base}/applications/${id}/approve`, {});
+      await api(`${base}/applications/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Approve failed');
@@ -125,7 +131,10 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     if (!canWrite) return;
     setBusy(true);
     try {
-      await api.patch(`${base}/applications/${id}/stage`, { stage });
+      await api(`${base}/applications/${id}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stage }),
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Stage update failed');
@@ -138,7 +147,10 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     if (!canWrite) return;
     setBusy(true);
     try {
-      await api.post(`${base}/events/${id}/approve`, {});
+      await api(`${base}/events/${id}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Approve failed');
@@ -152,7 +164,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     setBusy(true);
     setError('');
     try {
-      const r = await api.get<{ ok: boolean } & Record<string, unknown>>(
+      const r = await api<{ ok: boolean } & Record<string, unknown>>(
         `${base}/control-tower/${towerFarmerId.trim()}`
       );
       setTowerData(r);
