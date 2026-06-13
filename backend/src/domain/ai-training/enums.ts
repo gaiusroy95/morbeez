@@ -91,3 +91,68 @@ export type ImageReviewStatus = (typeof IMAGE_REVIEW_STATUSES)[number];
 /** Image review actions */
 export const IMAGE_REVIEW_ACTIONS = ['confirm_ai', 'correct_ai', 'skip', 'exclude'] as const;
 export type ImageReviewAction = (typeof IMAGE_REVIEW_ACTIONS)[number];
+
+/** Block assessment — structured field visit Section 2 */
+export const BLOCK_HEALTH_LEVELS = ['good', 'average', 'need_assistance'] as const;
+export type BlockHealthLevel = (typeof BLOCK_HEALTH_LEVELS)[number];
+
+export const CROP_PERFORMANCE_LEVELS = [
+  'above_expectation',
+  'as_expected',
+  'below_expectation',
+] as const;
+export type CropPerformanceLevel = (typeof CROP_PERFORMANCE_LEVELS)[number];
+
+export const SOIL_MOISTURE_LEVELS = ['dry', 'optimal', 'wet', 'waterlogged'] as const;
+export type SoilMoistureLevel = (typeof SOIL_MOISTURE_LEVELS)[number];
+
+/** Per-issue lifecycle on a visit */
+export const ISSUE_STATUSES = ['open', 'monitoring', 'resolved'] as const;
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+
+/** Issue categories for visit issue cards (maps to FINDING_TYPES where overlapping) */
+export const ISSUE_CATEGORIES = [
+  'disease',
+  'pest',
+  'nutrient_deficiency',
+  'water_stress',
+  'weed',
+  'other',
+] as const;
+export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+
+/** Recommendation module types */
+export const RECOMMENDATION_TYPES = [
+  'disease_management',
+  'pest_management',
+  'nutrient_management',
+  'irrigation',
+  'soil_amendment',
+  'monitoring',
+  'other',
+] as const;
+export type RecommendationType = (typeof RECOMMENDATION_TYPES)[number];
+
+export const RECOMMENDATION_PRIORITIES = ['normal', 'high', 'critical'] as const;
+export type RecommendationPriority = (typeof RECOMMENDATION_PRIORITIES)[number];
+
+export const FIELD_REC_STATUSES = ['open', 'monitoring', 'completed', 'escalated'] as const;
+export type FieldRecStatus = (typeof FIELD_REC_STATUSES)[number];
+
+/** Visit follow-up: was recommendation followed? */
+export const RECOMMENDATION_FOLLOWED = [
+  'yes',
+  'partially',
+  'no',
+  'not_applicable',
+] as const;
+export type RecommendationFollowed = (typeof RECOMMENDATION_FOLLOWED)[number];
+
+/** Visit follow-up outcome (agronomist next-visit review) */
+export const VISIT_FOLLOWUP_OUTCOMES = [
+  'improved',
+  'no_change',
+  'worsened',
+  'not_reviewed',
+] as const;
+export type VisitFollowupOutcome = (typeof VISIT_FOLLOWUP_OUTCOMES)[number];

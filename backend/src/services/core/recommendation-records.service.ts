@@ -39,6 +39,7 @@ export const recommendationRecordsService = {
     aiSessionId?: string;
     crmRecommendationId?: string;
     fieldFindingId?: string;
+    visitIssueId?: string;
     source: 'ai' | 'agronomist' | 'rule' | 'template' | 'field_finding';
     issueDetected?: string;
     recommendationText: string;
@@ -84,6 +85,7 @@ export const recommendationRecordsService = {
         ai_session_id: input.aiSessionId ?? null,
         crm_recommendation_id: input.crmRecommendationId ?? null,
         field_finding_id: input.fieldFindingId ?? null,
+        visit_issue_id: input.visitIssueId ?? null,
         source: input.source,
         issue_detected: input.issueDetected ?? null,
         recommendation_text: input.recommendationText,

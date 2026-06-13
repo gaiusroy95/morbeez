@@ -157,6 +157,10 @@ const envSchema = z.object({
     .string()
     .transform((v) => v !== 'false')
     .default('true'),
+  ENABLE_STRUCTURED_FIELD_VISITS: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
   ENABLE_WHATSAPP_BROADCASTS: z
     .string()
     .transform((v) => v !== 'false')
@@ -214,6 +218,26 @@ const envSchema = z.object({
     .default('true'),
   /** Send educational WhatsApp nudge during low-opportunity nurture batch (default on). */
   ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_PARTNER_PROGRAM: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_PARTNER_LEAD_ALLOCATION: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_SALES_OPPORTUNITIES: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_PARTNER_COMMISSION: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_UNIFIED_TEAM_TIMELINE: z
     .string()
     .transform((v) => v !== 'false')
     .default('true'),

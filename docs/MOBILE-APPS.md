@@ -2,13 +2,13 @@
 
 Three focused Expo apps replace the old single `mobile/` staff console mirror.
 
-## Apps
-
 | App | Folder | Command | Auth |
 |-----|--------|---------|------|
 | **Farmer** (client) | `apps/farmer` | `npm run dev:farmer` | Farmer JWT (email or OTP) |
 | **Pick & Pack** | `apps/warehouse` | `npm run dev:warehouse` | Staff JWT + `warehouse` write |
 | **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Staff JWT + `agronomist` (OTP or email) |
+| **Telecaller** | `apps/telecaller` | `npm run dev:telecaller` | Staff JWT + `telecaller_crm` |
+| **Partner** | `apps/partner` | `npm run dev:partner` | Partner JWT (OTP or password) |
 
 Shared code: `packages/shared`, `packages/ui-native`.
 
@@ -95,9 +95,11 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route 
 
 ## Agronomist app — visits + farmer intelligence
 
+**Visit model:** A **scheduled visit** is a `crm_tasks` reminder (`task_type = visit`). A **completed visit record** is a row in `crm_field_findings` (optionally linked to `agronomist_visit_sessions`). The Visits / Field Findings tabs are read-only timelines derived from findings — not manually duplicated entries. Submit via **Start visit** (structured multi-issue form).
+
 **Bottom tabs:** Dashboard · Farmers · Visits · Tasks · Profile
 
-**Stack flows:** farmer workspace (12 tabs) · farm visit (check-in → questionnaire → photos → check-out) · finding review · AI case review · route planner · map view
+**Stack flows:** farmer workspace (8 tabs) · farm visit (check-in → structured issues → check-out) · visit detail · finding review · AI case review · route planner · map view
 
 **Shared client:** `packages/shared/src/api/agronomist-client.ts`
 
@@ -111,32 +113,83 @@ Base field: `/morbeez-staff/api/v1/os/field` · agronomist: `/morbeez-staff/api/
 |------|-----------|
 | Dashboard | `GET /mobile/dashboard` |
 | Farmers | `GET /mobile/farmers`, `GET /farmers/search`, `GET /farmers/:id/blocks` |
-| Workspace | `GET /farmers/:id/workspace-summary`, `GET /farmers/:id/documents`, `GET /farmers/:id/intelligence` |
-| Tasks | `GET /mobile/tasks`, `GET /callbacks`, `PATCH /callbacks/:id`, `GET /mobile/escalations` |
-| Visits | `POST /visits/sessions`, `PATCH /visits/sessions/:id/check-out`, `POST /visits`, `GET /visits/recent` |
+| Workspace | `GET /farmers/:id/workspace-summary`, **`GET /farmers/:id/workspace-dashboard`**, `GET /farmers/:id/documents`, `GET /farmers/:id/intelligence` |
+| Farmer workspace tabs | **`GET /farmers/:id/visits`**, **`GET /farmers/:id/orders`**, **`GET /farmers/:id/whatsapp-history`**, **`POST /farmers/:id/calls`**, **`POST /farmers/:id/reminders`**, `GET|POST /farmers/:id/notes`, `GET /farmers/:id/follow-ups`, `GET|POST /farmers/:id/soil-reports`, `POST /farmers/:id/field-activities`, `GET /farmers/:id/call-log-summary`, `GET /farmers/:id/interactions` |
+| Tasks | `GET /mobile/tasks`, `GET /callbacks`, `PATCH /callbacks/:id`, **`PATCH /operations/tasks/:id/complete`**, `GET /mobile/escalations` |
+| Visits | `POST /visits/sessions`, `PATCH /visits/sessions/:id/check-out`, `POST /visits`, **`POST /visits/v2`**, **`GET /visits/:findingId`**, `GET /visits/recent` |
+| Field masters | `GET /issue-master`, `GET /measurement-templates/:cropType`, `POST /issue-follow-up-questions` |
 | Review | `GET /queue`, `GET /findings/:id`, `POST /drafts`, `GET /cases`, `POST /cases/:id/review` |
 | Routes | `GET|POST /routes`, `POST /routes/:id/stops`, `POST /routes/:id/optimize` |
 | Profile | `GET /mobile/profile`, `GET /workspace-intelligence` |
 
-Apply migration `20260703000000_agronomist_mobile.sql` for visit sessions + route planner tables.
+Apply migrations `20260704000000_field_findings_v2.sql` and **`20260705000000_advisory_reuse_field_origin.sql`** for structured visits and field-origin reuse indexing. Set `ENABLE_STRUCTURED_FIELD_VISITS=true` on backend (default).
 
 ### Agronomist smoke checklist
 
 1. Login as agronomist staff (mobile OTP or email + password)
 2. Dashboard widgets load; tap stat → Tasks/Farmers filtered
 3. Farmers: search, filter chips, open workspace
-4. Workspace: Overview + at least Crops, Findings, Recommendations tabs load
-5. Visits: search farmer → select block → check-in → submit visit → success screen
-6. Tasks: unified list (visits, follow-ups, finding review, AI cases)
-7. Finding review: AI suggest → draft → submit
-8. Routes: create route → add stop → optimize → Open Maps
-9. Map: nearby farmer pins
-10. Profile stats + sign out
+4. Workspace **8 tabs**: Overview (KPI cards + deep links), Calls (call log + WhatsApp + log call), Blocks (open issues on cards), Visits (read-only timeline), Recommendations (issue-grouped + status filters), Orders, Follow-ups (complete task / callback actions), Notes
+5. Block detail: Add activity, Add soil test, Start visit (structured multi-issue form with inline recs + measurements)
+6. Submit visit with 2+ issues → appears on farmer Visits tab and block Field findings; tap → visit detail screen
+7. Tasks: unified list (visits, follow-ups, finding review, AI cases)
+8. Finding review: AI suggest → draft → submit
+9. Routes: create route → add stop → optimize → Open Maps
+10. Map: nearby farmer pins
+11. Profile stats + sign out
+12. Follow-up automation: communicated rec → WhatsApp buttons → status visible in Follow-ups tab
+13. Backfill (staging): `node scripts/backfill-field-findings-v2.mjs --dry-run`
+14. Training export JSON includes `reuseCaseStats` split by `source_type`
 
 ### Agronomist EAS
 
 ```bash
 cd apps/agronomist
+cp .env.example .env
+npx eas build --platform android --profile preview
+```
+
+## Telecaller app — CRM + call intelligence
+
+**Bottom tabs:** Dashboard · Farmers · Follow-ups · Notifications · Profile
+
+**Stack flows:** lead workspace (6 tabs) · call detail (read-only AI) · block workspace
+
+**Shared client:** `packages/shared/src/api/telecaller-client.ts`
+
+**Contexts:** `TelecallerDashboardProvider` (dashboard + offline call upload queue)
+
+### Telecaller API (mobile)
+
+Base: `/morbeez-staff/api/v1/os/telecaller`
+
+| Area | Endpoints |
+|------|-----------|
+| Dashboard | `GET /mobile/dashboard` (overview, QC, action queue, today's tasks) |
+| Farmers | `GET /mobile/leads/operational`, `GET /leads/queue-summary` |
+| Workspace | `GET /mobile/leads/:id/workspace-summary`, `GET /leads/:id/farmer-profile`, `GET /leads/:id/intelligence`, `GET /leads/:id/blocks`, `GET /leads/:leadId/blocks/:blockId/workspace` |
+| Interactions | `GET /leads/:id/timeline`, `GET /leads/:id/interactions`, `GET /calls/:callId`, `POST /exotel/click-to-call` |
+| Follow-ups | `GET /mobile/follow-ups?grouped=true`, `PATCH /tasks/:id/complete`, `PATCH /tasks/:id` |
+| Notifications | `GET /mobile/notifications` |
+| Notes / tasks | `GET|POST /leads/:id/notes`, `POST /leads/:id/tasks` |
+
+See [telecaller-mobile smoke checklist](./telecaller-mobile/README.md).
+
+### Telecaller smoke checklist
+
+1. Login as telecaller staff
+2. Dashboard: today's work, revenue, action queue, today's tasks
+3. Farmers: search + filter chips + FarmerCard quick actions
+4. Workspace: Overview KPIs, Interactions timeline, Blocks drill-down, Recommendations, Orders, Notes
+5. Call detail: read-only AI summary, transcript, QC, create follow-up from action items
+6. Follow-ups: complete/snooze grouped tasks
+7. Notifications inbox with tap-through
+8. Profile: monthly revenue stats (no hidden admin performance scores)
+
+### Telecaller EAS
+
+```bash
+cd apps/telecaller
 cp .env.example .env
 npx eas build --platform android --profile preview
 ```
@@ -214,6 +267,10 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 - Backend: `cd backend && npm test`
 - Farmer app: `cd apps/farmer && npm test && npm run typecheck`
 - Warehouse app: `cd apps/warehouse && npm test && npm run typecheck`
+- Agronomist app: `cd apps/agronomist && npm run typecheck`
+- Telecaller app: `cd apps/telecaller && npm run typecheck`
+- Partner app: `cd apps/partner && npm run typecheck`
+- Partner ecosystem backend: `cd backend && node --import tsx --test tests/partner-communication.test.ts tests/sales-opportunity.test.ts tests/commission-engine.test.ts`
 
 ## Feature parity (vs web)
 
@@ -222,6 +279,23 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 | **Farmer** | Mockup-aligned | OTP login, market/ROI tabs, charts, shop polish, i18n en/hi/ml, offline cache |
 | **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
 | **Agronomist** | Visit + review | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner |
+| **Telecaller** | Production CRM | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox |
+| **Partner** | Production shell | Dashboard, farmers workspace (7 tabs), visits (GPS), tasks, notifications, lead offers, earnings |
+
+## Partner app
+
+**Bottom tabs:** Dashboard · Farmers · Tasks · Visits · Notifications · Profile
+
+**Farmer workspace tabs:** Overview · Blocks · Visit history · Recommendations · Sales opportunities · Team · Notes
+
+**Key flows:**
+
+- GPS check-in at field (`expo-location`) → structured visit submit → expert review queue
+- Partner creates sales opportunity → telecaller dashboard inbox + status updates
+- Internal team timeline shared with telecaller and expert apps
+- Referral QR on `app/referral.tsx` for event enrollment attribution
+
+See [`docs/partner-ecosystem/COMMUNICATION.md`](../partner-ecosystem/COMMUNICATION.md).
 
 ## Warehouse RBAC
 

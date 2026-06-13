@@ -37,6 +37,7 @@ export default function AppLayout() {
       <Stack.Screen name="more/assign-labels" options={{ headerTitle: () => <BrandedHeaderTitle title="Assign labels" /> }} />
       <Stack.Screen name="order/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Pick & pack" /> }} />
       <Stack.Screen name="order/timeline/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Order timeline" /> }} />
+      <Stack.Screen name="change-password" options={{ headerTitle: () => <BrandedHeaderTitle title="Change password" /> }} />
       </Stack>
     </WarehouseQueueProvider>
   );

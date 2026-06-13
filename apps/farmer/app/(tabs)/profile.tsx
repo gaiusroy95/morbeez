@@ -15,7 +15,7 @@ import { whatsAppUrl } from '@/lib/config';
 
 export default function ProfileTabScreen() {
   const router = useRouter();
-  const { logout } = useFarmerAuth();
+  const { logout, farmer } = useFarmerAuth();
   const { locale, setLocale } = useLocale();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,6 +44,11 @@ export default function ProfileTabScreen() {
       <Panel title={t('menu', locale)}>
         <Btn label={t('myBlocks', locale)} variant="secondary" onPress={() => router.push('/fields')} />
         <Btn label={t('accountAddress', locale)} variant="secondary" onPress={() => router.push('/address')} />
+        <Btn
+          label={farmer?.hasPassword ? t('changePassword', locale) : t('setPassword', locale)}
+          variant="secondary"
+          onPress={() => router.push('/change-password')}
+        />
         <Btn label={t('orders', locale)} variant="secondary" onPress={() => router.push('/orders')} />
         <Btn label={t('notifications', locale)} variant="secondary" onPress={() => router.push('/intel/notifications')} />
         <Btn label={t('scanHistory', locale)} variant="secondary" onPress={() => router.push('/scan/history')} />

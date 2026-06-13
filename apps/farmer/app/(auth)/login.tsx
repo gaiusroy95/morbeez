@@ -122,8 +122,8 @@ export default function LoginScreen() {
             </>
           ) : (
             <>
-              <TextField label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" accessibilityLabel="Email" />
-              <PasswordField label="Password" value={password} onChangeText={setPassword} accessibilityLabel="Password" />
+              <TextField label={t('email', locale)} value={email} onChangeText={setEmail} keyboardType="email-address" accessibilityLabel={t('email', locale)} />
+              <PasswordField label={t('password', locale)} value={password} onChangeText={setPassword} accessibilityLabel={t('password', locale)} />
               <Btn label={loading ? t('loading', locale) : t('login', locale)} onPress={() => void onEmailSubmit()} disabled={loading} />
               <Pressable onPress={() => setMode('otp')} style={styles.linkWrap}>
                 <Text style={styles.linkText}>{t('useOtp', locale)}</Text>

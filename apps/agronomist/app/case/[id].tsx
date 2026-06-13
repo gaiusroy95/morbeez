@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { agronomistClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, KeyValueRow, Loading, Panel, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyValueRow, Loading, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type ReviewAction = 'approve_ai' | 'correct_ai' | 'partial_match' | 'escalate_urgent';
@@ -205,5 +205,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: tokens.text,
   },
-  textArea: { minHeight: 100, textAlignVertical: 'top', marginBottom: 12 },
+  textArea: { minHeight: MULTILINE_MIN_HEIGHT, textAlignVertical: 'top', marginBottom: 12 },
 });

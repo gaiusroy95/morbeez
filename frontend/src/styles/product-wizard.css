@@ -295,7 +295,7 @@ body.route-product-wizard .page-header {
 
 .pw-textarea {
   resize: vertical;
-  min-height: 100px;
+  min-height: 120px;
 }
 
 .pw-counter {

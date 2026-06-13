@@ -5,14 +5,17 @@ import {
   createQuickExpense,
   createFarmerCategory,
   fetchRoiCategories,
+  t,
   tokens,
   type FarmerCategory,
 } from '@morbeez/shared';
 import { AlertBox, DynamicSelect, TextField } from '@morbeez/ui-native';
 import { RoiFormPickers, StickySaveBar, useRoiFormContext } from '@/components/roi/RoiFormFields';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AddExpenseScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const params = useLocalSearchParams<{ blockId?: string }>();
   const { crop, blockId, blocks, crops, entryDate, setEntryDate, setBlockId, onCropChange } = useRoiFormContext(
     params.blockId ? String(params.blockId) : undefined
@@ -78,29 +81,29 @@ export default function AddExpenseScreen() {
           blocks={blocks}
           crops={crops}
           entryDate={entryDate}
-          cropLabel="Crop"
-          blockLabel="Block"
-          dateLabel="Date"
+          cropLabel={t('cropType', locale)}
+          blockLabel={t('block', locale)}
+          dateLabel={t('entryDate', locale)}
           onCropChange={(c) => void onCropChange(c)}
           onBlockChange={setBlockId}
           onDateChange={setEntryDate}
         />
         <DynamicSelect
-          label="Category"
-          placeholder="Select category"
+          label={t('category', locale)}
+          placeholder={t('selectCategory', locale)}
           value={categoryId}
           options={categoryOptions}
           loading={loadingCategories}
           allowAdd
-          addPlaceholder="Custom category"
-          addButtonLabel="Add category"
+          addPlaceholder={t('category', locale)}
+          addButtonLabel={t('addActivityType', locale)}
           onChange={(id) => setCategoryId(id)}
           onAdd={addCategory}
         />
-        <TextField label="Amount (₹)" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
-        <TextField label="Description" value={note} onChangeText={setNote} />
+        <TextField label={t('amount', locale)} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+        <TextField label={t('description', locale)} value={note} onChangeText={setNote} />
       </ScrollView>
-      <StickySaveBar label={saving ? 'Saving…' : 'Save expense'} onPress={() => void save()} disabled={saving} />
+      <StickySaveBar label={saving ? t('loading', locale) : t('saveExpense', locale)} onPress={() => void save()} disabled={saving} />
     </View>
   );
 }

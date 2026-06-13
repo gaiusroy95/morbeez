@@ -8,13 +8,21 @@ import {
   View,
   type ViewProps,
 } from 'react-native';
-import { tokens } from '@morbeez/shared';
-import type { AppLocale } from '@morbeez/shared';
+import { tokens, t, type AppLocale } from '@morbeez/shared';
 import { APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
 import { MorbeezLogo } from './MorbeezLogo';
+import { androidPressHandlers } from './mobile-nav';
 
 export { MorbeezLogo } from './MorbeezLogo';
+export {
+  androidPressHandlers,
+  HeaderPressable,
+  ScrollableHubTabs,
+  useMobileTabBarStyle,
+  useMobileTabScreenOptions,
+} from './mobile-nav';
 export { KeyboardAwareScrollScreen } from './KeyboardAwareScrollScreen';
+import { KeyboardAwareScrollScreen } from './KeyboardAwareScrollScreen';
 export {
   ScrollableUnderlineTabs,
   BlockSummaryCard,
@@ -101,10 +109,9 @@ export function Btn({
 }) {
   return (
     <Pressable
-      onPress={onPress}
-      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
+      disabled={disabled}
       style={({ pressed }) => [
         styles.btn,
         variant === 'secondary' && styles.btnSecondary,
@@ -112,6 +119,7 @@ export function Btn({
         (pressed || disabled) && styles.btnPressed,
         disabled && styles.btnDisabled,
       ]}
+      {...androidPressHandlers(onPress, disabled)}
     >
       <Text
         style={[
@@ -167,7 +175,7 @@ export function StatCard({
   );
   if (onPress) {
     return (
-      <Pressable style={styles.statCard} onPress={onPress}>
+      <Pressable style={styles.statCard} {...androidPressHandlers(onPress)}>
         {content}
       </Pressable>
     );
@@ -197,7 +205,7 @@ export function ListCard({
   );
   if (onPress) {
     return (
-      <Pressable onPress={onPress} style={({ pressed }) => pressed && styles.pressed}>
+      <Pressable {...androidPressHandlers(onPress)} style={({ pressed }) => pressed && styles.pressed}>
         {content}
       </Pressable>
     );
@@ -219,7 +227,8 @@ export function HubTabs<T extends string>({
       {tabs.map((tab) => (
         <Pressable
           key={tab.id}
-          onPress={() => onChange(tab.id)}
+          hitSlop={4}
+          {...androidPressHandlers(() => onChange(tab.id))}
           style={[styles.tab, active === tab.id && styles.tabActive]}
         >
           <Text style={[styles.tabText, active === tab.id && styles.tabTextActive]}>
@@ -262,6 +271,16 @@ export function KeyValueRow({ label, value }: { label: string; value: string }) 
   );
 }
 
+/** Shared min height for multiline / description-style inputs across mobile apps. */
+export const MULTILINE_MIN_HEIGHT = 160;
+
+const DESCRIPTION_LIKE_LABEL =
+  /\b(description|notes?|remarks?|observations?|recommendations?|comments?|summar(y|ies)|details?|findings?|issues?|learning|diagnosis|feedback|instructions?)\b/i;
+
+export function isDescriptionLikeLabel(label: string): boolean {
+  return DESCRIPTION_LIKE_LABEL.test(label);
+}
+
 export function TextField({
   label,
   value,
@@ -285,22 +304,24 @@ export function TextField({
   maxLength?: number;
   multiline?: boolean;
 }) {
+  const isMultiline = multiline ?? isDescriptionLikeLabel(label);
+
   return (
     <View style={styles.field}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={[styles.input, multiline && styles.inputMultiline]}
+        style={[styles.input, isMultiline && styles.inputMultiline]}
         value={value}
         onChangeText={onChangeText}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize ?? 'none'}
+        autoCapitalize={autoCapitalize ?? (isMultiline ? 'sentences' : 'none')}
         placeholder={placeholder}
         placeholderTextColor={tokens.textMuted}
         accessibilityLabel={accessibilityLabel ?? label}
         maxLength={maxLength}
-        multiline={multiline}
-        textAlignVertical={multiline ? 'top' : 'auto'}
+        multiline={isMultiline}
+        textAlignVertical={isMultiline ? 'top' : 'auto'}
       />
     </View>
   );
@@ -335,15 +356,111 @@ export function PasswordField({
           accessibilityLabel={accessibilityLabel ?? label}
         />
         <Pressable
-          onPress={() => setVisible((v) => !v)}
           style={styles.eyeBtn}
           accessibilityRole="button"
           accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+          {...androidPressHandlers(() => setVisible((v) => !v))}
         >
           <Text style={styles.eyeText}>{visible ? '🙈' : '👁'}</Text>
         </Pressable>
       </View>
     </View>
+  );
+}
+
+export function ChangePasswordForm({
+  locale,
+  hasPassword = true,
+  onSubmit,
+  onSuccess,
+}: {
+  locale: AppLocale;
+  hasPassword?: boolean;
+  onSubmit: (input: {
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) => Promise<void>;
+  onSuccess?: () => void;
+}) {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setError('');
+    setSuccess('');
+    if (newPassword.length < 8) {
+      setError(t('passwordMinLength', locale));
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError(t('passwordsMustMatch', locale));
+      return;
+    }
+    if (hasPassword && !currentPassword.trim()) {
+      setError(t('currentPasswordRequired', locale));
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await onSubmit({
+        currentPassword: hasPassword ? currentPassword : undefined,
+        newPassword,
+        confirmPassword,
+      });
+      setSuccess(t('passwordChanged', locale));
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      onSuccess?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : t('passwordMinLength', locale));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <KeyboardAwareScrollScreen contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      <Panel title={hasPassword ? t('changePassword', locale) : t('setPassword', locale)}>
+        <Text style={{ fontSize: 13, color: tokens.textMuted, marginBottom: 12, lineHeight: 18 }}>
+          {hasPassword ? t('changePasswordHint', locale) : t('setPasswordHint', locale)}
+        </Text>
+        {error ? <AlertBox>{error}</AlertBox> : null}
+        {success ? (
+          <Text style={{ color: tokens.green700, marginBottom: 12, fontSize: 14 }}>{success}</Text>
+        ) : null}
+        {hasPassword ? (
+          <PasswordField
+            label={t('currentPassword', locale)}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+          />
+        ) : null}
+        <PasswordField
+          label={t('newPassword', locale)}
+          value={newPassword}
+          onChangeText={setNewPassword}
+        />
+        <PasswordField
+          label={t('confirmPassword', locale)}
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+        />
+        <View style={{ marginTop: 8 }}>
+          <Btn
+            label={busy ? '…' : hasPassword ? t('changePassword', locale) : t('setPassword', locale)}
+            onPress={() => void save()}
+            disabled={busy}
+          />
+        </View>
+      </Panel>
+    </KeyboardAwareScrollScreen>
   );
 }
 
@@ -547,7 +664,7 @@ const styles = StyleSheet.create({
     color: tokens.text,
   },
   inputMultiline: {
-    minHeight: 96,
+    minHeight: MULTILINE_MIN_HEIGHT,
     paddingTop: 12,
   },
   passwordRow: {

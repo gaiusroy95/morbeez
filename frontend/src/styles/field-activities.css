@@ -512,7 +512,7 @@
 }
 
 .fa-textarea {
-  min-height: 5rem;
+  min-height: 120px;
   resize: vertical;
 }
 

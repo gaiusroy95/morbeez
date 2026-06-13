@@ -1,27 +1,17 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { MorbeezLogo } from '@morbeez/ui-native';
-import { t, tokens } from '@morbeez/shared';
+import { t } from '@morbeez/shared';
+import { useMobileTabScreenOptions } from '@morbeez/ui-native';
 import { useShopCart } from '@/context/ShopCartContext';
 import { useLocale } from '@/context/LocaleContext';
 
 export default function TabsLayout() {
   const { count } = useShopCart();
   const { locale } = useLocale();
+  const screenOptions = useMobileTabScreenOptions();
 
   return (
-    <Tabs
-      screenOptions={{
-        headerStyle: { backgroundColor: tokens.green800 },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '600' },
-        headerLeft: () => <MorbeezLogo variant="onDark" height={22} style={{ marginLeft: 12 }} />,
-        tabBarActiveTintColor: tokens.green700,
-        tabBarInactiveTintColor: tokens.textMuted,
-        tabBarStyle: { borderTopColor: tokens.border },
-        sceneStyle: { flex: 1, backgroundColor: tokens.bg },
-      }}
-    >
+    <Tabs screenOptions={screenOptions}>
       <Tabs.Screen
         name="home"
         options={{

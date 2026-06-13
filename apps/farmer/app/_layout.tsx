@@ -102,6 +102,7 @@ function AppStack() {
       <Stack.Screen name="shop/cart" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('cart', locale)} /> }} />
       <Stack.Screen name="shop/checkout" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('checkout', locale)} /> }} />
       <Stack.Screen name="shop/success" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('orderSuccess', locale)} />, headerBackVisible: false }} />
+      <Stack.Screen name="change-password" options={{ ...header, headerTitle: () => <BrandedHeaderTitle title={t('changePassword', locale)} /> }} />
     </Stack>
   );
 }

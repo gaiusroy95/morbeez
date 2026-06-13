@@ -256,7 +256,7 @@
 }
 
 .approvals-textarea--sm {
-  min-height: 64px;
+  min-height: 120px;
 }
 
 .approvals-input:read-only,

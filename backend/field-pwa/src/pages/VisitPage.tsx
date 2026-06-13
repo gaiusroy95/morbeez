@@ -234,9 +234,9 @@ export function VisitPage({ farmer, block, canWrite, onBack, onDone }: Props) {
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="font-medium text-slate-900">Observations</h2>
           <textarea
-            rows={4}
+            rows={6}
             placeholder="What you see in the field…"
-            className="w-full rounded-lg border border-slate-200 px-3 py-2 text-base"
+            className="min-h-[120px] w-full rounded-lg border border-slate-200 px-3 py-2 text-base"
             value={observations}
             onChange={(e) => setObservations(e.target.value)}
           />

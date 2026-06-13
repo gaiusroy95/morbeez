@@ -77,4 +77,4 @@ export function Field({
   );
 }
 
-export { inputClass };
+export { inputClass, textareaClass } from './ui';

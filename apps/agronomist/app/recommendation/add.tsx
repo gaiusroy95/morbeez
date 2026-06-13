@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { agronomistClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, KeyboardAwareScrollScreen, Panel, TextField } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function AddRecommendationScreen() {
@@ -14,6 +14,8 @@ export default function AddRecommendationScreen() {
     blockId?: string;
     findingId?: string;
     recommendationId?: string;
+    linkedIssueName?: string;
+    visitIssueId?: string;
   }>();
 
   const farmerId = String(params.farmerId ?? '');
@@ -21,7 +23,7 @@ export default function AddRecommendationScreen() {
   const blockId = params.blockId ? String(params.blockId) : undefined;
   const findingId = params.findingId ? String(params.findingId) : undefined;
 
-  const [issueDetected, setIssueDetected] = useState('');
+  const [issueDetected, setIssueDetected] = useState(params.linkedIssueName ? String(params.linkedIssueName) : '');
   const [recommendationText, setRecommendationText] = useState('');
   const [dosage, setDosage] = useState('');
   const [weatherWarning, setWeatherWarning] = useState('');
@@ -140,5 +142,5 @@ const styles = StyleSheet.create({
     color: tokens.text,
     marginBottom: 12,
   },
-  textArea: { minHeight: 110, textAlignVertical: 'top' },
+  textArea: { minHeight: MULTILINE_MIN_HEIGHT, textAlignVertical: 'top' },
 });

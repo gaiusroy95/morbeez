@@ -108,6 +108,21 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
     ],
   },
   {
+    id: 'partners',
+    label: 'Partner Program',
+    icon: 'farmers',
+    module: 'partner_program',
+    children: [
+      {
+        id: 'partner-program',
+        path: toPath(paths.partnerProgram),
+        label: 'Partners',
+        icon: 'farmers',
+        module: 'partner_program',
+      },
+    ],
+  },
+  {
     id: 'agro',
     label: 'Agronomist',
     icon: 'farmers',

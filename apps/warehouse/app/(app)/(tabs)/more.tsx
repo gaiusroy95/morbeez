@@ -72,6 +72,12 @@ export default function MoreScreen() {
         ) : null}
       </Panel>
 
+      <Btn
+        label={admin?.hasPassword ? t('changePassword', locale) : t('setPassword', locale)}
+        onPress={() => router.push('/(app)/change-password')}
+        variant="secondary"
+      />
+
       <Btn label={t('signOut', locale)} onPress={() => void logout()} variant="secondary" />
     </ScrollView>
   );

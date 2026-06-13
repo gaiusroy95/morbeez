@@ -960,12 +960,117 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(`${api}/mobile/follow-ups`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
-    const q = request.query as { status?: string };
+    const q = request.query as { status?: string; grouped?: string };
     const { telecallerMobileService } = await import(
       '../../services/call-intelligence/telecaller-mobile.service.js'
     );
+    if (q.grouped === 'true' || q.grouped === '1') {
+      const sections = await telecallerMobileService.listFollowUpSections(admin.email);
+      return reply.send({ ok: true, sections });
+    }
     const tasks = await telecallerMobileService.listFollowUps(admin.email, q.status ?? 'pending');
     return reply.send({ ok: true, tasks });
+  });
+
+  app.get(`${api}/mobile/leads/operational`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const q = request.query as {
+      scope?: string;
+      search?: string;
+      smartFilter?: string;
+      sort?: string;
+      limit?: string;
+    };
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const leads = await telecallerMobileService.listOperationalLeads(admin.email, {
+      scope: q.scope === 'all' ? 'all' : 'mine',
+      search: q.search,
+      smartFilter: q.smartFilter,
+      sort: q.sort,
+      limit: q.limit ? Number(q.limit) : 50,
+    });
+    return reply.send({ ok: true, leads });
+  });
+
+  app.get(`${api}/mobile/leads/:id/workspace-summary`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { id } = request.params as { id: string };
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const summary = await telecallerMobileService.getWorkspaceSummary(id);
+    return reply.send({ ok: true, summary });
+  });
+
+  app.get(`${api}/mobile/notifications`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { telecallerMobileService } = await import(
+      '../../services/call-intelligence/telecaller-mobile.service.js'
+    );
+    const notifications = await telecallerMobileService.listNotifications(admin.email);
+    return reply.send({ ok: true, notifications });
+  });
+
+  app.get(`${api}/mobile/sales-opportunities`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { salesOpportunityService } = await import(
+      '../../services/partner/sales-opportunity.service.js'
+    );
+    const opportunities = await salesOpportunityService.listForTelecaller(admin.email);
+    return reply.send({ ok: true, opportunities });
+  });
+
+  app.patch(`${api}/sales-opportunities/:id`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        status: z.enum([
+          'interested',
+          'hot_lead',
+          'ready_to_order',
+          'follow_up_required',
+          'converted',
+          'closed',
+        ]),
+      })
+      .parse(request.body);
+    const { salesOpportunityService } = await import(
+      '../../services/partner/sales-opportunity.service.js'
+    );
+    const opportunity = await salesOpportunityService.updateStatus(id, body.status, admin.email);
+    return reply.send({ ok: true, opportunity });
+  });
+
+  app.get(`${api}/leads/:id/team-timeline`, async (request, reply) => {
+    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const { id } = request.params as { id: string };
+    const detail = await telecallerAdminService.getLeadDetail(id);
+    const { farmerTeamTimelineService } = await import(
+      '../../services/crm/farmer-team-timeline.service.js'
+    );
+    const timeline = await farmerTeamTimelineService.listForFarmer(String(detail.lead.farmerId));
+    return reply.send({ ok: true, timeline });
+  });
+
+  app.post(`${api}/leads/:id/team-timeline`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ body: z.string().min(1).max(8000) }).parse(request.body);
+    const detail = await telecallerAdminService.getLeadDetail(id);
+    const { farmerTeamTimelineService } = await import(
+      '../../services/crm/farmer-team-timeline.service.js'
+    );
+    const entry = await farmerTeamTimelineService.addComment({
+      farmerId: String(detail.lead.farmerId),
+      body: body.body,
+      authorType: 'telecaller',
+      authorEmail: admin.email,
+      authorName: admin.fullName ?? admin.email,
+    });
+    return reply.send({ ok: true, entry });
   });
 
   app.post(`${api}/exotel/click-to-call`, async (request, reply) => {

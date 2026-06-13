@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { computeFulfillmentGates, tokens, warehouseClient, type PrintableDoc, type WarehouseOrderDetail } from '@morbeez/shared';
+import {
+  buildFulfillmentGatesFromOrderDetail,
+  canViewPrintChecklist,
+  tokens,
+  warehouseClient,
+  type PrintableDoc,
+  type WarehouseOrderDetail,
+} from '@morbeez/shared';
 import { AlertBox, Btn, Loading, Panel } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
@@ -47,19 +54,11 @@ export default function PrintDocumentsScreen() {
     void load();
   }, [load]);
 
-  const gates = detail
-    ? detail.fulfillmentGates ??
-      computeFulfillmentGates({
-        pickComplete: Boolean(detail.pickComplete ?? detail.packSession?.scan_complete),
-        packageStatus: detail.package?.status,
-        shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
-        trackingAwb: detail.order.tracking_awb,
-      })
-    : null;
+  const gates = detail ? buildFulfillmentGatesFromOrderDetail(detail) : null;
 
   useEffect(() => {
     if (loading || !orderId || !detail || !gates) return;
-    if (gates.printEnabled) return;
+    if (canViewPrintChecklist(gates)) return;
     if (gates.pickComplete && gates.packRequired) {
       router.replace(`/(app)/packing/${orderId}`);
     } else if (gates.pickComplete && !gates.packageConfirmed) {
@@ -73,7 +72,7 @@ export default function PrintDocumentsScreen() {
   const isManual = shippingMethod === 'manual';
   const hasAwb = Boolean(detail?.order.tracking_awb);
   const canMarkPrinted = hasAwb && !isManual;
-  const printReady = gates?.printEnabled ?? false;
+  const showPrintChecklist = gates ? canViewPrintChecklist(gates) : false;
 
   function openDoc(type: string, id: string) {
     setPrinted((p) => ({ ...p, [`${type}:${id}`]: true }));
@@ -98,7 +97,7 @@ export default function PrintDocumentsScreen() {
   }
 
   if (loading) return <Loading label="Loading documents…" />;
-  if (!printReady) {
+  if (!showPrintChecklist) {
     return (
       <View style={styles.blocked}>
         <Loading label="Redirecting to pack step…" />

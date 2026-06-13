@@ -1522,7 +1522,7 @@ export const crmFarmerService = {
   async getFarmerCrmBundle(farmerId: string, leadId: string | null, agentEmail?: string) {
     await this.ensureDemoCrmData(farmerId, leadId, agentEmail);
 
-    const [blocks, agronomist, interactions, recommendations, orders, internalNotes] =
+    const [blocks, agronomist, interactions, recommendations, orders, internalNotes, ownership] =
       await Promise.all([
         this.listBlocks(farmerId),
         this.getAgronomist(farmerId),
@@ -1530,9 +1530,12 @@ export const crmFarmerService = {
         this.listRecommendations(farmerId, 1, 10),
         this.listFarmerOrders(farmerId),
         crmInternalNotesService.list(farmerId),
+        import('../partner/farmer-ownership.service.js').then((m) =>
+          m.farmerOwnershipService.getOwnership(farmerId)
+        ),
       ]);
 
-    return { blocks, agronomist, interactions, recommendations, orders, internalNotes };
+    return { blocks, agronomist, interactions, recommendations, orders, internalNotes, ownership };
   },
 
   async listFarmerOrders(farmerId: string) {

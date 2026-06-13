@@ -1,11 +1,12 @@
 import type { ReactNode, ButtonHTMLAttributes, SelectHTMLAttributes, InputHTMLAttributes } from 'react';
 import { cn } from '../../lib/cn';
 
-const inputBase =
-  'h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
+const fieldBase =
+  'w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
 
-export const inputClass = inputBase;
-export const selectClass = cn(inputBase, 'pr-9');
+export const inputClass = cn(fieldBase, 'h-10 px-3');
+export const textareaClass = cn(fieldBase, 'min-h-[120px] px-3 py-2.5 leading-relaxed');
+export const selectClass = cn(fieldBase, 'h-10 px-3 pr-9');
 
 import { PageLoader, PageShell } from './PageLoader';
 

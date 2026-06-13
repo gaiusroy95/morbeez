@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
-import { fetchMarketIntel, fetchWeatherIntel, tokens } from '@morbeez/shared';
+import { fetchMarketIntel, fetchWeatherIntel, t, tokens } from '@morbeez/shared';
 import { AlertBox, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function WeatherMarketScreen() {
+  const { locale } = useLocale();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState<Awaited<ReturnType<typeof fetchWeatherIntel>> | null>(null);
@@ -19,24 +21,24 @@ export default function WeatherMarketScreen() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <Loading label="Loading weather & market…" />;
+  if (loading) return <Loading label={t('loadingWeather', locale)} />;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {error ? <AlertBox>{error}</AlertBox> : null}
       {weather ? (
-        <Panel title="Weather">
+        <Panel title={t('weather', locale)}>
           {weather.locationLabel ? <Text style={styles.sub}>{weather.locationLabel}</Text> : null}
-          <KeyValueRow label="Rainfall today" value={weather.rainfallMm != null ? `${weather.rainfallMm} mm` : '—'} />
-          <KeyValueRow label="Forecast rain" value={weather.rainfallForecastMm != null ? `${weather.rainfallForecastMm} mm` : '—'} />
-          <KeyValueRow label="Humidity" value={weather.humidityPct != null ? `${weather.humidityPct}%` : '—'} />
-          <KeyValueRow label="Temperature" value={weather.temperatureC != null ? `${weather.temperatureC}°C` : '—'} />
-          <KeyValueRow label="Disease risk" value={weather.diseaseRiskScore != null ? String(weather.diseaseRiskScore) : '—'} />
+          <KeyValueRow label={t('rainfallToday', locale)} value={weather.rainfallMm != null ? `${weather.rainfallMm} mm` : '—'} />
+          <KeyValueRow label={t('forecastRain', locale)} value={weather.rainfallForecastMm != null ? `${weather.rainfallForecastMm} mm` : '—'} />
+          <KeyValueRow label={t('humidity', locale)} value={weather.humidityPct != null ? `${weather.humidityPct}%` : '—'} />
+          <KeyValueRow label={t('temperature', locale)} value={weather.temperatureC != null ? `${weather.temperatureC}°C` : '—'} />
+          <KeyValueRow label={t('diseaseRisk', locale)} value={weather.diseaseRiskScore != null ? String(weather.diseaseRiskScore) : '—'} />
           {weather.summary ? <Text style={styles.body}>{weather.summary}</Text> : null}
         </Panel>
       ) : null}
       {market ? (
-        <Panel title="Market prices">
+        <Panel title={t('marketPrices', locale)}>
           <Text style={styles.sub}>{market.crop} · {market.date}</Text>
           {market.rows.map((r, index) => (
             <KeyValueRow

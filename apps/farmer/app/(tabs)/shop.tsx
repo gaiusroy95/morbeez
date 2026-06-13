@@ -21,7 +21,7 @@ import {
   tokens,
   type StoreProduct,
 } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading, ProductCard, PromoBanner, SectionHeader } from '@morbeez/ui-native';
+import { AlertBox, EmptyState, HeaderPressable, Loading, ProductCard, PromoBanner, SectionHeader } from '@morbeez/ui-native';
 import { useShopCart } from '@/context/ShopCartContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -49,7 +49,7 @@ export default function ShopScreen() {
   useEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable
+        <HeaderPressable
           onPress={() => router.push('/shop/cart')}
           style={styles.headerCart}
           accessibilityLabel="Open cart"
@@ -60,7 +60,7 @@ export default function ShopScreen() {
               <Text style={styles.headerBadgeText}>{count > 99 ? '99+' : count}</Text>
             </View>
           ) : null}
-        </Pressable>
+        </HeaderPressable>
       ),
     });
   }, [navigation, count, router]);
@@ -140,7 +140,7 @@ export default function ShopScreen() {
           ))}
           {recommended.length ? (
             <>
-              <SectionHeader title="Recommended for you" />
+              <SectionHeader title={t('recommendedForYou', locale)} />
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recoRow}>
                 {recommended.map((item) => (
                   <View key={item.id} style={styles.recoCard}>
@@ -159,7 +159,7 @@ export default function ShopScreen() {
             style={styles.search}
             value={search}
             onChangeText={setSearch}
-            placeholder="Search products…"
+            placeholder={t('searchProducts', locale)}
             placeholderTextColor={tokens.textMuted}
             returnKeyType="search"
             onSubmitEditing={() => void load(1, true)}
@@ -170,7 +170,7 @@ export default function ShopScreen() {
                 style={[styles.chip, !category && styles.chipActive]}
                 onPress={() => setCategory(null)}
               >
-                <Text style={[styles.chipText, !category && styles.chipTextActive]}>All</Text>
+                <Text style={[styles.chipText, !category && styles.chipTextActive]}>{t('all', locale)}</Text>
               </Pressable>
               {categories.map((c) => {
                 const active = category === c;
@@ -186,7 +186,7 @@ export default function ShopScreen() {
               })}
             </ScrollView>
           ) : null}
-          <SectionHeader title="Browse by category" />
+          <SectionHeader title={t('browseByCategory', locale)} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
             {SHOP_CATEGORIES.map((c) => (
               <Pressable
@@ -198,7 +198,7 @@ export default function ShopScreen() {
               </Pressable>
             ))}
           </ScrollView>
-          <SectionHeader title="All products" />
+          <SectionHeader title={t('allProducts', locale)} />
         </View>
       }
       ListEmptyComponent={<EmptyState>No products found. Try another search.</EmptyState>}

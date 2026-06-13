@@ -125,7 +125,7 @@ export const aiReuseService = {
   },
 
   async indexSuccessfulCase(params: {
-    sessionId: string;
+    sessionId?: string | null;
     farmerId: string;
     cropType: string;
     district: string | null;
@@ -134,6 +134,9 @@ export const aiReuseService = {
     advisory: StructuredAdvisory;
     products: DiagnoseResult['productRecommendations'];
     escalated: boolean;
+    sourceType?: 'ai_session' | 'field_visit' | 'recommendation';
+    sourceFieldFindingId?: string | null;
+    sourceRecommendationId?: string | null;
   }): Promise<void> {
     if (!env.ENABLE_AI_REUSE_CACHE) return;
     if (params.escalated || params.advisory.confidence < MIN_CONFIDENCE) return;
@@ -166,8 +169,11 @@ export const aiReuseService = {
       dap_bucket: buildDapBucket(params.dap),
       symptom_key: params.symptomKey,
       issue_label: params.advisory.probableIssue.slice(0, 200),
-      source_session_id: params.sessionId,
+      source_session_id: params.sessionId ?? null,
       source_farmer_id: params.farmerId,
+      source_type: params.sourceType ?? (params.sessionId ? 'ai_session' : 'field_visit'),
+      source_field_finding_id: params.sourceFieldFindingId ?? null,
+      source_recommendation_id: params.sourceRecommendationId ?? null,
       advisory_snapshot: params.advisory,
       product_snapshot: params.products,
       confidence_score: params.advisory.confidence,

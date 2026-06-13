@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { computeFulfillmentGates, tokens, warehouseClient, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
+import { computeFulfillmentGates, tokens, warehouseClient, buildFulfillmentGatesFromOrderDetail, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
 import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
@@ -129,17 +129,10 @@ export default function PackOrderScreen() {
       await warehouseClient.packageConfirm(orderId, shippingMethod !== 'manual');
       const refreshed = await warehouseClient.getOrder(orderId);
       setDetail(refreshed);
-      const gates =
-        refreshed.fulfillmentGates ??
-        computeFulfillmentGates({
-          pickComplete: Boolean(refreshed.pickComplete ?? refreshed.packSession?.scan_complete),
-          packageStatus: refreshed.package?.status,
-          shippingMethod: refreshed.shippingMethod ?? refreshed.order.shipping_method,
-          trackingAwb: refreshed.order.tracking_awb,
-        });
-      if (gates.awbPending) {
+      const refreshedGates = buildFulfillmentGatesFromOrderDetail(refreshed);
+      if (refreshedGates.awbPending) {
         setMessage('Package confirmed — generating Shiprocket AWB…');
-      } else if (gates.printEnabled) {
+      } else if (refreshedGates.printEnabled) {
         setMessage('Package confirmed — ready to print documents');
       } else {
         setMessage('Package confirmed for courier');
@@ -160,14 +153,7 @@ export default function PackOrderScreen() {
       void refreshStats({ force: true });
       const refreshed = await warehouseClient.getOrder(orderId);
       const status = refreshed.order.oms_status;
-      const refreshedGates =
-        refreshed.fulfillmentGates ??
-        computeFulfillmentGates({
-          pickComplete: Boolean(refreshed.pickComplete ?? refreshed.packSession?.scan_complete),
-          packageStatus: refreshed.package?.status,
-          shippingMethod: refreshed.shippingMethod ?? refreshed.order.shipping_method,
-          trackingAwb: refreshed.order.tracking_awb,
-        });
+      const refreshedGates = buildFulfillmentGatesFromOrderDetail(refreshed);
       if (status === 'awaiting_label_verification') {
         router.replace(`/(app)/packing/verify/${orderId}`);
       } else if (refreshedGates.printEnabled) {
@@ -187,15 +173,7 @@ export default function PackOrderScreen() {
 
   const gates = useMemo(() => {
     if (!detail) return null;
-    return (
-      detail.fulfillmentGates ??
-      computeFulfillmentGates({
-        pickComplete: Boolean(detail.pickComplete ?? detail.packSession?.scan_complete),
-        packageStatus: detail.package?.status,
-        shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
-        trackingAwb: detail.order.tracking_awb,
-      })
-    );
+    return buildFulfillmentGatesFromOrderDetail(detail);
   }, [detail]);
 
   if (loading) return <Loading label="Loading pack details…" />;

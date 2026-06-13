@@ -8,6 +8,10 @@ import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { createFarmerToken } from '../../lib/jwt.js';
 import { farmerAuthService } from './farmer-auth.service.js';
 import { deliverOtpWhatsApp, otpDeliveryErrorMessage } from './otp-whatsapp.service.js';
+import { leadService } from '../crm/lead.service.js';
+import { partnerEnrollmentService } from '../partner/partner-enrollment.service.js';
+import { farmerOwnershipService } from '../partner/farmer-ownership.service.js';
+import { eventBus } from '../../events/bus.js';
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_SEND_PER_HOUR = 5;
@@ -88,7 +92,11 @@ export const farmerOtpService = {
     }
   },
 
-  async verifyOtp(phoneRaw: string, codeRaw: string) {
+  async verifyOtp(
+    phoneRaw: string,
+    codeRaw: string,
+    opts?: { partnerCode?: string; qrToken?: string }
+  ) {
     if (!isValidIndianPhone(phoneRaw)) {
       throw new ValidationError('Enter a valid 10-digit Indian mobile number');
     }
@@ -123,6 +131,7 @@ export const farmerOtpService = {
 
     const now = new Date().toISOString();
     let farmerRow = await findFarmerByPhone(phone);
+    const isNew = !farmerRow;
 
     if (!farmerRow) {
       const ten = tenDigitPhone(phone);
@@ -146,6 +155,53 @@ export const farmerOtpService = {
         .from('farmers')
         .update({ last_login_at: now, updated_at: now })
         .eq('id', farmerRow.id);
+    }
+
+    const farmerId = String(farmerRow.id);
+    if (isNew || !(farmerRow as Record<string, unknown>).enrollment_owner_type) {
+      try {
+        await leadService.upsertSignupLead({
+          farmerId,
+          phone,
+          name: farmerRow.name ? String(farmerRow.name) : undefined,
+          channel: 'mobile',
+          partnerCode: opts?.partnerCode ?? null,
+        });
+      } catch (err) {
+        logger.error({ err, farmerId }, 'Mobile OTP lead upsert failed');
+      }
+
+      try {
+        const partnerEnroll = await partnerEnrollmentService.enrollFarmerWithPartner({
+          farmerId,
+          phone,
+          name: farmerRow.name ? String(farmerRow.name) : undefined,
+          partnerCode: opts?.partnerCode,
+          qrToken: opts?.qrToken,
+          enrollmentSource: opts?.qrToken ? 'partner_qr' : 'mobile_app',
+        });
+        if (!partnerEnroll.enrolled) {
+          await farmerOwnershipService.setEnrollmentOwnership({
+            farmerId,
+            enrollmentOwnerType: 'morbeez',
+            enrollmentSource: 'mobile_app',
+            serviceModel: 'remote_advisory',
+            customerOwnerType: 'morbeez',
+          });
+        }
+      } catch (err) {
+        logger.error({ err, farmerId }, 'Mobile OTP ownership failed');
+      }
+
+      try {
+        await eventBus.publish(
+          'lead.created',
+          { farmerId, source: 'mobile', intent: 'general', assignedTo: null },
+          'farmer-otp'
+        );
+      } catch {
+        /* non-blocking */
+      }
     }
 
     const email = farmerRow.email ? String(farmerRow.email) : `mobile+${tenDigitPhone(phone)}@morbeez.in`;

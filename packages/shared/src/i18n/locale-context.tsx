@@ -12,6 +12,8 @@ import type { AppLocale } from './locales';
 import { isAppLocale } from './locales';
 import type { I18nAppScope } from './language-pack';
 import { syncLanguagePack } from './language-pack-cache';
+import type { I18nKey } from './en';
+import { t as translate } from './translate';
 
 export type LocaleProviderOptions = {
   storageKey: string;
@@ -92,5 +94,10 @@ export function createLocaleProvider(options: LocaleProviderOptions) {
     return ctx;
   }
 
-  return { LocaleProvider, useLocale };
+  function useT(): (key: I18nKey | string) => string {
+    const { locale } = useLocale();
+    return useCallback((key: I18nKey | string) => translate(key, locale), [locale]);
+  }
+
+  return { LocaleProvider, useLocale, useT };
 }

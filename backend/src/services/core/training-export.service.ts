@@ -159,13 +159,24 @@ function mapWeatherSnapshotRow(r: Record<string, unknown>) {
 function mapLearningSampleRow(r: Record<string, unknown>) {
   const weather = (r.weather_context as Record<string, unknown>) ?? {};
   const w = weatherFields(weather, null);
+  const issueRaw = r.visit_issues as Record<string, unknown> | Record<string, unknown>[] | null;
+  const issue = Array.isArray(issueRaw) ? issueRaw[0] : issueRaw;
+  const findingRaw = r.crm_field_findings as Record<string, unknown> | Record<string, unknown>[] | null;
+  const finding = Array.isArray(findingRaw) ? findingRaw[0] : findingRaw;
   return {
     id: String(r.id),
     createdAt: String(r.created_at),
     farmerId: String(r.farmer_id),
     recommendationRecordId: r.recommendation_record_id ? String(r.recommendation_record_id) : '',
+    fieldFindingId: r.field_finding_id ? String(r.field_finding_id) : '',
+    visitIssueId: r.visit_issue_id ? String(r.visit_issue_id) : '',
     cropType: r.crop_type ? String(r.crop_type) : '',
     diseaseLabel: r.disease_label ? String(r.disease_label) : '',
+    issueCategory: issue?.issue_category ? String(issue.issue_category) : '',
+    issueName: issue?.issue_name ? String(issue.issue_name) : '',
+    blockHealth: finding?.block_health ? String(finding.block_health) : '',
+    cropPerformance: finding?.crop_performance ? String(finding.crop_performance) : '',
+    soilMoisture: finding?.soil_moisture ? String(finding.soil_moisture) : '',
     dap: r.dap != null ? Number(r.dap) : '',
     severity: r.severity ? String(r.severity) : '',
     outcome: r.outcome ? String(r.outcome) : '',
@@ -470,7 +481,7 @@ export const trainingExportService = {
       }
       const { data, error } = await supabase
         .from('ai_learning_samples')
-        .select('*')
+        .select('*, visit_issues(issue_name, issue_category, severity), crm_field_findings(block_health, crop_performance, soil_moisture)')
         .gte('created_at', since)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -492,6 +503,13 @@ export const trainingExportService = {
       for (const ds of datasets) {
         payload[ds] = await exportOne(ds);
       }
+      const { data: reuseRows } = await supabase.from('advisory_reuse_cases').select('source_type');
+      const reuseBySource: Record<string, number> = {};
+      for (const row of reuseRows ?? []) {
+        const key = String(row.source_type ?? 'ai_session');
+        reuseBySource[key] = (reuseBySource[key] ?? 0) + 1;
+      }
+      payload.reuseCaseStats = reuseBySource;
       return {
         contentType: 'application/json',
         filename: `morbeez-training-export-${new Date().toISOString().slice(0, 10)}.json`,

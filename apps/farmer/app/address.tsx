@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import { fetchPortalProfile, tokens, updatePortalAddress } from '@morbeez/shared';
+import { fetchPortalProfile, t, tokens, updatePortalAddress } from '@morbeez/shared';
 import { AlertBox, Btn, Loading, TextField } from '@morbeez/ui-native';
+import { useLocale } from '@/context/LocaleContext';
 
 export default function AddressScreen() {
   const router = useRouter();
+  const { locale } = useLocale();
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
   const [city, setCity] = useState('');
@@ -50,17 +52,17 @@ export default function AddressScreen() {
     }
   }
 
-  if (loading) return <Loading label="Loading address…" />;
+  if (loading) return <Loading label={t('loadingAddress', locale)} />;
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {error ? <AlertBox>{error}</AlertBox> : null}
-      <TextField label="Address line 1" value={address1} onChangeText={setAddress1} autoCapitalize="words" />
-      <TextField label="Address line 2" value={address2} onChangeText={setAddress2} autoCapitalize="words" />
-      <TextField label="City" value={city} onChangeText={setCity} autoCapitalize="words" />
-      <TextField label="State" value={state} onChangeText={setStateVal} autoCapitalize="words" />
-      <TextField label="Pincode" value={pincode} onChangeText={setPincode} keyboardType="numeric" />
-      <Btn label={saving ? 'Saving…' : 'Save address'} onPress={save} disabled={saving} />
+      <TextField label={t('addressLine1', locale)} value={address1} onChangeText={setAddress1} autoCapitalize="words" />
+      <TextField label={t('addressLine2', locale)} value={address2} onChangeText={setAddress2} autoCapitalize="words" />
+      <TextField label={t('city', locale)} value={city} onChangeText={setCity} autoCapitalize="words" />
+      <TextField label={t('state', locale)} value={state} onChangeText={setStateVal} autoCapitalize="words" />
+      <TextField label={t('pincode', locale)} value={pincode} onChangeText={setPincode} keyboardType="numeric" />
+      <Btn label={saving ? t('loading', locale) : t('saveAddress', locale)} onPress={save} disabled={saving} />
     </ScrollView>
   );
 }

@@ -21,7 +21,7 @@ import { BroadcastAutomationPage } from '../pages/broadcasts/BroadcastAutomation
 import { BroadcastAdminPage } from '../pages/broadcasts/BroadcastAdminPage';
 import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
-import { OpportunityDashboardPage } from '../pages/OpportunityDashboardPage';
+import { PartnerProgramHubPage } from '../pages/PartnerProgramHubPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { AgronomistOperationsPage } from '../pages/AgronomistOperationsPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
@@ -84,6 +84,11 @@ function IntelligenceRoute() {
 function OpportunityRoute() {
   const { can } = useAuth();
   return <OpportunityDashboardPage canWrite={can('intelligence', 'write')} />;
+}
+
+function PartnerProgramRoute() {
+  const { can } = useAuth();
+  return <PartnerProgramHubPage canWrite={can('partner_program', 'write')} />;
 }
 
 function AgronomistRoute() {
@@ -263,6 +268,14 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="intelligence">
                   <OpportunityRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.partnerProgram,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <PartnerProgramRoute />
                 </ProtectedPage>
               ),
             },

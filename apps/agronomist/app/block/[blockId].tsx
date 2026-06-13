@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   agronomistClient,
@@ -23,8 +23,17 @@ import {
   ScrollableUnderlineTabs,
   SoilTestsPanel,
 } from '@morbeez/ui-native';
+import { SegmentedChips } from '@/components/field-findings/SegmentedChips';
 
 type BlockTab = 'activities' | 'soilTests' | 'fieldFindings' | 'recommendations';
+
+const REC_STATUS_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'open', label: 'Open' },
+  { value: 'monitoring', label: 'Monitoring' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'escalated', label: 'Escalated' },
+] as const;
 
 function searchParam(value: string | string[] | undefined): string {
   if (value == null) return '';
@@ -54,6 +63,17 @@ function blockToOverview(block: AgronomistBlockRow): FieldOverview {
   };
 }
 
+function recStatusBucket(status: string): string {
+  const s = status.toLowerCase();
+  if (s.includes('escalat')) return 'escalated';
+  if (s.includes('complete') || s.includes('applied') || s.includes('resolved')) return 'completed';
+  if (s.includes('monitor')) return 'monitoring';
+  if (s.includes('draft') || s.includes('pending') || s.includes('approved') || s.includes('communicated')) {
+    return 'open';
+  }
+  return 'open';
+}
+
 export default function AgronomistBlockDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -68,6 +88,7 @@ export default function AgronomistBlockDetailScreen() {
   const leadId = searchParam(params.leadId) || undefined;
 
   const [tab, setTab] = useState<BlockTab>('activities');
+  const [recFilter, setRecFilter] = useState<(typeof REC_STATUS_FILTERS)[number]['value']>('all');
   const [block, setBlock] = useState<AgronomistBlockRow | null>(null);
   const [activities, setActivities] = useState<CultivationActivity[]>([]);
   const [soilReports, setSoilReports] = useState<PortalSoilReport[]>([]);
@@ -123,6 +144,18 @@ export default function AgronomistBlockDetailScreen() {
     () => [...activities].sort((a, b) => (a.activityDate < b.activityDate ? 1 : -1)),
     [activities]
   );
+  const filteredRecs = useMemo(() => {
+    if (recFilter === 'all') return blockRecommendations;
+    return blockRecommendations.filter((r) => recStatusBucket(r.status) === recFilter);
+  }, [blockRecommendations, recFilter]);
+
+  const visitParams = {
+    farmerId,
+    blockId: block?.id ?? blockId,
+    blockName: block?.name ?? '',
+    cropType: block?.cropType ?? '',
+    farmerName,
+  };
 
   if (loading) return <Loading label="Loading block…" />;
   if (!block || !overview) return <AlertBox>{error || 'Block not found'}</AlertBox>;
@@ -159,37 +192,60 @@ export default function AgronomistBlockDetailScreen() {
         ) : null}
 
         {tab === 'soilTests' ? (
-          <SoilTestsPanel reports={soilReports} showAddButton={false} />
-        ) : null}
-
-        {tab === 'fieldFindings' ? (
-          <FieldFindingsPanel
-            findings={fieldFindings}
-            onPressFinding={(f) => router.push(`/finding/${f.id}`)}
+          <SoilTestsPanel
+            reports={soilReports}
+            showAddButton
+            onNewTest={() =>
+              router.push({
+                pathname: '/soil/add',
+                params: { farmerId, blockId: block.id },
+              })
+            }
           />
         ) : null}
 
+        {tab === 'fieldFindings' ? (
+          fieldFindings.length ? (
+            <FieldFindingsPanel
+              findings={fieldFindings}
+              onPressFinding={(f) => router.push(`/visit/${f.id}`)}
+            />
+          ) : (
+            <View style={styles.emptyFindings}>
+              <Text style={styles.emptyText}>No field findings for this block yet.</Text>
+              <Btn label="Start visit" onPress={() => router.push({ pathname: '/visit', params: visitParams })} />
+            </View>
+          )
+        ) : null}
+
         {tab === 'recommendations' ? (
-          <BlockRecommendationsPanel items={blockRecommendations} />
+          <View>
+            <SegmentedChips
+              options={REC_STATUS_FILTERS.map((f) => ({ value: f.value, label: f.label }))}
+              value={recFilter}
+              onChange={setRecFilter}
+            />
+            <View style={styles.recPanel}>
+              <BlockRecommendationsPanel items={filteredRecs} />
+            </View>
+          </View>
         ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
-        <Btn
-          label="Start visit"
-          onPress={() =>
-            router.push({
-              pathname: '/visit',
-              params: {
-                farmerId,
-                blockId: block.id,
-                blockName: block.name,
-                cropType: block.cropType,
-                farmerName,
-              },
-            })
-          }
-        />
+        <View style={styles.footerRow}>
+          <Btn
+            label="Activity"
+            variant="secondary"
+            onPress={() => router.push({ pathname: '/activity/add', params: { farmerId, blockId: block.id } })}
+          />
+          <Btn
+            label="Soil test"
+            variant="secondary"
+            onPress={() => router.push({ pathname: '/soil/add', params: { farmerId, blockId: block.id } })}
+          />
+        </View>
+        <Btn label="Start visit" onPress={() => router.push({ pathname: '/visit', params: visitParams })} />
         <Btn
           label="Add recommendation"
           variant="secondary"
@@ -208,7 +264,10 @@ export default function AgronomistBlockDetailScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 120 },
+  content: { padding: 16, paddingBottom: 180 },
+  emptyFindings: { gap: 12, paddingVertical: 8 },
+  emptyText: { fontSize: 14, color: tokens.textMuted, lineHeight: 20 },
+  recPanel: { marginTop: 12 },
   footer: {
     position: 'absolute',
     left: 0,
@@ -220,4 +279,5 @@ const styles = StyleSheet.create({
     borderTopColor: tokens.border,
     backgroundColor: tokens.bg,
   },
+  footerRow: { flexDirection: 'row', gap: 8 },
 });

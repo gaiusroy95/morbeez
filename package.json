@@ -27,10 +27,12 @@
     "dev:warehouse": "npm run start --workspace @morbeez/app-warehouse",
     "dev:agronomist": "npm run start --workspace @morbeez/app-agronomist",
     "dev:telecaller": "npm run start --workspace @morbeez/app-telecaller",
+    "dev:partner": "npm run start --workspace @morbeez/app-partner",
     "install:apps": "npm install --workspaces",
     "verify:api": "node scripts/verify-render-api.mjs",
     "prepare:logos": "python scripts/prepare-logos.py",
-    "sync:app-icons": "python scripts/sync-app-icons.py",
+    "sync:app-icons": "node scripts/sync-app-icons.mjs",
+    "eas-build-pre-install": "node scripts/sync-app-icons.mjs",
     "admin:create-user": "node scripts/create-admin-user.mjs",
     "crm:seed": "node scripts/seed-telecaller-crm.mjs",
     "crm:masters": "node scripts/seed-crm-masters.mjs",
@@ -40,6 +42,7 @@
   "devDependencies": {
     "@shopify/prettier-plugin-liquid": "^1.5.0",
     "prettier": "^3.3.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.0"
   },
   "dependencies": {

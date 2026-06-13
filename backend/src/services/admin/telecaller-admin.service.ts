@@ -5,6 +5,7 @@ import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { crmFarmerService } from './crm-farmer.service.js';
 import { escalationAdminService } from './escalation-admin.service.js';
+import { farmerOwnershipService } from '../partner/farmer-ownership.service.js';
 import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 
 export type LeadPendingWorkItem = {
@@ -730,6 +731,14 @@ export const telecallerAdminService = {
       );
     }
 
+    if (patch.assignedTo !== undefined) {
+      const { farmerOwnershipService } = await import('../partner/farmer-ownership.service.js');
+      void farmerOwnershipService.syncTelecallerAssignment(
+        data.farmer_id as string,
+        patch.assignedTo ?? null
+      );
+    }
+
     if (patch.assignedTo) {
       const { farmerEventCaptureService } = await import(
         '../intelligence/farmer-event-capture.service.js'
@@ -908,6 +917,12 @@ export const telecallerAdminService = {
     const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
     if (!lead) throw new NotFoundError('Lead not found');
 
+    const ownership = await farmerOwnershipService.getOwnership(String(lead.farmer_id));
+    const isPartnerVisit =
+      (input.taskCategory === 'visit_request' || input.taskType === 'visit') &&
+      ownership?.serviceModel === 'partner_assisted' &&
+      ownership?.assignedPartnerId;
+
     const taskType = input.taskType ?? 'follow_up';
     const safeType = ['follow_up', 'call', 'whatsapp', 'visit', 'other'].includes(taskType)
       ? taskType
@@ -915,19 +930,23 @@ export const telecallerAdminService = {
     const agronomistEmail = input.assignedAgronomist?.trim().toLowerCase() || null;
     const notes = mergeTaskNotes(input.notes, input.issueDescription);
 
+    const insertRow: Record<string, unknown> = {
+      farmer_id: lead.farmer_id,
+      lead_id: leadId,
+      block_id: input.blockId ?? null,
+      interaction_log_id: input.interactionLogId ?? null,
+      assigned_to: isPartnerVisit ? null : agronomistEmail ?? agentEmail,
+      assigned_partner_id: isPartnerVisit ? ownership!.assignedPartnerId : null,
+      assigned_to_role: isPartnerVisit ? 'partner' : agronomistEmail ? 'agronomist' : 'telecaller',
+      title: input.title,
+      notes,
+      due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
+      task_type: safeType,
+    };
+
     const { data, error } = await supabase
       .from('crm_tasks')
-      .insert({
-        farmer_id: lead.farmer_id,
-        lead_id: leadId,
-        block_id: input.blockId ?? null,
-        interaction_log_id: input.interactionLogId ?? null,
-        assigned_to: agronomistEmail ?? agentEmail,
-        title: input.title,
-        notes,
-        due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
-        task_type: safeType,
-      })
+      .insert(insertRow)
       .select()
       .single();
 

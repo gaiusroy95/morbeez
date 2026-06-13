@@ -181,6 +181,17 @@ export async function fetchFarmerMe(): Promise<FarmerProfile> {
   return data.farmer;
 }
 
+export async function changeFarmerPassword(input: {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+}) {
+  return farmerApi<{ ok: boolean; hasPassword: boolean }>('/api/v1/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
 export async function fetchPortalSummary(): Promise<PortalSummary> {
   const data = await farmerApi<{ ok: boolean } & PortalSummary>('/api/v1/farmer/portal/summary');
   return data;

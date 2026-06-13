@@ -1,35 +1,42 @@
-import { useEffect, useRef, useState } from 'react';
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import * as ImagePicker from 'expo-image-picker';
-import { agronomistClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, Panel, TextField } from '@morbeez/ui-native';
+import {
+  agronomistClient,
+  tokens,
+  type BlockHealthLevel,
+  type CropPerformanceLevel,
+  type IssueCategory,
+  type IssueMasterRow,
+  type MeasurementTemplate,
+  type SoilMoistureLevel,
+} from '@morbeez/shared';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, Panel } from '@morbeez/ui-native';
+import { BlockAssessmentSection } from '@/components/field-findings/BlockAssessmentSection';
+import { FollowUpSection, type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
+import { IssueCard, IssueCategoryPicker, type IssueDraft } from '@/components/field-findings/IssueCard';
+import { MeasurementFields } from '@/components/field-findings/MeasurementFields';
+import { VisitContextHeader } from '@/components/field-findings/VisitContextHeader';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
 
-type Question = {
-  id?: string;
-  questionKey: string;
-  labelEn: string;
-  inputType: string;
-  options: string[];
-  required: boolean;
-};
-
-type PhotoPreview = { uri: string; filename: string; mimeType: string; dataBase64: string };
-
-const TONES = ['healthy', 'warning', 'danger'] as const;
+function newIssue(category: IssueCategory, localId: string): IssueDraft {
+  return {
+    localId,
+    category,
+    issueName: '',
+    severity: 'medium',
+    status: 'open',
+    observation: '',
+    photos: [],
+    photosPreview: [],
+  };
+}
 
 export default function VisitScreen() {
   const router = useRouter();
-  const { canWrite } = useStaffAuth();
+  const { canWrite, admin } = useStaffAuth();
   const params = useLocalSearchParams<{
     farmerId: string;
     blockId: string;
@@ -45,29 +52,53 @@ export default function VisitScreen() {
   const farmerName = String(params.farmerName ?? '');
 
   const sessionRef = useRef<string | null>(null);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [observations, setObservations] = useState('');
-  const [diseasePest, setDiseasePest] = useState('');
-  const [diseaseTone, setDiseaseTone] = useState<(typeof TONES)[number]>('warning');
-  const [actionTaken, setActionTaken] = useState('');
-  const [photos, setPhotos] = useState<PhotoPreview[]>([]);
+  const [blockDap, setBlockDap] = useState<number | null>(null);
+  const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
+  const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<IssueCategory[]>([]);
+  const [issues, setIssues] = useState<IssueDraft[]>([]);
+  const [measurements, setMeasurements] = useState<Record<string, string>>({});
+  const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
+  const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
+  const [soilMoisture, setSoilMoisture] = useState<SoilMoistureLevel | null>(null);
+  const [followUps, setFollowUps] = useState<FollowUpDraft[]>([]);
   const [gpsLat, setGpsLat] = useState<number | null>(null);
   const [gpsLon, setGpsLon] = useState<number | null>(null);
   const [gpsStatus, setGpsStatus] = useState('');
   const [gpsLoading, setGpsLoading] = useState(false);
-  const [showRecommendation, setShowRecommendation] = useState(false);
-  const [recIssue, setRecIssue] = useState('');
-  const [recText, setRecText] = useState('');
-  const [recDosage, setRecDosage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const persistDraft = useCallback(async () => {
+    if (!blockId || !farmerId) return;
+    await saveVisitDraft(blockId, {
+      farmerId,
+      blockId,
+      sessionId: sessionRef.current ?? undefined,
+      blockHealth: blockHealth ?? undefined,
+      cropPerformance: cropPerformance ?? undefined,
+      soilMoisture: soilMoisture ?? undefined,
+      selectedCategories,
+      issues: issues.map(({ localId, photosPreview, ...rest }) => rest),
+      measurements,
+      savedAt: new Date().toISOString(),
+    });
+  }, [
+    blockId,
+    farmerId,
+    blockHealth,
+    cropPerformance,
+    soilMoisture,
+    selectedCategories,
+    issues,
+    measurements,
+  ]);
+
   useEffect(() => {
-    if (!cropType || !farmerId) {
+    if (!cropType || !farmerId || !blockId) {
       setLoading(false);
-      setError('Missing farmer or crop type for this visit.');
+      setError('Missing farmer or block for this visit.');
       return;
     }
 
@@ -75,19 +106,50 @@ export default function VisitScreen() {
 
     async function init() {
       try {
-        const raw = await agronomistClient.getQuestionnaire(cropType);
-        const mapped: Question[] = (raw as Array<Record<string, unknown>>).map((q) => ({
-          id: String(q.id ?? q.key ?? q.questionKey ?? ''),
-          questionKey: String(q.questionKey ?? q.key ?? ''),
-          labelEn: String(q.labelEn ?? q.label ?? ''),
-          inputType: String(q.inputType ?? q.type ?? 'text'),
-          options: Array.isArray(q.options) ? (q.options as string[]) : [],
-          required: Boolean(q.required),
-        }));
-        if (!cancelled) setQuestions(mapped);
+        const [tpls, master, session, blockDetail, recs] = await Promise.all([
+          agronomistClient.getMeasurementTemplates(cropType),
+          agronomistClient.searchIssueMaster({ cropType }),
+          agronomistClient.startVisitSession({ farmerId, blockId }),
+          agronomistClient.getBlockDetail(farmerId, blockId).catch(() => null),
+          agronomistClient.listFarmerRecommendations(farmerId, 20).catch(() => []),
+        ]);
+        if (cancelled) return;
 
-        const session = await agronomistClient.startVisitSession({ farmerId, blockId: blockId || undefined });
-        if (!cancelled) sessionRef.current = session.id;
+        setTemplates(tpls);
+        setIssueMaster(master);
+        sessionRef.current = session.id;
+        setBlockDap(blockDetail?.block?.dap ?? null);
+
+        const openRecs = recs.filter(
+          (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
+        );
+        setFollowUps(
+          openRecs.slice(0, 5).map((r) => ({
+            recommendationId: r.id,
+            label: r.issueDetected?.trim() || r.recommendationText.slice(0, 60),
+            followed: 'not_applicable' as const,
+            outcome: 'not_reviewed' as const,
+            notes: '',
+          }))
+        );
+
+        const draft = await loadVisitDraft(blockId);
+        if (draft && draft.farmerId === farmerId) {
+          setBlockHealth(draft.blockHealth ?? null);
+          setCropPerformance(draft.cropPerformance ?? null);
+          setSoilMoisture(draft.soilMoisture ?? null);
+          setSelectedCategories(draft.selectedCategories ?? []);
+          setMeasurements(draft.measurements ?? {});
+          if (draft.issues?.length) {
+            setIssues(
+              draft.issues.map((i, idx) => ({
+                ...i,
+                localId: `draft-${idx}`,
+                photosPreview: [],
+              }))
+            );
+          }
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not start visit');
       } finally {
@@ -101,29 +163,38 @@ export default function VisitScreen() {
     };
   }, [cropType, farmerId, blockId]);
 
-  function setAnswer(key: string, value: string) {
-    setAnswers((a) => ({ ...a, [key]: value }));
+  useEffect(() => {
+    const t = setTimeout(() => {
+      void persistDraft();
+    }, 800);
+    return () => clearTimeout(t);
+  }, [persistDraft]);
+
+  function toggleCategory(category: IssueCategory) {
+    setSelectedCategories((prev) => {
+      const exists = prev.includes(category);
+      if (exists) {
+        setIssues((iss) => iss.filter((i) => i.category !== category));
+        return prev.filter((c) => c !== category);
+      }
+      const localId = `${category}-${Date.now()}`;
+      setIssues((iss) => [...iss, newIssue(category, localId)]);
+      return [...prev, category];
+    });
   }
 
-  async function addPhotos() {
-    if (photos.length >= 8) return;
-    const pick = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      base64: true,
-      allowsMultipleSelection: true,
-      selectionLimit: 8 - photos.length,
+  function updateIssue(localId: string, next: IssueDraft) {
+    setIssues((prev) => prev.map((i) => (i.localId === localId ? next : i)));
+  }
+
+  function removeIssue(localId: string, category: IssueCategory) {
+    setIssues((prev) => {
+      const remaining = prev.filter((i) => i.localId !== localId);
+      if (!remaining.some((i) => i.category === category)) {
+        setSelectedCategories((cats) => cats.filter((c) => c !== category));
+      }
+      return remaining;
     });
-    if (pick.canceled) return;
-    const next = pick.assets
-      .filter((a: ImagePicker.ImagePickerAsset) => a.base64)
-      .map((a: ImagePicker.ImagePickerAsset) => ({
-        uri: a.uri,
-        filename: a.fileName ?? 'photo.jpg',
-        mimeType: a.mimeType ?? 'image/jpeg',
-        dataBase64: a.base64!,
-      }));
-    setPhotos((p) => [...p, ...next].slice(0, 8));
   }
 
   async function captureGps() {
@@ -139,13 +210,11 @@ export default function VisitScreen() {
       setGpsLat(pos.coords.latitude);
       setGpsLon(pos.coords.longitude);
       setGpsStatus(`Captured ${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`);
-      if (blockId && farmerId) {
-        await agronomistClient.saveBlockLocation(blockId, {
-          farmerId,
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-        });
-      }
+      await agronomistClient.saveBlockLocation(blockId, {
+        farmerId,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      });
     } catch (e) {
       setGpsStatus(e instanceof Error ? e.message : 'Could not get GPS');
     } finally {
@@ -153,81 +222,89 @@ export default function VisitScreen() {
     }
   }
 
-  function openRecommendation() {
-    setShowRecommendation(true);
-    if (!recIssue.trim() && diseasePest.trim()) {
-      setRecIssue(diseasePest.trim());
-    }
-  }
-
   async function submit() {
     if (!canWrite || !farmerId || !blockId) return;
-    for (const q of questions) {
-      if (q.required && !answers[q.questionKey]?.trim()) {
-        setError(`Required: ${q.labelEn}`);
+    if (!blockHealth || !cropPerformance || !soilMoisture) {
+      setError('Complete block assessment (health, performance, moisture).');
+      return;
+    }
+    if (!issues.length) {
+      setError('Add at least one issue.');
+      return;
+    }
+    for (const issue of issues) {
+      if (!issue.issueName.trim()) {
+        setError(`Each issue needs a name (${issue.category}).`);
         return;
       }
     }
+    for (const tpl of templates) {
+      if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
+        setError(`Required measurement: ${tpl.labelEn}`);
+        return;
+      }
+    }
+    if (selectedCategories.length !== issues.length) {
+      setError('Each selected issue category needs a named issue card.');
+      return;
+    }
+    if (followUps.length) {
+      const pending = followUps.filter(
+        (f) => f.outcome === 'not_reviewed' && f.followed === 'not_applicable'
+      );
+      if (pending.length) {
+        setError('Record follow-up outcomes for open recommendations on this block.');
+        return;
+      }
+    }
+
     setSaving(true);
     setError('');
     try {
-      const answerRows = questions.map((q) => ({
-        questionKey: q.questionKey,
-        label: q.labelEn,
-        value: answers[q.questionKey] ?? '',
-      }));
-      const photoPayload = photos.map((p) => ({
-        filename: p.filename,
-        mimeType: p.mimeType,
-        dataBase64: p.dataBase64,
-      }));
+      const measurementRows = templates
+        .map((tpl) => ({
+          key: tpl.measurementKey,
+          value: measurements[tpl.measurementKey]?.trim() ?? '',
+          unit: tpl.unit ?? undefined,
+        }))
+        .filter((m) => m.value);
 
-      const visitResult = await agronomistClient.submitVisit({
+      const visitResult = await agronomistClient.submitStructuredVisit({
         farmerId,
         blockId,
-        blockName,
-        cropType,
-        observations: observations.trim() || undefined,
-        diseasePest: diseasePest.trim() || undefined,
-        diseaseTone,
-        actionTaken: actionTaken.trim() || undefined,
-        answers: answerRows,
-        photos: photoPayload.length ? photoPayload : undefined,
+        sessionId: sessionRef.current ?? undefined,
+        blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+        measurements: measurementRows,
+        issues: issues.map(({ localId, photosPreview, ...issue }) => issue),
+        followUps: followUps
+          .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')
+          .map((f) => ({
+            recommendationId: f.recommendationId,
+            followed: f.followed,
+            outcome: f.outcome,
+            notes: f.notes.trim() || undefined,
+          })),
         latitude: gpsLat ?? undefined,
         longitude: gpsLon ?? undefined,
       });
-
-      const findingId =
-        visitResult && typeof visitResult === 'object' && 'finding' in visitResult
-          ? String((visitResult as { finding?: { id?: string } }).finding?.id ?? '')
-          : '';
-
-      if (findingId && recText.trim() && canWrite) {
-        await agronomistClient.saveDraft({
-          findingId,
-          farmerId,
-          blockId,
-          issueDetected: recIssue.trim() || diseasePest.trim() || undefined,
-          recommendationText: recText.trim(),
-          dosage: recDosage.trim() || undefined,
-        });
-      }
 
       if (sessionRef.current) {
         await agronomistClient.checkOutVisitSession(sessionRef.current, {
           latitude: gpsLat ?? undefined,
           longitude: gpsLon ?? undefined,
-          fieldFindingId: findingId || undefined,
+          fieldFindingId: visitResult.findingId,
         });
       }
+
+      await clearVisitDraft(blockId);
 
       router.replace({
         pathname: '/visit/success',
         params: {
           farmerName,
           blockName,
-          findingId: findingId || undefined,
-          recommendationAdded: recText.trim() ? '1' : undefined,
+          findingId: visitResult.findingId,
+          recommendationAdded: visitResult.recommendationIds.length ? String(visitResult.recommendationIds.length) : undefined,
         },
       });
     } catch (e) {
@@ -241,70 +318,58 @@ export default function VisitScreen() {
 
   return (
     <KeyboardAwareScrollScreen contentContainerStyle={styles.content}>
-      <Text style={styles.heading}>{blockName || 'Block'}</Text>
-      <Text style={styles.subheading}>{[farmerName, cropType].filter(Boolean).join(' · ')}</Text>
+      <VisitContextHeader
+        farmerName={farmerName}
+        blockName={blockName}
+        cropType={cropType}
+        dap={blockDap}
+        agronomistName={admin?.email ?? null}
+      />
 
       {error ? <AlertBox>{error}</AlertBox> : null}
 
-      {questions.length > 0 ? (
-        <Panel title="Visit checklist">
-          {questions.map((q) => (
-            <View key={q.questionKey} style={styles.question}>
-              <Text style={styles.qLabel}>
-                {q.labelEn}
-                {q.required ? <Text style={styles.required}> *</Text> : null}
-              </Text>
-              {q.inputType === 'select' && q.options.length > 0 ? (
-                <View style={styles.optionRow}>
-                  {q.options.map((o) => (
-                    <Pressable
-                      key={o}
-                      onPress={() => setAnswer(q.questionKey, o)}
-                      style={[styles.optionChip, answers[q.questionKey] === o && styles.optionChipActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.optionChipText,
-                          answers[q.questionKey] === o && styles.optionChipTextActive,
-                        ]}
-                      >
-                        {o}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : q.inputType === 'boolean' ? (
-                <View style={styles.optionRow}>
-                  {['Yes', 'No'].map((o) => (
-                    <Pressable
-                      key={o}
-                      onPress={() => setAnswer(q.questionKey, o)}
-                      style={[styles.optionChip, answers[q.questionKey] === o && styles.optionChipActive]}
-                    >
-                      <Text
-                        style={[
-                          styles.optionChipText,
-                          answers[q.questionKey] === o && styles.optionChipTextActive,
-                        ]}
-                      >
-                        {o}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-              ) : (
-                <TextInput
-                  style={styles.input}
-                  value={answers[q.questionKey] ?? ''}
-                  onChangeText={(v) => setAnswer(q.questionKey, v)}
-                  keyboardType={q.inputType === 'number' ? 'numeric' : 'default'}
-                  placeholderTextColor={tokens.textMuted}
-                />
-              )}
-            </View>
-          ))}
-        </Panel>
-      ) : null}
+      <BlockAssessmentSection
+        blockHealth={blockHealth}
+        cropPerformance={cropPerformance}
+        soilMoisture={soilMoisture}
+        onBlockHealth={setBlockHealth}
+        onCropPerformance={setCropPerformance}
+        onSoilMoisture={setSoilMoisture}
+      />
+
+      <IssueCategoryPicker selected={selectedCategories} onToggle={toggleCategory} />
+
+      {issues.map((issue) => (
+        <IssueCard
+          key={issue.localId}
+          issue={issue}
+          issueMaster={issueMaster}
+          cropType={cropType}
+          onChange={(next) => updateIssue(issue.localId, next)}
+          onRemove={() => removeIssue(issue.localId, issue.category)}
+          onSuggestQuestions={() =>
+            agronomistClient.suggestIssueFollowUpQuestions({
+              issueCategory: issue.category,
+              issueName: issue.issueName || issue.category,
+              cropType,
+              dap: blockDap ?? undefined,
+              observation: issue.observation,
+              photoCount: issue.photos?.length ?? 0,
+            })
+          }
+        />
+      ))}
+
+      <MeasurementFields
+        templates={templates}
+        values={measurements}
+        onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
+      />
+
+      <FollowUpSection
+        items={followUps}
+        onChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
+      />
 
       <Panel title="Plot GPS">
         <Text style={styles.hint}>Stand at the plot and capture GPS for accurate weather advice.</Text>
@@ -317,164 +382,13 @@ export default function VisitScreen() {
         />
       </Panel>
 
-      <Panel title="Observations">
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="What you observe on the farm…"
-          placeholderTextColor={tokens.textMuted}
-          value={observations}
-          onChangeText={setObservations}
-          multiline
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Disease / pest (if any)"
-          placeholderTextColor={tokens.textMuted}
-          value={diseasePest}
-          onChangeText={setDiseasePest}
-        />
-        <Text style={styles.qLabel}>Severity</Text>
-        <View style={styles.optionRow}>
-          {TONES.map((t) => (
-            <Pressable
-              key={t}
-              onPress={() => setDiseaseTone(t)}
-              style={[styles.optionChip, diseaseTone === t && styles.optionChipActive]}
-            >
-              <Text style={[styles.optionChipText, diseaseTone === t && styles.optionChipTextActive]}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        <TextInput
-          style={styles.input}
-          placeholder="Action taken on visit (optional)"
-          placeholderTextColor={tokens.textMuted}
-          value={actionTaken}
-          onChangeText={setActionTaken}
-        />
-      </Panel>
-
-      <Panel title="Photos">
-        <Text style={styles.hint}>Up to 8 images</Text>
-        <View style={styles.photoRow}>
-          {photos.map((p, i) => (
-            <View key={`${p.uri}-${i}`} style={styles.photoWrap}>
-              <Image source={{ uri: p.uri }} style={styles.photo} />
-              <Pressable style={styles.photoRemove} onPress={() => setPhotos((x) => x.filter((_, j) => j !== i))}>
-                <Text style={styles.photoRemoveText}>×</Text>
-              </Pressable>
-            </View>
-          ))}
-          {photos.length < 8 ? (
-            <Pressable style={styles.photoAdd} onPress={addPhotos}>
-              <Text style={styles.photoAddText}>+</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      </Panel>
-
-      <Panel title="Recommendations">
-        {!showRecommendation ? (
-          <>
-            <Text style={styles.hint}>Add treatment or follow-up advice for this visit.</Text>
-            <Btn label="Add recommendation" onPress={openRecommendation} variant="secondary" disabled={!canWrite} />
-          </>
-        ) : (
-          <>
-            <TextField
-              label="Issue / problem"
-              value={recIssue}
-              onChangeText={setRecIssue}
-              placeholder="From observation or disease field"
-            />
-            <Text style={styles.qLabel}>Recommendation *</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              value={recText}
-              onChangeText={setRecText}
-              multiline
-              placeholder="What should the farmer do?"
-              placeholderTextColor={tokens.textMuted}
-            />
-            <TextField label="Dosage" value={recDosage} onChangeText={setRecDosage} placeholder="Product, rate, method" />
-            <Btn
-              label="Open full recommendation form"
-              variant="secondary"
-              onPress={() =>
-                router.push({
-                  pathname: '/recommendation/add',
-                  params: { farmerId, blockId, findingId: '' },
-                })
-              }
-            />
-          </>
-        )}
-      </Panel>
-
-      <Btn
-        label={saving ? 'Uploading…' : 'Submit visit'}
-        onPress={submit}
-        disabled={saving || !canWrite || loading}
-      />
+      <Btn label={saving ? 'Uploading…' : 'Submit visit'} onPress={submit} disabled={saving || !canWrite} />
     </KeyboardAwareScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 40 },
-  heading: { fontSize: 20, fontWeight: '700', color: tokens.text },
-  subheading: { fontSize: 14, color: tokens.textMuted, marginBottom: 12 },
-  question: { marginBottom: 14 },
-  qLabel: { fontSize: 13, color: tokens.text, marginBottom: 6 },
-  required: { color: tokens.danger },
-  input: {
-    backgroundColor: tokens.card,
-    borderWidth: 1,
-    borderColor: tokens.border,
-    borderRadius: tokens.radiusSm,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    color: tokens.text,
-  },
-  textArea: { minHeight: 90, textAlignVertical: 'top' },
-  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  optionChip: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: tokens.border,
-    backgroundColor: tokens.card,
-  },
-  optionChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500 },
-  optionChipText: { fontSize: 13, color: tokens.textMuted },
-  optionChipTextActive: { color: tokens.green800, fontWeight: '600' },
   hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 8 },
   gpsStatus: { fontSize: 13, color: tokens.green700, marginBottom: 8 },
-  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  photoWrap: { position: 'relative' },
-  photo: { width: 72, height: 72, borderRadius: 8 },
-  photoRemove: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    paddingHorizontal: 6,
-  },
-  photoRemoveText: { color: '#fff', fontSize: 14 },
-  photoAdd: {
-    width: 72,
-    height: 72,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: tokens.green500,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: tokens.green100,
-  },
-  photoAddText: { fontSize: 28, color: tokens.green700 },
 });

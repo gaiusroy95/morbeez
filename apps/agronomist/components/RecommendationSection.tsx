@@ -39,7 +39,7 @@ export function RecommendationSection({
 
   function openItem(rec: AgronomistRecommendationRow) {
     if (rec.fieldFindingId) {
-      router.push(`/finding/${rec.fieldFindingId}`);
+      router.push(`/visit/${rec.fieldFindingId}`);
       return;
     }
     router.push({

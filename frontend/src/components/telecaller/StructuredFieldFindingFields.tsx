@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { DiagnosisLabelPicker } from '../agronomist/DiagnosisLabelPicker';
 import { Field, inputClass } from '../Modal';
 import { StaticSelect } from '../ui';
@@ -107,6 +108,87 @@ export function StructuredFieldFindingFields({
           onChange={(e) => onChange({ observations: e.target.value })}
         />
       </Field>
+
+      <FollowUpQuestionSuggestions
+        cropType={cropType}
+        issueName={values.finalConfirmedIssue}
+        findingType={values.findingType}
+        observations={values.observations}
+        disabled={disabled}
+        onInsert={(q) =>
+          onChange({
+            observations: [values.observations.trim(), q].filter(Boolean).join('\n'),
+          })
+        }
+      />
+    </div>
+  );
+}
+
+function FollowUpQuestionSuggestions({
+  cropType,
+  issueName,
+  findingType,
+  observations,
+  disabled,
+  onInsert,
+}: {
+  cropType?: string | null;
+  issueName: string;
+  findingType: FindingType | '';
+  observations: string;
+  disabled?: boolean;
+  onInsert: (question: string) => void;
+}) {
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function load() {
+    if (!issueName.trim() || !findingType) return;
+    setLoading(true);
+    try {
+      const category =
+        findingType === 'nutrient_deficiency'
+          ? 'nutrient_deficiency'
+          : findingType === 'irrigation'
+            ? 'water_stress'
+            : findingType;
+      const res = await fetch('/morbeez-staff/api/v1/os/field/issue-follow-up-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          issueCategory: category,
+          issueName: issueName.trim(),
+          cropType: cropType ?? 'ginger',
+          observation: observations.trim() || undefined,
+        }),
+      });
+      const data = (await res.json()) as { questions?: string[] };
+      setQuestions(data.questions ?? []);
+    } catch {
+      setQuestions([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="tc-followup-questions">
+      <button type="button" className="btn btn-secondary btn-sm" disabled={disabled || loading} onClick={() => void load()}>
+        {loading ? 'Loading…' : 'Suggest follow-up questions'}
+      </button>
+      {questions.length ? (
+        <ul className="tc-followup-questions-list">
+          {questions.map((q) => (
+            <li key={q}>
+              <button type="button" className="btn btn-link btn-sm" disabled={disabled} onClick={() => onInsert(q)}>
+                {q}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

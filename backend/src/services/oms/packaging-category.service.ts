@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
 
 export type PackagingCategory = {
   id: string;
@@ -105,5 +105,15 @@ export const packagingCategoryService = {
     throwIfSupabaseError(error, 'Update packaging category');
     if (!data) throw new NotFoundError('Packaging category not found');
     return mapRow(data as Record<string, unknown>);
+  },
+
+  async remove(id: string): Promise<void> {
+    const category = await this.getById(id);
+    if (category.name === 'General') {
+      throw new ValidationError('The General fallback category cannot be deleted');
+    }
+
+    const { error } = await supabase.from('packaging_categories').delete().eq('id', id);
+    throwIfSupabaseError(error, 'Delete packaging category');
   },
 };

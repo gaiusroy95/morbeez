@@ -18,7 +18,7 @@ type Props = {
 
 export function MorbeezLogo({ variant = 'default', height = 44, style }: Props) {
   return (
-    <View style={[styles.wrap, style]} accessibilityRole="image" accessibilityLabel="Morbeez">
+    <View style={[styles.wrap, style]} pointerEvents="none" accessibilityRole="image" accessibilityLabel="Morbeez">
       <Image
         source={LOGOS[variant]}
         style={{ height, width: height * 4.2 }}

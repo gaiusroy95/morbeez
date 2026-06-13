@@ -1,10 +1,5 @@
-import { en, type I18nKey } from './en';
-import { hi } from './hi';
-import { ml } from './ml';
-import { ta } from './ta';
-import { kn } from './kn';
-import { APP_LOCALES, KEEP_ENGLISH_KEYS, LOCALE_LABELS, type AppLocale } from './locales';
-import { getRuntimeOverlay, isRuntimeKeepEnglish } from './language-pack';
+import type { AppLocale } from './locales';
+import type { I18nKey } from './en';
 
 export type { AppLocale, I18nKey };
 export { APP_LOCALES, KEEP_ENGLISH_KEYS, LOCALE_LABELS, isAppLocale } from './locales';
@@ -12,26 +7,7 @@ export { en } from './en';
 export type { I18nAppScope, LanguagePack } from './language-pack';
 export { applyLanguagePack, fetchLanguagePack, refreshLanguagePack } from './language-pack';
 export { loadCachedLanguagePack, storeLanguagePack, syncLanguagePack } from './language-pack-cache';
-
-const strings: Record<AppLocale, Partial<Record<I18nKey, string>>> = {
-  en,
-  hi,
-  ml,
-  ta,
-  kn,
-};
-
-/** Farmer-friendly UI label for key + locale. Bundled strings + server pack overlay. */
-export function t(key: I18nKey | string, locale: AppLocale = 'en'): string {
-  const k = key as I18nKey;
-  const overlay = getRuntimeOverlay(locale)?.[key];
-  if (overlay) return overlay;
-
-  if (locale === 'en' || KEEP_ENGLISH_KEYS.has(key) || isRuntimeKeepEnglish(key)) {
-    return en[k] ?? key;
-  }
-  return strings[locale][k] ?? en[k] ?? key;
-}
+export { t } from './translate';
 
 export function formatDateInLocale(date: string | Date, locale: AppLocale = 'en'): string {
   const loc =
@@ -49,5 +25,5 @@ export function formatDateInLocale(date: string | Date, locale: AppLocale = 'en'
   return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-export { createLocaleProvider } from './locale-context';
 export type { LocaleState, LocaleProviderOptions } from './locale-context';
+export { createLocaleProvider } from './locale-context';

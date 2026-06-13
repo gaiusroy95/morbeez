@@ -655,6 +655,15 @@ export async function osWarehouseRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, category });
   });
 
+  app.delete(`${api}/packaging/categories/:id`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'warehouse', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertSuperAdminPasswordConfirm(actor, body.confirmPassword);
+    await packagingCategoryService.remove(id);
+    return reply.send({ ok: true });
+  });
+
   app.get(`${api}/packaging/rules`, async (request, reply) => {
     await assertModuleAccess(request, 'warehouse', 'read');
     const rules = await packageRuleService.listAll();

@@ -22,6 +22,7 @@ import { shippingBoxService } from './shipping-box.service.js';
 import { eventBus } from '../../events/bus.js';
 import {
   computeFulfillmentGates,
+  resolvePickComplete,
   workflowStageFromGates,
   type FulfillmentGates,
 } from '../../lib/fulfillment-gates.js';
@@ -69,7 +70,13 @@ function startOfTodayIstIso(): string {
 
 function applyFulfillmentGatesToDetail<T extends Record<string, unknown>>(
   detail: T & {
-    order: { shipping_method?: string | null; tracking_awb?: string | null; package_status?: string | null };
+    order: {
+      oms_status?: string;
+      shipping_method?: string | null;
+      tracking_awb?: string | null;
+      package_status?: string | null;
+    };
+    pickList?: { status?: string | null } | null;
     packSession?: { scan_complete?: boolean } | null;
     package?: { status?: string } | null;
     shippingMethod?: string | null;
@@ -77,7 +84,7 @@ function applyFulfillmentGatesToDetail<T extends Record<string, unknown>>(
       stage: string;
       step: number;
       currentRack: string | null;
-      racks: unknown[];
+      racks: Array<{ complete?: boolean }>;
       currentRackLines: unknown[];
       printEnabled?: boolean;
       pickComplete?: boolean;
@@ -90,10 +97,18 @@ function applyFulfillmentGatesToDetail<T extends Record<string, unknown>>(
   fulfillmentGates: FulfillmentGates;
   workflow: typeof detail.workflow;
 } {
-  const pickComplete = Boolean(detail.packSession?.scan_complete);
+  const packageStatus = detail.package?.status ?? detail.order.package_status;
+  const pickComplete = resolvePickComplete({
+    scanComplete: detail.packSession?.scan_complete,
+    omsStatus: detail.order.oms_status,
+    workflowRacks: detail.workflow?.racks,
+    rawWorkflowStage: detail.workflow?.stage,
+    packageStatus,
+    pickListStatus: detail.pickList?.status ?? undefined,
+  });
   const gates = computeFulfillmentGates({
     pickComplete,
-    packageStatus: detail.package?.status ?? detail.order.package_status,
+    packageStatus,
     shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
     trackingAwb: detail.order.tracking_awb,
   });

@@ -32,7 +32,6 @@ function Gate({ children }: { children: React.ReactNode }) {
 }
 
 function RootStack() {
-  const { locale } = useLocale();
   return (
     <Stack
       screenOptions={{
@@ -45,7 +44,10 @@ function RootStack() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="lead/[leadId]" options={{ title: 'Lead' }} />
+      <Stack.Screen name="lead/[leadId]/index" options={{ title: 'Farmer workspace' }} />
+      <Stack.Screen name="lead/[leadId]/call/[callId]" options={{ title: 'Call detail' }} />
+      <Stack.Screen name="lead/[leadId]/block/[blockId]" options={{ title: 'Block workspace' }} />
+      <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
     </Stack>
   );
 }

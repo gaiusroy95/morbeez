@@ -27,7 +27,7 @@ import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
 import { storeRoutes } from './routes/api/store.routes.js';
 import { quotesRoutes } from './routes/api/quotes.routes.js';
-import { adminRoutes } from './routes/admin/admin.routes.js';
+import { partnerApiRoutes } from './routes/partner/partner-api.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
 import {
   LEGACY_CONSOLE_PATH,
@@ -120,6 +120,7 @@ export async function buildApp() {
   await app.register(checkoutRoutes);
   await app.register(quotesRoutes);
   await app.register(adminRoutes);
+  await app.register(partnerApiRoutes);
 
   const consoleUrl = staffConsoleRedirectUrl();
   const portalMovedHandler = async (

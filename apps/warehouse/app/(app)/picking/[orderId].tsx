@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   tokens,
   warehouseClient,
+  buildFulfillmentGatesFromOrderDetail,
   type PickLookup,
   type RackLine,
   type WarehouseOrderDetail,
@@ -132,15 +133,10 @@ export default function PickOrderScreen() {
     return lines.every((l) => l.complete);
   }, [lines, activeRack]);
 
-  const allRacksComplete = useMemo(
-    () =>
-      Boolean(
-        detail?.pickComplete ??
-          detail?.packSession?.scan_complete ??
-          (detail?.workflow?.stage === 'pack' || detail?.workflow?.stage === 'print')
-      ),
-    [detail?.pickComplete, detail?.packSession?.scan_complete, detail?.workflow?.stage]
-  );
+  const allRacksComplete = useMemo(() => {
+    if (!detail) return false;
+    return buildFulfillmentGatesFromOrderDetail(detail).pickComplete;
+  }, [detail]);
 
   const focusLine: RackLine | PickLookup | null = useMemo(() => {
     if (pickLookup) return pickLookup;

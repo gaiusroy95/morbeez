@@ -6,7 +6,7 @@ import {
   type AppLocale,
 } from '@morbeez/shared';
 
-export const { LocaleProvider, useLocale } = createLocaleProvider({
+export const { LocaleProvider, useLocale, useT } = createLocaleProvider({
   storageKey: 'morbeez_farmer_locale',
   appScope: 'farmer',
   onLocaleChange: (locale) => {

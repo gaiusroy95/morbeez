@@ -19,6 +19,8 @@ const signupSchema = z.object({
   utmCampaign: z.string().max(200).optional(),
   utmSource: z.string().max(200).optional(),
   utmMedium: z.string().max(200).optional(),
+  partnerCode: z.string().max(64).optional(),
+  qrToken: z.string().max(128).optional(),
 });
 
 const loginSchema = z.object({
@@ -33,6 +35,8 @@ const otpSendSchema = z.object({
 const otpVerifySchema = z.object({
   phone: z.string().min(10).max(20),
   code: z.string().min(4).max(8),
+  partnerCode: z.string().max(64).optional(),
+  qrToken: z.string().max(128).optional(),
 });
 
 /**
@@ -67,8 +71,31 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
     authApp.post('/api/v1/auth/otp/verify', async (request, reply) => {
       const body = otpVerifySchema.parse(request.body);
-      const result = await farmerOtpService.verifyOtp(body.phone, body.code);
+      const result = await farmerOtpService.verifyOtp(body.phone, body.code, {
+        partnerCode: body.partnerCode,
+        qrToken: body.qrToken,
+      });
       return reply.send({ ok: true, ...result });
+    });
+
+    authApp.post('/api/v1/auth/change-password', async (request, reply) => {
+      const token = getBearerToken(request.headers.authorization);
+      if (!token) throw new UnauthorizedError('Not signed in');
+      const payload = verifyFarmerToken(token);
+      const body = z
+        .object({
+          currentPassword: z.string().min(1).max(128).optional(),
+          newPassword: z.string().min(8).max(128),
+          confirmPassword: z.string().min(8).max(128),
+        })
+        .parse(request.body);
+      const result = await farmerAuthService.changePassword({
+        farmerId: payload.sub,
+        currentPassword: body.currentPassword,
+        newPassword: body.newPassword,
+        confirmPassword: body.confirmPassword,
+      });
+      return reply.send(result);
     });
   });
 

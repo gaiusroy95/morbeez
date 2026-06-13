@@ -56,6 +56,11 @@ export function AgronomistBlockCard({ block, onPress }: Props) {
 
       <MetaRow label="Last visit:" value={lastVisit} />
       <MetaRow label="Current DAP:" value={block.dap != null ? String(block.dap) : '—'} />
+      <MetaRow
+        label="Open issues:"
+        value={block.openIssueCount != null ? String(block.openIssueCount) : '0'}
+      />
+      {block.blockHealth ? <MetaRow label="Block health:" value={block.blockHealth} /> : null}
       <MetaRow label="Field activity:" value={fieldActivity} />
       <MetaRow label="Soil test:" value={soilTest} />
       {block.latestFindingLabel ? (

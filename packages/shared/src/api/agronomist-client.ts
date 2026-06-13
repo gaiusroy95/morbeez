@@ -14,9 +14,21 @@ import type {
   AgronomistVisitSession,
   AgronomistWorkspaceSummary,
   FieldVisitQuestion,
+  FarmerOrderRow,
+  FarmerVisitRow,
+  FarmerWorkspaceDashboard,
   ReviewQueueItem,
 } from '../types/agronomist';
 import type { BlockFieldFinding, BlockRecommendationItem } from '../types/fields';
+import type {
+  FollowUpBundle,
+  IssueCategory,
+  IssueMasterRow,
+  MeasurementTemplate,
+  StructuredFieldVisitPayload,
+  FarmerNoteRow,
+} from '../types/field-findings';
+import type { FarmerCallLogSummary, FarmerInteractionRow } from '../types/interactions';
 import type { CultivationActivity } from '../types/activities';
 import type { PortalSoilReport } from '../types/farmer-portal';
 
@@ -74,6 +86,45 @@ export const agronomistClient = {
       `${AGRO}/farmers/${farmerId}/workspace-summary`
     );
     return r.summary;
+  },
+
+  async getWorkspaceDashboard(farmerId: string): Promise<FarmerWorkspaceDashboard> {
+    const r = await staffApi<{ ok: boolean; dashboard: FarmerWorkspaceDashboard }>(
+      `${AGRO}/farmers/${farmerId}/workspace-dashboard`
+    );
+    return r.dashboard;
+  },
+
+  async listFarmerVisits(farmerId: string, limit = 30): Promise<FarmerVisitRow[]> {
+    const r = await staffApi<{ ok: boolean; visits: FarmerVisitRow[] }>(
+      `${AGRO}/farmers/${farmerId}/visits?limit=${limit}`
+    );
+    return r.visits ?? [];
+  },
+
+  async listFarmerOrders(farmerId: string) {
+    const r = await staffApi<{ ok: boolean; orders?: FarmerOrderRow[]; items?: FarmerOrderRow[] }>(
+      `${AGRO}/farmers/${farmerId}/orders`
+    );
+    return r.orders ?? r.items ?? [];
+  },
+
+  async listWhatsAppHistory(farmerId: string) {
+    const r = await staffApi<{ ok: boolean; messages: Array<{ id: string; summary: string; at: string; by: string | null }> }>(
+      `${AGRO}/farmers/${farmerId}/whatsapp-history`
+    );
+    return r.messages ?? [];
+  },
+
+  async logFarmerCall(farmerId: string, body: { outcome?: string; notes?: string; durationSeconds?: number }) {
+    return staffApi(`${AGRO}/farmers/${farmerId}/calls`, { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  async createFarmerReminder(
+    farmerId: string,
+    body: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'telecaller' }
+  ) {
+    return staffApi(`${AGRO}/farmers/${farmerId}/reminders`, { method: 'POST', body: JSON.stringify(body) });
   },
 
   async getFarmerDocuments(farmerId: string): Promise<AgronomistDocumentRow[]> {
@@ -286,6 +337,10 @@ export const agronomistClient = {
     return r.route;
   },
 
+  async completeOperationsTask(taskId: string) {
+    return staffApi(`${AGRO}/operations/tasks/${taskId}/complete`, { method: 'PATCH', body: '{}' });
+  },
+
   async completeTask(taskId: string) {
     return staffApi(`${TEL}/tasks/${taskId}/complete`, { method: 'PATCH', body: '{}' });
   },
@@ -312,5 +367,193 @@ export const agronomistClient = {
 
   async getBlockWorkspace(leadId: string, blockId: string) {
     return staffApi<{ ok: boolean } & Record<string, unknown>>(`${TEL}/leads/${leadId}/blocks/${blockId}/workspace`);
+  },
+
+  async getMeasurementTemplates(cropType: string): Promise<MeasurementTemplate[]> {
+    const r = await staffApi<{ ok: boolean; templates: MeasurementTemplate[] }>(
+      `${FIELD}/measurement-templates/${encodeURIComponent(cropType)}`
+    );
+    return r.templates ?? [];
+  },
+
+  async searchIssueMaster(opts?: {
+    category?: IssueCategory;
+    cropType?: string;
+    q?: string;
+  }): Promise<IssueMasterRow[]> {
+    const params = new URLSearchParams();
+    if (opts?.category) params.set('category', opts.category);
+    if (opts?.cropType) params.set('cropType', opts.cropType);
+    if (opts?.q) params.set('q', opts.q);
+    const r = await staffApi<{ ok: boolean; items: IssueMasterRow[] }>(
+      `${FIELD}/issue-master?${params}`
+    );
+    return r.items ?? [];
+  },
+
+  async submitStructuredVisit(body: StructuredFieldVisitPayload) {
+    return staffApi<{ ok: boolean; findingId: string; recommendationIds: string[] }>(
+      `${FIELD}/visits/v2`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  },
+
+  async getVisitDetail(findingId: string) {
+    return staffApi<{ ok: boolean; finding: Record<string, unknown>; issues: unknown[]; measurements: unknown[]; recommendations: unknown[] }>(
+      `${FIELD}/visits/${findingId}`
+    );
+  },
+
+  async listFarmerFieldFindings(farmerId: string, limit = 30) {
+    const r = await staffApi<{ ok: boolean; findings: unknown[] }>(
+      `${FIELD}/farmers/${farmerId}/field-findings?limit=${limit}`
+    );
+    return r.findings ?? [];
+  },
+
+  async suggestIssueFollowUpQuestions(body: {
+    issueCategory: IssueCategory;
+    issueName: string;
+    cropType: string;
+    dap?: number;
+    observation?: string;
+    recommendationText?: string;
+    photoCount?: number;
+  }) {
+    const r = await staffApi<{ ok: boolean; questions: string[] }>(
+      `${FIELD}/issue-follow-up-questions`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.questions ?? [];
+  },
+
+  async listFarmerNotes(farmerId: string): Promise<FarmerNoteRow[]> {
+    const r = await staffApi<{ ok: boolean; notes: FarmerNoteRow[] }>(`${AGRO}/farmers/${farmerId}/notes`);
+    return r.notes ?? [];
+  },
+
+  async addFarmerNote(farmerId: string, noteText: string) {
+    return staffApi(`${AGRO}/farmers/${farmerId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ noteText }),
+    });
+  },
+
+  async getFarmerFollowUps(farmerId: string): Promise<FollowUpBundle> {
+    const r = await staffApi<{ ok: boolean } & FollowUpBundle>(`${AGRO}/farmers/${farmerId}/follow-ups`);
+    return {
+      tasks: r.tasks ?? [],
+      recommendationFollowUps: r.recommendationFollowUps ?? [],
+      callbacks: r.callbacks ?? [],
+    };
+  },
+
+  async listFarmerSoilReports(farmerId: string) {
+    const r = await staffApi<{ ok: boolean; reports: PortalSoilReport[] }>(
+      `${AGRO}/farmers/${farmerId}/soil-reports`
+    );
+    return r.reports ?? [];
+  },
+
+  async createSoilReport(
+    farmerId: string,
+    body: { blockId?: string; metrics?: Record<string, unknown>; pdfUrl?: string }
+  ) {
+    return staffApi(`${AGRO}/farmers/${farmerId}/soil-reports`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async createFieldActivity(
+    farmerId: string,
+    body: {
+      blockId: string;
+      activityType: 'spray_applied' | 'fertigation' | 'drench' | 'scouting' | 'other';
+      activityLabel?: string;
+      activityDate: string;
+      dap?: number;
+      notes?: string;
+      costInr?: number;
+      status?: 'completed' | 'pending' | 'cancelled';
+    }
+  ) {
+    return staffApi(`${AGRO}/farmers/${farmerId}/field-activities`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getFarmerCallLogSummary(farmerId: string): Promise<FarmerCallLogSummary> {
+    const r = await staffApi<{ ok: boolean; summary: FarmerCallLogSummary }>(
+      `${AGRO}/farmers/${farmerId}/call-log-summary`
+    );
+    return r.summary;
+  },
+
+  async listFarmerInteractions(
+    farmerId: string,
+    opts?: { leadId?: string; page?: number; limit?: number }
+  ): Promise<{ interactions: FarmerInteractionRow[]; pagination: { total: number } }> {
+    const params = new URLSearchParams();
+    if (opts?.leadId) params.set('leadId', opts.leadId);
+    if (opts?.page) params.set('page', String(opts.page));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const q = params.toString();
+    const r = await staffApi<{
+      ok: boolean;
+      interactions: FarmerInteractionRow[];
+      pagination: { total: number };
+    }>(`${AGRO}/farmers/${farmerId}/interactions${q ? `?${q}` : ''}`);
+    return { interactions: r.interactions ?? [], pagination: r.pagination ?? { total: 0 } };
+  },
+
+  async getFarmerInteractionDetail(
+    farmerId: string,
+    interactionId: string,
+    leadId?: string
+  ) {
+    const q = leadId ? `?leadId=${encodeURIComponent(leadId)}` : '';
+    return staffApi<{ ok: boolean; interaction: Record<string, unknown> }>(
+      `${AGRO}/farmers/${farmerId}/interactions/${encodeURIComponent(interactionId)}${q}`
+    );
+  },
+
+  async getFarmerTeamTimeline(farmerId: string): Promise<Record<string, unknown>[]> {
+    const r = await staffApi<{ ok: boolean; timeline: Record<string, unknown>[] }>(
+      `${AGRO}/farmers/${farmerId}/team-timeline`
+    );
+    return r.timeline ?? [];
+  },
+
+  async addFarmerTeamComment(farmerId: string, body: string): Promise<void> {
+    await staffApi(`${AGRO}/farmers/${farmerId}/team-timeline`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    });
+  },
+
+  async listNotifications(): Promise<
+    Array<{
+      id: string;
+      category: string;
+      title: string;
+      detail?: string | null;
+      at: string;
+      farmerId?: string;
+    }>
+  > {
+    const r = await staffApi<{
+      ok: boolean;
+      notifications: Array<{
+        id: string;
+        category: string;
+        title: string;
+        detail?: string | null;
+        at: string;
+        farmerId?: string;
+      }>;
+    }>(`${AGRO}/mobile/notifications`);
+    return r.notifications ?? [];
   },
 };

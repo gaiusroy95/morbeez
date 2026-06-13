@@ -19,6 +19,7 @@ export const paths = {
   broadcastsAdmin: 'broadcasts/admin',
   intelligence: 'intelligence',
   opportunity: 'opportunity',
+  partnerProgram: 'partners',
   productGaps: 'product-gaps',
   agronomist: 'agronomist',
   agronomistAiReview: 'agronomist/ai-review',
@@ -113,6 +114,11 @@ export const ROUTE_META: Record<
     title: 'Opportunity intelligence',
     module: 'intelligence',
     pageKey: 'opportunity',
+  },
+  [toPath(paths.partnerProgram)]: {
+    title: 'Partner Program',
+    module: 'partner_program',
+    pageKey: 'partners',
   },
   [toPath(paths.productGaps)]: {
     title: 'Product Gaps',

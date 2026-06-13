@@ -17,6 +17,7 @@ import {
   Th,
   inputClass,
 } from '../ui';
+import { Field, Modal } from '../Modal';
 import { WMS_API } from './warehouse-api';
 
 type AdminTab = 'categories' | 'boxes' | 'rules' | 'settings';
@@ -77,11 +78,15 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
   const [boxes, setBoxes] = useState<ShippingBox[]>([]);
   const [rules, setRules] = useState<PackageRule[]>([]);
   const [settings, setSettings] = useState<PackagingSetting[]>([]);
-  const { requestConfirm, confirmModal } = useSuperAdminConfirm();
+  const { canEditDelete, requestConfirm, confirmModal } = useSuperAdminConfirm();
 
   const [catName, setCatName] = useState('');
   const [catDesc, setCatDesc] = useState('');
   const [catPriority, setCatPriority] = useState('100');
+  const [editingCategory, setEditingCategory] = useState<PackagingCategory | null>(null);
+  const [editCatName, setEditCatName] = useState('');
+  const [editCatDesc, setEditCatDesc] = useState('');
+  const [editCatPriority, setEditCatPriority] = useState('100');
 
   const [boxCode, setBoxCode] = useState('');
   const [boxName, setBoxName] = useState('');
@@ -142,13 +147,65 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
   }
 
   function toggleCategory(row: PackagingCategory) {
-    if (!canWrite) return;
+    if (!canWrite || !canEditDelete) return;
     requestConfirm(row.active ? 'hide' : 'unhide', row.name, async (confirmPassword) => {
       await api(`${WMS_API}/packaging/categories/${row.id}`, {
         method: 'PATCH',
         body: JSON.stringify({ active: !row.active, confirmPassword }),
       });
       setSuccess(row.active ? 'Category deactivated' : 'Category activated');
+      await load();
+    });
+  }
+
+  function openEditCategory(row: PackagingCategory) {
+    if (!canEditDelete) return;
+    setEditingCategory(row);
+    setEditCatName(row.name);
+    setEditCatDesc(row.description ?? '');
+    setEditCatPriority(String(row.priority));
+  }
+
+  function closeEditCategory() {
+    setEditingCategory(null);
+    setEditCatName('');
+    setEditCatDesc('');
+    setEditCatPriority('100');
+  }
+
+  function saveEditCategory() {
+    if (!editingCategory || !canEditDelete || !editCatName.trim()) return;
+    requestConfirm('edit', editingCategory.name, async (confirmPassword) => {
+      await api(`${WMS_API}/packaging/categories/${editingCategory.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editCatName.trim(),
+          description: editCatDesc.trim() || null,
+          priority: Number(editCatPriority) || 100,
+          confirmPassword,
+        }),
+      });
+      closeEditCategory();
+      setSuccess('Category updated');
+      await load();
+    });
+  }
+
+  function deleteCategory(row: PackagingCategory) {
+    if (!canEditDelete) return;
+    if (
+      !window.confirm(
+        `Delete category "${row.name}"? Linked package rules will also be removed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    requestConfirm('delete', row.name, async (confirmPassword) => {
+      await api(`${WMS_API}/packaging/categories/${row.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmPassword }),
+      });
+      setSuccess('Category deleted');
       await load();
     });
   }
@@ -249,7 +306,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
           {canWrite ? (
             <div className="warehouse-packaging-form">
               <input className={inputClass} placeholder="Category name" value={catName} onChange={(e) => setCatName(e.target.value)} />
-              <input className={inputClass} placeholder="Description" value={catDesc} onChange={(e) => setCatDesc(e.target.value)} />
+              <textarea className={inputClass} placeholder="Description" value={catDesc} onChange={(e) => setCatDesc(e.target.value)} rows={4} />
               <input className={inputClass} placeholder="Priority" value={catPriority} onChange={(e) => setCatPriority(e.target.value)} inputMode="numeric" />
               <Btn size="sm" onClick={() => void createCategory()}>Add category</Btn>
             </div>
@@ -264,6 +321,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
                     <Th>Priority</Th>
                     <Th>Description</Th>
                     <Th>Active</Th>
+                    {canEditDelete ? <Th>Actions</Th> : null}
                   </tr>
                 </THead>
                 <TBody>
@@ -273,7 +331,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
                       <Td>{r.priority}</Td>
                       <Td>{r.description ?? '—'}</Td>
                       <Td>
-                        {canWrite ? (
+                        {canWrite && canEditDelete ? (
                           <Btn size="sm" variant="ghost" onClick={() => toggleCategory(r)}>
                             {r.active ? 'Yes' : 'No'}
                           </Btn>
@@ -281,6 +339,23 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
                           r.active ? 'Yes' : 'No'
                         )}
                       </Td>
+                      {canEditDelete ? (
+                        <Td>
+                          <div className="flex flex-wrap gap-2">
+                            <Btn size="sm" variant="secondary" onClick={() => openEditCategory(r)}>
+                              Edit
+                            </Btn>
+                            <Btn
+                              size="sm"
+                              variant="danger"
+                              onClick={() => deleteCategory(r)}
+                              disabled={r.name === 'General'}
+                            >
+                              Delete
+                            </Btn>
+                          </div>
+                        </Td>
+                      ) : null}
                     </tr>
                   ))}
                 </TBody>
@@ -457,6 +532,35 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
             </TableWrap>
           ) : null}
         </Panel>
+      ) : null}
+
+      {editingCategory ? (
+        <Modal
+          title={`Edit category — ${editingCategory.name}`}
+          onClose={closeEditCategory}
+          onSave={saveEditCategory}
+          saveLabel="Save changes"
+        >
+          <Field label="Name">
+            <input className={inputClass} value={editCatName} onChange={(e) => setEditCatName(e.target.value)} />
+          </Field>
+          <Field label="Description">
+            <textarea
+              className={inputClass}
+              value={editCatDesc}
+              onChange={(e) => setEditCatDesc(e.target.value)}
+              rows={4}
+            />
+          </Field>
+          <Field label="Priority">
+            <input
+              className={inputClass}
+              value={editCatPriority}
+              onChange={(e) => setEditCatPriority(e.target.value)}
+              inputMode="numeric"
+            />
+          </Field>
+        </Modal>
       ) : null}
     </div>
   );

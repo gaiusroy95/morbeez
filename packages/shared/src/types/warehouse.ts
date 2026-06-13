@@ -162,6 +162,7 @@ export type WarehouseOrderDetail = {
     shiprocket_error: string | null;
     shiprocket_shipment_id?: string | null;
     shipping_method?: string | null;
+    package_status?: string | null;
     tracking_status?: string | null;
     created_at?: string;
     picking_started_at?: string | null;
@@ -170,7 +171,7 @@ export type WarehouseOrderDetail = {
     shipped_at?: string | null;
     delivered_at?: string | null;
   };
-  pickList: { id: string; picker_id?: string | null } | null;
+  pickList: { id: string; picker_id?: string | null; status?: string | null } | null;
   packSession: { id: string; scan_complete?: boolean } | null;
   invoice: { id: string; invoice_number: string } | null;
   suggestedDispatchRack: string | null;

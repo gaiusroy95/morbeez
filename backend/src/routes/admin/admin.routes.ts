@@ -40,7 +40,7 @@ import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
-import { osMarketingRoutes } from './os-marketing.routes.js';
+import { osPartnerRoutes } from './os-partner.routes.js';
 import {
   getModulesForRole,
   canApproveRecommendations,
@@ -362,6 +362,24 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const result = await staffPasswordService.completePasswordReset(body);
     return reply.send({ ok: true, email: result.email });
+  });
+
+  app.post(`${api}/auth/change-password`, async (request, reply) => {
+    const admin = requireAdmin(request);
+    const body = z
+      .object({
+        currentPassword: z.string().min(1).max(128).optional(),
+        newPassword: z.string().min(8).max(128),
+        confirmPassword: z.string().min(8).max(128),
+      })
+      .parse(request.body);
+    const result = await staffPasswordService.changePassword({
+      adminUserId: admin.id,
+      currentPassword: body.currentPassword,
+      newPassword: body.newPassword,
+      confirmPassword: body.confirmPassword,
+    });
+    return reply.send(result);
   });
 
   app.get(`${api}/stats`, async (request, reply) => {
@@ -2814,6 +2832,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   await app.register(osWarehouseRoutes);
   await app.register(osPricingRoutes);
   await app.register(osMarketingRoutes);
+  await app.register(osPartnerRoutes);
   const { osSeoRoutes } = await import('./os-seo.routes.js');
   await app.register(osSeoRoutes);
 }

@@ -16,6 +16,7 @@ export type SessionAdmin = {
   role: string;
   fullName?: string;
   agronomistTier?: 'new' | 'experienced' | null;
+  hasPassword?: boolean;
 };
 
 export type SessionPayload = {
@@ -132,6 +133,17 @@ export async function fetchStaffSession(): Promise<SessionPayload> {
     canApproveRecommendations: Boolean(data.canApproveRecommendations),
     canSelfApproveRecommendations: Boolean(data.canSelfApproveRecommendations),
   };
+}
+
+export async function changeStaffPassword(input: {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+}) {
+  return staffApi<{ ok: boolean; hasPassword: boolean }>(`${STAFF_API_V1}/auth/change-password`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function canAccessModule(

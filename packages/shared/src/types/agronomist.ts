@@ -36,6 +36,8 @@ export type AgronomistBlockRow = {
   latestFieldActivity?: string | null;
   latestSoilTestAt?: string | null;
   needsAttention?: boolean;
+  openIssueCount?: number;
+  blockHealth?: string | null;
 };
 
 export type AgronomistDashboard = {
@@ -136,6 +138,44 @@ export type AgronomistWorkspaceSummary = {
   openEscalationCount: number;
 };
 
+export type FarmerWorkspaceDashboard = AgronomistWorkspaceSummary & {
+  openIssuesCount: number;
+  pendingRecommendationsCount: number;
+  pendingFindingReviewsCount: number;
+  pendingAiCasesCount: number;
+  todaysVisitsCount: number;
+  lastCallAt: string | null;
+  farmerSummary: {
+    name: string;
+    lastCallAt: string | null;
+    lastVisitAt: string | null;
+    openIssuesCount: number;
+    pendingRecommendationsCount: number;
+  };
+};
+
+export type FarmerVisitRow = {
+  id: string;
+  blockId: string | null;
+  blockName: string;
+  cropType: string | null;
+  visitedAt: string;
+  dapAtVisit: number | null;
+  issueCount: number;
+  recommendationCount: number;
+  summary: string;
+  blockHealth: string | null;
+};
+
+export type FarmerOrderRow = {
+  id: string;
+  orderNumber?: string | null;
+  status?: string | null;
+  totalAmount?: number | null;
+  createdAt?: string | null;
+  lineItems?: Array<{ title?: string; quantity?: number }>;
+};
+
 export type AgronomistDocumentRow = {
   id: string;
   type: string;
@@ -149,10 +189,15 @@ export type AgronomistRecommendationRow = {
   farmerId: string;
   blockId: string | null;
   fieldFindingId: string | null;
+  visitIssueId?: string | null;
   issueDetected: string | null;
   recommendationText: string;
   dosage: string | null;
   status: string;
+  fieldRecStatus?: string | null;
+  priority?: string | null;
+  reviewDate?: string | null;
+  outcome?: string | null;
   createdAt: string;
 };
 

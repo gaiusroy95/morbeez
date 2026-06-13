@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { agronomistClient, t, tokens } from '@morbeez/shared';
 import { AlertBox, Btn, KeyValueRow, LanguagePicker, Loading, Panel } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { admin, logout } = useStaffAuth();
   const { locale, setLocale } = useLocale();
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
@@ -58,6 +60,12 @@ export default function ProfileScreen() {
         <Text style={styles.hint}>{t('languageHint', locale)}</Text>
         <LanguagePicker locale={locale} onChange={setLocale} />
       </Panel>
+
+      <Btn
+        label={admin?.hasPassword ? t('changePassword', locale) : t('setPassword', locale)}
+        onPress={() => router.push('/change-password')}
+        variant="secondary"
+      />
 
       {profile?.headline ? (
         <Text style={styles.headline}>{String(profile.headline)}</Text>

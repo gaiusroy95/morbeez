@@ -909,7 +909,7 @@
 
 .cr-textarea {
   resize: vertical;
-  min-height: 56px;
+  min-height: 120px;
 }
 
 .cr-textarea--readonly {
@@ -919,7 +919,7 @@
 }
 
 .cr-textarea--compact {
-  min-height: 48px;
+  min-height: 120px;
   font-size: 12px;
   line-height: 1.45;
 }

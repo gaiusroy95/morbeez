@@ -71,6 +71,14 @@ function RootStack() {
         }}
       />
       <Stack.Screen
+        name="visit/[findingId]"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Visit detail" /> }}
+      />
+      <Stack.Screen
+        name="change-password"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Change password" /> }}
+      />
+      <Stack.Screen
         name="finding/[id]"
         options={{ headerTitle: () => <BrandedHeaderTitle title={t('reviewFinding', locale)} /> }}
       />
@@ -97,6 +105,14 @@ function RootStack() {
       <Stack.Screen
         name="recommendation/add"
         options={{ headerTitle: () => <BrandedHeaderTitle title="Add recommendation" /> }}
+      />
+      <Stack.Screen
+        name="activity/add"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Add activity" /> }}
+      />
+      <Stack.Screen
+        name="soil/add"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Add soil test" /> }}
       />
       <Stack.Screen name="map" options={{ headerTitle: () => <BrandedHeaderTitle title={t('farmerMap', locale)} /> }} />
     </Stack>

@@ -1,4 +1,4 @@
-﻿/* Morbeez Agriculture â€” Operations Console (dashboard mockup) */
+/* Morbeez Agriculture â€” Operations Console (dashboard mockup) */
 :root {
   --green-900: #1a4d32;
   --green-800: #215c3a;
@@ -863,6 +863,20 @@ body {
   font-size: 14px;
   font-family: inherit;
   background: #fff;
+}
+
+.field textarea,
+textarea.input {
+  min-height: 120px;
+  height: auto;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+textarea {
+  min-height: 120px;
+  height: auto;
+  resize: vertical;
 }
 
 .input:focus,

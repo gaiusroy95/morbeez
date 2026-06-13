@@ -44,7 +44,7 @@ async function expandFarmerTextWithAgronomyTerms(
 }
 
 export type PromoteVerifiedAnswerInput = {
-  sessionId: string;
+  sessionId?: string | null;
   farmerId: string;
   issueLabel: string;
   /** Farmer-facing answer (English). */
@@ -57,6 +57,9 @@ export type PromoteVerifiedAnswerInput = {
   extraSymptomSources?: (string | undefined | null)[];
   /** When true, index under district '' so all regions get this answer for the same question. */
   global?: boolean;
+  sourceType?: 'ai_session' | 'field_visit' | 'recommendation';
+  sourceFieldFindingId?: string | null;
+  sourceRecommendationId?: string | null;
   /** WhatsApp intake Q&A — indexed so AI can plan follow-ups for similar cases. */
   investigationPattern?: {
     initialSymptoms: string;
@@ -139,7 +142,9 @@ export const verifiedAdvisoryLearningService = {
     symptomKeys: string[];
     districts: string[];
   }> {
-    const session = await this.loadSessionQuestionSources(input.sessionId);
+    const session = input.sessionId
+      ? await this.loadSessionQuestionSources(input.sessionId)
+      : null;
     const cropType = session?.cropType ?? 'ginger';
 
     const { data: farmer } = await supabase
@@ -203,7 +208,7 @@ export const verifiedAdvisoryLearningService = {
     for (const symptomKey of symptomKeys) {
       for (const d of districts) {
         await aiReuseService.indexSuccessfulCase({
-          sessionId: input.sessionId,
+          sessionId: input.sessionId ?? null,
           farmerId: input.farmerId,
           cropType,
           district: d || null,
@@ -212,11 +217,16 @@ export const verifiedAdvisoryLearningService = {
           advisory,
           products: input.products ?? [],
           escalated: false,
+          sourceType: input.sourceType ?? (input.sessionId ? 'ai_session' : 'field_visit'),
+          sourceFieldFindingId: input.sourceFieldFindingId ?? null,
+          sourceRecommendationId: input.sourceRecommendationId ?? null,
         });
       }
     }
 
-    await this.patchSessionOutput(input.sessionId, advisory);
+    if (input.sessionId) {
+      await this.patchSessionOutput(input.sessionId, advisory);
+    }
 
     logger.info(
       {

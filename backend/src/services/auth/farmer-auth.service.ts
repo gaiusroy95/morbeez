@@ -8,6 +8,8 @@ import { logger } from '../../lib/logger.js';
 import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
 import { leadService } from '../crm/lead.service.js';
 import { leadChannelFromUtm } from '../../domain/marketing/lead-attribution.js';
+import { partnerEnrollmentService } from '../partner/partner-enrollment.service.js';
+import { farmerOwnershipService } from '../partner/farmer-ownership.service.js';
 
 export interface SignupInput {
   email?: string;
@@ -22,6 +24,8 @@ export interface SignupInput {
   utmCampaign?: string;
   utmSource?: string;
   utmMedium?: string;
+  partnerCode?: string;
+  qrToken?: string;
 }
 
 export interface LoginInput {
@@ -169,6 +173,7 @@ export const farmerAuthService = {
         utmCampaign: input.utmCampaign ?? null,
         utmSource: input.utmSource ?? null,
         utmMedium: input.utmMedium ?? null,
+        partnerCode: input.partnerCode ?? null,
       });
       logger.info(
         {
@@ -182,6 +187,28 @@ export const farmerAuthService = {
       );
     } catch (err) {
       logger.error({ err, farmerId: data.id, phone }, 'Signup telecaller lead failed');
+    }
+
+    try {
+      const partnerEnroll = await partnerEnrollmentService.enrollFarmerWithPartner({
+        farmerId: String(data.id),
+        phone,
+        name: fullName,
+        partnerCode: input.partnerCode,
+        qrToken: input.qrToken,
+        enrollmentSource: input.qrToken ? 'partner_qr' : input.partnerCode ? 'partner_referral' : undefined,
+      });
+      if (!partnerEnroll.enrolled) {
+        await farmerOwnershipService.setEnrollmentOwnership({
+          farmerId: String(data.id),
+          enrollmentOwnerType: 'morbeez',
+          enrollmentSource: input.channel === 'mobile' ? 'mobile_app' : 'website',
+          serviceModel: 'remote_advisory',
+          customerOwnerType: 'morbeez',
+        });
+      }
+    } catch (err) {
+      logger.error({ err, farmerId: data.id }, 'Signup ownership assignment failed');
     }
 
     const token = createFarmerToken(data.id as string, email ?? phone);
@@ -215,5 +242,46 @@ export const farmerAuthService = {
     if (error || !data) throw new UnauthorizedError('Session invalid');
     if (!data.email && !data.phone) throw new UnauthorizedError('Session invalid');
     return publicFarmer(data);
+  },
+
+  async changePassword(input: {
+    farmerId: string;
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword: string;
+  }) {
+    if (input.newPassword.length < 8) {
+      throw new ValidationError('Password must be at least 8 characters');
+    }
+    if (input.newPassword !== input.confirmPassword) {
+      throw new ValidationError('Passwords do not match');
+    }
+
+    const { data, error } = await supabase
+      .from('farmers')
+      .select('password_hash')
+      .eq('id', input.farmerId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load account');
+    if (!data) throw new UnauthorizedError('Session invalid');
+
+    const hasPassword = Boolean(data.password_hash);
+    if (hasPassword) {
+      if (!input.currentPassword?.trim()) {
+        throw new ValidationError('Current password is required');
+      }
+      if (!verifyPassword(input.currentPassword, String(data.password_hash))) {
+        throw new UnauthorizedError('Current password is incorrect');
+      }
+    }
+
+    const now = new Date().toISOString();
+    const { error: updateErr } = await supabase
+      .from('farmers')
+      .update({ password_hash: hashPassword(input.newPassword), updated_at: now })
+      .eq('id', input.farmerId);
+    throwIfSupabaseError(updateErr, 'Could not update password');
+
+    return { ok: true as const, hasPassword: true };
   },
 };

@@ -136,7 +136,13 @@ async function loadSessionContext(packSessionId: string): Promise<RackSessionCon
     const counts = (session.line_scan_counts ?? {}) as Record<string, number>;
     const completed = (session.completed_racks ?? []) as string[];
     const currentRack = resolveCurrentRack(session, lines, counts);
-    const pickComplete = Boolean(session.scan_complete);
+    let pickComplete = Boolean(session.scan_complete) || allRacksComplete(lines, counts);
+    if (!session.scan_complete && pickComplete) {
+      await supabase
+        .from('pack_sessions')
+        .update({ scan_complete: true, verified_rack: null })
+        .eq('id', packSessionId);
+    }
     const stage = pickComplete ? 'pack' : 'picking';
 
     const racks = sortRacks(lines.map((l) => normalizeRack(l.rack_location))).map((rack) => {

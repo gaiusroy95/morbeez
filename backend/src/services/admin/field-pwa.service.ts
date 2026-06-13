@@ -110,7 +110,7 @@ export const fieldPwaService = {
         .in('id', blockIds),
       supabase
         .from('crm_field_findings')
-        .select('block_id, disease_tone, disease_pest, observations, visited_at')
+        .select('block_id, disease_tone, disease_pest, observations, visited_at, block_health')
         .eq('farmer_id', farmerId)
         .in('block_id', blockIds)
         .is('archived_at', null)
@@ -143,6 +143,20 @@ export const fieldPwaService = {
     for (const a of activities ?? []) {
       const id = String(a.farm_block_id);
       if (!activityByBlock.has(id)) activityByBlock.set(id, a);
+    }
+
+    const openByBlock = new Map<string, number>();
+    const { data: openIssueRows } = await supabase
+      .from('visit_issues')
+      .select('status, crm_field_findings!inner(block_id, farmer_id)')
+      .eq('crm_field_findings.farmer_id', farmerId)
+      .in('status', ['open', 'monitoring']);
+    for (const row of openIssueRows ?? []) {
+      const ff = row.crm_field_findings as { block_id?: string } | { block_id?: string }[];
+      const blockId = Array.isArray(ff) ? ff[0]?.block_id : ff?.block_id;
+      if (!blockId) continue;
+      const bid = String(blockId);
+      openByBlock.set(bid, (openByBlock.get(bid) ?? 0) + 1);
     }
 
     const mapped = blocks.map((b) => {
@@ -185,6 +199,8 @@ export const fieldPwaService = {
           : null,
         latestSoilTestAt: soil?.reported_at ? String(soil.reported_at) : null,
         needsAttention,
+        openIssueCount: openByBlock.get(b.id) ?? 0,
+        blockHealth: finding?.block_health ? String(finding.block_health) : null,
       };
     });
 
