@@ -84,7 +84,9 @@ export const verifiedAdvisoryLearningService = {
      * Index agronomist-verified answer for reuse (regional + optional global district '').
      */
     async promoteVerifiedAnswer(input) {
-        const session = await this.loadSessionQuestionSources(input.sessionId);
+        const session = input.sessionId
+            ? await this.loadSessionQuestionSources(input.sessionId)
+            : null;
         const cropType = session?.cropType ?? 'ginger';
         const { data: farmer } = await supabase
             .from('farmers')
@@ -130,7 +132,7 @@ export const verifiedAdvisoryLearningService = {
         for (const symptomKey of symptomKeys) {
             for (const d of districts) {
                 await aiReuseService.indexSuccessfulCase({
-                    sessionId: input.sessionId,
+                    sessionId: input.sessionId ?? null,
                     farmerId: input.farmerId,
                     cropType,
                     district: d || null,
@@ -139,10 +141,15 @@ export const verifiedAdvisoryLearningService = {
                     advisory,
                     products: input.products ?? [],
                     escalated: false,
+                    sourceType: input.sourceType ?? (input.sessionId ? 'ai_session' : 'field_visit'),
+                    sourceFieldFindingId: input.sourceFieldFindingId ?? null,
+                    sourceRecommendationId: input.sourceRecommendationId ?? null,
                 });
             }
         }
-        await this.patchSessionOutput(input.sessionId, advisory);
+        if (input.sessionId) {
+            await this.patchSessionOutput(input.sessionId, advisory);
+        }
         logger.info({
             sessionId: input.sessionId,
             verifiedBy: input.verifiedBy,

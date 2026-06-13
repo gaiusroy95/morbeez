@@ -149,6 +149,60 @@ export declare const AI_TRAINING_SCHEMA: {
         readonly specName: "AI Training Samples";
         readonly note: "Stage 2 adds ai_training_events for unified correction spine";
     };
+    readonly visitIssue: {
+        readonly table: "visit_issues";
+        readonly specName: "VisitIssues";
+        readonly keyFields: {
+            readonly issue_id: "id";
+            readonly field_finding_id: "field_finding_id";
+            readonly issue_category: "issue_category";
+            readonly issue_master_id: "issue_master_id";
+            readonly issue_name: "issue_name";
+            readonly severity: "severity";
+            readonly observation: "observation";
+            readonly status: "status";
+        };
+    };
+    readonly issuePhoto: {
+        readonly table: "issue_photos";
+        readonly specName: "IssuePhotos";
+        readonly keyFields: {
+            readonly photo_id: "id";
+            readonly visit_issue_id: "visit_issue_id";
+            readonly storage_path: "storage_path";
+        };
+    };
+    readonly visitMeasurement: {
+        readonly table: "visit_measurements";
+        readonly specName: "Measurements";
+        readonly keyFields: {
+            readonly measurement_id: "id";
+            readonly field_finding_id: "field_finding_id";
+            readonly measurement_key: "measurement_key";
+            readonly value: "value";
+            readonly unit: "unit";
+        };
+    };
+    readonly issueMaster: {
+        readonly table: "issue_master";
+        readonly specName: "IssueMaster";
+        readonly keyFields: {
+            readonly issue_master_id: "id";
+            readonly category: "category";
+            readonly issue_name: "issue_name";
+            readonly concept_code: "concept_code";
+        };
+    };
+    readonly cropMeasurementTemplate: {
+        readonly table: "crop_measurement_templates";
+        readonly specName: "CropMeasurementTemplates";
+        readonly keyFields: {
+            readonly crop_type: "crop_type";
+            readonly measurement_key: "measurement_key";
+            readonly label_en: "label_en";
+            readonly unit: "unit";
+        };
+    };
 };
 export type AiTrainingEntity = keyof typeof AI_TRAINING_SCHEMA;
 //# sourceMappingURL=schema-map.d.ts.map

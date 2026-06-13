@@ -148,6 +148,10 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    ENABLE_STRUCTURED_FIELD_VISITS: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     ENABLE_WHATSAPP_BROADCASTS: z
         .string()
         .transform((v) => v !== 'false')
@@ -208,6 +212,26 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    ENABLE_PARTNER_PROGRAM: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    ENABLE_PARTNER_LEAD_ALLOCATION: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    ENABLE_SALES_OPPORTUNITIES: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    ENABLE_PARTNER_COMMISSION: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    ENABLE_UNIFIED_TEAM_TIMELINE: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     /** Below this → escalate to agronomist (legacy; defaults to review threshold). */
     AI_ESCALATION_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
     /** ≥ this → auto-send advisory without human review. */
@@ -226,6 +250,11 @@ const envSchema = z.object({
     GSC_CLIENT_ID: z.string().optional(),
     GSC_CLIENT_SECRET: z.string().optional(),
     GSC_REFRESH_TOKEN: z.string().optional(),
+    /** Exotel click-to-call + recording webhooks (Phase 7). */
+    EXOTEL_SID: z.string().optional(),
+    EXOTEL_TOKEN: z.string().optional(),
+    EXOTEL_CALLER_ID: z.string().optional(),
+    EXOTEL_SUBDOMAIN: z.string().optional(),
 });
 function loadEnv() {
     const parsed = envSchema.safeParse(process.env);

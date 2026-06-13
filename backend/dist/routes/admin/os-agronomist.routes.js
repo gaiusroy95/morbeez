@@ -22,6 +22,8 @@ import { weatherCorrelationService } from '../../services/core/weather-correlati
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
+import { farmerNotesService } from '../../services/admin/farmer-notes.service.js';
+import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 const draftSchema = z.object({
     findingId: z.string().uuid(),
     farmerId: z.string().uuid(),
@@ -580,6 +582,57 @@ export async function osAgronomistRoutes(app) {
         const summary = await agronomistMobileService.getWorkspaceSummary(farmerId);
         return reply.send({ ok: true, summary });
     });
+    app.get(`${api}/farmers/:farmerId/workspace-dashboard`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const dashboard = await agronomistMobileService.getWorkspaceDashboard(farmerId);
+        return reply.send({ ok: true, dashboard });
+    });
+    app.get(`${api}/farmers/:farmerId/visits`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const q = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() }).parse(request.query ?? {});
+        const visits = await agronomistMobileService.listFarmerVisits(farmerId, q.limit ?? 30);
+        return reply.send({ ok: true, visits });
+    });
+    app.get(`${api}/farmers/:farmerId/orders`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const result = await agronomistMobileService.listFarmerOrders(farmerId);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/farmers/:farmerId/whatsapp-history`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const messages = await agronomistMobileService.listWhatsAppHistory(farmerId);
+        return reply.send({ ok: true, messages });
+    });
+    app.post(`${api}/farmers/:farmerId/calls`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            outcome: z.string().optional(),
+            notes: z.string().max(2000).optional(),
+            durationSeconds: z.number().int().min(0).optional(),
+        })
+            .parse(request.body);
+        const result = await agronomistMobileService.logFarmerCall(farmerId, admin.email, body);
+        return reply.status(201).send({ ok: true, result });
+    });
+    app.post(`${api}/farmers/:farmerId/reminders`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            reason: z.string().min(1).max(500),
+            dueAt: z.string().datetime().optional(),
+            assignTo: z.enum(['agronomist', 'telecaller']).optional(),
+        })
+            .parse(request.body);
+        const task = await agronomistMobileService.createFarmerReminder(farmerId, admin.email, body);
+        return reply.status(201).send({ ok: true, task });
+    });
     app.get(`${api}/farmers/:farmerId/documents`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'read');
         const { farmerId } = request.params;
@@ -660,6 +713,32 @@ export async function osAgronomistRoutes(app) {
         const profile = await agronomistMobileService.getProfileStats(admin.email);
         return reply.send({ ok: true, profile });
     });
+    app.get(`${api}/mobile/notifications`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'read');
+        const notifications = await agronomistMobileService.listNotifications(admin.email);
+        return reply.send({ ok: true, notifications });
+    });
+    app.get(`${api}/farmers/:farmerId/team-timeline`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const { farmerTeamTimelineService } = await import('../../services/crm/farmer-team-timeline.service.js');
+        const timeline = await farmerTeamTimelineService.listForFarmer(farmerId);
+        return reply.send({ ok: true, timeline });
+    });
+    app.post(`${api}/farmers/:farmerId/team-timeline`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z.object({ body: z.string().min(1).max(8000) }).parse(request.body);
+        const { farmerTeamTimelineService } = await import('../../services/crm/farmer-team-timeline.service.js');
+        const entry = await farmerTeamTimelineService.addComment({
+            farmerId,
+            body: body.body,
+            authorType: 'expert',
+            authorEmail: admin.email,
+            authorName: admin.email,
+        });
+        return reply.send({ ok: true, entry });
+    });
     app.get(`${api}/routes`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'read');
         const q = z.object({ date: z.string().optional() }).parse(request.query ?? {});
@@ -693,6 +772,119 @@ export async function osAgronomistRoutes(app) {
         const { id } = request.params;
         const route = await routePlannerService.getRouteSummary(id);
         return reply.send({ ok: true, route });
+    });
+    app.get(`${api}/farmers/:farmerId/notes`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const notes = await farmerNotesService.list(farmerId);
+        return reply.send({ ok: true, notes });
+    });
+    app.post(`${api}/farmers/:farmerId/notes`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z.object({ noteText: z.string().min(1).max(4000) }).parse(request.body);
+        const note = await farmerNotesService.create(farmerId, admin.email, body.noteText);
+        return reply.status(201).send({ ok: true, note });
+    });
+    app.get(`${api}/farmers/:farmerId/call-log-summary`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const summary = await agronomistMobileService.getCallLogSummary(farmerId);
+        return reply.send({ ok: true, summary });
+    });
+    app.get(`${api}/farmers/:farmerId/interactions`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const q = request.query;
+        const result = await agronomistMobileService.listFarmerInteractions(farmerId, q.leadId ?? null, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 40);
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/farmers/:farmerId/interactions/:interactionId`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId, interactionId } = request.params;
+        const q = request.query;
+        const interaction = await agronomistMobileService.getFarmerInteractionDetail(farmerId, interactionId, q.leadId ?? null);
+        return reply.send({ ok: true, interaction });
+    });
+    app.get(`${api}/farmers/:farmerId/follow-ups`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const [tasksRes, followUpsRes, callbacksRes] = await Promise.all([
+            supabase
+                .from('crm_tasks')
+                .select('id, title, task_type, task_category, due_at, status, assigned_to')
+                .eq('farmer_id', farmerId)
+                .eq('status', 'pending')
+                .order('due_at', { ascending: true })
+                .limit(40),
+            supabase
+                .from('recommendation_follow_ups')
+                .select('id, recommendation_record_id, follow_up_type, due_at, status, notes')
+                .eq('farmer_id', farmerId)
+                .in('status', ['scheduled', 'sent', 'pending'])
+                .order('due_at', { ascending: true })
+                .limit(40),
+            supabase
+                .from('callback_requests')
+                .select('id, reason, status, scheduled_at')
+                .eq('farmer_id', farmerId)
+                .in('status', ['pending', 'open', 'requested'])
+                .limit(20),
+        ]);
+        throwIfSupabaseError(tasksRes.error, 'Could not load follow-ups');
+        return reply.send({
+            ok: true,
+            tasks: tasksRes.data ?? [],
+            recommendationFollowUps: followUpsRes.data ?? [],
+            callbacks: callbacksRes.data ?? [],
+        });
+    });
+    app.get(`${api}/farmers/:farmerId/soil-reports`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const reports = await crmFarmerService.listSoilReports(farmerId);
+        return reply.send({ ok: true, reports });
+    });
+    app.post(`${api}/farmers/:farmerId/soil-reports`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid().optional(),
+            metrics: z.record(z.unknown()).optional(),
+            pdfUrl: z.string().optional(),
+        })
+            .parse(request.body);
+        const report = await crmFarmerService.createSoilReport(farmerId, {
+            blockId: body.blockId,
+            metrics: body.metrics,
+            pdfUrl: body.pdfUrl,
+            uploadedBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, report });
+    });
+    app.post(`${api}/farmers/:farmerId/field-activities`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { farmerId } = request.params;
+        const body = z
+            .object({
+            blockId: z.string().uuid(),
+            activityTypeId: z.string().uuid().optional(),
+            activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+            activityLabel: z.string().max(120).optional(),
+            activityDate: z.string().min(8).max(20),
+            dap: z.number().int().min(0).max(5000).optional(),
+            notes: z.string().max(1000).optional(),
+            costInr: z.number().min(0).max(10000000).optional(),
+            status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+        })
+            .parse(request.body);
+        await whatsappOsAdminService.assertFarmBlockBelongsToFarmer(body.blockId, farmerId);
+        const activity = await whatsappOsAdminService.createFieldActivity({
+            ...body,
+            assignedEmployee: admin.email,
+        });
+        return reply.status(201).send({ ok: true, activity });
     });
 }
 //# sourceMappingURL=os-agronomist.routes.js.map

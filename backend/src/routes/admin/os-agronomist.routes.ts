@@ -24,7 +24,7 @@ import { agronomistMobileService } from '../../services/agronomist/agronomist-mo
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
 import { farmerNotesService } from '../../services/admin/farmer-notes.service.js';
-import { whatsappOsAdminService } from '../../services/whatsapp/whatsapp-os-admin.service.js';
+import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 
 const draftSchema = z.object({
   findingId: z.string().uuid(),
@@ -809,7 +809,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
       body: body.body,
       authorType: 'expert',
       authorEmail: admin.email,
-      authorName: admin.fullName ?? admin.email,
+      authorName: admin.email,
     });
     return reply.send({ ok: true, entry });
   });

@@ -12,6 +12,7 @@ export declare const staffOtpService: {
             fullName: unknown;
             role: unknown;
             lastLoginAt: unknown;
+            hasPassword: boolean;
             createdAt: unknown;
         };
     }>;

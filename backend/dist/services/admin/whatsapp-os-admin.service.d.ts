@@ -156,7 +156,7 @@ export declare const whatsappOsAdminService: {
         lastYearPricePerKg?: number;
         priceDate?: string;
     }): Promise<any>;
-    listTerminologyReviewTasks(status?: string): Promise<any[]>;
+    listTerminologyReviewTasks(status?: string, sourceChannel?: string): Promise<any[]>;
     /** Manual queue entry (Operations UI) or testing without a live WhatsApp message. */
     createTerminologyReviewTask(params: {
         term: string;

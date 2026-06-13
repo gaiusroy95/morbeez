@@ -15,6 +15,7 @@ import { shopifyWebhookRoutes } from './routes/webhooks/shopify.routes.js';
 import { razorpayWebhookRoutes } from './routes/webhooks/razorpay.routes.js';
 import { shiprocketWebhookRoutes } from './routes/webhooks/shiprocket.routes.js';
 import { whatsappWebhookRoutes } from './routes/webhooks/whatsapp.routes.js';
+import { exotelWebhookRoutes } from './routes/webhooks/exotel.routes.js';
 import { farmersRoutes } from './routes/api/farmers.routes.js';
 import { leadsRoutes } from './routes/api/leads.routes.js';
 import { shopifyProxyRoutes } from './routes/proxy/shopify-proxy.routes.js';
@@ -26,6 +27,7 @@ import { shopifyOAuthRoutes } from './routes/auth/shopify-oauth.routes.js';
 import { checkoutRoutes } from './routes/api/checkout.routes.js';
 import { storeRoutes } from './routes/api/store.routes.js';
 import { quotesRoutes } from './routes/api/quotes.routes.js';
+import { partnerApiRoutes } from './routes/partner/partner-api.routes.js';
 import { adminRoutes } from './routes/admin/admin.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
 import { LEGACY_CONSOLE_PATH, STAFF_API_V1, STAFF_PORTAL_PATH, } from './lib/staff-portal.js';
@@ -95,6 +97,7 @@ export async function buildApp() {
     await app.register(razorpayWebhookRoutes);
     await app.register(shiprocketWebhookRoutes);
     await app.register(whatsappWebhookRoutes);
+    await app.register(exotelWebhookRoutes);
     await app.register(authRoutes);
     await app.register(farmerPortalRoutes);
     await app.register(i18nRoutes);
@@ -102,6 +105,7 @@ export async function buildApp() {
     await app.register(checkoutRoutes);
     await app.register(quotesRoutes);
     await app.register(adminRoutes);
+    await app.register(partnerApiRoutes);
     const consoleUrl = staffConsoleRedirectUrl();
     const portalMovedHandler = async (_request, reply) => {
         if (consoleUrl)

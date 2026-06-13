@@ -23,7 +23,7 @@ export declare const aiReuseService: {
         issueLabel: string;
     } | null>;
     indexSuccessfulCase(params: {
-        sessionId: string;
+        sessionId?: string | null;
         farmerId: string;
         cropType: string;
         district: string | null;
@@ -32,6 +32,9 @@ export declare const aiReuseService: {
         advisory: StructuredAdvisory;
         products: DiagnoseResult["productRecommendations"];
         escalated: boolean;
+        sourceType?: "ai_session" | "field_visit" | "recommendation";
+        sourceFieldFindingId?: string | null;
+        sourceRecommendationId?: string | null;
     }): Promise<void>;
     markOutcomeForSession(sessionId: string | null | undefined, outcomeOk: boolean): Promise<void>;
     findReusableForFarmerMessage(params: {

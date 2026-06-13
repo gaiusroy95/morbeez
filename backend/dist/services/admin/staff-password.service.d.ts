@@ -37,5 +37,14 @@ export declare const staffPasswordService: {
         ok: true;
         email: any;
     }>;
+    changePassword(input: {
+        adminUserId: string;
+        currentPassword?: string;
+        newPassword: string;
+        confirmPassword: string;
+    }): Promise<{
+        ok: true;
+        hasPassword: boolean;
+    }>;
 };
 //# sourceMappingURL=staff-password.service.d.ts.map

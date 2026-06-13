@@ -21,6 +21,8 @@ export declare const fieldPwaService: {
         latestFieldActivity: string | null;
         latestSoilTestAt: string | null;
         needsAttention: boolean;
+        openIssueCount: number;
+        blockHealth: string | null;
         cropHealthLabel: string;
         cropHealthStatus: string;
         lastVisitAt: string | null;

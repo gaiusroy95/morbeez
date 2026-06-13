@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
 function mapRow(row) {
     return {
         id: String(row.id),
@@ -89,6 +89,14 @@ export const packagingCategoryService = {
         if (!data)
             throw new NotFoundError('Packaging category not found');
         return mapRow(data);
+    },
+    async remove(id) {
+        const category = await this.getById(id);
+        if (category.name === 'General') {
+            throw new ValidationError('The General fallback category cannot be deleted');
+        }
+        const { error } = await supabase.from('packaging_categories').delete().eq('id', id);
+        throwIfSupabaseError(error, 'Delete packaging category');
     },
 };
 //# sourceMappingURL=packaging-category.service.js.map

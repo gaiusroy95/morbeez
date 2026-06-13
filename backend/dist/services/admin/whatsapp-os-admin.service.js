@@ -532,9 +532,11 @@ export const whatsappOsAdminService = {
         throwIfSupabaseError(error, 'Could not save crop price');
         return data;
     },
-    async listTerminologyReviewTasks(status = 'open') {
+    async listTerminologyReviewTasks(status = 'open', sourceChannel) {
         const allowed = new Set(['open', 'in_review', 'resolved', 'dismissed', 'rejected', 'all']);
         const s = allowed.has(status) ? status : 'open';
+        const sourceAllowed = new Set(['whatsapp', 'call', 'field', 'other']);
+        const source = sourceChannel && sourceAllowed.has(sourceChannel) ? sourceChannel : null;
         let q = supabase
             .from('terminology_review_tasks')
             .select('*, farmers(phone, name, district, state, preferred_language)')
@@ -542,6 +544,8 @@ export const whatsappOsAdminService = {
             .limit(100);
         if (s !== 'all')
             q = q.eq('status', s);
+        if (source)
+            q = q.eq('source_channel', source);
         const { data, error } = await q;
         throwIfSupabaseError(error, 'Could not load terminology tasks');
         return data ?? [];

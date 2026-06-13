@@ -1251,15 +1251,16 @@ export const crmFarmerService = {
     },
     async getFarmerCrmBundle(farmerId, leadId, agentEmail) {
         await this.ensureDemoCrmData(farmerId, leadId, agentEmail);
-        const [blocks, agronomist, interactions, recommendations, orders, internalNotes] = await Promise.all([
+        const [blocks, agronomist, interactions, recommendations, orders, internalNotes, ownership] = await Promise.all([
             this.listBlocks(farmerId),
             this.getAgronomist(farmerId),
             this.listInteractions(farmerId, 1, 10),
             this.listRecommendations(farmerId, 1, 10),
             this.listFarmerOrders(farmerId),
             crmInternalNotesService.list(farmerId),
+            import('../partner/farmer-ownership.service.js').then((m) => m.farmerOwnershipService.getOwnership(farmerId)),
         ]);
-        return { blocks, agronomist, interactions, recommendations, orders, internalNotes };
+        return { blocks, agronomist, interactions, recommendations, orders, internalNotes, ownership };
     },
     async listFarmerOrders(farmerId) {
         const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');

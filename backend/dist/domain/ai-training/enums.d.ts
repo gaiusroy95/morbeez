@@ -50,4 +50,30 @@ export type ImageReviewStatus = (typeof IMAGE_REVIEW_STATUSES)[number];
 /** Image review actions */
 export declare const IMAGE_REVIEW_ACTIONS: readonly ["confirm_ai", "correct_ai", "skip", "exclude"];
 export type ImageReviewAction = (typeof IMAGE_REVIEW_ACTIONS)[number];
+/** Block assessment — structured field visit Section 2 */
+export declare const BLOCK_HEALTH_LEVELS: readonly ["good", "average", "need_assistance"];
+export type BlockHealthLevel = (typeof BLOCK_HEALTH_LEVELS)[number];
+export declare const CROP_PERFORMANCE_LEVELS: readonly ["above_expectation", "as_expected", "below_expectation"];
+export type CropPerformanceLevel = (typeof CROP_PERFORMANCE_LEVELS)[number];
+export declare const SOIL_MOISTURE_LEVELS: readonly ["dry", "optimal", "wet", "waterlogged"];
+export type SoilMoistureLevel = (typeof SOIL_MOISTURE_LEVELS)[number];
+/** Per-issue lifecycle on a visit */
+export declare const ISSUE_STATUSES: readonly ["open", "monitoring", "resolved"];
+export type IssueStatus = (typeof ISSUE_STATUSES)[number];
+/** Issue categories for visit issue cards (maps to FINDING_TYPES where overlapping) */
+export declare const ISSUE_CATEGORIES: readonly ["disease", "pest", "nutrient_deficiency", "water_stress", "weed", "other"];
+export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+/** Recommendation module types */
+export declare const RECOMMENDATION_TYPES: readonly ["disease_management", "pest_management", "nutrient_management", "irrigation", "soil_amendment", "monitoring", "other"];
+export type RecommendationType = (typeof RECOMMENDATION_TYPES)[number];
+export declare const RECOMMENDATION_PRIORITIES: readonly ["normal", "high", "critical"];
+export type RecommendationPriority = (typeof RECOMMENDATION_PRIORITIES)[number];
+export declare const FIELD_REC_STATUSES: readonly ["open", "monitoring", "completed", "escalated"];
+export type FieldRecStatus = (typeof FIELD_REC_STATUSES)[number];
+/** Visit follow-up: was recommendation followed? */
+export declare const RECOMMENDATION_FOLLOWED: readonly ["yes", "partially", "no", "not_applicable"];
+export type RecommendationFollowed = (typeof RECOMMENDATION_FOLLOWED)[number];
+/** Visit follow-up outcome (agronomist next-visit review) */
+export declare const VISIT_FOLLOWUP_OUTCOMES: readonly ["improved", "no_change", "worsened", "not_reviewed"];
+export type VisitFollowupOutcome = (typeof VISIT_FOLLOWUP_OUTCOMES)[number];
 //# sourceMappingURL=enums.d.ts.map

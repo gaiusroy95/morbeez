@@ -126,6 +126,7 @@ export const partnerEnrollmentService = {
         .select('id')
         .single();
       throwIfSupabaseError(error, 'Could not create farmer');
+      if (!created?.id) throw new ValidationError('Could not create farmer');
       farmerId = String(created.id);
     }
 

@@ -338,7 +338,8 @@ export const partnerMobileService = {
       blocks,
       timeline,
       ownership,
-      opportunityScore: intel?.opportunityScore != null ? Number(intel.opportunityScore) : null,
+      opportunityScore:
+        intel?.score?.opportunityScore != null ? Number(intel.score.opportunityScore) : null,
       pendingTaskCount: pendingTasks ?? 0,
       salesOpportunities: opportunities,
       recentVisits: visits,

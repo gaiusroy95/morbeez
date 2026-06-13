@@ -755,6 +755,7 @@ export declare const crmFarmerService: {
             createdAt: unknown;
             updatedAt: unknown;
         }[];
+        ownership: import("../partner/partner.types.js").FarmerOwnership | null;
     }>;
     listFarmerOrders(farmerId: string): Promise<{
         orders: import("./telecaller-farmer-orders.service.js").TelecallerOrderRow[];

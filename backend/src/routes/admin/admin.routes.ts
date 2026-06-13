@@ -41,6 +41,7 @@ import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
 import { osPartnerRoutes } from './os-partner.routes.js';
+import { osMarketingRoutes } from './os-marketing.routes.js';
 import {
   getModulesForRole,
   canApproveRecommendations,

@@ -169,7 +169,7 @@ export function Btn({
 }
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(inputBase, className)} {...props} />;
+  return <input className={cn(inputClass, className)} {...props} />;
 }
 
 /** Native HTML select — fixed enums and short static lists. */

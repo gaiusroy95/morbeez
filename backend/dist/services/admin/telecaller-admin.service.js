@@ -5,6 +5,7 @@ import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { crmFarmerService } from './crm-farmer.service.js';
 import { escalationAdminService } from './escalation-admin.service.js';
+import { farmerOwnershipService } from '../partner/farmer-ownership.service.js';
 const STAGE_LABELS = {
     new_lead: 'New Lead',
     interested: 'Interested',
@@ -572,6 +573,10 @@ export const telecallerAdminService = {
         if (patch.stage) {
             await logInteraction(data.farmer_id, 'crm', `Lead stage updated to ${STAGE_LABELS[patch.stage] ?? patch.stage} by ${agentEmail}`);
         }
+        if (patch.assignedTo !== undefined) {
+            const { farmerOwnershipService } = await import('../partner/farmer-ownership.service.js');
+            void farmerOwnershipService.syncTelecallerAssignment(data.farmer_id, patch.assignedTo ?? null);
+        }
         if (patch.assignedTo) {
             const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
             void farmerEventCaptureService.trackLeadAssignment(data.farmer_id, patch.assignedTo);
@@ -714,25 +719,32 @@ export const telecallerAdminService = {
         const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
         if (!lead)
             throw new NotFoundError('Lead not found');
+        const ownership = await farmerOwnershipService.getOwnership(String(lead.farmer_id));
+        const isPartnerVisit = (input.taskCategory === 'visit_request' || input.taskType === 'visit') &&
+            ownership?.serviceModel === 'partner_assisted' &&
+            ownership?.assignedPartnerId;
         const taskType = input.taskType ?? 'follow_up';
         const safeType = ['follow_up', 'call', 'whatsapp', 'visit', 'other'].includes(taskType)
             ? taskType
             : 'other';
         const agronomistEmail = input.assignedAgronomist?.trim().toLowerCase() || null;
         const notes = mergeTaskNotes(input.notes, input.issueDescription);
-        const { data, error } = await supabase
-            .from('crm_tasks')
-            .insert({
+        const insertRow = {
             farmer_id: lead.farmer_id,
             lead_id: leadId,
             block_id: input.blockId ?? null,
             interaction_log_id: input.interactionLogId ?? null,
-            assigned_to: agronomistEmail ?? agentEmail,
+            assigned_to: isPartnerVisit ? null : agronomistEmail ?? agentEmail,
+            assigned_partner_id: isPartnerVisit ? ownership.assignedPartnerId : null,
+            assigned_to_role: isPartnerVisit ? 'partner' : agronomistEmail ? 'agronomist' : 'telecaller',
             title: input.title,
             notes,
             due_at: input.dueAt ?? new Date(Date.now() + 86400000).toISOString(),
             task_type: safeType,
-        })
+        };
+        const { data, error } = await supabase
+            .from('crm_tasks')
+            .insert(insertRow)
             .select()
             .single();
         throwIfSupabaseError(error, 'Could not create task');
@@ -1028,17 +1040,48 @@ export const telecallerAdminService = {
         const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', leadId).single();
         if (!lead)
             throw new NotFoundError('Lead not found');
-        const { error } = await supabase.from('crm_call_logs').insert({
+        const outcome = input.outcome ?? 'connected';
+        const summary = input.notes?.trim() || `Call: ${outcome}`;
+        const { data: callRow, error } = await supabase
+            .from('crm_call_logs')
+            .insert({
             farmer_id: lead.farmer_id,
             lead_id: leadId,
             agent_email: agentEmail,
             direction: 'outbound',
-            outcome: input.outcome ?? 'completed',
+            outcome,
             duration_seconds: input.durationSeconds ?? 0,
             notes: input.notes,
-        });
+            processing_status: input.notes ? 'confirmed' : 'pending',
+            recording_provider: 'manual',
+        })
+            .select('id')
+            .single();
         throwIfSupabaseError(error, 'Could not log call');
-        await logInteraction(lead.farmer_id, 'call', `Call: ${input.outcome ?? 'completed'}${input.notes ? ` — ${input.notes}` : ''}`);
+        const interaction = await crmFarmerService.createInteraction(lead.farmer_id, leadId, {
+            interactionType: 'Phone Call',
+            channel: 'call',
+            summary,
+            outcome,
+            doneBy: agentEmail,
+            doneByRole: 'telecaller',
+        });
+        if (callRow?.id && interaction?.id) {
+            await supabase
+                .from('crm_call_logs')
+                .update({ interaction_log_id: interaction.id, updated_at: new Date().toISOString() })
+                .eq('id', callRow.id);
+        }
+        const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
+        void farmerEventCaptureService.trackInteractionSession({
+            farmerId: String(lead.farmer_id),
+            interactionLogId: String(interaction.id),
+            interactionType: 'Phone Call',
+            workflowStatus: 'Closed',
+            escalated: false,
+            outcome,
+            employeeEmail: agentEmail,
+        });
         await touchLead(leadId, lead.farmer_id);
         return this.getLeadDetail(leadId);
     },

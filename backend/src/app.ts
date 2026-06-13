@@ -28,6 +28,7 @@ import { checkoutRoutes } from './routes/api/checkout.routes.js';
 import { storeRoutes } from './routes/api/store.routes.js';
 import { quotesRoutes } from './routes/api/quotes.routes.js';
 import { partnerApiRoutes } from './routes/partner/partner-api.routes.js';
+import { adminRoutes } from './routes/admin/admin.routes.js';
 import { registerEventHandlers } from './events/registerHandlers.js';
 import {
   LEGACY_CONSOLE_PATH,

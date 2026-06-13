@@ -100,6 +100,7 @@ declare const envSchema: z.ZodObject<{
     ENABLE_AI_CROP_DOCTOR: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_ADVISORY_FOLLOW_UPS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_ADVISORY_AUTOMATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_STRUCTURED_FIELD_VISITS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_WHATSAPP_BROADCASTS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Fetch mandi prices + copy via OpenAI per pincode/day (cached). */
@@ -124,6 +125,11 @@ declare const envSchema: z.ZodObject<{
     ENABLE_OPPORTUNITY_SCORE_WORKER: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Send educational WhatsApp nudge during low-opportunity nurture batch (default on). */
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_PARTNER_PROGRAM: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_PARTNER_LEAD_ALLOCATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_SALES_OPPORTUNITIES: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_PARTNER_COMMISSION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_UNIFIED_TEAM_TIMELINE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Below this → escalate to agronomist (legacy; defaults to review threshold). */
     AI_ESCALATION_THRESHOLD: z.ZodDefault<z.ZodNumber>;
     /** ≥ this → auto-send advisory without human review. */
@@ -142,6 +148,11 @@ declare const envSchema: z.ZodObject<{
     GSC_CLIENT_ID: z.ZodOptional<z.ZodString>;
     GSC_CLIENT_SECRET: z.ZodOptional<z.ZodString>;
     GSC_REFRESH_TOKEN: z.ZodOptional<z.ZodString>;
+    /** Exotel click-to-call + recording webhooks (Phase 7). */
+    EXOTEL_SID: z.ZodOptional<z.ZodString>;
+    EXOTEL_TOKEN: z.ZodOptional<z.ZodString>;
+    EXOTEL_CALLER_ID: z.ZodOptional<z.ZodString>;
+    EXOTEL_SUBDOMAIN: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     NODE_ENV: "development" | "staging" | "production" | "test";
     PORT: number;
@@ -188,6 +199,7 @@ declare const envSchema: z.ZodObject<{
     ENABLE_AI_CROP_DOCTOR: boolean;
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
+    ENABLE_STRUCTURED_FIELD_VISITS: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
     ENABLE_MARKET_INSIGHT_OPENAI: boolean;
@@ -206,6 +218,11 @@ declare const envSchema: z.ZodObject<{
     ENABLE_ROI_DAILY_PROMPT: boolean;
     ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
+    ENABLE_PARTNER_PROGRAM: boolean;
+    ENABLE_PARTNER_LEAD_ALLOCATION: boolean;
+    ENABLE_SALES_OPPORTUNITIES: boolean;
+    ENABLE_PARTNER_COMMISSION: boolean;
+    ENABLE_UNIFIED_TEAM_TIMELINE: boolean;
     AI_ESCALATION_THRESHOLD: number;
     AI_AUTO_SEND_THRESHOLD: number;
     AI_REVIEW_THRESHOLD: number;
@@ -263,6 +280,10 @@ declare const envSchema: z.ZodObject<{
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;
     GSC_REFRESH_TOKEN?: string | undefined;
+    EXOTEL_SID?: string | undefined;
+    EXOTEL_TOKEN?: string | undefined;
+    EXOTEL_CALLER_ID?: string | undefined;
+    EXOTEL_SUBDOMAIN?: string | undefined;
 }, {
     SUPABASE_URL: string;
     SUPABASE_SERVICE_ROLE_KEY: string;
@@ -351,6 +372,7 @@ declare const envSchema: z.ZodObject<{
     ENABLE_AI_CROP_DOCTOR?: string | undefined;
     ENABLE_ADVISORY_FOLLOW_UPS?: string | undefined;
     ENABLE_ADVISORY_AUTOMATION?: string | undefined;
+    ENABLE_STRUCTURED_FIELD_VISITS?: string | undefined;
     ENABLE_WHATSAPP_BROADCASTS?: string | undefined;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST?: string | undefined;
     ENABLE_MARKET_INSIGHT_OPENAI?: string | undefined;
@@ -369,6 +391,11 @@ declare const envSchema: z.ZodObject<{
     ENABLE_ROI_DAILY_PROMPT?: string | undefined;
     ENABLE_OPPORTUNITY_SCORE_WORKER?: string | undefined;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP?: string | undefined;
+    ENABLE_PARTNER_PROGRAM?: string | undefined;
+    ENABLE_PARTNER_LEAD_ALLOCATION?: string | undefined;
+    ENABLE_SALES_OPPORTUNITIES?: string | undefined;
+    ENABLE_PARTNER_COMMISSION?: string | undefined;
+    ENABLE_UNIFIED_TEAM_TIMELINE?: string | undefined;
     AI_ESCALATION_THRESHOLD?: number | undefined;
     AI_AUTO_SEND_THRESHOLD?: number | undefined;
     AI_REVIEW_THRESHOLD?: number | undefined;
@@ -384,6 +411,10 @@ declare const envSchema: z.ZodObject<{
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;
     GSC_REFRESH_TOKEN?: string | undefined;
+    EXOTEL_SID?: string | undefined;
+    EXOTEL_TOKEN?: string | undefined;
+    EXOTEL_CALLER_ID?: string | undefined;
+    EXOTEL_SUBDOMAIN?: string | undefined;
 }>;
 export type Env = z.infer<typeof envSchema>;
 export declare const env: {
@@ -432,6 +463,7 @@ export declare const env: {
     ENABLE_AI_CROP_DOCTOR: boolean;
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
+    ENABLE_STRUCTURED_FIELD_VISITS: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
     ENABLE_MARKET_INSIGHT_OPENAI: boolean;
@@ -450,6 +482,11 @@ export declare const env: {
     ENABLE_ROI_DAILY_PROMPT: boolean;
     ENABLE_OPPORTUNITY_SCORE_WORKER: boolean;
     ENABLE_OPPORTUNITY_NURTURE_WHATSAPP: boolean;
+    ENABLE_PARTNER_PROGRAM: boolean;
+    ENABLE_PARTNER_LEAD_ALLOCATION: boolean;
+    ENABLE_SALES_OPPORTUNITIES: boolean;
+    ENABLE_PARTNER_COMMISSION: boolean;
+    ENABLE_UNIFIED_TEAM_TIMELINE: boolean;
     AI_ESCALATION_THRESHOLD: number;
     AI_AUTO_SEND_THRESHOLD: number;
     AI_REVIEW_THRESHOLD: number;
@@ -507,6 +544,10 @@ export declare const env: {
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;
     GSC_REFRESH_TOKEN?: string | undefined;
+    EXOTEL_SID?: string | undefined;
+    EXOTEL_TOKEN?: string | undefined;
+    EXOTEL_CALLER_ID?: string | undefined;
+    EXOTEL_SUBDOMAIN?: string | undefined;
 };
 export {};
 //# sourceMappingURL=env.d.ts.map

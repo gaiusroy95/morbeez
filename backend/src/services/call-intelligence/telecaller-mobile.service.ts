@@ -84,7 +84,9 @@ function mapOperationalLead(row: Awaited<ReturnType<typeof telecallerLeadQueueSe
     farmerName: String(row.farmerName ?? 'Farmer'),
     phone: row.phone ? String(row.phone) : null,
     district: row.district ? String(row.district) : null,
-    village: row.village ? String(row.village) : null,
+    village: (row as { village?: string | null }).village
+      ? String((row as { village?: string | null }).village)
+      : null,
     stageLabel: String(row.stageLabel ?? row.stage ?? ''),
     stage: String(row.stage ?? ''),
     primaryCrop: row.cropSummary ? String(row.cropSummary) : null,
@@ -455,7 +457,10 @@ export const telecallerMobileService = {
       },
       lead: {
         stage: String(detail.lead.stage ?? ''),
-        stageLabel: telecallerAdminService.stageLabels[String(detail.lead.stage ?? '')] ?? String(detail.lead.stage ?? ''),
+        stageLabel:
+          telecallerAdminService.stageLabels[
+            String(detail.lead.stage ?? '') as keyof typeof telecallerAdminService.stageLabels
+          ] ?? String(detail.lead.stage ?? ''),
         assignedTelecaller: detail.lead.assignedTo ? String(detail.lead.assignedTo) : null,
         assignedAgronomist: farmerRow.assigned_crop_advisor ? String(farmerRow.assigned_crop_advisor) : null,
         leadSource: detail.lead.leadChannel ? String(detail.lead.leadChannel) : null,
@@ -501,7 +506,7 @@ export const telecallerMobileService = {
       taskId?: string;
     }> = [];
 
-    const [tasksRes, escalationsRes, ordersRes, oppsRes, partnerTasksRes] = await Promise.all([
+    const [tasksRes, escalationsRes, ordersRes, partnerTasksRes] = await Promise.all([
       supabase
         .from('crm_tasks')
         .select('id, title, due_at, lead_id, farmers(name, first_name, last_name)')
@@ -521,15 +526,6 @@ export const telecallerMobileService = {
         .order('updated_at', { ascending: false })
         .limit(15),
       supabase
-        .from('sales_opportunities')
-        .select('id, product, status, created_at, lead_id, farmer_id')
-        .eq('assigned_telecaller_email', agentEmail)
-        .in('status', ['interested', 'hot_lead', 'ready_to_order', 'follow_up_required'])
-        .order('created_at', { ascending: false })
-        .limit(15)
-        .then((r) => r)
-        .catch(() => ({ data: [], error: null })),
-      supabase
         .from('crm_tasks')
         .select('id, title, updated_at, lead_id, farmer_id, status')
         .not('assigned_partner_id', 'is', null)
@@ -538,6 +534,22 @@ export const telecallerMobileService = {
         .order('updated_at', { ascending: false })
         .limit(10),
     ]);
+
+    let oppsRes: { data: Array<Record<string, unknown>> | null; error: unknown } = {
+      data: [],
+      error: null,
+    };
+    try {
+      oppsRes = await supabase
+        .from('sales_opportunities')
+        .select('id, product, status, created_at, lead_id, farmer_id')
+        .eq('assigned_telecaller_email', agentEmail)
+        .in('status', ['interested', 'hot_lead', 'ready_to_order', 'follow_up_required'])
+        .order('created_at', { ascending: false })
+        .limit(15);
+    } catch {
+      oppsRes = { data: [], error: null };
+    }
 
     throwIfSupabaseError(tasksRes.error, 'Could not load task notifications');
     throwIfSupabaseError(escalationsRes.error, 'Could not load escalation notifications');

@@ -238,7 +238,9 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
     partnerApp.get(`${api}/issue-master`, async (request, reply) => {
       await requirePartner(request);
       const q = request.query as { cropType?: string };
-      const items = await fieldFindingsMastersService.listIssueMaster(q.cropType);
+      const items = await fieldFindingsMastersService.listIssueMaster(
+        q.cropType ? { cropType: q.cropType } : undefined
+      );
       return reply.send({ ok: true, items });
     });
 

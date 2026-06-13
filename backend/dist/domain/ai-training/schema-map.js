@@ -149,5 +149,59 @@ export const AI_TRAINING_SCHEMA = {
         specName: 'AI Training Samples',
         note: 'Stage 2 adds ai_training_events for unified correction spine',
     },
+    visitIssue: {
+        table: 'visit_issues',
+        specName: 'VisitIssues',
+        keyFields: {
+            issue_id: 'id',
+            field_finding_id: 'field_finding_id',
+            issue_category: 'issue_category',
+            issue_master_id: 'issue_master_id',
+            issue_name: 'issue_name',
+            severity: 'severity',
+            observation: 'observation',
+            status: 'status',
+        },
+    },
+    issuePhoto: {
+        table: 'issue_photos',
+        specName: 'IssuePhotos',
+        keyFields: {
+            photo_id: 'id',
+            visit_issue_id: 'visit_issue_id',
+            storage_path: 'storage_path',
+        },
+    },
+    visitMeasurement: {
+        table: 'visit_measurements',
+        specName: 'Measurements',
+        keyFields: {
+            measurement_id: 'id',
+            field_finding_id: 'field_finding_id',
+            measurement_key: 'measurement_key',
+            value: 'value',
+            unit: 'unit',
+        },
+    },
+    issueMaster: {
+        table: 'issue_master',
+        specName: 'IssueMaster',
+        keyFields: {
+            issue_master_id: 'id',
+            category: 'category',
+            issue_name: 'issue_name',
+            concept_code: 'concept_code',
+        },
+    },
+    cropMeasurementTemplate: {
+        table: 'crop_measurement_templates',
+        specName: 'CropMeasurementTemplates',
+        keyFields: {
+            crop_type: 'crop_type',
+            measurement_key: 'measurement_key',
+            label_en: 'label_en',
+            unit: 'unit',
+        },
+    },
 };
 //# sourceMappingURL=schema-map.js.map

@@ -10,9 +10,9 @@ import { farmerExperienceLearningService } from '../../core/farmer-experience-le
 async function fetchRecentTurns(farmerId, limit = 12) {
     const { data } = await supabase
         .from('interaction_logs')
-        .select('direction, content')
+        .select('direction, content, channel, interaction_type, summary')
         .eq('farmer_id', farmerId)
-        .eq('channel', 'whatsapp')
+        .in('channel', ['whatsapp', 'call', 'crm'])
         .order('created_at', { ascending: false })
         .limit(limit);
     if (!data?.length)
@@ -21,8 +21,9 @@ async function fetchRecentTurns(farmerId, limit = 12) {
         .reverse()
         .map((row) => {
         const role = row.direction === 'outbound' ? 'Assistant' : 'Farmer';
-        const content = String(row.content ?? '').trim().slice(0, 400);
-        return content ? `${role}: ${content}` : '';
+        const channel = row.channel === 'call' ? 'Call' : row.channel === 'whatsapp' ? 'WhatsApp' : 'CRM';
+        const content = String(row.summary ?? row.content ?? '').trim().slice(0, 400);
+        return content ? `[${channel}] ${role}: ${content}` : '';
     })
         .filter(Boolean);
 }

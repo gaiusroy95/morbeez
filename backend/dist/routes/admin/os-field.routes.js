@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import { fieldPwaService } from '../../services/admin/field-pwa.service.js';
+import { fieldVisitService } from '../../services/admin/field-visit.service.js';
+import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
+import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-up-questions.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
+import { structuredFieldVisitSchema, issueCategorySchema, } from '../../domain/ai-training/validators.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
     mimeType: z.string().min(3).max(80),
@@ -111,6 +115,93 @@ export async function osFieldRoutes(app) {
             .parse(request.body ?? {});
         const session = await agronomistMobileService.checkOutVisitSession(sessionId, body);
         return reply.send({ ok: true, session });
+    });
+    app.get(`${api}/issue-master`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = request.query;
+        const items = await fieldVisitService.listIssueMaster({
+            category: q.category ? issueCategorySchema.parse(q.category) : undefined,
+            cropType: q.cropType,
+            q: q.q,
+            limit: q.limit ? Number(q.limit) : 100,
+        });
+        return reply.send({ ok: true, items });
+    });
+    app.get(`${api}/measurement-templates/:cropType`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { cropType } = request.params;
+        const templates = await fieldVisitService.listMeasurementTemplates(cropType);
+        return reply.send({ ok: true, templates });
+    });
+    app.get(`${api}/visits/:findingId`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { findingId } = request.params;
+        const detail = await fieldVisitService.getVisitDetail(findingId);
+        return reply.send({ ok: true, ...detail });
+    });
+    app.get(`${api}/farmers/:farmerId/field-findings`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { farmerId } = request.params;
+        const q = request.query;
+        const findings = await fieldVisitService.listFarmerFieldFindings(farmerId, q.limit ? Number(q.limit) : 30);
+        return reply.send({ ok: true, findings });
+    });
+    app.post(`${api}/visits/v2`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const body = structuredFieldVisitSchema.parse(request.body);
+        const result = await fieldVisitService.submitStructuredVisit(body, admin.email);
+        return reply.status(201).send({ ok: true, ...result });
+    });
+    app.post(`${api}/issue-follow-up-questions`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z
+            .object({
+            issueCategory: issueCategorySchema,
+            issueName: z.string().min(1),
+            cropType: z.string().min(1),
+            dap: z.number().optional(),
+            observation: z.string().optional(),
+            recommendationText: z.string().optional(),
+            photoCount: z.number().optional(),
+        })
+            .parse(request.body);
+        const questions = await issueFollowUpQuestionsService.suggest(body);
+        return reply.send({ ok: true, questions });
+    });
+    app.post(`${api}/masters/issue`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const body = z
+            .object({
+            category: issueCategorySchema,
+            issueName: z.string().min(1),
+            conceptCode: z.string().optional(),
+            cropType: z.string().optional(),
+            sortOrder: z.number().optional(),
+        })
+            .parse(request.body);
+        const row = await fieldFindingsMastersService.createIssueMaster(body);
+        return reply.status(201).send({ ok: true, row });
+    });
+    app.patch(`${api}/masters/issue/:id/deactivate`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { id } = request.params;
+        const result = await fieldFindingsMastersService.deactivateIssueMaster(id);
+        return reply.send(result);
+    });
+    app.post(`${api}/masters/measurement-template`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const body = z
+            .object({
+            cropType: z.string().min(1),
+            measurementKey: z.string().min(1),
+            labelEn: z.string().min(1),
+            unit: z.string().optional(),
+            inputType: z.string().optional(),
+            sortOrder: z.number().optional(),
+        })
+            .parse(request.body);
+        const row = await fieldFindingsMastersService.upsertMeasurementTemplate(body);
+        return reply.status(201).send({ ok: true, row });
     });
 }
 //# sourceMappingURL=os-field.routes.js.map

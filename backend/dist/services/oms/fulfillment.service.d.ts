@@ -216,7 +216,9 @@ export declare const fulfillmentService: {
             stage: string;
             step: number;
             currentRack: string | null;
-            racks: unknown[];
+            racks: Array<{
+                complete?: boolean;
+            }>;
             currentRackLines: unknown[];
             printEnabled?: boolean;
             pickComplete?: boolean;

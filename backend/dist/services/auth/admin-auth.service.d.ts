@@ -12,6 +12,7 @@ export declare const adminAuthService: {
             fullName: unknown;
             role: unknown;
             lastLoginAt: unknown;
+            hasPassword: boolean;
             createdAt: unknown;
         };
     }>;
@@ -21,6 +22,7 @@ export declare const adminAuthService: {
         fullName: unknown;
         role: unknown;
         lastLoginAt: unknown;
+        hasPassword: boolean;
         createdAt: unknown;
     }>;
 };

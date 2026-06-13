@@ -11,6 +11,8 @@ export interface SignupInput {
     utmCampaign?: string;
     utmSource?: string;
     utmMedium?: string;
+    partnerCode?: string;
+    qrToken?: string;
 }
 export interface LoginInput {
     email: string;
@@ -76,6 +78,15 @@ export declare const farmerAuthService: {
         hasPassword: boolean;
         preferredLanguage: string;
         createdAt: unknown;
+    }>;
+    changePassword(input: {
+        farmerId: string;
+        currentPassword?: string;
+        newPassword: string;
+        confirmPassword: string;
+    }): Promise<{
+        ok: true;
+        hasPassword: boolean;
     }>;
 };
 //# sourceMappingURL=farmer-auth.service.d.ts.map

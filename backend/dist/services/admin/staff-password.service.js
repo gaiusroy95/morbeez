@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { logger } from '../../lib/logger.js';
-import { ValidationError } from '../../lib/errors.js';
-import { hashPassword } from '../../lib/password.js';
+import { ValidationError, UnauthorizedError } from '../../lib/errors.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
 import { validateStaffPassword } from '../../lib/staff-password-policy.js';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
@@ -216,6 +216,28 @@ export const staffPasswordService = {
             .eq('id', empToken.id);
         throwIfSupabaseError(tokenUseErr, 'Could not mark reset token used');
         return { ok: true, email: profile.email };
+    },
+    async changePassword(input) {
+        validateStaffPassword(input.newPassword, input.confirmPassword);
+        const { data: admin, error } = await supabase
+            .from('admin_users')
+            .select('password_hash')
+            .eq('id', input.adminUserId)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load account');
+        if (!admin)
+            throw new ValidationError('Account not found');
+        const hasPassword = Boolean(admin.password_hash);
+        if (hasPassword) {
+            if (!input.currentPassword?.trim()) {
+                throw new ValidationError('Current password is required');
+            }
+            if (!verifyPassword(input.currentPassword, String(admin.password_hash))) {
+                throw new UnauthorizedError('Current password is incorrect');
+            }
+        }
+        await this.setAdminPassword(input.adminUserId, input.newPassword);
+        return { ok: true, hasPassword: true };
     },
 };
 //# sourceMappingURL=staff-password.service.js.map

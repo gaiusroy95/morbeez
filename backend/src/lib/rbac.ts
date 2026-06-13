@@ -16,7 +16,8 @@ export type ConsoleModule =
   | 'automation'
   | 'analytics'
   | 'settings'
-  | 'approve_recommendations';
+  | 'approve_recommendations'
+  | 'partner_program';
 
 export { canApproveRecommendations, canManageStaff, canAssignSuperAdmin, getRoleHomePath } from './console-roles.js';
 export { CONSOLE_ROLES, type ConsoleRole } from './console-roles.js';
@@ -38,6 +39,7 @@ export async function getModulesForRole(role: string): Promise<
       'analytics',
       'settings',
       'approve_recommendations',
+      'partner_program',
     ].map((moduleKey) => ({ moduleKey, canRead: true, canWrite: true }));
   }
 

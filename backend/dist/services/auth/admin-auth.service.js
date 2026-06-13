@@ -15,6 +15,7 @@ function publicAdmin(row) {
         fullName: row.full_name,
         role: row.role,
         lastLoginAt: row.last_login_at,
+        hasPassword: Boolean(row.password_hash),
         createdAt: row.created_at,
     };
 }

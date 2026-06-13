@@ -21,5 +21,6 @@ export declare const packagingCategoryService: {
         priority: number;
         active: boolean;
     }>): Promise<PackagingCategory>;
+    remove(id: string): Promise<void>;
 };
 //# sourceMappingURL=packaging-category.service.d.ts.map

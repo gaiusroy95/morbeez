@@ -61,4 +61,49 @@ export const TRAINING_EVENT_SOURCES = ['whatsapp', 'field_visit', 'crm', 'api'];
 export const IMAGE_REVIEW_STATUSES = ['pending', 'reviewed', 'skipped', 'excluded'];
 /** Image review actions */
 export const IMAGE_REVIEW_ACTIONS = ['confirm_ai', 'correct_ai', 'skip', 'exclude'];
+/** Block assessment — structured field visit Section 2 */
+export const BLOCK_HEALTH_LEVELS = ['good', 'average', 'need_assistance'];
+export const CROP_PERFORMANCE_LEVELS = [
+    'above_expectation',
+    'as_expected',
+    'below_expectation',
+];
+export const SOIL_MOISTURE_LEVELS = ['dry', 'optimal', 'wet', 'waterlogged'];
+/** Per-issue lifecycle on a visit */
+export const ISSUE_STATUSES = ['open', 'monitoring', 'resolved'];
+/** Issue categories for visit issue cards (maps to FINDING_TYPES where overlapping) */
+export const ISSUE_CATEGORIES = [
+    'disease',
+    'pest',
+    'nutrient_deficiency',
+    'water_stress',
+    'weed',
+    'other',
+];
+/** Recommendation module types */
+export const RECOMMENDATION_TYPES = [
+    'disease_management',
+    'pest_management',
+    'nutrient_management',
+    'irrigation',
+    'soil_amendment',
+    'monitoring',
+    'other',
+];
+export const RECOMMENDATION_PRIORITIES = ['normal', 'high', 'critical'];
+export const FIELD_REC_STATUSES = ['open', 'monitoring', 'completed', 'escalated'];
+/** Visit follow-up: was recommendation followed? */
+export const RECOMMENDATION_FOLLOWED = [
+    'yes',
+    'partially',
+    'no',
+    'not_applicable',
+];
+/** Visit follow-up outcome (agronomist next-visit review) */
+export const VISIT_FOLLOWUP_OUTCOMES = [
+    'improved',
+    'no_change',
+    'worsened',
+    'not_reviewed',
+];
 //# sourceMappingURL=enums.js.map

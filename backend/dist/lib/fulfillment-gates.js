@@ -5,6 +5,36 @@ export function normalizeFulfillmentShippingMethod(raw) {
 export function isPackageConfirmedForCourier(status) {
     return status === 'confirmed' || status === 'label_generated';
 }
+export const POST_PICK_OMS_STATUSES = [
+    'packing',
+    'packaging_estimated',
+    'packed',
+    'ready_dispatch',
+    'awaiting_label_verification',
+    'awaiting_tracking',
+    'ready_for_courier',
+    'awb_generated',
+    'label_generated',
+    'shipped',
+    'delivered',
+    'completed',
+];
+export function resolvePickComplete(input) {
+    if (Boolean(input.scanComplete))
+        return true;
+    if (input.rawWorkflowStage === 'pack' || input.rawWorkflowStage === 'print')
+        return true;
+    const status = String(input.omsStatus ?? '');
+    if (POST_PICK_OMS_STATUSES.includes(status))
+        return true;
+    if (input.pickListStatus === 'packed')
+        return true;
+    if (input.workflowRacks?.length && input.workflowRacks.every((r) => r.complete))
+        return true;
+    if (isPackageConfirmedForCourier(input.packageStatus))
+        return true;
+    return false;
+}
 export function computeFulfillmentGates(input) {
     const shippingMethod = normalizeFulfillmentShippingMethod(input.shippingMethod);
     const packageConfirmed = isPackageConfirmedForCourier(input.packageStatus);
@@ -36,12 +66,11 @@ export function isPrintableDocAvailable(docType, gates) {
         return gates.shippingMethod === 'shiprocket' && gates.printEnabled;
     }
     if (docType === 'packing_slip' || docType === 'tax_invoice') {
-        if (!gates.packageConfirmed)
-            return false;
-        if (gates.shippingMethod === 'manual')
-            return true;
-        return gates.printEnabled;
+        return gates.packageConfirmed;
     }
     return true;
+}
+export function canViewPrintChecklist(gates) {
+    return gates.pickComplete && gates.packageConfirmed;
 }
 //# sourceMappingURL=fulfillment-gates.js.map

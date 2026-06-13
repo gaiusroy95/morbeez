@@ -19,6 +19,7 @@ export async function getModulesForRole(role) {
             'analytics',
             'settings',
             'approve_recommendations',
+            'partner_program',
         ].map((moduleKey) => ({ moduleKey, canRead: true, canWrite: true }));
     }
     const { data, error } = await supabase

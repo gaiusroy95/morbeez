@@ -20,7 +20,7 @@ import { normalizeShippingMethod } from '../../lib/manual-couriers.js';
 import { packageRuleEngineService } from './package-rule-engine.service.js';
 import { shippingBoxService } from './shipping-box.service.js';
 import { eventBus } from '../../events/bus.js';
-import { computeFulfillmentGates, workflowStageFromGates, } from '../../lib/fulfillment-gates.js';
+import { computeFulfillmentGates, resolvePickComplete, workflowStageFromGates, } from '../../lib/fulfillment-gates.js';
 const FULFILLMENT_STATUSES = [
     'assigned',
     'confirmed',
@@ -57,10 +57,18 @@ function startOfTodayIstIso() {
     return `${dateKey}T00:00:00+05:30`;
 }
 function applyFulfillmentGatesToDetail(detail) {
-    const pickComplete = Boolean(detail.packSession?.scan_complete);
+    const packageStatus = detail.package?.status ?? detail.order.package_status;
+    const pickComplete = resolvePickComplete({
+        scanComplete: detail.packSession?.scan_complete,
+        omsStatus: detail.order.oms_status,
+        workflowRacks: detail.workflow?.racks,
+        rawWorkflowStage: detail.workflow?.stage,
+        packageStatus,
+        pickListStatus: detail.pickList?.status ?? undefined,
+    });
     const gates = computeFulfillmentGates({
         pickComplete,
-        packageStatus: detail.package?.status ?? detail.order.package_status,
+        packageStatus,
         shippingMethod: detail.shippingMethod ?? detail.order.shipping_method,
         trackingAwb: detail.order.tracking_awb,
     });

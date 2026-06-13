@@ -1,6 +1,5 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
 import type { PartnerAttributionType } from './partner.types.js';
 
 export const partnerAttributionCaptureService = {

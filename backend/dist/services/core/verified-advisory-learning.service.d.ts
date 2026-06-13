@@ -1,7 +1,7 @@
 import type { AdvisoryLanguage, StructuredAdvisory } from '../ai/types.js';
 import type { DiagnoseResult } from '../ai/types.js';
 export type PromoteVerifiedAnswerInput = {
-    sessionId: string;
+    sessionId?: string | null;
     farmerId: string;
     issueLabel: string;
     /** Farmer-facing answer (English). */
@@ -14,6 +14,9 @@ export type PromoteVerifiedAnswerInput = {
     extraSymptomSources?: (string | undefined | null)[];
     /** When true, index under district '' so all regions get this answer for the same question. */
     global?: boolean;
+    sourceType?: 'ai_session' | 'field_visit' | 'recommendation';
+    sourceFieldFindingId?: string | null;
+    sourceRecommendationId?: string | null;
     /** WhatsApp intake Q&A — indexed so AI can plan follow-ups for similar cases. */
     investigationPattern?: {
         initialSymptoms: string;

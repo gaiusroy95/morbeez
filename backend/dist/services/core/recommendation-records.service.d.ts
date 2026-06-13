@@ -7,6 +7,7 @@ export declare const recommendationRecordsService: {
         aiSessionId?: string;
         crmRecommendationId?: string;
         fieldFindingId?: string;
+        visitIssueId?: string;
         source: "ai" | "agronomist" | "rule" | "template" | "field_finding";
         issueDetected?: string;
         recommendationText: string;

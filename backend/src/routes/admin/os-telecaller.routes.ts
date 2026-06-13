@@ -1068,7 +1068,7 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       body: body.body,
       authorType: 'telecaller',
       authorEmail: admin.email,
-      authorName: admin.fullName ?? admin.email,
+      authorName: admin.email,
     });
     return reply.send({ ok: true, entry });
   });

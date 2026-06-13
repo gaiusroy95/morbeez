@@ -48,7 +48,7 @@ export const recommendationFollowUpService = {
     async loadRecord(recommendationRecordId) {
         const { data, error } = await supabase
             .from('recommendation_records')
-            .select(`id, farmer_id, block_id, ai_session_id, issue_detected, recommendation_text, products, dosage,
+            .select(`id, farmer_id, block_id, ai_session_id, field_finding_id, visit_issue_id, issue_detected, recommendation_text, products, dosage,
          application_type, dap_at_recommendation, language, status, communicated_at, technical_name, trade_name,
          severity, metadata, farmers(phone, preferred_language), farm_blocks(crop_type)`)
             .eq('id', recommendationRecordId)
@@ -898,9 +898,13 @@ export const recommendationFollowUpService = {
             .select('id')
             .eq('recommendation_record_id', rec.id)
             .maybeSingle();
+        const visitIssueId = rec.visit_issue_id;
+        const fieldFindingId = rec.field_finding_id;
         const row = {
             farmer_id: rec.farmer_id,
             ai_session_id: rec.ai_session_id,
+            visit_issue_id: visitIssueId ?? null,
+            field_finding_id: fieldFindingId ?? null,
             crop_type: rec.farm_blocks?.crop_type ?? null,
             disease_label: rec.issue_detected,
             dap: rec.dap_at_recommendation,

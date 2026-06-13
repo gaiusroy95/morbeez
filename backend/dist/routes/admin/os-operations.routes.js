@@ -487,7 +487,7 @@ export async function osOperationsRoutes(app) {
     app.get(`${api}/terminology/tasks`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = request.query;
-        const tasks = await whatsappOsAdminService.listTerminologyReviewTasks(q.status ?? 'open');
+        const tasks = await whatsappOsAdminService.listTerminologyReviewTasks(q.status ?? 'open', q.source);
         return reply.send({ ok: true, tasks });
     });
     app.post(`${api}/terminology/tasks`, async (request, reply) => {

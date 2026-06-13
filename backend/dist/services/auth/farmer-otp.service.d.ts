@@ -4,7 +4,10 @@ export declare const farmerOtpService: {
         sent: boolean;
         expiresInSeconds: number;
     }>;
-    verifyOtp(phoneRaw: string, codeRaw: string): Promise<{
+    verifyOtp(phoneRaw: string, codeRaw: string, opts?: {
+        partnerCode?: string;
+        qrToken?: string;
+    }): Promise<{
         token: string;
         farmer: {
             id: unknown;

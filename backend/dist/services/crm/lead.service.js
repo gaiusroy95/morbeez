@@ -79,6 +79,7 @@ export const leadService = {
             mergeNotes: true,
             lead_channel: input.leadChannel ?? (channel === 'mobile' ? 'organic' : 'organic'),
             campaign_source: input.campaignSource ?? input.utmCampaign ?? null,
+            affiliate_source: input.partnerCode ?? null,
             utm_campaign: input.utmCampaign ?? null,
             utm_source: input.utmSource ?? null,
             utm_medium: input.utmMedium ?? null,

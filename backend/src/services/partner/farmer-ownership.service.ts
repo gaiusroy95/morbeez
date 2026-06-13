@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { ValidationError } from '../../lib/errors.js';
+import { ValidationError, NotFoundError } from '../../lib/errors.js';
 import type {
   CustomerOwnerType,
   EnrollmentOwnerType,
@@ -113,6 +113,7 @@ export const farmerOwnershipService = {
       )
       .single();
     throwIfSupabaseError(error, 'Could not set enrollment ownership');
+    if (!data) throw new NotFoundError('Farmer not found');
 
     await supabase.from('farmer_ownership_history').insert({
       farmer_id: input.farmerId,
@@ -152,6 +153,7 @@ export const farmerOwnershipService = {
       )
       .single();
     throwIfSupabaseError(error, 'Could not change customer owner');
+    if (!data) throw new NotFoundError('Farmer not found');
 
     await supabase.from('farmer_ownership_history').insert({
       farmer_id: input.farmerId,

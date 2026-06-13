@@ -71,8 +71,7 @@ export const marketingMetaImportService = {
                 continue;
             }
             const name = pickField(row, ['full_name', 'name', 'first_name']) ??
-                [row.first_name, row.last_name].filter(Boolean).join(' ').trim() ||
-                undefined;
+                ([row.first_name, row.last_name].filter(Boolean).join(' ').trim() || undefined);
             const campaign = pickField(row, ['campaign_name', 'campaign', 'utm_campaign', 'ad_name']) ??
                 defaults.campaignSource ??
                 null;

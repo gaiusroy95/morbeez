@@ -6,7 +6,7 @@ import { computeInclusiveGstBreakup, finalizeInclusiveInvoiceTotals, halfGstRate
 import { companySettingsService } from '../admin/company-settings.service.js';
 import { invoiceService } from './invoice.service.js';
 import { returnWorkflowService } from './return-workflow.service.js';
-import { computeFulfillmentGates, isPrintableDocAvailable } from '../../lib/fulfillment-gates.js';
+import { computeFulfillmentGates, isPrintableDocAvailable, resolvePickComplete, } from '../../lib/fulfillment-gates.js';
 function formatAddress(addr) {
     if (!addr)
         return [];
@@ -393,9 +393,12 @@ export const printableDocumentService = {
             .maybeSingle();
         const { data: order } = await supabase
             .from('commerce_orders')
-            .select('shipping_method, tracking_awb, package_status')
+            .select('shipping_method, tracking_awb, package_status, oms_status')
             .eq('id', commerceOrderId)
             .maybeSingle();
+        const { data: pickListMeta } = pickList?.id
+            ? await supabase.from('pick_lists').select('status').eq('id', pickList.id).maybeSingle()
+            : { data: null };
         const { data: packSession } = pickList?.id
             ? await supabase
                 .from('pack_sessions')
@@ -404,8 +407,14 @@ export const printableDocumentService = {
                 .eq('status', 'open')
                 .maybeSingle()
             : { data: null };
+        const pickComplete = resolvePickComplete({
+            scanComplete: packSession?.scan_complete,
+            omsStatus: order?.oms_status,
+            packageStatus: order?.package_status,
+            pickListStatus: pickListMeta?.status,
+        });
         const gates = computeFulfillmentGates({
-            pickComplete: Boolean(packSession?.scan_complete),
+            pickComplete,
             packageStatus: order?.package_status,
             shippingMethod: order?.shipping_method,
             trackingAwb: order?.tracking_awb,

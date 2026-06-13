@@ -39,6 +39,7 @@ export declare const leadService: {
         utmCampaign?: string | null;
         utmSource?: string | null;
         utmMedium?: string | null;
+        partnerCode?: string | null;
     }): Promise<{
         lead: Record<string, unknown>;
         created: boolean;

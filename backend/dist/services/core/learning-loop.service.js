@@ -57,60 +57,87 @@ export const learningLoopService = {
     async promoteRecommendationToReuse(recommendationRecordId) {
         const { data: rec } = await supabase
             .from('recommendation_records')
-            .select('id, farmer_id, block_id, ai_session_id, issue_detected, recommendation_text, products, outcome, status, dap_at_recommendation, farm_blocks(crop_type)')
+            .select('id, farmer_id, block_id, ai_session_id, field_finding_id, issue_detected, recommendation_text, products, outcome, status, dap_at_recommendation, source, farm_blocks(crop_type)')
             .eq('id', recommendationRecordId)
             .maybeSingle();
-        if (!rec?.ai_session_id || !rec.farmer_id)
+        if (!rec?.farmer_id)
             return;
         if (rec.outcome && !['better', 'partial'].includes(String(rec.outcome)))
             return;
-        const { data: session } = await supabase
-            .from('ai_advisory_sessions')
-            .select('id, metadata')
-            .eq('id', rec.ai_session_id)
-            .maybeSingle();
-        const { data: output } = await supabase
-            .from('ai_advisory_outputs')
-            .select('*')
-            .eq('session_id', rec.ai_session_id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (!output)
-            return;
-        const advisory = {
-            probableIssue: String(output.probable_issue ?? rec.issue_detected ?? 'crop issue'),
-            confidence: Number(session?.metadata?.confidence ?? 0.75),
-            uncertain: false,
-            nutrientDeficiency: output.nutrient_deficiency ?? [],
-            stressAnalysis: output.stress_analysis ?? [],
-            treatments: output.treatment_recommendations ?? [],
-            dosageGuidance: output.dosage_guidance ?? [],
-            precautions: output.precautions ?? [],
-            escalationRecommended: false,
-            farmerSummaryEn: String(output.farmer_summary_en ?? rec.recommendation_text ?? ''),
-            farmerSummaryMl: String(output.farmer_summary_ml ?? output.farmer_summary_en ?? rec.recommendation_text ?? ''),
-            recommendedProductTags: [],
-        };
-        const summary = rec.recommendation_text?.trim() ||
-            advisory.farmerSummaryEn ||
-            advisory.probableIssue;
+        const issueLabel = String(rec.issue_detected ?? 'crop issue');
+        const summary = String(rec.recommendation_text ?? issueLabel).trim();
+        if (rec.ai_session_id) {
+            const { data: session } = await supabase
+                .from('ai_advisory_sessions')
+                .select('id, metadata')
+                .eq('id', rec.ai_session_id)
+                .maybeSingle();
+            const { data: output } = await supabase
+                .from('ai_advisory_outputs')
+                .select('*')
+                .eq('session_id', rec.ai_session_id)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+            if (output) {
+                const advisory = {
+                    probableIssue: String(output.probable_issue ?? issueLabel),
+                    confidence: Number(session?.metadata?.confidence ?? 0.75),
+                    uncertain: false,
+                    nutrientDeficiency: output.nutrient_deficiency ?? [],
+                    stressAnalysis: output.stress_analysis ?? [],
+                    treatments: output.treatment_recommendations ?? [],
+                    dosageGuidance: output.dosage_guidance ?? [],
+                    precautions: output.precautions ?? [],
+                    escalationRecommended: false,
+                    farmerSummaryEn: String(output.farmer_summary_en ?? summary),
+                    farmerSummaryMl: String(output.farmer_summary_ml ?? output.farmer_summary_en ?? summary),
+                    recommendedProductTags: [],
+                };
+                await verifiedAdvisoryLearningService.promoteVerifiedAnswer({
+                    sessionId: String(rec.ai_session_id),
+                    farmerId: String(rec.farmer_id),
+                    issueLabel,
+                    farmerSummaryEn: summary || advisory.farmerSummaryEn,
+                    farmerSummaryMl: advisory.farmerSummaryMl,
+                    verifiedBy: 'learning_loop',
+                    products: rec.products ?? [],
+                    confidence: advisory.confidence,
+                    extraSymptomSources: [rec.issue_detected, rec.recommendation_text].filter(Boolean),
+                    global: true,
+                });
+                logger.info({ recommendationRecordId, dapBucket: buildDapBucket(rec.dap_at_recommendation ?? 0) }, 'Promoted AI session to advisory_reuse_cases');
+                return;
+            }
+        }
+        const issueSources = [rec.issue_detected, rec.recommendation_text].filter(Boolean);
+        if (rec.field_finding_id) {
+            const { data: visitIssues } = await supabase
+                .from('visit_issues')
+                .select('issue_name, observation')
+                .eq('field_finding_id', rec.field_finding_id);
+            for (const vi of visitIssues ?? []) {
+                if (vi.issue_name)
+                    issueSources.push(String(vi.issue_name));
+                if (vi.observation)
+                    issueSources.push(String(vi.observation));
+            }
+        }
         await verifiedAdvisoryLearningService.promoteVerifiedAnswer({
-            sessionId: String(rec.ai_session_id),
+            sessionId: rec.ai_session_id ? String(rec.ai_session_id) : null,
             farmerId: String(rec.farmer_id),
-            issueLabel: String(rec.issue_detected ?? advisory.probableIssue),
+            issueLabel,
             farmerSummaryEn: summary,
-            farmerSummaryMl: advisory.farmerSummaryMl,
-            verifiedBy: 'learning_loop',
+            verifiedBy: 'learning_loop_field_visit',
             products: rec.products ?? [],
-            confidence: advisory.confidence,
-            extraSymptomSources: [
-                rec.issue_detected ? String(rec.issue_detected) : undefined,
-                rec.recommendation_text ? String(rec.recommendation_text) : undefined,
-            ],
+            confidence: 0.88,
+            extraSymptomSources: issueSources,
             global: true,
+            sourceType: 'field_visit',
+            sourceFieldFindingId: rec.field_finding_id ? String(rec.field_finding_id) : null,
+            sourceRecommendationId: String(rec.id),
         });
-        logger.info({ recommendationRecordId, dapBucket: buildDapBucket(rec.dap_at_recommendation ?? 0) }, 'Promoted to advisory_reuse_cases');
+        logger.info({ recommendationRecordId, dapBucket: buildDapBucket(rec.dap_at_recommendation ?? 0) }, 'Promoted field visit to advisory_reuse_cases');
     },
     async onLearningSampleReady(recommendationRecordId) {
         const { data: sample } = await supabase
