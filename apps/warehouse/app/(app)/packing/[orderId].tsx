@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { computeFulfillmentGates, tokens, warehouseClient, buildFulfillmentGatesFromOrderDetail, type ShippingBox, type WarehouseOrderDetail } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { AlertBox, Btn, HubTabs, KeyValueRow, Loading, Panel, useDeviceBottomInset } from '@morbeez/ui-native';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 export default function PackOrderScreen() {
-  const insets = useSafeAreaInsets();
-  const bottomPad = Math.max(insets.bottom, 16);
+  const bottomPad = useDeviceBottomInset() + 16;
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const router = useRouter();
   const { admin, canWrite } = useStaffAuth();

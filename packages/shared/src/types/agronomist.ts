@@ -167,6 +167,13 @@ export type FarmerVisitRow = {
   blockHealth: string | null;
 };
 
+/** Structured field finding list row (extends visit timeline with issue intelligence). */
+export type FarmerFieldFindingRow = FarmerVisitRow & {
+  topIssueNames: string[];
+};
+
+export type FieldFindingStatusFilter = 'all' | 'open' | 'monitoring' | 'resolved';
+
 export type FarmerOrderRow = {
   id: string;
   orderNumber?: string | null;

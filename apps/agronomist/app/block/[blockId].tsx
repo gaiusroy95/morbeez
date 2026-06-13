@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   agronomistClient,
   formatDate,
@@ -22,6 +22,8 @@ import {
   Loading,
   ScrollableUnderlineTabs,
   SoilTestsPanel,
+  StickyScreenFooter,
+  useStickyFooterScrollPadding,
 } from '@morbeez/ui-native';
 import { SegmentedChips } from '@/components/field-findings/SegmentedChips';
 
@@ -139,6 +141,12 @@ export default function AgronomistBlockDetailScreen() {
     void load();
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
   const overview = useMemo(() => (block ? blockToOverview(block) : null), [block]);
   const sortedActivities = useMemo(
     () => [...activities].sort((a, b) => (a.activityDate < b.activityDate ? 1 : -1)),
@@ -148,6 +156,9 @@ export default function AgronomistBlockDetailScreen() {
     if (recFilter === 'all') return blockRecommendations;
     return blockRecommendations.filter((r) => recStatusBucket(r.status) === recFilter);
   }, [blockRecommendations, recFilter]);
+
+  const footerRows = tab === 'recommendations' && recFilter !== 'all' ? 2 : 1;
+  const scrollBottomPad = useStickyFooterScrollPadding({ rows: footerRows });
 
   const visitParams = {
     farmerId,
@@ -171,7 +182,7 @@ export default function AgronomistBlockDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}>
         {error ? <AlertBox>{error}</AlertBox> : null}
 
         <BlockSummaryCard block={overview} extraRows={extraRows} />
@@ -194,7 +205,7 @@ export default function AgronomistBlockDetailScreen() {
         {tab === 'soilTests' ? (
           <SoilTestsPanel
             reports={soilReports}
-            showAddButton
+            showAddButton={false}
             onNewTest={() =>
               router.push({
                 pathname: '/soil/add',
@@ -211,10 +222,7 @@ export default function AgronomistBlockDetailScreen() {
               onPressFinding={(f) => router.push(`/visit/${f.id}`)}
             />
           ) : (
-            <View style={styles.emptyFindings}>
-              <Text style={styles.emptyText}>No field findings for this block yet.</Text>
-              <Btn label="Start visit" onPress={() => router.push({ pathname: '/visit', params: visitParams })} />
-            </View>
+            <Text style={styles.emptyText}>No field findings for this block yet.</Text>
           )
         ) : null}
 
@@ -232,31 +240,55 @@ export default function AgronomistBlockDetailScreen() {
         ) : null}
       </ScrollView>
 
-      <View style={styles.footer}>
-        <View style={styles.footerRow}>
+      <StickyScreenFooter>
+        {tab === 'activities' ? (
           <Btn
-            label="Activity"
-            variant="secondary"
-            onPress={() => router.push({ pathname: '/activity/add', params: { farmerId, blockId: block.id } })}
+            label="+ Add activity"
+            onPress={() =>
+              router.push({
+                pathname: '/activity/add',
+                params: { farmerId, blockId: block.id, blockName: block.name },
+              })
+            }
           />
+        ) : null}
+
+        {tab === 'soilTests' ? (
           <Btn
-            label="Soil test"
-            variant="secondary"
-            onPress={() => router.push({ pathname: '/soil/add', params: { farmerId, blockId: block.id } })}
+            label="+ Add soil test"
+            onPress={() =>
+              router.push({
+                pathname: '/soil/add',
+                params: { farmerId, blockId: block.id },
+              })
+            }
           />
-        </View>
-        <Btn label="Start visit" onPress={() => router.push({ pathname: '/visit', params: visitParams })} />
-        <Btn
-          label="Add recommendation"
-          variant="secondary"
-          onPress={() =>
-            router.push({
-              pathname: '/recommendation/add',
-              params: { farmerId, blockId: block.id, leadId: leadId ?? '' },
-            })
-          }
-        />
-      </View>
+        ) : null}
+
+        {tab === 'fieldFindings' ? (
+          <Btn
+            label="Start visit"
+            onPress={() => router.push({ pathname: '/visit', params: visitParams })}
+          />
+        ) : null}
+
+        {tab === 'recommendations' ? (
+          <View style={styles.footerCol}>
+            {recFilter !== 'all' ? (
+              <Btn label="Clear all" variant="secondary" onPress={() => setRecFilter('all')} />
+            ) : null}
+            <Btn
+              label="+ Add recommendation"
+              onPress={() =>
+                router.push({
+                  pathname: '/recommendation/add',
+                  params: { farmerId, blockId: block.id, leadId: leadId ?? '' },
+                })
+              }
+            />
+          </View>
+        ) : null}
+      </StickyScreenFooter>
     </View>
   );
 }
@@ -264,20 +296,8 @@ export default function AgronomistBlockDetailScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 180 },
-  emptyFindings: { gap: 12, paddingVertical: 8 },
-  emptyText: { fontSize: 14, color: tokens.textMuted, lineHeight: 20 },
+  content: { padding: 16 },
+  emptyText: { fontSize: 14, color: tokens.textMuted, lineHeight: 20, paddingVertical: 8 },
   recPanel: { marginTop: 12 },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 16,
-    gap: 8,
-    borderTopWidth: 1,
-    borderTopColor: tokens.border,
-    backgroundColor: tokens.bg,
-  },
-  footerRow: { flexDirection: 'row', gap: 8 },
+  footerCol: { gap: 8 },
 });

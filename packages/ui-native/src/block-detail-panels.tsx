@@ -296,6 +296,16 @@ export function FieldFindingsPanel({
           </View>
           {f.diseasePest ? <Text style={styles.findingIssue}>{f.diseasePest}</Text> : null}
           {f.observations ? <Text style={styles.findingObs}>{f.observations}</Text> : null}
+          {f.issueCount != null || f.recommendationCount != null ? (
+            <Text style={styles.findingMeta}>
+              {[
+                f.issueCount != null ? `${f.issueCount} issue${f.issueCount === 1 ? '' : 's'}` : null,
+                f.recommendationCount ? `${f.recommendationCount} recs` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
+          ) : null}
           {f.agronomistName ? <Text style={styles.findingMeta}>By {f.agronomistName}</Text> : null}
           {f.actionTaken ? <Text style={styles.findingMeta}>Action: {f.actionTaken}</Text> : null}
         </Pressable>

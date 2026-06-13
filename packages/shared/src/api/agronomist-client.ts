@@ -15,6 +15,7 @@ import type {
   AgronomistWorkspaceSummary,
   FieldVisitQuestion,
   FarmerOrderRow,
+  FarmerFieldFindingRow,
   FarmerVisitRow,
   FarmerWorkspaceDashboard,
   ReviewQueueItem,
@@ -95,9 +96,16 @@ export const agronomistClient = {
     return r.dashboard;
   },
 
-  async listFarmerVisits(farmerId: string, limit = 30): Promise<FarmerVisitRow[]> {
-    const r = await staffApi<{ ok: boolean; visits: FarmerVisitRow[] }>(
-      `${AGRO}/farmers/${farmerId}/visits?limit=${limit}`
+  async listFarmerVisits(
+    farmerId: string,
+    options: { limit?: number; status?: 'open' | 'monitoring' | 'resolved'; blockId?: string } = {}
+  ): Promise<FarmerFieldFindingRow[]> {
+    const params = new URLSearchParams();
+    params.set('limit', String(options.limit ?? 30));
+    if (options.status) params.set('status', options.status);
+    if (options.blockId) params.set('blockId', options.blockId);
+    const r = await staffApi<{ ok: boolean; visits: FarmerFieldFindingRow[] }>(
+      `${AGRO}/farmers/${farmerId}/visits?${params.toString()}`
     );
     return r.visits ?? [];
   },

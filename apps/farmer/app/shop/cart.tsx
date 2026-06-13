@@ -1,15 +1,13 @@
 import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatPaise, tokens } from '@morbeez/shared';
-import { Btn, EmptyState, Panel } from '@morbeez/ui-native';
+import { Btn, EmptyState, Panel, useStickyFooterPadding } from '@morbeez/ui-native';
 import { useShopCart } from '@/context/ShopCartContext';
 
 export default function CartScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { items, totalPaise, setQuantity, removeItem } = useShopCart();
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 0);
+  const bottomPad = useStickyFooterPadding(0);
 
   if (!items.length) {
     return (

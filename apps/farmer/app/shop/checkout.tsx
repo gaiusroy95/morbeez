@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AlertBox, Btn, HubTabs, Loading, Panel, TextField, useStickyFooterPadding } from '@morbeez/ui-native';
 import * as SecureStore from 'expo-secure-store';
 import {
   createCheckout,
@@ -13,8 +13,12 @@ import {
   verifyCheckout,
   type CheckoutCreateResult,
 } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, Loading, Panel, TextField } from '@morbeez/ui-native';
 import { RazorpayCheckoutModal } from '@/components/RazorpayCheckoutModal';
+import {
+  isNativeRazorpayAvailable,
+  openNativeRazorpayCheckout,
+  PaymentCancelledError,
+} from '@/lib/razorpay-native';
 import { useShopCart } from '@/context/ShopCartContext';
 
 const CHECKOUT_DRAFT_KEY = 'morbeez_checkout_draft';
@@ -33,9 +37,8 @@ type CheckoutDraft = {
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { items, totalPaise, clearCart } = useShopCart();
-  const bottomPad = Math.max(insets.bottom, Platform.OS === 'android' ? 24 : 0);
+  const bottomPad = useStickyFooterPadding(0);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState('');
@@ -153,6 +156,20 @@ export default function CheckoutScreen() {
         return;
       }
       const order = await createCheckout(checkoutPayload());
+      if (isNativeRazorpayAvailable()) {
+        try {
+          const payment = await openNativeRazorpayCheckout(order);
+          await onPaymentSuccess(payment);
+        } catch (e) {
+          if (e instanceof PaymentCancelledError) {
+            setPaying(false);
+            return;
+          }
+          setError(e instanceof Error ? e.message : 'Payment failed');
+          setPaying(false);
+        }
+        return;
+      }
       setRazorpayOrder(order);
       setShowPayment(true);
       // Keep paying=true until Razorpay modal completes (success, cancel, or error).

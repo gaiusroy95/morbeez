@@ -95,11 +95,11 @@ Set `EXPO_PUBLIC_API_BASE_URL` in `eas.json` (preview + production). Root route 
 
 ## Agronomist app — visits + farmer intelligence
 
-**Visit model:** A **scheduled visit** is a `crm_tasks` reminder (`task_type = visit`). A **completed visit record** is a row in `crm_field_findings` (optionally linked to `agronomist_visit_sessions`). The Visits / Field Findings tabs are read-only timelines derived from findings — not manually duplicated entries. Submit via **Start visit** (structured multi-issue form).
+**Visit model:** A **scheduled visit** is a `crm_tasks` reminder (`task_type = visit`). A **completed visit record** is a row in `crm_field_findings` (optionally linked to `agronomist_visit_sessions`). Farmer workspace **Field Findings** tab and block **Field findings** tab are read-only timelines derived from the same structured visit records — not manually duplicated entries. Submit via **Start visit** (structured multi-issue form at `/visit`). The global bottom **Visits** tab remains the agronomist daily queue; farmer workspace uses **Field Findings** for intelligence.
 
 **Bottom tabs:** Dashboard · Farmers · Visits · Tasks · Profile
 
-**Stack flows:** farmer workspace (8 tabs) · farm visit (check-in → structured issues → check-out) · visit detail · finding review · AI case review · route planner · map view
+**Stack flows:** farmer workspace (Field Findings tab + 8 other tabs) · farm visit (check-in → structured issues → check-out) · visit detail · finding review · AI case review · route planner · map view
 
 **Shared client:** `packages/shared/src/api/agronomist-client.ts`
 
@@ -129,9 +129,9 @@ Apply migrations `20260704000000_field_findings_v2.sql` and **`20260705000000_ad
 1. Login as agronomist staff (mobile OTP or email + password)
 2. Dashboard widgets load; tap stat → Tasks/Farmers filtered
 3. Farmers: search, filter chips, open workspace
-4. Workspace **8 tabs**: Overview (KPI cards + deep links), Calls (call log + WhatsApp + log call), Blocks (open issues on cards), Visits (read-only timeline), Recommendations (issue-grouped + status filters), Orders, Follow-ups (complete task / callback actions), Notes
+4. Workspace tabs: Overview (KPI cards deep-link to Field Findings for visit/issue metrics), Calls, Blocks, **Field Findings** (status filters + timeline → `/visit/[findingId]`), Recommendations, Orders, Follow-ups, Notes, Team. **Start visit** (header or Field Findings footer) opens `/visit` with block picker when multiple blocks exist.
 5. Block detail: Add activity, Add soil test, Start visit (structured multi-issue form with inline recs + measurements)
-6. Submit visit with 2+ issues → appears on farmer Visits tab and block Field findings; tap → visit detail screen
+6. Submit visit with 2+ issues → appears on farmer **Field Findings** tab and block Field findings; tap → visit detail (issues, photos, recs by issue, outcomes)
 7. Tasks: unified list (visits, follow-ups, finding review, AI cases)
 8. Finding review: AI suggest → draft → submit
 9. Routes: create route → add stop → optimize → Open Maps

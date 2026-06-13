@@ -21,6 +21,8 @@ import {
   Loading,
   ScrollableUnderlineTabs,
   SoilTestsPanel,
+  StickyScreenFooter,
+  useStickyFooterScrollPadding,
 } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -30,6 +32,7 @@ export default function BlockDetailScreen() {
   const router = useRouter();
   const { locale } = useLocale();
   const { blockId } = useLocalSearchParams<{ blockId: string }>();
+  const scrollBottomPad = useStickyFooterScrollPadding();
   const [tab, setTab] = useState<BlockTab>('activities');
   const [detail, setDetail] = useState<FieldDetail | null>(null);
   const [activities, setActivities] = useState<CultivationActivity[]>([]);
@@ -94,7 +97,10 @@ export default function BlockDetailScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}
+      >
         {error ? <AlertBox>{error}</AlertBox> : null}
 
         <BlockSummaryCard block={b} locale={locale} extraRows={extraRows} />
@@ -119,11 +125,7 @@ export default function BlockDetailScreen() {
         ) : null}
 
         {tab === 'soilTests' ? (
-          <SoilTestsPanel
-            reports={soilReports}
-            locale={locale}
-            onNewTest={() => router.push({ pathname: '/soil/add', params: { blockId: b.id } })}
-          />
+          <SoilTestsPanel reports={soilReports} locale={locale} showAddButton={false} />
         ) : null}
 
         {tab === 'fieldFindings' ? (
@@ -135,28 +137,32 @@ export default function BlockDetailScreen() {
         ) : null}
       </ScrollView>
 
-      {tab === 'activities' || tab === 'fieldFindings' || tab === 'recommendations' ? (
-        <View style={styles.footer}>
-          {tab === 'activities' ? (
-            <Btn
-              label={`+ ${t('addActivity', locale)}`}
-              onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })}
-            />
-          ) : null}
-          {tab === 'fieldFindings' ? (
-            <Btn
-              label={`+ ${t('addFieldFinding', locale)}`}
-              onPress={() => router.push({ pathname: '/findings/add', params: { blockId: b.id } })}
-            />
-          ) : null}
-          {tab === 'recommendations' ? (
-            <Btn
-              label={`+ ${t('addRecommendation', locale)}`}
-              onPress={() => router.push({ pathname: '/recommendations/add', params: { blockId: b.id } })}
-            />
-          ) : null}
-        </View>
-      ) : null}
+      <StickyScreenFooter>
+        {tab === 'activities' ? (
+          <Btn
+            label={`+ ${t('addActivity', locale)}`}
+            onPress={() => router.push({ pathname: '/activities/add', params: { blockId: b.id } })}
+          />
+        ) : null}
+        {tab === 'soilTests' ? (
+          <Btn
+            label={`+ ${t('newSoilTest', locale)}`}
+            onPress={() => router.push({ pathname: '/soil/add', params: { blockId: b.id } })}
+          />
+        ) : null}
+        {tab === 'fieldFindings' ? (
+          <Btn
+            label={`+ ${t('addFieldFinding', locale)}`}
+            onPress={() => router.push({ pathname: '/findings/add', params: { blockId: b.id } })}
+          />
+        ) : null}
+        {tab === 'recommendations' ? (
+          <Btn
+            label={`+ ${t('addRecommendation', locale)}`}
+            onPress={() => router.push({ pathname: '/recommendations/add', params: { blockId: b.id } })}
+          />
+        ) : null}
+      </StickyScreenFooter>
     </View>
   );
 }
@@ -164,15 +170,5 @@ export default function BlockDetailScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   scroll: { flex: 1 },
-  content: { padding: 16, paddingBottom: 100 },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: tokens.border,
-    backgroundColor: tokens.bg,
-  },
+  content: { padding: 16 },
 });

@@ -9,12 +9,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import { WebView, type WebViewMessageEvent, type WebViewNavigation } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewMessageEvent,
+  type WebViewNavigation,
+} from 'react-native-webview';
 import { tokens } from '@morbeez/shared';
 import type { CheckoutCreateResult } from '@morbeez/shared';
 import {
+  isExternalPaymentUrl,
   isRazorpayCheckoutUrl,
+  parseRazorpayReturnUrl,
   RAZORPAY_CHECKOUT_BASE_URL,
+  RAZORPAY_WEBVIEW_USER_AGENT,
+  shouldOpenPaymentPopup,
   useRazorpayHtml,
 } from '@/lib/razorpay-checkout';
 
@@ -38,6 +46,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
   const [loadingMain, setLoadingMain] = useState(true);
   const [loadingBank, setLoadingBank] = useState(false);
   const bankFlowRef = useRef(false);
+  const bankVisitedExternalRef = useRef(false);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearDismissTimer = useCallback(() => {
@@ -53,6 +62,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
       setLoadingMain(true);
       setLoadingBank(false);
       bankFlowRef.current = false;
+      bankVisitedExternalRef.current = false;
       clearDismissTimer();
     }
   }, [visible, clearDismissTimer]);
@@ -63,6 +73,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
     clearDismissTimer();
     setBankUrl(null);
     bankFlowRef.current = false;
+    bankVisitedExternalRef.current = false;
     onCancel();
   }, [clearDismissTimer, onCancel]);
 
@@ -73,19 +84,52 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
     }, DISMISS_GRACE_MS);
   }, [clearDismissTimer, finishCancel]);
 
+  const openBankWindow = useCallback(
+    (targetUrl: string | undefined) => {
+      if (!shouldOpenPaymentPopup(targetUrl)) return;
+      clearDismissTimer();
+      bankFlowRef.current = true;
+      bankVisitedExternalRef.current = false;
+      setBankUrl(targetUrl!);
+      setLoadingBank(true);
+    },
+    [clearDismissTimer]
+  );
+
+  const completeFromReturnUrl = useCallback(
+    (url: string) => {
+      const payment = parseRazorpayReturnUrl(url);
+      if (!payment) return false;
+      clearDismissTimer();
+      bankFlowRef.current = false;
+      bankVisitedExternalRef.current = false;
+      setBankUrl(null);
+      onSuccess(payment);
+      return true;
+    },
+    [clearDismissTimer, onSuccess]
+  );
+
   function onMessage(event: WebViewMessageEvent) {
     try {
       const data = JSON.parse(event.nativeEvent.data) as {
         type: string;
         message?: string;
+        url?: string;
         razorpay_order_id?: string;
         razorpay_payment_id?: string;
         razorpay_signature?: string;
       };
 
+      if (data.type === 'openWindow' && data.url) {
+        openBankWindow(data.url);
+        return;
+      }
+
       if (data.type === 'success' && data.razorpay_order_id && data.razorpay_payment_id && data.razorpay_signature) {
         clearDismissTimer();
         bankFlowRef.current = false;
+        bankVisitedExternalRef.current = false;
         setBankUrl(null);
         onSuccess({
           razorpayOrderId: data.razorpay_order_id,
@@ -103,6 +147,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
       if (data.type === 'error') {
         clearDismissTimer();
         bankFlowRef.current = false;
+        bankVisitedExternalRef.current = false;
         setBankUrl(null);
         onError(data.message || 'Payment failed');
       }
@@ -111,21 +156,25 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
     }
   }
 
-  function onOpenBankWindow(targetUrl: string | undefined) {
-    if (!targetUrl) return;
-    clearDismissTimer();
-    bankFlowRef.current = true;
-    setBankUrl(targetUrl);
-    setLoadingBank(true);
+  function onMainNavigation(nav: WebViewNavigation) {
+    const url = nav.url || '';
+    if (completeFromReturnUrl(url)) return;
+    if (shouldOpenPaymentPopup(url)) openBankWindow(url);
   }
 
   function onBankNavigation(nav: WebViewNavigation) {
     const url = nav.url || '';
     if (!url || url === 'about:blank') return;
 
-    // Bank step finished — Razorpay callback usually lands on a Razorpay host.
-    if (isRazorpayCheckoutUrl(url)) {
+    if (isExternalPaymentUrl(url)) {
+      bankVisitedExternalRef.current = true;
+      return;
+    }
+
+    // Razorpay auth URLs load before the bank page — only close after visiting the bank.
+    if (isRazorpayCheckoutUrl(url) && bankVisitedExternalRef.current) {
       bankFlowRef.current = false;
+      bankVisitedExternalRef.current = false;
       setBankUrl(null);
       setLoadingBank(false);
     }
@@ -133,8 +182,21 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
 
   function closeBankStep() {
     bankFlowRef.current = false;
+    bankVisitedExternalRef.current = false;
     setBankUrl(null);
     setLoadingBank(false);
+  }
+
+  function onMainShouldStartLoadWithRequest(request: { url: string; isTopFrame?: boolean }) {
+    const url = request.url;
+    if (!url || url === 'about:blank') return true;
+    if (completeFromReturnUrl(url)) return false;
+    if (request.isTopFrame === false) return true;
+    if (shouldOpenPaymentPopup(url)) {
+      openBankWindow(url);
+      return false;
+    }
+    return true;
   }
 
   if (!html) return null;
@@ -157,6 +219,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
         <View style={styles.body}>
           <WebView
             originWhitelist={['*']}
+            userAgent={RAZORPAY_WEBVIEW_USER_AGENT}
             javaScriptEnabled
             domStorageEnabled
             thirdPartyCookiesEnabled
@@ -174,7 +237,9 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
             onMessage={onMessage}
             onLoadStart={() => setLoadingMain(true)}
             onLoadEnd={() => setLoadingMain(false)}
-            onOpenWindow={(event) => onOpenBankWindow(event.nativeEvent.targetUrl)}
+            onNavigationStateChange={onMainNavigation}
+            onOpenWindow={(event) => openBankWindow(event.nativeEvent.targetUrl)}
+            onShouldStartLoadWithRequest={onMainShouldStartLoadWithRequest}
             style={styles.webview}
           />
 
@@ -182,6 +247,7 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
             <View style={styles.bankOverlay}>
               <WebView
                 originWhitelist={['*']}
+                userAgent={RAZORPAY_WEBVIEW_USER_AGENT}
                 javaScriptEnabled
                 domStorageEnabled
                 thirdPartyCookiesEnabled
@@ -198,7 +264,20 @@ export function RazorpayCheckoutModal({ visible, order, onSuccess, onCancel, onE
                 source={{ uri: bankUrl }}
                 onLoadStart={() => setLoadingBank(true)}
                 onLoadEnd={() => setLoadingBank(false)}
-                onNavigationStateChange={onBankNavigation}
+                onNavigationStateChange={(nav) => {
+                  const url = nav.url || '';
+                  if (completeFromReturnUrl(url)) return;
+                  onBankNavigation(nav);
+                }}
+                onOpenWindow={(event) => openBankWindow(event.nativeEvent.targetUrl)}
+                onShouldStartLoadWithRequest={(request) => {
+                  if (request.isTopFrame === false) return true;
+                  if (isExternalPaymentUrl(request.url)) {
+                    bankVisitedExternalRef.current = true;
+                    return true;
+                  }
+                  return true;
+                }}
                 style={styles.webview}
               />
               {loadingBank ? (

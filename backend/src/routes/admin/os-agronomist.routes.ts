@@ -644,8 +644,18 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
   app.get(`${api}/farmers/:farmerId/visits`, async (request, reply) => {
     await assertModuleAccess(request, 'agronomist', 'read');
     const { farmerId } = request.params as { farmerId: string };
-    const q = z.object({ limit: z.coerce.number().int().min(1).max(50).optional() }).parse(request.query ?? {});
-    const visits = await agronomistMobileService.listFarmerVisits(farmerId, q.limit ?? 30);
+    const q = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(50).optional(),
+        status: z.enum(['open', 'monitoring', 'resolved']).optional(),
+        blockId: z.string().uuid().optional(),
+      })
+      .parse(request.query ?? {});
+    const visits = await agronomistMobileService.listFarmerVisits(farmerId, {
+      limit: q.limit ?? 30,
+      status: q.status,
+      blockId: q.blockId,
+    });
     return reply.send({ ok: true, visits });
   });
 

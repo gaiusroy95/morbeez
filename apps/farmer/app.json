@@ -9,7 +9,10 @@
     "icon": "./assets/app-icon.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "in.morbeez.farmer"
+      "bundleIdentifier": "in.morbeez.farmer",
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["tez", "phonepe", "paytmmp", "credpay"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,8 @@
       "softwareKeyboardLayoutMode": "resize"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-dev-client"
     ],
     "owner": "kok-expo",
     "extra": {

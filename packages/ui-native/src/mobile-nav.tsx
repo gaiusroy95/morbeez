@@ -1,28 +1,85 @@
 import type { ReactNode } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+  type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
 import { MorbeezLogo } from './MorbeezLogo';
+
+/** Android 3-button / gesture nav bar — use when insets.bottom is 0 on real devices. */
+export const ANDROID_NAV_BAR_MIN = 48;
+
+/** Bottom inset that clears the system navigation bar on all devices. */
+export function useDeviceBottomInset(): number {
+  const insets = useSafeAreaInsets();
+  return Math.max(insets.bottom, Platform.OS === 'android' ? ANDROID_NAV_BAR_MIN : 0);
+}
+
+/** Padding for sticky footers: content padding + device bottom inset. */
+export function useStickyFooterPadding(contentPadding = 16): number {
+  return contentPadding + useDeviceBottomInset();
+}
+
+/** Scroll content padding so lists are not hidden behind a sticky footer. */
+export function useStickyFooterScrollPadding(options?: { rows?: number; gap?: number }): number {
+  const rows = options?.rows ?? 1;
+  const gap = options?.gap ?? 8;
+  const topPad = 16;
+  const rowHeight = 52;
+  return topPad + rows * rowHeight + Math.max(0, rows - 1) * gap + topPad + useDeviceBottomInset();
+}
+
+/** Ignore press when finger moved farther than this (scroll vs tap). */
+const ANDROID_TAP_SLOP = 12;
 
 /** Android native-stack headers often drop onPress; onPressOut is reliable on real devices. */
 export function androidPressHandlers(onPress: () => void, disabled?: boolean) {
   if (disabled) return { disabled: true as const };
   if (Platform.OS === 'android') {
-    return { onPressOut: () => onPress() };
+    let startX = 0;
+    let startY = 0;
+    return {
+      onPressIn: (event: GestureResponderEvent) => {
+        startX = event.nativeEvent.pageX;
+        startY = event.nativeEvent.pageY;
+      },
+      onPressOut: (event: GestureResponderEvent) => {
+        const dx = Math.abs(event.nativeEvent.pageX - startX);
+        const dy = Math.abs(event.nativeEvent.pageY - startY);
+        if (dx <= ANDROID_TAP_SLOP && dy <= ANDROID_TAP_SLOP) {
+          onPress();
+        }
+      },
+    };
   }
   return { onPress };
 }
 
 export function useMobileTabBarStyle() {
-  const insets = useSafeAreaInsets();
-  const bottom = Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0);
+  const bottomInset = useDeviceBottomInset();
   return {
     borderTopColor: tokens.border,
     backgroundColor: '#fff',
-    paddingBottom: bottom,
+    paddingBottom: bottomInset,
     paddingTop: 6,
-    height: 56 + bottom,
+    height: 56 + bottomInset,
   };
+}
+
+export function StickyScreenFooter({ children, style }: { children: ReactNode; style?: ViewStyle }) {
+  const paddingBottom = useStickyFooterPadding(16);
+  return (
+    <View style={[stickyFooterStyles.root, { paddingBottom }, style]}>
+      {children}
+    </View>
+  );
 }
 
 export function useMobileTabScreenOptions() {
@@ -84,32 +141,59 @@ export function ScrollableHubTabs<T extends string>({
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       nestedScrollEnabled
-      style={style}
+      style={[styles.hubTabsScroll, style]}
       contentContainerStyle={styles.scrollTabsContent}
     >
-      {tabs.map((tab) => (
-        <Pressable
-          key={tab.id}
-          hitSlop={4}
-          {...androidPressHandlers(() => onChange(tab.id))}
-          style={[styles.tab, active === tab.id && styles.tabActive]}
-        >
-          <Text style={[styles.tabText, active === tab.id && styles.tabTextActive]}>
-            {tab.label}
-          </Text>
-        </Pressable>
-      ))}
+      {tabs.map((tab, index) => {
+        const isActive = active === tab.id;
+        return (
+          <Pressable
+            key={tab.id}
+            hitSlop={4}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: isActive }}
+            accessibilityLabel={tab.label}
+            {...androidPressHandlers(() => onChange(tab.id))}
+            style={[
+              styles.tab,
+              index < tabs.length - 1 ? styles.tabSpacer : null,
+              isActive && styles.tabActive,
+            ]}
+          >
+            <Text style={[styles.tabText, isActive && styles.tabTextActive]}>{tab.label}</Text>
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 }
 
+const stickyFooterStyles = StyleSheet.create({
+  root: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: tokens.border,
+    backgroundColor: tokens.bg,
+  },
+});
+
 const styles = StyleSheet.create({
+  hubTabsScroll: {
+    flexGrow: 0,
+    backgroundColor: tokens.bg,
+    borderBottomWidth: 1,
+    borderBottomColor: tokens.border,
+  },
   scrollTabsContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
   tab: {
     paddingVertical: 8,
@@ -118,18 +202,22 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.card,
     borderWidth: 1,
     borderColor: tokens.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 36,
   },
+  tabSpacer: { marginRight: 8 },
   tabActive: {
     backgroundColor: tokens.green100,
-    borderColor: tokens.green500,
+    borderColor: tokens.green700,
   },
   tabText: {
-    fontSize: 13,
-    color: tokens.textMuted,
-    fontWeight: '500',
+    fontSize: 14,
+    lineHeight: 18,
+    color: tokens.text,
+    fontWeight: '600',
   },
   tabTextActive: {
     color: tokens.green800,
-    fontWeight: '600',
   },
 });

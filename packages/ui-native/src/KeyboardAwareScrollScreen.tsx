@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useDeviceBottomInset } from './mobile-nav';
 
 type Props = {
   children: ReactNode;
@@ -25,6 +26,7 @@ export function KeyboardAwareScrollScreen({
   ...scrollProps
 }: Props) {
   const insets = useSafeAreaInsets();
+  const bottomInset = useDeviceBottomInset();
 
   return (
     <KeyboardAvoidingView
@@ -38,7 +40,7 @@ export function KeyboardAwareScrollScreen({
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: Math.max(insets.bottom, 24) },
+          { paddingBottom: Math.max(bottomInset, 24) },
           contentContainerStyle,
         ]}
         {...scrollProps}

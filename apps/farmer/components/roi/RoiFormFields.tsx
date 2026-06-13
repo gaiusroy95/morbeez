@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { fetchRoiContext, tokens } from '@morbeez/shared';
-import { TextField } from '@morbeez/ui-native';
+import { TextField, StickyScreenFooter } from '@morbeez/ui-native';
 import { useRoiFilter } from '@/context/RoiFilterContext';
 
 export function useRoiFormContext(initialBlockId?: string) {
@@ -92,11 +92,11 @@ export function RoiFormPickers({
 
 export function StickySaveBar({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) {
   return (
-    <View style={styles.footer}>
+    <StickyScreenFooter>
       <Pressable style={[styles.saveBtn, disabled ? styles.saveDisabled : null]} onPress={onPress} disabled={disabled}>
         <Text style={styles.saveText}>{label}</Text>
       </Pressable>
-    </View>
+    </StickyScreenFooter>
   );
 }
 
@@ -105,16 +105,6 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 },
   chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: tokens.green100 },
   chipOn: { backgroundColor: tokens.green500 },
-  footer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: tokens.border,
-    backgroundColor: tokens.bg,
-  },
   saveBtn: {
     backgroundColor: tokens.green700,
     borderRadius: 10,

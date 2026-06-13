@@ -1,7 +1,7 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { formatDate, telecallerClient, tokens, type TelecallerWorkspaceSummary } from '@morbeez/shared';
-import { AlertBox, Btn, KeyValueRow, Panel } from '@morbeez/ui-native';
+import { telecallerClient, tokens, type TelecallerWorkspaceSummary } from '@morbeez/shared';
+import { AlertBox, Btn, Panel } from '@morbeez/ui-native';
 import { useState } from 'react';
 
 type Props = {
@@ -48,24 +48,6 @@ export function LeadWorkspaceHeader({ summary }: Props) {
             <Text style={styles.scoreBadge}>Score {summary.intelligence.opportunityScore}</Text>
           ) : null}
         </View>
-        <KeyValueRow label="Assigned telecaller" value={summary.lead.assignedTelecaller ?? '—'} />
-        <KeyValueRow label="Assigned agronomist" value={summary.lead.assignedAgronomist ?? '—'} />
-        <KeyValueRow
-          label="Revenue generated"
-          value={
-            summary.intelligence.revenueGenerated != null
-              ? `₹${summary.intelligence.revenueGenerated.toLocaleString('en-IN')}`
-              : '—'
-          }
-        />
-        <KeyValueRow
-          label="Last interaction"
-          value={summary.lastInteractionAt ? formatDate(summary.lastInteractionAt) : '—'}
-        />
-        <KeyValueRow
-          label="Last visit"
-          value={summary.lastVisitAt ? formatDate(summary.lastVisitAt) : '—'}
-        />
       </Panel>
 
       {clickError ? <AlertBox>{clickError}</AlertBox> : null}

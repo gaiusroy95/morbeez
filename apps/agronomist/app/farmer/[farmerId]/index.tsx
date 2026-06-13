@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { agronomistClient, tokens, type AgronomistWorkspaceSummary } from '@morbeez/shared';
 import { AlertBox, Loading } from '@morbeez/ui-native';
@@ -39,15 +39,14 @@ export default function FarmerWorkspaceScreen() {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
       <FarmerWorkspaceTabs farmerId={id} summary={summary} />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
-  content: { flexGrow: 1 },
   center: { flex: 1, padding: 16, justifyContent: 'center' },
 });

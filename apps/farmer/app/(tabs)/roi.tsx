@@ -46,6 +46,8 @@ import {
 
   RoiStatCards,
 
+  useStickyFooterPadding,
+
 } from '@morbeez/ui-native';
 
 import { ActiveCyclesScroller, RoiExpenseBookPreview } from '@/components/roi/RoiInlinePanels';
@@ -74,6 +76,8 @@ export default function RoiTabScreen() {
   const { farmer } = useFarmerAuth();
 
   const { filter, setCrop, setBlockId } = useRoiFilter();
+
+  const footerPad = useStickyFooterPadding(16);
 
   const [data, setData] = useState<RoiDashboardV2 | null>(null);
 
@@ -431,7 +435,7 @@ export default function RoiTabScreen() {
 
 
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: footerPad }]}>
         <View style={styles.footerRow}>
           <View style={styles.footerBtn}>
             <Btn label={t('income', locale)} onPress={() => router.push('/roi/transactions/add-income')} />

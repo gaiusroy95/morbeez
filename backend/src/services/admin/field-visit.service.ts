@@ -57,16 +57,16 @@ export const fieldVisitService = {
     };
   },
 
-  async listFarmerFieldFindings(farmerId: string, limit = 30) {
-    const { data, error } = await supabase
-      .from('crm_field_findings')
-      .select('id, block_id, block_name, crop_type, visited_at, disease_pest, observations, block_health, dap_at_visit')
-      .eq('farmer_id', farmerId)
-      .is('archived_at', null)
-      .order('visited_at', { ascending: false })
-      .limit(limit);
-    throwIfSupabaseError(error, 'Could not load field findings');
-    return data ?? [];
+  async listFarmerFieldFindings(
+    farmerId: string,
+    options: {
+      limit?: number;
+      status?: 'open' | 'monitoring' | 'resolved';
+      blockId?: string;
+    } = {}
+  ) {
+    const { agronomistMobileService } = await import('../agronomist/agronomist-mobile.service.js');
+    return agronomistMobileService.listFarmerVisits(farmerId, options);
   },
 
   async submitStructuredVisit(

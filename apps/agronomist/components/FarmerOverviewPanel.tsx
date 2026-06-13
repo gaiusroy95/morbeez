@@ -1,20 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { agronomistClient, formatDate, tokens, type FarmerWorkspaceDashboard } from '@morbeez/shared';
-import { AlertBox, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { AlertBox, KeyValueRow, Loading, Panel, androidPressHandlers } from '@morbeez/ui-native';
 import { RecommendationSection } from '@/components/RecommendationSection';
 import type { AgronomistRecommendationRow } from '@morbeez/shared';
+import {
+  type FarmerWorkspaceTab,
+} from '@/lib/farmer-workspace-routing';
 
-export type FarmerWorkspaceTab =
-  | 'overview'
-  | 'interactions'
-  | 'blocks'
-  | 'visits'
-  | 'recommendations'
-  | 'orders'
-  | 'followUps'
-  | 'notes'
-  | 'team';
+export type { FarmerWorkspaceTab };
 
 type Props = {
   farmerId: string;
@@ -31,7 +25,7 @@ type KpiCard = {
 
 function KpiTile({ card, onPress }: { card: KpiCard; onPress: () => void }) {
   return (
-    <Pressable style={styles.kpi} onPress={onPress}>
+    <Pressable style={styles.kpi} {...androidPressHandlers(onPress)}>
       <Text style={styles.kpiValue}>{card.value}</Text>
       <Text style={styles.kpiLabel}>{card.label}</Text>
     </Pressable>
@@ -66,11 +60,19 @@ export function FarmerOverviewPanel({ farmerId, leadId, recommendations, onNavig
 
   const cards: KpiCard[] = [
     { label: 'Open tasks', value: String(dashboard.pendingTaskCount), tab: 'followUps' },
-    { label: 'Pending reviews', value: String(dashboard.pendingFindingReviewsCount), tab: 'visits' },
+    {
+      label: 'Pending reviews',
+      value: String(dashboard.pendingFindingReviewsCount),
+      tab: 'fieldFindings',
+    },
     { label: 'Escalations', value: String(dashboard.openEscalationCount), tab: 'followUps' },
-    { label: "Today's visits", value: String(dashboard.todaysVisitsCount), tab: 'visits' },
+    {
+      label: "Today's visits",
+      value: String(dashboard.todaysVisitsCount),
+      tab: 'fieldFindings',
+    },
     { label: 'Pending recs', value: String(dashboard.pendingRecommendationsCount), tab: 'recommendations' },
-    { label: 'Open issues', value: String(dashboard.openIssuesCount), tab: 'visits' },
+    { label: 'Open issues', value: String(dashboard.openIssuesCount), tab: 'fieldFindings' },
   ];
 
   return (
@@ -98,16 +100,23 @@ export function FarmerOverviewPanel({ farmerId, leadId, recommendations, onNavig
         leadId={leadId}
         recommendations={recommendations}
         compact
+        showAdd={false}
       />
-      <Pressable onPress={() => onNavigate('blocks')}>
-        <Text style={styles.link}>View blocks →</Text>
-      </Pressable>
+      <View style={styles.links}>
+        <Pressable {...androidPressHandlers(() => onNavigate('recommendations'))}>
+          <Text style={styles.link}>View recommendations →</Text>
+        </Pressable>
+        <Pressable {...androidPressHandlers(() => onNavigate('blocks'))}>
+          <Text style={styles.link}>View blocks →</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
+
 const styles = StyleSheet.create({
-  root: { padding: 12, paddingBottom: 32 },
+  root: { padding: 12, paddingBottom: 8, gap: 12 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   kpi: {
     width: '31%',
@@ -121,4 +130,5 @@ const styles = StyleSheet.create({
   kpiValue: { fontSize: 20, fontWeight: '800', color: tokens.green800 },
   kpiLabel: { fontSize: 11, color: tokens.textMuted, marginTop: 4, textAlign: 'center' },
   link: { fontSize: 14, fontWeight: '600', color: tokens.green700, textAlign: 'center', marginTop: 8 },
+  links: { gap: 4 },
 });

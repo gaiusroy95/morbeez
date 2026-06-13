@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { agronomistClient, formatDate, tokens, type FarmerOrderRow } from '@morbeez/shared';
 import { AlertBox, ListCard, Loading, Panel } from '@morbeez/ui-native';
 
@@ -44,17 +44,15 @@ export function FarmerOrdersPanel({ farmerId }: Props) {
           Compare what the farmer bought against recommendations issued in the field.
         </Text>
       </Panel>
-      <FlatList
-        data={orders}
-        keyExtractor={(o) => o.id}
-        contentContainerStyle={styles.list}
-        renderItem={({ item }) => {
+      <View style={styles.list}>
+        {orders.map((item) => {
           const lines = (item.lineItems ?? [])
             .map((li) => [li.title, li.quantity != null ? `×${li.quantity}` : null].filter(Boolean).join(' '))
             .filter(Boolean)
             .join(', ');
           return (
             <ListCard
+              key={item.id}
               title={item.orderNumber ? `#${item.orderNumber}` : 'Order'}
               subtitle={lines || '—'}
               meta={[item.status, formatAmount(item.totalAmount), item.createdAt ? formatDate(item.createdAt) : null]
@@ -62,18 +60,16 @@ export function FarmerOrdersPanel({ farmerId }: Props) {
                 .join(' · ')}
             />
           );
-        }}
-        ListEmptyComponent={
-          <Text style={styles.empty}>No orders linked to this farmer yet.</Text>
-        }
-      />
+        })}
+        {!orders.length ? <Text style={styles.empty}>No orders linked to this farmer yet.</Text> : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  root: { gap: 10, paddingBottom: 8 },
   hint: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
-  list: { padding: 12, paddingBottom: 32 },
+  list: { gap: 8 },
   empty: { padding: 24, color: tokens.textMuted, textAlign: 'center' },
 });

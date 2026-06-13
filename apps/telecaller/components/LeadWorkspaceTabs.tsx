@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { tokens, type LeadWorkspaceTab, type TelecallerWorkspaceSummary } from '@morbeez/shared';
-import { ScrollableHubTabs } from '@morbeez/ui-native';
+import { ScrollableUnderlineTabs, useDeviceBottomInset } from '@morbeez/ui-native';
 import { LeadWorkspaceHeader } from '@/components/LeadWorkspaceHeader';
 import { LeadOverviewPanel } from '@/components/LeadOverviewPanel';
 import { LeadInteractionsPanel } from '@/components/LeadInteractionsPanel';
@@ -27,18 +27,21 @@ type Props = {
 
 export function LeadWorkspaceTabs({ summary }: Props) {
   const [tab, setTab] = useState<LeadWorkspaceTab>('overview');
+  const bottomInset = useDeviceBottomInset();
 
   return (
-    <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.headerWrap}>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 + bottomInset }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.headerWrap}>
         <LeadWorkspaceHeader summary={summary} />
-      </ScrollView>
-      <ScrollableHubTabs
-        tabs={TABS}
-        active={tab}
-        onChange={setTab}
-      />
-      <ScrollView contentContainerStyle={styles.panelWrap}>
+      </View>
+
+      <ScrollableUnderlineTabs tabs={TABS} active={tab} onChange={setTab} />
+
+      <View style={styles.panelWrap}>
         {tab === 'overview' ? (
           <LeadOverviewPanel leadId={summary.leadId} summary={summary} onNavigate={setTab} />
         ) : null}
@@ -50,13 +53,14 @@ export function LeadWorkspaceTabs({ summary }: Props) {
         {tab === 'recommendations' ? <LeadRecommendationsPanel leadId={summary.leadId} /> : null}
         {tab === 'orders' ? <LeadOrdersPanel leadId={summary.leadId} /> : null}
         {tab === 'notes' ? <LeadNotesPanel leadId={summary.leadId} /> : null}
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
-  headerWrap: { padding: 16, paddingBottom: 0 },
-  panelWrap: { padding: 16, paddingTop: 8 },
+  scrollContent: { flexGrow: 1 },
+  headerWrap: { paddingHorizontal: 16, paddingTop: 16 },
+  panelWrap: { paddingHorizontal: 16, paddingTop: 8 },
 });

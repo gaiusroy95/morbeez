@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
@@ -20,7 +19,7 @@ import {
   type RackLine,
   type WarehouseOrderDetail,
 } from '@morbeez/shared';
-import { AlertBox, Btn, Loading } from '@morbeez/ui-native';
+import { AlertBox, Btn, Loading, useDeviceBottomInset } from '@morbeez/ui-native';
 import { BarcodeScanner } from '@/components/BarcodeScanner';
 import { ExceptionPanel } from '@/components/ExceptionPanel';
 import { useStaffAuth } from '@/context/StaffAuth';
@@ -37,9 +36,7 @@ function StatBox({ label, value, accent }: { label: string; value: string; accen
 }
 
 export default function PickOrderScreen() {
-  const insets = useSafeAreaInsets();
-  const footerBottomPad =
-    Platform.OS === 'android' ? Math.max(insets.bottom, 28) : Math.max(insets.bottom, 12);
+  const footerBottomPad = useDeviceBottomInset() + 12;
   const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const id = orderId;
   const router = useRouter();

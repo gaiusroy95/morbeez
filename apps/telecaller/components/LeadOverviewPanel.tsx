@@ -89,6 +89,22 @@ export function LeadOverviewPanel({ leadId, summary, onNavigate }: Props) {
         <KeyValueRow label="Assigned telecaller" value={summary.lead.assignedTelecaller ?? '—'} />
         <KeyValueRow label="Assigned agronomist" value={summary.lead.assignedAgronomist ?? '—'} />
         <KeyValueRow label="Assigned partner" value={summary.lead.assignedPartnerName ?? '—'} />
+        <KeyValueRow
+          label="Revenue generated"
+          value={
+            summary.intelligence.revenueGenerated != null
+              ? `₹${summary.intelligence.revenueGenerated.toLocaleString('en-IN')}`
+              : '—'
+          }
+        />
+        <KeyValueRow
+          label="Last interaction"
+          value={summary.lastInteractionAt ? formatDate(summary.lastInteractionAt) : '—'}
+        />
+        <KeyValueRow
+          label="Last visit"
+          value={summary.lastVisitAt ? formatDate(summary.lastVisitAt) : '—'}
+        />
         <KeyValueRow label="Service model" value={summary.lead.serviceModel ?? 'remote_advisory'} />
         <KeyValueRow label="Ownership" value={summary.lead.ownership ?? '—'} />
         <KeyValueRow label="Enrollment source" value={summary.lead.enrollmentSource ?? '—'} />

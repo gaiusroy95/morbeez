@@ -50,6 +50,8 @@ export type BlockFieldFinding = {
   cropHealthStatus: FieldHealthStatus;
   agronomistName: string | null;
   actionTaken: string | null;
+  issueCount?: number;
+  recommendationCount?: number;
 };
 
 export type BlockRecommendationItem = {

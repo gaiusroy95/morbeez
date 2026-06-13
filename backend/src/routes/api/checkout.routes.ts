@@ -44,6 +44,45 @@ const verifySchema = z.object({
   razorpaySignature: z.string().min(1),
 });
 
+function mobileReturnHtml(params: {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+}): string {
+  const payload = JSON.stringify({
+    type: 'success',
+    razorpay_order_id: params.razorpayOrderId,
+    razorpay_payment_id: params.razorpayPaymentId,
+    razorpay_signature: params.razorpaySignature,
+  }).replace(/</g, '\\u003c');
+
+  return `<!DOCTYPE html>
+<html><head><meta charset="utf-8" /><title>Payment complete</title></head>
+<body>
+<p>Payment received. You can return to the Morbeez app.</p>
+<script>
+  (function () {
+    var payload = ${payload};
+    if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+      window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+    }
+  })();
+</script>
+</body></html>`;
+}
+
+function readMobileReturnParams(query: Record<string, unknown>): {
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string;
+} | null {
+  const razorpayPaymentId = String(query.razorpay_payment_id ?? '');
+  const razorpayOrderId = String(query.razorpay_order_id ?? '');
+  const razorpaySignature = String(query.razorpay_signature ?? '');
+  if (!razorpayPaymentId || !razorpayOrderId || !razorpaySignature) return null;
+  return { razorpayOrderId, razorpayPaymentId, razorpaySignature };
+}
+
 export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
   app.get('/api/v1/checkout/razorpay/config', async (_request, reply) => {
     const { razorpayCheckoutService } = await import(
@@ -69,6 +108,25 @@ export async function checkoutRoutes(app: FastifyInstance): Promise<void> {
     const body = verifySchema.parse(request.body);
     const result = await checkoutService.verifyAndComplete(body);
     return reply.send({ ok: true, ...result });
+  });
+
+  /** Razorpay redirect target for farmer-app WebView checkout (netbanking return). */
+  app.get('/api/v1/checkout/razorpay/mobile-return', async (request, reply) => {
+    const params = readMobileReturnParams(request.query as Record<string, unknown>);
+    if (!params) {
+      return reply.status(400).type('text/html').send('<!DOCTYPE html><html><body><p>Invalid payment return.</p></body></html>');
+    }
+    return reply.type('text/html').send(mobileReturnHtml(params));
+  });
+
+  app.post('/api/v1/checkout/razorpay/mobile-return', async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const params = readMobileReturnParams({ ...query, ...body });
+    if (!params) {
+      return reply.status(400).type('text/html').send('<!DOCTYPE html><html><body><p>Invalid payment return.</p></body></html>');
+    }
+    return reply.type('text/html').send(mobileReturnHtml(params));
   });
 
   app.post('/api/v1/checkout/cod/create', async (request, reply) => {
