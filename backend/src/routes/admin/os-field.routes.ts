@@ -14,6 +14,7 @@ import {
   visitAnalyzeRequestSchema,
   visitAiAnswersBodySchema,
   visitAiRecommendBodySchema,
+  visitAiRejectBodySchema,
 } from '../../domain/ai-training/validators.js';
 
 const photoSchema = z.object({
@@ -254,6 +255,14 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const { aiCaseId } = request.params as { aiCaseId: string };
     const body = visitAiRecommendBodySchema.parse(request.body ?? {});
     const result = await visitAiOrchestratorService.recommend(aiCaseId, body.finalDiagnosis);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/reject`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const body = visitAiRejectBodySchema.parse(request.body);
+    const result = await visitAiOrchestratorService.rejectRecommendation(aiCaseId, body, admin.email);
     return reply.send({ ok: true, ...result });
   });
 

@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { partnerClient, tokens, type PartnerEarningsSummary } from '@morbeez/shared';
 import { AlertBox, Btn, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
+import { EarningsRangeFilter } from '@/components/EarningsRangeFilter';
 import { usePartnerAuth } from '@/context/PartnerAuth';
+import {
+  defaultEarningsRange,
+  formatRangeLabel,
+  type EarningsDateRange,
+} from '@/lib/earnings-date-range';
 
 function formatInr(n: number) {
   return `₹${n.toLocaleString('en-IN')}`;
@@ -12,16 +18,23 @@ function formatInr(n: number) {
 export default function ProfileScreen() {
   const { partner, logout } = usePartnerAuth();
   const router = useRouter();
+  const [range, setRange] = useState<EarningsDateRange>(defaultEarningsRange);
   const [earnings, setEarnings] = useState<PartnerEarningsSummary | null>(null);
   const [loadingEarnings, setLoadingEarnings] = useState(true);
   const [error, setError] = useState('');
 
-  const loadEarnings = useCallback(async () => {
+  const loadEarnings = useCallback(async (nextRange: EarningsDateRange) => {
+    setLoadingEarnings(true);
     setError('');
     try {
-      const summary = await partnerClient.getEarningsSummary();
+      const summary = await partnerClient.getEarningsSummary({
+        from: nextRange.from,
+        to: nextRange.to,
+      });
       setEarnings({
-        month: String(summary.month ?? ''),
+        month: summary.month != null ? String(summary.month) : null,
+        fromDate: summary.fromDate != null ? String(summary.fromDate) : nextRange.from,
+        toDate: summary.toDate != null ? String(summary.toDate) : nextRange.to,
         serviceRevenue: Number(summary.serviceRevenue ?? 0),
         productCommission: Number(summary.productCommission ?? 0),
         leadBonus: Number(summary.leadBonus ?? 0),
@@ -39,8 +52,17 @@ export default function ProfileScreen() {
   }, []);
 
   useEffect(() => {
-    void loadEarnings();
-  }, [loadEarnings]);
+    void loadEarnings(range);
+  }, [loadEarnings, range]);
+
+  function onRangeChange(next: EarningsDateRange) {
+    setRange(next);
+  }
+
+  const periodLabel =
+    earnings?.fromDate && earnings?.toDate
+      ? formatRangeLabel(String(earnings.fromDate), String(earnings.toDate))
+      : earnings?.month ?? formatRangeLabel(range.from, range.to);
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -53,12 +75,13 @@ export default function ProfileScreen() {
         <KeyValueRow label="Active farmers" value={String(partner?.currentActiveFarmers ?? 0)} />
       </Panel>
 
-      <Panel title="Earnings summary">
+      <View style={styles.panel}>
+        <EarningsRangeFilter title="Earnings summary" range={range} onChange={onRangeChange} />
         {loadingEarnings ? (
           <Loading label="Loading earnings…" />
         ) : earnings ? (
           <>
-            <KeyValueRow label="Month" value={earnings.month || '—'} />
+            <KeyValueRow label="Period" value={periodLabel} />
             <KeyValueRow label="Service revenue" value={formatInr(earnings.serviceRevenue)} />
             <KeyValueRow label="Product commission" value={formatInr(earnings.productCommission)} />
             <KeyValueRow label="Lead bonus" value={formatInr(earnings.leadBonus)} />
@@ -75,7 +98,7 @@ export default function ProfileScreen() {
         ) : (
           <Text style={styles.hint}>No earnings data yet.</Text>
         )}
-      </Panel>
+      </View>
 
       <Btn label="Referral QR" onPress={() => router.push('/referral')} variant="secondary" />
       <Btn label="Sign out" onPress={() => void logout()} variant="secondary" />
@@ -86,5 +109,13 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, gap: 8 },
+  panel: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radius,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: tokens.spacing.md,
+    marginBottom: tokens.spacing.md,
+  },
   hint: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
 });

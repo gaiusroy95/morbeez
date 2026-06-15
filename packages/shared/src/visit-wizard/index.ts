@@ -5,8 +5,26 @@ import type {
   MeasurementTemplate,
   SoilMoistureLevel,
   StructuredVisitIssueInput,
+  VisitAiCaseStatus,
   VisitPhotoInput,
+  VisitReviewSubStep,
 } from '../types/field-findings.js';
+import {
+  isRejectReviewIncomplete,
+  validateRejectReasonFlow,
+  VISIT_AI_REJECT_REASON_OPTIONS,
+  visitAiCaseStatusLabel,
+} from './reject-flow.js';
+
+export {
+  VISIT_AI_REJECT_REASON_OPTIONS,
+  validateRejectReasonFlow,
+  isRejectReviewIncomplete,
+  visitAiCaseStatusLabel,
+  defaultEvidenceQuestions,
+  buildCustomRecommendationText,
+} from './reject-flow.js';
+export type { RejectReasonValidationPayload } from './reject-flow.js';
 
 export type VisitWizardStep =
   | 'overview'
@@ -66,6 +84,8 @@ export type VisitIssueDraft = StructuredVisitIssueInput & {
   }>;
   similarCases?: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;
   agronomistReview?: StructuredVisitIssueInput['agronomistReview'];
+  reviewSubStep?: VisitReviewSubStep;
+  visitAiCaseStatus?: VisitAiCaseStatus | string;
 };
 
 export type VisitWizardValidationContext = {
@@ -142,6 +162,17 @@ export function validateVisitWizardStep(
     for (const issue of ctx.issues) {
       if (!issue.agronomistReview?.action) return 'Record a review decision for each issue.';
       const action = issue.agronomistReview.action;
+      if (isRejectReviewIncomplete(issue.agronomistReview)) {
+        return 'Complete the reject recommendation workflow before continuing.';
+      }
+      if (action === 'reject_recommendation' && issue.agronomistReview.rejectReason) {
+        const err = validateRejectReasonFlow(issue.agronomistReview.rejectReason, {
+          ...issue.agronomistReview,
+          finalRecommendation: issue.finalRecommendation,
+        });
+        if (err) return err;
+        continue;
+      }
       if (
         (action === 'correct_ai' || action === 'partial_match' || action === 'escalate_urgent') &&
         !issue.agronomistReview.modificationReason?.trim()

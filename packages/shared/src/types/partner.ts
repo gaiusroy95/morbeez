@@ -166,7 +166,9 @@ export type SalesOpportunity = {
 };
 
 export type PartnerEarningsSummary = {
-  month: string;
+  month: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
   serviceRevenue: number;
   productCommission: number;
   leadBonus: number;

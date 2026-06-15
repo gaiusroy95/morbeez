@@ -1,4 +1,7 @@
-import { Image, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Image, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+
+/** Wordmark height in green app bars (tabs + stack headers). */
+export const MORBEEZ_HEADER_LOGO_HEIGHT = 32;
 
 const LOGOS = {
   /** Light background — dark green wordmark */
@@ -28,9 +31,38 @@ export function MorbeezLogo({ variant = 'default', height = 44, style }: Props) 
   );
 }
 
+/** Logo for navigation headers on dark green bars. */
+export function HeaderMorbeezLogo({ style }: { style?: ViewStyle }) {
+  return <MorbeezLogo variant="onDark" height={MORBEEZ_HEADER_LOGO_HEIGHT} style={style} />;
+}
+
+/** Stack header title: logo + screen title (used across staff/farmer apps). */
+export function BrandedHeaderTitle({ title }: { title: string }) {
+  return (
+    <View style={styles.brandedRow}>
+      <HeaderMorbeezLogo />
+      <Text style={styles.brandedTitle} numberOfLines={1}>
+        {title}
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   wrap: {
     alignItems: 'flex-start',
     justifyContent: 'center',
+  },
+  brandedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    maxWidth: '100%',
+  },
+  brandedTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '600',
+    flexShrink: 1,
   },
 });

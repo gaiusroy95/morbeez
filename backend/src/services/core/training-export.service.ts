@@ -515,7 +515,7 @@ export const trainingExportService = {
         .select(
           `*, visit_ai_hypotheses(label, confidence, selected, image_prediction, image_confidence),
            visit_ai_questions(question_text, answer_type, answer, metadata),
-           visit_ai_recommendations(ai_text, human_text, review_action, review_after_days, recommendation_record_id),
+           visit_ai_recommendations(ai_text, human_text, review_action, review_after_days, recommendation_record_id, reject_reason, ai_recommendation_snapshot, ai_diagnosis_snapshot, ai_confidence_snapshot),
            crm_field_findings(
              visited_at, block_id, block_health, crop_performance, soil_moisture,
              visit_issues(id, issue_name, severity, observation, issue_photos(storage_path, photo_type)),

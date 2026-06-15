@@ -19,6 +19,7 @@ import {
   RECOMMENDATION_FOLLOWED,
   VISIT_FOLLOWUP_OUTCOMES,
   RECORD_SEVERITIES,
+  VISIT_AI_REJECT_REASONS,
 } from './enums.js';
 
 export const findingTypeSchema = z.enum(FINDING_TYPES);
@@ -104,6 +105,30 @@ export const agronomistReviewSchema = z.object({
   modificationReason: z.string().max(1000).optional(),
   agronomistConfidence: z.number().min(0).max(1).optional(),
   yieldRisk: z.string().max(200).optional(),
+  rejectReason: z.enum(VISIT_AI_REJECT_REASONS).optional(),
+  rejectNote: z.string().max(1000).optional(),
+  correctedDiagnosis: z.string().max(200).optional(),
+  evidenceRequest: z
+    .object({
+      photoTypes: z.array(z.string().max(80)).max(10),
+      questions: z.array(
+        z.object({
+          key: z.string().max(80),
+          text: z.string().max(500),
+          answer: z.string().max(200).optional(),
+        })
+      ),
+    })
+    .optional(),
+  customRecommendation: z
+    .object({
+      product: z.string().max(200),
+      dose: z.string().max(200),
+      method: z.string().max(500),
+      reviewDate: z.string().max(40).optional(),
+    })
+    .optional(),
+  rejectFlowComplete: z.boolean().optional(),
 });
 
 const visitIssueRecommendationSchema = z.object({
@@ -213,6 +238,54 @@ export const visitAiRecommendBodySchema = z.object({
   finalDiagnosis: z.string().max(200).optional(),
 });
 
+export const visitAiRejectBodySchema = z
+  .object({
+    reason: z.enum(VISIT_AI_REJECT_REASONS),
+    correctedDiagnosis: z.string().max(200).optional(),
+    rejectNote: z.string().max(1000).optional(),
+    editedRecommendation: z.string().max(8000).optional(),
+    evidenceRequest: z
+      .object({
+        photoTypes: z.array(z.string().max(80)).min(1).max(10),
+        questions: z.array(
+          z.object({
+            key: z.string().max(80),
+            text: z.string().max(500),
+            answer: z.string().max(200),
+          })
+        ),
+      })
+      .optional(),
+    customRecommendation: z
+      .object({
+        product: z.string().min(1).max(200),
+        dose: z.string().min(1).max(200),
+        method: z.string().min(1).max(500),
+        reviewDate: z.string().max(40).optional(),
+      })
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.reason === 'wrong_diagnosis' && !data.correctedDiagnosis?.trim()) {
+      ctx.addIssue({ code: 'custom', message: 'correctedDiagnosis required', path: ['correctedDiagnosis'] });
+    }
+    if (data.reason === 'need_more_evidence' && !data.evidenceRequest) {
+      ctx.addIssue({ code: 'custom', message: 'evidenceRequest required', path: ['evidenceRequest'] });
+    }
+    if (data.reason === 'recommendation_not_suitable') {
+      if (!data.rejectNote?.trim()) {
+        ctx.addIssue({ code: 'custom', message: 'rejectNote required', path: ['rejectNote'] });
+      }
+      if (!data.editedRecommendation?.trim()) {
+        ctx.addIssue({ code: 'custom', message: 'editedRecommendation required', path: ['editedRecommendation'] });
+      }
+    }
+    if (data.reason === 'custom_recommendation' && !data.customRecommendation) {
+      ctx.addIssue({ code: 'custom', message: 'customRecommendation required', path: ['customRecommendation'] });
+    }
+  });
+
 export type StructuredFieldVisitInput = z.infer<typeof structuredFieldVisitSchema>;
 export type VisitAnalyzeRequest = z.infer<typeof visitAnalyzeRequestSchema>;
 export type VisitAiAnswersBody = z.infer<typeof visitAiAnswersBodySchema>;
+export type VisitAiRejectBody = z.infer<typeof visitAiRejectBodySchema>;

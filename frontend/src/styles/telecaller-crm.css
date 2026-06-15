@@ -5537,3 +5537,98 @@
   background: #fffbeb;
   color: #b45309;
 }
+
+.tc-sidebar-card--partner {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa 0%, #fff 100%);
+}
+
+.tc-kv-mini {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.tc-kv-mini div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.tc-kv-mini dt {
+  color: #64748b;
+}
+
+.tc-kv-mini dd {
+  margin: 0;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+}
+
+.tc-link-btn {
+  margin-top: 10px;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f766e;
+  cursor: pointer;
+}
+
+.tc-team-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tc-team-hint {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tc-team-compose {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid #e8edf2;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.tc-team-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tc-team-entry {
+  border: 1px solid #e8edf2;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.tc-team-entry-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.tc-team-entry p {
+  margin: 0;
+  font-size: 13px;
+  color: #334155;
+  white-space: pre-wrap;
+}

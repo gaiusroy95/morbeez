@@ -1,8 +1,8 @@
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { t, tokens } from '@morbeez/shared';
-import { MorbeezLogo } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MorbeezLogo } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { OfflineProvider } from '@/context/OfflineContext';
@@ -10,15 +10,6 @@ import { ShopCartProvider } from '@/context/ShopCartContext';
 import { RoiFilterProvider } from '@/context/RoiFilterContext';
 import { HomeDashboardProvider } from '@/context/HomeDashboardContext';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-
-function BrandedHeaderTitle({ title }: { title: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <MorbeezLogo variant="onDark" height={20} />
-      <Text style={{ color: '#fff', fontSize: 17, fontWeight: '600' }}>{title}</Text>
-    </View>
-  );
-}
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { ready, authed } = useFarmerAuth();

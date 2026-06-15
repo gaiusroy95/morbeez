@@ -9,7 +9,7 @@ export type TrainingReviewSurface =
   | 'field_finding'
   | 'image_review';
 
-export type TrainingHumanAction = ReviewAction | FarmerFeedbackDecision | ImageReviewAction;
+export type TrainingHumanAction = ReviewAction | FarmerFeedbackDecision | ImageReviewAction | 'reject_recommendation';
 
 export type RecordTrainingEventInput = {
   farmerId: string;

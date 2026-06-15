@@ -66,8 +66,68 @@ export const AGRONOMIST_REVIEW_ACTIONS = [
   'correct_ai',
   'partial_match',
   'escalate_urgent',
+  'reject_recommendation',
 ] as const;
 export type AgronomistReviewAction = (typeof AGRONOMIST_REVIEW_ACTIONS)[number];
+
+export const VISIT_AI_REJECT_REASONS = [
+  'wrong_diagnosis',
+  'need_more_evidence',
+  'recommendation_not_suitable',
+  'custom_recommendation',
+] as const;
+export type VisitAiRejectReason = (typeof VISIT_AI_REJECT_REASONS)[number];
+
+export const VISIT_AI_CASE_STATUSES = [
+  'draft',
+  'analyzed',
+  'qa_complete',
+  'recommended',
+  'reviewed',
+  'submitted',
+  'ai_suggested',
+  'under_review',
+  'need_more_evidence',
+  'waiting_farmer_response',
+  'diagnosis_confirmed',
+  'recommendation_confirmed',
+  'closed',
+] as const;
+export type VisitAiCaseStatus = (typeof VISIT_AI_CASE_STATUSES)[number];
+
+export type VisitReviewSubStep = 'decision' | 'reject_reason' | 'reject_flow';
+
+export type VisitAiEvidenceQuestion = {
+  key: string;
+  text: string;
+  answer?: string;
+};
+
+export type VisitAiEvidenceRequest = {
+  photoTypes: string[];
+  questions: VisitAiEvidenceQuestion[];
+};
+
+export type VisitAiCustomRecommendation = {
+  product: string;
+  dose: string;
+  method: string;
+  reviewDate?: string;
+};
+
+export const VISIT_AI_EVIDENCE_PHOTO_TYPES = [
+  'whole_plant',
+  'lower_leaf',
+  'root_rhizome',
+  'field_view',
+] as const;
+
+export const VISIT_AI_EVIDENCE_PHOTO_LABELS: Record<(typeof VISIT_AI_EVIDENCE_PHOTO_TYPES)[number], string> = {
+  whole_plant: 'Whole Plant Photo',
+  lower_leaf: 'Lower Leaf Photo',
+  root_rhizome: 'Root/Rhizome Photo',
+  field_view: 'Field View',
+};
 
 export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'] as const;
 export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
@@ -117,6 +177,12 @@ export type VisitAgronomistReview = {
   modificationReason?: string;
   agronomistConfidence?: number;
   yieldRisk?: string;
+  rejectReason?: VisitAiRejectReason;
+  rejectNote?: string;
+  correctedDiagnosis?: string;
+  evidenceRequest?: VisitAiEvidenceRequest;
+  customRecommendation?: VisitAiCustomRecommendation;
+  rejectFlowComplete?: boolean;
 };
 
 export type VisitPhotoInput = {

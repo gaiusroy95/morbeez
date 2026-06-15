@@ -180,20 +180,33 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
 
     partnerApp.get(`${api}/earnings/summary`, async (request, reply) => {
       const partner = await requirePartner(request);
+      const q = z
+        .object({
+          from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+        })
+        .parse(request.query ?? {});
       const { partnerEarningsService } = await import(
         '../../services/partner/partner-earnings.service.js'
       );
-      const summary = await partnerEarningsService.getSummary(partner.id);
+      const summary = await partnerEarningsService.getSummary(partner.id, q);
       return reply.send({ ok: true, summary });
     });
 
     partnerApp.get(`${api}/earnings/ledger`, async (request, reply) => {
       const partner = await requirePartner(request);
-      const q = request.query as { month?: string };
+      const q = z
+        .object({
+          month: z.string().regex(/^\d{4}-\d{2}$/).optional(),
+          from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+          to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        })
+        .parse(request.query ?? {});
       const { partnerEarningsService } = await import(
         '../../services/partner/partner-earnings.service.js'
       );
-      const ledger = await partnerEarningsService.listLedger(partner.id, q.month);
+      const ledger = await partnerEarningsService.listLedger(partner.id, q);
       return reply.send({ ok: true, ledger });
     });
 

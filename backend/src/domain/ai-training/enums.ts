@@ -37,8 +37,17 @@ export const REVIEW_ACTIONS = [
   'correct_ai',
   'partial_match',
   'escalate_urgent',
+  'reject_recommendation',
 ] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
+
+export const VISIT_AI_REJECT_REASONS = [
+  'wrong_diagnosis',
+  'need_more_evidence',
+  'recommendation_not_suitable',
+  'custom_recommendation',
+] as const;
+export type VisitAiRejectReason = (typeof VISIT_AI_REJECT_REASONS)[number];
 
 /** Farmer feedback review decisions */
 export const FARMER_FEEDBACK_DECISIONS = ['approved', 'rejected', 'partial'] as const;

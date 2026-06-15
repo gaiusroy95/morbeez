@@ -31,6 +31,9 @@ import type {
   VisitAiContextPack,
   VisitAnalyzeResponse,
   VisitAiQuestion,
+  VisitAiCustomRecommendation,
+  VisitAiEvidenceRequest,
+  VisitAiRejectReason,
 } from '../types/field-findings';
 import type { FarmerCallLogSummary, FarmerInteractionRow } from '../types/interactions';
 import type { CultivationActivity } from '../types/activities';
@@ -504,6 +507,33 @@ export const agronomistClient = {
     }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/recommend`, {
       method: 'POST',
       body: JSON.stringify({ finalDiagnosis }),
+    });
+  },
+
+  async rejectVisitAiRecommendation(
+    aiCaseId: string,
+    body: {
+      reason: VisitAiRejectReason;
+      correctedDiagnosis?: string;
+      rejectNote?: string;
+      editedRecommendation?: string;
+      evidenceRequest?: VisitAiEvidenceRequest;
+      customRecommendation?: VisitAiCustomRecommendation;
+    }
+  ) {
+    return staffApi<{
+      ok: boolean;
+      status: string;
+      finalDiagnosis?: string;
+      finalRecommendation?: string;
+      dosage?: string | null;
+      reviewAfterDays?: number;
+      reviewAction?: string;
+      whatsappSent?: boolean;
+      customRecommendation?: VisitAiCustomRecommendation;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(body),
     });
   },
 

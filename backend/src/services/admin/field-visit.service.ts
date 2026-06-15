@@ -340,7 +340,12 @@ export const fieldVisitService = {
           : new Date(Date.now() + (rec.reviewAfterDays ?? issue.reviewAfterDays ?? 7) * 86400000);
         const shouldApprove =
           !partnerId &&
-          (reviewAction === 'approve_ai' || reviewAction === 'correct_ai');
+          (reviewAction === 'approve_ai' ||
+            reviewAction === 'correct_ai' ||
+            reviewAction === 'partial_match' ||
+            (reviewAction === 'reject_recommendation' &&
+              issue.agronomistReview?.rejectFlowComplete &&
+              issue.agronomistReview.rejectReason !== 'need_more_evidence'));
         const recStatus = partnerId ? 'draft' : shouldApprove ? 'approved' : 'draft';
         const row = await recommendationRecordsService.create({
           farmerId: input.farmerId,
@@ -466,11 +471,20 @@ export const fieldVisitService = {
     }
 
     if (!partnerId && input.sendVisitSummary !== false) {
-      const approvedIssues = input.issues.filter(
-        (i) =>
+      const approvedIssues = input.issues.filter((i) => {
+        if (i.agronomistReview?.rejectReason === 'need_more_evidence') return false;
+        if (i.agronomistReview?.action === 'reject_recommendation' && !i.agronomistReview.rejectFlowComplete) {
+          return false;
+        }
+        return (
           i.agronomistReview?.action === 'approve_ai' ||
-          i.agronomistReview?.action === 'correct_ai'
-      );
+          i.agronomistReview?.action === 'correct_ai' ||
+          i.agronomistReview?.action === 'partial_match' ||
+          (i.agronomistReview?.action === 'reject_recommendation' &&
+            i.agronomistReview.rejectFlowComplete &&
+            i.agronomistReview.rejectReason !== 'need_more_evidence')
+        );
+      });
       if (approvedIssues.length) {
         const earliestReview = approvedIssues
           .map((i) => i.reviewAfterDays ?? 7)

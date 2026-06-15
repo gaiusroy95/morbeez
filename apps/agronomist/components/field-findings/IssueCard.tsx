@@ -15,6 +15,8 @@ import {
   type StructuredVisitIssueInput,
   type VisitAiHypothesis,
   type VisitAiQuestion,
+  type VisitReviewSubStep,
+  type VisitAiCaseStatus,
   type RecommendationPriority,
 } from '@morbeez/shared';
 import { Btn, DynamicSelect, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
@@ -53,6 +55,8 @@ export type IssueDraft = StructuredVisitIssueInput & {
   skipFollowUpOptional?: boolean;
   qaSkipped?: boolean;
   imageSignal?: { label: string; confidence: number };
+  reviewSubStep?: VisitReviewSubStep;
+  visitAiCaseStatus?: VisitAiCaseStatus | string;
 };
 
 type Props = {

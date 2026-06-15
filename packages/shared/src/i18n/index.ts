@@ -24,6 +24,3 @@ export function formatDateInLocale(date: string | Date, locale: AppLocale = 'en'
   if (Number.isNaN(d.getTime())) return '—';
   return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
 }
-
-export type { LocaleState, LocaleProviderOptions } from './locale-context';
-export { createLocaleProvider } from './locale-context';

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
-import { MorbeezLogo } from './MorbeezLogo';
+import { HeaderMorbeezLogo } from './MorbeezLogo';
 
 /** Android 3-button / gesture nav bar — use when insets.bottom is 0 on real devices. */
 export const ANDROID_NAV_BAR_MIN = 48;
@@ -88,9 +88,7 @@ export function useMobileTabScreenOptions() {
     headerStyle: { backgroundColor: tokens.green800 },
     headerTintColor: '#fff' as const,
     headerTitleStyle: { fontWeight: '600' as const },
-    headerLeft: () => (
-      <MorbeezLogo variant="onDark" height={22} style={{ marginLeft: 12 }} />
-    ),
+    headerLeft: () => <HeaderMorbeezLogo style={{ marginLeft: 12 }} />,
     tabBarActiveTintColor: tokens.green700,
     tabBarInactiveTintColor: tokens.textMuted,
     tabBarStyle,

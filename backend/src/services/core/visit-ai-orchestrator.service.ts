@@ -4,10 +4,8 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { resolveConfidenceAction } from '../../domain/ai-training/confidence-routing.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
-import type {
-  VisitAnalyzeRequest,
-  VisitAiAnswersBody,
-} from '../../domain/ai-training/validators.js';
+import type { VisitAiRejectBody } from '../../domain/ai-training/validators.js';
+import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
@@ -196,6 +194,71 @@ Return JSON {"hypotheses":[{"label":"...","confidence":0.0-1.0,"rationale":"..."
   }
 
   return [primary, ...fromSimilar].slice(0, 4);
+}
+
+async function getLatestRecommendation(aiCaseId: string) {
+  const { data } = await supabase
+    .from('visit_ai_recommendations')
+    .select('*')
+    .eq('visit_ai_case_id', aiCaseId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data;
+}
+
+async function recordRejectTrainingEvent(params: {
+  caseRow: Record<string, unknown>;
+  reason: VisitAiRejectReason;
+  agronomistEmail: string;
+  aiDiagnosis: string;
+  aiConfidence: number | null;
+  aiRecommendation: string;
+  humanFinalLabel?: string;
+}) {
+  const { aiTrainingEventService } = await import('./ai-training-event.service.js');
+  void aiTrainingEventService.record({
+    farmerId: String(params.caseRow.farmer_id),
+    blockId: String(params.caseRow.block_id),
+    fieldFindingId: params.caseRow.field_finding_id ? String(params.caseRow.field_finding_id) : null,
+    source: 'field_visit',
+    reviewSurface: 'field_finding',
+    aiPrediction: params.aiDiagnosis,
+    aiConfidence: params.aiConfidence,
+    humanAction: 'reject_recommendation',
+    humanFinalLabel: params.humanFinalLabel ?? params.aiDiagnosis,
+    correctionReason: params.reason,
+    reviewedBy: params.agronomistEmail,
+    metadata: {
+      agronomistAction: 'rejected',
+      rejectReason: params.reason,
+      aiDiagnosis: params.aiDiagnosis,
+      aiConfidence: params.aiConfidence,
+      aiRecommendation: params.aiRecommendation,
+    },
+  });
+}
+
+async function snapshotRecommendationReject(
+  recRow: Record<string, unknown> | null,
+  caseRow: Record<string, unknown>,
+  reason: VisitAiRejectReason
+) {
+  if (!recRow) return;
+  const aiDiagnosis =
+    (caseRow.final_diagnosis ? String(caseRow.final_diagnosis) : null) ||
+    (caseRow.selected_hypothesis_label ? String(caseRow.selected_hypothesis_label) : String(caseRow.issue_name));
+  await supabase
+    .from('visit_ai_recommendations')
+    .update({
+      reject_reason: reason,
+      ai_diagnosis_snapshot: aiDiagnosis,
+      ai_confidence_snapshot: caseRow.final_confidence != null ? Number(caseRow.final_confidence) : null,
+      ai_recommendation_snapshot: recRow.ai_text ? String(recRow.ai_text) : null,
+      review_action: 'reject_recommendation',
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', recRow.id);
 }
 
 async function getCaseOrThrow(caseId: string) {
@@ -763,13 +826,167 @@ export const visitAiOrchestratorService = {
     return action;
   },
 
+  async rejectRecommendation(aiCaseId: string, body: VisitAiRejectBody, agronomistEmail: string) {
+    const caseRow = await getCaseOrThrow(aiCaseId);
+    const recRow = await getLatestRecommendation(aiCaseId);
+    const aiDiagnosis =
+      (caseRow.final_diagnosis ? String(caseRow.final_diagnosis) : null) ||
+      (caseRow.selected_hypothesis_label ? String(caseRow.selected_hypothesis_label) : String(caseRow.issue_name));
+    const aiRecommendation = recRow?.ai_text ? String(recRow.ai_text) : '';
+    const aiConfidence = caseRow.final_confidence != null ? Number(caseRow.final_confidence) : null;
+
+    await snapshotRecommendationReject(recRow, caseRow, body.reason);
+    await recordRejectTrainingEvent({
+      caseRow,
+      reason: body.reason,
+      agronomistEmail,
+      aiDiagnosis,
+      aiConfidence,
+      aiRecommendation,
+      humanFinalLabel: body.correctedDiagnosis ?? body.editedRecommendation ?? aiDiagnosis,
+    });
+
+    if (body.reason === 'wrong_diagnosis') {
+      const corrected = body.correctedDiagnosis!.trim();
+      await supabase
+        .from('visit_ai_cases')
+        .update({
+          final_diagnosis: corrected,
+          selected_hypothesis_label: corrected,
+          status: 'diagnosis_confirmed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', aiCaseId);
+      const rec = await this.recommend(aiCaseId, corrected);
+      if (recRow) {
+        await supabase
+          .from('visit_ai_recommendations')
+          .update({
+            human_text: rec.text,
+            modification_reason: `Wrong diagnosis corrected to: ${corrected}`,
+            review_action: 'correct_ai',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', recRow.id);
+      }
+      return {
+        status: 'diagnosis_confirmed' as const,
+        finalDiagnosis: corrected,
+        finalRecommendation: rec.text,
+        dosage: rec.dosage,
+        reviewAfterDays: rec.reviewAfterDays,
+        reviewAction: 'correct_ai' as const,
+      };
+    }
+
+    if (body.reason === 'need_more_evidence') {
+      const { recommendationCommunicationService } = await import(
+        './recommendation-communication.service.js'
+      );
+      const sendResult = await recommendationCommunicationService.sendEvidenceRequest({
+        farmerId: String(caseRow.farmer_id),
+        blockId: String(caseRow.block_id),
+        diagnosis: aiDiagnosis,
+        photoTypes: body.evidenceRequest!.photoTypes,
+        questions: body.evidenceRequest!.questions,
+      });
+      await supabase.from('visit_ai_evidence_requests').insert({
+        visit_ai_case_id: aiCaseId,
+        photo_types: body.evidenceRequest!.photoTypes,
+        questions: body.evidenceRequest!.questions,
+        whatsapp_message_id: sendResult.messageId ?? null,
+        status: sendResult.sent ? 'sent' : 'pending',
+        sent_at: sendResult.sent ? new Date().toISOString() : null,
+      });
+      await supabase
+        .from('visit_ai_cases')
+        .update({
+          status: 'waiting_farmer_response',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', aiCaseId);
+      return {
+        status: 'waiting_farmer_response' as const,
+        whatsappSent: sendResult.sent,
+        reviewAction: 'reject_recommendation' as const,
+      };
+    }
+
+    if (body.reason === 'recommendation_not_suitable') {
+      const edited = body.editedRecommendation!.trim();
+      await supabase
+        .from('visit_ai_cases')
+        .update({
+          status: 'recommendation_confirmed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', aiCaseId);
+      if (recRow) {
+        await supabase
+          .from('visit_ai_recommendations')
+          .update({
+            human_text: edited,
+            modification_reason: body.rejectNote ?? 'Recommendation not suitable',
+            review_action: 'partial_match',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', recRow.id);
+      }
+      return {
+        status: 'recommendation_confirmed' as const,
+        finalRecommendation: edited,
+        reviewAction: 'partial_match' as const,
+      };
+    }
+
+    const custom = body.customRecommendation!;
+    const customText = [
+      custom.product.trim(),
+      `Dose: ${custom.dose.trim()}`,
+      `Method: ${custom.method.trim()}`,
+      custom.reviewDate ? `Review date: ${custom.reviewDate}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+    await supabase
+      .from('visit_ai_cases')
+      .update({
+        status: 'recommendation_confirmed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', aiCaseId);
+    if (recRow) {
+      await supabase
+        .from('visit_ai_recommendations')
+        .update({
+          human_text: customText,
+          dosage: custom.dose.trim(),
+          modification_reason: `Custom recommendation: ${custom.product.trim()}`,
+          review_action: 'correct_ai',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', recRow.id);
+    }
+    return {
+      status: 'recommendation_confirmed' as const,
+      finalRecommendation: customText,
+      dosage: custom.dose.trim(),
+      reviewAction: 'correct_ai' as const,
+      customRecommendation: custom,
+    };
+  },
+
   async linkCaseToVisitIssue(aiCaseId: string, fieldFindingId: string, visitIssueId: string) {
+    const caseRow = await getCaseOrThrow(aiCaseId);
+    const keepStatus =
+      String(caseRow.status) === 'waiting_farmer_response' ||
+      String(caseRow.status) === 'need_more_evidence';
     await supabase
       .from('visit_ai_cases')
       .update({
         field_finding_id: fieldFindingId,
         visit_issue_id: visitIssueId,
-        status: 'submitted',
+        ...(keepStatus ? {} : { status: 'submitted' }),
         updated_at: new Date().toISOString(),
       })
       .eq('id', aiCaseId);

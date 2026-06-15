@@ -29,5 +29,4 @@ export * from './block-health';
 export * from './api/roi-helpers';
 export { buildTaxInvoiceHtml, TAX_INVOICE_CSS } from './print/tax-invoice-html';
 export type { TaxInvoiceCompany, TaxInvoiceRenderOptions } from './print/tax-invoice-html';
-export { createStaffAuth } from './auth/staff-auth-context';
 export * from './visit-wizard/index';

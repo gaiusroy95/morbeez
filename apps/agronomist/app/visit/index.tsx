@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   agronomistClient,
+  validateVisitWizardStep,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueMasterRow,
@@ -187,52 +188,14 @@ export default function VisitScreen() {
   }
 
   function validateStep(current: VisitWizardStep): string | null {
-    if (current === 'measurements') {
-      for (const tpl of templates) {
-        if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
-          return `Required measurement: ${tpl.labelEn}`;
-        }
-      }
-    }
-    if (current === 'issues') {
-      if (!issues.length) return 'Add at least one issue.';
-      for (const issue of issues) {
-        if (!issue.issueName.trim()) return 'Each issue needs a name.';
-      }
-    }
-    if (current === 'aiAnalysis') {
-      for (const issue of issues) {
-        if (!issue.aiCaseId) return 'Wait for AI analysis to complete.';
-        if (!issue.finalDiagnosis?.trim()) return 'Select a primary hypothesis for each issue.';
-      }
-    }
-    if (current === 'followUp') {
-      for (const issue of issues) {
-        if (issue.qaSkipped || issue.skipFollowUpOptional) continue;
-        const qs = issue.followUpQuestions ?? [];
-        if (qs.length && qs.some((q) => !q.answer?.trim())) {
-          return 'Answer all follow-up questions, skip Q&A, or tap update diagnosis.';
-        }
-      }
-    }
-    if (current === 'recommendation') {
-      for (const issue of issues) {
-        if (!issue.finalRecommendation?.trim()) return 'Each issue needs a recommendation draft.';
-      }
-    }
-    if (current === 'review') {
-      for (const issue of issues) {
-        if (!issue.agronomistReview?.action) return 'Record a review decision for each issue.';
-        const action = issue.agronomistReview.action;
-        if (
-          (action === 'correct_ai' || action === 'partial_match' || action === 'escalate_urgent') &&
-          !issue.agronomistReview.modificationReason?.trim()
-        ) {
-          return 'Provide a reason when modifying or rejecting AI output.';
-        }
-      }
-    }
-    return null;
+    return validateVisitWizardStep(current, {
+      templates,
+      measurements,
+      issues,
+      blockHealth,
+      cropPerformance,
+      soilMoisture,
+    });
   }
 
   function goNext() {

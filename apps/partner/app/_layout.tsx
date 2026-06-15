@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
+import { BrandedHeaderTitle } from '@morbeez/ui-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { PartnerAuthProvider, usePartnerAuth } from '@/context/PartnerAuth';
@@ -48,9 +49,9 @@ export default function RootLayout() {
                 <Stack.Screen name="index" options={{ headerShown: false }} />
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen name="referral" options={{ title: 'Referral QR' }} />
-                <Stack.Screen name="farmer/[farmerId]/index" options={{ title: 'Farmer' }} />
-                <Stack.Screen name="visit/index" options={{ title: 'Field visit' }} />
+                <Stack.Screen name="referral" options={{ headerTitle: () => <BrandedHeaderTitle title="Referral QR" /> }} />
+                <Stack.Screen name="farmer/[farmerId]/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Farmer" /> }} />
+                <Stack.Screen name="visit/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Field visit" /> }} />
               </Stack>
             </Gate>
           </PartnerAuthProvider>

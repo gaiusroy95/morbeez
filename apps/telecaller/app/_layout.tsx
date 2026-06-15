@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
+import { BrandedHeaderTitle } from '@morbeez/ui-native';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
 import { TelecallerDashboardProvider } from '@/context/TelecallerDashboardContext';
@@ -44,10 +45,10 @@ function RootStack() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="lead/[leadId]/index" options={{ title: 'Farmer workspace' }} />
-      <Stack.Screen name="lead/[leadId]/call/[callId]" options={{ title: 'Call detail' }} />
-      <Stack.Screen name="lead/[leadId]/block/[blockId]" options={{ title: 'Block workspace' }} />
-      <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
+      <Stack.Screen name="lead/[leadId]/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Farmer workspace" /> }} />
+      <Stack.Screen name="lead/[leadId]/call/[callId]" options={{ headerTitle: () => <BrandedHeaderTitle title="Call detail" /> }} />
+      <Stack.Screen name="lead/[leadId]/block/[blockId]" options={{ headerTitle: () => <BrandedHeaderTitle title="Block workspace" /> }} />
+      <Stack.Screen name="change-password" options={{ headerTitle: () => <BrandedHeaderTitle title="Change password" /> }} />
     </Stack>
   );
 }

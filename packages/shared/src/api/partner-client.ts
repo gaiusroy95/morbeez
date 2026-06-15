@@ -239,15 +239,24 @@ export const partnerClient = {
     return r.opportunities ?? [];
   },
 
-  async getEarningsSummary() {
+  async getEarningsSummary(params?: { from?: string; to?: string; month?: string }) {
+    const search = new URLSearchParams();
+    if (params?.from) search.set('from', params.from);
+    if (params?.to) search.set('to', params.to);
+    if (params?.month) search.set('month', params.month);
+    const q = search.toString() ? `?${search.toString()}` : '';
     const r = await partnerApi<{ ok: boolean; summary: Record<string, unknown> }>(
-      '/earnings/summary'
+      `/earnings/summary${q}`
     );
     return r.summary;
   },
 
-  async getEarningsLedger(month?: string) {
-    const q = month ? `?month=${encodeURIComponent(month)}` : '';
+  async getEarningsLedger(params?: { month?: string; from?: string; to?: string }) {
+    const search = new URLSearchParams();
+    if (params?.month) search.set('month', params.month);
+    if (params?.from) search.set('from', params.from);
+    if (params?.to) search.set('to', params.to);
+    const q = search.toString() ? `?${search.toString()}` : '';
     const r = await partnerApi<{ ok: boolean; ledger: Record<string, unknown>[] }>(
       `/earnings/ledger${q}`
     );

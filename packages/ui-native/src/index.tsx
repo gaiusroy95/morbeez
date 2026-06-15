@@ -10,10 +10,10 @@ import {
 } from 'react-native';
 import { tokens, t, type AppLocale } from '@morbeez/shared';
 import { APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
-import { MorbeezLogo } from './MorbeezLogo';
+import { HeaderMorbeezLogo } from './MorbeezLogo';
 import { androidPressHandlers } from './mobile-nav';
 
-export { MorbeezLogo } from './MorbeezLogo';
+export { MorbeezLogo, HeaderMorbeezLogo, BrandedHeaderTitle, MORBEEZ_HEADER_LOGO_HEIGHT } from './MorbeezLogo';
 export {
   androidPressHandlers,
   ANDROID_NAV_BAR_MIN,
@@ -76,7 +76,7 @@ export function appHeaderScreenOptions(title?: string) {
     headerTintColor: '#fff' as const,
     headerTitle: title ?? '',
     headerTitleStyle: { fontWeight: '600' as const },
-    headerLeft: () => <MorbeezLogo variant="onDark" height={22} style={{ marginLeft: 12 }} />,
+    headerLeft: () => <HeaderMorbeezLogo style={{ marginLeft: 12 }} />,
   };
 }
 

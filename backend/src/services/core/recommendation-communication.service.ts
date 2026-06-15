@@ -200,4 +200,52 @@ export const recommendationCommunicationService = {
     await whatsappService.sendText(phone, lines.join('\n').slice(0, 4000));
     return { sent: true };
   },
+
+  async sendEvidenceRequest(params: {
+    farmerId: string;
+    blockId: string;
+    diagnosis: string;
+    photoTypes: string[];
+    questions: Array<{ key: string; text: string; answer?: string }>;
+  }): Promise<{ sent: boolean; reason?: string; messageId?: string }> {
+    const { data: farmer } = await supabase
+      .from('farmers')
+      .select('phone, preferred_language')
+      .eq('id', params.farmerId)
+      .maybeSingle();
+    const phone = farmer?.phone?.trim();
+    if (!phone) return { sent: false, reason: 'no_phone' };
+    if (!env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PROVIDER === 'cloud') {
+      return { sent: false, reason: 'whatsapp_not_configured' };
+    }
+
+    const photoLabels: Record<string, string> = {
+      whole_plant: 'Whole plant photo',
+      lower_leaf: 'Lower leaf photo',
+      root_rhizome: 'Root/rhizome photo',
+      field_view: 'Field view photo',
+    };
+    const photoLines = params.photoTypes.map((t) => `• ${photoLabels[t] ?? t}`);
+    const questionLines = params.questions.map((q) => {
+      const ans = q.answer?.trim() ? ` (${q.answer})` : '';
+      return `• ${q.text}${ans}`;
+    });
+
+    const text = [
+      '📸 *More information needed*',
+      '',
+      `Our agronomist is reviewing *${params.diagnosis}* on your field.`,
+      '',
+      '*Please send these photos:*',
+      ...photoLines,
+      '',
+      '*Please confirm:*',
+      ...questionLines,
+      '',
+      '_Reply with photos and answers on WhatsApp. Thank you!_',
+    ].join('\n');
+
+    const result = await whatsappService.sendText(phone, text.slice(0, 4000));
+    return { sent: true, messageId: typeof result === 'object' && result && 'id' in result ? String((result as { id?: string }).id) : undefined };
+  },
 };

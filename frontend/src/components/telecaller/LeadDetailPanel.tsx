@@ -28,6 +28,7 @@ import { Modal } from '../Modal';
 import { StaticSelect } from '../ui';
 import { CallIntelligencePanel } from './CallIntelligencePanel';
 import { LeadTimelineFeed } from './LeadTimelineFeed';
+import { TelecallerLeadTeamPanel } from './TelecallerLeadTeamPanel';
 
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
@@ -58,6 +59,7 @@ type Tab =
   | 'pending_tasks'
   | 'escalations'
   | 'notes'
+  | 'team'
   | 'orders'
   | 'roi_tracker'
   | 'field_activity';
@@ -77,6 +79,11 @@ type LeadDetail = {
     leadScore: number;
     notes: string | null;
     assignedTo?: string | null;
+    serviceModel?: string | null;
+    assignedPartnerId?: string | null;
+    assignedPartnerName?: string | null;
+    ownership?: string | null;
+    enrollmentSource?: string | null;
     lastInteractionLabel?: string | null;
     leadChannel?: string | null;
     campaignSource?: string | null;
@@ -127,6 +134,7 @@ const LEAD_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'agronomist', label: 'Agronomist' },
   { id: 'agronomist_tasks', label: 'Agronomist tasks' },
   { id: 'pending_tasks', label: 'Pending tasks' },
+  { id: 'team', label: 'Team' },
   { id: 'escalations', label: 'Escalations' },
   { id: 'notes', label: 'Notes' },
   { id: 'orders', label: 'Orders' },
@@ -143,6 +151,7 @@ const TAB_ICONS: Record<Tab, string> = {
   agronomist: '🧑‍🌾',
   agronomist_tasks: '📋',
   pending_tasks: '⏰',
+  team: '👥',
   escalations: '⚠',
   notes: '📝',
   orders: '🛒',
@@ -154,7 +163,9 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
   const visibleTabs = useMemo(
     () =>
       variant === 'agronomist'
-        ? LEAD_TABS.filter((t) => !['orders', 'roi_tracker', 'whatsapp', 'interactions'].includes(t.id))
+        ? LEAD_TABS.filter(
+            (t) => !['orders', 'roi_tracker', 'whatsapp', 'interactions', 'team'].includes(t.id)
+          )
         : LEAD_TABS,
     [variant]
   );
@@ -852,6 +863,35 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                   )}
                 </article>
 
+                <article className="tc-sidebar-card tc-sidebar-card--partner">
+                  <h3>Partner program</h3>
+                  <dl className="tc-kv-mini">
+                    <div>
+                      <dt>Service model</dt>
+                      <dd>{l.serviceModel?.replace(/_/g, ' ') ?? 'remote advisory'}</dd>
+                    </div>
+                    <div>
+                      <dt>Assigned partner</dt>
+                      <dd>{l.assignedPartnerName ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Ownership</dt>
+                      <dd>{l.ownership ?? 'Morbeez'}</dd>
+                    </div>
+                    {l.enrollmentSource ? (
+                      <div>
+                        <dt>Enrollment</dt>
+                        <dd>{l.enrollmentSource}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  {l.assignedPartnerName ? (
+                    <button type="button" className="tc-link-btn" onClick={() => setTab('team')}>
+                      Open team discussion →
+                    </button>
+                  ) : null}
+                </article>
+
                 <article className="tc-sidebar-card">
                   <h3>Marketing attribution</h3>
                   {canWrite ? (
@@ -1140,6 +1180,10 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
           />
         ) : null}
 
+        {tab === 'team' ? (
+          <TelecallerLeadTeamPanel leadId={leadId} canWrite={canWrite} />
+        ) : null}
+
         {tab === 'escalations' ? (
           <>
             <p className="mb-3 text-xs text-slate-500">
@@ -1407,6 +1451,7 @@ function ActionBtn({ children, onClick }: { children: ReactNode; onClick: () => 
 
 function categoryBadgeClass(category: string): string {
   const c = category.toLowerCase();
+  if (c.includes('partner')) return 'bg-teal-100 text-teal-900';
   if (c.includes('escalation')) return 'bg-red-100 text-red-800';
   if (c.includes('ai')) return 'bg-violet-100 text-violet-800';
   if (c.includes('field')) return 'bg-emerald-100 text-emerald-800';
