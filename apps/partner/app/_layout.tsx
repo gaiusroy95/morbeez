@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { PartnerAuthProvider, usePartnerAuth } from '@/context/PartnerAuth';
 
@@ -32,27 +33,29 @@ function Gate({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <LocaleProvider>
-        <PartnerAuthProvider>
-          <Gate>
-            <Stack
-              screenOptions={{
-                headerStyle: { backgroundColor: tokens.green800 },
-                headerTintColor: '#fff',
-                contentStyle: { backgroundColor: tokens.bg },
-              }}
-            >
-              <Stack.Screen name="index" options={{ headerShown: false }} />
-              <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="referral" options={{ title: 'Referral QR' }} />
-              <Stack.Screen name="farmer/[farmerId]/index" options={{ title: 'Farmer' }} />
-              <Stack.Screen name="visit/index" options={{ title: 'Field visit' }} />
-            </Stack>
-          </Gate>
-        </PartnerAuthProvider>
-      </LocaleProvider>
-    </SafeAreaProvider>
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <LocaleProvider>
+          <PartnerAuthProvider>
+            <Gate>
+              <Stack
+                screenOptions={{
+                  headerStyle: { backgroundColor: tokens.green800 },
+                  headerTintColor: '#fff',
+                  contentStyle: { backgroundColor: tokens.bg },
+                }}
+              >
+                <Stack.Screen name="index" options={{ headerShown: false }} />
+                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="referral" options={{ title: 'Referral QR' }} />
+                <Stack.Screen name="farmer/[farmerId]/index" options={{ title: 'Farmer' }} />
+                <Stack.Screen name="visit/index" options={{ title: 'Field visit' }} />
+              </Stack>
+            </Gate>
+          </PartnerAuthProvider>
+        </LocaleProvider>
+      </SafeAreaProvider>
+    </ErrorBoundary>
   );
 }

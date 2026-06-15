@@ -23,7 +23,11 @@ export type VisitDraft = {
 };
 
 export async function saveVisitDraft(blockId: string, draft: VisitDraft): Promise<void> {
-  await AsyncStorage.setItem(PREFIX + blockId, JSON.stringify({ ...draft, savedAt: new Date().toISOString() }));
+  try {
+    await AsyncStorage.setItem(PREFIX + blockId, JSON.stringify({ ...draft, savedAt: new Date().toISOString() }));
+  } catch {
+    // Draft persistence is best-effort; a missing native module must not crash the visit flow.
+  }
 }
 
 export async function loadVisitDraft(blockId: string): Promise<VisitDraft | null> {
@@ -37,5 +41,9 @@ export async function loadVisitDraft(blockId: string): Promise<VisitDraft | null
 }
 
 export async function clearVisitDraft(blockId: string): Promise<void> {
-  await AsyncStorage.removeItem(PREFIX + blockId);
+  try {
+    await AsyncStorage.removeItem(PREFIX + blockId);
+  } catch {
+    // ignore
+  }
 }

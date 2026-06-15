@@ -337,12 +337,24 @@ export const telecallerClient = {
     return r.items ?? [];
   },
 
-  async clickToCall(leadId: string, farmerPhone: string): Promise<{ callLogId: string }> {
-    const r = await staffApi<{ ok: boolean; callLogId: string }>(`${TEL}/exotel/click-to-call`, {
+  async clickToCall(
+    leadId: string,
+    farmerPhone: string
+  ): Promise<{ callLogId: string; mode: 'exotel' | 'native'; dialPhone?: string }> {
+    const r = await staffApi<{
+      ok: boolean;
+      callLogId: string;
+      mode?: 'exotel' | 'native';
+      dialPhone?: string;
+    }>(`${TEL}/exotel/click-to-call`, {
       method: 'POST',
       body: JSON.stringify({ leadId, farmerPhone }),
     });
-    return { callLogId: r.callLogId };
+    return {
+      callLogId: r.callLogId,
+      mode: r.mode ?? 'exotel',
+      dialPhone: r.dialPhone,
+    };
   },
 
   async queueOfflineUpload(item: Omit<PendingCallUpload, 'id' | 'createdAt'>): Promise<void> {

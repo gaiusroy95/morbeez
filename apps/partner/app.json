@@ -6,16 +6,24 @@
     "orientation": "portrait",
     "scheme": "morbeez-partner",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "icon": "./assets/app-icon.png",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "in.morbeez.partner"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/app-icon.png",
         "backgroundColor": "#1B5E20"
       },
       "package": "in.morbeez.partner"
+    },
+    "extra": {
+      "apiBaseUrl": "https://morbeez-api-5hbx.onrender.com",
+      "eas": {
+        "projectId": "7859b4df-304f-41fd-882e-db89e35634ad"
+      },
+      "router": {}
     }
   }
 }

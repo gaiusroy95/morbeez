@@ -54,7 +54,7 @@ export function buildVisitRouteParams(input: {
       farmerId: input.farmerId,
       blockId: input.block.id,
       blockName: input.block.name,
-      cropType: input.block.cropType,
+      cropType: input.block.cropType || '_default',
       farmerName: input.farmerName,
       ...(input.leadId ? { leadId: input.leadId } : {}),
     },

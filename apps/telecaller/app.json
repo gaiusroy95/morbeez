@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "morbeez-telecaller",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "icon": "./assets/app-icon.png",
     "ios": {
       "supportsTablet": false,

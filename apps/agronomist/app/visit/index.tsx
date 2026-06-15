@@ -1,42 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   agronomistClient,
-  tokens,
   type BlockHealthLevel,
   type CropPerformanceLevel,
-  type IssueCategory,
   type IssueMasterRow,
   type MeasurementTemplate,
   type SoilMoistureLevel,
 } from '@morbeez/shared';
-import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, Panel } from '@morbeez/ui-native';
-import { BlockAssessmentSection } from '@/components/field-findings/BlockAssessmentSection';
+import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
 import { FollowUpSection, type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
-import { IssueCard, IssueCategoryPicker, type IssueDraft } from '@/components/field-findings/IssueCard';
-import { MeasurementFields } from '@/components/field-findings/MeasurementFields';
-import { VisitContextHeader } from '@/components/field-findings/VisitContextHeader';
+import { type IssueDraft } from '@/components/field-findings/IssueCard';
+import { VisitStepper, VISIT_WIZARD_STEPS, type VisitWizardStep } from '@/components/field-findings/VisitStepper';
+import { VisitIssuesStep } from '@/components/field-findings/wizard/VisitIssuesStep';
+import { VisitMeasurementsStep } from '@/components/field-findings/wizard/VisitMeasurementsStep';
+import { VisitOverviewStep } from '@/components/field-findings/wizard/VisitOverviewStep';
+import { VisitPhotosStep } from '@/components/field-findings/wizard/VisitPhotosStep';
+import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummaryStep';
+import { type VisitPhotoDraft } from '@/components/field-findings/wizard/types';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
 
-function newIssue(category: IssueCategory, localId: string): IssueDraft {
-  return {
-    localId,
-    category,
-    issueName: '',
-    severity: 'medium',
-    status: 'open',
-    observation: '',
-    photos: [],
-    photosPreview: [],
-  };
+function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhotoDraft[]) {
+  const sharedPhotos = visitPhotos.map((p) => ({
+    filename: p.filename,
+    mimeType: p.mimeType,
+    dataBase64: p.dataBase64,
+  }));
+  return issues.map(({ localId, photosPreview, ...issue }, index) => ({
+    ...issue,
+    photos: [...(issue.photos ?? []), ...(index === 0 ? sharedPhotos : [])],
+  }));
 }
 
 export default function VisitScreen() {
   const router = useRouter();
   const { canWrite, admin } = useStaffAuth();
+  const footerPad = useStickyFooterScrollPadding({ rows: 1 });
   const params = useLocalSearchParams<{
     farmerId: string;
     blockId: string;
@@ -52,11 +54,14 @@ export default function VisitScreen() {
   const farmerName = String(params.farmerName ?? '');
 
   const sessionRef = useRef<string | null>(null);
+  const [step, setStep] = useState<VisitWizardStep>('overview');
   const [blockDap, setBlockDap] = useState<number | null>(null);
+  const [blockStage, setBlockStage] = useState<string | null>(null);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<IssueCategory[]>([]);
   const [issues, setIssues] = useState<IssueDraft[]>([]);
+  const [visitPhotos, setVisitPhotos] = useState<VisitPhotoDraft[]>([]);
+  const [photoTypes, setPhotoTypes] = useState<string[]>(['whole_field']);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -79,21 +84,12 @@ export default function VisitScreen() {
       blockHealth: blockHealth ?? undefined,
       cropPerformance: cropPerformance ?? undefined,
       soilMoisture: soilMoisture ?? undefined,
-      selectedCategories,
+      selectedCategories: issues.map((i) => i.category),
       issues: issues.map(({ localId, photosPreview, ...rest }) => rest),
       measurements,
       savedAt: new Date().toISOString(),
     });
-  }, [
-    blockId,
-    farmerId,
-    blockHealth,
-    cropPerformance,
-    soilMoisture,
-    selectedCategories,
-    issues,
-    measurements,
-  ]);
+  }, [blockId, farmerId, blockHealth, cropPerformance, soilMoisture, issues, measurements]);
 
   useEffect(() => {
     if (!cropType || !farmerId || !blockId) {
@@ -119,6 +115,7 @@ export default function VisitScreen() {
         setIssueMaster(master);
         sessionRef.current = session.id;
         setBlockDap(blockDetail?.block?.dap ?? null);
+        setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
 
         const openRecs = recs.filter(
           (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
@@ -138,7 +135,6 @@ export default function VisitScreen() {
           setBlockHealth(draft.blockHealth ?? null);
           setCropPerformance(draft.cropPerformance ?? null);
           setSoilMoisture(draft.soilMoisture ?? null);
-          setSelectedCategories(draft.selectedCategories ?? []);
           setMeasurements(draft.measurements ?? {});
           if (draft.issues?.length) {
             setIssues(
@@ -170,31 +166,47 @@ export default function VisitScreen() {
     return () => clearTimeout(t);
   }, [persistDraft]);
 
-  function toggleCategory(category: IssueCategory) {
-    setSelectedCategories((prev) => {
-      const exists = prev.includes(category);
-      if (exists) {
-        setIssues((iss) => iss.filter((i) => i.category !== category));
-        return prev.filter((c) => c !== category);
-      }
-      const localId = `${category}-${Date.now()}`;
-      setIssues((iss) => [...iss, newIssue(category, localId)]);
-      return [...prev, category];
-    });
+  function missingAssessments(): string | null {
+    if (!blockHealth || !cropPerformance || !soilMoisture) {
+      return 'Select block health, crop performance, and soil moisture on the Overview step before submitting.';
+    }
+    return null;
   }
 
-  function updateIssue(localId: string, next: IssueDraft) {
-    setIssues((prev) => prev.map((i) => (i.localId === localId ? next : i)));
+  function validateStep(current: VisitWizardStep): string | null {
+    if (current === 'measurements') {
+      for (const tpl of templates) {
+        if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
+          return `Required measurement: ${tpl.labelEn}`;
+        }
+      }
+    }
+    if (current === 'issues') {
+      if (!issues.length) return 'Add at least one issue.';
+      for (const issue of issues) {
+        if (!issue.issueName.trim()) return 'Each issue needs a name.';
+      }
+    }
+    return null;
   }
 
-  function removeIssue(localId: string, category: IssueCategory) {
-    setIssues((prev) => {
-      const remaining = prev.filter((i) => i.localId !== localId);
-      if (!remaining.some((i) => i.category === category)) {
-        setSelectedCategories((cats) => cats.filter((c) => c !== category));
-      }
-      return remaining;
-    });
+  function goNext() {
+    const msg = validateStep(step);
+    if (msg) {
+      setError(msg);
+      return;
+    }
+    setError('');
+    const idx = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
+    if (idx < VISIT_WIZARD_STEPS.length - 1) {
+      setStep(VISIT_WIZARD_STEPS[idx + 1]!.id);
+    }
+  }
+
+  function goBack() {
+    setError('');
+    const idx = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
+    if (idx > 0) setStep(VISIT_WIZARD_STEPS[idx - 1]!.id);
   }
 
   async function captureGps() {
@@ -224,29 +236,23 @@ export default function VisitScreen() {
 
   async function submit() {
     if (!canWrite || !farmerId || !blockId) return;
-    if (!blockHealth || !cropPerformance || !soilMoisture) {
-      setError('Complete block assessment (health, performance, moisture).');
+    const assessmentMsg = missingAssessments();
+    if (assessmentMsg) {
+      setError(assessmentMsg);
+      setStep('overview');
       return;
     }
-    if (!issues.length) {
-      setError('Add at least one issue.');
+    const msg = validateStep('issues');
+    if (msg) {
+      setError(msg);
       return;
-    }
-    for (const issue of issues) {
-      if (!issue.issueName.trim()) {
-        setError(`Each issue needs a name (${issue.category}).`);
-        return;
-      }
     }
     for (const tpl of templates) {
       if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
         setError(`Required measurement: ${tpl.labelEn}`);
+        setStep('measurements');
         return;
       }
-    }
-    if (selectedCategories.length !== issues.length) {
-      setError('Each selected issue category needs a named issue card.');
-      return;
     }
     if (followUps.length) {
       const pending = followUps.filter(
@@ -254,6 +260,7 @@ export default function VisitScreen() {
       );
       if (pending.length) {
         setError('Record follow-up outcomes for open recommendations on this block.');
+        setStep('summary');
         return;
       }
     }
@@ -269,13 +276,15 @@ export default function VisitScreen() {
         }))
         .filter((m) => m.value);
 
+      const issuePayload = mergeVisitPhotosIntoIssues(issues, visitPhotos);
+
       const visitResult = await agronomistClient.submitStructuredVisit({
         farmerId,
         blockId,
         sessionId: sessionRef.current ?? undefined,
-        blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+        blockAssessment: { blockHealth: blockHealth!, cropPerformance: cropPerformance!, soilMoisture: soilMoisture! },
         measurements: measurementRows,
-        issues: issues.map(({ localId, photosPreview, ...issue }) => issue),
+        issues: issuePayload,
         followUps: followUps
           .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')
           .map((f) => ({
@@ -316,79 +325,117 @@ export default function VisitScreen() {
 
   if (loading) return <Loading label="Starting visit session…" />;
 
+  const stepIndex = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
+
   return (
-    <KeyboardAwareScrollScreen contentContainerStyle={styles.content}>
-      <VisitContextHeader
-        farmerName={farmerName}
-        blockName={blockName}
-        cropType={cropType}
-        dap={blockDap}
-        agronomistName={admin?.email ?? null}
-      />
+    <View style={styles.root}>
+      <VisitStepper current={step} />
+      <KeyboardAwareScrollScreen contentContainerStyle={[styles.content, { paddingBottom: footerPad }]}>
+        {error ? <AlertBox>{error}</AlertBox> : null}
 
-      {error ? <AlertBox>{error}</AlertBox> : null}
+        {step === 'overview' ? (
+          <VisitOverviewStep
+            farmerName={farmerName}
+            blockName={blockName}
+            cropType={cropType}
+            dap={blockDap}
+            stage={blockStage}
+            agronomistName={admin?.email ?? null}
+            blockHealth={blockHealth}
+            cropPerformance={cropPerformance}
+            soilMoisture={soilMoisture}
+            onBlockHealth={setBlockHealth}
+            onCropPerformance={setCropPerformance}
+            onSoilMoisture={setSoilMoisture}
+          />
+        ) : null}
 
-      <BlockAssessmentSection
-        blockHealth={blockHealth}
-        cropPerformance={cropPerformance}
-        soilMoisture={soilMoisture}
-        onBlockHealth={setBlockHealth}
-        onCropPerformance={setCropPerformance}
-        onSoilMoisture={setSoilMoisture}
-      />
+        {step === 'photos' ? (
+          <VisitPhotosStep
+            photos={visitPhotos}
+            selectedTypes={photoTypes}
+            onPhotosChange={setVisitPhotos}
+            onTypesChange={setPhotoTypes}
+          />
+        ) : null}
 
-      <IssueCategoryPicker selected={selectedCategories} onToggle={toggleCategory} />
+        {step === 'measurements' ? (
+          <VisitMeasurementsStep
+            cropType={cropType}
+            templates={templates}
+            values={measurements}
+            onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
+          />
+        ) : null}
 
-      {issues.map((issue) => (
-        <IssueCard
-          key={issue.localId}
-          issue={issue}
-          issueMaster={issueMaster}
-          cropType={cropType}
-          onChange={(next) => updateIssue(issue.localId, next)}
-          onRemove={() => removeIssue(issue.localId, issue.category)}
-          onSuggestQuestions={() =>
-            agronomistClient.suggestIssueFollowUpQuestions({
-              issueCategory: issue.category,
-              issueName: issue.issueName || issue.category,
-              cropType,
-              dap: blockDap ?? undefined,
-              observation: issue.observation,
-              photoCount: issue.photos?.length ?? 0,
-            })
-          }
-        />
-      ))}
+        {step === 'issues' ? (
+          <>
+            <VisitIssuesStep
+              issues={issues}
+              issueMaster={issueMaster}
+              cropType={cropType}
+              blockDap={blockDap}
+              onChange={setIssues}
+              onSuggestQuestions={(issue) =>
+                agronomistClient.suggestIssueFollowUpQuestions({
+                  issueCategory: issue.category,
+                  issueName: issue.issueName || issue.category,
+                  cropType,
+                  dap: blockDap ?? undefined,
+                  observation: issue.observation,
+                  photoCount: (issue.photos?.length ?? 0) + visitPhotos.length,
+                })
+              }
+            />
+            <FollowUpSection
+              items={followUps}
+              onChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
+            />
+          </>
+        ) : null}
 
-      <MeasurementFields
-        templates={templates}
-        values={measurements}
-        onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
-      />
+        {step === 'summary' ? (
+          <VisitSummaryStep
+            photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
+            templates={templates}
+            measurements={measurements}
+            issues={issues}
+            followUps={followUps}
+            onFollowUpChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
+            blockHealth={blockHealth}
+            cropPerformance={cropPerformance}
+            soilMoisture={soilMoisture}
+            hasGps={gpsLat != null}
+            gpsStatus={gpsStatus}
+            gpsLoading={gpsLoading}
+            onCaptureGps={() => void captureGps()}
+          />
+        ) : null}
+      </KeyboardAwareScrollScreen>
 
-      <FollowUpSection
-        items={followUps}
-        onChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
-      />
-
-      <Panel title="Plot GPS">
-        <Text style={styles.hint}>Stand at the plot and capture GPS for accurate weather advice.</Text>
-        {gpsStatus ? <Text style={styles.gpsStatus}>{gpsStatus}</Text> : null}
-        <Btn
-          label={gpsLoading ? 'Getting location…' : gpsLat != null ? 'Update GPS' : 'Capture plot GPS'}
-          onPress={captureGps}
-          disabled={!canWrite || gpsLoading}
-          variant="secondary"
-        />
-      </Panel>
-
-      <Btn label={saving ? 'Uploading…' : 'Submit visit'} onPress={submit} disabled={saving || !canWrite} />
-    </KeyboardAwareScrollScreen>
+      <StickyScreenFooter>
+        <View style={styles.footerRow}>
+          {stepIndex > 0 ? (
+            <View style={styles.footerBtn}>
+              <Btn label="Back" variant="secondary" onPress={goBack} />
+            </View>
+          ) : null}
+          <View style={styles.footerBtn}>
+            {step === 'summary' ? (
+              <Btn label={saving ? 'Submitting…' : 'Submit visit'} onPress={() => void submit()} disabled={saving || !canWrite} />
+            ) : (
+              <Btn label="Continue" onPress={goNext} />
+            )}
+          </View>
+        </View>
+      </StickyScreenFooter>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, paddingBottom: 40 },
-  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 8 },
-  gpsStatus: { fontSize: 13, color: tokens.green700, marginBottom: 8 },
+  root: { flex: 1 },
+  content: { padding: 16 },
+  footerRow: { flexDirection: 'row', gap: 8 },
+  footerBtn: { flex: 1 },
 });

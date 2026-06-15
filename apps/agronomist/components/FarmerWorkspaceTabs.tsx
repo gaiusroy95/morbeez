@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import {
-  Alert,
-  Linking,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { InteractionManager, Linking, ScrollView, StyleSheet, Text, View, Alert } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
   agronomistClient,
@@ -22,10 +15,8 @@ import {
   ScrollableUnderlineTabs,
   Loading,
   Panel,
-  StickyScreenFooter,
   TextField,
   useDeviceBottomInset,
-  useStickyFooterScrollPadding,
 } from '@morbeez/ui-native';
 import { SegmentedChips } from '@/components/field-findings/SegmentedChips';
 import { FarmerCallLogPanel } from '@/components/FarmerCallLogPanel';
@@ -82,8 +73,7 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
   const [blockPickerVisible, setBlockPickerVisible] = useState(false);
 
   const bottomInset = useDeviceBottomInset();
-  const footerPad = useStickyFooterScrollPadding({ rows: tab === 'fieldFindings' ? 1 : 0 });
-  const scrollBottomPad = tab === 'fieldFindings' ? footerPad : 16 + bottomInset;
+  const scrollBottomPad = 16 + bottomInset;
 
   const phone = String(summary.farmer.phone ?? '').replace(/\D/g, '');
 
@@ -168,14 +158,16 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
 
   function openVisitForBlock(block: AgronomistBlockRow) {
     setBlockPickerVisible(false);
-    router.push(
-      buildVisitRouteParams({
-        farmerId,
-        farmerName: summary.farmer.name,
-        block,
-        leadId,
-      })
-    );
+    const route = buildVisitRouteParams({
+      farmerId,
+      farmerName: summary.farmer.name,
+      block,
+      leadId,
+    });
+    // Defer navigation until the picker modal finishes closing (Android release builds).
+    InteractionManager.runAfterInteractions(() => {
+      router.push(route);
+    });
   }
 
   async function startVisit() {
@@ -268,7 +260,9 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
             </View>
           ) : null}
 
-          {tab === 'fieldFindings' ? <FarmerFieldFindingsPanel farmerId={farmerId} /> : null}
+          {tab === 'fieldFindings' ? (
+            <FarmerFieldFindingsPanel farmerId={farmerId} summary={summary} onStartVisit={() => void startVisit()} />
+          ) : null}
 
           {tab === 'recommendations' ? (
             <View style={styles.section}>
@@ -308,12 +302,6 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
           {tab === 'team' ? <FarmerTeamPanel farmerId={farmerId} /> : null}
         </View>
       </ScrollView>
-
-      {tab === 'fieldFindings' ? (
-        <StickyScreenFooter>
-          <Btn label="Start visit" onPress={() => void startVisit()} />
-        </StickyScreenFooter>
-      ) : null}
 
       <BlockPickerModal
         visible={blockPickerVisible}

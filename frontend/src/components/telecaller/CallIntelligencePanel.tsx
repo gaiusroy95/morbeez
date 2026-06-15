@@ -181,10 +181,19 @@ export function CallIntelligencePanel({
     setExotelBusy(true);
     setError('');
     try {
-      const res = await api<{ ok: boolean; callLogId: string }>(`${base}/exotel/click-to-call`, {
+      const res = await api<{
+        ok: boolean;
+        callLogId: string;
+        mode?: 'exotel' | 'native';
+        dialPhone?: string;
+      }>(`${base}/exotel/click-to-call`, {
         method: 'POST',
         body: JSON.stringify({ leadId, farmerPhone }),
       });
+      if (res.mode === 'native') {
+        const digits = String(res.dialPhone ?? farmerPhone).replace(/\D/g, '');
+        if (digits) window.location.href = `tel:${digits}`;
+      }
       pollCall(res.callLogId);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Exotel call failed');

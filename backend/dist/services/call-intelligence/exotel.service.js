@@ -3,17 +3,54 @@ import { supabase } from '../../lib/supabase.js';
 import { AppError } from '../../lib/errors.js';
 import { callIntelligenceService } from './call-intelligence.service.js';
 import { logger } from '../../lib/logger.js';
+function normalizeDialPhone(phone) {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10)
+        return `91${digits}`;
+    return digits;
+}
 export const exotelService = {
     isConfigured() {
         return Boolean(env.EXOTEL_SID && env.EXOTEL_TOKEN && env.EXOTEL_CALLER_ID);
     },
-    async initiateClickToCall(input) {
-        if (!this.isConfigured()) {
-            throw new AppError('Exotel is not configured. Set EXOTEL_SID, EXOTEL_TOKEN, EXOTEL_CALLER_ID.', 503, 'EXOTEL_NOT_CONFIGURED');
+    async initiateNativeDialFallback(input) {
+        const dialPhone = normalizeDialPhone(input.farmerPhone);
+        const { data: callRow, error } = await supabase
+            .from('crm_call_logs')
+            .insert({
+            farmer_id: input.farmerId,
+            lead_id: input.leadId,
+            agent_email: input.agentEmail,
+            direction: 'outbound',
+            outcome: 'connected',
+            recording_provider: 'manual',
+            processing_status: 'pending',
+            notes: 'Native dial (Exotel not configured on server)',
+        })
+            .select('id')
+            .single();
+        if (error) {
+            throw new AppError(`Could not log call: ${error.message}`, 500, 'DATABASE_ERROR');
         }
+        logger.info({ leadId: input.leadId, agentEmail: input.agentEmail }, 'Exotel not configured — using native dial fallback');
+        return {
+            callLogId: String(callRow?.id),
+            providerCallId: null,
+            status: 'native_dial',
+            mode: 'native',
+            dialPhone,
+        };
+    },
+    async initiateClickToCall(input) {
         const { data: lead } = await supabase.from('leads').select('farmer_id').eq('id', input.leadId).single();
         if (!lead)
             throw new AppError('Lead not found', 404, 'NOT_FOUND');
+        if (!this.isConfigured()) {
+            return this.initiateNativeDialFallback({
+                ...input,
+                farmerId: String(lead.farmer_id),
+            });
+        }
         const url = `https://${env.EXOTEL_SUBDOMAIN ?? 'api'}.exotel.com/v1/Accounts/${env.EXOTEL_SID}/Calls/connect.json`;
         const body = new URLSearchParams({
             From: input.farmerPhone.replace(/\D/g, '').slice(-10),
@@ -63,6 +100,7 @@ export const exotelService = {
             callLogId: String(callRow?.id),
             providerCallId,
             status: 'initiated',
+            mode: 'exotel',
         };
     },
     async handleStatusWebhook(payload) {

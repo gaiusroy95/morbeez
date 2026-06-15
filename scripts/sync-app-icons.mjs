@@ -11,7 +11,7 @@ import sharp from 'sharp';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const ICONS_DIR = path.join(ROOT, 'brand', 'app-icons');
-const APPS = ['farmer', 'warehouse', 'agronomist', 'telecaller'];
+const APPS = ['farmer', 'warehouse', 'agronomist', 'telecaller', 'partner'];
 const SIZE = 1024;
 const EXTENSIONS = ['.jpeg', '.jpg', '.png', '.webp'];
 

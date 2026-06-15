@@ -27,7 +27,10 @@ export function LeadWorkspaceHeader({ summary }: Props) {
     setClickLoading(true);
     setClickError('');
     try {
-      await telecallerClient.clickToCall(summary.leadId, summary.farmer.phone);
+      const result = await telecallerClient.clickToCall(summary.leadId, summary.farmer.phone);
+      if (result.mode === 'native') {
+        dialPhone(result.dialPhone ?? summary.farmer.phone);
+      }
     } catch (e) {
       setClickError(e instanceof Error ? e.message : 'Click-to-call failed');
     } finally {
