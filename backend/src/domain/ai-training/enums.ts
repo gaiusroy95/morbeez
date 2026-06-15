@@ -115,11 +115,32 @@ export const ISSUE_CATEGORIES = [
   'disease',
   'pest',
   'nutrient_deficiency',
+  'nutrient_toxicity',
   'water_stress',
+  'environmental_stress',
+  'soil_problem',
+  'growth_issue',
+  'chemical_injury',
+  'mechanical_damage',
   'weed',
   'other',
 ] as const;
 export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+
+/** Visit AI question answer types */
+export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'] as const;
+export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
+
+/** Visit AI case lifecycle */
+export const VISIT_AI_CASE_STATUSES = [
+  'draft',
+  'analyzed',
+  'qa_complete',
+  'recommended',
+  'reviewed',
+  'submitted',
+] as const;
+export type VisitAiCaseStatus = (typeof VISIT_AI_CASE_STATUSES)[number];
 
 /** Recommendation module types */
 export const RECOMMENDATION_TYPES = [

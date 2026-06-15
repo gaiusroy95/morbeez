@@ -1,6 +1,6 @@
 import type { IssueCategory } from '@morbeez/shared';
-import { ISSUE_CATEGORIES } from '@morbeez/shared';
 import type { IssueDraft } from '../IssueCard';
+import { pickDefaultIssueCategory } from './visitIssueTypes';
 
 export type VisitPhotoDraft = {
   uri: string;
@@ -10,16 +10,15 @@ export type VisitPhotoDraft = {
   photoType: string;
 };
 
-export const VISIT_PHOTO_TYPES = [
-  { value: 'whole_field', label: 'Whole field' },
-  { value: 'rhizome', label: 'Rhizome' },
-  { value: 'plant', label: 'Plant' },
-  { value: 'pest', label: 'Pest' },
-  { value: 'leaf', label: 'Leaf' },
-  { value: 'disease', label: 'Disease' },
-  { value: 'stem', label: 'Stem' },
-  { value: 'other', label: 'Other' },
-] as const;
+export { getDefaultSelectedPhotoTypes, getVisitPhotoTypeLabel, getVisitPhotoTypesForCrop } from './visitPhotoTypes';
+export {
+  getFallbackIssueTypes,
+  getIssueCategoryLabel,
+  ISSUE_CATEGORY_LABELS,
+  ISSUE_CATEGORY_OPTIONS,
+  issueCategoryHint,
+  pickDefaultIssueCategory,
+} from './visitIssueTypes';
 
 export function newIssueDraft(category: IssueCategory, localId: string): IssueDraft {
   return {
@@ -35,5 +34,5 @@ export function newIssueDraft(category: IssueCategory, localId: string): IssueDr
 }
 
 export function pickDefaultCategory(): IssueCategory {
-  return ISSUE_CATEGORIES[0] ?? 'disease';
+  return pickDefaultIssueCategory();
 }

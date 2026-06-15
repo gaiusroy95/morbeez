@@ -5,10 +5,15 @@ import { fieldPwaService } from '../../services/admin/field-pwa.service.js';
 import { fieldVisitService } from '../../services/admin/field-visit.service.js';
 import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
 import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-up-questions.service.js';
+import { visitAiOrchestratorService } from '../../services/core/visit-ai-orchestrator.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import {
   structuredFieldVisitSchema,
   issueCategorySchema,
+  visitAiContextRequestSchema,
+  visitAnalyzeRequestSchema,
+  visitAiAnswersBodySchema,
+  visitAiRecommendBodySchema,
 } from '../../domain/ai-training/validators.js';
 
 const photoSchema = z.object({
@@ -192,6 +197,94 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const body = structuredFieldVisitSchema.parse(request.body);
     const result = await fieldVisitService.submitStructuredVisit(body, admin.email);
     return reply.status(201).send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/context`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const body = visitAiContextRequestSchema.parse(request.body);
+    const context = await visitAiOrchestratorService.buildContext(body);
+    return reply.send({ ok: true, context });
+  });
+
+  app.post(`${api}/visits/analyze`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const body = visitAnalyzeRequestSchema.parse(request.body);
+    const result = await visitAiOrchestratorService.analyze(body, admin.email);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const questions = await visitAiOrchestratorService.getQuestions(aiCaseId);
+    return reply.send({ ok: true, questions });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const body = visitAiAnswersBodySchema.parse(request.body);
+    const result = await visitAiOrchestratorService.saveAnswers(aiCaseId, body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/reanalyze`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const result = await visitAiOrchestratorService.reanalyze(aiCaseId);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/skip-qa`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const result = await visitAiOrchestratorService.skipFollowUp(aiCaseId);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/visits/ai-case/:aiCaseId`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const detail = await visitAiOrchestratorService.getCaseDetail(aiCaseId);
+    return reply.send({ ok: true, case: detail });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/recommend`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const body = visitAiRecommendBodySchema.parse(request.body ?? {});
+    const result = await visitAiOrchestratorService.recommend(aiCaseId, body.finalDiagnosis);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/visits/similar-cases`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z
+      .object({
+        farmerId: z.string().uuid(),
+        cropType: z.string().min(1),
+        issueName: z.string().min(1),
+      })
+      .parse(request.query ?? {});
+    const cases = await visitAiOrchestratorService.similarCases(q.farmerId, q.cropType, q.issueName);
+    return reply.send({ ok: true, cases });
+  });
+
+  app.get(`${api}/visits/case-library`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z
+      .object({
+        cropType: z.string().optional(),
+        issue: z.string().optional(),
+        outcome: z.string().optional(),
+        dapBucket: z.string().optional(),
+        severity: z.string().optional(),
+        reviewAction: z.string().optional(),
+        limit: z.coerce.number().int().min(1).max(100).optional(),
+      })
+      .parse(request.query ?? {});
+    const cases = await visitAiOrchestratorService.searchCaseLibrary(q);
+    return reply.send({ ok: true, cases });
   });
 
   app.post(`${api}/issue-follow-up-questions`, async (request, reply) => {

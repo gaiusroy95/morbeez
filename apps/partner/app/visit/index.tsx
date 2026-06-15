@@ -54,8 +54,9 @@ export default function VisitStartScreen() {
       {error ? <AlertBox>{error}</AlertBox> : null}
       <Panel title={`Visit — ${farmerName}`}>
         <Text style={styles.hint}>
-          Start a visit session when you arrive at the field. Complete field findings from the
-          farmer workspace after check-in.
+          Start a visit session when you arrive at the field. Partner field findings are submitted as
+          draft only — staff agronomists complete the full Visit AI wizard and approve recommendations
+          before farmer WhatsApp messages are sent.
         </Text>
         {blockId ? <Text style={styles.meta}>Block: {blockId}</Text> : null}
         {sessionId ? (

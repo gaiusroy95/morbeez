@@ -1,23 +1,32 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { tokens } from '@morbeez/shared';
 import { Panel } from '@morbeez/ui-native';
-import { VISIT_PHOTO_TYPES, type VisitPhotoDraft } from './types';
+import type { VisitPhotoDraft } from './types';
+import {
+  formatCropPhotoGuidance,
+  getVisitPhotoTypeLabel,
+  getVisitPhotoTypesForCrop,
+} from './visitPhotoTypes';
 
 type Props = {
+  cropType: string;
   photos: VisitPhotoDraft[];
   selectedTypes: string[];
+  voiceNote?: string;
   onPhotosChange: (photos: VisitPhotoDraft[]) => void;
   onTypesChange: (types: string[]) => void;
+  onVoiceNoteChange?: (text: string) => void;
 };
 
 async function pickImages(
   source: 'camera' | 'library',
   selectedTypes: string[],
+  availableTypes: string[],
   existingCount: number
 ): Promise<VisitPhotoDraft[]> {
-  const photoType = selectedTypes[0] ?? 'other';
+  const photoType = selectedTypes[0] ?? availableTypes[0] ?? 'other';
   const remaining = Math.max(1, 12 - existingCount);
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
@@ -45,7 +54,18 @@ async function pickImages(
     }));
 }
 
-export function VisitPhotosStep({ photos, selectedTypes, onPhotosChange, onTypesChange }: Props) {
+export function VisitPhotosStep({
+  cropType,
+  photos,
+  selectedTypes,
+  voiceNote,
+  onPhotosChange,
+  onTypesChange,
+  onVoiceNoteChange,
+}: Props) {
+  const photoTypes = getVisitPhotoTypesForCrop(cropType);
+  const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
+
   function toggleType(type: string) {
     onTypesChange(
       selectedTypes.includes(type) ? selectedTypes.filter((t) => t !== type) : [...selectedTypes, type]
@@ -53,7 +73,12 @@ export function VisitPhotosStep({ photos, selectedTypes, onPhotosChange, onTypes
   }
 
   async function addFrom(source: 'camera' | 'library') {
-    const next = await pickImages(source, selectedTypes, photos.length);
+    const next = await pickImages(
+      source,
+      selectedTypes,
+      photoTypes.map((t) => t.value),
+      photos.length
+    );
     if (next.length) onPhotosChange([...photos, ...next].slice(0, 12));
   }
 
@@ -70,16 +95,20 @@ export function VisitPhotosStep({ photos, selectedTypes, onPhotosChange, onTypes
         </Pressable>
       </View>
 
-      <Panel title="Photo type">
-        <Text style={styles.hint}>Select types before capture (optional).</Text>
+      <Panel title={`Photo types · ${cropLabel}`}>
+        <Text style={styles.hint}>{formatCropPhotoGuidance(cropType)}</Text>
         <View style={styles.typeRow}>
-          {VISIT_PHOTO_TYPES.map((t) => {
+          {photoTypes.map((t) => {
             const active = selectedTypes.includes(t.value);
             return (
               <Pressable
                 key={t.value}
                 onPress={() => toggleType(t.value)}
-                style={[styles.typeChip, active && styles.typeChipActive]}
+                style={[
+                  styles.typeChip,
+                  active && styles.typeChipActive,
+                  t.recommended && !active ? styles.typeChipRecommended : null,
+                ]}
               >
                 <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{t.label}</Text>
               </Pressable>
@@ -101,7 +130,7 @@ export function VisitPhotosStep({ photos, selectedTypes, onPhotosChange, onTypes
                   <Text style={styles.removeText}>×</Text>
                 </Pressable>
                 <Text style={styles.thumbMeta} numberOfLines={1}>
-                  {VISIT_PHOTO_TYPES.find((t) => t.value === p.photoType)?.label ?? p.photoType}
+                  {getVisitPhotoTypeLabel(cropType, p.photoType)}
                 </Text>
               </View>
             ))}
@@ -109,6 +138,18 @@ export function VisitPhotosStep({ photos, selectedTypes, onPhotosChange, onTypes
         ) : (
           <Text style={styles.empty}>No photos yet. Use camera or gallery above.</Text>
         )}
+        {onVoiceNoteChange ? (
+          <>
+            <Text style={[styles.hint, { marginTop: 12 }]}>Field voice note (optional transcript)</Text>
+            <TextInput
+              style={styles.voiceInput}
+              multiline
+              placeholder="Speak observations; paste transcript here until STT is enabled"
+              value={voiceNote ?? ''}
+              onChangeText={onVoiceNoteChange}
+            />
+          </>
+        ) : null}
       </Panel>
     </View>
   );
@@ -128,7 +169,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   captureLabel: { fontSize: 15, fontWeight: '600', color: tokens.green800 },
-  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10 },
+  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10, lineHeight: 18 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: {
     paddingVertical: 8,
@@ -138,7 +179,8 @@ const styles = StyleSheet.create({
     borderColor: tokens.border,
     backgroundColor: tokens.bg,
   },
-  typeChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500 },
+  typeChipRecommended: { borderColor: tokens.green500, borderStyle: 'dashed' },
+  typeChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500, borderStyle: 'solid' },
   typeChipText: { fontSize: 12, color: tokens.textMuted },
   typeChipTextActive: { color: tokens.green800, fontWeight: '600' },
   gallery: { gap: 10, paddingVertical: 4 },
@@ -158,4 +200,15 @@ const styles = StyleSheet.create({
   removeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   thumbMeta: { fontSize: 10, color: tokens.textMuted, marginTop: 4, maxWidth: 80 },
   empty: { fontSize: 13, color: tokens.textMuted, textAlign: 'center', paddingVertical: 12 },
+  voiceInput: {
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    padding: 12,
+    minHeight: 72,
+    fontSize: 14,
+    color: tokens.text,
+    backgroundColor: tokens.bg,
+    textAlignVertical: 'top',
+  },
 });

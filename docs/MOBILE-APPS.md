@@ -116,13 +116,29 @@ Base field: `/morbeez-staff/api/v1/os/field` · agronomist: `/morbeez-staff/api/
 | Workspace | `GET /farmers/:id/workspace-summary`, **`GET /farmers/:id/workspace-dashboard`**, `GET /farmers/:id/documents`, `GET /farmers/:id/intelligence` |
 | Farmer workspace tabs | **`GET /farmers/:id/visits`**, **`GET /farmers/:id/orders`**, **`GET /farmers/:id/whatsapp-history`**, **`POST /farmers/:id/calls`**, **`POST /farmers/:id/reminders`**, `GET|POST /farmers/:id/notes`, `GET /farmers/:id/follow-ups`, `GET|POST /farmers/:id/soil-reports`, `POST /farmers/:id/field-activities`, `GET /farmers/:id/call-log-summary`, `GET /farmers/:id/interactions` |
 | Tasks | `GET /mobile/tasks`, `GET /callbacks`, `PATCH /callbacks/:id`, **`PATCH /operations/tasks/:id/complete`**, `GET /mobile/escalations` |
-| Visits | `POST /visits/sessions`, `PATCH /visits/sessions/:id/check-out`, `POST /visits`, **`POST /visits/v2`**, **`GET /visits/:findingId`**, `GET /visits/recent` |
+| Visits | `POST /visits/sessions`, `PATCH /visits/sessions/:id/check-out`, `POST /visits`, **`POST /visits/v2`**, **`GET /visits/:findingId`**, `GET /visits/recent`, **`POST /visits/context`**, **`POST /visits/analyze`**, **`GET|POST /visits/ai-case/:id/questions`**, **`POST /visits/ai-case/:id/reanalyze`**, **`POST /visits/ai-case/:id/recommend`**, **`GET /visits/similar-cases`**, **`GET /visits/case-library`** |
 | Field masters | `GET /issue-master`, `GET /measurement-templates/:cropType`, `POST /issue-follow-up-questions` |
 | Review | `GET /queue`, `GET /findings/:id`, `POST /drafts`, `GET /cases`, `POST /cases/:id/review` |
 | Routes | `GET|POST /routes`, `POST /routes/:id/stops`, `POST /routes/:id/optimize` |
 | Profile | `GET /mobile/profile`, `GET /workspace-intelligence` |
 
-Apply migrations `20260704000000_field_findings_v2.sql` and **`20260705000000_advisory_reuse_field_origin.sql`** for structured visits and field-origin reuse indexing. Set `ENABLE_STRUCTURED_FIELD_VISITS=true` on backend (default).
+Apply migrations `20260704000000_field_findings_v2.sql`, **`20260705000000_advisory_reuse_field_origin.sql`**, **`20260715000000_visit_ai_foundation.sql`**, and **`20260716000000_visit_ai_perfection.sql`** for structured visits, field-origin reuse indexing, visit AI tables, and Q&A library columns. Set `ENABLE_STRUCTURED_FIELD_VISITS=true` on backend (default).
+
+**Visit AI wizard (agronomist):** Overview → Photos (crop-specific types + optional voice-note transcript) → Measures → Issues → **AI Analysis** (image signal, confidence bands, similar cases with outcomes) → **Follow-up Q&A** (WhatsApp-grade questions; skip when ≥90% confidence) → **Recommendation draft** (custom review days 1–365) → **Agronomist Review** (escalation hints) → Summary & Submit. Recommendations are created as **draft** until the agronomist approves or modifies on the Review step; WhatsApp sends only after approve/correct actions. Training export JSON includes rich **`visitAiCases`** (photos paths, measurements, block assessment, outcomes).
+
+**Visit AI telecaller / follow-up triggers (visit-origin recs use `metadata.visitOrigin: true`):**
+
+| Trigger | Telecaller task | Escalation |
+|--------|-----------------|------------|
+| Approve + `escalate_urgent` review | Urgent visit escalation | High severity + low confidence |
+| No application reply (reminders exhausted) | Recommendation follow-up required | — |
+| Outcome: no improvement | Reassessment required | Via visit AI session when linked |
+| Outcome: worsened | Urgent — crop worsened | Urgent via visit AI session when linked |
+| Application: need help | Telecaller callback | — |
+
+**Visit AI staging deploy:** apply migrations above on Supabase staging → set backend env → run `node backend/scripts/visit-ai-smoke.mjs` with `STAFF_TOKEN`, `FARMER_ID`, `BLOCK_ID` → agronomist mobile E2E: ginger visit with photos, disease issue, modify rec, confirm no WhatsApp until approve.
+
+**Partner vs agronomist submit:** Partner visits always create **draft** recommendations for expert review. Agronomist visits use the same draft-first pattern through the in-visit Review gate (no auto-send on submit).
 
 ### Agronomist smoke checklist
 
@@ -139,7 +155,9 @@ Apply migrations `20260704000000_field_findings_v2.sql` and **`20260705000000_ad
 11. Profile stats + sign out
 12. Follow-up automation: communicated rec → WhatsApp buttons → status visible in Follow-ups tab
 13. Backfill (staging): `node scripts/backfill-field-findings-v2.mjs --dry-run`
-14. Training export JSON includes `reuseCaseStats` split by `source_type`
+14. Training export JSON includes `reuseCaseStats` split by `source_type` and **`visitAiCases`** with hypotheses, Q&A, and review actions
+15. Visit AI: complete analyze → Q&A (or skip when high confidence) → rec draft with custom review days → approve on Review → farmer receives approved rec + optional visit summary WhatsApp
+16. Automated: from `backend/`, run `node --import tsx --test tests/visit-ai-perfection.test.ts`; API smoke `node scripts/visit-ai-smoke.mjs` with env vars
 
 ### Agronomist EAS
 
@@ -290,7 +308,7 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 
 **Key flows:**
 
-- GPS check-in at field (`expo-location`) → structured visit submit → expert review queue
+- GPS check-in at field (`expo-location`) → structured visit submit → **draft recommendations** for agronomist review (same review gate as staff agronomist app — partner parity planned)
 - Partner creates sales opportunity → telecaller dashboard inbox + status updates
 - Internal team timeline shared with telecaller and expert apps
 - Referral QR on `app/referral.tsx` for event enrollment attribution

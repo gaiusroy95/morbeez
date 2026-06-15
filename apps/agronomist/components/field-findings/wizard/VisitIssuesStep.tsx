@@ -3,16 +3,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { tokens, type IssueCategory, type IssueMasterRow } from '@morbeez/shared';
 import { Btn } from '@morbeez/ui-native';
 import { type IssueDraft } from '../IssueCard';
+import { getIssueCategoryLabel } from './visitIssueTypes';
 import { AddIssueModal } from './AddIssueModal';
-
-const CATEGORY_LABELS: Record<IssueCategory, string> = {
-  disease: 'Disease',
-  pest: 'Pest',
-  nutrient_deficiency: 'Deficiency',
-  water_stress: 'Water stress',
-  weed: 'Weed',
-  other: 'Other',
-};
 
 const SEVERITY_COLORS: Record<string, string> = {
   low: tokens.green700,
@@ -70,7 +62,7 @@ export function VisitIssuesStep({
       {issues.map((issue) => (
         <Pressable key={issue.localId} style={styles.card} onPress={() => openEdit(issue)}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardCategory}>{CATEGORY_LABELS[issue.category]}</Text>
+            <Text style={styles.cardCategory}>{getIssueCategoryLabel(issue.category)}</Text>
             <View style={[styles.severityBadge, { backgroundColor: SEVERITY_COLORS[issue.severity] ?? tokens.textMuted }]}>
               <Text style={styles.severityText}>{issue.severity}</Text>
             </View>

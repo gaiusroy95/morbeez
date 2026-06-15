@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import {
-  ISSUE_CATEGORIES,
   ISSUE_STATUSES,
   RECORD_SEVERITIES,
   RECOMMENDATION_TYPES,
@@ -14,18 +13,18 @@ import {
   type IssueStatus,
   type RecordSeverity,
   type StructuredVisitIssueInput,
+  type VisitAiHypothesis,
+  type VisitAiQuestion,
+  type RecommendationPriority,
 } from '@morbeez/shared';
 import { Btn, DynamicSelect, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
 import { SegmentedChips } from './SegmentedChips';
-
-const CATEGORY_LABELS: Record<IssueCategory, string> = {
-  disease: 'Disease',
-  pest: 'Pest',
-  nutrient_deficiency: 'Deficiency',
-  water_stress: 'Water stress',
-  weed: 'Weed',
-  other: 'Other',
-};
+import {
+  getFallbackIssueTypes,
+  getIssueCategoryLabel,
+  ISSUE_CATEGORY_OPTIONS,
+  issueCategoryHint,
+} from './wizard/visitIssueTypes';
 
 const SEVERITY_LABELS: Record<RecordSeverity, string> = {
   low: 'Low',
@@ -41,7 +40,20 @@ const STATUS_LABELS: Record<IssueStatus, string> = {
 
 type PhotoPreview = { uri: string; filename: string; mimeType: string; dataBase64: string };
 
-export type IssueDraft = StructuredVisitIssueInput & { localId: string; photosPreview?: PhotoPreview[] };
+export type IssueDraft = StructuredVisitIssueInput & {
+  localId: string;
+  photosPreview?: PhotoPreview[];
+  hypotheses?: VisitAiHypothesis[];
+  selectedHypothesisLabel?: string;
+  followUpQuestions?: VisitAiQuestion[];
+  aiDosage?: string;
+  aiPriority?: RecommendationPriority;
+  similarCases?: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;
+  confidenceAction?: string;
+  skipFollowUpOptional?: boolean;
+  qaSkipped?: boolean;
+  imageSignal?: { label: string; confidence: number };
+};
 
 type Props = {
   issue: IssueDraft;
@@ -59,8 +71,20 @@ export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, on
     const filtered = issueMaster.filter(
       (m) => m.category === issue.category && (!m.cropType || m.cropType === cropType)
     );
-    return filtered.map((m) => ({ key: m.id, value: m.issueName, label: m.issueName }));
+    if (filtered.length) {
+      return filtered.map((m) => ({ key: m.id, value: m.issueName, label: m.issueName }));
+    }
+    return getFallbackIssueTypes(cropType, issue.category).map((name, index) => ({
+      key: `fallback-${issue.category}-${index}`,
+      value: name,
+      label: name,
+    }));
   }, [issueMaster, issue.category, cropType]);
+
+  function setCategory(category: IssueCategory) {
+    if (category === issue.category) return;
+    onChange({ ...issue, category, issueName: '', issueMasterId: undefined });
+  }
 
   async function addPhotos() {
     const count = issue.photosPreview?.length ?? 0;
@@ -99,19 +123,43 @@ export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, on
   }
 
   return (
-    <Panel title={`Issue: ${CATEGORY_LABELS[issue.category]}`}>
+    <Panel title="Issue details">
+      <Text style={styles.hint}>{issueCategoryHint(cropType)}</Text>
+
+      <Text style={styles.label}>Issue category</Text>
+      <View style={styles.row}>
+        {ISSUE_CATEGORY_OPTIONS.map((option) => {
+          const active = issue.category === option.value;
+          return (
+            <Pressable
+              key={option.value}
+              onPress={() => setCategory(option.value)}
+              style={[styles.catChip, active && styles.catChipActive]}
+            >
+              <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
       <DynamicSelect
-        label="Issue name"
-        placeholder="Select or type below"
+        label="Issue type"
+        placeholder={`Select ${getIssueCategoryLabel(issue.category).toLowerCase()} type`}
         value={issue.issueName}
         options={nameOptions}
-        onChange={(name) => onChange({ ...issue, issueName: name })}
+        onChange={(name, option) =>
+          onChange({
+            ...issue,
+            issueName: name,
+            issueMasterId: option && !option.key.startsWith('fallback-') ? option.key : undefined,
+          })
+        }
       />
       <TextField
-        label="Issue name (manual)"
+        label="Issue type (manual)"
         value={issue.issueName}
-        onChangeText={(issueName) => onChange({ ...issue, issueName })}
-        placeholder="e.g. Leaf spot"
+        onChangeText={(issueName) => onChange({ ...issue, issueName, issueMasterId: undefined })}
+        placeholder={`e.g. ${nameOptions[0]?.label ?? 'Leaf spot'}`}
       />
       <Text style={styles.label}>Severity</Text>
       <SegmentedChips
@@ -258,15 +306,15 @@ export function IssueCategoryPicker({
     <Panel title="Issues present">
       <Text style={styles.hint}>Select categories to add issue cards.</Text>
       <View style={styles.row}>
-        {ISSUE_CATEGORIES.map((cat) => {
-          const active = selected.includes(cat);
+        {ISSUE_CATEGORY_OPTIONS.map((option) => {
+          const active = selected.includes(option.value);
           return (
             <Pressable
-              key={cat}
-              onPress={() => onToggle(cat)}
+              key={option.value}
+              onPress={() => onToggle(option.value)}
               style={[styles.catChip, active && styles.catChipActive]}
             >
-              <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{CATEGORY_LABELS[cat]}</Text>
+              <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{option.label}</Text>
             </Pressable>
           );
         })}

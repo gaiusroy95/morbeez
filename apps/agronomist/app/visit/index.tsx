@@ -8,18 +8,23 @@ import {
   type CropPerformanceLevel,
   type IssueMasterRow,
   type MeasurementTemplate,
+  type PortalSoilReport,
   type SoilMoistureLevel,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
-import { FollowUpSection, type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
+import { type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
 import { type IssueDraft } from '@/components/field-findings/IssueCard';
 import { VisitStepper, VISIT_WIZARD_STEPS, type VisitWizardStep } from '@/components/field-findings/VisitStepper';
 import { VisitIssuesStep } from '@/components/field-findings/wizard/VisitIssuesStep';
 import { VisitMeasurementsStep } from '@/components/field-findings/wizard/VisitMeasurementsStep';
 import { VisitOverviewStep } from '@/components/field-findings/wizard/VisitOverviewStep';
 import { VisitPhotosStep } from '@/components/field-findings/wizard/VisitPhotosStep';
+import { VisitAiAnalysisStep } from '@/components/field-findings/wizard/VisitAiAnalysisStep';
+import { VisitFollowUpStep } from '@/components/field-findings/wizard/VisitFollowUpStep';
+import { VisitRecommendationStep } from '@/components/field-findings/wizard/VisitRecommendationStep';
+import { VisitReviewStep } from '@/components/field-findings/wizard/VisitReviewStep';
 import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummaryStep';
-import { type VisitPhotoDraft } from '@/components/field-findings/wizard/types';
+import { type VisitPhotoDraft, getDefaultSelectedPhotoTypes } from '@/components/field-findings/wizard/types';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
 
@@ -28,8 +33,9 @@ function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhot
     filename: p.filename,
     mimeType: p.mimeType,
     dataBase64: p.dataBase64,
+    photoType: p.photoType,
   }));
-  return issues.map(({ localId, photosPreview, ...issue }, index) => ({
+  return issues.map(({ localId, photosPreview, hypotheses, followUpQuestions, similarCases, confidenceAction, skipFollowUpOptional, qaSkipped, imageSignal, aiDosage, aiPriority, selectedHypothesisLabel, ...issue }, index) => ({
     ...issue,
     photos: [...(issue.photos ?? []), ...(index === 0 ? sharedPhotos : [])],
   }));
@@ -57,11 +63,13 @@ export default function VisitScreen() {
   const [step, setStep] = useState<VisitWizardStep>('overview');
   const [blockDap, setBlockDap] = useState<number | null>(null);
   const [blockStage, setBlockStage] = useState<string | null>(null);
+  const [latestSoilTest, setLatestSoilTest] = useState<PortalSoilReport | null>(null);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<IssueDraft[]>([]);
   const [visitPhotos, setVisitPhotos] = useState<VisitPhotoDraft[]>([]);
-  const [photoTypes, setPhotoTypes] = useState<string[]>(['whole_field']);
+  const [fieldVoiceNote, setFieldVoiceNote] = useState('');
+  const [photoTypes, setPhotoTypes] = useState<string[]>(() => getDefaultSelectedPhotoTypes(cropType));
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -116,6 +124,7 @@ export default function VisitScreen() {
         sessionRef.current = session.id;
         setBlockDap(blockDetail?.block?.dap ?? null);
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
+        setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
 
         const openRecs = recs.filter(
           (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
@@ -160,6 +169,10 @@ export default function VisitScreen() {
   }, [cropType, farmerId, blockId]);
 
   useEffect(() => {
+    setPhotoTypes(getDefaultSelectedPhotoTypes(cropType));
+  }, [cropType]);
+
+  useEffect(() => {
     const t = setTimeout(() => {
       void persistDraft();
     }, 800);
@@ -185,6 +198,38 @@ export default function VisitScreen() {
       if (!issues.length) return 'Add at least one issue.';
       for (const issue of issues) {
         if (!issue.issueName.trim()) return 'Each issue needs a name.';
+      }
+    }
+    if (current === 'aiAnalysis') {
+      for (const issue of issues) {
+        if (!issue.aiCaseId) return 'Wait for AI analysis to complete.';
+        if (!issue.finalDiagnosis?.trim()) return 'Select a primary hypothesis for each issue.';
+      }
+    }
+    if (current === 'followUp') {
+      for (const issue of issues) {
+        if (issue.qaSkipped || issue.skipFollowUpOptional) continue;
+        const qs = issue.followUpQuestions ?? [];
+        if (qs.length && qs.some((q) => !q.answer?.trim())) {
+          return 'Answer all follow-up questions, skip Q&A, or tap update diagnosis.';
+        }
+      }
+    }
+    if (current === 'recommendation') {
+      for (const issue of issues) {
+        if (!issue.finalRecommendation?.trim()) return 'Each issue needs a recommendation draft.';
+      }
+    }
+    if (current === 'review') {
+      for (const issue of issues) {
+        if (!issue.agronomistReview?.action) return 'Record a review decision for each issue.';
+        const action = issue.agronomistReview.action;
+        if (
+          (action === 'correct_ai' || action === 'partial_match' || action === 'escalate_urgent') &&
+          !issue.agronomistReview.modificationReason?.trim()
+        ) {
+          return 'Provide a reason when modifying or rejecting AI output.';
+        }
       }
     }
     return null;
@@ -277,6 +322,12 @@ export default function VisitScreen() {
         .filter((m) => m.value);
 
       const issuePayload = mergeVisitPhotosIntoIssues(issues, visitPhotos);
+      const visitPhotoPayload = visitPhotos.map((p) => ({
+        filename: p.filename,
+        mimeType: p.mimeType,
+        dataBase64: p.dataBase64,
+        photoType: p.photoType,
+      }));
 
       const visitResult = await agronomistClient.submitStructuredVisit({
         farmerId,
@@ -284,7 +335,15 @@ export default function VisitScreen() {
         sessionId: sessionRef.current ?? undefined,
         blockAssessment: { blockHealth: blockHealth!, cropPerformance: cropPerformance!, soilMoisture: soilMoisture! },
         measurements: measurementRows,
-        issues: issuePayload,
+        visitPhotos: visitPhotoPayload.length ? visitPhotoPayload : undefined,
+        issues: issuePayload.map((issue) => ({
+          ...issue,
+          agronomistReview: issue.agronomistReview ?? {
+            action: 'approve_ai',
+            finalDiagnosis: issue.finalDiagnosis,
+            finalRecommendation: issue.finalRecommendation,
+          },
+        })),
         followUps: followUps
           .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')
           .map((f) => ({
@@ -341,6 +400,7 @@ export default function VisitScreen() {
             dap={blockDap}
             stage={blockStage}
             agronomistName={admin?.email ?? null}
+            soilTest={latestSoilTest}
             blockHealth={blockHealth}
             cropPerformance={cropPerformance}
             soilMoisture={soilMoisture}
@@ -352,10 +412,13 @@ export default function VisitScreen() {
 
         {step === 'photos' ? (
           <VisitPhotosStep
+            cropType={cropType}
             photos={visitPhotos}
             selectedTypes={photoTypes}
+            voiceNote={fieldVoiceNote}
             onPhotosChange={setVisitPhotos}
             onTypesChange={setPhotoTypes}
+            onVoiceNoteChange={setFieldVoiceNote}
           />
         ) : null}
 
@@ -369,34 +432,50 @@ export default function VisitScreen() {
         ) : null}
 
         {step === 'issues' ? (
-          <>
-            <VisitIssuesStep
-              issues={issues}
-              issueMaster={issueMaster}
-              cropType={cropType}
-              blockDap={blockDap}
-              onChange={setIssues}
-              onSuggestQuestions={(issue) =>
-                agronomistClient.suggestIssueFollowUpQuestions({
-                  issueCategory: issue.category,
-                  issueName: issue.issueName || issue.category,
-                  cropType,
-                  dap: blockDap ?? undefined,
-                  observation: issue.observation,
-                  photoCount: (issue.photos?.length ?? 0) + visitPhotos.length,
-                })
-              }
-            />
-            <FollowUpSection
-              items={followUps}
-              onChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
-            />
-          </>
+          <VisitIssuesStep
+            issues={issues}
+            issueMaster={issueMaster}
+            cropType={cropType}
+            blockDap={blockDap}
+            onChange={setIssues}
+            onSuggestQuestions={() => Promise.resolve([])}
+          />
+        ) : null}
+
+        {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
+          <VisitAiAnalysisStep
+            farmerId={farmerId}
+            blockId={blockId}
+            sessionId={sessionRef.current}
+            cropType={cropType}
+            issues={issues}
+            visitPhotos={visitPhotos}
+            fieldVoiceNote={fieldVoiceNote}
+            blockAssessment={{ blockHealth, cropPerformance, soilMoisture }}
+            measurements={measurements}
+            templates={templates}
+            gpsLat={gpsLat}
+            gpsLon={gpsLon}
+            onChange={setIssues}
+          />
+        ) : null}
+
+        {step === 'followUp' ? (
+          <VisitFollowUpStep issues={issues} onChange={setIssues} />
+        ) : null}
+
+        {step === 'recommendation' ? (
+          <VisitRecommendationStep issues={issues} onChange={setIssues} />
+        ) : null}
+
+        {step === 'review' ? (
+          <VisitReviewStep issues={issues} onChange={setIssues} />
         ) : null}
 
         {step === 'summary' ? (
           <VisitSummaryStep
             photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
+            photoTypeCount={photoTypes.length}
             templates={templates}
             measurements={measurements}
             issues={issues}

@@ -44,6 +44,18 @@ type NoteRow = {
   created_by?: string;
 };
 
+type ApplicationTrackingRow = {
+  recommendationId: string;
+  issueDetected: string;
+  recommendedText: string;
+  appliedTechnicalName: string | null;
+  appliedTradeName: string | null;
+  resultStatus: string | null;
+  applicationStatus: string | null;
+  differentProduct: boolean;
+  partialApply: boolean;
+};
+
 function noteDisplayText(row: NoteRow, blockLabel: string): string {
   const raw = String(row.note ?? row.content ?? '');
   return raw.replace(blockNoteTag(blockLabel), '').trim() || '—';
@@ -81,6 +93,7 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
   const [soilMicro, setSoilMicro] = useState(emptySoilForm().micro);
   const [soilType, setSoilType] = useState('');
   const [blockNotes, setBlockNotes] = useState<NoteRow[]>([]);
+  const [applicationTracking, setApplicationTracking] = useState<ApplicationTrackingRow[]>([]);
   const [noteText, setNoteText] = useState('');
   const [gpsSaving, setGpsSaving] = useState(false);
   const [gpsStatus, setGpsStatus] = useState('');
@@ -112,9 +125,11 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
         blockInfo?: BlockInfo;
         block?: { id: string; name: string; cropName?: string; area?: string; plantingDate?: string | null };
         soilReports?: SoilRow[];
+        applicationTracking?: ApplicationTrackingRow[];
       }>(`${base}/leads/${leadId}/blocks/${blockId}/workspace`);
       setBlockInfo(ws.blockInfo ?? null);
       setSoilReports(ws.soilReports ?? []);
+      setApplicationTracking(ws.applicationTracking ?? []);
       const src = ws.block ?? {
         id: blockId,
         name: ws.blockInfo?.blockName ?? '',
@@ -360,6 +375,25 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
             }
           />
         </dl>
+      ) : null}
+
+      {panelMode === 'view' && applicationTracking.length ? (
+        <div className="mt-4 rounded-lg border border-slate-200 p-3">
+          <p className="text-xs font-medium text-slate-700">Application tracking</p>
+          <ul className="mt-2 space-y-2">
+            {applicationTracking.slice(0, 6).map((row) => (
+              <li key={row.recommendationId} className="text-xs text-slate-600">
+                <strong>{row.issueDetected || 'Recommendation'}</strong>
+                {row.appliedTradeName || row.appliedTechnicalName
+                  ? ` · Applied: ${row.appliedTradeName ?? row.appliedTechnicalName}`
+                  : ' · Not applied yet'}
+                {row.differentProduct ? ' · Different product' : ''}
+                {row.partialApply ? ' · Partial apply' : ''}
+                {row.resultStatus ? ` · ${row.resultStatus.replace(/_/g, ' ')}` : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {panelMode === 'view' && canWrite ? (

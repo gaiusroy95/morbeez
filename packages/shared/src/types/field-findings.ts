@@ -2,7 +2,13 @@ export const ISSUE_CATEGORIES = [
   'disease',
   'pest',
   'nutrient_deficiency',
+  'nutrient_toxicity',
   'water_stress',
+  'environmental_stress',
+  'soil_problem',
+  'growth_issue',
+  'chemical_injury',
+  'mechanical_damage',
   'weed',
   'other',
 ] as const;
@@ -55,6 +61,17 @@ export const VISIT_FOLLOWUP_OUTCOMES = [
 ] as const;
 export type VisitFollowupOutcome = (typeof VISIT_FOLLOWUP_OUTCOMES)[number];
 
+export const AGRONOMIST_REVIEW_ACTIONS = [
+  'approve_ai',
+  'correct_ai',
+  'partial_match',
+  'escalate_urgent',
+] as const;
+export type AgronomistReviewAction = (typeof AGRONOMIST_REVIEW_ACTIONS)[number];
+
+export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'] as const;
+export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
+
 export type MeasurementTemplate = {
   id: string;
   cropType: string;
@@ -76,6 +93,39 @@ export type IssueMasterRow = {
   cropType: string | null;
 };
 
+export type VisitAiHypothesis = {
+  id?: string;
+  label: string;
+  confidence: number;
+  rationale?: string;
+  selected?: boolean;
+  imagePrediction?: string;
+  imageConfidence?: number;
+};
+
+export type VisitAiQuestion = {
+  id: string;
+  questionText: string;
+  answerType: VisitAiAnswerType;
+  answer?: string;
+};
+
+export type VisitAgronomistReview = {
+  action: AgronomistReviewAction;
+  finalDiagnosis?: string;
+  finalRecommendation?: string;
+  modificationReason?: string;
+  agronomistConfidence?: number;
+  yieldRisk?: string;
+};
+
+export type VisitPhotoInput = {
+  filename: string;
+  mimeType: string;
+  dataBase64: string;
+  photoType?: string;
+};
+
 export type StructuredVisitIssueInput = {
   category: IssueCategory;
   issueMasterId?: string;
@@ -83,7 +133,12 @@ export type StructuredVisitIssueInput = {
   severity: RecordSeverity;
   observation?: string;
   status?: IssueStatus;
-  photos?: Array<{ filename: string; mimeType: string; dataBase64: string }>;
+  photos?: VisitPhotoInput[];
+  aiCaseId?: string;
+  agronomistReview?: VisitAgronomistReview;
+  finalDiagnosis?: string;
+  finalRecommendation?: string;
+  reviewAfterDays?: number;
   recommendations?: Array<{
     recommendationType?: RecommendationType;
     priority?: RecommendationPriority;
@@ -106,6 +161,7 @@ export type StructuredFieldVisitPayload = {
     soilMoisture: SoilMoistureLevel;
   };
   measurements?: Array<{ key: string; value: string; unit?: string }>;
+  visitPhotos?: VisitPhotoInput[];
   issues: StructuredVisitIssueInput[];
   followUps?: Array<{
     recommendationId: string;
@@ -115,6 +171,67 @@ export type StructuredFieldVisitPayload = {
   }>;
   latitude?: number;
   longitude?: number;
+  sendVisitSummary?: boolean;
+};
+
+export type VisitAiContextPack = {
+  farmerId: string;
+  blockId: string;
+  sessionId?: string;
+  cropType: string;
+  dap: number | null;
+  stage: string | null;
+  blockAssessment?: {
+    blockHealth: BlockHealthLevel;
+    cropPerformance: CropPerformanceLevel;
+    soilMoisture: SoilMoistureLevel;
+  };
+  measurements: Array<{ key: string; value: string; unit?: string }>;
+  soilTestSummary: Record<string, unknown> | null;
+  weatherSnapshot: Record<string, unknown> | null;
+  gps: { latitude: number; longitude: number } | null;
+};
+
+export type VisitImageSignal = {
+  label: string;
+  confidence: number;
+};
+
+export type VisitSimilarCase = {
+  issueLabel: string;
+  score: number;
+  confidence: number;
+  outcome?: string | null;
+};
+
+export type VisitAnalyzeResponse = {
+  aiCaseId: string;
+  hypotheses: VisitAiHypothesis[];
+  confidenceAction: 'auto_send' | 'employee_review' | 'escalate';
+  skipFollowUpOptional: boolean;
+  imageSignal: VisitImageSignal | null;
+  similarCases: VisitSimilarCase[];
+};
+
+export type VisitAiCaseDetail = {
+  id: string;
+  category: string;
+  issueName: string;
+  finalDiagnosis: string | null;
+  finalConfidence: number | null;
+  confidenceAction: string | null;
+  status: string;
+  metadata: Record<string, unknown>;
+  hypotheses: VisitAiHypothesis[];
+  questions: VisitAiQuestion[];
+  recommendations: Array<{
+    aiText: string;
+    humanText: string | null;
+    reviewAction: string | null;
+    reviewAfterDays: number | null;
+  }>;
+  fieldFindingId: string | null;
+  visitedAt: string | null;
 };
 
 export type FarmerNoteRow = {

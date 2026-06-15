@@ -11,15 +11,48 @@ type Props<T extends string> = {
   options: Option<T>[];
   value: T | null | undefined;
   onChange: (value: T) => void;
+  /** 2 for even grids (e.g. four soil options); defaults to 3. */
+  columns?: 2 | 3;
 };
+
+const GAP = 8;
 
 const toneStyles = {
-  good: { bg: '#E8F5E9', border: tokens.green500, text: tokens.green800 },
-  average: { bg: '#FFF8E1', border: '#F9A825', text: '#E65100' },
-  bad: { bg: '#FFEBEE', border: '#E53935', text: '#B71C1C' },
+  good: {
+    bg: '#E8F5E9',
+    border: '#A5D6A7',
+    text: tokens.green800,
+    activeBg: tokens.green700,
+    activeBorder: tokens.green700,
+    activeText: '#FFFFFF',
+  },
+  average: {
+    bg: '#FFF8E1',
+    border: '#FFE082',
+    text: '#E65100',
+    activeBg: '#F9A825',
+    activeBorder: '#F9A825',
+    activeText: '#FFFFFF',
+  },
+  bad: {
+    bg: '#FFEBEE',
+    border: '#EF9A9A',
+    text: '#B71C1C',
+    activeBg: '#E53935',
+    activeBorder: '#E53935',
+    activeText: '#FFFFFF',
+  },
 };
 
-export function ColoredAssessmentChips<T extends string>({ options, value, onChange }: Props<T>) {
+export function ColoredAssessmentChips<T extends string>({
+  options,
+  value,
+  onChange,
+  columns: columnsProp,
+}: Props<T>) {
+  const columns: 2 | 3 = columnsProp ?? (options.length === 4 ? 2 : 3);
+  const chipWidth = columns === 2 ? '48%' : '31%';
+
   return (
     <View style={styles.row}>
       {options.map((o) => {
@@ -28,14 +61,28 @@ export function ColoredAssessmentChips<T extends string>({ options, value, onCha
         return (
           <Pressable
             key={o.value}
+            accessibilityRole="button"
+            accessibilityState={{ selected: active }}
             onPress={() => onChange(o.value)}
-            style={[
+            style={({ pressed }) => [
               styles.chip,
-              { backgroundColor: tone.bg, borderColor: tone.border },
-              active && styles.chipActive,
+              { width: chipWidth },
+              active ? styles.chipSelected : styles.chipDefault,
+              {
+                backgroundColor: active ? tone.activeBg : tone.bg,
+                borderColor: active ? tone.activeBorder : tone.border,
+                opacity: pressed ? 0.92 : 1,
+              },
             ]}
           >
-            <Text style={[styles.chipText, { color: tone.text }, active && styles.chipTextActive]}>
+            <Text
+              numberOfLines={2}
+              style={[
+                styles.chipText,
+                active ? styles.chipTextSelected : styles.chipTextDefault,
+                { color: active ? tone.activeText : tone.text },
+              ]}
+            >
               {o.label}
             </Text>
           </Pressable>
@@ -46,17 +93,28 @@ export function ColoredAssessmentChips<T extends string>({ options, value, onCha
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: {
-    flex: 1,
-    minWidth: 90,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: tokens.radiusSm,
-    borderWidth: 2,
-    alignItems: 'center',
+  row: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GAP,
+    justifyContent: 'flex-start',
   },
-  chipActive: { borderWidth: 2.5 },
-  chipText: { fontSize: 13, fontWeight: '600', textAlign: 'center' },
-  chipTextActive: { fontWeight: '800' },
+  chip: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: tokens.radiusSm,
+    minHeight: 44,
+    paddingHorizontal: 6,
+  },
+  chipDefault: {
+    paddingVertical: 10,
+    borderWidth: 1,
+  },
+  chipSelected: {
+    paddingVertical: 10,
+    borderWidth: 2,
+  },
+  chipText: { textAlign: 'center' },
+  chipTextDefault: { fontSize: 13, fontWeight: '600', lineHeight: 17 },
+  chipTextSelected: { fontSize: 13, fontWeight: '800', lineHeight: 17 },
 });

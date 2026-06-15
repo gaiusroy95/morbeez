@@ -1,13 +1,26 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { tokens } from '@morbeez/shared';
 
-export type VisitWizardStep = 'overview' | 'photos' | 'measurements' | 'issues' | 'summary';
+export type VisitWizardStep =
+  | 'overview'
+  | 'photos'
+  | 'measurements'
+  | 'issues'
+  | 'aiAnalysis'
+  | 'followUp'
+  | 'recommendation'
+  | 'review'
+  | 'summary';
 
 export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'photos', label: 'Photos' },
   { id: 'measurements', label: 'Measures' },
   { id: 'issues', label: 'Issues' },
+  { id: 'aiAnalysis', label: 'AI' },
+  { id: 'followUp', label: 'Q&A' },
+  { id: 'recommendation', label: 'Rec' },
+  { id: 'review', label: 'Review' },
   { id: 'summary', label: 'Summary' },
 ];
 
@@ -46,18 +59,18 @@ export function VisitStepper({ current }: Props) {
 const styles = StyleSheet.create({
   root: {
     flexDirection: 'row',
-    paddingHorizontal: 8,
-    paddingVertical: 12,
+    paddingHorizontal: 4,
+    paddingVertical: 10,
     backgroundColor: tokens.card,
     borderBottomWidth: 1,
     borderBottomColor: tokens.border,
   },
-  stepWrap: { flex: 1, alignItems: 'center' },
+  stepWrap: { flex: 1, alignItems: 'center', minWidth: 0 },
   stepRow: { flexDirection: 'row', alignItems: 'center', width: '100%', justifyContent: 'center' },
   dot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 2,
     borderColor: tokens.border,
     backgroundColor: tokens.bg,
@@ -66,16 +79,15 @@ const styles = StyleSheet.create({
   },
   dotActive: { borderColor: tokens.green700, backgroundColor: tokens.green700 },
   dotDone: { borderColor: tokens.green700, backgroundColor: tokens.green700 },
-  dotText: { fontSize: 12, fontWeight: '700', color: tokens.textMuted },
+  dotText: { fontSize: 10, fontWeight: '700', color: tokens.textMuted },
   dotTextActive: { color: '#fff' },
   line: {
     flex: 1,
     height: 2,
     backgroundColor: tokens.border,
-    marginHorizontal: 2,
-    marginBottom: 0,
+    marginHorizontal: 1,
   },
   lineDone: { backgroundColor: tokens.green500 },
-  label: { fontSize: 10, color: tokens.textMuted, marginTop: 6, textAlign: 'center' },
+  label: { fontSize: 9, color: tokens.textMuted, marginTop: 4, textAlign: 'center' },
   labelActive: { color: tokens.green800, fontWeight: '700' },
 });

@@ -407,7 +407,7 @@ export const crmFarmerService = {
     const block = await this.getBlock(blockId);
     if (block.farmerId !== farmerId) throw new NotFoundError('Block not found');
 
-    const [soilRes, findingsRes, recsRes, soilList, visits, blockRecs, followUps] = await Promise.all([
+    const [soilRes, findingsRes, recsRes, soilList, visits, blockRecs, followUps, applicationRows] = await Promise.all([
       supabase
         .from('crm_soil_reports')
         .select('*')
@@ -432,6 +432,20 @@ export const crmFarmerService = {
       this.listFieldFindingsForBlock(farmerId, blockId, 15),
       this.listRecommendationsForBlock(farmerId, blockId),
       this.listBlockFollowUps(farmerId, blockId),
+      supabase
+        .from('recommendation_records')
+        .select(
+          `id, issue_detected, recommendation_text, status, application_status, outcome, metadata,
+           recommendation_applications(technical_name, trade_name, result_status, applied_at, dosage, notes)`
+        )
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .order('created_at', { ascending: false })
+        .limit(12)
+        .then(({ data, error }) => {
+          throwIfSupabaseError(error, 'Could not load recommendation applications');
+          return data ?? [];
+        }),
     ]);
 
     const latestSoil = soilRes.data?.[0];
@@ -483,6 +497,28 @@ export const crmFarmerService = {
             notes: followUps[0].notes ? String(followUps[0].notes) : undefined,
           }
         : null,
+      applicationTracking: applicationRows.map((row) => {
+        const meta = (row.metadata as Record<string, unknown>) ?? {};
+        const app = (
+          Array.isArray(row.recommendation_applications)
+            ? row.recommendation_applications[0]
+            : row.recommendation_applications
+        ) as Record<string, unknown> | null | undefined;
+        return {
+          recommendationId: String(row.id),
+          issueDetected: row.issue_detected ? String(row.issue_detected) : '',
+          recommendedText: String(row.recommendation_text ?? '').slice(0, 200),
+          recommendedTechnicalName: row.metadata ? String(meta.recommendedTechnicalName ?? '') : '',
+          differentProduct: Boolean(meta.differentProduct),
+          partialApply: Boolean(meta.partialApply),
+          applicationStatus: row.application_status ? String(row.application_status) : null,
+          outcome: row.outcome ? String(row.outcome) : null,
+          appliedTechnicalName: app?.technical_name ? String(app.technical_name) : null,
+          appliedTradeName: app?.trade_name ? String(app.trade_name) : null,
+          resultStatus: app?.result_status ? String(app.result_status) : null,
+          appliedAt: app?.applied_at ? String(app.applied_at) : null,
+        };
+      }),
       timeline: await this.blockTimeline(farmerId, blockId),
     };
   },

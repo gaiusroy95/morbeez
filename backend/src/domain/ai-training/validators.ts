@@ -94,6 +94,16 @@ const visitPhotoSchema = z.object({
   filename: z.string().max(200),
   mimeType: z.string().max(100),
   dataBase64: z.string().max(12_000_000),
+  photoType: z.string().max(80).optional(),
+});
+
+export const agronomistReviewSchema = z.object({
+  action: reviewActionSchema,
+  finalDiagnosis: z.string().max(200).optional(),
+  finalRecommendation: z.string().max(8000).optional(),
+  modificationReason: z.string().max(1000).optional(),
+  agronomistConfidence: z.number().min(0).max(1).optional(),
+  yieldRisk: z.string().max(200).optional(),
 });
 
 const visitIssueRecommendationSchema = z.object({
@@ -113,6 +123,11 @@ export const visitIssueInputSchema = z.object({
   observation: z.string().max(4000).optional(),
   status: issueStatusSchema.optional(),
   photos: z.array(visitPhotoSchema).max(8).optional(),
+  aiCaseId: z.string().uuid().optional(),
+  agronomistReview: agronomistReviewSchema.optional(),
+  finalDiagnosis: z.string().max(200).optional(),
+  finalRecommendation: z.string().max(8000).optional(),
+  reviewAfterDays: z.number().int().min(1).max(365).optional(),
   recommendations: z.array(visitIssueRecommendationSchema).max(5).optional(),
 });
 
@@ -144,10 +159,60 @@ export const structuredFieldVisitSchema = z.object({
     })
     .optional(),
   measurements: z.array(visitMeasurementInputSchema).max(20).optional(),
+  visitPhotos: z.array(visitPhotoSchema).max(12).optional(),
   issues: z.array(visitIssueInputSchema).min(1).max(12),
   followUps: z.array(visitFollowUpInputSchema).max(20).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  sendVisitSummary: z.boolean().optional(),
+});
+
+export const visitAiContextRequestSchema = z.object({
+  farmerId: z.string().uuid(),
+  blockId: z.string().uuid(),
+  sessionId: z.string().uuid().optional(),
+  blockAssessment: z
+    .object({
+      blockHealth: blockHealthSchema,
+      cropPerformance: cropPerformanceSchema,
+      soilMoisture: soilMoistureSchema,
+    })
+    .optional(),
+  measurements: z.array(visitMeasurementInputSchema).max(20).optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+});
+
+export const visitAnalyzeRequestSchema = visitAiContextRequestSchema.extend({
+  issueCategory: issueCategorySchema,
+  issueName: z.string().min(1).max(200),
+  observation: z.string().max(4000).optional(),
+  photoRefs: z.array(z.string().max(500)).max(8).optional(),
+  analyzePhotos: z
+    .array(
+      z.object({
+        dataBase64: z.string().min(100).max(12_000_000),
+        mimeType: z.string().max(100).optional(),
+      })
+    )
+    .max(4)
+    .optional(),
+  selectedHypothesisLabel: z.string().max(200).optional(),
+});
+
+export const visitAiAnswerSchema = z.object({
+  questionId: z.string().uuid(),
+  answer: z.string().max(500),
+});
+
+export const visitAiAnswersBodySchema = z.object({
+  answers: z.array(visitAiAnswerSchema).min(1).max(20),
+});
+
+export const visitAiRecommendBodySchema = z.object({
+  finalDiagnosis: z.string().max(200).optional(),
 });
 
 export type StructuredFieldVisitInput = z.infer<typeof structuredFieldVisitSchema>;
+export type VisitAnalyzeRequest = z.infer<typeof visitAnalyzeRequestSchema>;
+export type VisitAiAnswersBody = z.infer<typeof visitAiAnswersBodySchema>;

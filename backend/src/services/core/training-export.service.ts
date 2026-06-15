@@ -510,6 +510,85 @@ export const trainingExportService = {
         reuseBySource[key] = (reuseBySource[key] ?? 0) + 1;
       }
       payload.reuseCaseStats = reuseBySource;
+      const { data: visitAiRows, error: visitAiErr } = await supabase
+        .from('visit_ai_cases')
+        .select(
+          `*, visit_ai_hypotheses(label, confidence, selected, image_prediction, image_confidence),
+           visit_ai_questions(question_text, answer_type, answer, metadata),
+           visit_ai_recommendations(ai_text, human_text, review_action, review_after_days, recommendation_record_id),
+           crm_field_findings(
+             visited_at, block_id, block_health, crop_performance, soil_moisture,
+             visit_issues(id, issue_name, severity, observation, issue_photos(storage_path, photo_type)),
+             visit_photos(storage_path, photo_type),
+             visit_measurements(measurement_key, value, unit)
+           )`
+        )
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (!visitAiErr) {
+        const recIds = (visitAiRows ?? [])
+          .flatMap((r) =>
+            ((r.visit_ai_recommendations as Array<{ recommendation_record_id?: string }> | null) ?? [])
+              .map((rec) => rec.recommendation_record_id)
+              .filter(Boolean)
+          )
+          .map(String);
+        const outcomeByRec = new Map<string, string>();
+        if (recIds.length) {
+          const { data: recOutcomes } = await supabase
+            .from('recommendation_records')
+            .select('id, outcome, application_status')
+            .in('id', recIds);
+          for (const row of recOutcomes ?? []) {
+            outcomeByRec.set(String(row.id), String(row.outcome ?? row.application_status ?? ''));
+          }
+        }
+
+        payload.visitAiCases = (visitAiRows ?? []).map((r) => {
+          const finding = r.crm_field_findings as {
+            visited_at?: string;
+            block_id?: string;
+            block_health?: string;
+            crop_performance?: string;
+            soil_moisture?: string;
+            visit_issues?: Array<{
+              issue_name?: string;
+              severity?: string;
+              observation?: string;
+              issue_photos?: Array<{ storage_path?: string; photo_type?: string }>;
+            }>;
+            visit_photos?: Array<{ storage_path?: string; photo_type?: string }>;
+            visit_measurements?: Array<{ measurement_key?: string; value?: string; unit?: string }>;
+          } | null;
+          const linkedRecId = (
+            (r.visit_ai_recommendations as Array<{ recommendation_record_id?: string }> | null) ?? []
+          )[0]?.recommendation_record_id;
+          return {
+            id: String(r.id),
+            category: String(r.category),
+            issueName: String(r.issue_name),
+            finalDiagnosis: r.final_diagnosis ? String(r.final_diagnosis) : '',
+            finalConfidence: r.final_confidence != null ? Number(r.final_confidence) : '',
+            status: String(r.status),
+            hypotheses: JSON.stringify(r.visit_ai_hypotheses ?? []),
+            questions: JSON.stringify(r.visit_ai_questions ?? []),
+            recommendations: JSON.stringify(r.visit_ai_recommendations ?? []),
+            metadata: JSON.stringify(r.metadata ?? {}),
+            visitedAt: finding?.visited_at ?? String(r.created_at),
+            blockAssessment: JSON.stringify({
+              blockHealth: finding?.block_health ?? null,
+              cropPerformance: finding?.crop_performance ?? null,
+              soilMoisture: finding?.soil_moisture ?? null,
+            }),
+            measurements: JSON.stringify(finding?.visit_measurements ?? []),
+            visitPhotos: JSON.stringify(finding?.visit_photos ?? []),
+            issuePhotos: JSON.stringify(finding?.visit_issues?.[0]?.issue_photos ?? []),
+            weatherSnapshotId: (r.metadata as Record<string, unknown>)?.weatherSnapshotId ?? null,
+            outcome: linkedRecId ? outcomeByRec.get(String(linkedRecId)) ?? null : null,
+          };
+        });
+      }
       return {
         contentType: 'application/json',
         filename: `morbeez-training-export-${new Date().toISOString().slice(0, 10)}.json`,

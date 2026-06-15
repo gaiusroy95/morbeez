@@ -12,6 +12,7 @@ import { CaseReviewPanel } from '../components/agronomist/CaseReviewPanel';
 import { ImageReviewPanel } from '../components/agronomist/ImageReviewPanel';
 import { OutcomeReviewPanel } from '../components/agronomist/OutcomeReviewPanel';
 import { TrainingExportPanel } from '../components/agronomist/TrainingExportPanel';
+import { CaseLibraryPanel } from '../components/agronomist/CaseLibraryPanel';
 import { RecommendationApprovalsWorkspace } from '../components/approvals/RecommendationApprovalsWorkspace';
 import '../styles/approvals-workspace.css';
 import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIntelligenceBar';
@@ -23,6 +24,7 @@ type AgronomistHubTab =
   | 'image_review'
   | 'outcome_review'
   | 'training_export'
+  | 'case_library'
   | 'queue'
   | 'approvals'
   | 'farmer_feedback';
@@ -32,6 +34,7 @@ const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'image_review', label: 'Image review' },
   { id: 'outcome_review', label: 'Outcome review' },
   { id: 'training_export', label: 'Training export' },
+  { id: 'case_library', label: 'Case library' },
   { id: 'queue', label: 'Field findings' },
   { id: 'farmer_feedback', label: 'Farmer feedback' },
   { id: 'approvals', label: 'Approvals' },
@@ -276,6 +279,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
 
       {tab === 'outcome_review' ? <OutcomeReviewPanel canWrite={canWrite} /> : null}
       {tab === 'training_export' ? <TrainingExportPanel canWrite={canWrite} /> : null}
+      {tab === 'case_library' ? <CaseLibraryPanel canWrite={canWrite} /> : null}
 
       {tab === 'queue' && !loading ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

@@ -28,6 +28,9 @@ import type {
   MeasurementTemplate,
   StructuredFieldVisitPayload,
   FarmerNoteRow,
+  VisitAiContextPack,
+  VisitAnalyzeResponse,
+  VisitAiQuestion,
 } from '../types/field-findings';
 import type { FarmerCallLogSummary, FarmerInteractionRow } from '../types/interactions';
 import type { CultivationActivity } from '../types/activities';
@@ -404,6 +407,136 @@ export const agronomistClient = {
       `${FIELD}/visits/v2`,
       { method: 'POST', body: JSON.stringify(body) }
     );
+  },
+
+  async buildVisitAiContext(body: {
+    farmerId: string;
+    blockId: string;
+    sessionId?: string;
+    blockAssessment?: StructuredFieldVisitPayload['blockAssessment'];
+    measurements?: StructuredFieldVisitPayload['measurements'];
+    latitude?: number;
+    longitude?: number;
+  }): Promise<VisitAiContextPack> {
+    const r = await staffApi<{ ok: boolean; context: VisitAiContextPack }>(
+      `${FIELD}/visits/context`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.context;
+  },
+
+  async analyzeVisitIssue(body: {
+    farmerId: string;
+    blockId: string;
+    sessionId?: string;
+    issueCategory: IssueCategory;
+    issueName: string;
+    observation?: string;
+    blockAssessment?: StructuredFieldVisitPayload['blockAssessment'];
+    measurements?: StructuredFieldVisitPayload['measurements'];
+    latitude?: number;
+    longitude?: number;
+    selectedHypothesisLabel?: string;
+    analyzePhotos?: Array<{ dataBase64: string; mimeType?: string }>;
+  }): Promise<VisitAnalyzeResponse> {
+    const r = await staffApi<{ ok: boolean } & VisitAnalyzeResponse>(
+      `${FIELD}/visits/analyze`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return {
+      aiCaseId: r.aiCaseId,
+      hypotheses: r.hypotheses,
+      confidenceAction: r.confidenceAction,
+      skipFollowUpOptional: r.skipFollowUpOptional,
+      imageSignal: r.imageSignal ?? null,
+      similarCases: r.similarCases ?? [],
+    };
+  },
+
+  async skipVisitAiFollowUp(aiCaseId: string) {
+    return staffApi<{ ok: boolean; skipped: boolean }>(
+      `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/skip-qa`,
+      { method: 'POST' }
+    );
+  },
+
+  async getVisitAiCaseDetail(aiCaseId: string) {
+    const r = await staffApi<{ ok: boolean; case: import('../types/field-findings.js').VisitAiCaseDetail }>(
+      `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}`
+    );
+    return r.case;
+  },
+
+  async getVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]> {
+    const r = await staffApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`
+    );
+    return r.questions ?? [];
+  },
+
+  async saveVisitAiAnswers(aiCaseId: string, answers: Array<{ questionId: string; answer: string }>) {
+    return staffApi(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
+    });
+  },
+
+  async reanalyzeVisitAiCase(aiCaseId: string) {
+    return staffApi<{
+      ok: boolean;
+      finalDiagnosis: string;
+      finalConfidence: number;
+      confidenceAction: string;
+      hypotheses: Array<{ label: string; confidence: number; rationale?: string }>;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/reanalyze`, { method: 'POST' });
+  },
+
+  async recommendVisitAiCase(aiCaseId: string, finalDiagnosis?: string) {
+    return staffApi<{
+      ok: boolean;
+      recommendationId: string;
+      text: string;
+      dosage: string | null;
+      priority: string;
+      reviewAfterDays: number;
+      reviewDate: string;
+      expectedImprovementDays: string;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/recommend`, {
+      method: 'POST',
+      body: JSON.stringify({ finalDiagnosis }),
+    });
+  },
+
+  async getSimilarVisitCases(farmerId: string, cropType: string, issueName: string) {
+    const params = new URLSearchParams({ farmerId, cropType, issueName });
+    const r = await staffApi<{
+      ok: boolean;
+      cases: Array<{ issueLabel: string; score: number; confidence: number }>;
+    }>(`${FIELD}/visits/similar-cases?${params}`);
+    return r.cases ?? [];
+  },
+
+  async searchVisitCaseLibrary(opts?: {
+    cropType?: string;
+    issue?: string;
+    outcome?: string;
+    dapBucket?: string;
+    severity?: string;
+    reviewAction?: string;
+    limit?: number;
+  }) {
+    const params = new URLSearchParams();
+    if (opts?.cropType) params.set('cropType', opts.cropType);
+    if (opts?.issue) params.set('issue', opts.issue);
+    if (opts?.outcome) params.set('outcome', opts.outcome);
+    if (opts?.dapBucket) params.set('dapBucket', opts.dapBucket);
+    if (opts?.severity) params.set('severity', opts.severity);
+    if (opts?.reviewAction) params.set('reviewAction', opts.reviewAction);
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const r = await staffApi<{ ok: boolean; cases: unknown[] }>(
+      `${FIELD}/visits/case-library?${params}`
+    );
+    return r.cases ?? [];
   },
 
   async getVisitDetail(findingId: string) {

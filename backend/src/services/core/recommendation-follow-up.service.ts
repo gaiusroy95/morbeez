@@ -84,6 +84,18 @@ function addDaysDate(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+async function resolveEscalationSessionId(rec: RecRow): Promise<string | null> {
+  if (rec.ai_session_id) return rec.ai_session_id;
+  const visitAiCaseId = rec.metadata?.visitAiCaseId;
+  if (!visitAiCaseId) return null;
+  const { data } = await supabase
+    .from('visit_ai_cases')
+    .select('ai_advisory_session_id')
+    .eq('id', String(visitAiCaseId))
+    .maybeSingle();
+  return data?.ai_advisory_session_id ? String(data.ai_advisory_session_id) : null;
+}
+
 export const recommendationFollowUpService = {
   async loadRecord(recommendationRecordId: string): Promise<RecRow | null> {
     const { data, error } = await supabase
@@ -956,9 +968,10 @@ export const recommendationFollowUpService = {
       priority: 'high',
     });
 
-    if (rec.ai_session_id) {
+    const sessionId = await resolveEscalationSessionId(rec);
+    if (sessionId) {
       await escalationService.ensureOpenEscalation({
-        sessionId: rec.ai_session_id,
+        sessionId,
         farmerId,
         reason: 'No improvement after recommendation (Day-5 follow-up)',
         confidence_at_escalation: 0.5,
@@ -975,9 +988,10 @@ export const recommendationFollowUpService = {
       priority: 'urgent',
     });
 
-    if (rec.ai_session_id) {
+    const sessionId = await resolveEscalationSessionId(rec);
+    if (sessionId) {
       await escalationService.ensureOpenEscalation({
-        sessionId: rec.ai_session_id,
+        sessionId,
         farmerId,
         reason: 'Worsened after recommendation (Day-5 follow-up)',
         confidence_at_escalation: 0.4,
