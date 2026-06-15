@@ -8,13 +8,13 @@ import type {
   VisitAiCaseStatus,
   VisitPhotoInput,
   VisitReviewSubStep,
-} from '../types/field-findings.js';
+} from '../types/field-findings';
 import {
   isRejectReviewIncomplete,
   validateRejectReasonFlow,
   VISIT_AI_REJECT_REASON_OPTIONS,
   visitAiCaseStatusLabel,
-} from './reject-flow.js';
+} from './reject-flow';
 
 export {
   VISIT_AI_REJECT_REASON_OPTIONS,
@@ -23,8 +23,8 @@ export {
   visitAiCaseStatusLabel,
   defaultEvidenceQuestions,
   buildCustomRecommendationText,
-} from './reject-flow.js';
-export type { RejectReasonValidationPayload } from './reject-flow.js';
+} from './reject-flow';
+export type { RejectReasonValidationPayload } from './reject-flow';
 
 export type VisitWizardStep =
   | 'overview'

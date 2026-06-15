@@ -8,12 +8,12 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { agronomistClient, tokens, type AgronomistRouteSummary } from '@morbeez/shared';
+import { partnerClient, tokens, type AgentRouteSummary } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, ListCard, Loading } from '@morbeez/ui-native';
 
-export default function RouteListScreen() {
+export default function PartnerRouteListScreen() {
   const router = useRouter();
-  const [routes, setRoutes] = useState<AgronomistRouteSummary[]>([]);
+  const [routes, setRoutes] = useState<AgentRouteSummary[]>([]);
   const [routeName, setRouteName] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -23,7 +23,7 @@ export default function RouteListScreen() {
   const load = useCallback(async () => {
     setError('');
     try {
-      setRoutes(await agronomistClient.listRoutes());
+      setRoutes(await partnerClient.listRoutes());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load routes');
     } finally {
@@ -41,7 +41,7 @@ export default function RouteListScreen() {
     setBusy(true);
     setError('');
     try {
-      const route = await agronomistClient.createRoute(name);
+      const route = await partnerClient.createRoute(name);
       setRouteName('');
       router.push(`/route/${route.id}`);
     } catch (e) {
@@ -65,6 +65,9 @@ export default function RouteListScreen() {
         ListHeaderComponent={
           <>
             {error ? <AlertBox>{error}</AlertBox> : null}
+            <Text style={styles.hint}>
+              Plan field visits by pincode cluster. Add farmers from their workspace, then optimize from your GPS.
+            </Text>
             <Text style={styles.label}>New route name</Text>
             <TextInput
               style={styles.input}
@@ -98,6 +101,7 @@ export default function RouteListScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
   content: { padding: 16, paddingBottom: 32 },
+  hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 8, lineHeight: 18 },
   label: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 6, marginTop: 8 },
   input: {
     backgroundColor: tokens.card,

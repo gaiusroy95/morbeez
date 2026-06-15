@@ -1,5 +1,17 @@
 import { resolveApiUrl } from './config';
-import type { PartnerDashboardStats, PartnerProfile } from '../types/partner';
+import type {
+  PartnerDashboardStats,
+  PartnerProfile,
+  AgentRouteSummary,
+  PartnerFarmerListRow,
+  PartnerFarmerWorkspace,
+  PartnerFarmerTaskRow,
+  PartnerFarmerOrderRow,
+  PartnerEscalationRow,
+  PartnerVisitSessionRow,
+  TeamTimelineEntry,
+  FarmerTimelineEntry,
+} from '../types/partner';
 
 const PARTNER_API = '/morbeez-partner/api/v1';
 const TOKEN_KEY = 'morbeez_partner_token';
@@ -83,9 +95,9 @@ export const partnerClient = {
     return r.stats;
   },
 
-  async listFarmers() {
-    const r = await partnerApi<{ ok: boolean; farmers: Array<Record<string, unknown>> }>('/farmers');
-    return r.farmers;
+  async listFarmers(): Promise<PartnerFarmerListRow[]> {
+    const r = await partnerApi<{ ok: boolean; farmers: PartnerFarmerListRow[] }>('/farmers');
+    return r.farmers ?? [];
   },
 
   async listTasks() {
@@ -137,10 +149,11 @@ export const partnerClient = {
     latitude?: number;
     longitude?: number;
   }) {
-    return partnerApi('/visits/sessions/start', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    });
+    const r = await partnerApi<{ ok: boolean; session: Record<string, unknown> }>(
+      '/visits/sessions/start',
+      { method: 'POST', body: JSON.stringify(input) }
+    );
+    return r.session;
   },
 
   async checkOutVisitSession(
@@ -154,10 +167,10 @@ export const partnerClient = {
   },
 
   async submitVisit(payload: Record<string, unknown>) {
-    return partnerApi<{ ok: boolean; findingId?: string }>('/visits/submit', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
+    return partnerApi<{ ok: boolean; findingId?: string; recommendationIds?: string[] }>(
+      '/visits/submit',
+      { method: 'POST', body: JSON.stringify(payload) }
+    );
   },
 
   async getIssueMaster(cropType?: string) {
@@ -168,11 +181,144 @@ export const partnerClient = {
     return r.items ?? [];
   },
 
-  async getFarmerWorkspace(farmerId: string) {
-    const r = await partnerApi<{ ok: boolean; workspace: Record<string, unknown> }>(
+  async getFarmerWorkspace(farmerId: string): Promise<PartnerFarmerWorkspace> {
+    const r = await partnerApi<{ ok: boolean; workspace: PartnerFarmerWorkspace }>(
       `/farmers/${farmerId}`
     );
     return r.workspace;
+  },
+
+  async getFarmerTasks(farmerId: string): Promise<PartnerFarmerTaskRow[]> {
+    const r = await partnerApi<{ ok: boolean; tasks: PartnerFarmerTaskRow[] }>(
+      `/farmers/${farmerId}/tasks`
+    );
+    return r.tasks ?? [];
+  },
+
+  async getFarmerOrders(farmerId: string): Promise<PartnerFarmerOrderRow[]> {
+    const r = await partnerApi<{ ok: boolean; orders: PartnerFarmerOrderRow[] }>(
+      `/farmers/${farmerId}/orders`
+    );
+    return r.orders ?? [];
+  },
+
+  async getFarmerEscalations(farmerId: string): Promise<PartnerEscalationRow[]> {
+    const r = await partnerApi<{ ok: boolean; escalations: PartnerEscalationRow[] }>(
+      `/farmers/${farmerId}/escalations`
+    );
+    return r.escalations ?? [];
+  },
+
+  async createEscalation(
+    farmerId: string,
+    body: { category: string; notes: string }
+  ) {
+    return partnerApi(`/farmers/${farmerId}/escalations`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getInteractions(farmerId: string): Promise<TeamTimelineEntry[]> {
+    const r = await partnerApi<{ ok: boolean; interactions: TeamTimelineEntry[] }>(
+      `/farmers/${farmerId}/interactions`
+    );
+    return r.interactions ?? [];
+  },
+
+  async getFarmerRecommendations(farmerId: string) {
+    const r = await partnerApi<{ ok: boolean; recommendations: Record<string, unknown>[] }>(
+      `/farmers/${farmerId}/recommendations`
+    );
+    return r.recommendations ?? [];
+  },
+
+  async getVisitSessions(farmerId: string): Promise<PartnerVisitSessionRow[]> {
+    const r = await partnerApi<{ ok: boolean; sessions: PartnerVisitSessionRow[] }>(
+      `/farmers/${farmerId}/visit-sessions`
+    );
+    return r.sessions ?? [];
+  },
+
+  async scheduleCallback(farmerId: string, notes: string) {
+    return partnerApi(`/farmers/${farmerId}/schedule-callback`, {
+      method: 'POST',
+      body: JSON.stringify({ notes }),
+    });
+  },
+
+  async createSupportRequest(
+    farmerId: string,
+    body: { requestType: string; notes: string }
+  ) {
+    return partnerApi(`/farmers/${farmerId}/support-request`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async addTeamComment(farmerId: string, body: string) {
+    return partnerApi<{ ok: boolean; entry: FarmerTimelineEntry }>(
+      `/farmers/${farmerId}/team-timeline`,
+      { method: 'POST', body: JSON.stringify({ body }) }
+    );
+  },
+
+  async getBlockDetail(farmerId: string, blockId: string) {
+    return partnerApi<Record<string, unknown>>(
+      `/farmers/${farmerId}/blocks/${blockId}/detail`
+    );
+  },
+
+  async getBlockTimeline(farmerId: string, blockId: string) {
+    const r = await partnerApi<{ ok: boolean; timeline: unknown }>(
+      `/farmers/${farmerId}/blocks/${blockId}/timeline`
+    );
+    return r.timeline;
+  },
+
+  async getMeasurementTemplates(cropType: string) {
+    const r = await partnerApi<{ ok: boolean; templates: Record<string, unknown>[] }>(
+      `/measurement-templates/${encodeURIComponent(cropType)}`
+    );
+    return r.templates ?? [];
+  },
+
+  async getVisitContext(body: Record<string, unknown>) {
+    const r = await partnerApi<{ ok: boolean; context: Record<string, unknown> }>(
+      '/visits/context',
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.context;
+  },
+
+  async analyzeVisitIssue(body: Record<string, unknown>) {
+    return partnerApi<Record<string, unknown>>('/visits/analyze', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getVisitDetail(findingId: string) {
+    return partnerApi<Record<string, unknown>>(`/visits/${findingId}`);
+  },
+
+  async saveBlockLocation(blockId: string, body: { farmerId: string; latitude: number; longitude: number }) {
+    return partnerApi(`/blocks/${blockId}/location`, { method: 'POST', body: JSON.stringify(body) });
+  },
+
+  async rejectTask(taskId: string, reason: string) {
+    return partnerApi(`/tasks/${taskId}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  },
+
+  async rescheduleTask(taskId: string, dueAt: string) {
+    return partnerApi(`/tasks/${taskId}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ dueAt }),
+    });
   },
 
   async getTimeline(farmerId: string) {
@@ -199,20 +345,6 @@ export const partnerClient = {
       '/notifications'
     );
     return r.notifications ?? [];
-  },
-
-  async rejectTask(taskId: string, reason: string) {
-    return partnerApi(`/tasks/${taskId}/reject`, {
-      method: 'POST',
-      body: JSON.stringify({ reason }),
-    });
-  },
-
-  async rescheduleTask(taskId: string, dueAt: string) {
-    return partnerApi(`/tasks/${taskId}/reschedule`, {
-      method: 'PATCH',
-      body: JSON.stringify({ dueAt }),
-    });
   },
 
   async createSalesOpportunity(
@@ -261,5 +393,39 @@ export const partnerClient = {
       `/earnings/ledger${q}`
     );
     return r.ledger ?? [];
+  },
+
+  async listRoutes(date?: string): Promise<AgentRouteSummary[]> {
+    const q = date ? `?date=${encodeURIComponent(date)}` : '';
+    const r = await partnerApi<{ ok: boolean; routes: AgentRouteSummary[] }>(`/routes${q}`);
+    return r.routes ?? [];
+  },
+
+  async createRoute(routeName: string): Promise<AgentRouteSummary> {
+    const r = await partnerApi<{ ok: boolean; route: AgentRouteSummary }>('/routes', {
+      method: 'POST',
+      body: JSON.stringify({ routeName }),
+    });
+    return r.route;
+  },
+
+  async getRoute(id: string): Promise<AgentRouteSummary> {
+    const r = await partnerApi<{ ok: boolean; route: AgentRouteSummary }>(`/routes/${id}`);
+    return r.route;
+  },
+
+  async addRouteStop(routeId: string, farmerId: string, blockId?: string) {
+    return partnerApi(`/routes/${routeId}/stops`, {
+      method: 'POST',
+      body: JSON.stringify({ farmerId, blockId }),
+    });
+  },
+
+  async optimizeRoute(routeId: string, lat?: number, lng?: number): Promise<AgentRouteSummary> {
+    const r = await partnerApi<{ ok: boolean; route: AgentRouteSummary }>(`/routes/${routeId}/optimize`, {
+      method: 'POST',
+      body: JSON.stringify({ lat, lng }),
+    });
+    return r.route;
   },
 };

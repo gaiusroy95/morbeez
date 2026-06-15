@@ -77,10 +77,13 @@ export type PartnerDashboardStats = {
   activeFarmers: number;
   pendingTasks: number;
   visitsThisMonth: number;
+  routesToday: number;
   reliabilityScore: number;
   performanceScore: number;
   leadOffersPending: number;
 };
+
+export type { AgentRouteSummary, AgentRouteStop } from './agronomist';
 
 export type PartnerLeadOffer = {
   id: string;
@@ -111,15 +114,108 @@ export type TeamTimelineEntry = FarmerTimelineEntry & {
   title?: string;
 };
 
+export type PartnerSuggestedAction =
+  | 'field_visit'
+  | 'follow_up'
+  | 'soil_sampling'
+  | 'callback'
+  | 'none';
+
+export type PartnerFarmSnapshot = {
+  totalAcreage: number | null;
+  activeBlockCount: number;
+  primaryCrop: string | null;
+  cropStatus: string | null;
+};
+
+export type PartnerCurrentRecommendation = {
+  id: string;
+  title: string;
+  status: string;
+} | null;
+
+export type PartnerFarmerHeader = {
+  id: string;
+  name: string;
+  phone: string | null;
+  village: string | null;
+  district: string | null;
+  primaryCrop: string | null;
+  totalAcreage: number | null;
+  customerOwnerType: string | null;
+  assignedTelecallerEmail: string | null;
+  serviceModel: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+export type PartnerFarmerListRow = {
+  id: string;
+  name: string;
+  phone: string | null;
+  village: string | null;
+  district: string | null;
+  primaryCrop: string | null;
+  totalAcreage: number | null;
+  lastOrderDate: string | null;
+  suggestedAction: PartnerSuggestedAction;
+  suggestedActionLabel: string;
+};
+
+export type PartnerFarmerOrderRow = {
+  id: string;
+  orderDate: string;
+  products: string;
+  quantity: number;
+  deliveryStatus: string;
+};
+
+export type PartnerFarmerTaskRow = {
+  id: string;
+  title: string;
+  taskType: string;
+  taskCategory: string;
+  dueAt: string | null;
+  status: string;
+  farmerId: string;
+  blockId: string | null;
+  priority: string;
+  notes?: string | null;
+};
+
+export type PartnerEscalationRow = {
+  id: string;
+  body: string;
+  entryType: string;
+  status: 'open' | 'under_review' | 'resolved';
+  createdAt: string;
+};
+
+export type PartnerVisitSessionRow = {
+  id: string;
+  farmerId: string;
+  blockId: string | null;
+  status: string;
+  checkInAt: string;
+  checkOutAt: string | null;
+  durationMinutes: number | null;
+};
+
 export type PartnerFarmerWorkspace = {
-  farmer: Record<string, unknown>;
+  farmer: PartnerFarmerHeader;
+  header: PartnerFarmerHeader;
   blocks: Record<string, unknown>[];
   timeline: FarmerTimelineEntry[];
   ownership?: FarmerOwnership | null;
+  farmSnapshot: PartnerFarmSnapshot;
+  currentRecommendation: PartnerCurrentRecommendation;
+  suggestedAction: PartnerSuggestedAction;
+  suggestedActionLabel: string;
   pendingTaskCount?: number;
   openRecommendationsCount?: number;
   lastVisitAt?: string | null;
-  opportunityScore?: number | null;
+  salesOpportunities?: SalesOpportunity[];
+  recentVisits?: PartnerVisitRow[];
 };
 
 export type PartnerVisitRow = {

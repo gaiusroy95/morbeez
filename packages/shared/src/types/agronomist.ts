@@ -92,7 +92,31 @@ export type AgronomistEscalationRow = {
   createdAt: string;
 };
 
-export type AgronomistRouteSummary = {
+export type RouteCoordSource = 'plot_gps' | 'pincode' | 'district' | 'none';
+
+export type AgentRouteStop = {
+  id: string;
+  farmerId: string;
+  farmerName: string;
+  blockId: string | null;
+  blockName: string | null;
+  sortOrder: number;
+  latitude: number | null;
+  longitude: number | null;
+  coordSource: RouteCoordSource;
+  pincode: string | null;
+  pincodeId: string | null;
+};
+
+export type PincodeClusterSummary = {
+  pincode: string | null;
+  pincodeId: string | null;
+  stopCount: number;
+  centroidLat: number | null;
+  centroidLng: number | null;
+};
+
+export type AgentRouteSummary = {
   id: string;
   routeName: string;
   routeDate: string;
@@ -100,16 +124,12 @@ export type AgronomistRouteSummary = {
   stopCount: number;
   estimatedDistanceKm: number | null;
   estimatedHours: number | null;
-  stops: Array<{
-    id: string;
-    farmerId: string;
-    farmerName: string;
-    blockId: string | null;
-    sortOrder: number;
-    latitude: number | null;
-    longitude: number | null;
-  }>;
+  pincodeClusters: PincodeClusterSummary[];
+  stops: AgentRouteStop[];
 };
+
+/** @deprecated Use AgentRouteSummary — kept for agronomist client compatibility */
+export type AgronomistRouteSummary = AgentRouteSummary;
 
 export type AgronomistVisitSession = {
   id: string;

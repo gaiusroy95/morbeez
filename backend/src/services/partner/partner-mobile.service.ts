@@ -7,11 +7,10 @@ import { partnerAttributionCaptureService } from './partner-attribution-capture.
 import { partnerReliabilityService } from './partner-reliability.service.js';
 import { partnerLeadAllocationService } from './partner-lead-allocation.service.js';
 import { partnerTimelineService } from './partner-timeline.service.js';
-import { fieldPwaService } from '../admin/field-pwa.service.js';
-import { farmerOwnershipService } from './farmer-ownership.service.js';
 import { farmerTeamTimelineService } from '../crm/farmer-team-timeline.service.js';
 import { salesOpportunityService } from './sales-opportunity.service.js';
-import { opportunityIntelligenceDashboardService } from '../intelligence/opportunity-intelligence-dashboard.service.js';
+import { partnerFarmerWorkspaceService } from './partner-farmer-workspace.service.js';
+import { routePlannerService } from '../agronomist/route-planner.service.js';
 import type { StructuredFieldVisitInput } from '../../domain/ai-training/validators.js';
 
 export const partnerMobileService = {
@@ -37,11 +36,16 @@ export const partnerMobileService = {
       .single();
 
     const offers = await partnerLeadAllocationService.listOffers(partnerId);
+    const routesToday = await routePlannerService.countRoutesToday({
+      agentType: 'partner',
+      partnerId,
+    });
 
     return {
       activeFarmers: Number(partner?.current_active_farmers ?? 0),
       pendingTasks: pendingTasks ?? 0,
       visitsThisMonth: visitsThisMonth ?? 0,
+      routesToday,
       reliabilityScore: Number(partner?.reliability_score ?? 70),
       performanceScore: Number(partner?.performance_score ?? 50),
       leadOffersPending: offers.length,
@@ -314,6 +318,16 @@ export const partnerMobileService = {
     return notifications;
   },
 
+  async saveBlockLocation(input: {
+    blockId: string;
+    farmerId: string;
+    latitude: number;
+    longitude: number;
+  }) {
+    const { fieldPwaService } = await import('../admin/field-pwa.service.js');
+    return fieldPwaService.saveBlockLocation(input);
+  },
+
   async assertFarmerAccess(partnerId: string, farmerId: string) {
     const { data } = await supabase
       .from('farmers')
@@ -328,38 +342,7 @@ export const partnerMobileService = {
 
   async getFarmerWorkspace(partnerId: string, farmerId: string) {
     await this.assertFarmerAccess(partnerId, farmerId);
-    const { data: farmer, error } = await supabase
-      .from('farmers')
-      .select(
-        'id, name, phone, village, district, service_model, preferred_language, total_acreage, assigned_telecaller_email, assigned_expert_email'
-      )
-      .eq('id', farmerId)
-      .single();
-    throwIfSupabaseError(error, 'Could not load farmer');
-    const [blocks, timeline, ownership, intel, opportunities, visits] = await Promise.all([
-      fieldPwaService.getFarmerBlocks(farmerId),
-      farmerTeamTimelineService.listForFarmer(farmerId, 40),
-      farmerOwnershipService.getOwnership(farmerId),
-      opportunityIntelligenceDashboardService.getFarmerProfile(farmerId).catch(() => null),
-      salesOpportunityService.listForFarmer(farmerId),
-      this.listVisits(partnerId).then((rows) => rows.filter((v) => v.farmerId === farmerId).slice(0, 10)),
-    ]);
-    const { count: pendingTasks } = await supabase
-      .from('crm_tasks')
-      .select('id', { count: 'exact', head: true })
-      .eq('farmer_id', farmerId)
-      .eq('status', 'pending');
-    return {
-      farmer,
-      blocks,
-      timeline,
-      ownership,
-      opportunityScore:
-        intel?.score?.opportunityScore != null ? Number(intel.score.opportunityScore) : null,
-      pendingTaskCount: pendingTasks ?? 0,
-      salesOpportunities: opportunities,
-      recentVisits: visits,
-    };
+    return partnerFarmerWorkspaceService.buildWorkspace(partnerId, farmerId);
   },
 
   async createSupportRequest(
@@ -411,5 +394,5 @@ export const partnerMobileService = {
     return { ok: true };
   },
 
-  listPartnerFarmers: partnerEnrollmentService.listPartnerFarmers.bind(partnerEnrollmentService),
+  listPartnerFarmers: partnerFarmerWorkspaceService.listPartnerFarmers.bind(partnerFarmerWorkspaceService),
 };

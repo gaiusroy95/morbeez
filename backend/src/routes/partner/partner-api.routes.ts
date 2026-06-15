@@ -9,6 +9,8 @@ import { partnerEnrollmentService } from '../../services/partner/partner-enrollm
 import { partnerLeadAllocationService } from '../../services/partner/partner-lead-allocation.service.js';
 import { partnerTimelineService } from '../../services/partner/partner-timeline.service.js';
 import { partnerService } from '../../services/partner/partner.service.js';
+import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
+import { partnerFarmerWorkspaceService } from '../../services/partner/partner-farmer-workspace.service.js';
 import { structuredFieldVisitSchema } from '../../domain/ai-training/validators.js';
 import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
 
@@ -63,6 +65,142 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       const { farmerId } = request.params as { farmerId: string };
       const workspace = await partnerMobileService.getFarmerWorkspace(partner.id, farmerId);
       return reply.send({ ok: true, workspace });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/tasks`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const tasks = await partnerFarmerWorkspaceService.listFarmerTasks(partner.id, farmerId);
+      return reply.send({ ok: true, tasks });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/orders`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const orders = await partnerFarmerWorkspaceService.listFarmerOrders(farmerId);
+      return reply.send({ ok: true, orders });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/escalations`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const escalations = await partnerFarmerWorkspaceService.listFarmerEscalations(farmerId);
+      return reply.send({ ok: true, escalations });
+    });
+
+    partnerApp.post(`${api}/farmers/:farmerId/escalations`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const body = z
+        .object({
+          category: z.enum([
+            'unknown_disease',
+            'recommendation_failure',
+            'yield_risk',
+            'repeated_issue',
+          ]),
+          notes: z.string().min(1).max(2000),
+        })
+        .parse(request.body);
+      const entry = await partnerFarmerWorkspaceService.createEscalation(
+        partner.id,
+        farmerId,
+        body,
+        partner.fullName
+      );
+      return reply.status(201).send({ ok: true, entry });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/interactions`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const interactions = await partnerFarmerWorkspaceService.getInteractions(farmerId);
+      return reply.send({ ok: true, interactions });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const recommendations = await partnerFarmerWorkspaceService.listFarmerRecommendations(farmerId);
+      return reply.send({ ok: true, recommendations });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/visit-sessions`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const sessions = await partnerFarmerWorkspaceService.listVisitSessions(partner.id, farmerId);
+      return reply.send({ ok: true, sessions });
+    });
+
+    partnerApp.post(`${api}/farmers/:farmerId/schedule-callback`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const body = z.object({ notes: z.string().min(1).max(500) }).parse(request.body);
+      const task = await partnerFarmerWorkspaceService.scheduleCallback(
+        partner.id,
+        farmerId,
+        body.notes,
+        partner.fullName
+      );
+      return reply.send({ ok: true, task });
+    });
+
+    partnerApp.post(`${api}/farmers/:farmerId/team-timeline`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId } = request.params as { farmerId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const body = z.object({ body: z.string().min(1).max(8000) }).parse(request.body);
+      const entry = await partnerFarmerWorkspaceService.addTeamComment(
+        partner.id,
+        farmerId,
+        body.body,
+        partner.fullName
+      );
+      return reply.send({ ok: true, entry });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/blocks/:blockId/detail`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId, blockId } = request.params as { farmerId: string; blockId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const detail = await partnerFarmerWorkspaceService.getBlockDetail(farmerId, blockId);
+      return reply.send({ ok: true, ...detail });
+    });
+
+    partnerApp.get(`${api}/farmers/:farmerId/blocks/:blockId/timeline`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerId, blockId } = request.params as { farmerId: string; blockId: string };
+      await partnerMobileService.assertFarmerAccess(partner.id, farmerId);
+      const timeline = await partnerFarmerWorkspaceService.getBlockTimeline(farmerId, blockId);
+      return reply.send({ ok: true, timeline });
+    });
+
+    partnerApp.post(`${api}/blocks/:blockId/location`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { blockId } = request.params as { blockId: string };
+      const body = z
+        .object({
+          farmerId: z.string().uuid(),
+          latitude: z.number(),
+          longitude: z.number(),
+        })
+        .parse(request.body);
+      await partnerMobileService.assertFarmerAccess(partner.id, body.farmerId);
+      const block = await partnerMobileService.saveBlockLocation({
+        blockId,
+        farmerId: body.farmerId,
+        latitude: body.latitude,
+        longitude: body.longitude,
+      });
+      return reply.send({ ok: true, block });
     });
 
     partnerApp.get(`${api}/tasks`, async (request, reply) => {
@@ -257,6 +395,45 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ ok: true, items });
     });
 
+    partnerApp.get(`${api}/measurement-templates/:cropType`, async (request, reply) => {
+      await requirePartner(request);
+      const { cropType } = request.params as { cropType: string };
+      const { fieldVisitService } = await import('../../services/admin/field-visit.service.js');
+      const templates = await fieldVisitService.listMeasurementTemplates(cropType);
+      return reply.send({ ok: true, templates });
+    });
+
+    partnerApp.post(`${api}/visits/context`, async (request, reply) => {
+      await requirePartner(request);
+      const { visitAiContextRequestSchema } = await import('../../domain/ai-training/validators.js');
+      const { visitAiOrchestratorService } = await import(
+        '../../services/core/visit-ai-orchestrator.service.js'
+      );
+      const body = visitAiContextRequestSchema.parse(request.body);
+      const context = await visitAiOrchestratorService.buildContext(body);
+      return reply.send({ ok: true, context });
+    });
+
+    partnerApp.post(`${api}/visits/analyze`, async (request, reply) => {
+      await requirePartner(request);
+      const { visitAnalyzeRequestSchema } = await import('../../domain/ai-training/validators.js');
+      const { visitAiOrchestratorService } = await import(
+        '../../services/core/visit-ai-orchestrator.service.js'
+      );
+      const body = visitAnalyzeRequestSchema.parse(request.body);
+      const result = await visitAiOrchestratorService.analyze(body, 'partner');
+      return reply.send({ ok: true, ...result });
+    });
+
+    partnerApp.get(`${api}/visits/:findingId`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { findingId } = request.params as { findingId: string };
+      const { fieldVisitService } = await import('../../services/admin/field-visit.service.js');
+      const detail = await fieldVisitService.getVisitDetail(findingId);
+      await partnerMobileService.assertFarmerAccess(partner.id, String(detail.farmerId ?? detail.farmer_id));
+      return reply.send({ ok: true, ...detail });
+    });
+
     partnerApp.get(`${api}/lead-offers`, async (request, reply) => {
       const partner = await requirePartner(request);
       const offers = await partnerLeadAllocationService.listOffers(partner.id);
@@ -310,6 +487,61 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
         referralUrl: partner.referralUrl,
         qrToken: partner.qrToken,
       });
+    });
+
+    partnerApp.get(`${api}/routes`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const q = z.object({ date: z.string().optional() }).parse(request.query ?? {});
+      const routes = await routePlannerService.listRoutes({ agentType: 'partner', partnerId: partner.id }, q.date);
+      return reply.send({ ok: true, routes });
+    });
+
+    partnerApp.post(`${api}/routes`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const body = z.object({ routeName: z.string().min(1).max(120) }).parse(request.body);
+      const route = await routePlannerService.createRoute(
+        { agentType: 'partner', partnerId: partner.id },
+        body.routeName
+      );
+      return reply.status(201).send({ ok: true, route });
+    });
+
+    partnerApp.get(`${api}/routes/:id`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { id } = request.params as { id: string };
+      const route = await routePlannerService.getRouteSummary(id, {
+        agentType: 'partner',
+        partnerId: partner.id,
+      });
+      return reply.send({ ok: true, route });
+    });
+
+    partnerApp.post(`${api}/routes/:id/stops`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { id } = request.params as { id: string };
+      const body = z
+        .object({ farmerId: z.string().uuid(), blockId: z.string().uuid().optional() })
+        .parse(request.body);
+      const stop = await routePlannerService.addStop(
+        { agentType: 'partner', partnerId: partner.id },
+        id,
+        body.farmerId,
+        body.blockId
+      );
+      return reply.status(201).send({ ok: true, stop });
+    });
+
+    partnerApp.post(`${api}/routes/:id/optimize`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { id } = request.params as { id: string };
+      const body = z.object({ lat: z.number().optional(), lng: z.number().optional() }).parse(request.body ?? {});
+      const route = await routePlannerService.optimizeRoute(
+        { agentType: 'partner', partnerId: partner.id },
+        id,
+        body.lat,
+        body.lng
+      );
+      return reply.send({ ok: true, route });
     });
   });
 

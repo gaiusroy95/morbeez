@@ -324,20 +324,25 @@ Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with 
 | **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
 | **Agronomist** | Visit + review + web parity | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner; **web field ops on `/agronomist`** |
 | **Telecaller** | Production CRM + web parity | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox; **web Follow-ups tab on `/telecaller`** |
-| **Partner** | Production shell | Dashboard, farmers workspace (7 tabs), visits (GPS), tasks, notifications, lead offers, earnings |
+| **Partner** | Production shell | Dashboard, farmers workspace (9 tabs), full visit wizard, route planner, tasks, notifications, lead offers, earnings |
 
 ## Partner app
 
 **Bottom tabs:** Dashboard · Farmers · Tasks · Visits · Notifications · Profile
 
-**Farmer workspace tabs:** Overview · Blocks · Visit history · Recommendations · Sales opportunities · Team · Notes
+**Farmer workspace tabs (operating model):** Overview · Interactions · Blocks · Tasks · Visits · Orders · Escalations · Collaboration · Sales
 
 **Key flows:**
 
-- GPS check-in at field (`expo-location`) → structured visit submit → **draft recommendations** for agronomist review (same review gate as staff agronomist app — partner parity planned)
+- Rich farmer list with primary crop, area, last order date, and suggested action
+- Farmer profile quick actions: Call, WhatsApp, Directions, Schedule callback, Request agronomist visit, Start visit, Add to route
+- GPS check-in → full structured visit wizard (photos, issues, measurements, AI assist, draft recs) → submit → **expert review** (append-only; partner cannot approve)
+- Pincode-clustered route planner for field days
+- Partner-scoped tasks, read-only orders (no margin/ROI), escalations, and team collaboration timeline
 - Partner creates sales opportunity → telecaller dashboard inbox + status updates
-- Internal team timeline shared with telecaller and expert apps
 - Referral QR on `app/referral.tsx` for event enrollment attribution
+
+Partner API excludes business intelligence fields (ROI, margins, commission logic, AI confidence scores).
 
 See [`docs/partner-ecosystem/COMMUNICATION.md`](../partner-ecosystem/COMMUNICATION.md).
 

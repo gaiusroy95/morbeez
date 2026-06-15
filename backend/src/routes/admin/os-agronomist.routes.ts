@@ -827,39 +827,49 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
   app.get(`${api}/routes`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const q = z.object({ date: z.string().optional() }).parse(request.query ?? {});
-    const routes = await routePlannerService.listRoutes(admin.email, q.date);
+    const routes = await routePlannerService.listRoutes({ agentType: 'agronomist', email: admin.email }, q.date);
     return reply.send({ ok: true, routes });
   });
 
   app.post(`${api}/routes`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const body = z.object({ routeName: z.string().min(1).max(120) }).parse(request.body);
-    const route = await routePlannerService.createRoute(admin.email, body.routeName);
+    const route = await routePlannerService.createRoute({ agentType: 'agronomist', email: admin.email }, body.routeName);
     return reply.status(201).send({ ok: true, route });
   });
 
   app.post(`${api}/routes/:id/stops`, async (request, reply) => {
-    await assertModuleAccess(request, 'agronomist', 'write');
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
     const body = z
       .object({ farmerId: z.string().uuid(), blockId: z.string().uuid().optional() })
       .parse(request.body);
-    const stop = await routePlannerService.addStop(id, body.farmerId, body.blockId);
+    const stop = await routePlannerService.addStop(
+      { agentType: 'agronomist', email: admin.email },
+      id,
+      body.farmerId,
+      body.blockId
+    );
     return reply.status(201).send({ ok: true, stop });
   });
 
   app.post(`${api}/routes/:id/optimize`, async (request, reply) => {
-    await assertModuleAccess(request, 'agronomist', 'write');
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
     const body = z.object({ lat: z.number().optional(), lng: z.number().optional() }).parse(request.body ?? {});
-    const route = await routePlannerService.optimizeRoute(id, body.lat, body.lng);
+    const route = await routePlannerService.optimizeRoute(
+      { agentType: 'agronomist', email: admin.email },
+      id,
+      body.lat,
+      body.lng
+    );
     return reply.send({ ok: true, route });
   });
 
   app.get(`${api}/routes/:id`, async (request, reply) => {
-    await assertModuleAccess(request, 'agronomist', 'read');
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const { id } = request.params as { id: string };
-    const route = await routePlannerService.getRouteSummary(id);
+    const route = await routePlannerService.getRouteSummary(id, { agentType: 'agronomist', email: admin.email });
     return reply.send({ ok: true, route });
   });
 

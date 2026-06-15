@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { agronomistClient, type AgronomistRouteSummary } from '@morbeez/shared';
+import { agronomistClient, coordSourceLabel, type AgentRouteSummary } from '@morbeez/shared';
 import { Alert, Btn, Loading } from '../../components/ui';
 import { paths, toPath } from '../../lib/routes';
 import '../../styles/visit-wizard.css';
 
-function openRouteInMaps(route: AgronomistRouteSummary) {
+function openRouteInMaps(route: AgentRouteSummary) {
   const withCoords = (route.stops ?? []).filter((s) => s.latitude != null && s.longitude != null);
   if (withCoords.length === 0) return false;
   const origin = withCoords[0]!;
@@ -21,7 +21,7 @@ function openRouteInMaps(route: AgronomistRouteSummary) {
 
 export function RouteDetailPage() {
   const { routeId } = useParams<{ routeId: string }>();
-  const [route, setRoute] = useState<AgronomistRouteSummary | null>(null);
+  const [route, setRoute] = useState<AgentRouteSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -75,7 +75,8 @@ export function RouteDetailPage() {
         <div>
           <h1 className="page-title">{route.routeName}</h1>
           <p className="page-subtitle">
-            {route.routeDate} · {route.stopCount} stops · {route.status}
+            {route.routeDate} · {route.stopCount} stops · {route.pincodeClusters?.length ?? 0} pincode area(s) ·{' '}
+            {route.status}
           </p>
         </div>
         <Link to={toPath(paths.agronomistRoutes)}>
@@ -93,13 +94,27 @@ export function RouteDetailPage() {
           }}
         />
       </div>
+      {route.pincodeClusters?.length ? (
+        <section className="visit-panel">
+          <h3>Pincode clusters</h3>
+          <ul className="visit-detail-list">
+            {route.pincodeClusters.map((c, i) => (
+              <li key={`${c.pincode ?? 'unknown'}-${i}`}>
+                {c.pincode ? `PIN ${c.pincode}` : 'Unknown area'} · {c.stopCount} stop(s)
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
       <section className="visit-panel">
         <h3>Stops</h3>
         <ol className="visit-detail-list">
           {(route.stops ?? []).map((stop) => (
             <li key={stop.id}>
-              <strong>{stop.farmerName ?? stop.blockName ?? 'Stop'}</strong>
+              <strong>{stop.farmerName ?? 'Stop'}</strong>
               {stop.blockName ? ` · ${stop.blockName}` : ''}
+              {stop.pincode ? ` · PIN ${stop.pincode}` : ''}
+              {stop.coordSource ? ` · ${coordSourceLabel(stop.coordSource)}` : ''}
               {stop.latitude != null ? ` · ${stop.latitude.toFixed(4)}, ${stop.longitude?.toFixed(4)}` : ''}
             </li>
           ))}

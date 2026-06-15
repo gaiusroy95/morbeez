@@ -1,31 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { partnerClient, tokens } from '@morbeez/shared';
+import { partnerClient, tokens, type PartnerFarmerListRow } from '@morbeez/shared';
 import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
-
-type FarmerRow = {
-  id: string;
-  name: string;
-  phone?: string;
-  village?: string;
-  district?: string;
-};
-
-function parseFarmer(raw: Record<string, unknown>): FarmerRow {
-  return {
-    id: String(raw.id),
-    name: String(raw.name ?? 'Farmer'),
-    phone: raw.phone ? String(raw.phone) : undefined,
-    village: raw.village ? String(raw.village) : undefined,
-    district: raw.district ? String(raw.district) : undefined,
-  };
-}
 
 export default function FarmersScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [farmers, setFarmers] = useState<FarmerRow[]>([]);
+  const [farmers, setFarmers] = useState<PartnerFarmerListRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -33,8 +15,7 @@ export default function FarmersScreen() {
   const load = useCallback(async () => {
     setError('');
     try {
-      const rows = await partnerClient.listFarmers();
-      setFarmers(rows.map((r) => parseFarmer(r)));
+      setFarmers(await partnerClient.listFarmers());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load farmers');
     } finally {
@@ -51,7 +32,9 @@ export default function FarmersScreen() {
     const q = query.trim().toLowerCase();
     if (!q) return farmers;
     return farmers.filter((f) =>
-      [f.name, f.phone, f.village, f.district].some((v) => v?.toLowerCase().includes(q))
+      [f.name, f.phone, f.village, f.district, f.primaryCrop, f.suggestedActionLabel].some((v) =>
+        v?.toLowerCase().includes(q)
+      )
     );
   }, [farmers, query]);
 
@@ -71,7 +54,7 @@ export default function FarmersScreen() {
             {error ? <AlertBox>{error}</AlertBox> : null}
             <TextInput
               style={styles.search}
-              placeholder="Search name, phone, village…"
+              placeholder="Search name, crop, village…"
               placeholderTextColor={tokens.textMuted}
               value={query}
               onChangeText={setQuery}
@@ -82,10 +65,22 @@ export default function FarmersScreen() {
         renderItem={({ item }) => (
           <Pressable style={styles.card} onPress={() => router.push(`/farmer/${item.id}`)}>
             <Text style={styles.name}>{item.name}</Text>
-            {item.phone ? <Text style={styles.meta}>{item.phone}</Text> : null}
+            <Text style={styles.meta}>
+              {[item.primaryCrop, item.totalAcreage != null ? `${item.totalAcreage} ac` : null]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </Text>
             <Text style={styles.meta}>
               {[item.village, item.district].filter(Boolean).join(', ') || '—'}
             </Text>
+            {item.lastOrderDate ? (
+              <Text style={styles.meta}>Last order: {item.lastOrderDate}</Text>
+            ) : null}
+            {item.suggestedAction !== 'none' ? (
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{item.suggestedActionLabel}</Text>
+              </View>
+            ) : null}
           </Pressable>
         )}
         ListEmptyComponent={
@@ -122,4 +117,13 @@ const styles = StyleSheet.create({
   },
   name: { fontSize: 16, fontWeight: '600', color: tokens.text },
   meta: { fontSize: 13, color: tokens.textMuted, marginTop: 4 },
+  chip: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    backgroundColor: tokens.green100,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: tokens.radiusSm,
+  },
+  chipText: { fontSize: 12, fontWeight: '600', color: tokens.green800 },
 });

@@ -4,7 +4,7 @@ import type {
   VisitAiRejectReason,
   VisitAgronomistReview,
   VisitReviewSubStep,
-} from '../types/field-findings.js';
+} from '../types/field-findings';
 
 export const VISIT_AI_REJECT_REASON_OPTIONS: Array<{
   value: VisitAiRejectReason;

@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { partnerClient, tokens } from '@morbeez/shared';
+import { partnerClient, tokens, type PartnerFarmerWorkspace } from '@morbeez/shared';
 import { AlertBox, Loading } from '@morbeez/ui-native';
 import { PartnerWorkspaceTabs } from '@/components/PartnerWorkspaceTabs';
 
 export default function FarmerWorkspaceScreen() {
   const { farmerId } = useLocalSearchParams<{ farmerId: string }>();
   const id = String(farmerId ?? '');
-  const [workspace, setWorkspace] = useState<Record<string, unknown> | null>(null);
+  const [workspace, setWorkspace] = useState<PartnerFarmerWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -35,17 +35,7 @@ export default function FarmerWorkspaceScreen() {
   return (
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
-      <PartnerWorkspaceTabs
-        farmerId={id}
-        workspace={{
-          farmer: workspace.farmer as Record<string, unknown>,
-          blocks: (workspace.blocks as Record<string, unknown>[]) ?? [],
-          recentVisits: (workspace.recentVisits as Record<string, unknown>[]) ?? [],
-          pendingTaskCount: workspace.pendingTaskCount as number | undefined,
-          opportunityScore: workspace.opportunityScore as number | null | undefined,
-          ownership: workspace.ownership as Record<string, unknown> | null | undefined,
-        }}
-      />
+      <PartnerWorkspaceTabs farmerId={id} workspace={workspace} />
     </View>
   );
 }

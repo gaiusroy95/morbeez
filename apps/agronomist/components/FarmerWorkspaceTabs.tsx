@@ -3,6 +3,7 @@ import { InteractionManager, Linking, ScrollView, StyleSheet, Text, View, Alert 
 import { useRouter, useFocusEffect } from 'expo-router';
 import {
   agronomistClient,
+  addFarmerToTodayRoute,
   formatDate,
   tokens,
   type AgronomistBlockRow,
@@ -71,6 +72,8 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [blockPickerVisible, setBlockPickerVisible] = useState(false);
+  const [blockPickerMode, setBlockPickerMode] = useState<'visit' | 'route'>('visit');
+  const [routeBusy, setRouteBusy] = useState(false);
 
   const bottomInset = useDeviceBottomInset();
   const scrollBottomPad = 16 + bottomInset;
@@ -158,6 +161,10 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
 
   function openVisitForBlock(block: AgronomistBlockRow) {
     setBlockPickerVisible(false);
+    if (blockPickerMode === 'route') {
+      void addBlockToRoute(block);
+      return;
+    }
     const route = buildVisitRouteParams({
       farmerId,
       farmerName: summary.farmer.name,
@@ -168,6 +175,49 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
     InteractionManager.runAfterInteractions(() => {
       router.push(route);
     });
+  }
+
+  async function addBlockToRoute(block: AgronomistBlockRow) {
+    if (!canWrite) return;
+    setRouteBusy(true);
+    setError('');
+    try {
+      const result = await addFarmerToTodayRoute(agronomistClient, farmerId, block.id);
+      Alert.alert(
+        'Added to route',
+        `${summary.farmer.name} added to "${result.routeName}".`,
+        [
+          { text: 'View route', onPress: () => router.push(`/route/${result.routeId}`) },
+          { text: 'OK', style: 'cancel' },
+        ]
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add to route');
+    } finally {
+      setRouteBusy(false);
+    }
+  }
+
+  async function addToRoute() {
+    if (!canWrite) return;
+    try {
+      const farmerBlocks = await ensureBlocks();
+      if (!farmerBlocks.length) {
+        Alert.alert('No blocks', 'Add a block before planning a route stop.', [
+          { text: 'Go to Blocks', onPress: () => setTab('blocks') },
+          { text: 'Cancel', style: 'cancel' },
+        ]);
+        return;
+      }
+      if (farmerBlocks.length === 1) {
+        await addBlockToRoute(farmerBlocks[0]!);
+        return;
+      }
+      setBlockPickerMode('route');
+      setBlockPickerVisible(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not load blocks');
+    }
   }
 
   async function startVisit() {
@@ -181,9 +231,11 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
         return;
       }
       if (farmerBlocks.length === 1) {
+        setBlockPickerMode('visit');
         openVisitForBlock(farmerBlocks[0]!);
         return;
       }
+      setBlockPickerMode('visit');
       setBlockPickerVisible(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load blocks');
@@ -227,6 +279,14 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
               disabled={!phone}
             />
             <Btn label="Start visit" variant="secondary" onPress={() => void startVisit()} />
+            {canWrite ? (
+              <Btn
+                label={routeBusy ? 'Adding…' : 'Add to route'}
+                variant="secondary"
+                onPress={() => void addToRoute()}
+                disabled={routeBusy}
+              />
+            ) : null}
           </View>
         </Panel>
 

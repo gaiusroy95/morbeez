@@ -52,6 +52,10 @@ export default function RootLayout() {
                 <Stack.Screen name="referral" options={{ headerTitle: () => <BrandedHeaderTitle title="Referral QR" /> }} />
                 <Stack.Screen name="farmer/[farmerId]/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Farmer" /> }} />
                 <Stack.Screen name="visit/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Field visit" /> }} />
+                <Stack.Screen name="visit/detail/[findingId]" options={{ headerTitle: () => <BrandedHeaderTitle title="Visit detail" /> }} />
+                <Stack.Screen name="visit/success" options={{ headerTitle: () => <BrandedHeaderTitle title="Visit saved" /> }} />
+                <Stack.Screen name="route/index" options={{ headerTitle: () => <BrandedHeaderTitle title="Route planner" /> }} />
+                <Stack.Screen name="route/[id]" options={{ headerTitle: () => <BrandedHeaderTitle title="Route detail" /> }} />
               </Stack>
             </Gate>
           </PartnerAuthProvider>

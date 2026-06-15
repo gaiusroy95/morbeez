@@ -62,6 +62,11 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/visits')}
           />
           <StatCard
+            label="Routes today"
+            value={stats?.routesToday ?? 0}
+            onPress={() => router.push('/route')}
+          />
+          <StatCard
             label="Lead offers"
             value={stats?.leadOffersPending ?? 0}
             onPress={() => router.push('/(tabs)/leads')}
@@ -81,6 +86,10 @@ export default function DashboardScreen() {
       </Panel>
 
       <Panel title="Quick actions">
+        <Pressable style={styles.actionRow} onPress={() => router.push('/route')}>
+          <Text style={styles.actionLabel}>Route planner</Text>
+          <Text style={styles.actionMeta}>Plan visits by pincode cluster</Text>
+        </Pressable>
         <Pressable style={styles.actionRow} onPress={() => router.push('/(tabs)/farmers')}>
           <Text style={styles.actionLabel}>Browse farmers</Text>
           <Text style={styles.actionMeta}>Open farmer workspaces</Text>

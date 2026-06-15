@@ -3,14 +3,14 @@ import { FlatList, Linking, Platform, RefreshControl, StyleSheet, Text, View } f
 import { useLocalSearchParams } from 'expo-router';
 import * as Location from 'expo-location';
 import {
-  agronomistClient,
   coordSourceLabel,
+  partnerClient,
   tokens,
   type AgentRouteSummary,
 } from '@morbeez/shared';
 import { AlertBox, Btn, EmptyState, KeyValueRow, ListCard, Loading, Panel } from '@morbeez/ui-native';
 
-export default function RouteDetailScreen() {
+export default function PartnerRouteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const routeId = String(id ?? '');
   const [route, setRoute] = useState<AgentRouteSummary | null>(null);
@@ -23,7 +23,7 @@ export default function RouteDetailScreen() {
     if (!routeId) return;
     setError('');
     try {
-      setRoute(await agronomistClient.getRoute(routeId));
+      setRoute(await partnerClient.getRoute(routeId));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load route');
     } finally {
@@ -48,7 +48,7 @@ export default function RouteDetailScreen() {
         lat = pos.coords.latitude;
         lng = pos.coords.longitude;
       }
-      setRoute(await agronomistClient.optimizeRoute(routeId, lat, lng));
+      setRoute(await partnerClient.optimizeRoute(routeId, lat, lng));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Optimize failed');
     } finally {
@@ -60,7 +60,7 @@ export default function RouteDetailScreen() {
     if (!route?.stops.length) return;
     const withCoords = route.stops.filter((s) => s.latitude != null && s.longitude != null);
     if (withCoords.length === 0) {
-      setError('No GPS coordinates on stops yet.');
+      setError('No coordinates on stops yet.');
       return;
     }
     const origin = withCoords[0];

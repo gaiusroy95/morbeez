@@ -2,8 +2,9 @@
 export function getApiOrigin(): string {
   let fromVite = '';
   try {
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      fromVite = String((import.meta.env as Record<string, string | undefined>).VITE_API_BASE_URL ?? '');
+    const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };
+    if (typeof import.meta !== 'undefined' && meta.env) {
+      fromVite = String(meta.env.VITE_API_BASE_URL ?? '');
     }
   } catch {
     fromVite = '';
