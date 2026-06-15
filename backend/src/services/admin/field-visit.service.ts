@@ -481,8 +481,7 @@ export const fieldVisitService = {
           i.agronomistReview?.action === 'correct_ai' ||
           i.agronomistReview?.action === 'partial_match' ||
           (i.agronomistReview?.action === 'reject_recommendation' &&
-            i.agronomistReview.rejectFlowComplete &&
-            i.agronomistReview.rejectReason !== 'need_more_evidence')
+            i.agronomistReview.rejectFlowComplete)
         );
       });
       if (approvedIssues.length) {

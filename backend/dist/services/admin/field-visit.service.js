@@ -10,6 +10,7 @@ import { outcomeReviewService } from '../core/outcome-review.service.js';
 import { aiTrainingEventService } from '../core/ai-training-event.service.js';
 import { recommendationCommunicationService } from '../core/recommendation-communication.service.js';
 import { fieldFindingsMastersService } from './field-findings-masters.service.js';
+import { visitAiOrchestratorService } from '../core/visit-ai-orchestrator.service.js';
 function mapVisitFollowupToOutcome(outcome) {
     if (outcome === 'improved')
         return 'better';
@@ -133,6 +134,19 @@ export const fieldVisitService = {
                 .update({ field_finding_id: findingId, updated_at: new Date().toISOString() })
                 .eq('id', input.sessionId);
         }
+        if (input.visitPhotos?.length) {
+            const urls = await fieldStorageService.uploadPhotos(input.farmerId, input.visitPhotos);
+            for (let pi = 0; pi < urls.length; pi++) {
+                await supabase.from('visit_photos').insert({
+                    field_finding_id: findingId,
+                    session_id: input.sessionId ?? null,
+                    storage_path: urls[pi],
+                    public_url: urls[pi],
+                    photo_type: input.visitPhotos[pi]?.photoType ?? null,
+                    sort_order: pi,
+                });
+            }
+        }
         for (const m of input.measurements ?? []) {
             const templates = await fieldFindingsMastersService.listMeasurementTemplates(block.crop_type);
             const tpl = templates.find((t) => t.measurementKey === m.key);
@@ -174,6 +188,7 @@ export const fieldVisitService = {
                         visit_issue_id: visitIssueId,
                         storage_path: urls[pi],
                         public_url: urls[pi],
+                        photo_type: issue.photos[pi]?.photoType ?? null,
                         sort_order: pi,
                     });
                     const { cropImageReviewService } = await import('../core/crop-image-review.service.js');
@@ -190,6 +205,45 @@ export const fieldVisitService = {
                 }
             }
             const humanAction = await resolveFieldTrainingAction(input.farmerId, issue.issueName, issue.observation);
+            const reviewAction = issue.agronomistReview?.action ?? null;
+            const aiPrediction = issue.finalDiagnosis?.trim() || issue.issueName;
+            const humanFinalLabel = issue.agronomistReview?.finalDiagnosis?.trim() ||
+                issue.finalDiagnosis?.trim() ||
+                issue.issueName;
+            let aiCaseRow = null;
+            if (issue.aiCaseId) {
+                const { data: loadedCase } = await supabase
+                    .from('visit_ai_cases')
+                    .select('metadata, ai_advisory_session_id, confidence_action')
+                    .eq('id', issue.aiCaseId)
+                    .maybeSingle();
+                aiCaseRow = loadedCase;
+                const priorMeta = aiCaseRow?.metadata ?? {};
+                await supabase
+                    .from('visit_ai_cases')
+                    .update({
+                    metadata: {
+                        ...priorMeta,
+                        agronomistConfidence: issue.agronomistReview?.agronomistConfidence ?? null,
+                        yieldRisk: issue.agronomistReview?.yieldRisk ?? null,
+                    },
+                })
+                    .eq('id', issue.aiCaseId);
+                await visitAiOrchestratorService.linkCaseToVisitIssue(issue.aiCaseId, findingId, visitIssueId);
+                if (issue.agronomistReview) {
+                    await supabase
+                        .from('visit_ai_recommendations')
+                        .update({
+                        review_action: issue.agronomistReview.action,
+                        human_text: issue.finalRecommendation ?? null,
+                        modification_reason: issue.agronomistReview.modificationReason ?? null,
+                        agronomist_confidence: issue.agronomistReview.agronomistConfidence ?? null,
+                        yield_risk: issue.agronomistReview.yieldRisk ?? null,
+                        updated_at: new Date().toISOString(),
+                    })
+                        .eq('visit_ai_case_id', issue.aiCaseId);
+                }
+            }
             if (!partnerId) {
                 void aiTrainingEventService
                     .record({
@@ -198,20 +252,46 @@ export const fieldVisitService = {
                     fieldFindingId: findingId,
                     source: 'field_visit',
                     reviewSurface: 'field_finding',
-                    aiPrediction: issue.issueName,
-                    humanAction,
-                    humanFinalLabel: issue.issueName,
+                    aiPrediction,
+                    humanAction: reviewAction ?? humanAction,
+                    humanFinalLabel,
                     reviewedBy: agentEmail,
-                    metadata: { visitIssueId, category: issue.category, severity: issue.severity },
+                    metadata: {
+                        visitIssueId,
+                        category: issue.category,
+                        severity: issue.severity,
+                        aiCaseId: issue.aiCaseId ?? null,
+                        modificationReason: issue.agronomistReview?.modificationReason ?? null,
+                        visitOrigin: true,
+                    },
                 })
                     .catch(() => { });
             }
-            for (const rec of issue.recommendations ?? []) {
+            const recSources = issue.recommendations?.length
+                ? issue.recommendations
+                : issue.finalRecommendation?.trim()
+                    ? [
+                        {
+                            text: issue.finalRecommendation.trim(),
+                            reviewAfterDays: issue.reviewAfterDays ?? 7,
+                            priority: 'normal',
+                        },
+                    ]
+                    : [];
+            for (const rec of recSources) {
                 if (!rec.text.trim())
                     continue;
                 const reviewDate = rec.reviewDate
                     ? new Date(rec.reviewDate)
-                    : new Date(Date.now() + (rec.reviewAfterDays ?? 7) * 86400000);
+                    : new Date(Date.now() + (rec.reviewAfterDays ?? issue.reviewAfterDays ?? 7) * 86400000);
+                const shouldApprove = !partnerId &&
+                    (reviewAction === 'approve_ai' ||
+                        reviewAction === 'correct_ai' ||
+                        reviewAction === 'partial_match' ||
+                        (reviewAction === 'reject_recommendation' &&
+                            issue.agronomistReview?.rejectFlowComplete &&
+                            issue.agronomistReview.rejectReason !== 'need_more_evidence'));
+                const recStatus = partnerId ? 'draft' : shouldApprove ? 'approved' : 'draft';
                 const row = await recommendationRecordsService.create({
                     farmerId: input.farmerId,
                     blockId: input.blockId,
@@ -219,11 +299,11 @@ export const fieldVisitService = {
                     fieldFindingId: findingId,
                     visitIssueId: visitIssueId,
                     source: 'field_finding',
-                    issueDetected: issue.issueName,
+                    issueDetected: humanFinalLabel,
                     recommendationText: rec.text.trim(),
                     severity: issue.severity,
                     createdBy: agentEmail,
-                    status: partnerId ? 'draft' : 'approved',
+                    status: recStatus,
                 });
                 createdRecs.push(String(row.id));
                 await supabase
@@ -233,16 +313,126 @@ export const fieldVisitService = {
                         recommendationType: rec.recommendationType ?? 'other',
                         priority: rec.priority ?? 'normal',
                         reviewDate: reviewDate.toISOString(),
-                        fieldRecStatus: partnerId ? 'pending_expert_review' : rec.status ?? 'open',
+                        fieldRecStatus: partnerId
+                            ? 'pending_expert_review'
+                            : shouldApprove
+                                ? rec.status ?? 'open'
+                                : 'pending_expert_review',
                         partnerSubmitted: Boolean(partnerId),
+                        visitOrigin: true,
+                        visitAiCaseId: issue.aiCaseId ?? null,
+                        agronomistReviewAction: reviewAction,
                     },
                 })
                     .eq('id', row.id);
-                if (!partnerId) {
+                if (issue.aiCaseId) {
+                    await supabase
+                        .from('visit_ai_recommendations')
+                        .update({ recommendation_record_id: row.id })
+                        .eq('visit_ai_case_id', issue.aiCaseId);
+                }
+                if (shouldApprove) {
                     void recommendationCommunicationService
                         .sendApprovedRecommendation(String(row.id))
                         .catch(() => ({ sent: false }));
+                    if (issue.aiCaseId && !partnerId) {
+                        const { data: qaRows } = await supabase
+                            .from('visit_ai_questions')
+                            .select('question_text, answer, metadata')
+                            .eq('visit_ai_case_id', issue.aiCaseId);
+                        const intakeQa = (qaRows ?? [])
+                            .filter((q) => q.answer)
+                            .map((q) => ({
+                            question: String(q.question_text),
+                            answer: String(q.answer),
+                            kind: q.metadata?.kind,
+                        }));
+                        const { data: farmerRow } = await supabase
+                            .from('farmers')
+                            .select('district')
+                            .eq('id', input.farmerId)
+                            .maybeSingle();
+                        const { expertFollowUpLearningService } = await import('../core/expert-follow-up-learning.service.js');
+                        const sessionId = aiCaseRow?.ai_advisory_session_id
+                            ? String(aiCaseRow.ai_advisory_session_id)
+                            : issue.aiCaseId;
+                        void expertFollowUpLearningService
+                            .onCaseReviewApproved({
+                            sessionId,
+                            recommendationId: String(row.id),
+                            farmerId: input.farmerId,
+                            cropType: block.crop_type,
+                            district: farmerRow?.district ? String(farmerRow.district).trim().toLowerCase() : null,
+                            symptomsText: [issue.issueName, issue.observation].filter(Boolean).join(' '),
+                            issueLabel: humanFinalLabel,
+                            expertNotes: issue.agronomistReview?.modificationReason ?? null,
+                            verifiedBy: agentEmail,
+                            intakeQa,
+                        })
+                            .catch(() => { });
+                    }
                 }
+                else if (reviewAction === 'escalate_urgent') {
+                    const { createTelecallerTask } = await import('../whatsapp/pipeline/telecaller-tasks.service.js');
+                    void createTelecallerTask({
+                        farmerId: input.farmerId,
+                        title: `Visit escalation: ${humanFinalLabel}`,
+                        notes: issue.agronomistReview?.modificationReason ??
+                            'Agronomist flagged urgent review on field visit',
+                        priority: 'high',
+                    }).catch(() => { });
+                }
+            }
+            if (issue.aiCaseId &&
+                !partnerId &&
+                issue.severity === 'high' &&
+                (aiCaseRow?.confidence_action === 'escalate' || reviewAction === 'escalate_urgent')) {
+                const sessionId = aiCaseRow?.ai_advisory_session_id
+                    ? String(aiCaseRow.ai_advisory_session_id)
+                    : null;
+                if (sessionId) {
+                    const { escalationService } = await import('../ai/escalation.service.js');
+                    void escalationService
+                        .createCaseForReview({
+                        sessionId,
+                        farmerId: input.farmerId,
+                        reason: `Visit AI low confidence + high severity: ${humanFinalLabel} (visitAiCaseId=${issue.aiCaseId})`,
+                        confidence_at_escalation: 0.5,
+                        priority: 'high',
+                    })
+                        .catch(() => { });
+                }
+            }
+        }
+        if (!partnerId && input.sendVisitSummary !== false) {
+            const approvedIssues = input.issues.filter((i) => {
+                if (i.agronomistReview?.rejectReason === 'need_more_evidence')
+                    return false;
+                if (i.agronomistReview?.action === 'reject_recommendation' && !i.agronomistReview.rejectFlowComplete) {
+                    return false;
+                }
+                return (i.agronomistReview?.action === 'approve_ai' ||
+                    i.agronomistReview?.action === 'correct_ai' ||
+                    i.agronomistReview?.action === 'partial_match' ||
+                    (i.agronomistReview?.action === 'reject_recommendation' &&
+                        i.agronomistReview.rejectFlowComplete));
+            });
+            if (approvedIssues.length) {
+                const earliestReview = approvedIssues
+                    .map((i) => i.reviewAfterDays ?? 7)
+                    .sort((a, b) => a - b)[0];
+                const reviewLabel = earliestReview
+                    ? new Date(Date.now() + earliestReview * 86400000).toLocaleDateString('en-IN')
+                    : undefined;
+                void recommendationCommunicationService
+                    .sendVisitSummary({
+                    farmerId: input.farmerId,
+                    blockName: block.name,
+                    issueSummary,
+                    approvedRecCount: approvedIssues.length,
+                    reviewDateLabel: reviewLabel,
+                })
+                    .catch(() => ({ sent: false }));
             }
         }
         for (const fu of input.followUps ?? []) {

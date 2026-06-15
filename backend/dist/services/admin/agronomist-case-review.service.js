@@ -575,7 +575,7 @@ export const agronomistCaseReviewService = {
             })
                 .eq('id', recommendationId);
         }
-        const newStatus = body.action === 'escalate_urgent'
+        const newStatus = body.action === 'escalate_urgent' || body.action === 'reject_recommendation'
             ? 'in_review'
             : body.submitForApproval
                 ? 'in_review'
@@ -592,7 +592,9 @@ export const agronomistCaseReviewService = {
                     ? 'Partial match — agronomist correction applied'
                     : body.action === 'correct_ai'
                         ? 'Agronomist corrected AI diagnosis'
-                        : 'Escalated for senior review',
+                        : body.action === 'reject_recommendation'
+                            ? 'Recommendation rejected — pending alternate guidance'
+                            : 'Escalated for senior review',
             correction: {
                 action: body.action,
                 correctDiagnosis: body.correctDiagnosis ?? null,

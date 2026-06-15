@@ -118,5 +118,81 @@ export const recommendationCommunicationService = {
         });
         return { sent: true, message: text };
     },
+    async sendVisitSummary(params) {
+        const { data: farmer } = await supabase
+            .from('farmers')
+            .select('phone, preferred_language')
+            .eq('id', params.farmerId)
+            .maybeSingle();
+        const phone = farmer?.phone?.trim();
+        if (!phone)
+            return { sent: false, reason: 'no_phone' };
+        if (!env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PROVIDER === 'cloud') {
+            return { sent: false, reason: 'whatsapp_not_configured' };
+        }
+        const lang = String(farmer?.preferred_language ?? 'en').toLowerCase();
+        const title = lang === 'ml' ? '🌾 *ഫീൽഡ് വിസിറ്റ് സംഗ്രഹം*' : '🌾 *Field visit summary*';
+        const lines = [
+            title,
+            '',
+            lang === 'ml' ? `*ബ്ലോക്ക്:* ${params.blockName}` : `*Block:* ${params.blockName}`,
+            lang === 'ml' ? `*പ്രശ്നങ്ങൾ:* ${params.issueSummary}` : `*Issues:* ${params.issueSummary}`,
+            params.approvedRecCount > 0
+                ? lang === 'ml'
+                    ? `*അംഗീകരിച്ച ശുപാർശകൾ:* ${params.approvedRecCount}`
+                    : `*Approved recommendations:* ${params.approvedRecCount}`
+                : null,
+            params.reviewDateLabel
+                ? lang === 'ml'
+                    ? `*പുനര്പരിശോധന:* ${params.reviewDateLabel}`
+                    : `*Review date:* ${params.reviewDateLabel}`
+                : null,
+            '',
+            lang === 'ml'
+                ? '_മോർബീസ് അഗ്രോണമിസ്റ്റ് നടത്തിയ സന്ദർശനം._'
+                : '_Visit recorded by Morbeez agronomist._',
+        ].filter(Boolean);
+        await whatsappService.sendText(phone, lines.join('\n').slice(0, 4000));
+        return { sent: true };
+    },
+    async sendEvidenceRequest(params) {
+        const { data: farmer } = await supabase
+            .from('farmers')
+            .select('phone, preferred_language')
+            .eq('id', params.farmerId)
+            .maybeSingle();
+        const phone = farmer?.phone?.trim();
+        if (!phone)
+            return { sent: false, reason: 'no_phone' };
+        if (!env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PROVIDER === 'cloud') {
+            return { sent: false, reason: 'whatsapp_not_configured' };
+        }
+        const photoLabels = {
+            whole_plant: 'Whole plant photo',
+            lower_leaf: 'Lower leaf photo',
+            root_rhizome: 'Root/rhizome photo',
+            field_view: 'Field view photo',
+        };
+        const photoLines = params.photoTypes.map((t) => `• ${photoLabels[t] ?? t}`);
+        const questionLines = params.questions.map((q) => {
+            const ans = q.answer?.trim() ? ` (${q.answer})` : '';
+            return `• ${q.text}${ans}`;
+        });
+        const text = [
+            '📸 *More information needed*',
+            '',
+            `Our agronomist is reviewing *${params.diagnosis}* on your field.`,
+            '',
+            '*Please send these photos:*',
+            ...photoLines,
+            '',
+            '*Please confirm:*',
+            ...questionLines,
+            '',
+            '_Reply with photos and answers on WhatsApp. Thank you!_',
+        ].join('\n');
+        const result = await whatsappService.sendText(phone, text.slice(0, 4000));
+        return { sent: true, messageId: typeof result === 'object' && result && 'id' in result ? String(result.id) : undefined };
+    },
 };
 //# sourceMappingURL=recommendation-communication.service.js.map

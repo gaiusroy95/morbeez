@@ -4,6 +4,7 @@ export declare const partnerMobileService: {
         activeFarmers: number;
         pendingTasks: number;
         visitsThisMonth: number;
+        routesToday: number;
         reliabilityScore: number;
         performanceScore: number;
         leadOffersPending: number;
@@ -93,20 +94,16 @@ export declare const partnerMobileService: {
         farmerId?: string;
         taskId?: string;
     }[]>;
+    saveBlockLocation(input: {
+        blockId: string;
+        farmerId: string;
+        latitude: number;
+        longitude: number;
+    }): Promise<import("../core/block.service.js").BlockWithDap>;
     assertFarmerAccess(partnerId: string, farmerId: string): Promise<void>;
     getFarmerWorkspace(partnerId: string, farmerId: string): Promise<{
-        farmer: {
-            id: any;
-            name: any;
-            phone: any;
-            village: any;
-            district: any;
-            service_model: any;
-            preferred_language: any;
-            total_acreage: any;
-            assigned_telecaller_email: any;
-            assigned_expert_email: any;
-        } | null;
+        farmer: import("./partner-farmer-workspace.service.js").PartnerFarmerHeader;
+        header: import("./partner-farmer-workspace.service.js").PartnerFarmerHeader;
         blocks: {
             latestFindingLabel: string | null;
             latestFieldActivity: string | null;
@@ -135,16 +132,21 @@ export declare const partnerMobileService: {
         }[];
         timeline: import("../crm/farmer-team-timeline.service.js").TeamTimelineEntry[];
         ownership: import("./partner.types.js").FarmerOwnership | null;
-        opportunityScore: number | null;
+        farmSnapshot: import("./partner-farmer-workspace.service.js").PartnerFarmSnapshot;
+        currentRecommendation: import("./partner-farmer-workspace.service.js").PartnerCurrentRecommendation;
+        suggestedAction: import("./partner-farmer-workspace.service.js").PartnerSuggestedAction;
+        suggestedActionLabel: string;
         pendingTaskCount: number;
+        openRecommendationsCount: number;
+        lastVisitAt: string | null;
         salesOpportunities: any[];
         recentVisits: {
             id: string;
             farmerId: string;
-            farmerName: string | undefined;
             blockId: string | null;
             visitedAt: string;
-            summary: string | undefined;
+            summary: string;
+            status: string;
         }[];
     }>;
     createSupportRequest(partnerId: string, farmerId: string, input: {
@@ -153,14 +155,6 @@ export declare const partnerMobileService: {
     }, partnerName: string): Promise<{
         ok: boolean;
     }>;
-    listPartnerFarmers: (partnerId: string, limit?: number) => Promise<{
-        id: any;
-        name: any;
-        phone: any;
-        village: any;
-        district: any;
-        service_model: any;
-        created_at: any;
-    }[]>;
+    listPartnerFarmers: (partnerId: string, limit?: number) => Promise<import("./partner-farmer-workspace.service.js").PartnerFarmerListRow[]>;
 };
 //# sourceMappingURL=partner-mobile.service.d.ts.map

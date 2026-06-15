@@ -25,6 +25,31 @@ export declare const recommendationCommunicationService: {
         message?: string;
         reason?: string;
     }>;
+    sendVisitSummary(params: {
+        farmerId: string;
+        blockName: string;
+        issueSummary: string;
+        approvedRecCount: number;
+        reviewDateLabel?: string;
+    }): Promise<{
+        sent: boolean;
+        reason?: string;
+    }>;
+    sendEvidenceRequest(params: {
+        farmerId: string;
+        blockId: string;
+        diagnosis: string;
+        photoTypes: string[];
+        questions: Array<{
+            key: string;
+            text: string;
+            answer?: string;
+        }>;
+    }): Promise<{
+        sent: boolean;
+        reason?: string;
+        messageId?: string;
+    }>;
 };
 export {};
 //# sourceMappingURL=recommendation-communication.service.d.ts.map

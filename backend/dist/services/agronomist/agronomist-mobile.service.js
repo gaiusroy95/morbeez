@@ -10,6 +10,18 @@ import { agronomistCaseReviewService } from '../admin/agronomist-case-review.ser
 import { agronomistWorkflowService } from '../admin/agronomist-workflow.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
+import { normalizeSoilMetrics, SOIL_MACRO_FIELDS } from '../soil/soil-lab-metrics.js';
+function soilMetricCells(metrics) {
+    return SOIL_MACRO_FIELDS.slice(0, 6)
+        .map((f) => {
+        const v = metrics.macro[f.key];
+        if (!v?.value)
+            return null;
+        const unit = f.unit ? ` ${f.unit}` : '';
+        return { label: f.label, value: `${v.value}${unit}` };
+    })
+        .filter(Boolean);
+}
 function haversineKm(lat1, lng1, lat2, lng2) {
     const r = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -745,18 +757,22 @@ export const agronomistMobileService = {
         return {
             block,
             activities,
-            soilReports: soilRows.map((s) => ({
-                id: String(s.id),
-                blockId,
-                blockName: block.name,
-                dateLabel: s.reported_at ? fmt(String(s.reported_at)) : '—',
-                dapLabel: null,
-                health: 'good',
-                healthLabel: 'Soil report',
-                pdfUrl: s.pdf_url ? String(s.pdf_url) : null,
-                highlights: [],
-                metrics: [],
-            })),
+            soilReports: soilRows.map((s) => {
+                const metrics = normalizeSoilMetrics(s.metrics);
+                const metricCells = soilMetricCells(metrics);
+                return {
+                    id: String(s.id),
+                    blockId,
+                    blockName: block.name,
+                    dateLabel: s.reported_at ? fmt(String(s.reported_at)) : '—',
+                    dapLabel: null,
+                    health: 'good',
+                    healthLabel: metricCells.length ? 'Lab values on file' : 'Report on file',
+                    pdfUrl: s.pdf_url ? String(s.pdf_url) : null,
+                    highlights: metricCells.map((m) => `${m.label}: ${m.value}`),
+                    metrics: metricCells,
+                };
+            }),
             fieldFindings,
             blockRecommendations,
         };

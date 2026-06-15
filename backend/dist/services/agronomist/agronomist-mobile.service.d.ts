@@ -193,8 +193,11 @@ export declare const agronomistMobileService: {
             health: string;
             healthLabel: string;
             pdfUrl: string | null;
-            highlights: never[];
-            metrics: never[];
+            highlights: string[];
+            metrics: {
+                label: string;
+                value: string;
+            }[];
         }[];
         fieldFindings: {
             id: string;
@@ -481,6 +484,11 @@ export declare const agronomistMobileService: {
     }): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;

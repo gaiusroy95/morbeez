@@ -4,7 +4,11 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { resolveConfidenceAction } from '../../domain/ai-training/confidence-routing.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
-import type { VisitAiRejectBody } from '../../domain/ai-training/validators.js';
+import type {
+  VisitAiRejectBody,
+  VisitAnalyzeRequest,
+  VisitAiAnswersBody,
+} from '../../domain/ai-training/validators.js';
 import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';

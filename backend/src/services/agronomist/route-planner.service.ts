@@ -45,9 +45,9 @@ function clusterKey(stop: StopForOptimize): string {
   return stop.pincodeId ?? stop.pincode ?? 'unknown';
 }
 
-function hasCoords(
-  s: StopForOptimize
-): s is StopForOptimize & { latitude: number; longitude: number } {
+function hasCoords<T extends StopForOptimize>(
+  s: T
+): s is T & { latitude: number; longitude: number } {
   return s.latitude != null && s.longitude != null;
 }
 
@@ -383,7 +383,11 @@ export const routePlannerService = {
             status: 'planned',
           };
 
-    const { data, error } = await supabase.from('agronomist_routes').insert(insert).select('*').single();
+    const { data, error } = await supabase
+      .from('agronomist_routes')
+      .insert(insert as Record<string, unknown>)
+      .select('*')
+      .single();
     throwIfSupabaseError(error, 'Could not create route');
     return this.getRouteSummary(String(data.id), agent);
   },

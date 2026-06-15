@@ -22,7 +22,7 @@ export type LeadPendingWorkItem = {
   statusLabel: string;
   canComplete: boolean;
   taskId: string | null;
-  navigateTab: 'interactions' | 'escalations' | 'findings' | 'agronomist' | null;
+  navigateTab: 'interactions' | 'escalations' | 'findings' | 'agronomist' | 'team' | null;
 };
 
 export type LeadStage =

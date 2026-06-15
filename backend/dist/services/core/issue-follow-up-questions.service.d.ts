@@ -7,6 +7,8 @@ export declare const issueFollowUpQuestionsService: {
         observation?: string;
         recommendationText?: string;
         photoCount?: number;
+        selectedHypothesis?: string;
+        contextPack?: Record<string, unknown>;
     }): Promise<string[]>;
 };
 //# sourceMappingURL=issue-follow-up-questions.service.d.ts.map

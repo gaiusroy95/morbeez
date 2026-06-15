@@ -1,6 +1,6 @@
 import type { ReviewAction, FarmerFeedbackDecision, ImageReviewAction } from '../../domain/ai-training/enums.js';
 export type TrainingReviewSurface = 'case_review' | 'farmer_feedback' | 'telecaller_escalation' | 'field_finding' | 'image_review';
-export type TrainingHumanAction = ReviewAction | FarmerFeedbackDecision | ImageReviewAction;
+export type TrainingHumanAction = ReviewAction | FarmerFeedbackDecision | ImageReviewAction | 'reject_recommendation';
 export type RecordTrainingEventInput = {
     farmerId: string;
     blockId?: string | null;

@@ -2,16 +2,13 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { fieldVisitService } from '../admin/field-visit.service.js';
-import { partnerEnrollmentService } from './partner-enrollment.service.js';
 import { partnerAttributionCaptureService } from './partner-attribution-capture.service.js';
 import { partnerReliabilityService } from './partner-reliability.service.js';
 import { partnerLeadAllocationService } from './partner-lead-allocation.service.js';
 import { partnerTimelineService } from './partner-timeline.service.js';
-import { fieldPwaService } from '../admin/field-pwa.service.js';
-import { farmerOwnershipService } from './farmer-ownership.service.js';
 import { farmerTeamTimelineService } from '../crm/farmer-team-timeline.service.js';
-import { salesOpportunityService } from './sales-opportunity.service.js';
-import { opportunityIntelligenceDashboardService } from '../intelligence/opportunity-intelligence-dashboard.service.js';
+import { partnerFarmerWorkspaceService } from './partner-farmer-workspace.service.js';
+import { routePlannerService } from '../agronomist/route-planner.service.js';
 export const partnerMobileService = {
     async getDashboard(partnerId) {
         const { count: pendingTasks } = await supabase
@@ -32,10 +29,15 @@ export const partnerMobileService = {
             .eq('id', partnerId)
             .single();
         const offers = await partnerLeadAllocationService.listOffers(partnerId);
+        const routesToday = await routePlannerService.countRoutesToday({
+            agentType: 'partner',
+            partnerId,
+        });
         return {
             activeFarmers: Number(partner?.current_active_farmers ?? 0),
             pendingTasks: pendingTasks ?? 0,
             visitsThisMonth: visitsThisMonth ?? 0,
+            routesToday,
             reliabilityScore: Number(partner?.reliability_score ?? 70),
             performanceScore: Number(partner?.performance_score ?? 50),
             leadOffersPending: offers.length,
@@ -260,6 +262,10 @@ export const partnerMobileService = {
         notifications.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
         return notifications;
     },
+    async saveBlockLocation(input) {
+        const { fieldPwaService } = await import('../admin/field-pwa.service.js');
+        return fieldPwaService.saveBlockLocation(input);
+    },
     async assertFarmerAccess(partnerId, farmerId) {
         const { data } = await supabase
             .from('farmers')
@@ -272,35 +278,7 @@ export const partnerMobileService = {
     },
     async getFarmerWorkspace(partnerId, farmerId) {
         await this.assertFarmerAccess(partnerId, farmerId);
-        const { data: farmer, error } = await supabase
-            .from('farmers')
-            .select('id, name, phone, village, district, service_model, preferred_language, total_acreage, assigned_telecaller_email, assigned_expert_email')
-            .eq('id', farmerId)
-            .single();
-        throwIfSupabaseError(error, 'Could not load farmer');
-        const [blocks, timeline, ownership, intel, opportunities, visits] = await Promise.all([
-            fieldPwaService.getFarmerBlocks(farmerId),
-            farmerTeamTimelineService.listForFarmer(farmerId, 40),
-            farmerOwnershipService.getOwnership(farmerId),
-            opportunityIntelligenceDashboardService.getFarmerProfile(farmerId).catch(() => null),
-            salesOpportunityService.listForFarmer(farmerId),
-            this.listVisits(partnerId).then((rows) => rows.filter((v) => v.farmerId === farmerId).slice(0, 10)),
-        ]);
-        const { count: pendingTasks } = await supabase
-            .from('crm_tasks')
-            .select('id', { count: 'exact', head: true })
-            .eq('farmer_id', farmerId)
-            .eq('status', 'pending');
-        return {
-            farmer,
-            blocks,
-            timeline,
-            ownership,
-            opportunityScore: intel?.score?.opportunityScore != null ? Number(intel.score.opportunityScore) : null,
-            pendingTaskCount: pendingTasks ?? 0,
-            salesOpportunities: opportunities,
-            recentVisits: visits,
-        };
+        return partnerFarmerWorkspaceService.buildWorkspace(partnerId, farmerId);
     },
     async createSupportRequest(partnerId, farmerId, input, partnerName) {
         await this.assertFarmerAccess(partnerId, farmerId);
@@ -345,6 +323,6 @@ export const partnerMobileService = {
         }
         return { ok: true };
     },
-    listPartnerFarmers: partnerEnrollmentService.listPartnerFarmers.bind(partnerEnrollmentService),
+    listPartnerFarmers: partnerFarmerWorkspaceService.listPartnerFarmers.bind(partnerFarmerWorkspaceService),
 };
 //# sourceMappingURL=partner-mobile.service.js.map

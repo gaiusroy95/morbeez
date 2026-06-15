@@ -26,6 +26,13 @@ export const REVIEW_ACTIONS = [
     'correct_ai',
     'partial_match',
     'escalate_urgent',
+    'reject_recommendation',
+];
+export const VISIT_AI_REJECT_REASONS = [
+    'wrong_diagnosis',
+    'need_more_evidence',
+    'recommendation_not_suitable',
+    'custom_recommendation',
 ];
 /** Farmer feedback review decisions */
 export const FARMER_FEEDBACK_DECISIONS = ['approved', 'rejected', 'partial'];
@@ -76,9 +83,26 @@ export const ISSUE_CATEGORIES = [
     'disease',
     'pest',
     'nutrient_deficiency',
+    'nutrient_toxicity',
     'water_stress',
+    'environmental_stress',
+    'soil_problem',
+    'growth_issue',
+    'chemical_injury',
+    'mechanical_damage',
     'weed',
     'other',
+];
+/** Visit AI question answer types */
+export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'];
+/** Visit AI case lifecycle */
+export const VISIT_AI_CASE_STATUSES = [
+    'draft',
+    'analyzed',
+    'qa_complete',
+    'recommended',
+    'reviewed',
+    'submitted',
 ];
 /** Recommendation module types */
 export const RECOMMENDATION_TYPES = [

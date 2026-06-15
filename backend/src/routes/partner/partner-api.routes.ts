@@ -430,7 +430,10 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       const { findingId } = request.params as { findingId: string };
       const { fieldVisitService } = await import('../../services/admin/field-visit.service.js');
       const detail = await fieldVisitService.getVisitDetail(findingId);
-      await partnerMobileService.assertFarmerAccess(partner.id, String(detail.farmerId ?? detail.farmer_id));
+      await partnerMobileService.assertFarmerAccess(
+        partner.id,
+        String(detail.finding.farmer_id)
+      );
       return reply.send({ ok: true, ...detail });
     });
 

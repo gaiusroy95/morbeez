@@ -13,7 +13,7 @@ export type LeadPendingWorkItem = {
     statusLabel: string;
     canComplete: boolean;
     taskId: string | null;
-    navigateTab: 'interactions' | 'escalations' | 'findings' | 'agronomist' | null;
+    navigateTab: 'interactions' | 'escalations' | 'findings' | 'agronomist' | 'team' | null;
 };
 export type LeadStage = 'new_lead' | 'interested' | 'follow_up' | 'recommendation' | 'order_placed' | 'repeat_customer';
 export interface TelecallerListQuery {
@@ -87,6 +87,11 @@ export declare const telecallerAdminService: {
     getLeadDetail(leadId: string): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;
@@ -239,6 +244,11 @@ export declare const telecallerAdminService: {
     }, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;
@@ -365,6 +375,11 @@ export declare const telecallerAdminService: {
     }, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;
@@ -512,6 +527,11 @@ export declare const telecallerAdminService: {
     addNote(leadId: string, note: string, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;
@@ -757,6 +777,11 @@ export declare const telecallerAdminService: {
     }, agentEmail: string): Promise<{
         lead: {
             pincode: string | null;
+            serviceModel: import("../partner/partner.types.js").ServiceModel;
+            assignedPartnerId: string | null;
+            assignedPartnerName: string | null;
+            ownership: string | null;
+            enrollmentSource: string | null;
             id: unknown;
             farmerId: unknown;
             intent: unknown;

@@ -1,3 +1,4 @@
+import type { ReviewAction } from '../../domain/ai-training/enums.js';
 type AiDiagnosisRow = {
     label: string;
     confidence: number;
@@ -165,7 +166,7 @@ export declare const agronomistCaseReviewService: {
         }[];
     }>;
     submitReview(escalationId: string, body: {
-        action: "approve_ai" | "correct_ai" | "partial_match" | "escalate_urgent";
+        action: ReviewAction;
         correctDiagnosis?: string;
         severity?: "mild" | "moderate" | "severe";
         recommendationText?: string;

@@ -21,6 +21,7 @@ import {
   textsLikelySame,
 } from './case-review-inquiry.util.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
+import type { ReviewAction } from '../../domain/ai-training/enums.js';
 
 function formatDt(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -616,7 +617,7 @@ export const agronomistCaseReviewService = {
   async submitReview(
     escalationId: string,
     body: {
-      action: 'approve_ai' | 'correct_ai' | 'partial_match' | 'escalate_urgent';
+      action: ReviewAction;
       correctDiagnosis?: string;
       severity?: 'mild' | 'moderate' | 'severe';
       recommendationText?: string;
@@ -703,7 +704,7 @@ export const agronomistCaseReviewService = {
     }
 
     const newStatus =
-      body.action === 'escalate_urgent'
+      body.action === 'escalate_urgent' || body.action === 'reject_recommendation'
         ? 'in_review'
         : body.submitForApproval
           ? 'in_review'
@@ -725,7 +726,9 @@ export const agronomistCaseReviewService = {
               ? 'Partial match — agronomist correction applied'
               : body.action === 'correct_ai'
                 ? 'Agronomist corrected AI diagnosis'
-                : 'Escalated for senior review',
+                : body.action === 'reject_recommendation'
+                  ? 'Recommendation rejected — pending alternate guidance'
+                  : 'Escalated for senior review',
         correction: {
           action: body.action,
           correctDiagnosis: body.correctDiagnosis ?? null,

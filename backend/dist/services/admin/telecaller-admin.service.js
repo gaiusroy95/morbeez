@@ -365,8 +365,30 @@ export const telecallerAdminService = {
             : metadata.acreage
                 ? String(metadata.acreage)
                 : '—';
+        const ownership = await farmerOwnershipService.getOwnership(farmerId);
+        let assignedPartnerName = null;
+        if (ownership?.assignedPartnerId) {
+            const { data: partnerRow } = await supabase
+                .from('partners')
+                .select('full_name')
+                .eq('id', ownership.assignedPartnerId)
+                .maybeSingle();
+            assignedPartnerName = partnerRow?.full_name ? String(partnerRow.full_name) : null;
+        }
         return {
-            lead: { ...lead, pincode },
+            lead: {
+                ...lead,
+                pincode,
+                serviceModel: ownership?.serviceModel ?? 'remote_advisory',
+                assignedPartnerId: ownership?.assignedPartnerId ?? null,
+                assignedPartnerName,
+                ownership: ownership?.customerOwnerType === 'partner'
+                    ? 'Partner'
+                    : ownership?.customerOwnerType === 'morbeez'
+                        ? 'Morbeez'
+                        : null,
+                enrollmentSource: ownership?.enrollmentSource ?? null,
+            },
             farmer: {
                 id: farmerId,
                 name: lead.farmerName,
@@ -1137,25 +1159,49 @@ export const telecallerAdminService = {
         const items = [];
         const seenInteractionIds = new Set();
         const crmTaskIds = new Set((tasksRes.data ?? []).map((t) => String(t.id)));
+        const partnerIds = new Set();
+        for (const t of tasksRes.data ?? []) {
+            if (t.assigned_partner_id)
+                partnerIds.add(String(t.assigned_partner_id));
+        }
+        const partnerNames = new Map();
+        if (partnerIds.size) {
+            const { data: partnerRows } = await supabase
+                .from('partners')
+                .select('id, full_name')
+                .in('id', [...partnerIds]);
+            for (const row of partnerRows ?? []) {
+                partnerNames.set(String(row.id), String(row.full_name ?? 'Partner'));
+            }
+        }
         for (const t of tasksRes.data ?? []) {
             const taskType = String(t.task_type ?? 'follow_up');
             const dueAt = t.due_at ? String(t.due_at) : null;
             const isVisit = taskType === 'visit';
+            const assignedToRole = String(t.assigned_to_role ?? '');
+            const partnerId = t.assigned_partner_id ? String(t.assigned_partner_id) : null;
+            const isPartnerTask = assignedToRole === 'partner' || Boolean(partnerId);
+            const partnerName = partnerId ? partnerNames.get(partnerId) : null;
+            const typeLabel = taskType.replace(/_/g, ' ');
             items.push({
                 id: `crm-task-${t.id}`,
                 itemType: 'crm_task',
-                category: isVisit ? 'Field visit' : 'CRM task',
+                category: isPartnerTask ? 'Partner task' : isVisit ? 'Field visit' : 'CRM task',
                 title: String(t.title ?? 'Follow-up'),
-                subtitle: taskType.replace(/_/g, ' '),
+                subtitle: isPartnerTask
+                    ? partnerName
+                        ? `Assigned to ${partnerName}${typeLabel !== 'follow up' ? ` · ${typeLabel}` : ''}`
+                        : `Partner assignment · ${typeLabel}`
+                    : typeLabel,
                 dueAt,
                 dueLabel: formatDateTime(dueAt) ?? '—',
                 isDueToday: isDueTodayIso(dueAt),
                 farmerName,
                 status: 'pending',
-                statusLabel: isVisit ? 'Visit scheduled' : 'Pending',
-                canComplete: true,
-                taskId: String(t.id),
-                navigateTab: null,
+                statusLabel: isPartnerTask ? 'With partner' : isVisit ? 'Visit scheduled' : 'Pending',
+                canComplete: !isPartnerTask,
+                taskId: isPartnerTask ? null : String(t.id),
+                navigateTab: isPartnerTask ? 'team' : null,
             });
         }
         for (const f of fieldRes.data ?? []) {

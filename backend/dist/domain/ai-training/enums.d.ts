@@ -18,8 +18,10 @@ export type RecommendationOutcome = (typeof RECOMMENDATION_OUTCOMES)[number];
 export declare const FOLLOWUP_OUTCOMES: readonly ["improved", "partial", "no_improvement", "worsened"];
 export type FollowupOutcome = (typeof FOLLOWUP_OUTCOMES)[number];
 /** Agronomist case review actions */
-export declare const REVIEW_ACTIONS: readonly ["approve_ai", "correct_ai", "partial_match", "escalate_urgent"];
+export declare const REVIEW_ACTIONS: readonly ["approve_ai", "correct_ai", "partial_match", "escalate_urgent", "reject_recommendation"];
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
+export declare const VISIT_AI_REJECT_REASONS: readonly ["wrong_diagnosis", "need_more_evidence", "recommendation_not_suitable", "custom_recommendation"];
+export type VisitAiRejectReason = (typeof VISIT_AI_REJECT_REASONS)[number];
 /** Farmer feedback review decisions */
 export declare const FARMER_FEEDBACK_DECISIONS: readonly ["approved", "rejected", "partial"];
 export type FarmerFeedbackDecision = (typeof FARMER_FEEDBACK_DECISIONS)[number];
@@ -61,8 +63,14 @@ export type SoilMoistureLevel = (typeof SOIL_MOISTURE_LEVELS)[number];
 export declare const ISSUE_STATUSES: readonly ["open", "monitoring", "resolved"];
 export type IssueStatus = (typeof ISSUE_STATUSES)[number];
 /** Issue categories for visit issue cards (maps to FINDING_TYPES where overlapping) */
-export declare const ISSUE_CATEGORIES: readonly ["disease", "pest", "nutrient_deficiency", "water_stress", "weed", "other"];
+export declare const ISSUE_CATEGORIES: readonly ["disease", "pest", "nutrient_deficiency", "nutrient_toxicity", "water_stress", "environmental_stress", "soil_problem", "growth_issue", "chemical_injury", "mechanical_damage", "weed", "other"];
 export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
+/** Visit AI question answer types */
+export declare const VISIT_AI_ANSWER_TYPES: readonly ["yes_no_unknown", "text", "number"];
+export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
+/** Visit AI case lifecycle */
+export declare const VISIT_AI_CASE_STATUSES: readonly ["draft", "analyzed", "qa_complete", "recommended", "reviewed", "submitted"];
+export type VisitAiCaseStatus = (typeof VISIT_AI_CASE_STATUSES)[number];
 /** Recommendation module types */
 export declare const RECOMMENDATION_TYPES: readonly ["disease_management", "pest_management", "nutrient_management", "irrigation", "soil_amendment", "monitoring", "other"];
 export type RecommendationType = (typeof RECOMMENDATION_TYPES)[number];

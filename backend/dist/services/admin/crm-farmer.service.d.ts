@@ -297,6 +297,20 @@ export declare const crmFarmerService: {
             dueLabel: string;
             notes: string | undefined;
         } | null;
+        applicationTracking: {
+            recommendationId: string;
+            issueDetected: string;
+            recommendedText: string;
+            recommendedTechnicalName: string;
+            differentProduct: boolean;
+            partialApply: boolean;
+            applicationStatus: string | null;
+            outcome: string | null;
+            appliedTechnicalName: string | null;
+            appliedTradeName: string | null;
+            resultStatus: string | null;
+            appliedAt: string | null;
+        }[];
         timeline: {
             title: string;
             atLabel: string;
