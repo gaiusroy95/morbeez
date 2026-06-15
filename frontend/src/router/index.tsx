@@ -24,6 +24,13 @@ import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { PartnerProgramHubPage } from '../pages/PartnerProgramHubPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { AgronomistOperationsPage } from '../pages/AgronomistOperationsPage';
+import { VisitWizardPage } from '../pages/agronomist/VisitWizardPage';
+import { VisitSuccessPage } from '../pages/agronomist/VisitSuccessPage';
+import { VisitDetailPage } from '../pages/agronomist/VisitDetailPage';
+import { RoutePlannerPage } from '../pages/agronomist/RoutePlannerPage';
+import { RouteDetailPage } from '../pages/agronomist/RouteDetailPage';
+import { FarmerMapPage } from '../pages/agronomist/FarmerMapPage';
+import { OpportunityDashboardPage } from '../pages/OpportunityDashboardPage';
 import { ApprovalsPage } from '../pages/ApprovalsPage';
 import { AnalyticsHubPage } from '../pages/AnalyticsHubPage';
 import { CommerceHubPage } from '../pages/CommerceHubPage';
@@ -99,6 +106,11 @@ function AgronomistRoute() {
 function AgronomistAiReviewRoute() {
   const { can } = useAuth();
   return <AgronomistHubPage canWrite={can('agronomist', 'write')} />;
+}
+
+function VisitWizardRoute() {
+  const { can } = useAuth();
+  return <VisitWizardPage canWrite={can('agronomist', 'write')} />;
 }
 
 function ApprovalsRoute() {
@@ -300,6 +312,54 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="agronomist">
                   <AgronomistAiReviewRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistVisit,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <VisitWizardRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistVisitSuccess,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <VisitSuccessPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistVisitDetail,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <VisitDetailPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistRoutes,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <RoutePlannerPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistRouteDetail,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <RouteDetailPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistMap,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <FarmerMapPage />
                 </ProtectedPage>
               ),
             },

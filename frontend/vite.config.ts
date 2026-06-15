@@ -1,5 +1,9 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -9,6 +13,13 @@ export default defineConfig(({ mode }) => {
   return {
     base: env.VITE_BASE_PATH || '/',
     plugins: [react()],
+    resolve: {
+      alias: {
+        'expo-secure-store': path.resolve(rootDir, 'src/lib/expo-secure-store-stub.ts'),
+        'expo-modules-core': path.resolve(rootDir, 'src/lib/expo-modules-core-stub.ts'),
+        'expo-constants': path.resolve(rootDir, 'src/lib/expo-constants-stub.ts'),
+      },
+    },
     server: {
       port: 5173,
       strictPort: false,
@@ -24,7 +35,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
-        external: ['react-native', 'expo-secure-store'],
+        external: ['react-native'],
       },
     },
   };

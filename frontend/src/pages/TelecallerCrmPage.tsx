@@ -7,6 +7,8 @@ import { LeadOperationsTable } from '../components/telecaller/lead-queue/LeadOpe
 import type { OperationalLead } from '../components/telecaller/lead-queue/lead-queue-types';
 import { EscalationsPanel } from '../components/telecaller/EscalationsPanel';
 import { TelecallerQcDashboard } from '../components/telecaller/TelecallerQcDashboard';
+import { TelecallerFollowUpsPanel } from '../components/telecaller/TelecallerFollowUpsPanel';
+import { TelecallerSalesOpportunitiesPanel } from '../components/telecaller/TelecallerSalesOpportunitiesPanel';
 import { TelecallerIntelligenceBar } from '../components/telecaller/TelecallerIntelligenceBar';
 import { MyEarningsPanel } from '../components/telecaller/MyEarningsPanel';
 import { Field, Modal, inputClass } from '../components/Modal';
@@ -72,7 +74,7 @@ function isDueTodayIso(iso: string | undefined): boolean {
   );
 }
 
-type CrmView = 'workspace' | 'escalations' | 'qc';
+type CrmView = 'workspace' | 'followUps' | 'escalations' | 'qc';
 type WorkspaceViewMode = 'list' | 'detail';
 type CrmNotification = { id: string; message: string; at: string };
 
@@ -410,12 +412,17 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       <HubTabs
         tabs={[
           { id: 'workspace' as const, label: 'Workspace' },
+          { id: 'followUps' as const, label: 'Follow-ups' },
           { id: 'qc' as const, label: 'Call QC' },
           { id: 'escalations' as const, label: 'Escalations', badge: pendingEscalations },
         ]}
         active={crmView}
         onChange={setCrmView}
       />
+
+      {crmView === 'followUps' ? (
+        <TelecallerFollowUpsPanel canWrite={canWrite} onOpenLead={(id) => openLeadWorkspace(id)} />
+      ) : null}
 
       {crmView === 'qc' ? <TelecallerQcDashboard /> : null}
       {crmView === 'escalations' ? <EscalationsPanel canWrite={canWrite} /> : null}
@@ -447,6 +454,10 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
         <>
           <MyEarningsPanel />
           <TelecallerIntelligenceBar onSelectLead={(id) => openLeadWorkspace(id)} />
+          <TelecallerSalesOpportunitiesPanel
+            canWrite={canWrite}
+            onOpenLead={(id) => openLeadWorkspace(id)}
+          />
         </>
       ) : null}
 

@@ -1045,6 +1045,14 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
             leadId={leadId}
             canWrite={canWrite}
             refreshKey={dataVersion}
+            visitContext={
+              variant === 'agronomist' && detail?.lead?.farmerId
+                ? {
+                    farmerId: detail.lead.farmerId,
+                    farmerName: detail.lead.farmerName,
+                  }
+                : undefined
+            }
             onAddBlock={() => setModal('block')}
             onOpenFinding={(row) => setSelectedFinding(row)}
             onScheduleVisit={() => setModal('visit')}
@@ -1101,6 +1109,14 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
             canWrite={canWrite}
             blocks={blocks.map((b) => ({ id: b.id, name: b.name, cropName: b.cropName }))}
             refreshKey={dataVersion}
+            visitContext={
+              variant === 'agronomist' && detail?.lead?.farmerId
+                ? {
+                    farmerId: detail.lead.farmerId,
+                    farmerName: detail.lead.farmerName,
+                  }
+                : undefined
+            }
             onAddFinding={() => setModal('finding')}
             onOpenDetail={setSelectedFinding}
             onArchive={(id) => void archiveResource(`${base}/field-findings/${id}`, 'field finding')}

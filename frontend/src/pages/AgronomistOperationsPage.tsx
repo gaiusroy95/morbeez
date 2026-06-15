@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { agronomistClient } from '@morbeez/shared';
 import { api } from '../lib/api';
 import { paths, toPath } from '../lib/routes';
-import { LeadDetailPanel } from '../components/telecaller/LeadDetailPanel';
+import { AgronomistFarmerWorkspacePanel } from '../components/agronomist/AgronomistFarmerWorkspacePanel';
 import { AgronomistTaskDetailModal, type AgronomistTaskRow } from '../components/agronomist/AgronomistTaskDetailModal';
 import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner, StatCard } from '../components/ui';
 import '../styles/agronomist-ops.css';
@@ -50,7 +51,10 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
   const [visits, setVisits] = useState<VisitRow[]>([]);
   const [farmers, setFarmers] = useState<FarmerRow[]>([]);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string | null>(null);
+  const [selectedFarmerName, setSelectedFarmerName] = useState('');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
@@ -95,7 +99,13 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([loadDashboard(), loadTasks(), loadVisits(), loadFarmers()]);
+      await Promise.all([
+        loadDashboard(),
+        loadTasks(),
+        loadVisits(),
+        loadFarmers(),
+        agronomistClient.listNotifications().then(setNotifications).catch(() => setNotifications([])),
+      ]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load agronomist workspace');
     } finally {
@@ -126,6 +136,28 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
         </div>
         <Btn label="Refresh" variant="secondary" onClick={bump} />
       </div>
+
+      <div className="agro-ops-quick-links">
+        <Link to={toPath(paths.agronomistMap)}>Farmer map</Link>
+        <Link to={toPath(paths.agronomistRoutes)}>Route planner</Link>
+        <Link to={toPath(paths.agronomistAiReview)}>AI review center</Link>
+        {canWrite ? (
+          <button type="button" className="link-btn" onClick={() => setTab('farmers')}>
+            Start visit from farmer workspace
+          </button>
+        ) : null}
+      </div>
+
+      {notifications.length ? (
+        <section className="agro-ops-panel mb-3">
+          <h3>Notifications</h3>
+          <ul className="agro-ops-list">
+            {notifications.slice(0, 5).map((n, i) => (
+              <li key={String(n.id ?? i)}>{String(n.message ?? n.title ?? 'Notification')}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <HubTabs
         tabs={[
@@ -238,7 +270,17 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
                     {v.leadId ? (
                       <>
                         {' · '}
-                        <button type="button" className="link-btn" onClick={() => setSelectedLeadId(v.leadId)}>
+                        <button
+                          type="button"
+                          className="link-btn"
+                          onClick={() => {
+                            const farmer = farmers.find((f) => f.leadId === v.leadId);
+                            setSelectedFarmerId(farmer?.id ?? null);
+                            setSelectedFarmerName(farmer?.name ?? v.farmerName);
+                            setSelectedLeadId(v.leadId);
+                            setTab('farmers');
+                          }}
+                        >
                           Farmer workspace
                         </button>
                       </>
@@ -253,12 +295,30 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
       ) : null}
 
       {tab === 'farmers' ? (
-        selectedLeadId ? (
+        selectedFarmerId ? (
           <div className="agro-ops-farmer-workspace">
-            <button type="button" className="link-btn mb-3" onClick={() => setSelectedLeadId(null)}>
+            <button
+              type="button"
+              className="link-btn mb-3"
+              onClick={() => {
+                setSelectedFarmerId(null);
+                setSelectedLeadId(null);
+                setSelectedFarmerName('');
+              }}
+            >
               ← Back to farmer list
             </button>
-            <LeadDetailPanel leadId={selectedLeadId} canWrite={canWrite} variant="agronomist" />
+            <AgronomistFarmerWorkspacePanel
+              farmerId={selectedFarmerId}
+              farmerName={selectedFarmerName}
+              leadId={selectedLeadId}
+              canWrite={canWrite}
+              onClose={() => {
+                setSelectedFarmerId(null);
+                setSelectedLeadId(null);
+                setSelectedFarmerName('');
+              }}
+            />
           </div>
         ) : (
           <div className="agro-ops-table-wrap">
@@ -276,8 +336,12 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
                 {farmers.map((f) => (
                   <tr
                     key={f.id}
-                    className={f.leadId ? 'clickable' : ''}
-                    onClick={() => f.leadId && setSelectedLeadId(f.leadId)}
+                    className="clickable"
+                    onClick={() => {
+                      setSelectedFarmerId(f.id);
+                      setSelectedFarmerName(f.name);
+                      setSelectedLeadId(f.leadId ?? null);
+                    }}
                   >
                     <td>{f.name}{f.phone ? ` · ${f.phone}` : ''}</td>
                     <td>{f.district ?? '—'}</td>

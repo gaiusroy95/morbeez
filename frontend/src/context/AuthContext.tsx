@@ -12,9 +12,11 @@ import {
   clearToken,
   fetchSession,
   getToken,
+  setToken,
   type ApiModule,
   type SessionAdmin,
 } from '../lib/api';
+import { initStaffSharedBridge, syncStaffSharedBridge } from '../lib/staff-shared-bridge';
 
 type AuthState = {
   ready: boolean;
@@ -55,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setCanApprove(session.canApproveRecommendations);
       setCanSelfApprove(session.canSelfApproveRecommendations);
       setAuthed(true);
+      syncStaffSharedBridge();
     } catch {
       clearToken();
       setAuthed(false);
@@ -68,12 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    initStaffSharedBridge();
     setReady(false);
     void refresh();
   }, [refresh]);
 
   const logout = useCallback(() => {
     clearToken();
+    syncStaffSharedBridge();
     setAuthed(false);
     setAdmin(null);
     setModules([]);

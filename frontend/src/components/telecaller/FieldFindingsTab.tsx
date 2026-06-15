@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { buildVisitWizardUrl } from '../../lib/visitNavigation';
 import { StaticSelect } from '../ui';
 import type { FieldFindingListRow } from './FieldFindingDetailModal';
 import {
@@ -54,11 +56,17 @@ function diseaseClass(tone: string | undefined): string {
   return `tc-ff-disease tc-ff-disease--${tone ?? 'warning'}`;
 }
 
+type VisitContext = {
+  farmerId: string;
+  farmerName: string;
+};
+
 type Props = {
   leadId: string;
   canWrite: boolean;
   blocks: BlockOption[];
   refreshKey: number;
+  visitContext?: VisitContext;
   onAddFinding: () => void;
   onOpenDetail: (row: FieldFindingListRow) => void;
   onArchive: (id: string) => void;
@@ -69,10 +77,12 @@ export function FieldFindingsTab({
   canWrite,
   blocks,
   refreshKey,
+  visitContext,
   onAddFinding,
   onOpenDetail,
   onArchive,
 }: Props) {
+  const navigate = useNavigate();
   const [allItems, setAllItems] = useState<FindingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -186,6 +196,26 @@ export function FieldFindingsTab({
           </p>
         </div>
         <div className="tc-ff-header-actions">
+          {visitContext && canWrite && blocks[0] ? (
+            <button
+              type="button"
+              className="tc-ff-btn-primary"
+              onClick={() => {
+                const block = blocks.find((b) => b.id === filters.blockId) ?? blocks[0];
+                navigate(
+                  buildVisitWizardUrl({
+                    farmerId: visitContext.farmerId,
+                    blockId: block.id,
+                    blockName: block.name,
+                    cropType: block.cropName || '_default',
+                    farmerName: visitContext.farmerName,
+                  })
+                );
+              }}
+            >
+              Start Visit AI
+            </button>
+          ) : null}
           <button type="button" className="tc-ff-btn-secondary" onClick={() => setShowFilters((v) => !v)}>
             Filter
           </button>

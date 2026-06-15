@@ -1,14 +1,25 @@
-function isBrowser(): boolean {
-  return typeof document !== 'undefined';
+const BROWSER_STAFF_TOKEN_KEY = 'morbeez_admin_token';
+
+function isBrowser(): boolean {  return typeof document !== 'undefined';
 }
 
 async function secureStoreModule() {
+  if (isBrowser()) {
+    return {
+      getItemAsync: async () => null,
+      setItemAsync: async () => undefined,
+      deleteItemAsync: async () => undefined,
+    };
+  }
   return import('expo-secure-store');
 }
 
 export async function readSessionItem(key: string): Promise<string | null> {
   if (isBrowser()) {
     try {
+      if (key === BROWSER_STAFF_TOKEN_KEY) {
+        return localStorage.getItem(key) ?? sessionStorage.getItem(key);
+      }
       return sessionStorage.getItem(key);
     } catch {
       return null;
@@ -20,6 +31,9 @@ export async function readSessionItem(key: string): Promise<string | null> {
 
 export async function writeSessionItem(key: string, value: string): Promise<void> {
   if (isBrowser()) {
+    if (key === BROWSER_STAFF_TOKEN_KEY) {
+      localStorage.setItem(key, value);
+    }
     sessionStorage.setItem(key, value);
     return;
   }
@@ -29,6 +43,9 @@ export async function writeSessionItem(key: string, value: string): Promise<void
 
 export async function deleteSessionItem(key: string): Promise<void> {
   if (isBrowser()) {
+    if (key === BROWSER_STAFF_TOKEN_KEY) {
+      localStorage.removeItem(key);
+    }
     sessionStorage.removeItem(key);
     return;
   }

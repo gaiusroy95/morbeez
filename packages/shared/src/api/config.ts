@@ -1,17 +1,30 @@
-/** Resolve API origin from Expo public env (set per app in .env) */
+/** Resolve API origin from Expo public env or Vite staff console env */
 export function getApiOrigin(): string {
-  let fromExpoExtra = '';
+  let fromVite = '';
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const Constants = require('expo-constants').default as {
-      expoConfig?: { extra?: { apiBaseUrl?: string } };
-    };
-    fromExpoExtra = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '');
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      fromVite = String((import.meta.env as Record<string, string | undefined>).VITE_API_BASE_URL ?? '');
+    }
   } catch {
-    fromExpoExtra = '';
+    fromVite = '';
+  }
+
+  let fromExpoExtra = '';
+  const isBrowser = typeof document !== 'undefined';
+  if (!isBrowser && !fromVite) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Constants = require('expo-constants').default as {
+        expoConfig?: { extra?: { apiBaseUrl?: string } };
+      };
+      fromExpoExtra = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '');
+    } catch {
+      fromExpoExtra = '';
+    }
   }
 
   const raw =
+    fromVite ||
     (typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_API_BASE_URL) ||
     fromExpoExtra ||
     '';

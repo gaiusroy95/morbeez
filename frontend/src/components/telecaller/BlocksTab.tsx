@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { buildVisitWizardUrl } from '../../lib/visitNavigation';
 import { StaticSelect } from '../ui';
 import {
   CropBlockFields,
@@ -71,12 +73,27 @@ type WorkspaceData = {
   followUps?: Array<{ id: string; title?: string; dueLabel?: string; notes?: string }>;
   nextFollowUp?: { title?: string; dueLabel?: string; notes?: string } | null;
   timeline?: Array<{ title: string; atLabel: string; kind?: string; detail?: string }>;
+  applicationTracking?: Array<{
+    recommendationId: string;
+    issueDetected?: string;
+    appliedTradeName?: string;
+    appliedTechnicalName?: string;
+    differentProduct?: boolean;
+    partialApply?: boolean;
+    resultStatus?: string;
+  }>;
+};
+
+type VisitContext = {
+  farmerId: string;
+  farmerName: string;
 };
 
 type Props = {
   leadId: string;
   canWrite: boolean;
   refreshKey: number;
+  visitContext?: VisitContext;
   onAddBlock: () => void;
   onOpenFinding: (row: FieldFindingListRow) => void;
   onScheduleVisit: () => void;
@@ -136,12 +153,14 @@ export function BlocksTab({
   leadId,
   canWrite,
   refreshKey,
+  visitContext,
   onAddBlock,
   onOpenFinding,
   onScheduleVisit,
   onAddRecommendation,
   onAddFieldFinding,
 }: Props) {
+  const navigate = useNavigate();
   const [blocks, setBlocks] = useState<FarmBlockCard[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [workspace, setWorkspace] = useState<WorkspaceData | null>(null);
@@ -360,6 +379,25 @@ export function BlocksTab({
               options={blocks.map((b) => ({ value: b.id, label: b.name }))}
               compact
             />
+            {visitContext && canWrite ? (
+              <button
+                type="button"
+                className="tc-bl-btn-primary"
+                onClick={() =>
+                  navigate(
+                    buildVisitWizardUrl({
+                      farmerId: visitContext.farmerId,
+                      blockId: selected.id,
+                      blockName: selected.name,
+                      cropType: selected.cropName || '_default',
+                      farmerName: visitContext.farmerName,
+                    })
+                  )
+                }
+              >
+                Start Visit AI
+              </button>
+            ) : null}
           </div>
 
           <nav className="tc-bl-subtabs" aria-label="Block sections">
@@ -528,6 +566,27 @@ export function BlocksTab({
                   </p>
                 )}
               </article>
+
+              {(workspace?.applicationTracking?.length ?? 0) > 0 ? (
+                <article className="tc-bl-panel">
+                  <div className="tc-bl-panel-head">
+                    <h4>Application tracking</h4>
+                  </div>
+                  <ul className="tc-bl-rec-list">
+                    {workspace!.applicationTracking!.slice(0, 6).map((row) => (
+                      <li key={row.recommendationId} className="tc-bl-muted">
+                        <strong>{row.issueDetected || 'Recommendation'}</strong>
+                        {row.appliedTradeName || row.appliedTechnicalName
+                          ? ` · Applied: ${row.appliedTradeName ?? row.appliedTechnicalName}`
+                          : ' · Not applied yet'}
+                        {row.differentProduct ? ' · Different product' : ''}
+                        {row.partialApply ? ' · Partial apply' : ''}
+                        {row.resultStatus ? ` · ${row.resultStatus.replace(/_/g, ' ')}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ) : null}
 
               <article className="tc-bl-panel">
                 <div className="tc-bl-panel-head">

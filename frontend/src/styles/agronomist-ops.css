@@ -1,3 +1,98 @@
+.agro-ops-quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  font-size: 14px;
+}
+
+.agro-farmer-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.agro-farmer-workspace-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tc-followups-panel,
+.tc-sales-opps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tc-followups-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tc-followups-section h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.tc-followups-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tc-followups-card {
+  background: #fff;
+  border: 1px solid var(--border, #e2e8f0);
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tc-followups-title {
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.tc-followups-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tc-sales-opps-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tc-sales-opps-chip {
+  border: 1px solid var(--border, #e2e8f0);
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.visit-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .agro-ops-page {
   display: flex;
   flex-direction: column;

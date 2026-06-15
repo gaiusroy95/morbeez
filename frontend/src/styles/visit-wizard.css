@@ -1,0 +1,623 @@
+.vw-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding-bottom: 88px;
+}
+
+.vw-stepper {
+  display: flex;
+  gap: 2px;
+  padding: 10px 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.vw-stepper-item {
+  flex: 1;
+  min-width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.vw-stepper-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+}
+
+.vw-stepper-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #cbd5e1;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.vw-stepper-dot--active,
+.vw-stepper-dot--done {
+  border-color: #15803d;
+  background: #15803d;
+  color: #fff;
+}
+
+.vw-stepper-line {
+  flex: 1;
+  height: 2px;
+  background: #e2e8f0;
+  margin: 0 1px;
+}
+
+.vw-stepper-line--done {
+  background: #22c55e;
+}
+
+.vw-stepper-label {
+  font-size: 9px;
+  color: #64748b;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.vw-stepper-label--active {
+  color: #166534;
+  font-weight: 700;
+}
+
+.vw-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.96);
+  border-top: 1px solid #e2e8f0;
+  backdrop-filter: blur(8px);
+}
+
+.vw-footer-btn {
+  flex: 1;
+}
+
+.vw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vw-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 14px;
+}
+
+.vw-row-label {
+  color: #64748b;
+}
+
+.vw-row-value {
+  font-weight: 600;
+  color: #0f172a;
+  text-align: right;
+}
+
+.vw-row-link {
+  color: #15803d;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.vw-hint {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.vw-banner {
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.vw-banner--info {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  color: #1565c0;
+}
+
+.vw-banner--ok {
+  background: #ecfdf5;
+  border: 1px solid #15803d;
+  color: #14532d;
+}
+
+.vw-banner--warn {
+  background: #fff8e6;
+  border: 1px solid #d4a017;
+  color: #854d0e;
+}
+
+.vw-banner--danger {
+  background: #fdecea;
+  border: 1px solid #c0392b;
+  color: #991b1b;
+}
+
+.vw-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vw-chip {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.vw-chip:hover {
+  border-color: #cbd5e1;
+}
+
+.vw-chip--active {
+  border-color: #15803d;
+  background: #dcfce7;
+  color: #166534;
+}
+
+.vw-chip--recommended {
+  border-style: dashed;
+  border-color: #22c55e;
+}
+
+.vw-assess-chip {
+  flex: 1 1 calc(33% - 8px);
+  min-width: 100px;
+  min-height: 44px;
+  padding: 10px 6px;
+  border-radius: 8px;
+  border: 1px solid;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.vw-assess-chip--good {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #166534;
+}
+
+.vw-assess-chip--average {
+  background: #fff8e1;
+  border-color: #ffe082;
+  color: #e65100;
+}
+
+.vw-assess-chip--bad {
+  background: #ffebee;
+  border-color: #ef9a9a;
+  color: #b71c1c;
+}
+
+.vw-assess-chip--selected.vw-assess-chip--good {
+  background: #15803d;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.vw-assess-chip--selected.vw-assess-chip--average {
+  background: #f9a825;
+  border-color: #f9a825;
+  color: #fff;
+}
+
+.vw-assess-chip--selected.vw-assess-chip--bad {
+  background: #e53935;
+  border-color: #e53935;
+  color: #fff;
+}
+
+.vw-assess-grid--2 .vw-assess-chip {
+  flex: 1 1 calc(50% - 8px);
+}
+
+.vw-photo-gallery {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+
+.vw-photo-thumb {
+  position: relative;
+  width: 88px;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.vw-photo-thumb img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.vw-photo-remove {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.vw-photo-meta {
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.vw-file-input {
+  display: none;
+}
+
+.vw-upload-row {
+  display: flex;
+  gap: 12px;
+}
+
+.vw-upload-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #166534;
+}
+
+.vw-upload-card:hover {
+  background: #f8fafc;
+}
+
+.vw-issue-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 14px;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.vw-issue-card:hover {
+  border-color: #cbd5e1;
+}
+
+.vw-issue-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.vw-issue-category {
+  font-size: 12px;
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+}
+
+.vw-severity {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  text-transform: capitalize;
+}
+
+.vw-severity--low { background: #15803d; }
+.vw-severity--medium { background: #f9a825; }
+.vw-severity--high { background: #e53935; }
+
+.vw-issue-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.vw-issue-obs {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.vw-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .vw-modal-backdrop {
+    align-items: center;
+  }
+}
+
+.vw-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.vw-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.vw-modal-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.vw-hypothesis {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: #f8fafc;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.vw-hypothesis--selected {
+  border-color: #15803d;
+  background: #ecfdf5;
+}
+
+.vw-hypothesis-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.vw-hypothesis-conf {
+  font-size: 13px;
+  color: #166534;
+  margin-top: 4px;
+}
+
+.vw-hypothesis-rationale {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+.vw-score-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  background: #fff;
+}
+
+.vw-score-ring {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 6px solid #15803d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 8px;
+  font-size: 22px;
+  font-weight: 800;
+  color: #166534;
+}
+
+.vw-success-page {
+  max-width: 480px;
+  margin: 48px auto;
+  text-align: center;
+  padding: 24px;
+}
+
+.vw-success-icon {
+  font-size: 72px;
+  color: #15803d;
+  margin-bottom: 16px;
+}
+
+.vw-success-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin: 0 0 12px;
+}
+
+.vw-success-message {
+  font-size: 15px;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 8px;
+}
+
+.vw-success-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.vw-loading-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 0;
+}
+
+.vw-field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 6px;
+  margin-top: 10px;
+}
+
+.vw-textarea {
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.vw-reanalyze-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: #15803d;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.vw-reanalyze-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vw-retry-link {
+  text-align: center;
+  color: #15803d;
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.vw-custom-days-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.vw-custom-days-input {
+  flex: 1;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+.vw-followup-card {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.vw-followup-label {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.vw-segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.vw-segment {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.vw-segment--active {
+  border-color: #15803d;
+  background: #dcfce7;
+  color: #166534;
+}

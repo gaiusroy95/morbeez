@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { paths, toPath } from '../../lib/routes';
 import { Alert, Loading } from '../ui';
 
 const FIELD_BASE = '/morbeez-staff/api/v1/os/field';
@@ -149,7 +151,9 @@ export function CaseLibraryPanel({ canWrite: _canWrite }: { canWrite: boolean })
           {selected.fieldFindingId ? (
             <p className="text-muted">
               Field finding:{' '}
-              <a href={`/agronomist/visits/${selected.fieldFindingId}`}>Open visit record</a>
+              <Link to={toPath(paths.agronomistVisitDetail.replace(':findingId', selected.fieldFindingId))}>
+                Open visit record
+              </Link>
             </p>
           ) : null}
           {detailLoading ? <Loading label="Loading case detail…" /> : null}

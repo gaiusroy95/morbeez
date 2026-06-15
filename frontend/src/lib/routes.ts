@@ -23,6 +23,12 @@ export const paths = {
   productGaps: 'product-gaps',
   agronomist: 'agronomist',
   agronomistAiReview: 'agronomist/ai-review',
+  agronomistVisit: 'agronomist/visit',
+  agronomistVisitSuccess: 'agronomist/visit/success',
+  agronomistVisitDetail: 'agronomist/visits/:findingId',
+  agronomistRoutes: 'agronomist/routes',
+  agronomistRouteDetail: 'agronomist/routes/:routeId',
+  agronomistMap: 'agronomist/map',
   approvals: 'approvals',
   analytics: 'analytics',
   commerce: 'commerce',
@@ -131,6 +137,26 @@ export const ROUTE_META: Record<
     module: 'agronomist',
     pageKey: 'agronomist-ai',
   },
+  [toPath(paths.agronomistVisit)]: {
+    title: 'Field Visit',
+    module: 'agronomist',
+    pageKey: 'agronomist-visit',
+  },
+  [toPath(paths.agronomistVisitSuccess)]: {
+    title: 'Visit Submitted',
+    module: 'agronomist',
+    pageKey: 'agronomist-visit',
+  },
+  [toPath(paths.agronomistRoutes)]: {
+    title: 'Route Planner',
+    module: 'agronomist',
+    pageKey: 'agronomist-routes',
+  },
+  [toPath(paths.agronomistMap)]: {
+    title: 'Farmer Map',
+    module: 'agronomist',
+    pageKey: 'agronomist-map',
+  },
   [toPath(paths.approvals)]: {
     title: 'Recommendation Approvals',
     module: 'approve_recommendations',
@@ -156,6 +182,19 @@ export function matchRouteMeta(pathname: string): { title: string; module: strin
       title: 'Language Template Editor',
       module: 'operations',
       pageKey: 'operations',
+    };
+  }
+  if (key.startsWith('/agronomist/visits/')) {
+    return { title: 'Visit Detail', module: 'agronomist', pageKey: 'agronomist-visit' };
+  }
+  if (key.startsWith('/agronomist/routes/') && key !== '/agronomist/routes') {
+    return { title: 'Route Detail', module: 'agronomist', pageKey: 'agronomist-routes' };
+  }
+  if (key.startsWith('/agronomist/visit')) {
+    return ROUTE_META[toPath(paths.agronomistVisit)] ?? {
+      title: 'Field Visit',
+      module: 'agronomist',
+      pageKey: 'agronomist-visit',
     };
   }
   if (key.startsWith('/broadcasts')) {

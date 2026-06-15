@@ -292,12 +292,38 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 
 ## Feature parity (vs web)
 
+| Surface | Mobile → web (staff `/agronomist`, `/telecaller`) | Web-only (unchanged) |
+|---------|-----------------------------------------------------|----------------------|
+| **Visit AI 9-step wizard** | `/agronomist/visit` — shared `@morbeez/shared/visit-wizard` validation | — |
+| **Visit detail** | `/agronomist/visits/:findingId` | AI review hub case library links here |
+| **Farmer workspace (agronomist)** | `/agronomist` Farmers tab → 9 tabs (overview, calls, blocks, findings, recs, follow-ups, notes, team, orders) | — |
+| **Route planner + map** | `/agronomist/routes`, `/agronomist/map` | — |
+| **Telecaller follow-ups hub** | `/telecaller` Follow-ups tab (`listFollowUpSections`) | — |
+| **Sales opportunities inbox** | Telecaller workspace panel | — |
+| **Application tracking on blocks** | Blocks tab overview (agronomist farmer workspace) | — |
+| **AI review / QC / bulk CRM** | — | `/agronomist/ai-review`, telecaller Call QC, operations broadcasts |
+| **Warehouse / partner / farmer portal** | Out of scope for this parity pass | `/warehouse`, `/partners`, Shopify farmer portal |
+
+Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with token bridge (`frontend/src/lib/staff-shared-bridge.ts`).
+
+### Staff web E2E checklist (staging)
+
+1. Log in as agronomist → `/agronomist` dashboard loads via shared client.
+2. Farmers tab → open farmer workspace → **Start visit** → complete Visit AI wizard (draft-first through review).
+3. Case library / visit detail → `/agronomist/visits/:findingId` renders submitted visit.
+4. Route planner → create route, optimize, open in Google Maps.
+5. Farmer map → nearby assigned farmers list with map links.
+6. Log in as telecaller → **Follow-ups** tab → sections load; complete and snooze 1d work.
+7. Telecaller workspace → sales opportunities panel loads and status update works.
+8. Regression: `/agronomist/ai-review` image/outcome/export queues unchanged.
+9. Backend smoke after deploy: `node backend/scripts/visit-ai-smoke.mjs`
+
 | App | Status | Notes |
 |-----|--------|-------|
 | **Farmer** | Mockup-aligned | OTP login, market/ROI tabs, charts, shop polish, i18n en/hi/ml, offline cache |
 | **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
-| **Agronomist** | Visit + review | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner |
-| **Telecaller** | Production CRM | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox |
+| **Agronomist** | Visit + review + web parity | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner; **web field ops on `/agronomist`** |
+| **Telecaller** | Production CRM + web parity | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox; **web Follow-ups tab on `/telecaller`** |
 | **Partner** | Production shell | Dashboard, farmers workspace (7 tabs), visits (GPS), tasks, notifications, lead offers, earnings |
 
 ## Partner app
