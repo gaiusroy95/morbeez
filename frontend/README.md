@@ -1,4 +1,4 @@
-# Morbeez staff console (`@morbeez/console`)
+# Morbeez staff console (`@morbeez/console`).
 
 React SPA for operations, telecaller CRM, agronomist review, and commerce admin.
 
