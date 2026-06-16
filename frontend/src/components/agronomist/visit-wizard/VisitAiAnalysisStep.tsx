@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react';
 import {
   agronomistClient,
+  applyHypothesisSelection,
+  applyManualDiagnosis,
+  isManualDiagnosis,
+  manualDiagnosisDisplayValue,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type MeasurementTemplate,
   type SoilMoistureLevel,
   type VisitAiHypothesis,
 } from '@morbeez/shared';
-import { Alert, Loading } from '../../ui';
+import { Alert, Field, Input, Loading } from '../../ui';
 import { Panel } from '../../ui';
 import type { VisitIssueDraft, VisitPhotoDraft } from './types';
 
@@ -146,15 +150,15 @@ export function VisitAiAnalysisStep({
     const next = [...issues];
     const issue = next[issueIndex];
     if (!issue) return;
-    next[issueIndex] = {
-      ...issue,
-      selectedHypothesisLabel: hypothesis.label,
-      finalDiagnosis: hypothesis.label,
-      hypotheses: (issue.hypotheses ?? []).map((h) => ({
-        ...h,
-        selected: h.label === hypothesis.label,
-      })),
-    };
+    next[issueIndex] = applyHypothesisSelection(issue, hypothesis.label);
+    onChange(next);
+  }
+
+  function setManualDiagnosis(issueIndex: number, text: string) {
+    const next = [...issues];
+    const issue = next[issueIndex];
+    if (!issue) return;
+    next[issueIndex] = applyManualDiagnosis(issue, text);
     onChange(next);
   }
 
@@ -200,7 +204,9 @@ export function VisitAiAnalysisStep({
               </div>
             ) : null}
             {(issue.hypotheses ?? []).map((h) => {
-              const selected = h.selected || h.label === issue.selectedHypothesisLabel;
+              const manualActive = isManualDiagnosis(issue.finalDiagnosis, issue.hypotheses);
+              const selected =
+                !manualActive && (h.selected || h.label === issue.finalDiagnosis || h.label === issue.selectedHypothesisLabel);
               return (
                 <button
                   key={h.label}
@@ -218,8 +224,18 @@ export function VisitAiAnalysisStep({
               );
             })}
             {!issue.hypotheses?.length ? (
-              <p className="vw-hint">No hypotheses yet. Tap retry below.</p>
+              <p className="vw-hint">No hypotheses yet. Tap retry below or enter diagnosis manually.</p>
             ) : null}
+            <div className="vw-field-label" style={{ marginTop: 12 }}>
+              Or enter diagnosis manually
+            </div>
+            <Field label="Manual diagnosis">
+              <Input
+                value={manualDiagnosisDisplayValue(issue)}
+                onChange={(e) => setManualDiagnosis(issueIndex, e.target.value)}
+                placeholder="Type the correct diagnosis if AI is wrong"
+              />
+            </Field>
           </Panel>
         );
       })}

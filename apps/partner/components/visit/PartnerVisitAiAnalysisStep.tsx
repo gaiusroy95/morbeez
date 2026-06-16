@@ -1,7 +1,15 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { partnerClient, tokens, type VisitAiHypothesis } from '@morbeez/shared';
-import { AlertBox, Panel } from '@morbeez/ui-native';
+import {
+  partnerClient,
+  applyHypothesisSelection,
+  applyManualDiagnosis,
+  isManualDiagnosis,
+  manualDiagnosisDisplayValue,
+  tokens,
+  type VisitAiHypothesis,
+} from '@morbeez/shared';
+import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '@agronomist/components/field-findings/IssueCard';
 import type { VisitPhotoDraft } from '@agronomist/components/field-findings/wizard/types';
 
@@ -153,15 +161,15 @@ export function PartnerVisitAiAnalysisStep({
     const next = [...issues];
     const issue = next[issueIndex];
     if (!issue) return;
-    next[issueIndex] = {
-      ...issue,
-      selectedHypothesisLabel: hypothesis.label,
-      finalDiagnosis: hypothesis.label,
-      hypotheses: (issue.hypotheses ?? []).map((h) => ({
-        ...h,
-        selected: h.label === hypothesis.label,
-      })),
-    };
+    next[issueIndex] = applyHypothesisSelection(issue, hypothesis.label);
+    onChange(next);
+  }
+
+  function setManualDiagnosis(issueIndex: number, text: string) {
+    const next = [...issues];
+    const issue = next[issueIndex];
+    if (!issue) return;
+    next[issueIndex] = applyManualDiagnosis(issue, text);
     onChange(next);
   }
 
@@ -213,7 +221,9 @@ export function PartnerVisitAiAnalysisStep({
               </View>
             ) : null}
             {(issue.hypotheses ?? []).map((h) => {
-              const selected = h.selected || h.label === issue.selectedHypothesisLabel;
+              const manualActive = isManualDiagnosis(issue.finalDiagnosis, issue.hypotheses);
+              const selected =
+                !manualActive && (h.selected || h.label === issue.finalDiagnosis || h.label === issue.selectedHypothesisLabel);
               return (
                 <Pressable
                   key={h.label}
@@ -221,17 +231,20 @@ export function PartnerVisitAiAnalysisStep({
                   onPress={() => selectHypothesis(issueIndex, h)}
                 >
                   <Text style={styles.hypothesisLabel}>{h.label}</Text>
-                  <Text style={styles.hypothesisConf}>{Math.round(h.confidence * 100)}%</Text>
-                  {h.imageConfidence != null ? (
-                    <Text style={styles.imageConf}>Image: {Math.round(h.imageConfidence * 100)}%</Text>
-                  ) : null}
                   {h.rationale ? <Text style={styles.rationale}>{h.rationale}</Text> : null}
                 </Pressable>
               );
             })}
             {!issue.hypotheses?.length ? (
-              <Text style={styles.muted}>No hypotheses yet. Tap retry below.</Text>
+              <Text style={styles.muted}>No hypotheses yet. Tap retry below or enter diagnosis manually.</Text>
             ) : null}
+            <Text style={styles.manualLabel}>Or enter diagnosis manually</Text>
+            <TextField
+              label="Manual diagnosis"
+              value={manualDiagnosisDisplayValue(issue)}
+              onChangeText={(text) => setManualDiagnosis(issueIndex, text)}
+              placeholder="Type the correct diagnosis if AI is wrong"
+            />
           </Panel>
         );
       })}
@@ -269,5 +282,6 @@ const styles = StyleSheet.create({
   imageConf: { fontSize: 12, color: tokens.textMuted, marginTop: 2 },
   rationale: { fontSize: 12, color: tokens.textMuted, marginTop: 6 },
   muted: { fontSize: 13, color: tokens.textMuted },
+  manualLabel: { fontSize: 13, fontWeight: '600', color: tokens.text, marginTop: 12, marginBottom: 4 },
   retry: { textAlign: 'center', color: tokens.green700, fontWeight: '600', paddingVertical: 8 },
 });

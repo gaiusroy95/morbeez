@@ -25,6 +25,12 @@ export {
   buildCustomRecommendationText,
 } from './reject-flow';
 export type { RejectReasonValidationPayload } from './reject-flow';
+export {
+  isManualDiagnosis,
+  manualDiagnosisDisplayValue,
+  applyHypothesisSelection,
+  applyManualDiagnosis,
+} from './diagnosis-helpers';
 
 export type VisitWizardStep =
   | 'overview'
@@ -229,7 +235,7 @@ export function validateVisitWizardStep(
   if (step === 'aiAnalysis') {
     for (const issue of ctx.issues) {
       if (!issue.aiCaseId) return 'Wait for AI analysis to complete.';
-      if (!issue.finalDiagnosis?.trim()) return 'Select a primary hypothesis for each issue.';
+      if (!issue.finalDiagnosis?.trim()) return 'Select a primary hypothesis or enter a manual diagnosis for each issue.';
     }
   }
   if (step === 'followUp') {

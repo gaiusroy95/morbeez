@@ -1,33 +1,51 @@
-import { Panel } from '../../ui';
+import { Field, Input, Panel, textareaClass } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
 type Props = {
   issues: VisitIssueDraft[];
+  onChange: (issues: VisitIssueDraft[]) => void;
 };
 
-export function VisitFinalDiagnosisStep({ issues }: Props) {
+export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
+  function patchIssue(index: number, patch: Partial<VisitIssueDraft>) {
+    const next = [...issues];
+    next[index] = { ...next[index]!, ...patch };
+    onChange(next);
+  }
+
   return (
     <div className="vw-stack">
       <p className="vw-hint">
-        Confirm the final diagnosis for each issue before recommendation planning. These summaries are read-only here;
-        update on the Q&A step if needed.
+        Confirm or correct the diagnosis for each issue before recommendation planning. Update the issue name if the
+        field problem was described incorrectly.
       </p>
       {issues.map((issue, index) => (
-        <Panel key={issue.localId} title={`Issue ${index + 1}: ${issue.issueName}`}>
+        <Panel key={issue.localId} title={`Issue ${index + 1}`}>
+          <Field label="Issue name">
+            <Input
+              value={issue.issueName}
+              onChange={(e) => patchIssue(index, { issueName: e.target.value })}
+              placeholder="e.g. Rhizome rot, K deficiency"
+            />
+          </Field>
           <div className="vw-row">
             <span className="vw-row-label">Category</span>
             <span className="vw-row-value">{issue.category.replace(/_/g, ' ')}</span>
           </div>
-          <div className="vw-row">
-            <span className="vw-row-label">Final diagnosis</span>
-            <span
-              className={['vw-row-value', !issue.finalDiagnosis?.trim() ? 'vw-row-value--missing' : '']
-                .filter(Boolean)
-                .join(' ')}
-            >
-              {issue.finalDiagnosis?.trim() || 'Not set — go back to Q&A'}
-            </span>
-          </div>
+          <Field label="Final diagnosis">
+            <textarea
+              className={textareaClass}
+              value={issue.finalDiagnosis ?? ''}
+              onChange={(e) =>
+                patchIssue(index, {
+                  finalDiagnosis: e.target.value,
+                  selectedHypothesisLabel: e.target.value.trim() || issue.selectedHypothesisLabel,
+                })
+              }
+              placeholder="Enter or correct the confirmed diagnosis"
+              rows={2}
+            />
+          </Field>
           {issue.observation?.trim() ? (
             <div style={{ paddingTop: 8 }}>
               <span className="vw-field-label">Field notes</span>

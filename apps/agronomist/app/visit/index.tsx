@@ -478,7 +478,9 @@ export default function VisitScreen() {
           <VisitFollowUpStep issues={issues} onChange={setIssues} />
         ) : null}
 
-        {step === 'finalDiagnosis' ? <VisitFinalDiagnosisStep issues={issues} /> : null}
+        {step === 'finalDiagnosis' ? (
+          <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} />
+        ) : null}
 
         {step === 'recPlanning' ? (
           <>
