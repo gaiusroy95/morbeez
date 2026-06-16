@@ -47,5 +47,8 @@ This document maps the **16-step Morbeez AI advisory spec** to the **12 UI wizar
 
 Apply migrations before using group/monitoring/escalation features:
 
-- `20260720000000_recommendation_groups.sql`
 - `20260719000000_visit_advisory_phase3.sql`
+- `20260720000000_recommendation_groups.sql`
+- `20260722000000_ginger_advisory_soil_samples.sql` — demo farmer + 3 ginger blocks with lab reports
+
+See [GINGER-ADVISORY-SAMPLES.md](./GINGER-ADVISORY-SAMPLES.md) for scenario IDs, block UUIDs, and expected AI outcomes.

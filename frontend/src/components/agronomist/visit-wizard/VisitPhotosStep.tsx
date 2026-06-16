@@ -52,10 +52,21 @@ export function VisitPhotosStep({
   const photoTypes = getVisitPhotoTypesForCrop(cropType);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
 
+  function setActiveCaptureType(type: string) {
+    const rest = selectedTypes.filter((t) => t !== type);
+    onTypesChange([type, ...rest]);
+  }
+
   function toggleType(type: string) {
-    onTypesChange(
-      selectedTypes.includes(type) ? selectedTypes.filter((t) => t !== type) : [...selectedTypes, type]
-    );
+    if (!selectedTypes.includes(type)) {
+      setActiveCaptureType(type);
+      return;
+    }
+    if (selectedTypes[0] === type) {
+      onTypesChange(selectedTypes.filter((t) => t !== type));
+      return;
+    }
+    setActiveCaptureType(type);
   }
 
   async function handleFiles(files: FileList | null) {

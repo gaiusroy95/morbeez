@@ -99,10 +99,21 @@ export function VisitPhotosStep({
   }, [basePhotoTypes, customPhotoTypes]);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
 
+  function setActiveCaptureType(type: string) {
+    const rest = selectedTypes.filter((t) => t !== type);
+    onTypesChange([type, ...rest]);
+  }
+
   function toggleType(type: string) {
-    onTypesChange(
-      selectedTypes.includes(type) ? selectedTypes.filter((t) => t !== type) : [...selectedTypes, type]
-    );
+    if (!selectedTypes.includes(type)) {
+      setActiveCaptureType(type);
+      return;
+    }
+    if (selectedTypes[0] === type) {
+      onTypesChange(selectedTypes.filter((t) => t !== type));
+      return;
+    }
+    setActiveCaptureType(type);
   }
 
   async function addPhotoType(label: string) {
@@ -111,9 +122,7 @@ export function VisitPhotosStep({
     const value = slugLabel(trimmed);
     const entry = { value, label: trimmed };
     setCustomPhotoTypes((prev) => (prev.some((t) => t.value === value) ? prev : [...prev, entry]));
-    if (!selectedTypes.includes(value)) {
-      onTypesChange([...selectedTypes, value]);
-    }
+    setActiveCaptureType(value);
   }
 
   async function addFrom(source: 'camera' | 'library') {
@@ -162,6 +171,7 @@ export function VisitPhotosStep({
         <View style={styles.typeRow}>
           {photoTypes.map((t) => {
             const active = selectedTypes.includes(t.value);
+            const isCaptureType = selectedTypes[0] === t.value;
             return (
               <Pressable
                 key={t.value}
@@ -169,6 +179,7 @@ export function VisitPhotosStep({
                 style={[
                   styles.typeChip,
                   active && styles.typeChipActive,
+                  isCaptureType && styles.typeChipCapture,
                   t.recommended && !active ? styles.typeChipRecommended : null,
                 ]}
               >
@@ -178,17 +189,14 @@ export function VisitPhotosStep({
           })}
         </View>
         <DynamicSelect
-          label="Add photo type"
-          placeholder="Select or add type before capture"
+          label="Photo type for capture"
+          placeholder="Select type for next photo"
           value={selectedTypes[0] ?? ''}
           options={photoTypes.map((t) => ({ key: t.value, value: t.value, label: t.label }))}
           allowAdd
           addPlaceholder="New photo type label"
           addButtonLabel="Add type"
-          onChange={(value) => {
-            if (!selectedTypes.includes(value)) onTypesChange([...selectedTypes, value]);
-            else onTypesChange(selectedTypes);
-          }}
+          onChange={(value) => setActiveCaptureType(value)}
           onAdd={addPhotoType}
         />
       </Panel>
@@ -262,6 +270,7 @@ const styles = StyleSheet.create({
   },
   typeChipRecommended: { borderColor: tokens.green500, borderStyle: 'dashed' },
   typeChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500, borderStyle: 'solid' },
+  typeChipCapture: { borderWidth: 2, borderColor: tokens.green700 },
   typeChipText: { fontSize: 12, color: tokens.textMuted },
   typeChipTextActive: { color: tokens.green800, fontWeight: '600' },
   gallery: { gap: 10, paddingVertical: 4 },
