@@ -178,6 +178,7 @@ export const agronomistClient = {
     const r = await staffApi<{
       ok: boolean;
       block: AgronomistBlockRow;
+      farmContext?: import('../visit-wizard/index.js').VisitFarmContext;
       activities: CultivationActivity[];
       soilReports: PortalSoilReport[];
       fieldFindings: BlockFieldFinding[];
@@ -405,6 +406,26 @@ export const agronomistClient = {
     return r.items ?? [];
   },
 
+  async createIssueMaster(input: {
+    category: IssueCategory;
+    issueName: string;
+    cropType?: string;
+    conceptCode?: string;
+  }): Promise<IssueMasterRow> {
+    const r = await staffApi<{ ok: boolean; row: Record<string, unknown> }>(`${FIELD}/masters/issue`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    const row = r.row;
+    return {
+      id: String(row.id),
+      category: String(row.category) as IssueCategory,
+      issueName: String(row.issue_name ?? row.issueName),
+      conceptCode: row.concept_code ? String(row.concept_code) : null,
+      cropType: row.crop_type ? String(row.crop_type) : null,
+    };
+  },
+
   async submitStructuredVisit(body: StructuredFieldVisitPayload) {
     return staffApi<{ ok: boolean; findingId: string; recommendationIds: string[] }>(
       `${FIELD}/visits/v2`,
@@ -596,6 +617,53 @@ export const agronomistClient = {
       { method: 'POST', body: JSON.stringify(body) }
     );
     return r.questions ?? [];
+  },
+
+  async validateVisitPhoto(dataBase64: string, mimeType?: string) {
+    return staffApi<import('../visit-wizard/index.js').VisitPhotoValidationResult & { ok: boolean }>(
+      `${FIELD}/visits/photos/validate`,
+      { method: 'POST', body: JSON.stringify({ dataBase64, mimeType }) }
+    );
+  },
+
+  async getVisitEnvironment(farmerId: string, blockId: string) {
+    const params = new URLSearchParams({ farmerId, blockId });
+    return staffApi<import('../visit-wizard/index.js').VisitEnvironmentPayload & { ok: boolean }>(
+      `${FIELD}/visits/environment?${params}`
+    );
+  },
+
+  async checkRecommendationCompatibility(body: {
+    productA?: string;
+    productB?: string;
+    materials?: Array<{ technicalName: string }>;
+  }) {
+    return staffApi<{
+      ok: boolean;
+      pair?: Record<string, unknown>;
+      pairs?: Array<Record<string, unknown>>;
+      hasIncompatiblePair?: boolean;
+      hasUnknownPair?: boolean;
+    }>(`${FIELD}/visits/recommendations/compatibility-check`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async closeVisitCase(
+    findingId: string,
+    body: { notes?: string; learningConsent?: boolean; issueResolved?: boolean; outcome?: string }
+  ) {
+    return staffApi(`${FIELD}/visits/${findingId}/close-case`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async exportVisitTrainingBundle(findingId: string) {
+    return staffApi<{ ok: boolean; bundle: Record<string, unknown> }>(
+      `${FIELD}/visits/${findingId}/training-bundle`
+    );
   },
 
   async listFarmerNotes(farmerId: string): Promise<FarmerNoteRow[]> {

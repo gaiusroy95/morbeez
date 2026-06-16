@@ -7,10 +7,13 @@ import {
   validateVisitWizardStep,
   type BlockHealthLevel,
   type CropPerformanceLevel,
+  type IssueCategory,
   type IssueMasterRow,
   type MeasurementTemplate,
   type PortalSoilReport,
+  type RecommendationGroupDraft,
   type SoilMoistureLevel,
+  type VisitFarmContext,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
 import { type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
@@ -23,6 +26,10 @@ import { VisitPhotosStep } from '@/components/field-findings/wizard/VisitPhotosS
 import { VisitAiAnalysisStep } from '@/components/field-findings/wizard/VisitAiAnalysisStep';
 import { VisitFollowUpStep } from '@/components/field-findings/wizard/VisitFollowUpStep';
 import { VisitRecommendationStep } from '@/components/field-findings/wizard/VisitRecommendationStep';
+import { VisitSoilWeatherStep } from '@/components/field-findings/wizard/VisitSoilWeatherStep';
+import { VisitFinalDiagnosisStep } from '@/components/field-findings/wizard/VisitFinalDiagnosisStep';
+import { VisitRecPlanningStep } from '@/components/field-findings/wizard/VisitRecPlanningStep';
+import { VisitRecApprovalStep } from '@/components/field-findings/wizard/VisitRecApprovalStep';
 import { VisitReviewStep } from '@/components/field-findings/wizard/VisitReviewStep';
 import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummaryStep';
 import { type VisitPhotoDraft, getDefaultSelectedPhotoTypes } from '@/components/field-findings/wizard/types';
@@ -36,8 +43,11 @@ function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhot
     dataBase64: p.dataBase64,
     photoType: p.photoType,
   }));
-  return issues.map(({ localId, photosPreview, hypotheses, followUpQuestions, similarCases, confidenceAction, skipFollowUpOptional, qaSkipped, imageSignal, aiDosage, aiPriority, selectedHypothesisLabel, ...issue }, index) => ({
+  return issues.map(({ localId, photosPreview, categoryLabel, hypotheses, followUpQuestions, similarCases, confidenceAction, skipFollowUpOptional, qaSkipped, imageSignal, aiDosage, aiPriority, selectedHypothesisLabel, ...issue }, index) => ({
     ...issue,
+    observation: categoryLabel
+      ? `[${categoryLabel}] ${issue.observation ?? ''}`.trim()
+      : issue.observation,
     photos: [...(issue.photos ?? []), ...(index === 0 ? sharedPhotos : [])],
   }));
 }
@@ -65,6 +75,9 @@ export default function VisitScreen() {
   const [blockDap, setBlockDap] = useState<number | null>(null);
   const [blockStage, setBlockStage] = useState<string | null>(null);
   const [latestSoilTest, setLatestSoilTest] = useState<PortalSoilReport | null>(null);
+  const [farmContext, setFarmContext] = useState<VisitFarmContext | null>(null);
+  const [recommendationGroups, setRecommendationGroups] = useState<RecommendationGroupDraft[]>([]);
+  const [recApproved, setRecApproved] = useState(false);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<IssueDraft[]>([]);
@@ -126,6 +139,7 @@ export default function VisitScreen() {
         setBlockDap(blockDetail?.block?.dap ?? null);
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
+        setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
 
         const openRecs = recs.filter(
           (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
@@ -188,14 +202,28 @@ export default function VisitScreen() {
   }
 
   function validateStep(current: VisitWizardStep): string | null {
+    if (current === 'recApproval' && !recApproved) {
+      return 'Approve recommendations on the Rec OK step before continuing.';
+    }
     return validateVisitWizardStep(current, {
       templates,
       measurements,
       issues,
+      recommendationGroups,
       blockHealth,
       cropPerformance,
       soilMoisture,
     });
+  }
+
+  async function createIssueType(input: {
+    category: IssueCategory;
+    issueName: string;
+    cropType: string;
+  }): Promise<IssueMasterRow | null> {
+    const row = await agronomistClient.createIssueMaster(input);
+    setIssueMaster((prev) => [...prev, row]);
+    return row;
   }
 
   function goNext() {
@@ -307,6 +335,23 @@ export default function VisitScreen() {
             finalRecommendation: issue.finalRecommendation,
           },
         })),
+        recommendationGroups: recommendationGroups.length
+          ? recommendationGroups.map((g) => ({
+              applicationType: g.applicationType,
+              applicationDay: g.applicationDay,
+              sortOrder: g.sortOrder,
+              materials: g.materials.map((m) => ({
+                issueIndex: issues.findIndex((i) => i.localId === m.issueLocalId),
+                category: m.category,
+                technicalName: m.technicalName,
+                dose: m.dose,
+                method: m.method,
+                relatedIssueIndex: m.relatedIssueLocalId
+                  ? issues.findIndex((i) => i.localId === m.relatedIssueLocalId)
+                  : undefined,
+              })),
+            }))
+          : undefined,
         followUps: followUps
           .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')
           .map((f) => ({
@@ -364,6 +409,7 @@ export default function VisitScreen() {
             stage={blockStage}
             agronomistName={admin?.email ?? null}
             soilTest={latestSoilTest}
+            farmContext={farmContext}
             blockHealth={blockHealth}
             cropPerformance={cropPerformance}
             soilMoisture={soilMoisture}
@@ -394,6 +440,10 @@ export default function VisitScreen() {
           />
         ) : null}
 
+        {step === 'soilWeather' ? (
+          <VisitSoilWeatherStep farmerId={farmerId} blockId={blockId} />
+        ) : null}
+
         {step === 'issues' ? (
           <VisitIssuesStep
             issues={issues}
@@ -402,6 +452,7 @@ export default function VisitScreen() {
             blockDap={blockDap}
             onChange={setIssues}
             onSuggestQuestions={() => Promise.resolve([])}
+            onCreateIssueType={createIssueType}
           />
         ) : null}
 
@@ -427,8 +478,25 @@ export default function VisitScreen() {
           <VisitFollowUpStep issues={issues} onChange={setIssues} />
         ) : null}
 
-        {step === 'recommendation' ? (
-          <VisitRecommendationStep issues={issues} onChange={setIssues} />
+        {step === 'finalDiagnosis' ? <VisitFinalDiagnosisStep issues={issues} /> : null}
+
+        {step === 'recPlanning' ? (
+          <>
+            <VisitRecommendationStep issues={issues} onChange={setIssues} />
+            <VisitRecPlanningStep
+              issues={issues}
+              groups={recommendationGroups}
+              onChange={setRecommendationGroups}
+            />
+          </>
+        ) : null}
+
+        {step === 'recApproval' ? (
+          <VisitRecApprovalStep
+            groups={recommendationGroups}
+            approved={recApproved}
+            onApprovedChange={(approved) => setRecApproved(approved)}
+          />
         ) : null}
 
         {step === 'review' ? (

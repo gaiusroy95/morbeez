@@ -72,6 +72,7 @@ export declare const partnerMobileService: {
         issues: {
             id: string;
             issueName: string;
+            index: number;
         }[];
         recommendationIds: string[];
     }>;

@@ -11,6 +11,8 @@ import { aiTrainingEventService } from '../core/ai-training-event.service.js';
 import { recommendationCommunicationService } from '../core/recommendation-communication.service.js';
 import { fieldFindingsMastersService } from './field-findings-masters.service.js';
 import { visitAiOrchestratorService } from '../core/visit-ai-orchestrator.service.js';
+import { recommendationGroupService, } from '../core/recommendation-group.service.js';
+import { monitoringPlanService } from '../core/monitoring-plan.service.js';
 function mapVisitFollowupToOutcome(outcome) {
     if (outcome === 'improved')
         return 'better';
@@ -160,6 +162,7 @@ export const fieldVisitService = {
         }
         const createdIssues = [];
         const createdRecs = [];
+        let savedRecommendationGroups = [];
         for (let i = 0; i < input.issues.length; i++) {
             const issue = input.issues[i];
             const { data: issueRow, error: issueErr } = await supabase
@@ -180,7 +183,7 @@ export const fieldVisitService = {
             if (!issueRow)
                 throw new ValidationError('Could not save visit issue');
             const visitIssueId = String(issueRow.id);
-            createdIssues.push({ id: visitIssueId, issueName: issue.issueName });
+            createdIssues.push({ id: visitIssueId, issueName: issue.issueName, index: i });
             if (issue.photos?.length) {
                 const urls = await fieldStorageService.uploadPhotos(input.farmerId, issue.photos);
                 for (let pi = 0; pi < urls.length; pi++) {
@@ -267,6 +270,48 @@ export const fieldVisitService = {
                 })
                     .catch(() => { });
             }
+            if (issue.aiCaseId &&
+                !partnerId &&
+                issue.severity === 'high' &&
+                (aiCaseRow?.confidence_action === 'escalate' || reviewAction === 'escalate_urgent')) {
+                const sessionId = aiCaseRow?.ai_advisory_session_id
+                    ? String(aiCaseRow.ai_advisory_session_id)
+                    : null;
+                if (sessionId) {
+                    const { escalationService } = await import('../ai/escalation.service.js');
+                    void escalationService
+                        .createCaseForReview({
+                        sessionId,
+                        farmerId: input.farmerId,
+                        reason: `Visit AI low confidence + high severity: ${humanFinalLabel} (visitAiCaseId=${issue.aiCaseId})`,
+                        confidence_at_escalation: 0.5,
+                        priority: 'high',
+                    })
+                        .catch(() => { });
+                }
+            }
+        }
+        if (input.recommendationGroups?.length) {
+            savedRecommendationGroups = await recommendationGroupService.replaceForFieldFinding(findingId, resolveRecommendationGroups(input, createdIssues));
+        }
+        for (let i = 0; i < input.issues.length; i++) {
+            const issue = input.issues[i];
+            const visitIssueId = createdIssues.find((row) => row.index === i)?.id;
+            if (!visitIssueId)
+                continue;
+            const reviewAction = issue.agronomistReview?.action ?? null;
+            const humanFinalLabel = issue.agronomistReview?.finalDiagnosis?.trim() ||
+                issue.finalDiagnosis?.trim() ||
+                issue.issueName;
+            let aiCaseRow = null;
+            if (issue.aiCaseId) {
+                const { data: loadedCase } = await supabase
+                    .from('visit_ai_cases')
+                    .select('ai_advisory_session_id')
+                    .eq('id', issue.aiCaseId)
+                    .maybeSingle();
+                aiCaseRow = loadedCase;
+            }
             const recSources = issue.recommendations?.length
                 ? issue.recommendations
                 : issue.finalRecommendation?.trim()
@@ -292,6 +337,8 @@ export const fieldVisitService = {
                             issue.agronomistReview?.rejectFlowComplete &&
                             issue.agronomistReview.rejectReason !== 'need_more_evidence'));
                 const recStatus = partnerId ? 'draft' : shouldApprove ? 'approved' : 'draft';
+                const groupProducts = recommendationGroupService.productsJsonForIssue(savedRecommendationGroups, visitIssueId);
+                const groupApplicationType = recommendationGroupService.primaryApplicationTypeForIssue(savedRecommendationGroups, visitIssueId);
                 const row = await recommendationRecordsService.create({
                     farmerId: input.farmerId,
                     blockId: input.blockId,
@@ -301,6 +348,8 @@ export const fieldVisitService = {
                     source: 'field_finding',
                     issueDetected: humanFinalLabel,
                     recommendationText: rec.text.trim(),
+                    products: groupProducts.length ? groupProducts : undefined,
+                    applicationType: groupApplicationType ?? undefined,
                     severity: issue.severity,
                     createdBy: agentEmail,
                     status: recStatus,
@@ -322,9 +371,19 @@ export const fieldVisitService = {
                         visitOrigin: true,
                         visitAiCaseId: issue.aiCaseId ?? null,
                         agronomistReviewAction: reviewAction,
+                        recommendationGroupIds: savedRecommendationGroups.map((group) => group.id),
                     },
                 })
                     .eq('id', row.id);
+                if (savedRecommendationGroups.length) {
+                    await monitoringPlanService.createForRecommendation(String(row.id), {
+                        severity: issue.severity,
+                        materials: groupProducts.map((product) => ({
+                            category: typeof product.category === 'string' ? product.category : null,
+                            technicalName: typeof product.technicalName === 'string' ? product.technicalName : null,
+                        })),
+                    });
+                }
                 if (issue.aiCaseId) {
                     await supabase
                         .from('visit_ai_recommendations')
@@ -383,26 +442,6 @@ export const fieldVisitService = {
                     }).catch(() => { });
                 }
             }
-            if (issue.aiCaseId &&
-                !partnerId &&
-                issue.severity === 'high' &&
-                (aiCaseRow?.confidence_action === 'escalate' || reviewAction === 'escalate_urgent')) {
-                const sessionId = aiCaseRow?.ai_advisory_session_id
-                    ? String(aiCaseRow.ai_advisory_session_id)
-                    : null;
-                if (sessionId) {
-                    const { escalationService } = await import('../ai/escalation.service.js');
-                    void escalationService
-                        .createCaseForReview({
-                        sessionId,
-                        farmerId: input.farmerId,
-                        reason: `Visit AI low confidence + high severity: ${humanFinalLabel} (visitAiCaseId=${issue.aiCaseId})`,
-                        confidence_at_escalation: 0.5,
-                        priority: 'high',
-                    })
-                        .catch(() => { });
-                }
-            }
         }
         if (!partnerId && input.sendVisitSummary !== false) {
             const approvedIssues = input.issues.filter((i) => {
@@ -457,6 +496,27 @@ function mapReviewSeverity(severity) {
     if (severity === 'medium')
         return 'moderate';
     return 'mild';
+}
+function resolveRecommendationGroups(input, createdIssues) {
+    const issueIdByIndex = new Map(createdIssues.map((issue) => [issue.index, issue.id]));
+    return (input.recommendationGroups ?? []).map((group, groupIndex) => ({
+        applicationType: group.applicationType,
+        applicationDay: group.applicationDay,
+        sortOrder: group.sortOrder ?? groupIndex,
+        materials: group.materials.map((material, materialIndex) => ({
+            issueId: material.issueId ??
+                (material.issueIndex != null ? issueIdByIndex.get(material.issueIndex) ?? null : null),
+            category: material.category,
+            technicalName: material.technicalName,
+            dose: material.dose ?? null,
+            method: material.method ?? null,
+            relatedIssueId: material.relatedIssueId ??
+                (material.relatedIssueIndex != null
+                    ? issueIdByIndex.get(material.relatedIssueIndex) ?? null
+                    : null),
+            sortOrder: material.sortOrder ?? materialIndex,
+        })),
+    }));
 }
 async function resolveFieldTrainingAction(farmerId, issueName, observation) {
     const { data: sessions } = await supabase

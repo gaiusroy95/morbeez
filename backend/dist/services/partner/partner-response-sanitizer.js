@@ -11,6 +11,8 @@ const FORBIDDEN_KEYS = new Set([
     'commissionRate',
     'aiConfidence',
     'confidenceScore',
+    'confidence',
+    'finalConfidence',
     'fraudFlag',
 ]);
 export function sanitizePartnerPayload(value) {
@@ -26,5 +28,9 @@ export function sanitizePartnerPayload(value) {
         out[key] = sanitizePartnerPayload(val);
     }
     return out;
+}
+/** Strip confidence scores from visit AI responses for partner mobile. */
+export function sanitizeVisitAiForPartner(value) {
+    return sanitizePartnerPayload(value);
 }
 //# sourceMappingURL=partner-response-sanitizer.js.map

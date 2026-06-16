@@ -520,5 +520,110 @@ export const trainingExportService = {
             body: csv,
         };
     },
+    async exportVisitCaseBundle(fieldFindingId) {
+        const { data: finding, error: findingErr } = await supabase
+            .from('crm_field_findings')
+            .select('*')
+            .eq('id', fieldFindingId)
+            .maybeSingle();
+        throwIfSupabaseError(findingErr, 'Could not load field finding for export');
+        if (!finding)
+            throw new NotFoundError('Visit not found');
+        const [issuesRes, measurementsRes, visitPhotosRes, aiCasesRes, recsRes, eventsRes, samplesRes,] = await Promise.all([
+            supabase
+                .from('visit_issues')
+                .select('*, issue_photos(*)')
+                .eq('field_finding_id', fieldFindingId)
+                .order('sort_order', { ascending: true }),
+            supabase.from('visit_measurements').select('*').eq('field_finding_id', fieldFindingId),
+            supabase
+                .from('visit_photos')
+                .select('*')
+                .eq('field_finding_id', fieldFindingId)
+                .order('sort_order', { ascending: true }),
+            supabase
+                .from('visit_ai_cases')
+                .select(`*, visit_ai_hypotheses(*), visit_ai_questions(*),
+           visit_ai_recommendations(*), visit_ai_evidence_requests(*)`)
+                .eq('field_finding_id', fieldFindingId),
+            supabase
+                .from('recommendation_records')
+                .select('*, recommendation_applications(*), recommendation_follow_ups(*)')
+                .eq('field_finding_id', fieldFindingId)
+                .order('created_at', { ascending: false }),
+            supabase
+                .from('ai_training_events')
+                .select('*')
+                .eq('field_finding_id', fieldFindingId)
+                .order('reviewed_at', { ascending: false }),
+            supabase
+                .from('ai_learning_samples')
+                .select('*, visit_issues(issue_name, issue_category, severity)')
+                .eq('field_finding_id', fieldFindingId)
+                .order('created_at', { ascending: false }),
+        ]);
+        throwIfSupabaseError(issuesRes.error, 'Could not load visit issues for export');
+        throwIfSupabaseError(measurementsRes.error, 'Could not load visit measurements for export');
+        throwIfSupabaseError(visitPhotosRes.error, 'Could not load visit photos for export');
+        throwIfSupabaseError(aiCasesRes.error, 'Could not load visit AI cases for export');
+        throwIfSupabaseError(recsRes.error, 'Could not load recommendation records for export');
+        throwIfSupabaseError(eventsRes.error, 'Could not load training events for export');
+        throwIfSupabaseError(samplesRes.error, 'Could not load learning samples for export');
+        const { data: callbackRows } = await supabase
+            .from('callback_requests')
+            .select('*')
+            .eq('farmer_id', String(finding.farmer_id))
+            .order('created_at', { ascending: false })
+            .limit(20);
+        const callbacks = (callbackRows ?? []);
+        const recIds = (recsRes.data ?? []).map((r) => String(r.id));
+        let followUps = [];
+        if (recIds.length) {
+            const { data: fuRows, error: fuErr } = await supabase
+                .from('recommendation_follow_ups')
+                .select('*')
+                .in('recommendation_record_id', recIds);
+            throwIfSupabaseError(fuErr, 'Could not load follow-ups for export');
+            followUps = (fuRows ?? []);
+        }
+        return {
+            exportedAt: new Date().toISOString(),
+            fieldFindingId,
+            finding,
+            blockAssessment: {
+                blockHealth: finding.block_health ?? null,
+                cropPerformance: finding.crop_performance ?? null,
+                soilMoisture: finding.soil_moisture ?? null,
+            },
+            issues: issuesRes.data ?? [],
+            measurements: measurementsRes.data ?? [],
+            visitPhotos: visitPhotosRes.data ?? [],
+            aiCases: aiCasesRes.data ?? [],
+            recommendations: recsRes.data ?? [],
+            trainingEvents: eventsRes.data ?? [],
+            learningSamples: samplesRes.data ?? [],
+            followUps,
+            callbacks,
+            workflowArtifacts: {
+                overview: {
+                    visitedAt: finding.visited_at,
+                    dapAtVisit: finding.dap_at_visit,
+                    stageAtVisit: finding.stage_at_visit,
+                    agronomistName: finding.agronomist_name,
+                },
+                photos: visitPhotosRes.data ?? [],
+                measurements: measurementsRes.data ?? [],
+                issues: issuesRes.data ?? [],
+                aiAnalysis: aiCasesRes.data ?? [],
+                followUpQa: (aiCasesRes.data ?? []).flatMap((c) => c.visit_ai_questions ?? []),
+                recommendations: (aiCasesRes.data ?? []).flatMap((c) => c.visit_ai_recommendations ?? []),
+                outcomes: recsRes.data ?? [],
+                learning: {
+                    events: eventsRes.data ?? [],
+                    samples: samplesRes.data ?? [],
+                },
+            },
+        };
+    },
 };
 //# sourceMappingURL=training-export.service.js.map

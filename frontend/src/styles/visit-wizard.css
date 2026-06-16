@@ -301,6 +301,71 @@
   margin-top: 4px;
 }
 
+.vw-photo-retake {
+  font-size: 9px;
+  color: #b91c1c;
+  margin-top: 2px;
+  font-weight: 600;
+  max-width: 80px;
+}
+
+.vw-row-value--missing {
+  color: #b91c1c;
+}
+
+.vw-history-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: 8px;
+  margin-bottom: 4px;
+}
+
+.vw-history-item {
+  font-size: 13px;
+  color: #0f172a;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.vw-material-box {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vw-compat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+  gap: 8px;
+}
+
+.vw-compat-status {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: capitalize;
+  flex-shrink: 0;
+}
+
+.vw-compat-status--good {
+  color: #15803d;
+}
+
+.vw-compat-status--warn {
+  color: #d97706;
+}
+
+.vw-compat-status--bad {
+  color: #b91c1c;
+}
+
 .vw-file-input {
   display: none;
 }

@@ -238,6 +238,22 @@ export type StructuredFieldVisitPayload = {
   latitude?: number;
   longitude?: number;
   sendVisitSummary?: boolean;
+  recommendationGroups?: Array<{
+    applicationType: string;
+    applicationDay?: number;
+    sortOrder?: number;
+    materials: Array<{
+      issueIndex?: number;
+      issueId?: string;
+      category: string;
+      technicalName: string;
+      dose?: string;
+      method?: string;
+      relatedIssueIndex?: number;
+      relatedIssueId?: string;
+      sortOrder?: number;
+    }>;
+  }>;
 };
 
 export type VisitAiContextPack = {

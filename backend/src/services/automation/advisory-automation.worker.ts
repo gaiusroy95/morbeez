@@ -5,6 +5,7 @@ import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { farmerService } from '../farmer/farmer.service.js';
 import { cultivationLoggingService } from '../whatsapp/cultivation/cultivation-logging.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
+import { visitAdvisoryEscalationService } from '../core/visit-advisory-escalation.service.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 
 const POLL_MS = 60_000;
@@ -71,6 +72,10 @@ async function processJob(job: {
         activityId
       );
     }
+  } else if (job.job_type === 'visit_monitoring_progression') {
+    await visitAdvisoryEscalationService.processMonitoringProgressionJob(job);
+  } else if (job.job_type === 'visit_callback_escalation') {
+    await visitAdvisoryEscalationService.processEscalationJob(job);
   }
 
   await supabase

@@ -1,14 +1,21 @@
+import { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { tokens } from '@morbeez/shared';
-import { Panel } from '@morbeez/ui-native';
+import { tokens, type VisitPhotoValidationIssue } from '@morbeez/shared';
+import { agronomistClient } from '@morbeez/shared';
+import { DynamicSelect, Panel } from '@morbeez/ui-native';
 import type { VisitPhotoDraft } from './types';
 import {
   formatCropPhotoGuidance,
   getVisitPhotoTypeLabel,
   getVisitPhotoTypesForCrop,
+  type VisitPhotoTypeOption,
 } from './visitPhotoTypes';
+
+function slugLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^\w]/g, '') || 'other';
+}
 
 type Props = {
   cropType: string;
@@ -18,6 +25,18 @@ type Props = {
   onPhotosChange: (photos: VisitPhotoDraft[]) => void;
   onTypesChange: (types: string[]) => void;
   onVoiceNoteChange?: (text: string) => void;
+  validatePhoto?: (dataBase64: string, mimeType?: string) => Promise<{
+    ok: boolean;
+    issues: VisitPhotoValidationIssue[];
+    retakeRecommended: boolean;
+  }>;
+  strictPhotoQc?: boolean;
+};
+
+const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
+  blur: 'Blurry',
+  dark: 'Too dark',
+  low_resolution: 'Low resolution',
 };
 
 async function pickImages(
@@ -62,8 +81,22 @@ export function VisitPhotosStep({
   onPhotosChange,
   onTypesChange,
   onVoiceNoteChange,
+  validatePhoto = agronomistClient.validateVisitPhoto,
+  strictPhotoQc = false,
 }: Props) {
-  const photoTypes = getVisitPhotoTypesForCrop(cropType);
+  const [customPhotoTypes, setCustomPhotoTypes] = useState<VisitPhotoTypeOption[]>([]);
+  const basePhotoTypes = getVisitPhotoTypesForCrop(cropType);
+  const photoTypes = useMemo(() => {
+    const seen = new Set(basePhotoTypes.map((t) => t.value));
+    const merged = [...basePhotoTypes];
+    for (const t of customPhotoTypes) {
+      if (!seen.has(t.value)) {
+        merged.push(t);
+        seen.add(t.value);
+      }
+    }
+    return merged;
+  }, [basePhotoTypes, customPhotoTypes]);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
 
   function toggleType(type: string) {
@@ -72,14 +105,43 @@ export function VisitPhotosStep({
     );
   }
 
+  async function addPhotoType(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    const value = slugLabel(trimmed);
+    const entry = { value, label: trimmed };
+    setCustomPhotoTypes((prev) => (prev.some((t) => t.value === value) ? prev : [...prev, entry]));
+    if (!selectedTypes.includes(value)) {
+      onTypesChange([...selectedTypes, value]);
+    }
+  }
+
   async function addFrom(source: 'camera' | 'library') {
-    const next = await pickImages(
+    const picked = await pickImages(
       source,
       selectedTypes,
       photoTypes.map((t) => t.value),
       photos.length
     );
-    if (next.length) onPhotosChange([...photos, ...next].slice(0, 12));
+    if (!picked.length) return;
+    const validated: VisitPhotoDraft[] = [];
+    for (const photo of picked) {
+      try {
+        const result = await validatePhoto(photo.dataBase64, photo.mimeType);
+        validated.push({
+          ...photo,
+          validationIssues: result.issues,
+          retakeRecommended: result.retakeRecommended,
+        });
+      } catch {
+        validated.push(photo);
+      }
+    }
+    if (strictPhotoQc && validated.some((p) => p.retakeRecommended)) {
+      onPhotosChange([...photos, ...validated].slice(0, 12));
+      return;
+    }
+    onPhotosChange([...photos, ...validated].slice(0, 12));
   }
 
   return (
@@ -115,6 +177,20 @@ export function VisitPhotosStep({
             );
           })}
         </View>
+        <DynamicSelect
+          label="Add photo type"
+          placeholder="Select or add type before capture"
+          value={selectedTypes[0] ?? ''}
+          options={photoTypes.map((t) => ({ key: t.value, value: t.value, label: t.label }))}
+          allowAdd
+          addPlaceholder="New photo type label"
+          addButtonLabel="Add type"
+          onChange={(value) => {
+            if (!selectedTypes.includes(value)) onTypesChange([...selectedTypes, value]);
+            else onTypesChange(selectedTypes);
+          }}
+          onAdd={addPhotoType}
+        />
       </Panel>
 
       <Panel title={`Photos added (${photos.length})`}>
@@ -132,6 +208,11 @@ export function VisitPhotosStep({
                 <Text style={styles.thumbMeta} numberOfLines={1}>
                   {getVisitPhotoTypeLabel(cropType, p.photoType)}
                 </Text>
+                {p.retakeRecommended && p.validationIssues?.length ? (
+                  <Text style={styles.retakeBanner}>
+                    Retake: {p.validationIssues.map((issue) => ISSUE_LABELS[issue]).join(', ')}
+                  </Text>
+                ) : null}
               </View>
             ))}
           </ScrollView>
@@ -199,6 +280,7 @@ const styles = StyleSheet.create({
   },
   removeText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   thumbMeta: { fontSize: 10, color: tokens.textMuted, marginTop: 4, maxWidth: 80 },
+  retakeBanner: { fontSize: 9, color: tokens.danger, marginTop: 2, maxWidth: 80, fontWeight: '600' },
   empty: { fontSize: 13, color: tokens.textMuted, textAlign: 'center', paddingVertical: 12 },
   voiceInput: {
     borderWidth: 1,

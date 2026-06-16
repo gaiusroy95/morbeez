@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { agronomistClient, tokens, type RecommendationPriority } from '@morbeez/shared';
+import { agronomistClient, tokens, type RecommendationPriority, type VisitAiClient } from '@morbeez/shared';
 import { AlertBox, MULTILINE_MIN_HEIGHT, Panel } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
@@ -9,6 +9,7 @@ const REVIEW_DAY_OPTIONS = [3, 7, 15, 30] as const;
 type Props = {
   issues: IssueDraft[];
   onChange: (issues: IssueDraft[]) => void;
+  visitAiClient?: VisitAiClient;
 };
 
 function parseCustomDays(raw: string): number | null {
@@ -17,7 +18,8 @@ function parseCustomDays(raw: string): number | null {
   return Math.round(n);
 }
 
-export function VisitRecommendationStep({ issues, onChange }: Props) {
+export function VisitRecommendationStep({ issues, onChange, visitAiClient }: Props) {
+  const client = visitAiClient ?? agronomistClient;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [customDays, setCustomDays] = useState<Record<string, string>>({});
@@ -35,7 +37,7 @@ export function VisitRecommendationStep({ issues, onChange }: Props) {
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
         if (!issue.aiCaseId || issue.finalRecommendation?.trim()) continue;
-        const rec = await agronomistClient.recommendVisitAiCase(
+        const rec = await client.recommendVisitAiCase(
           issue.aiCaseId,
           issue.finalDiagnosis ?? issue.selectedHypothesisLabel
         );

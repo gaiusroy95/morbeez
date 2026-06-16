@@ -5,8 +5,13 @@ import { fieldVisitService } from '../../services/admin/field-visit.service.js';
 import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
 import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-up-questions.service.js';
 import { visitAiOrchestratorService } from '../../services/core/visit-ai-orchestrator.service.js';
+import { visitCaseClosureService } from '../../services/core/visit-case-closure.service.js';
+import { trainingExportService } from '../../services/core/training-export.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
-import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAiAnswersBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, } from '../../domain/ai-training/validators.js';
+import { recommendationCompatibilityService } from '../../services/core/recommendation-compatibility.service.js';
+import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
+import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
+import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAiAnswersBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
     mimeType: z.string().min(3).max(80),
@@ -140,6 +145,33 @@ export async function osFieldRoutes(app) {
         const detail = await fieldVisitService.getVisitDetail(findingId);
         return reply.send({ ok: true, ...detail });
     });
+    app.post(`${api}/visits/:findingId/close-case`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const { findingId } = request.params;
+        const body = z
+            .object({
+            outcome: recommendationOutcomeSchema.optional(),
+            notes: z.string().max(4000).optional(),
+            learningConsent: z.boolean().optional(),
+            issueResolved: z.boolean().optional(),
+        })
+            .parse(request.body ?? {});
+        const result = await visitCaseClosureService.closeCase({
+            fieldFindingId: findingId,
+            closedBy: admin.email,
+            outcome: body.outcome,
+            notes: body.notes,
+            learningConsent: body.learningConsent,
+            issueResolved: body.issueResolved,
+        });
+        return reply.send({ ok: true, ...result });
+    });
+    app.get(`${api}/visits/:findingId/training-bundle`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { findingId } = request.params;
+        const bundle = await trainingExportService.exportVisitCaseBundle(findingId);
+        return reply.send({ ok: true, bundle });
+    });
     app.get(`${api}/farmers/:farmerId/field-findings`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'read');
         const { farmerId } = request.params;
@@ -168,6 +200,25 @@ export async function osFieldRoutes(app) {
         const body = visitAiContextRequestSchema.parse(request.body);
         const context = await visitAiOrchestratorService.buildContext(body);
         return reply.send({ ok: true, context });
+    });
+    app.get(`${api}/visits/environment`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z
+            .object({ farmerId: z.string().uuid(), blockId: z.string().uuid() })
+            .parse(request.query ?? {});
+        const environment = await visitEnvironmentService.getEnvironment(q.farmerId, q.blockId);
+        return reply.send({ ok: true, ...environment });
+    });
+    app.post(`${api}/visits/photos/validate`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z
+            .object({
+            dataBase64: z.string().min(10).max(7_000_000),
+            mimeType: z.string().optional(),
+        })
+            .parse(request.body);
+        const result = visitPhotoValidationService.validateBase64(body.dataBase64, body.mimeType);
+        return reply.send(result);
     });
     app.post(`${api}/visits/analyze`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'write');
@@ -263,6 +314,38 @@ export async function osFieldRoutes(app) {
             .parse(request.body);
         const questions = await issueFollowUpQuestionsService.suggest(body);
         return reply.send({ ok: true, questions });
+    });
+    app.post(`${api}/visits/recommendations/compatibility-check`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z
+            .object({
+            productA: z.string().min(1).max(200).optional(),
+            productB: z.string().min(1).max(200).optional(),
+            materials: z
+                .array(z.object({
+                technicalName: z.string().min(1).max(200),
+            }))
+                .max(30)
+                .optional(),
+        })
+            .superRefine((data, ctx) => {
+            const hasPair = Boolean(data.productA?.trim() && data.productB?.trim());
+            const hasMaterials = Boolean(data.materials?.length);
+            if (!hasPair && !hasMaterials) {
+                ctx.addIssue({
+                    code: 'custom',
+                    message: 'Provide productA/productB or materials',
+                    path: ['materials'],
+                });
+            }
+        })
+            .parse(request.body);
+        if (body.productA && body.productB) {
+            const result = await recommendationCompatibilityService.checkPair(body.productA, body.productB);
+            return reply.send({ ok: true, pair: result });
+        }
+        const report = await recommendationCompatibilityService.checkMaterials(body.materials ?? []);
+        return reply.send({ ok: true, ...report });
     });
     app.post(`${api}/masters/issue`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'write');

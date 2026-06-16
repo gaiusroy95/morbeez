@@ -6,6 +6,7 @@ import {
   type CropPerformanceLevel,
   type PortalSoilReport,
   type SoilMoistureLevel,
+  type VisitFarmContext,
 } from '@morbeez/shared';
 import { Panel } from '@morbeez/ui-native';
 import { ColoredAssessmentChips } from './ColoredAssessmentChips';
@@ -18,6 +19,7 @@ type Props = {
   stage?: string | null;
   agronomistName?: string | null;
   soilTest?: PortalSoilReport | null;
+  farmContext?: VisitFarmContext | null;
   blockHealth: BlockHealthLevel | null;
   cropPerformance: CropPerformanceLevel | null;
   soilMoisture: SoilMoistureLevel | null;
@@ -123,6 +125,7 @@ export function VisitOverviewStep({
   stage,
   agronomistName,
   soilTest,
+  farmContext,
   blockHealth,
   cropPerformance,
   soilMoisture,
@@ -131,19 +134,75 @@ export function VisitOverviewStep({
   onSoilMoisture,
 }: Props) {
   const assessmentsComplete = Boolean(blockHealth && cropPerformance && soilMoisture);
+  const ctx = farmContext ?? null;
 
   return (
     <View style={styles.root}>
-      <Panel title="Visit overview">
-        <OverviewRow label="Crop" value={cropType.replace(/_/g, ' ')} />
+      <Panel title="Farm details">
+        <OverviewRow label="Farmer" value={farmerName} />
+        <OverviewRow label="Phone" value={ctx?.farmerPhone ?? '—'} />
+        <OverviewRow label="Village" value={ctx?.village ?? '—'} />
+        <OverviewRow label="District" value={ctx?.district ?? '—'} />
         <OverviewRow label="Block" value={blockName} />
+        <OverviewRow label="Crop" value={cropType.replace(/_/g, ' ')} />
+        <OverviewRow label="Variety" value={ctx?.varietyName ?? '—'} />
+        <OverviewRow
+          label="Area"
+          value={
+            ctx?.acreage != null
+              ? `${ctx.acreage} ac`
+              : ctx?.area?.trim()
+                ? ctx.area
+                : '—'
+          }
+        />
+        <OverviewRow label="Irrigation" value={ctx?.irrigationType?.replace(/_/g, ' ') ?? '—'} />
+        <OverviewRow label="Planting date" value={ctx?.plantingDate ?? '—'} />
+        <OverviewRow label="Expected harvest" value={ctx?.expectedHarvestDate ?? '—'} />
+      </Panel>
+
+      <Panel title="Field assessment">
         <OverviewRow label="Visit date" value={formatDate(new Date().toISOString())} />
         <OverviewRow label="DAP" value={dap != null ? String(dap) : '—'} />
         <OverviewRow label="Stage" value={stage ?? '—'} />
         <OverviewRow label="Agronomist" value={agronomistName ?? '—'} />
-        <OverviewRow label="Farmer" value={farmerName} />
         <SoilTestRows soilTest={soilTest} />
       </Panel>
+
+      {ctx?.recentVisits?.length || ctx?.recentRecommendations?.length || ctx?.recentApplications?.length ? (
+        <Panel title="Previous history">
+          {ctx.recentVisits?.length ? (
+            <>
+              <Text style={styles.historyHeading}>Recent visits</Text>
+              {ctx.recentVisits.map((v) => (
+                <Text key={v.id} style={styles.historyItem}>
+                  {v.dateLabel} · {v.summary}
+                </Text>
+              ))}
+            </>
+          ) : null}
+          {ctx.recentRecommendations?.length ? (
+            <>
+              <Text style={styles.historyHeading}>Recent recommendations</Text>
+              {ctx.recentRecommendations.map((r) => (
+                <Text key={r.id} style={styles.historyItem}>
+                  {r.dateLabel} · {r.title} ({r.status})
+                </Text>
+              ))}
+            </>
+          ) : null}
+          {ctx.recentApplications?.length ? (
+            <>
+              <Text style={styles.historyHeading}>Recent applications</Text>
+              {ctx.recentApplications.map((a) => (
+                <Text key={a.id} style={styles.historyItem}>
+                  {a.dateLabel} · {a.label}
+                </Text>
+              ))}
+            </>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {!assessmentsComplete ? (
         <Text style={styles.hint}>Select block health, crop performance, and soil moisture. You can continue now and finish before submit.</Text>
@@ -185,4 +244,6 @@ const styles = StyleSheet.create({
   rowValueWrap: { flex: 1, marginLeft: 12, alignItems: 'flex-end' },
   rowValue: { fontSize: 14, fontWeight: '600', color: tokens.text, flex: 1, textAlign: 'right', marginLeft: 12 },
   rowLink: { color: tokens.green700 },
+  historyHeading: { fontSize: 12, fontWeight: '700', color: tokens.textMuted, marginTop: 8, marginBottom: 4 },
+  historyItem: { fontSize: 13, color: tokens.text, lineHeight: 18, marginBottom: 4 },
 });

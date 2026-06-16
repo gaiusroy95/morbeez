@@ -5,6 +5,8 @@ type RecRow = {
     farmer_id: string;
     block_id: string | null;
     ai_session_id: string | null;
+    field_finding_id?: string | null;
+    visit_issue_id?: string | null;
     issue_detected: string | null;
     recommendation_text: string;
     products: unknown;
@@ -13,6 +15,8 @@ type RecRow = {
     dap_at_recommendation: number | null;
     language: string;
     status: string;
+    application_status?: string | null;
+    outcome?: string | null;
     communicated_at: string | null;
     technical_name: string | null;
     trade_name: string | null;

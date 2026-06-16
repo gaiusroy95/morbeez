@@ -10,7 +10,9 @@ import {
   type IssueMasterRow,
   type MeasurementTemplate,
   type PortalSoilReport,
+  type RecommendationGroupDraft,
   type SoilMoistureLevel,
+  type VisitFarmContext,
   type VisitWizardStep,
 } from '@morbeez/shared';
 import { Alert, Btn, Loading } from '../../components/ui';
@@ -21,10 +23,14 @@ import {
   VisitPhotosStep,
 } from '../../components/agronomist/visit-wizard/VisitPhotosStep';
 import { VisitMeasurementsStep } from '../../components/agronomist/visit-wizard/VisitMeasurementsStep';
+import { VisitSoilWeatherStep } from '../../components/agronomist/visit-wizard/VisitSoilWeatherStep';
 import { VisitIssuesStep } from '../../components/agronomist/visit-wizard/VisitIssuesStep';
 import { VisitAiAnalysisStep } from '../../components/agronomist/visit-wizard/VisitAiAnalysisStep';
 import { VisitFollowUpStep } from '../../components/agronomist/visit-wizard/VisitFollowUpStep';
+import { VisitFinalDiagnosisStep } from '../../components/agronomist/visit-wizard/VisitFinalDiagnosisStep';
 import { VisitRecommendationStep } from '../../components/agronomist/visit-wizard/VisitRecommendationStep';
+import { VisitRecPlanningStep } from '../../components/agronomist/visit-wizard/VisitRecPlanningStep';
+import { VisitRecApprovalStep } from '../../components/agronomist/visit-wizard/VisitRecApprovalStep';
 import { VisitReviewStep } from '../../components/agronomist/visit-wizard/VisitReviewStep';
 import { VisitSummaryStep } from '../../components/agronomist/visit-wizard/VisitSummaryStep';
 import type { FollowUpDraft, VisitIssueDraft, VisitPhotoDraft } from '../../components/agronomist/visit-wizard/types';
@@ -53,6 +59,9 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [blockDap, setBlockDap] = useState<number | null>(null);
   const [blockStage, setBlockStage] = useState<string | null>(null);
   const [latestSoilTest, setLatestSoilTest] = useState<PortalSoilReport | null>(null);
+  const [farmContext, setFarmContext] = useState<VisitFarmContext | null>(null);
+  const [recommendationGroups, setRecommendationGroups] = useState<RecommendationGroupDraft[]>([]);
+  const [recApproved, setRecApproved] = useState(false);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<VisitIssueDraft[]>([]);
@@ -84,9 +93,10 @@ export function VisitWizardPage({ canWrite }: Props) {
       selectedCategories: issues.map((i) => i.category),
       issues: issues.map(({ localId: _localId, ...rest }) => rest),
       measurements,
+      recommendationGroups: recommendationGroups.length ? recommendationGroups : undefined,
       savedAt: new Date().toISOString(),
     });
-  }, [blockId, farmerId, blockHealth, cropPerformance, soilMoisture, issues, measurements]);
+  }, [blockId, farmerId, blockHealth, cropPerformance, soilMoisture, issues, measurements, recommendationGroups]);
 
   useEffect(() => {
     if (!cropType || !farmerId || !blockId) {
@@ -114,6 +124,7 @@ export function VisitWizardPage({ canWrite }: Props) {
         setBlockDap(blockDetail?.block?.dap ?? null);
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
+        setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
 
         const openRecs = recs.filter(
           (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
@@ -141,6 +152,9 @@ export function VisitWizardPage({ canWrite }: Props) {
                 localId: `draft-${idx}`,
               }))
             );
+          }
+          if (draft.recommendationGroups?.length) {
+            setRecommendationGroups(draft.recommendationGroups);
           }
         }
       } catch (e) {
@@ -172,10 +186,18 @@ export function VisitWizardPage({ canWrite }: Props) {
       templates,
       measurements,
       issues,
+      recommendationGroups,
       blockHealth,
       cropPerformance,
       soilMoisture,
     };
+  }
+
+  function validateStep(current: VisitWizardStep): string | null {
+    if (current === 'recApproval' && !recApproved) {
+      return 'Approve recommendations on the Rec OK step before continuing.';
+    }
+    return validateVisitWizardStep(current, validationContext());
   }
 
   function missingAssessments(): string | null {
@@ -186,7 +208,7 @@ export function VisitWizardPage({ canWrite }: Props) {
   }
 
   function goNext() {
-    const msg = validateVisitWizardStep(step, validationContext());
+    const msg = validateStep(step);
     if (msg) {
       setError(msg);
       return;
@@ -242,7 +264,7 @@ export function VisitWizardPage({ canWrite }: Props) {
       setStep('overview');
       return;
     }
-    const msg = validateVisitWizardStep('issues', validationContext());
+    const msg = validateStep('issues');
     if (msg) {
       setError(msg);
       return;
@@ -299,6 +321,23 @@ export function VisitWizardPage({ canWrite }: Props) {
             finalRecommendation: issue.finalRecommendation,
           },
         })),
+        recommendationGroups: recommendationGroups.length
+          ? recommendationGroups.map((g) => ({
+              applicationType: g.applicationType,
+              applicationDay: g.applicationDay,
+              sortOrder: g.sortOrder,
+              materials: g.materials.map((m) => ({
+                issueIndex: issues.findIndex((i) => i.localId === m.issueLocalId),
+                category: m.category,
+                technicalName: m.technicalName,
+                dose: m.dose,
+                method: m.method,
+                relatedIssueIndex: m.relatedIssueLocalId
+                  ? issues.findIndex((i) => i.localId === m.relatedIssueLocalId)
+                  : undefined,
+              })),
+            }))
+          : undefined,
         followUps: followUps
           .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')
           .map((f) => ({
@@ -357,6 +396,7 @@ export function VisitWizardPage({ canWrite }: Props) {
           stage={blockStage}
           agronomistName={admin?.email ?? null}
           soilTest={latestSoilTest}
+          farmContext={farmContext}
           blockHealth={blockHealth}
           cropPerformance={cropPerformance}
           soilMoisture={soilMoisture}
@@ -385,6 +425,10 @@ export function VisitWizardPage({ canWrite }: Props) {
           values={measurements}
           onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
         />
+      ) : null}
+
+      {step === 'soilWeather' ? (
+        <VisitSoilWeatherStep farmerId={farmerId} blockId={blockId} />
       ) : null}
 
       {step === 'issues' ? (
@@ -416,8 +460,25 @@ export function VisitWizardPage({ canWrite }: Props) {
 
       {step === 'followUp' ? <VisitFollowUpStep issues={issues} onChange={setIssues} /> : null}
 
-      {step === 'recommendation' ? (
-        <VisitRecommendationStep issues={issues} onChange={setIssues} />
+      {step === 'finalDiagnosis' ? <VisitFinalDiagnosisStep issues={issues} /> : null}
+
+      {step === 'recPlanning' ? (
+        <>
+          <VisitRecommendationStep issues={issues} onChange={setIssues} />
+          <VisitRecPlanningStep
+            issues={issues}
+            groups={recommendationGroups}
+            onChange={setRecommendationGroups}
+          />
+        </>
+      ) : null}
+
+      {step === 'recApproval' ? (
+        <VisitRecApprovalStep
+          groups={recommendationGroups}
+          approved={recApproved}
+          onApprovedChange={setRecApproved}
+        />
       ) : null}
 
       {step === 'review' ? <VisitReviewStep issues={issues} onChange={setIssues} /> : null}

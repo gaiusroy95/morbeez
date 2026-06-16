@@ -320,8 +320,33 @@ export async function partnerApiRoutes(app) {
         partnerApp.get(`${api}/issue-master`, async (request, reply) => {
             await requirePartner(request);
             const q = request.query;
-            const items = await fieldFindingsMastersService.listIssueMaster(q.cropType ? { cropType: q.cropType } : undefined);
+            const { issueCategorySchema } = await import('../../domain/ai-training/validators.js');
+            const items = await fieldFindingsMastersService.listIssueMaster({
+                cropType: q.cropType,
+                category: q.category ? issueCategorySchema.parse(q.category) : undefined,
+            });
             return reply.send({ ok: true, items });
+        });
+        partnerApp.post(`${api}/issue-master`, async (request, reply) => {
+            await requirePartner(request);
+            const { issueCategorySchema } = await import('../../domain/ai-training/validators.js');
+            const body = z
+                .object({
+                category: issueCategorySchema,
+                issueName: z.string().min(1).max(200),
+                cropType: z.string().optional(),
+            })
+                .parse(request.body);
+            const row = await fieldFindingsMastersService.createIssueMaster(body);
+            return reply.status(201).send({
+                ok: true,
+                item: {
+                    id: String(row.id),
+                    category: String(row.category),
+                    issueName: String(row.issue_name),
+                    cropType: row.crop_type ? String(row.crop_type) : null,
+                },
+            });
         });
         partnerApp.get(`${api}/measurement-templates/:cropType`, async (request, reply) => {
             await requirePartner(request);
@@ -338,12 +363,85 @@ export async function partnerApiRoutes(app) {
             const context = await visitAiOrchestratorService.buildContext(body);
             return reply.send({ ok: true, context });
         });
+        partnerApp.get(`${api}/visits/environment`, async (request, reply) => {
+            await requirePartner(request);
+            const { z: zod } = await import('zod');
+            const { visitEnvironmentService } = await import('../../services/core/visit-environment.service.js');
+            const q = zod
+                .object({ farmerId: zod.string().uuid(), blockId: zod.string().uuid() })
+                .parse(request.query ?? {});
+            const environment = await visitEnvironmentService.getEnvironment(q.farmerId, q.blockId);
+            return reply.send({ ok: true, ...environment });
+        });
+        partnerApp.post(`${api}/visits/photos/validate`, async (request, reply) => {
+            await requirePartner(request);
+            const { z: zod } = await import('zod');
+            const { visitPhotoValidationService } = await import('../../services/core/visit-photo-validation.service.js');
+            const body = zod
+                .object({
+                dataBase64: zod.string().min(10).max(7_000_000),
+                mimeType: zod.string().optional(),
+            })
+                .parse(request.body);
+            const result = visitPhotoValidationService.validateBase64(body.dataBase64, body.mimeType);
+            return reply.send(result);
+        });
         partnerApp.post(`${api}/visits/analyze`, async (request, reply) => {
             await requirePartner(request);
             const { visitAnalyzeRequestSchema } = await import('../../domain/ai-training/validators.js');
             const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const { sanitizeVisitAiForPartner } = await import('../../services/partner/partner-response-sanitizer.js');
             const body = visitAnalyzeRequestSchema.parse(request.body);
             const result = await visitAiOrchestratorService.analyze(body, 'partner');
+            return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
+        });
+        partnerApp.get(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const questions = await visitAiOrchestratorService.getQuestions(aiCaseId);
+            return reply.send({ ok: true, questions });
+        });
+        partnerApp.post(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiAnswersBodySchema } = await import('../../domain/ai-training/validators.js');
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const { sanitizeVisitAiForPartner } = await import('../../services/partner/partner-response-sanitizer.js');
+            const body = visitAiAnswersBodySchema.parse(request.body);
+            const result = await visitAiOrchestratorService.saveAnswers(aiCaseId, body);
+            return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
+        });
+        partnerApp.post(`${api}/visits/ai-case/:aiCaseId/reanalyze`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const { sanitizeVisitAiForPartner } = await import('../../services/partner/partner-response-sanitizer.js');
+            const result = await visitAiOrchestratorService.reanalyze(aiCaseId);
+            return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
+        });
+        partnerApp.post(`${api}/visits/ai-case/:aiCaseId/skip-qa`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const result = await visitAiOrchestratorService.skipFollowUp(aiCaseId);
+            return reply.send({ ok: true, ...result });
+        });
+        partnerApp.get(`${api}/visits/ai-case/:aiCaseId`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const { sanitizeVisitAiForPartner } = await import('../../services/partner/partner-response-sanitizer.js');
+            const detail = await visitAiOrchestratorService.getCaseDetail(aiCaseId);
+            return reply.send(sanitizeVisitAiForPartner({ ok: true, case: detail }));
+        });
+        partnerApp.post(`${api}/visits/ai-case/:aiCaseId/recommend`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiRecommendBodySchema } = await import('../../domain/ai-training/validators.js');
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const body = visitAiRecommendBodySchema.parse(request.body ?? {});
+            const result = await visitAiOrchestratorService.recommend(aiCaseId, body.finalDiagnosis);
             return reply.send({ ok: true, ...result });
         });
         partnerApp.get(`${api}/visits/:findingId`, async (request, reply) => {

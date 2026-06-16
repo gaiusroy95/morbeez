@@ -139,6 +139,19 @@ export const learningLoopService = {
         });
         logger.info({ recommendationRecordId, dapBucket: buildDapBucket(rec.dap_at_recommendation ?? 0) }, 'Promoted field visit to advisory_reuse_cases');
     },
+    async onVisitCaseClosed(fieldFindingId) {
+        const { data: recs } = await supabase
+            .from('recommendation_records')
+            .select('id, outcome')
+            .eq('field_finding_id', fieldFindingId)
+            .not('outcome', 'is', null);
+        for (const rec of recs ?? []) {
+            const out = String(rec.outcome ?? '');
+            if (['better', 'partial'].includes(out)) {
+                await this.onLearningSampleReady(String(rec.id)).catch(() => { });
+            }
+        }
+    },
     async onLearningSampleReady(recommendationRecordId) {
         const { data: sample } = await supabase
             .from('ai_learning_samples')

@@ -28,6 +28,10 @@ import {
   issueCategoryHint,
 } from './wizard/visitIssueTypes';
 
+function slugLabel(label: string): string {
+  return label.trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^\w]/g, '');
+}
+
 const SEVERITY_LABELS: Record<RecordSeverity, string> = {
   low: 'Low',
   medium: 'Medium',
@@ -44,6 +48,7 @@ type PhotoPreview = { uri: string; filename: string; mimeType: string; dataBase6
 
 export type IssueDraft = StructuredVisitIssueInput & {
   localId: string;
+  categoryLabel?: string;
   photosPreview?: PhotoPreview[];
   hypotheses?: VisitAiHypothesis[];
   selectedHypothesisLabel?: string;
@@ -66,40 +71,110 @@ type Props = {
   onChange: (next: IssueDraft) => void;
   onRemove: () => void;
   onSuggestQuestions?: () => Promise<string[]>;
+  onCreateIssueType?: (input: {
+    category: IssueCategory;
+    issueName: string;
+    cropType: string;
+  }) => Promise<IssueMasterRow | null>;
 };
 
-export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, onSuggestQuestions }: Props) {
+export function IssueCard({
+  issue,
+  issueMaster,
+  cropType,
+  onChange,
+  onRemove,
+  onSuggestQuestions,
+  onCreateIssueType,
+}: Props) {
   const [questions, setQuestions] = useState<string[]>([]);
+  const [extraCategories, setExtraCategories] = useState<Array<{ value: IssueCategory; label: string }>>([]);
+  const [extraTypes, setExtraTypes] = useState<Array<{ key: string; value: string; label: string }>>([]);
+
+  const categoryOptions = useMemo(() => {
+    const base = ISSUE_CATEGORY_OPTIONS.map((o) => ({
+      key: o.value,
+      value: o.value,
+      label: o.label,
+    }));
+    const extras = extraCategories.map((o) => ({
+      key: `custom-cat:${o.label}`,
+      value: `other:${o.label}`,
+      label: o.label,
+    }));
+    return [...base, ...extras];
+  }, [extraCategories]);
+
+  const categoryValue = issue.categoryLabel ? `other:${issue.categoryLabel}` : issue.category;
+
+  function applyCategoryValue(value: string) {
+    if (value.startsWith('other:')) {
+      const label = value.slice(6);
+      onChange({ ...issue, category: 'other', categoryLabel: label, issueName: '', issueMasterId: undefined });
+      return;
+    }
+    onChange({
+      ...issue,
+      category: value as IssueCategory,
+      categoryLabel: undefined,
+      issueName: '',
+      issueMasterId: undefined,
+    });
+  }
+
+  async function addCategory(name: string) {
+    const label = name.trim();
+    if (!label) return;
+    setExtraCategories((prev) => (prev.some((c) => c.label === label) ? prev : [...prev, { value: 'other', label }]));
+    onChange({ ...issue, category: 'other', categoryLabel: label, issueName: '', issueMasterId: undefined });
+  }
 
   const nameOptions = useMemo(() => {
     const filtered = issueMaster.filter(
       (m) => m.category === issue.category && (!m.cropType || m.cropType === cropType)
     );
-    if (filtered.length) {
-      return filtered.map((m) => ({ key: m.id, value: m.issueName, label: m.issueName }));
-    }
-    return getFallbackIssueTypes(cropType, issue.category).map((name, index) => ({
-      key: `fallback-${issue.category}-${index}`,
-      value: name,
-      label: name,
-    }));
-  }, [issueMaster, issue.category, cropType]);
+    const fromMaster =
+      filtered.length > 0
+        ? filtered.map((m) => ({ key: m.id, value: m.issueName, label: m.issueName }))
+        : getFallbackIssueTypes(cropType, issue.category).map((name, index) => ({
+            key: `fallback-${issue.category}-${index}`,
+            value: name,
+            label: name,
+          }));
+    return [...fromMaster, ...extraTypes];
+  }, [issueMaster, issue.category, cropType, extraTypes]);
 
-  function setCategory(category: IssueCategory) {
-    if (category === issue.category) return;
-    onChange({ ...issue, category, issueName: '', issueMasterId: undefined });
+  async function addIssueType(name: string) {
+    const issueName = name.trim();
+    if (!issueName) return;
+    if (onCreateIssueType) {
+      const row = await onCreateIssueType({ category: issue.category, issueName, cropType });
+      if (row) {
+        onChange({ ...issue, issueName: row.issueName, issueMasterId: row.id });
+        return;
+      }
+    }
+    const key = `local-type:${slugLabel(issueName)}`;
+    setExtraTypes((prev) =>
+      prev.some((t) => t.value === issueName) ? prev : [...prev, { key, value: issueName, label: issueName }]
+    );
+    onChange({ ...issue, issueName, issueMasterId: undefined });
   }
 
-  async function addPhotos() {
+  async function addPhotos(source: 'camera' | 'library') {
     const count = issue.photosPreview?.length ?? 0;
     if (count >= 4) return;
-    const pick = await ImagePicker.launchImageLibraryAsync({
+    const options: ImagePicker.ImagePickerOptions = {
       mediaTypes: ['images'],
       quality: 0.7,
       base64: true,
-      allowsMultipleSelection: true,
+      allowsMultipleSelection: source === 'library',
       selectionLimit: 4 - count,
-    });
+    };
+    const pick =
+      source === 'camera'
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
     if (pick.canceled) return;
     const next = pick.assets
       .filter((a) => a.base64)
@@ -130,40 +205,34 @@ export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, on
     <Panel title="Issue details">
       <Text style={styles.hint}>{issueCategoryHint(cropType)}</Text>
 
-      <Text style={styles.label}>Issue category</Text>
-      <View style={styles.row}>
-        {ISSUE_CATEGORY_OPTIONS.map((option) => {
-          const active = issue.category === option.value;
-          return (
-            <Pressable
-              key={option.value}
-              onPress={() => setCategory(option.value)}
-              style={[styles.catChip, active && styles.catChipActive]}
-            >
-              <Text style={[styles.catChipText, active && styles.catChipTextActive]}>{option.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <DynamicSelect
+        label="Issue category"
+        placeholder="Select category"
+        value={categoryValue}
+        options={categoryOptions}
+        allowAdd
+        addPlaceholder="New category label"
+        addButtonLabel="Add"
+        onChange={(value) => applyCategoryValue(value)}
+        onAdd={addCategory}
+      />
 
       <DynamicSelect
         label="Issue type"
         placeholder={`Select ${getIssueCategoryLabel(issue.category).toLowerCase()} type`}
         value={issue.issueName}
         options={nameOptions}
+        allowAdd
+        addPlaceholder="New issue type"
+        addButtonLabel="Add"
         onChange={(name, option) =>
           onChange({
             ...issue,
             issueName: name,
-            issueMasterId: option && !option.key.startsWith('fallback-') ? option.key : undefined,
+            issueMasterId: option && !option.key.startsWith('fallback-') && !option.key.startsWith('local-type:') ? option.key : undefined,
           })
         }
-      />
-      <TextField
-        label="Issue type (manual)"
-        value={issue.issueName}
-        onChangeText={(issueName) => onChange({ ...issue, issueName, issueMasterId: undefined })}
-        placeholder={`e.g. ${nameOptions[0]?.label ?? 'Leaf spot'}`}
+        onAdd={addIssueType}
       />
       <Text style={styles.label}>Severity</Text>
       <SegmentedChips
@@ -210,6 +279,14 @@ export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, on
         </>
       ) : null}
       <Text style={styles.label}>Photos (up to 4)</Text>
+      <View style={styles.photoActions}>
+        <Pressable style={styles.photoActionBtn} onPress={() => void addPhotos('camera')}>
+          <Text style={styles.photoActionText}>Camera</Text>
+        </Pressable>
+        <Pressable style={styles.photoActionBtn} onPress={() => void addPhotos('library')}>
+          <Text style={styles.photoActionText}>Gallery</Text>
+        </Pressable>
+      </View>
       <View style={styles.photoRow}>
         {(issue.photosPreview ?? []).map((p, i) => (
           <View key={`${p.uri}-${i}`} style={styles.photoWrap}>
@@ -227,7 +304,7 @@ export function IssueCard({ issue, issueMaster, cropType, onChange, onRemove, on
           </View>
         ))}
         {(issue.photosPreview?.length ?? 0) < 4 ? (
-          <Pressable style={styles.photoAdd} onPress={() => void addPhotos()}>
+          <Pressable style={styles.photoAdd} onPress={() => void addPhotos('library')}>
             <Text style={styles.photoAddText}>+</Text>
           </Pressable>
         ) : null}
@@ -354,6 +431,16 @@ const styles = StyleSheet.create({
   catChipText: { fontSize: 13, color: tokens.textMuted },
   catChipTextActive: { color: tokens.green800, fontWeight: '600' },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  photoActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  photoActionBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.green500,
+    backgroundColor: tokens.green100,
+  },
+  photoActionText: { fontSize: 13, fontWeight: '600', color: tokens.green800 },
   photoWrap: { position: 'relative' },
   photo: { width: 72, height: 72, borderRadius: 8 },
   photoRemove: { position: 'absolute', top: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 6 },

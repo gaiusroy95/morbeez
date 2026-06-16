@@ -781,7 +781,7 @@ export const agronomistMobileService = {
     const block = blocks.find((b) => b.id === blockId);
     if (!block) throw new NotFoundError('Block not found');
 
-    const [activitiesRes, soilRows, findingsRes, crmRecs, recordRows] = await Promise.all([
+    const [activitiesRes, soilRows, findingsRes, crmRecs, recordRows, farmerRes, blockRawRes] = await Promise.all([
       supabase
         .from('cultivation_activities')
         .select('id, activity_label, activity_type, applied_at, notes, cost_inr')
@@ -807,6 +807,16 @@ export const agronomistMobileService = {
         .not('status', 'in', '(draft,cancelled,rejected)')
         .order('created_at', { ascending: false })
         .limit(20),
+      supabase
+        .from('farmers')
+        .select('phone, village, district, name')
+        .eq('id', farmerId)
+        .maybeSingle(),
+      supabase
+        .from('farm_blocks')
+        .select('variety_name, irrigation_type, planting_date, acreage_decimal, area, metadata')
+        .eq('id', blockId)
+        .maybeSingle(),
     ]);
 
     const fmt = (iso: string) =>
@@ -890,6 +900,38 @@ export const agronomistMobileService = {
 
     return {
       block,
+      farmContext: {
+        farmerPhone: farmerRes.data?.phone ? String(farmerRes.data.phone) : null,
+        village: farmerRes.data?.village ? String(farmerRes.data.village) : null,
+        district: farmerRes.data?.district ? String(farmerRes.data.district) : null,
+        acreage: block.acreage ?? (blockRawRes.data?.acreage_decimal != null ? Number(blockRawRes.data.acreage_decimal) : null),
+        area: block.area ?? (blockRawRes.data?.area ? String(blockRawRes.data.area) : null),
+        irrigationType: blockRawRes.data?.irrigation_type ? String(blockRawRes.data.irrigation_type) : null,
+        varietyName: blockRawRes.data?.variety_name ? String(blockRawRes.data.variety_name) : null,
+        plantingDate: block.plantingDate ?? (blockRawRes.data?.planting_date ? String(blockRawRes.data.planting_date).slice(0, 10) : null),
+        expectedHarvestDate:
+          blockRawRes.data?.metadata && typeof blockRawRes.data.metadata === 'object'
+            ? String((blockRawRes.data.metadata as Record<string, unknown>).expected_harvest ?? '') || null
+            : null,
+        recentVisits: fieldFindings.slice(0, 3).map((v) => ({
+          id: v.id,
+          dateLabel: v.visitedLabel,
+          summary: v.diseasePest ?? v.observations?.slice(0, 80) ?? 'Visit',
+          agronomistName: v.agronomistName,
+        })),
+        recentRecommendations: blockRecommendations.slice(0, 3).map((r) => ({
+          id: r.id,
+          title: r.title,
+          dateLabel: r.dateLabel,
+          status: r.status,
+        })),
+        recentApplications: activities.slice(0, 3).map((a) => ({
+          id: a.id,
+          label: a.activityLabel,
+          dateLabel: a.dateLabel,
+          activityType: a.activityType,
+        })),
+      },
       activities,
       soilReports: (soilRows as Array<Record<string, unknown>>).map((s) => {
         const metrics = normalizeSoilMetrics(s.metrics);

@@ -84,6 +84,7 @@ export declare const fieldVisitService: {
         issues: {
             id: string;
             issueName: string;
+            index: number;
         }[];
         recommendationIds: string[];
     }>;
@@ -124,6 +125,7 @@ export declare const fieldVisitService: {
         issues: {
             id: string;
             issueName: string;
+            index: number;
         }[];
         recommendationIds: string[];
     }>;

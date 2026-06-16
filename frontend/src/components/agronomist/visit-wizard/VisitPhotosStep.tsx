@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { agronomistClient, type VisitPhotoValidationIssue } from '@morbeez/shared';
 import { readFileAsBase64 } from '../../../lib/readFileAsBase64';
 import { Panel } from '../../ui';
 import type { VisitPhotoDraft } from './types';
@@ -17,6 +18,17 @@ type Props = {
   onPhotosChange: (photos: VisitPhotoDraft[]) => void;
   onTypesChange: (types: string[]) => void;
   onVoiceNoteChange?: (text: string) => void;
+  validatePhoto?: (dataBase64: string, mimeType?: string) => Promise<{
+    ok: boolean;
+    issues: VisitPhotoValidationIssue[];
+    retakeRecommended: boolean;
+  }>;
+};
+
+const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
+  blur: 'Blurry',
+  dark: 'Too dark',
+  low_resolution: 'Low resolution',
 };
 
 function toRawBase64(dataUrl: string): string {
@@ -34,6 +46,7 @@ export function VisitPhotosStep({
   onPhotosChange,
   onTypesChange,
   onVoiceNoteChange,
+  validatePhoto = agronomistClient.validateVisitPhoto,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const photoTypes = getVisitPhotoTypesForCrop(cropType);
@@ -55,13 +68,24 @@ export function VisitPhotosStep({
       const file = files[i]!;
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await readFileAsBase64(file);
-      toAdd.push({
+      const dataBase64 = toRawBase64(dataUrl);
+      const draft: VisitPhotoDraft = {
         filename: file.name || `photo-${Date.now()}-${i}.jpg`,
         mimeType: file.type || 'image/jpeg',
-        dataBase64: toRawBase64(dataUrl),
+        dataBase64,
         photoType,
         previewUrl: dataUrl,
-      });
+      };
+      try {
+        const result = await validatePhoto(dataBase64, draft.mimeType);
+        toAdd.push({
+          ...draft,
+          validationIssues: result.issues,
+          retakeRecommended: result.retakeRecommended,
+        });
+      } catch {
+        toAdd.push(draft);
+      }
     }
 
     if (toAdd.length) {
@@ -132,6 +156,11 @@ export function VisitPhotosStep({
                   ×
                 </button>
                 <div className="vw-photo-meta">{getVisitPhotoTypeLabel(cropType, p.photoType ?? 'other')}</div>
+                {p.retakeRecommended && p.validationIssues?.length ? (
+                  <div className="vw-photo-retake">
+                    Retake: {p.validationIssues.map((issue) => ISSUE_LABELS[issue]).join(', ')}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>

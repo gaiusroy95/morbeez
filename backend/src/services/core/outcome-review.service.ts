@@ -268,6 +268,14 @@ export const outcomeReviewService = {
       await learningLoopService.onLearningSampleReady(recommendationId).catch(() => {});
     }
 
+    const recFieldFindingId = (rec as { field_finding_id?: string | null }).field_finding_id;
+    if (recFieldFindingId) {
+      const { visitCaseClosureService } = await import('./visit-case-closure.service.js');
+      void visitCaseClosureService
+        .emitTrainingEventForRecommendation(recommendationId, agentEmail)
+        .catch(() => {});
+    }
+
     return row;
   },
 };

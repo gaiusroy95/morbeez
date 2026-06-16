@@ -172,6 +172,21 @@ export const learningLoopService = {
     );
   },
 
+  async onVisitCaseClosed(fieldFindingId: string): Promise<void> {
+    const { data: recs } = await supabase
+      .from('recommendation_records')
+      .select('id, outcome')
+      .eq('field_finding_id', fieldFindingId)
+      .not('outcome', 'is', null);
+
+    for (const rec of recs ?? []) {
+      const out = String(rec.outcome ?? '');
+      if (['better', 'partial'].includes(out)) {
+        await this.onLearningSampleReady(String(rec.id)).catch(() => {});
+      }
+    }
+  },
+
   async onLearningSampleReady(recommendationRecordId: string): Promise<void> {
     const { data: sample } = await supabase
       .from('ai_learning_samples')

@@ -336,7 +336,7 @@ Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with 
 
 - Rich farmer list with primary crop, area, last order date, and suggested action
 - Farmer profile quick actions: Call, WhatsApp, Directions, Schedule callback, Request agronomist visit, Start visit, Add to route
-- GPS check-in → full structured visit wizard (photos, issues, measurements, AI assist, draft recs) → submit → **expert review** (append-only; partner cannot approve)
+- GPS check-in → full structured visit wizard (12 UI steps mapping to the 16-step advisory spec: overview, photos, measures, soil/weather, issues, AI, Q&A, final diagnosis, rec planning, review, summary; partner skips rec approval) → submit → **expert review** (append-only; partner cannot approve)
 - Pincode-clustered route planner for field days
 - Partner-scoped tasks, read-only orders (no margin/ROI), escalations, and team collaboration timeline
 - Partner creates sales opportunity → telecaller dashboard inbox + status updates

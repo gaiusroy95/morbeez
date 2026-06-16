@@ -6,6 +6,7 @@ export * from './api/farmer-client';
 export * from './api/warehouse-client';
 export * from './api/agronomist-client';
 export * from './api/telecaller-client';
+export * from './api/visit-ai-client';
 export * from './api/partner-client';
 export * from './types/partner';
 export * from './types/agronomist';

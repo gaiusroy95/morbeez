@@ -14,6 +14,7 @@ export declare const learningLoopService: {
         farmerId?: string | null;
     }): Promise<void>;
     promoteRecommendationToReuse(recommendationRecordId: string): Promise<void>;
+    onVisitCaseClosed(fieldFindingId: string): Promise<void>;
     onLearningSampleReady(recommendationRecordId: string): Promise<void>;
 };
 //# sourceMappingURL=learning-loop.service.d.ts.map

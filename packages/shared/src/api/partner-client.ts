@@ -12,6 +12,7 @@ import type {
   TeamTimelineEntry,
   FarmerTimelineEntry,
 } from '../types/partner';
+import type { VisitAiQuestion } from '../types/field-findings';
 
 const PARTNER_API = '/morbeez-partner/api/v1';
 const TOKEN_KEY = 'morbeez_partner_token';
@@ -181,6 +182,18 @@ export const partnerClient = {
     return r.items ?? [];
   },
 
+  async createIssueMaster(input: {
+    category: string;
+    issueName: string;
+    cropType?: string;
+  }) {
+    const r = await partnerApi<{ ok: boolean; item: Record<string, unknown> }>('/issue-master', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return r.item;
+  },
+
   async getFarmerWorkspace(farmerId: string): Promise<PartnerFarmerWorkspace> {
     const r = await partnerApi<{ ok: boolean; workspace: PartnerFarmerWorkspace }>(
       `/farmers/${farmerId}`
@@ -297,6 +310,66 @@ export const partnerClient = {
       method: 'POST',
       body: JSON.stringify(body),
     });
+  },
+
+  async skipVisitAiFollowUp(aiCaseId: string) {
+    return partnerApi<{ ok: boolean; skipped: boolean }>(
+      `/visits/ai-case/${encodeURIComponent(aiCaseId)}/skip-qa`,
+      { method: 'POST' }
+    );
+  },
+
+  async getVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]> {
+    const r = await partnerApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`
+    );
+    return r.questions ?? [];
+  },
+
+  async saveVisitAiAnswers(aiCaseId: string, answers: Array<{ questionId: string; answer: string }>) {
+    return partnerApi(`/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`, {
+      method: 'POST',
+      body: JSON.stringify({ answers }),
+    });
+  },
+
+  async reanalyzeVisitAiCase(aiCaseId: string) {
+    return partnerApi<{
+      ok: boolean;
+      finalDiagnosis: string;
+      confidenceAction: string;
+      hypotheses: Array<{ label: string; rationale?: string }>;
+    }>(`/visits/ai-case/${encodeURIComponent(aiCaseId)}/reanalyze`, { method: 'POST' });
+  },
+
+  async recommendVisitAiCase(aiCaseId: string, finalDiagnosis?: string) {
+    return partnerApi<{
+      ok: boolean;
+      recommendationId: string;
+      text: string;
+      dosage: string | null;
+      priority: string;
+      reviewAfterDays: number;
+      reviewDate: string;
+      expectedImprovementDays: string;
+    }>(`/visits/ai-case/${encodeURIComponent(aiCaseId)}/recommend`, {
+      method: 'POST',
+      body: JSON.stringify({ finalDiagnosis }),
+    });
+  },
+
+  async validateVisitPhoto(dataBase64: string, mimeType?: string) {
+    return partnerApi<import('../visit-wizard/index.js').VisitPhotoValidationResult & { ok: boolean }>(
+      '/visits/photos/validate',
+      { method: 'POST', body: JSON.stringify({ dataBase64, mimeType }) }
+    );
+  },
+
+  async getVisitEnvironment(farmerId: string, blockId: string) {
+    const params = new URLSearchParams({ farmerId, blockId });
+    return partnerApi<import('../visit-wizard/index.js').VisitEnvironmentPayload & { ok: boolean }>(
+      `/visits/environment?${params}`
+    );
   },
 
   async getVisitDetail(findingId: string) {

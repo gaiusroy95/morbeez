@@ -172,6 +172,35 @@ export declare const agronomistMobileService: {
             acreage: number | null;
             area: string | null;
         };
+        farmContext: {
+            farmerPhone: string | null;
+            village: string | null;
+            district: string | null;
+            acreage: number | null;
+            area: string | null;
+            irrigationType: string | null;
+            varietyName: string | null;
+            plantingDate: string | null;
+            expectedHarvestDate: string | null;
+            recentVisits: {
+                id: string;
+                dateLabel: string;
+                summary: string;
+                agronomistName: string | null;
+            }[];
+            recentRecommendations: {
+                id: string;
+                title: string;
+                dateLabel: string;
+                status: string;
+            }[];
+            recentApplications: {
+                id: string;
+                label: string;
+                dateLabel: string;
+                activityType: string;
+            }[];
+        };
         activities: {
             id: string;
             blockId: string;

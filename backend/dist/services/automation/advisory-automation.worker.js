@@ -5,6 +5,7 @@ import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { farmerService } from '../farmer/farmer.service.js';
 import { cultivationLoggingService } from '../whatsapp/cultivation/cultivation-logging.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
+import { visitAdvisoryEscalationService } from '../core/visit-advisory-escalation.service.js';
 const POLL_MS = 60_000;
 async function processJob(job) {
     const { data: farmer } = await supabase
@@ -47,6 +48,12 @@ async function processJob(job) {
         if (activityId) {
             await cultivationLoggingService.sendResultValidationPrompt(farmer.phone, job.farmer_id, lang ?? 'en', activityId);
         }
+    }
+    else if (job.job_type === 'visit_monitoring_progression') {
+        await visitAdvisoryEscalationService.processMonitoringProgressionJob(job);
+    }
+    else if (job.job_type === 'visit_callback_escalation') {
+        await visitAdvisoryEscalationService.processEscalationJob(job);
     }
     await supabase
         .from('advisory_automation_jobs')

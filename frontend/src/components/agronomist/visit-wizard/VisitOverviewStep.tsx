@@ -4,6 +4,7 @@ import {
   type CropPerformanceLevel,
   type PortalSoilReport,
   type SoilMoistureLevel,
+  type VisitFarmContext,
 } from '@morbeez/shared';
 import { Panel } from '../../ui';
 
@@ -21,6 +22,7 @@ type Props = {
   stage?: string | null;
   agronomistName?: string | null;
   soilTest?: PortalSoilReport | null;
+  farmContext?: VisitFarmContext | null;
   blockHealth: BlockHealthLevel | null;
   cropPerformance: CropPerformanceLevel | null;
   soilMoisture: SoilMoistureLevel | null;
@@ -79,6 +81,37 @@ function soilMetricRows(soilTest: PortalSoilReport) {
   });
 }
 
+function SoilTestRows({ soilTest }: { soilTest: PortalSoilReport | null | undefined }) {
+  if (!soilTest) {
+    return (
+      <>
+        <OverviewRow label="Soil test date" value="—" />
+        <OverviewRow label="Soil test status" value="None on file" />
+      </>
+    );
+  }
+
+  const metrics = soilMetricRows(soilTest);
+
+  return (
+    <>
+      <OverviewRow label="Soil test date" value={soilTest.dateLabel} />
+      <OverviewRow label="Soil test status" value={soilTest.healthLabel} />
+      {soilTest.dapLabel ? <OverviewRow label="DAP at test" value={soilTest.dapLabel} /> : null}
+      {metrics.length ? (
+        metrics.map((metric) => (
+          <OverviewRow key={`${metric.label}-${metric.value}`} label={metric.label} value={metric.value} />
+        ))
+      ) : (
+        <OverviewRow label="Lab values" value="Report on file — no values entered" />
+      )}
+      {soilTest.pdfUrl ? (
+        <OverviewRow label="Soil report" value="View PDF" href={soilTest.pdfUrl} />
+      ) : null}
+    </>
+  );
+}
+
 function AssessmentChips<T extends string>({
   options,
   value,
@@ -122,6 +155,7 @@ export function VisitOverviewStep({
   stage,
   agronomistName,
   soilTest,
+  farmContext,
   blockHealth,
   cropPerformance,
   soilMoisture,
@@ -130,36 +164,71 @@ export function VisitOverviewStep({
   onSoilMoisture,
 }: Props) {
   const assessmentsComplete = Boolean(blockHealth && cropPerformance && soilMoisture);
+  const ctx = farmContext ?? null;
 
   return (
     <div className="vw-stack">
-      <Panel title="Visit overview">
-        <OverviewRow label="Crop" value={cropType.replace(/_/g, ' ')} />
+      <Panel title="Farm details">
+        <OverviewRow label="Farmer" value={farmerName} />
+        <OverviewRow label="Phone" value={ctx?.farmerPhone ?? '—'} />
+        <OverviewRow label="Village" value={ctx?.village ?? '—'} />
+        <OverviewRow label="District" value={ctx?.district ?? '—'} />
         <OverviewRow label="Block" value={blockName} />
+        <OverviewRow label="Crop" value={cropType.replace(/_/g, ' ')} />
+        <OverviewRow label="Variety" value={ctx?.varietyName ?? '—'} />
+        <OverviewRow
+          label="Area"
+          value={
+            ctx?.acreage != null ? `${ctx.acreage} ac` : ctx?.area?.trim() ? ctx.area : '—'
+          }
+        />
+        <OverviewRow label="Irrigation" value={ctx?.irrigationType?.replace(/_/g, ' ') ?? '—'} />
+        <OverviewRow label="Planting date" value={ctx?.plantingDate ?? '—'} />
+        <OverviewRow label="Expected harvest" value={ctx?.expectedHarvestDate ?? '—'} />
+      </Panel>
+
+      <Panel title="Field assessment">
         <OverviewRow label="Visit date" value={formatDate(new Date().toISOString())} />
         <OverviewRow label="DAP" value={dap != null ? String(dap) : '—'} />
         <OverviewRow label="Stage" value={stage ?? '—'} />
         <OverviewRow label="Agronomist" value={agronomistName ?? '—'} />
-        <OverviewRow label="Farmer" value={farmerName} />
-        {!soilTest ? (
-          <>
-            <OverviewRow label="Soil test date" value="—" />
-            <OverviewRow label="Soil test status" value="None on file" />
-          </>
-        ) : (
-          <>
-            <OverviewRow label="Soil test date" value={soilTest.dateLabel} />
-            <OverviewRow label="Soil test status" value={soilTest.healthLabel} />
-            {soilTest.dapLabel ? <OverviewRow label="DAP at test" value={soilTest.dapLabel} /> : null}
-            {soilMetricRows(soilTest).map((metric) => (
-              <OverviewRow key={`${metric.label}-${metric.value}`} label={metric.label} value={metric.value} />
-            ))}
-            {soilTest.pdfUrl ? (
-              <OverviewRow label="Soil report" value="View PDF" href={soilTest.pdfUrl} />
-            ) : null}
-          </>
-        )}
+        <SoilTestRows soilTest={soilTest} />
       </Panel>
+
+      {ctx?.recentVisits?.length || ctx?.recentRecommendations?.length || ctx?.recentApplications?.length ? (
+        <Panel title="Previous history">
+          {ctx.recentVisits?.length ? (
+            <>
+              <p className="vw-history-heading">Recent visits</p>
+              {ctx.recentVisits.map((v) => (
+                <p key={v.id} className="vw-history-item">
+                  {v.dateLabel} · {v.summary}
+                </p>
+              ))}
+            </>
+          ) : null}
+          {ctx.recentRecommendations?.length ? (
+            <>
+              <p className="vw-history-heading">Recent recommendations</p>
+              {ctx.recentRecommendations.map((r) => (
+                <p key={r.id} className="vw-history-item">
+                  {r.dateLabel} · {r.title} ({r.status})
+                </p>
+              ))}
+            </>
+          ) : null}
+          {ctx.recentApplications?.length ? (
+            <>
+              <p className="vw-history-heading">Recent applications</p>
+              {ctx.recentApplications.map((a) => (
+                <p key={a.id} className="vw-history-item">
+                  {a.dateLabel} · {a.label}
+                </p>
+              ))}
+            </>
+          ) : null}
+        </Panel>
+      ) : null}
 
       {!assessmentsComplete ? (
         <p className="vw-hint">

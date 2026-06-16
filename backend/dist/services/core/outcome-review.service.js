@@ -218,6 +218,13 @@ export const outcomeReviewService = {
         if (input.outcome === 'better' || input.outcome === 'partial') {
             await learningLoopService.onLearningSampleReady(recommendationId).catch(() => { });
         }
+        const recFieldFindingId = rec.field_finding_id;
+        if (recFieldFindingId) {
+            const { visitCaseClosureService } = await import('./visit-case-closure.service.js');
+            void visitCaseClosureService
+                .emitTrainingEventForRecommendation(recommendationId, agentEmail)
+                .catch(() => { });
+        }
         return row;
     },
 };

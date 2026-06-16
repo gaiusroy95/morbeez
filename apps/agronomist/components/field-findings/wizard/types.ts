@@ -1,4 +1,4 @@
-import type { IssueCategory } from '@morbeez/shared';
+import type { IssueCategory, VisitPhotoValidationIssue } from '@morbeez/shared';
 import type { IssueDraft } from '../IssueCard';
 import { pickDefaultIssueCategory } from './visitIssueTypes';
 
@@ -8,6 +8,8 @@ export type VisitPhotoDraft = {
   mimeType: string;
   dataBase64: string;
   photoType: string;
+  validationIssues?: VisitPhotoValidationIssue[];
+  retakeRecommended?: boolean;
 };
 
 export { getDefaultSelectedPhotoTypes, getVisitPhotoTypeLabel, getVisitPhotoTypesForCrop } from './visitPhotoTypes';

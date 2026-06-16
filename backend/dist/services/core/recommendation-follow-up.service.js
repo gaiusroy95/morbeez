@@ -14,6 +14,7 @@ import { escalationService } from '../ai/escalation.service.js';
 import { improvementLevelToOutcomeReply, } from '../../domain/ai-training/outcome-kpi.js';
 import { outcomeKpiInterpretationService } from './outcome-kpi-interpretation.service.js';
 import { outcomeHumanRoutingService } from './outcome-human-routing.service.js';
+import { visitAdvisoryEscalationService } from './visit-advisory-escalation.service.js';
 const APPLICATION_CHECK_DAYS = () => Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1);
 const OUTCOME_CHECK_DAYS = () => Number(process.env.REC_FOLLOWUP_OUTCOME_DAYS ?? 5);
 const MAX_APPLICATION_REMINDERS = () => Number(process.env.REC_FOLLOWUP_MAX_REMINDERS ?? 3);
@@ -491,11 +492,12 @@ export const recommendationFollowUpService = {
             updated_at: new Date().toISOString(),
         })
             .eq('id', recommendationRecordId);
-        await createTelecallerTask({
+        await visitAdvisoryEscalationService.escalate({
             farmerId,
-            title: 'Outcome follow-up — no WhatsApp response',
+            reason: 'outcome_no_whatsapp_response',
+            recommendationRecordId,
+            issueLabel: rec.issue_detected,
             notes: `No KPI reply after outcome message. Rec ${recommendationRecordId.slice(0, 8)}`,
-            priority: 'normal',
         });
     },
     async handleApplicationReply(farmerId, recommendationRecordId, reply) {
@@ -756,11 +758,13 @@ export const recommendationFollowUpService = {
     },
     async escalateNoApplicationConfirmation(farmerId, recommendationRecordId, rec) {
         const row = rec ?? (await this.loadRecord(recommendationRecordId));
-        await createTelecallerTask({
+        await visitAdvisoryEscalationService.escalate({
             farmerId,
-            title: 'Recommendation Follow-Up Required',
-            notes: `No application confirmation after reminders. Rec ${recommendationRecordId.slice(0, 8)}${row?.issue_detected ? ` | ${row.issue_detected}` : ''}`,
-            priority: 'high',
+            reason: 'recommendation_not_applied',
+            recommendationRecordId,
+            fieldFindingId: row?.field_finding_id ? String(row.field_finding_id) : null,
+            issueLabel: row?.issue_detected,
+            notes: `No application confirmation after reminders. Rec ${recommendationRecordId.slice(0, 8)}`,
         });
     },
     async escalateNoImprovement(farmerId, recommendationRecordId, rec) {
@@ -782,10 +786,13 @@ export const recommendationFollowUpService = {
         }
     },
     async escalateWorsened(farmerId, rec) {
-        await createTelecallerTask({
+        await visitAdvisoryEscalationService.escalate({
             farmerId,
-            title: 'Urgent — crop condition worsened',
-            notes: `Recommendation ${rec.id.slice(0, 8)} | ${rec.issue_detected ?? ''}`,
+            reason: 'outcome_worse',
+            recommendationRecordId: rec.id,
+            fieldFindingId: rec.field_finding_id ? String(rec.field_finding_id) : null,
+            issueLabel: rec.issue_detected,
+            notes: `Recommendation ${rec.id.slice(0, 8)}`,
             priority: 'urgent',
         });
         const sessionId = await resolveEscalationSessionId(rec);

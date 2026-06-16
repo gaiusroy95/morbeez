@@ -140,6 +140,25 @@ const visitIssueRecommendationSchema = z.object({
   status: fieldRecStatusSchema.optional(),
 });
 
+const recommendationGroupMaterialSchema = z.object({
+  issueIndex: z.number().int().min(0).max(11).optional(),
+  issueId: z.string().uuid().optional(),
+  category: z.string().min(1).max(80),
+  technicalName: z.string().min(1).max(200),
+  dose: z.string().max(200).optional(),
+  method: z.string().max(500).optional(),
+  relatedIssueIndex: z.number().int().min(0).max(11).optional(),
+  relatedIssueId: z.string().uuid().optional(),
+  sortOrder: z.number().int().min(0).max(100).optional(),
+});
+
+export const recommendationGroupSchema = z.object({
+  applicationType: z.string().min(1).max(100),
+  applicationDay: z.number().int().min(0).max(365).optional(),
+  sortOrder: z.number().int().min(0).max(100).optional(),
+  materials: z.array(recommendationGroupMaterialSchema).min(1).max(30),
+});
+
 export const visitIssueInputSchema = z.object({
   category: issueCategorySchema,
   issueMasterId: z.string().uuid().optional(),
@@ -187,6 +206,7 @@ export const structuredFieldVisitSchema = z.object({
   visitPhotos: z.array(visitPhotoSchema).max(12).optional(),
   issues: z.array(visitIssueInputSchema).min(1).max(12),
   followUps: z.array(visitFollowUpInputSchema).max(20).optional(),
+  recommendationGroups: z.array(recommendationGroupSchema).max(20).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   sendVisitSummary: z.boolean().optional(),

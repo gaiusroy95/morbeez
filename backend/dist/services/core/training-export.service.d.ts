@@ -72,5 +72,43 @@ export declare const trainingExportService: {
         filename: string;
         body: string;
     }>;
+    exportVisitCaseBundle(fieldFindingId: string): Promise<{
+        exportedAt: string;
+        fieldFindingId: string;
+        finding: any;
+        blockAssessment: {
+            blockHealth: any;
+            cropPerformance: any;
+            soilMoisture: any;
+        };
+        issues: any[];
+        measurements: any[];
+        visitPhotos: any[];
+        aiCases: any[];
+        recommendations: any[];
+        trainingEvents: any[];
+        learningSamples: any[];
+        followUps: Record<string, unknown>[];
+        callbacks: Record<string, unknown>[];
+        workflowArtifacts: {
+            overview: {
+                visitedAt: any;
+                dapAtVisit: any;
+                stageAtVisit: any;
+                agronomistName: any;
+            };
+            photos: any[];
+            measurements: any[];
+            issues: any[];
+            aiAnalysis: any[];
+            followUpQa: unknown[];
+            recommendations: unknown[];
+            outcomes: any[];
+            learning: {
+                events: any[];
+                samples: any[];
+            };
+        };
+    }>;
 };
 //# sourceMappingURL=training-export.service.d.ts.map

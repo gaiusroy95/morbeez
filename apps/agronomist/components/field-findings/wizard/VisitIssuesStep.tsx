@@ -19,6 +19,11 @@ type Props = {
   blockDap?: number | null;
   onChange: (issues: IssueDraft[]) => void;
   onSuggestQuestions: (issue: IssueDraft) => Promise<string[]>;
+  onCreateIssueType?: (input: {
+    category: IssueCategory;
+    issueName: string;
+    cropType: string;
+  }) => Promise<IssueMasterRow | null>;
 };
 
 export function VisitIssuesStep({
@@ -28,6 +33,7 @@ export function VisitIssuesStep({
   blockDap,
   onChange,
   onSuggestQuestions,
+  onCreateIssueType,
 }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<IssueDraft | null>(null);
@@ -93,6 +99,7 @@ export function VisitIssuesStep({
           setEditing(null);
         }}
         onSuggestQuestions={onSuggestQuestions}
+        onCreateIssueType={onCreateIssueType}
       />
     </View>
   );

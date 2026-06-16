@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens } from '@morbeez/shared';
+import { agronomistClient, tokens, type VisitAiClient } from '@morbeez/shared';
 import { AlertBox, Panel } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
@@ -9,9 +9,11 @@ const ANSWER_CHIPS = ['yes', 'no', 'unknown'] as const;
 type Props = {
   issues: IssueDraft[];
   onChange: (issues: IssueDraft[]) => void;
+  visitAiClient?: VisitAiClient;
 };
 
-export function VisitFollowUpStep({ issues, onChange }: Props) {
+export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
+  const client = visitAiClient ?? agronomistClient;
   const [loading, setLoading] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [skipping, setSkipping] = useState(false);
@@ -30,7 +32,7 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
         if (!issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
-        const questions = await agronomistClient.getVisitAiQuestions(issue.aiCaseId);
+        const questions = await client.getVisitAiQuestions(issue.aiCaseId);
         next[i] = { ...issue, followUpQuestions: questions };
       }
       onChange(next);
@@ -60,7 +62,7 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
     setSkipping(true);
     setError('');
     try {
-      await agronomistClient.skipVisitAiFollowUp(issue.aiCaseId);
+      await client.skipVisitAiFollowUp(issue.aiCaseId);
       const next = [...issues];
       next[issueIndex] = {
         ...issue,
@@ -87,16 +89,16 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
           .filter((q) => q.answer?.trim())
           .map((q) => ({ questionId: q.id, answer: q.answer!.trim() }));
         if (!answers.length) continue;
-        await agronomistClient.saveVisitAiAnswers(issue.aiCaseId, answers);
-        const result = await agronomistClient.reanalyzeVisitAiCase(issue.aiCaseId);
+        await client.saveVisitAiAnswers(issue.aiCaseId, answers);
+        const result = await client.reanalyzeVisitAiCase(issue.aiCaseId);
         next[i] = {
           ...issue,
           finalDiagnosis: result.finalDiagnosis,
           selectedHypothesisLabel: result.finalDiagnosis,
           confidenceAction: result.confidenceAction,
-          hypotheses: result.hypotheses.map((h) => ({
+          hypotheses: (result.hypotheses ?? []).map((h) => ({
             label: h.label,
-            confidence: h.confidence,
+            confidence: h.confidence ?? 0.5,
             rationale: h.rationale,
             selected: h.label === result.finalDiagnosis,
           })),

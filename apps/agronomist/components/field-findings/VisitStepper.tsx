@@ -1,39 +1,22 @@
 import { StyleSheet, Text, View } from 'react-native';
+import { VISIT_WIZARD_STEPS, type VisitWizardStep } from '@morbeez/shared';
 import { tokens } from '@morbeez/shared';
 
-export type VisitWizardStep =
-  | 'overview'
-  | 'photos'
-  | 'measurements'
-  | 'issues'
-  | 'aiAnalysis'
-  | 'followUp'
-  | 'recommendation'
-  | 'review'
-  | 'summary';
-
-export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'photos', label: 'Photos' },
-  { id: 'measurements', label: 'Measures' },
-  { id: 'issues', label: 'Issues' },
-  { id: 'aiAnalysis', label: 'AI' },
-  { id: 'followUp', label: 'Q&A' },
-  { id: 'recommendation', label: 'Rec' },
-  { id: 'review', label: 'Review' },
-  { id: 'summary', label: 'Summary' },
-];
+export type { VisitWizardStep };
+export { VISIT_WIZARD_STEPS };
 
 type Props = {
   current: VisitWizardStep;
+  hiddenSteps?: VisitWizardStep[];
 };
 
-export function VisitStepper({ current }: Props) {
-  const currentIndex = VISIT_WIZARD_STEPS.findIndex((s) => s.id === current);
+export function VisitStepper({ current, hiddenSteps = [] }: Props) {
+  const steps = VISIT_WIZARD_STEPS.filter((s) => !hiddenSteps.includes(s.id));
+  const currentIndex = steps.findIndex((s) => s.id === current);
 
   return (
     <View style={styles.root}>
-      {VISIT_WIZARD_STEPS.map((step, index) => {
+      {steps.map((step, index) => {
         const done = index < currentIndex;
         const active = index === currentIndex;
         return (
@@ -42,9 +25,7 @@ export function VisitStepper({ current }: Props) {
               <View style={[styles.dot, done && styles.dotDone, active && styles.dotActive]}>
                 <Text style={[styles.dotText, (done || active) && styles.dotTextActive]}>{index + 1}</Text>
               </View>
-              {index < VISIT_WIZARD_STEPS.length - 1 ? (
-                <View style={[styles.line, done && styles.lineDone]} />
-              ) : null}
+              {index < steps.length - 1 ? <View style={[styles.line, done && styles.lineDone]} /> : null}
             </View>
             <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
               {step.label}
@@ -81,12 +62,7 @@ const styles = StyleSheet.create({
   dotDone: { borderColor: tokens.green700, backgroundColor: tokens.green700 },
   dotText: { fontSize: 10, fontWeight: '700', color: tokens.textMuted },
   dotTextActive: { color: '#fff' },
-  line: {
-    flex: 1,
-    height: 2,
-    backgroundColor: tokens.border,
-    marginHorizontal: 1,
-  },
+  line: { flex: 1, height: 2, backgroundColor: tokens.border, marginHorizontal: 1 },
   lineDone: { backgroundColor: tokens.green500 },
   label: { fontSize: 9, color: tokens.textMuted, marginTop: 4, textAlign: 'center' },
   labelActive: { color: tokens.green800, fontWeight: '700' },

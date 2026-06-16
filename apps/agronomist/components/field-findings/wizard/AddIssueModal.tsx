@@ -15,6 +15,11 @@ type Props = {
   onRemove?: () => void;
   onClose: () => void;
   onSuggestQuestions: (issue: IssueDraft) => Promise<string[]>;
+  onCreateIssueType?: (input: {
+    category: import('@morbeez/shared').IssueCategory;
+    issueName: string;
+    cropType: string;
+  }) => Promise<IssueMasterRow | null>;
 };
 
 export function AddIssueModal({
@@ -27,6 +32,7 @@ export function AddIssueModal({
   onRemove,
   onClose,
   onSuggestQuestions,
+  onCreateIssueType,
 }: Props) {
   const [draft, setDraft] = useState<IssueDraft | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
@@ -76,6 +82,7 @@ export function AddIssueModal({
             onChange={setDraft}
             onRemove={onRemove ?? (() => {})}
             onSuggestQuestions={() => onSuggestQuestions(active)}
+            onCreateIssueType={onCreateIssueType}
           />
 
           <Btn
