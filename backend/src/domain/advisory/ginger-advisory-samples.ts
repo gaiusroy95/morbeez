@@ -5,7 +5,9 @@
 
 import type { SoilLabMetrics } from '../../services/soil/soil-lab-metrics.js';
 
-export const GINGER_ADVISORY_SAMPLE_FARMER_ID = 'e0000000-0000-4000-8000-000000000001';
+/** Farmer phone for advisory QA samples (last 10 digits: 6282873542). */
+export const GINGER_ADVISORY_SAMPLE_PHONE = '+916282873542';
+export const GINGER_ADVISORY_SAMPLE_PHONE_DIGITS = '6282873542';
 
 export const GINGER_ADVISORY_SAMPLE_BLOCKS = {
   rhizomeRot: 'e0000000-0000-4000-8000-000000000011',
