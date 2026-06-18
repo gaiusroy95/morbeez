@@ -2,13 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agronomistClient,
+  getNextWizardStep,
+  getPrevWizardStep,
+  getVisibleWizardSteps,
   mergeVisitPhotosIntoIssues,
   validateVisitWizardStep,
-  VISIT_WIZARD_STEPS,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueMasterRow,
   type MeasurementTemplate,
+  type MonitoringPlanPreviewItem,
   type PortalSoilReport,
   type RecommendationGroupDraft,
   type SoilMoistureLevel,
@@ -24,14 +27,18 @@ import {
 } from '../../components/agronomist/visit-wizard/VisitPhotosStep';
 import { VisitMeasurementsStep } from '../../components/agronomist/visit-wizard/VisitMeasurementsStep';
 import { VisitSoilWeatherStep } from '../../components/agronomist/visit-wizard/VisitSoilWeatherStep';
-import { VisitIssuesStep } from '../../components/agronomist/visit-wizard/VisitIssuesStep';
+import { VisitAgronomistReviewStep } from '../../components/agronomist/visit-wizard/VisitAgronomistReviewStep';
+import { VisitAdditionalPhotosStep } from '../../components/agronomist/visit-wizard/VisitAdditionalPhotosStep';
+import { VisitApplicationScheduleStep } from '../../components/agronomist/visit-wizard/VisitApplicationScheduleStep';
+import { VisitMonitoringPlanStep } from '../../components/agronomist/visit-wizard/VisitMonitoringPlanStep';
+import { VisitWhatsappPreviewStep } from '../../components/agronomist/visit-wizard/VisitWhatsappPreviewStep';
+import { VisitCaseClosureStep } from '../../components/agronomist/visit-wizard/VisitCaseClosureStep';
 import { VisitAiAnalysisStep } from '../../components/agronomist/visit-wizard/VisitAiAnalysisStep';
 import { VisitFollowUpStep } from '../../components/agronomist/visit-wizard/VisitFollowUpStep';
 import { VisitFinalDiagnosisStep } from '../../components/agronomist/visit-wizard/VisitFinalDiagnosisStep';
 import { VisitRecommendationStep } from '../../components/agronomist/visit-wizard/VisitRecommendationStep';
 import { VisitRecPlanningStep } from '../../components/agronomist/visit-wizard/VisitRecPlanningStep';
 import { VisitRecApprovalStep } from '../../components/agronomist/visit-wizard/VisitRecApprovalStep';
-import { VisitReviewStep } from '../../components/agronomist/visit-wizard/VisitReviewStep';
 import { VisitSummaryStep } from '../../components/agronomist/visit-wizard/VisitSummaryStep';
 import type { FollowUpDraft, VisitIssueDraft, VisitPhotoDraft } from '../../components/agronomist/visit-wizard/types';
 import { useAuth } from '../../context/AuthContext';
@@ -62,6 +69,8 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [farmContext, setFarmContext] = useState<VisitFarmContext | null>(null);
   const [recommendationGroups, setRecommendationGroups] = useState<RecommendationGroupDraft[]>([]);
   const [recApproved, setRecApproved] = useState(false);
+  const [monitoringPlan, setMonitoringPlan] = useState<MonitoringPlanPreviewItem[]>([]);
+  const [whatsappConfirmed, setWhatsappConfirmed] = useState(false);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<VisitIssueDraft[]>([]);
@@ -186,7 +195,11 @@ export function VisitWizardPage({ canWrite }: Props) {
       templates,
       measurements,
       issues,
+      visitPhotos,
       recommendationGroups,
+      monitoringPlan,
+      whatsappConfirmed,
+      recApproved,
       blockHealth,
       cropPerformance,
       soilMoisture,
@@ -194,9 +207,6 @@ export function VisitWizardPage({ canWrite }: Props) {
   }
 
   function validateStep(current: VisitWizardStep): string | null {
-    if (current === 'recApproval' && !recApproved) {
-      return 'Approve recommendations on the Rec OK step before continuing.';
-    }
     return validateVisitWizardStep(current, validationContext());
   }
 
@@ -214,16 +224,14 @@ export function VisitWizardPage({ canWrite }: Props) {
       return;
     }
     setError('');
-    const idx = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
-    if (idx < VISIT_WIZARD_STEPS.length - 1) {
-      setStep(VISIT_WIZARD_STEPS[idx + 1]!.id);
-    }
+    const next = getNextWizardStep(step, validationContext());
+    if (next) setStep(next);
   }
 
   function goBack() {
     setError('');
-    const idx = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
-    if (idx > 0) setStep(VISIT_WIZARD_STEPS[idx - 1]!.id);
+    const prev = getPrevWizardStep(step, validationContext());
+    if (prev) setStep(prev);
   }
 
   async function captureGps() {
@@ -264,7 +272,7 @@ export function VisitWizardPage({ canWrite }: Props) {
       setStep('overview');
       return;
     }
-    const msg = validateStep('issues');
+    const msg = validateStep('agronomistReview');
     if (msg) {
       setError(msg);
       return;
@@ -315,11 +323,7 @@ export function VisitWizardPage({ canWrite }: Props) {
         visitPhotos: visitPhotoPayload.length ? visitPhotoPayload : undefined,
         issues: issuePayload.map((issue) => ({
           ...issue,
-          agronomistReview: issue.agronomistReview ?? {
-            action: 'approve_ai',
-            finalDiagnosis: issue.finalDiagnosis,
-            finalRecommendation: issue.finalRecommendation,
-          },
+          agronomistReview: issue.agronomistReview!,
         })),
         recommendationGroups: recommendationGroups.length
           ? recommendationGroups.map((g) => ({
@@ -378,7 +382,7 @@ export function VisitWizardPage({ canWrite }: Props) {
 
   if (loading) return <Loading label="Starting visit session…" />;
 
-  const stepIndex = VISIT_WIZARD_STEPS.findIndex((s) => s.id === step);
+  const stepIndex = getVisibleWizardSteps().indexOf(step);
 
   return (
     <div className="vw-page">
@@ -431,15 +435,6 @@ export function VisitWizardPage({ canWrite }: Props) {
         <VisitSoilWeatherStep farmerId={farmerId} blockId={blockId} />
       ) : null}
 
-      {step === 'issues' ? (
-        <VisitIssuesStep
-          issues={issues}
-          issueMaster={issueMaster}
-          cropType={cropType}
-          onChange={setIssues}
-        />
-      ) : null}
-
       {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
         <VisitAiAnalysisStep
           farmerId={farmerId}
@@ -458,7 +453,20 @@ export function VisitWizardPage({ canWrite }: Props) {
         />
       ) : null}
 
+      {step === 'agronomistReview' ? (
+        <VisitAgronomistReviewStep
+          issues={issues}
+          issueMaster={issueMaster}
+          cropType={cropType}
+          onChange={setIssues}
+        />
+      ) : null}
+
       {step === 'followUp' ? <VisitFollowUpStep issues={issues} onChange={setIssues} /> : null}
+
+      {step === 'additionalPhotos' ? (
+        <VisitAdditionalPhotosStep issues={issues} onChange={setIssues} />
+      ) : null}
 
       {step === 'finalDiagnosis' ? <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} /> : null}
 
@@ -473,6 +481,10 @@ export function VisitWizardPage({ canWrite }: Props) {
         </>
       ) : null}
 
+      {step === 'applicationSchedule' ? (
+        <VisitApplicationScheduleStep groups={recommendationGroups} onChange={setRecommendationGroups} />
+      ) : null}
+
       {step === 'recApproval' ? (
         <VisitRecApprovalStep
           groups={recommendationGroups}
@@ -481,7 +493,23 @@ export function VisitWizardPage({ canWrite }: Props) {
         />
       ) : null}
 
-      {step === 'review' ? <VisitReviewStep issues={issues} onChange={setIssues} /> : null}
+      {step === 'monitoringPlan' ? (
+        <VisitMonitoringPlanStep
+          issues={issues}
+          recommendationGroups={recommendationGroups}
+          monitoringPlan={monitoringPlan}
+          onChange={setMonitoringPlan}
+        />
+      ) : null}
+
+      {step === 'whatsappPreview' ? (
+        <VisitWhatsappPreviewStep
+          farmerId={farmerId}
+          issues={issues}
+          confirmed={whatsappConfirmed}
+          onConfirmedChange={setWhatsappConfirmed}
+        />
+      ) : null}
 
       {step === 'summary' ? (
         <VisitSummaryStep
@@ -502,6 +530,10 @@ export function VisitWizardPage({ canWrite }: Props) {
         />
       ) : null}
 
+      {step === 'caseClosure' ? (
+        <VisitCaseClosureStep issues={issues} recommendationGroups={recommendationGroups} />
+      ) : null}
+
       <footer className="vw-footer">
         {stepIndex > 0 ? (
           <div className="vw-footer-btn">
@@ -511,7 +543,7 @@ export function VisitWizardPage({ canWrite }: Props) {
           </div>
         ) : null}
         <div className="vw-footer-btn">
-          {step === 'summary' ? (
+          {step === 'caseClosure' ? (
             <Btn variant="primary" className="w-full" onClick={() => void submit()} disabled={saving || !canWrite}>
               {saving ? 'Submitting…' : 'Submit visit'}
             </Btn>

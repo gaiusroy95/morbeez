@@ -3,8 +3,11 @@ import {
   agronomistClient,
   applyHypothesisSelection,
   applyManualDiagnosis,
+  ensureIssuesForAiStep,
   isManualDiagnosis,
+  isProvisionalIssueName,
   manualDiagnosisDisplayValue,
+  seedIssueFromAnalysis,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type MeasurementTemplate,
@@ -91,7 +94,7 @@ export function VisitAiAnalysisStep({
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!issues.length || issues.every((i) => i.aiCaseId)) return;
+    if (issues.length && issues.every((i) => i.aiCaseId)) return;
     void runAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -108,37 +111,45 @@ export function VisitAiAnalysisStep({
         }))
         .filter((m) => m.value);
 
-      const next = [...issues];
-      for (let i = 0; i < next.length; i++) {
-        const issue = next[i]!;
-        if (issue.aiCaseId) continue;
-        const analyzePhotos = collectAnalyzePhotos(issue, visitPhotos);
-        const result = await agronomistClient.analyzeVisitIssue({
-          farmerId,
-          blockId,
-          sessionId: sessionId ?? undefined,
-          issueCategory: issue.category,
-          issueName: issue.issueName,
-          observation: [issue.observation, fieldVoiceNote?.trim()].filter(Boolean).join(' '),
-          blockAssessment,
-          measurements: measurementRows,
-          latitude: gpsLat ?? undefined,
-          longitude: gpsLon ?? undefined,
-          analyzePhotos: analyzePhotos.length ? analyzePhotos : undefined,
-        });
-        next[i] = {
-          ...issue,
-          aiCaseId: result.aiCaseId,
-          hypotheses: result.hypotheses,
-          selectedHypothesisLabel: result.hypotheses.find((h) => h.selected)?.label ?? result.hypotheses[0]?.label,
-          finalDiagnosis: result.hypotheses.find((h) => h.selected)?.label ?? result.hypotheses[0]?.label,
-          similarCases: result.similarCases,
-          confidenceAction: result.confidenceAction,
-          skipFollowUpOptional: result.skipFollowUpOptional,
-          imageSignal: result.imageSignal ?? undefined,
-        };
-      }
-      onChange(next);
+      const analyzePhotos = visitPhotos
+        .filter((p) => p.dataBase64?.length > 100)
+        .slice(0, 12)
+        .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
+
+      const detected = await agronomistClient.analyzeVisit({
+        farmerId,
+        blockId,
+        sessionId: sessionId ?? undefined,
+        fieldVoiceNote,
+        blockAssessment,
+        measurements: measurementRows,
+        latitude: gpsLat ?? undefined,
+        longitude: gpsLon ?? undefined,
+        analyzePhotos: analyzePhotos.length ? analyzePhotos : undefined,
+      });
+
+      onChange(
+        detected.map((row, idx) => ({
+          localId: row.localId ?? `ai-${idx}`,
+          category: row.category,
+          issueName: row.issueName,
+          severity: row.severity ?? row.aiSeverity ?? 'medium',
+          observation: row.observation ?? '',
+          aiCaseId: row.aiCaseId,
+          hypotheses: row.hypotheses,
+          selectedHypothesisLabel: row.selectedHypothesisLabel,
+          finalDiagnosis: row.finalDiagnosis,
+          finalRecommendation: row.finalRecommendation,
+          confidenceAction: row.confidenceAction,
+          skipFollowUpOptional: row.skipFollowUpOptional,
+          imageSignal: row.imageSignal,
+          similarCases: row.similarCases,
+          rootCause: row.rootCause,
+          evidence: row.evidence,
+          initialRecommendation: row.initialRecommendation,
+          aiConfidence: row.aiConfidence,
+        })) as VisitIssueDraft[]
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'AI analysis failed');
     } finally {
@@ -172,11 +183,17 @@ export function VisitAiAnalysisStep({
 
   return (
     <div className="vw-stack">
+      <p className="vw-hint">
+        AI analyzes photos and field data first. On the next step you can correct the detected issue or add a manual entry.
+      </p>
       {error ? <Alert tone="error">{error}</Alert> : null}
       {issues.map((issue, issueIndex) => {
         const banner = confidenceBanner(issue.confidenceAction);
+        const panelTitle = isProvisionalIssueName(issue.issueName)
+          ? issue.finalDiagnosis || `Issue ${issueIndex + 1}`
+          : issue.issueName || `Issue ${issueIndex + 1}`;
         return (
-          <Panel key={issue.localId} title={issue.issueName || `Issue ${issueIndex + 1}`}>
+          <Panel key={issue.localId} title={panelTitle}>
             {banner ? (
               <div className={`vw-banner vw-banner--${banner.tone === 'ok' ? 'ok' : banner.tone === 'warn' ? 'warn' : 'danger'}`}>
                 {banner.text}

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { tokens, type VisitPhotoValidationIssue } from '@morbeez/shared';
+import { tokens, isFieldLevelPhotoType, isSymptomPhotoType, photoRequirementHint, type VisitPhotoValidationIssue } from '@morbeez/shared';
 import { agronomistClient } from '@morbeez/shared';
 import { DynamicSelect, Panel } from '@morbeez/ui-native';
 import type { VisitPhotoDraft } from './types';
@@ -37,16 +37,30 @@ const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
   blur: 'Blurry',
   dark: 'Too dark',
   low_resolution: 'Low resolution',
+  coverage: 'Poor coverage',
 };
 
 async function pickImages(
   source: 'camera' | 'library',
   selectedTypes: string[],
   availableTypes: string[],
-  existingCount: number
+  existingPhotos: VisitPhotoDraft[]
 ): Promise<VisitPhotoDraft[]> {
-  const photoType = selectedTypes[0] ?? availableTypes[0] ?? 'other';
-  const remaining = Math.max(1, 12 - existingCount);
+  const hasField = existingPhotos.some((p) => isFieldLevelPhotoType(p.photoType));
+  const hasSymptom = existingPhotos.some((p) => isSymptomPhotoType(p.photoType));
+  let photoType = selectedTypes[0] ?? availableTypes[0] ?? 'whole_field';
+  if (!hasField) {
+    photoType =
+      selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
+      availableTypes.find((t) => isFieldLevelPhotoType(t)) ??
+      'whole_field';
+  } else if (!hasSymptom) {
+    photoType =
+      selectedTypes.find((t) => isSymptomPhotoType(t)) ??
+      availableTypes.find((t) => isSymptomPhotoType(t)) ??
+      'leaf';
+  }
+  const remaining = Math.max(1, 12 - existingPhotos.length);
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
     quality: 0.7,
@@ -97,7 +111,33 @@ export function VisitPhotosStep({
     }
     return merged;
   }, [basePhotoTypes, customPhotoTypes]);
+  function resolveNextCapturePhotoType(): string {
+    const hasField = photos.some((p) => isFieldLevelPhotoType(p.photoType));
+    const hasSymptom = photos.some((p) => isSymptomPhotoType(p.photoType));
+    if (!hasField) {
+      return (
+        selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
+        photoTypes.find((t) => isFieldLevelPhotoType(t.value))?.value ??
+        'whole_field'
+      );
+    }
+    if (!hasSymptom) {
+      return (
+        selectedTypes.find((t) => isSymptomPhotoType(t)) ??
+        photoTypes.find((t) => isSymptomPhotoType(t.value))?.value ??
+        'leaf'
+      );
+    }
+    return selectedTypes[0] ?? photoTypes[0]?.value ?? 'whole_field';
+  }
+
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
+  const nextCaptureType = resolveNextCapturePhotoType();
+  const requirementCopy = photoRequirementHint(photoTypes.map((t) => t.value));
+
+  function updatePhotoType(index: number, photoType: string) {
+    onPhotosChange(photos.map((p, i) => (i === index ? { ...p, photoType } : p)));
+  }
 
   function setActiveCaptureType(type: string) {
     const rest = selectedTypes.filter((t) => t !== type);
@@ -130,7 +170,7 @@ export function VisitPhotosStep({
       source,
       selectedTypes,
       photoTypes.map((t) => t.value),
-      photos.length
+      photos
     );
     if (!picked.length) return;
     const validated: VisitPhotoDraft[] = [];
@@ -168,6 +208,10 @@ export function VisitPhotosStep({
 
       <Panel title={`Photo types · ${cropLabel}`}>
         <Text style={styles.hint}>{formatCropPhotoGuidance(cropType)}</Text>
+        <Text style={styles.requirement}>{requirementCopy}</Text>
+        <Text style={styles.captureActive}>
+          Next capture tags as: {getVisitPhotoTypeLabel(cropType, nextCaptureType)}
+        </Text>
         <View style={styles.typeRow}>
           {photoTypes.map((t) => {
             const active = selectedTypes.includes(t.value);
@@ -213,8 +257,16 @@ export function VisitPhotosStep({
                 >
                   <Text style={styles.removeText}>×</Text>
                 </Pressable>
+                <DynamicSelect
+                  label=""
+                  placeholder="Retag"
+                  value={p.photoType}
+                  options={photoTypes.map((t) => ({ key: t.value, value: t.value, label: t.label }))}
+                  onChange={(value) => updatePhotoType(i, value)}
+                />
                 <Text style={styles.thumbMeta} numberOfLines={1}>
                   {getVisitPhotoTypeLabel(cropType, p.photoType)}
+                  {isFieldLevelPhotoType(p.photoType) ? ' · field' : isSymptomPhotoType(p.photoType) ? ' · symptom' : ''}
                 </Text>
                 {p.retakeRecommended && p.validationIssues?.length ? (
                   <Text style={styles.retakeBanner}>
@@ -259,6 +311,8 @@ const styles = StyleSheet.create({
   },
   captureLabel: { fontSize: 15, fontWeight: '600', color: tokens.green800 },
   hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10, lineHeight: 18 },
+  requirement: { fontSize: 12, color: tokens.green800, marginBottom: 6, lineHeight: 16 },
+  captureActive: { fontSize: 12, fontWeight: '600', color: tokens.text, marginBottom: 10 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: {
     paddingVertical: 8,
@@ -274,8 +328,8 @@ const styles = StyleSheet.create({
   typeChipText: { fontSize: 12, color: tokens.textMuted },
   typeChipTextActive: { color: tokens.green800, fontWeight: '600' },
   gallery: { gap: 10, paddingVertical: 4 },
-  thumbWrap: { width: 88, alignItems: 'center' },
-  thumb: { width: 80, height: 80, borderRadius: 8 },
+  thumbWrap: { width: 120, alignItems: 'center' },
+  thumb: { width: 112, height: 80, borderRadius: 8 },
   removeBtn: {
     position: 'absolute',
     top: 0,

@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { agronomistClient, type VisitPhotoValidationIssue } from '@morbeez/shared';
+import { agronomistClient, isFieldLevelPhotoType, isSymptomPhotoType, photoRequirementHint, type VisitPhotoValidationIssue } from '@morbeez/shared';
 import { readFileAsBase64 } from '../../../lib/readFileAsBase64';
 import { Panel } from '../../ui';
 import type { VisitPhotoDraft } from './types';
@@ -29,6 +29,7 @@ const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
   blur: 'Blurry',
   dark: 'Too dark',
   low_resolution: 'Low resolution',
+  coverage: 'Poor coverage',
 };
 
 function toRawBase64(dataUrl: string): string {
@@ -71,7 +72,20 @@ export function VisitPhotosStep({
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
-    const photoType = selectedTypes[0] ?? photoTypes[0]?.value ?? 'other';
+    const hasField = photos.some((p) => isFieldLevelPhotoType(p.photoType));
+    const hasSymptom = photos.some((p) => isSymptomPhotoType(p.photoType));
+    let photoType = selectedTypes[0] ?? photoTypes[0]?.value ?? 'whole_field';
+    if (!hasField) {
+      photoType =
+        selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
+        photoTypes.find((t) => isFieldLevelPhotoType(t.value))?.value ??
+        'whole_field';
+    } else if (!hasSymptom) {
+      photoType =
+        selectedTypes.find((t) => isSymptomPhotoType(t)) ??
+        photoTypes.find((t) => isSymptomPhotoType(t.value))?.value ??
+        'leaf';
+    }
     const remaining = Math.max(1, 12 - photos.length);
     const toAdd: VisitPhotoDraft[] = [];
 

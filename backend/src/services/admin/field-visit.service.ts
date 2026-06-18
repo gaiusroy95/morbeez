@@ -455,7 +455,7 @@ export const fieldVisitService = {
           .eq('id', row.id);
 
         if (savedRecommendationGroups.length) {
-          await monitoringPlanService.createForRecommendation(String(row.id), {
+          const monItem = await monitoringPlanService.createForRecommendation(String(row.id), {
             severity: issue.severity,
             materials: groupProducts.map((product) => ({
               category: typeof product.category === 'string' ? product.category : null,
@@ -463,6 +463,18 @@ export const fieldVisitService = {
                 typeof product.technicalName === 'string' ? product.technicalName : null,
             })),
           });
+          if (!partnerId && visitIssueId) {
+            void monitoringPlanService
+              .scheduleProgressionJob({
+                farmerId: input.farmerId,
+                fieldFindingId: findingId,
+                visitIssueId,
+                severity: issue.severity,
+                sessionId: input.sessionId ?? null,
+                intervalDays: monItem.intervalDays,
+              })
+              .catch(() => {});
+          }
         }
 
         if (issue.aiCaseId) {
@@ -571,6 +583,17 @@ export const fieldVisitService = {
         notes: `[${fu.followed}] ${fu.notes ?? ''}`.trim(),
         issueResolved: fu.outcome === 'improved',
       }, agentEmail);
+    }
+
+    if (!partnerId) {
+      const { visitCaseClosureService } = await import('../core/visit-case-closure.service.js');
+      void visitCaseClosureService
+        .closeCase({
+          fieldFindingId: findingId,
+          closedBy: agentEmail,
+          learningConsent: true,
+        })
+        .catch(() => {});
     }
 
     return {

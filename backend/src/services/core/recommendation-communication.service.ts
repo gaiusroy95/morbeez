@@ -248,4 +248,36 @@ export const recommendationCommunicationService = {
     const result = await whatsappService.sendText(phone, text.slice(0, 4000));
     return { sent: true, messageId: typeof result === 'object' && result && 'id' in result ? String((result as { id?: string }).id) : undefined };
   },
+
+  previewVisitMessages(input: {
+    farmerId: string;
+    issues: Array<{
+      issueName: string;
+      finalDiagnosis?: string;
+      finalRecommendation?: string;
+      initialRecommendation?: { text: string; dose?: string; method?: string };
+    }>;
+  }) {
+    return input.issues.map((issue) => {
+      const diagnosis = issue.finalDiagnosis ?? issue.issueName;
+      const recText = issue.finalRecommendation ?? issue.initialRecommendation?.text ?? 'Recommendation pending';
+      const message = buildApprovedRecommendationMessage({
+        id: 'preview',
+        farmer_id: input.farmerId,
+        issue_detected: diagnosis,
+        recommendation_text: recText,
+        dosage: issue.initialRecommendation?.dose ?? null,
+        application_type: issue.initialRecommendation?.method ?? null,
+        weather_warning: null,
+        language: 'en',
+        status: 'approved',
+        farmers: { phone: null, name: null, preferred_language: 'en' },
+      });
+      return {
+        issueLabel: diagnosis,
+        message,
+        compliancePrompt: `Have you completed ${diagnosis} treatment? Reply Yes or No.`,
+      };
+    });
+  },
 };

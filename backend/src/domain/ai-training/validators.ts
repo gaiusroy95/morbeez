@@ -307,5 +307,50 @@ export const visitAiRejectBodySchema = z
 
 export type StructuredFieldVisitInput = z.infer<typeof structuredFieldVisitSchema>;
 export type VisitAnalyzeRequest = z.infer<typeof visitAnalyzeRequestSchema>;
+
+export const visitAnalyzeVisitRequestSchema = visitAiContextRequestSchema.extend({
+  fieldVoiceNote: z.string().max(4000).optional(),
+  analyzePhotos: z
+    .array(
+      z.object({
+        dataBase64: z.string().min(100).max(12_000_000),
+        mimeType: z.string().max(100).optional(),
+        photoType: z.string().max(80).optional(),
+      })
+    )
+    .max(12)
+    .optional(),
+});
+
+export type VisitAnalyzeVisitRequest = z.infer<typeof visitAnalyzeVisitRequestSchema>;
+
+export const visitMonitoringPreviewSchema = z.object({
+  issues: z.array(
+    z.object({
+      localId: z.string(),
+      issueName: z.string(),
+      severity: z.enum(RECORD_SEVERITIES),
+    })
+  ),
+  recommendationGroups: z.array(recommendationGroupSchema).optional(),
+});
+
+export const visitWhatsappPreviewSchema = z.object({
+  farmerId: z.string().uuid(),
+  issues: z.array(
+    z.object({
+      issueName: z.string(),
+      finalDiagnosis: z.string().optional(),
+      finalRecommendation: z.string().optional(),
+      initialRecommendation: z
+        .object({
+          text: z.string(),
+          dose: z.string().optional(),
+          method: z.string().optional(),
+        })
+        .optional(),
+    })
+  ),
+});
 export type VisitAiAnswersBody = z.infer<typeof visitAiAnswersBodySchema>;
 export type VisitAiRejectBody = z.infer<typeof visitAiRejectBodySchema>;

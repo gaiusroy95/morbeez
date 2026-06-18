@@ -169,6 +169,9 @@ export function VisitIssuesStep({ issues, issueMaster, cropType, onChange }: Pro
 
   return (
     <div className="vw-stack">
+      <p className="vw-hint">
+        Review AI-detected issues. Edit names or observations if the diagnosis was wrong, or add a manual entry.
+      </p>
       <Btn variant="primary" onClick={openAdd}>
         + Add issue
       </Btn>
@@ -180,13 +183,18 @@ export function VisitIssuesStep({ issues, issueMaster, cropType, onChange }: Pro
             <span className={['vw-severity', SEVERITY_COLORS[issue.severity]].join(' ')}>{issue.severity}</span>
           </div>
           <div className="vw-issue-title">{issue.issueName || 'Unnamed issue'}</div>
+          {issue.finalDiagnosis && issue.finalDiagnosis !== issue.issueName ? (
+            <div className="vw-hint" style={{ fontWeight: 600, color: '#166534' }}>
+              AI diagnosis: {issue.finalDiagnosis}
+            </div>
+          ) : null}
           {issue.observation ? <div className="vw-issue-obs">{issue.observation}</div> : null}
         </button>
       ))}
 
       {!issues.length ? (
         <p className="vw-hint" style={{ textAlign: 'center', padding: '16px 0' }}>
-          No issues added. Click “Add issue” to record field problems.
+          No issues yet. Go back to AI if analysis did not run, or add an issue manually.
         </p>
       ) : null}
 

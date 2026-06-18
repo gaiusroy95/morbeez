@@ -1,25 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   partnerClient,
+  getNextWizardStep,
+  getPrevWizardStep,
+  getVisibleWizardSteps,
   validateVisitWizardStep,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueCategory,
   type IssueMasterRow,
   type MeasurementTemplate,
+  type MonitoringPlanPreviewItem,
   type PortalSoilReport,
   type RecommendationGroupDraft,
   type SoilMoistureLevel,
   type VisitFarmContext,
+  type VisitWizardStep,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
 import { type FollowUpDraft } from '@agronomist/components/field-findings/FollowUpSection';
 import { type IssueDraft } from '@agronomist/components/field-findings/IssueCard';
-import { VisitStepper, VISIT_WIZARD_STEPS, type VisitWizardStep } from '@agronomist/components/field-findings/VisitStepper';
-import { VisitIssuesStep } from '@agronomist/components/field-findings/wizard/VisitIssuesStep';
+import { VisitStepper } from '@agronomist/components/field-findings/VisitStepper';
+import { VisitAgronomistReviewStep } from '@agronomist/components/field-findings/wizard/VisitAgronomistReviewStep';
+import { VisitAdditionalPhotosStep } from '@agronomist/components/field-findings/wizard/VisitAdditionalPhotosStep';
+import { VisitApplicationScheduleStep } from '@agronomist/components/field-findings/wizard/VisitApplicationScheduleStep';
+import { VisitMonitoringPlanStep } from '@agronomist/components/field-findings/wizard/VisitMonitoringPlanStep';
+import { VisitCaseClosureStep } from '@agronomist/components/field-findings/wizard/VisitCaseClosureStep';
 import { VisitMeasurementsStep } from '@agronomist/components/field-findings/wizard/VisitMeasurementsStep';
 import { VisitOverviewStep } from '@agronomist/components/field-findings/wizard/VisitOverviewStep';
 import { VisitPhotosStep } from '@agronomist/components/field-findings/wizard/VisitPhotosStep';
@@ -29,7 +38,6 @@ import { VisitRecommendationStep } from '@agronomist/components/field-findings/w
 import { VisitSoilWeatherStep } from '@agronomist/components/field-findings/wizard/VisitSoilWeatherStep';
 import { VisitFinalDiagnosisStep } from '@agronomist/components/field-findings/wizard/VisitFinalDiagnosisStep';
 import { VisitRecPlanningStep } from '@agronomist/components/field-findings/wizard/VisitRecPlanningStep';
-import { PartnerVisitReviewStep } from '@/components/visit/PartnerVisitReviewStep';
 import { VisitSummaryStep } from '@agronomist/components/field-findings/wizard/VisitSummaryStep';
 import { type VisitPhotoDraft, getDefaultSelectedPhotoTypes } from '@agronomist/components/field-findings/wizard/types';
 import { usePartnerAuth } from '@/context/PartnerAuth';
@@ -37,8 +45,24 @@ import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraf
 
 const PARTNER_HIDDEN_STEPS: VisitWizardStep[] = ['recApproval'];
 
-function partnerVisibleSteps() {
-  return VISIT_WIZARD_STEPS.filter((s) => !PARTNER_HIDDEN_STEPS.includes(s.id));
+function validationCtx(
+  state: {
+    templates: MeasurementTemplate[];
+    measurements: Record<string, string>;
+    issues: IssueDraft[];
+    visitPhotos: VisitPhotoDraft[];
+    recommendationGroups: RecommendationGroupDraft[];
+    monitoringPlan: MonitoringPlanPreviewItem[];
+    blockHealth: BlockHealthLevel | null;
+    cropPerformance: CropPerformanceLevel | null;
+    soilMoisture: SoilMoistureLevel | null;
+  }
+) {
+  return {
+    ...state,
+    whatsappConfirmed: true,
+    partnerMode: true,
+  };
 }
 
 function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhotoDraft[]) {
@@ -82,6 +106,7 @@ export default function VisitScreen() {
   const [latestSoilTest, setLatestSoilTest] = useState<PortalSoilReport | null>(null);
   const [farmContext, setFarmContext] = useState<VisitFarmContext | null>(null);
   const [recommendationGroups, setRecommendationGroups] = useState<RecommendationGroupDraft[]>([]);
+  const [monitoringPlan, setMonitoringPlan] = useState<MonitoringPlanPreviewItem[]>([]);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<IssueDraft[]>([]);
@@ -209,16 +234,20 @@ export default function VisitScreen() {
   }
 
   function validateStep(current: VisitWizardStep): string | null {
-    return validateVisitWizardStep(current, {
-      templates,
-      measurements,
-      issues,
-      recommendationGroups,
-      blockHealth,
-      cropPerformance,
-      soilMoisture,
-      partnerMode: true,
-    });
+    return validateVisitWizardStep(
+      current,
+      validationCtx({
+        templates,
+        measurements,
+        issues,
+        visitPhotos,
+        recommendationGroups,
+        monitoringPlan,
+        blockHealth,
+        cropPerformance,
+        soilMoisture,
+      })
+    );
   }
 
   async function createIssueType(input: {
@@ -249,18 +278,40 @@ export default function VisitScreen() {
       return;
     }
     setError('');
-    const steps = partnerVisibleSteps();
-    const idx = steps.findIndex((s) => s.id === step);
-    if (idx < steps.length - 1) {
-      setStep(steps[idx + 1]!.id);
-    }
+    const next = getNextWizardStep(
+      step,
+      validationCtx({
+        templates,
+        measurements,
+        issues,
+        visitPhotos,
+        recommendationGroups,
+        monitoringPlan,
+        blockHealth,
+        cropPerformance,
+        soilMoisture,
+      })
+    );
+    if (next) setStep(next);
   }
 
   function goBack() {
     setError('');
-    const steps = partnerVisibleSteps();
-    const idx = steps.findIndex((s) => s.id === step);
-    if (idx > 0) setStep(steps[idx - 1]!.id);
+    const prev = getPrevWizardStep(
+      step,
+      validationCtx({
+        templates,
+        measurements,
+        issues,
+        visitPhotos,
+        recommendationGroups,
+        monitoringPlan,
+        blockHealth,
+        cropPerformance,
+        soilMoisture,
+      })
+    );
+    if (prev) setStep(prev);
   }
 
   async function captureGps() {
@@ -296,7 +347,7 @@ export default function VisitScreen() {
       setStep('overview');
       return;
     }
-    const msg = validateStep('issues');
+    const msg = validateStep('agronomistReview');
     if (msg) {
       setError(msg);
       return;
@@ -347,11 +398,7 @@ export default function VisitScreen() {
         visitPhotos: visitPhotoPayload.length ? visitPhotoPayload : undefined,
         issues: issuePayload.map((issue) => ({
           ...issue,
-          agronomistReview: issue.agronomistReview ?? {
-            action: 'approve_ai',
-            finalDiagnosis: issue.finalDiagnosis,
-            finalRecommendation: issue.finalRecommendation,
-          },
+          agronomistReview: issue.agronomistReview,
         })),
         recommendationGroups: recommendationGroups.length
           ? recommendationGroups.map((g) => ({
@@ -409,12 +456,11 @@ export default function VisitScreen() {
 
   if (loading) return <Loading label="Starting visit session…" />;
 
-  const steps = partnerVisibleSteps();
-  const stepIndex = steps.findIndex((s) => s.id === step);
+  const stepIndex = getVisibleWizardSteps(true).indexOf(step);
 
   return (
     <View style={styles.root}>
-      <VisitStepper current={step} hiddenSteps={PARTNER_HIDDEN_STEPS} />
+      <VisitStepper current={step} hiddenSteps={PARTNER_HIDDEN_STEPS} partnerMode />
       <KeyboardAwareScrollScreen contentContainerStyle={[styles.content, { paddingBottom: footerPad }]}>
         {error ? <AlertBox>{error}</AlertBox> : null}
 
@@ -468,18 +514,6 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'issues' ? (
-          <VisitIssuesStep
-            issues={issues}
-            issueMaster={issueMaster}
-            cropType={cropType}
-            blockDap={blockDap}
-            onChange={setIssues}
-            onSuggestQuestions={() => Promise.resolve([])}
-            onCreateIssueType={createIssueType}
-          />
-        ) : null}
-
         {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
           <PartnerVisitAiAnalysisStep
             farmerId={farmerId}
@@ -498,8 +532,24 @@ export default function VisitScreen() {
           />
         ) : null}
 
+        {step === 'agronomistReview' ? (
+          <VisitAgronomistReviewStep
+            issues={issues}
+            issueMaster={issueMaster}
+            cropType={cropType}
+            blockDap={blockDap}
+            onChange={setIssues}
+            onSuggestQuestions={() => Promise.resolve([])}
+            onCreateIssueType={createIssueType}
+          />
+        ) : null}
+
         {step === 'followUp' ? (
           <VisitFollowUpStep issues={issues} onChange={setIssues} visitAiClient={partnerClient} />
+        ) : null}
+
+        {step === 'additionalPhotos' ? (
+          <VisitAdditionalPhotosStep issues={issues} onChange={setIssues} />
         ) : null}
 
         {step === 'finalDiagnosis' ? (
@@ -517,8 +567,21 @@ export default function VisitScreen() {
           </>
         ) : null}
 
-        {step === 'review' ? (
-          <PartnerVisitReviewStep issues={issues} onChange={setIssues} />
+        {step === 'applicationSchedule' ? (
+          <VisitApplicationScheduleStep groups={recommendationGroups} onChange={setRecommendationGroups} />
+        ) : null}
+
+        {step === 'monitoringPlan' ? (
+          <VisitMonitoringPlanStep
+            issues={issues}
+            recommendationGroups={recommendationGroups}
+            monitoringPlan={monitoringPlan}
+            onChange={setMonitoringPlan}
+          />
+        ) : null}
+
+        {step === 'whatsappPreview' ? (
+          <Text style={{ fontSize: 13, color: '#666' }}>WhatsApp messages are sent after expert review.</Text>
         ) : null}
 
         {step === 'summary' ? (
@@ -539,6 +602,10 @@ export default function VisitScreen() {
             onCaptureGps={() => void captureGps()}
           />
         ) : null}
+
+        {step === 'caseClosure' ? (
+          <VisitCaseClosureStep issues={issues} recommendationGroups={recommendationGroups} />
+        ) : null}
       </KeyboardAwareScrollScreen>
 
       <StickyScreenFooter>
@@ -549,7 +616,7 @@ export default function VisitScreen() {
             </View>
           ) : null}
           <View style={styles.footerBtn}>
-            {step === 'summary' ? (
+            {step === 'caseClosure' ? (
               <Btn label={saving ? 'Submitting…' : 'Submit visit'} onPress={() => void submit()} disabled={saving} />
             ) : (
               <Btn label="Continue" onPress={goNext} />

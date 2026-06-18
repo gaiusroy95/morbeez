@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { agronomistClient } from '@morbeez/shared';
+import { agronomistClient, derivePhotoRequestsFromFollowUp, shouldRunFollowUp } from '@morbeez/shared';
 import { Alert, Loading, Panel } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
@@ -28,7 +28,7 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
       const next = [...issues];
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
-        if (!issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
+        if (!shouldRunFollowUp(issue) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
         const questions = await agronomistClient.getVisitAiQuestions(issue.aiCaseId);
         next[i] = { ...issue, followUpQuestions: questions };
       }
@@ -93,6 +93,7 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
           finalDiagnosis: result.finalDiagnosis,
           selectedHypothesisLabel: result.finalDiagnosis,
           confidenceAction: result.confidenceAction,
+          photoRequests: derivePhotoRequestsFromFollowUp(issue.followUpQuestions ?? []),
           hypotheses: result.hypotheses.map((h) => ({
             label: h.label,
             confidence: h.confidence,

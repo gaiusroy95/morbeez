@@ -632,6 +632,21 @@ export const recommendationFollowUpService = {
       issueLabel: rec.issue_detected,
       notes: `No KPI reply after outcome message. Rec ${recommendationRecordId.slice(0, 8)}`,
     });
+
+    const sessionId = await resolveEscalationSessionId(rec);
+    await visitAdvisoryEscalationService.scheduleEscalationJob({
+      farmerId,
+      reason: 'outcome_no_whatsapp_response',
+      sessionId,
+      scheduledAt: addDays(1),
+      payload: {
+        recommendationRecordId,
+        fieldFindingId: rec.field_finding_id ?? null,
+        visitIssueId: rec.visit_issue_id ?? null,
+        issueLabel: rec.issue_detected,
+        notes: 'Scheduled callback after outcome no-response',
+      },
+    }).catch(() => {});
   },
 
   async handleApplicationReply(
@@ -977,6 +992,20 @@ export const recommendationFollowUpService = {
     });
 
     const sessionId = await resolveEscalationSessionId(rec);
+    await visitAdvisoryEscalationService.scheduleEscalationJob({
+      farmerId,
+      reason: 'recommendation_not_applied',
+      sessionId,
+      scheduledAt: addDays(2),
+      payload: {
+        recommendationRecordId,
+        fieldFindingId: rec.field_finding_id ?? null,
+        visitIssueId: rec.visit_issue_id ?? null,
+        issueLabel: rec.issue_detected,
+        notes: 'Scheduled callback after no improvement',
+      },
+    }).catch(() => {});
+
     if (sessionId) {
       await escalationService.ensureOpenEscalation({
         sessionId,
@@ -1000,6 +1029,20 @@ export const recommendationFollowUpService = {
     });
 
     const sessionId = await resolveEscalationSessionId(rec);
+    await visitAdvisoryEscalationService.scheduleEscalationJob({
+      farmerId,
+      reason: 'outcome_worse',
+      sessionId,
+      scheduledAt: addDays(1),
+      payload: {
+        recommendationRecordId: rec.id,
+        fieldFindingId: rec.field_finding_id ?? null,
+        visitIssueId: rec.visit_issue_id ?? null,
+        issueLabel: rec.issue_detected,
+        notes: 'Scheduled callback after worsened outcome',
+      },
+    }).catch(() => {});
+
     if (sessionId) {
       await escalationService.ensureOpenEscalation({
         sessionId,

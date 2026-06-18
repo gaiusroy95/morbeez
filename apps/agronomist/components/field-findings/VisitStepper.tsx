@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { VISIT_WIZARD_STEPS, type VisitWizardStep } from '@morbeez/shared';
+import { VISIT_WIZARD_STEPS, getVisibleWizardSteps, type VisitWizardStep } from '@morbeez/shared';
 import { tokens } from '@morbeez/shared';
 
 export type { VisitWizardStep };
@@ -8,15 +8,18 @@ export { VISIT_WIZARD_STEPS };
 type Props = {
   current: VisitWizardStep;
   hiddenSteps?: VisitWizardStep[];
+  partnerMode?: boolean;
 };
 
-export function VisitStepper({ current, hiddenSteps = [] }: Props) {
-  const steps = VISIT_WIZARD_STEPS.filter((s) => !hiddenSteps.includes(s.id));
-  const currentIndex = steps.findIndex((s) => s.id === current);
+export function VisitStepper({ current, hiddenSteps = [], partnerMode }: Props) {
+  const steps = getVisibleWizardSteps(partnerMode).filter((id) => !hiddenSteps.includes(id));
+  const labels = VISIT_WIZARD_STEPS;
+  const currentIndex = steps.indexOf(current);
 
   return (
     <View style={styles.root}>
-      {steps.map((step, index) => {
+      {steps.map((stepId, index) => {
+        const step = labels.find((s) => s.id === stepId)!;
         const done = index < currentIndex;
         const active = index === currentIndex;
         return (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens, type VisitAiClient } from '@morbeez/shared';
+import { agronomistClient, derivePhotoRequestsFromFollowUp, shouldRunFollowUp, tokens, type VisitAiClient } from '@morbeez/shared';
 import { AlertBox, Panel } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
@@ -31,7 +31,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
       const next = [...issues];
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
-        if (!issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
+        if (!shouldRunFollowUp(issue) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
         const questions = await client.getVisitAiQuestions(issue.aiCaseId);
         next[i] = { ...issue, followUpQuestions: questions };
       }
@@ -96,6 +96,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
           finalDiagnosis: result.finalDiagnosis,
           selectedHypothesisLabel: result.finalDiagnosis,
           confidenceAction: result.confidenceAction,
+          photoRequests: derivePhotoRequestsFromFollowUp(issue.followUpQuestions ?? []),
           hypotheses: (result.hypotheses ?? []).map((h) => ({
             label: h.label,
             confidence: h.confidence ?? 0.5,

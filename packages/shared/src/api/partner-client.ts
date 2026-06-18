@@ -312,6 +312,14 @@ export const partnerClient = {
     });
   },
 
+  async analyzeVisit(body: Record<string, unknown>) {
+    const r = await partnerApi<{ ok: boolean; issues: Array<Record<string, unknown>> }>(
+      '/visits/analyze-visit',
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.issues ?? [];
+  },
+
   async skipVisitAiFollowUp(aiCaseId: string) {
     return partnerApi<{ ok: boolean; skipped: boolean }>(
       `/visits/ai-case/${encodeURIComponent(aiCaseId)}/skip-qa`,

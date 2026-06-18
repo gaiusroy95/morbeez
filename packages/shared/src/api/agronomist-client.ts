@@ -477,6 +477,51 @@ export const agronomistClient = {
     };
   },
 
+  async analyzeVisit(body: {
+    farmerId: string;
+    blockId: string;
+    sessionId?: string;
+    blockAssessment?: StructuredFieldVisitPayload['blockAssessment'];
+    measurements?: StructuredFieldVisitPayload['measurements'];
+    latitude?: number;
+    longitude?: number;
+    fieldVoiceNote?: string;
+    analyzePhotos?: Array<{ dataBase64: string; mimeType?: string; photoType?: string }>;
+  }) {
+    const r = await staffApi<{
+      ok: boolean;
+      issues: Array<import('../visit-wizard/index.js').VisitIssueDraft>;
+    }>(`${FIELD}/visits/analyze-visit`, { method: 'POST', body: JSON.stringify(body) });
+    return r.issues ?? [];
+  },
+
+  async previewMonitoringPlan(body: {
+    issues: Array<{ localId: string; issueName: string; severity: import('../types/field-findings.js').RecordSeverity }>;
+    recommendationGroups?: import('../visit-wizard/index.js').RecommendationGroupDraft[];
+  }) {
+    const r = await staffApi<{
+      ok: boolean;
+      items: import('../visit-wizard/index.js').MonitoringPlanPreviewItem[];
+    }>(`${FIELD}/visits/monitoring-plan/preview`, { method: 'POST', body: JSON.stringify(body) });
+    return r.items ?? [];
+  },
+
+  async previewWhatsappMessages(body: {
+    farmerId: string;
+    issues: Array<{
+      issueName: string;
+      finalDiagnosis?: string;
+      finalRecommendation?: string;
+      initialRecommendation?: { text: string; dose?: string; method?: string };
+    }>;
+  }) {
+    const r = await staffApi<{
+      ok: boolean;
+      messages: import('../visit-wizard/index.js').WhatsappPreviewMessage[];
+    }>(`${FIELD}/visits/whatsapp-preview`, { method: 'POST', body: JSON.stringify(body) });
+    return r.messages ?? [];
+  },
+
   async skipVisitAiFollowUp(aiCaseId: string) {
     return staffApi<{ ok: boolean; skipped: boolean }>(
       `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/skip-qa`,

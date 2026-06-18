@@ -63,6 +63,9 @@ export function VisitIssuesStep({
 
   return (
     <View style={styles.root}>
+      <Text style={styles.intro}>
+        Review AI-detected issues. Edit names or observations if the diagnosis was wrong, or add a manual entry.
+      </Text>
       <Btn label="+ Add issue" onPress={openAdd} />
 
       {issues.map((issue) => (
@@ -74,6 +77,9 @@ export function VisitIssuesStep({
             </View>
           </View>
           <Text style={styles.cardTitle}>{issue.issueName || 'Unnamed issue'}</Text>
+          {issue.finalDiagnosis && issue.finalDiagnosis !== issue.issueName ? (
+            <Text style={styles.aiDx}>AI diagnosis: {issue.finalDiagnosis}</Text>
+          ) : null}
           {issue.observation ? (
             <Text style={styles.cardObs} numberOfLines={2}>
               {issue.observation}
@@ -83,7 +89,7 @@ export function VisitIssuesStep({
       ))}
 
       {!issues.length ? (
-        <Text style={styles.empty}>No issues added. Tap “Add issue” to record field problems.</Text>
+        <Text style={styles.empty}>No issues yet. Go back to AI if analysis did not run, or add an issue manually.</Text>
       ) : null}
 
       <AddIssueModal
@@ -119,6 +125,8 @@ const styles = StyleSheet.create({
   severityBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999 },
   severityText: { fontSize: 11, fontWeight: '700', color: '#fff', textTransform: 'capitalize' },
   cardTitle: { fontSize: 16, fontWeight: '700', color: tokens.text },
+  aiDx: { fontSize: 12, color: tokens.green800, marginTop: 4, fontWeight: '600' },
   cardObs: { fontSize: 13, color: tokens.textMuted, marginTop: 4, lineHeight: 18 },
   empty: { fontSize: 14, color: tokens.textMuted, textAlign: 'center', paddingVertical: 16 },
+  intro: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
 });

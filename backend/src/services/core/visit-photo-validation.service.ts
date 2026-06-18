@@ -1,6 +1,6 @@
 import { assessImageBuffer } from '../whatsapp/pipeline/image-quality.service.js';
 
-export type VisitPhotoValidationIssue = 'blur' | 'dark' | 'low_resolution';
+export type VisitPhotoValidationIssue = 'blur' | 'dark' | 'low_resolution' | 'coverage';
 
 export type VisitPhotoValidationResult = {
   ok: boolean;
@@ -52,6 +52,10 @@ export function validateVisitPhotoBuffer(buffer: Buffer, mimeType?: string): Vis
 
   if (estimateBrightness(buffer) < 45) {
     issues.push('dark');
+  }
+
+  if (buffer.length < 8000 && !/symptom|leaf|pest|disease|close/i.test(mimeType ?? '')) {
+    issues.push('coverage');
   }
 
   const retakeRecommended = issues.length > 0;

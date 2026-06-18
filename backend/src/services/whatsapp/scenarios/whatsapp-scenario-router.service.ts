@@ -435,6 +435,22 @@ export const whatsappScenarioRouter = {
       }
     }
 
+    // Visit AI evidence replies (photos/text after reject need_more_evidence)
+    if (text || CROP_MEDIA.has(msg.msgType)) {
+      const { visitEvidenceInboundService } = await import(
+        '../../core/visit-evidence-inbound.service.js'
+      );
+      const evidenceResult = await visitEvidenceInboundService.tryHandleFarmerMessage({
+        farmerId: captured.farmerId,
+        msgType: msg.msgType,
+        text,
+      });
+      if (evidenceResult.handled && evidenceResult.ack) {
+        await send.text(msg.phone, evidenceResult.ack);
+        return { handled: true };
+      }
+    }
+
     // Recommendation follow-up buttons (application + Day-5 outcome)
     if (text?.startsWith('rec.')) {
       const recId = await recommendationFollowUpService.resolvePendingRecommendationId(

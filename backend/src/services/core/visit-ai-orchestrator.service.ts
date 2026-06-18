@@ -7,6 +7,7 @@ import type { ReviewAction } from '../../domain/ai-training/enums.js';
 import type {
   VisitAiRejectBody,
   VisitAnalyzeRequest,
+  VisitAnalyzeVisitRequest,
   VisitAiAnswersBody,
 } from '../../domain/ai-training/validators.js';
 import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
@@ -198,6 +199,144 @@ Return JSON {"hypotheses":[{"label":"...","confidence":0.0-1.0,"rationale":"..."
   }
 
   return [primary, ...fromSimilar].slice(0, 4);
+}
+
+type DetectedVisitIssue = {
+  category: string;
+  issueName: string;
+  confidence: number;
+  severity: 'low' | 'medium' | 'high';
+  observation?: string;
+  rootCause: {
+    symptoms: string[];
+    photoSignals: string[];
+    soilSignals: string[];
+    weatherSignals: string[];
+    conclusion: string;
+  };
+  evidence: {
+    photoSummary: string;
+    measurementSummary: string;
+    soilSummary: string;
+    weatherSummary: string;
+    historySummary: string;
+  };
+};
+
+function inferIssueCategory(label: string): string {
+  const hay = label.toLowerCase();
+  if (/deficien|nitrogen|phosphorus|potassium|zinc|magnesium|boron|iron/.test(hay)) return 'nutrient_deficiency';
+  if (/pest|borer|thrips|nematode|insect|aphid/.test(hay)) return 'pest';
+  if (/blight|rot|spot|wilt|mildew|rust|disease|bacterial|fungal/.test(hay)) return 'disease';
+  if (/water|drought|moisture|logging/.test(hay)) return 'water_stress';
+  if (/weed/.test(hay)) return 'weed';
+  return 'other';
+}
+
+function inferSeverity(confidence: number, measurements: Array<{ key: string; value: string }>): 'low' | 'medium' | 'high' {
+  const incidence = measurements.find((m) => /incidence/i.test(m.key));
+  const severity = measurements.find((m) => /severity|damage/i.test(m.key));
+  const val = parseFloat(severity?.value ?? incidence?.value ?? '');
+  if (Number.isFinite(val)) {
+    if (val >= 60) return 'high';
+    if (val >= 30) return 'medium';
+    return 'low';
+  }
+  if (confidence < 0.55) return 'high';
+  if (confidence < 0.75) return 'medium';
+  return 'low';
+}
+
+function buildEvidencePack(
+  context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>,
+  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>
+) {
+  const soilMetrics = context.soilTestSummary?.metrics as Record<string, unknown> | undefined;
+  const soilKeys = soilMetrics ? Object.keys(soilMetrics).slice(0, 4) : [];
+  const soilSummary = soilKeys.length
+    ? soilKeys.map((k) => `${k}: ${String(soilMetrics![k])}`).join('; ')
+    : 'Soil report on file';
+  const weather = context.weatherSnapshot as Record<string, unknown> | null;
+  return {
+    photoSummary: imageSignal ? `Image signal: ${imageSignal.label}` : 'Field photos captured',
+    measurementSummary: context.measurements.map((m) => `${m.key}: ${m.value}`).join(', ') || 'No measurements',
+    soilSummary,
+    weatherSummary: weather
+      ? `Temp ${weather.temperature ?? '?'}°C, humidity ${weather.humidity ?? '?'}%`
+      : 'Weather snapshot loaded',
+    historySummary: 'Prior visits and recommendations loaded',
+  };
+}
+
+async function detectVisitIssues(params: {
+  context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>;
+  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
+  fieldVoiceNote?: string;
+}): Promise<DetectedVisitIssue[]> {
+  const evidence = buildEvidencePack(params.context, params.imageSignal);
+  const fallback: DetectedVisitIssue = {
+    category: inferIssueCategory(params.imageSignal?.label ?? 'Field observation'),
+    issueName: params.imageSignal?.label ?? 'Field observation',
+    confidence: params.imageSignal?.confidence ?? 0.65,
+    severity: inferSeverity(params.imageSignal?.confidence ?? 0.65, params.context.measurements),
+    observation: params.fieldVoiceNote,
+    rootCause: {
+      symptoms: params.fieldVoiceNote ? [params.fieldVoiceNote] : ['Field signs observed'],
+      photoSignals: params.imageSignal ? [params.imageSignal.label] : [],
+      soilSignals: evidence.soilSummary.split(';').filter(Boolean),
+      weatherSignals: [evidence.weatherSummary],
+      conclusion: params.imageSignal?.label ?? 'Further review recommended',
+    },
+    evidence,
+  };
+
+  if (!env.OPENAI_API_KEY) return [fallback];
+
+  try {
+    const prompt = `Crop: ${params.context.cropType}, DAP: ${params.context.dap ?? '?'}, Stage: ${params.context.stage ?? '?'}
+Measurements: ${JSON.stringify(params.context.measurements)}
+Soil: ${evidence.soilSummary}
+Weather: ${evidence.weatherSummary}
+Image: ${params.imageSignal?.label ?? 'none'}
+Voice note: ${params.fieldVoiceNote ?? 'none'}
+
+Return JSON {"issues":[{"issueName":"...","confidence":0.0-1.0,"severity":"low|medium|high","symptoms":["..."],"photoSignals":["..."],"soilSignals":["..."],"weatherSignals":["..."],"conclusion":"...","observation":"..."}]}
+List 1-5 ranked field issues. confidence 0-1.`;
+
+    const result = await openaiJsonCompletion<{ issues: Array<Record<string, unknown>> }>(
+      'Detect multiple crop issues from field visit data.',
+      prompt,
+      1200
+    );
+    const rows = Array.isArray(result.issues) ? result.issues : [];
+    if (!rows.length) return [fallback];
+    const mapped: DetectedVisitIssue[] = [];
+    for (const row of rows) {
+      const issueName = String(row.issueName ?? '').trim();
+      if (!issueName) continue;
+      const confidence = clampConfidence(Number(row.confidence) || 0.65);
+      mapped.push({
+        category: inferIssueCategory(issueName),
+        issueName,
+        confidence,
+        severity: (['low', 'medium', 'high'].includes(String(row.severity))
+          ? String(row.severity)
+          : inferSeverity(confidence, params.context.measurements)) as 'low' | 'medium' | 'high',
+        observation: row.observation ? String(row.observation) : params.fieldVoiceNote,
+        rootCause: {
+          symptoms: Array.isArray(row.symptoms) ? row.symptoms.map(String) : [],
+          photoSignals: Array.isArray(row.photoSignals) ? row.photoSignals.map(String) : [],
+          soilSignals: Array.isArray(row.soilSignals) ? row.soilSignals.map(String) : [],
+          weatherSignals: Array.isArray(row.weatherSignals) ? row.weatherSignals.map(String) : [],
+          conclusion: String(row.conclusion ?? issueName),
+        },
+        evidence,
+      });
+    }
+    return mapped.slice(0, 5);
+  } catch {
+    return [fallback];
+  }
 }
 
 async function getLatestRecommendation(aiCaseId: string) {
@@ -727,6 +866,64 @@ export const visitAiOrchestratorService = {
       reviewDate: reviewDate.toISOString(),
       expectedImprovementDays,
     };
+  },
+
+  async analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string) {
+    const context = await visitAiContextService.buildVisitAiContext(input);
+    const analyzePhotos = input.analyzePhotos?.map((p) => ({
+      dataBase64: p.dataBase64,
+      mimeType: p.mimeType,
+    }));
+    const imageSignal = await resolveVisitImagePredictions(analyzePhotos);
+    const detected = await detectVisitIssues({
+      context,
+      imageSignal,
+      fieldVoiceNote: input.fieldVoiceNote,
+    });
+
+    const issues = [];
+    for (const det of detected) {
+      const analyzed = await this.analyze(
+        {
+          ...input,
+          issueCategory: det.category as VisitAnalyzeRequest['issueCategory'],
+          issueName: det.issueName,
+          observation: det.observation,
+          analyzePhotos: analyzePhotos?.slice(0, 4),
+        },
+        agronomistEmail
+      );
+      const top = analyzed.hypotheses.find((h) => h.selected) ?? analyzed.hypotheses[0];
+      const rec = await this.recommend(analyzed.aiCaseId, top?.label ?? det.issueName);
+      issues.push({
+        localId: `ai-${analyzed.aiCaseId}`,
+        category: det.category,
+        issueName: det.issueName,
+        confidence: det.confidence,
+        aiConfidence: det.confidence,
+        severity: det.severity,
+        observation: det.observation ?? '',
+        aiCaseId: analyzed.aiCaseId,
+        hypotheses: analyzed.hypotheses,
+        selectedHypothesisLabel: top?.label,
+        finalDiagnosis: top?.label ?? det.issueName,
+        finalRecommendation: rec.text,
+        confidenceAction: analyzed.confidenceAction,
+        skipFollowUpOptional: analyzed.skipFollowUpOptional,
+        imageSignal: analyzed.imageSignal ?? undefined,
+        similarCases: analyzed.similarCases,
+        rootCause: det.rootCause,
+        evidence: det.evidence,
+        initialRecommendation: {
+          text: rec.text,
+          dose: rec.dosage ?? undefined,
+          method: rec.priority === 'critical' ? 'Spray (urgent)' : 'Spray',
+          category: det.category,
+        },
+      });
+    }
+
+    return { issues };
   },
 
   async similarCases(farmerId: string, cropType: string, issueName: string) {
