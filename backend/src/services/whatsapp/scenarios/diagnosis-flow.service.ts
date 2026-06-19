@@ -1,7 +1,9 @@
 import type { DosageItem, StructuredAdvisory } from '../../ai/types.js';
 import type { AdvisoryLanguage } from '../../ai/types.js';
+import { supabase } from '../../../lib/supabase.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { dosageCalculatorService } from './dosage-calculator.service.js';
+import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
 import { t } from './whatsapp-flow-copy.js';
 export const diagnosisFlowService = {
   async recordImageReceived(farmerId: string): Promise<{ imageCount: number; shouldRunDiagnosis: boolean }> {
@@ -86,8 +88,51 @@ export const diagnosisFlowService = {
           `\n  Packs: ${c.packLine}`
       );
     }
-    lines.push('\nReply *Buy* for shop link, *Technical* for names only, or *Callback*.');
     return lines.join('\n');
+  },
+
+  quantityActionButtons(language: AdvisoryLanguage): {
+    prompt: string;
+    options: Array<{ id: string; title: string }>;
+  } {
+    return {
+      prompt: t('quantitySelectPrompt', language),
+      options: [
+        { id: 'action.buy', title: 'Buy' },
+        { id: 'action.technical', title: 'Technical' },
+        { id: 'action.callback', title: 'Callback' },
+      ],
+    };
+  },
+
+  async formatBuyReply(farmerId: string, language: AdvisoryLanguage): Promise<string> {
+    const ctx = await conversationSessionService.getContext(farmerId);
+    const sessionId = ctx.diagnosis?.lastSessionId;
+    if (!sessionId) {
+      return diagnosisFlowService.productUnavailableReply(language);
+    }
+
+    const { data: recs } = await supabase
+      .from('ai_product_recommendations')
+      .select('product_title, shopify_product_handle, reason, priority')
+      .eq('session_id', sessionId)
+      .order('priority', { ascending: true });
+
+    if (!recs?.length) {
+      return diagnosisFlowService.productUnavailableReply(language);
+    }
+
+    const block = shopifyLinksService.formatRecommendationsForWhatsApp(
+      recs.map((r) => ({
+        productTitle: String(r.product_title),
+        shopifyProductHandle: r.shopify_product_handle ? String(r.shopify_product_handle) : undefined,
+        reason: String(r.reason ?? ''),
+        priority: Number(r.priority ?? 1),
+      })),
+      language
+    );
+
+    return block || diagnosisFlowService.productUnavailableReply(language);
   },
 
   technicalOnlyReply(advisory: StructuredAdvisory, language: AdvisoryLanguage): string {

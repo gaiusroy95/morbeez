@@ -1060,6 +1060,11 @@ export const whatsappScenarioRouter = {
       return { handled: true };
     }
 
+    if (/^buy$/i.test(text) || text === 'action.buy') {
+      await send.text(msg.phone, await diagnosisFlowService.formatBuyReply(captured.farmerId, lang));
+      return { handled: true };
+    }
+
     if (/^technical$/i.test(text) || text === 'action.technical') {
       const ctx = await conversationSessionService.getContext(captured.farmerId);
       if (ctx.diagnosis?.lastAdvisorySummary) {
@@ -1610,6 +1615,25 @@ export const whatsappScenarioRouter = {
       return true;
     }
 
+    if (text === 'action.buy') {
+      await send.text(msg.phone, await diagnosisFlowService.formatBuyReply(captured.farmerId, lang));
+      return true;
+    }
+
+    if (text === 'action.technical') {
+      const ctx = await conversationSessionService.getContext(captured.farmerId);
+      if (ctx.diagnosis?.dosageItems?.length) {
+        await send.text(
+          msg.phone,
+          diagnosisFlowService.technicalOnlyReply(
+            { dosageGuidance: ctx.diagnosis.dosageItems } as import('../../ai/types.js').StructuredAdvisory,
+            lang
+          )
+        );
+      }
+      return true;
+    }
+
     const liters = diagnosisFlowService.parseWaterLiters(text);
     if (liters == null) {
       if (text === 'water.custom') {
@@ -1626,6 +1650,16 @@ export const whatsappScenarioRouter = {
 
     const reply = await diagnosisFlowService.formatQuantityReply(captured.farmerId, lang, liters);
     await send.text(msg.phone, reply);
+    const actionButtons = diagnosisFlowService.quantityActionButtons(lang);
+    if (send.buttons) {
+      await send.buttons({
+        phone: msg.phone,
+        body: actionButtons.prompt,
+        buttons: actionButtons.options,
+      });
+    } else {
+      await send.text(msg.phone, actionButtons.prompt);
+    }
     await conversationSessionService.setState(captured.farmerId, 'main_menu');
     return true;
   },
