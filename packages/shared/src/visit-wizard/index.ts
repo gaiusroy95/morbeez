@@ -116,6 +116,9 @@ export {
   isFieldLevelPhotoType,
   isSymptomPhotoType,
   photoRequirementHint,
+  resolveCapturePhotoType,
+  suggestNextCapturePhotoType,
+  mapClassifierCategoryToVisitPhotoType,
 } from './photo-categories';
 
 
@@ -453,6 +456,10 @@ export type VisitPhotoDraft = {
   validationIssues?: VisitPhotoValidationIssue[];
 
   retakeRecommended?: boolean;
+
+  aiTagged?: boolean;
+
+  uri?: string;
 
 };
 

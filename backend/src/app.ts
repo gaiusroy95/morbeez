@@ -68,6 +68,7 @@ export async function buildApp() {
   const app = Fastify({
     logger: false,
     trustProxy: true,
+    bodyLimit: env.UPLOAD_BODY_LIMIT_BYTES,
   });
 
   await app.register(cors, { origin: buildCorsOrigin() });
@@ -100,6 +101,14 @@ export async function buildApp() {
         .map((e) => (e.path.length ? `${e.path.join('.')}: ${e.message}` : e.message))
         .join('; ');
       return reply.code(400).send({ ok: false, error: 'VALIDATION_ERROR', message });
+    }
+    const errCode = (error as { code?: string }).code;
+    if (errCode === 'FST_ERR_CTP_BODY_TOO_LARGE') {
+      return reply.code(413).send({
+        ok: false,
+        error: 'PAYLOAD_TOO_LARGE',
+        message: 'Request too large (usually too many photos). Use up to 4 photos or retake at lower resolution.',
+      });
     }
     logger.error({ err: error }, 'Unhandled error');
     return reply.code(500).send({ ok: false, error: 'INTERNAL_ERROR', message: 'Internal server error' });

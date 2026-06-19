@@ -10,6 +10,7 @@ export type ConversationState =
   | 'onboarding_minimal'
   | 'diagnosis'
   | 'diagnosis_intake'
+  | 'post_diagnosis_intake'
   | 'diagnosis_awaiting_photos'
   | 'diagnosis_water_volume'
   | 'root_photos_requested'

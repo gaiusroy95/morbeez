@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDate, tokens, type AgronomistRecommendationRow } from '@morbeez/shared';
 import { Btn, ListCard, Panel } from '@morbeez/ui-native';
+import { openRecommendationVisit } from '@/lib/open-recommendation-visit';
 
 type Props = {
   farmerId: string;
+  farmerName: string;
   leadId?: string | null;
   blockId?: string;
   findingId?: string;
@@ -15,6 +18,7 @@ type Props = {
 
 export function RecommendationSection({
   farmerId,
+  farmerName,
   leadId,
   blockId,
   findingId,
@@ -23,6 +27,7 @@ export function RecommendationSection({
   showAdd = true,
 }: Props) {
   const router = useRouter();
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const shown = compact ? recommendations.slice(0, 3) : recommendations;
 
   function openAdd() {
@@ -37,20 +42,14 @@ export function RecommendationSection({
     });
   }
 
-  function openItem(rec: AgronomistRecommendationRow) {
-    if (rec.fieldFindingId) {
-      router.push(`/visit/${rec.fieldFindingId}`);
-      return;
+  async function openItem(rec: AgronomistRecommendationRow) {
+    if (openingId) return;
+    setOpeningId(rec.id);
+    try {
+      await openRecommendationVisit(rec, { farmerId, farmerName, leadId, router });
+    } finally {
+      setOpeningId(null);
     }
-    router.push({
-      pathname: '/recommendation/add',
-      params: {
-        farmerId,
-        leadId: leadId ?? '',
-        blockId: rec.blockId ?? blockId ?? '',
-        recommendationId: rec.id,
-      },
-    });
   }
 
   return (
@@ -65,7 +64,7 @@ export function RecommendationSection({
               title={rec.issueDetected?.trim() || 'Recommendation'}
               subtitle={rec.recommendationText}
               meta={[rec.status.replace(/_/g, ' '), formatDate(rec.createdAt)].filter(Boolean).join(' · ')}
-              onPress={() => openItem(rec)}
+              onPress={() => void openItem(rec)}
             />
           ))}
         </View>
@@ -74,6 +73,7 @@ export function RecommendationSection({
         <Text style={styles.more}>{recommendations.length - shown.length} more in Recommendations tab</Text>
       ) : null}
       {showAdd ? <Btn label="Add recommendation" onPress={openAdd} variant="secondary" /> : null}
+      {openingId ? <Text style={styles.opening}>Opening visit…</Text> : null}
     </Panel>
   );
 }
@@ -82,4 +82,5 @@ const styles = StyleSheet.create({
   list: { gap: 8, marginBottom: 8 },
   muted: { fontSize: 14, color: tokens.textMuted, marginBottom: 12, lineHeight: 20 },
   more: { fontSize: 12, color: tokens.textMuted, marginBottom: 8 },
+  opening: { fontSize: 12, color: tokens.textMuted, textAlign: 'center', marginTop: 4 },
 });

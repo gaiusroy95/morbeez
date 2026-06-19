@@ -319,7 +319,7 @@ export const visitAnalyzeVisitRequestSchema = visitAiContextRequestSchema.extend
         photoType: z.string().max(80).optional(),
       })
     )
-    .max(12)
+    .max(4)
     .optional(),
 });
 

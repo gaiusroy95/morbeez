@@ -113,7 +113,7 @@ export function VisitAiAnalysisStep({
 
       const analyzePhotos = visitPhotos
         .filter((p) => p.dataBase64?.length > 100)
-        .slice(0, 12)
+        .slice(0, 4)
         .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
 
       const detected = await agronomistClient.analyzeVisit({

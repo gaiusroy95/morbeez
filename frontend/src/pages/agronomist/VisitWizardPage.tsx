@@ -6,6 +6,7 @@ import {
   getPrevWizardStep,
   getVisibleWizardSteps,
   mergeVisitPhotosIntoIssues,
+  suggestNextCapturePhotoType,
   validateVisitWizardStep,
   type BlockHealthLevel,
   type CropPerformanceLevel,
@@ -21,10 +22,8 @@ import {
 import { Alert, Btn, Loading } from '../../components/ui';
 import { VisitWizardStepper } from '../../components/agronomist/visit-wizard/VisitWizardStepper';
 import { VisitOverviewStep } from '../../components/agronomist/visit-wizard/VisitOverviewStep';
-import {
-  getDefaultSelectedPhotoTypes,
-  VisitPhotosStep,
-} from '../../components/agronomist/visit-wizard/VisitPhotosStep';
+import { VisitPhotosStep } from '../../components/agronomist/visit-wizard/VisitPhotosStep';
+import { getVisitPhotoTypesForCrop } from '../../components/agronomist/visit-wizard/visitPhotoTypes';
 import { VisitMeasurementsStep } from '../../components/agronomist/visit-wizard/VisitMeasurementsStep';
 import { VisitSoilWeatherStep } from '../../components/agronomist/visit-wizard/VisitSoilWeatherStep';
 import { VisitAgronomistReviewStep } from '../../components/agronomist/visit-wizard/VisitAgronomistReviewStep';
@@ -45,6 +44,10 @@ import { useAuth } from '../../context/AuthContext';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '../../lib/visitDraft';
 import { paths, toPath } from '../../lib/routes';
 import '../../styles/visit-wizard.css';
+
+function initialCapturePhotoType(crop: string): string {
+  return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
+}
 
 type Props = {
   canWrite: boolean;
@@ -76,7 +79,7 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [issues, setIssues] = useState<VisitIssueDraft[]>([]);
   const [visitPhotos, setVisitPhotos] = useState<VisitPhotoDraft[]>([]);
   const [fieldVoiceNote, setFieldVoiceNote] = useState('');
-  const [photoTypes, setPhotoTypes] = useState<string[]>(() => getDefaultSelectedPhotoTypes(cropType));
+  const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -180,8 +183,10 @@ export function VisitWizardPage({ canWrite }: Props) {
   }, [cropType, farmerId, blockId]);
 
   useEffect(() => {
-    setPhotoTypes(getDefaultSelectedPhotoTypes(cropType));
-  }, [cropType]);
+    if (!visitPhotos.length) {
+      setCapturePhotoType(initialCapturePhotoType(cropType));
+    }
+  }, [cropType, visitPhotos.length]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -414,10 +419,10 @@ export function VisitWizardPage({ canWrite }: Props) {
         <VisitPhotosStep
           cropType={cropType}
           photos={visitPhotos}
-          selectedTypes={photoTypes}
+          captureType={capturePhotoType}
+          onCaptureTypeChange={setCapturePhotoType}
           voiceNote={fieldVoiceNote}
           onPhotosChange={setVisitPhotos}
-          onTypesChange={setPhotoTypes}
           onVoiceNoteChange={setFieldVoiceNote}
         />
       ) : null}
@@ -521,7 +526,7 @@ export function VisitWizardPage({ canWrite }: Props) {
       {step === 'summary' ? (
         <VisitSummaryStep
           photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
-          photoTypeCount={photoTypes.length}
+          photoTypeCount={visitPhotos.length}
           templates={templates}
           measurements={measurements}
           issues={issues}

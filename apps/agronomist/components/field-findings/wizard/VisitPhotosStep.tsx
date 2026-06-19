@@ -2,7 +2,15 @@ import { useMemo, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
-import { tokens, isFieldLevelPhotoType, isSymptomPhotoType, photoRequirementHint, type VisitPhotoValidationIssue } from '@morbeez/shared';
+import {
+  tokens,
+  isFieldLevelPhotoType,
+  isSymptomPhotoType,
+  photoRequirementHint,
+  resolveCapturePhotoType,
+  suggestNextCapturePhotoType,
+  type VisitPhotoValidationIssue,
+} from '@morbeez/shared';
 import { agronomistClient } from '@morbeez/shared';
 import { DynamicSelect, Panel } from '@morbeez/ui-native';
 import type { VisitPhotoDraft } from './types';
@@ -20,16 +28,17 @@ function slugLabel(label: string): string {
 type Props = {
   cropType: string;
   photos: VisitPhotoDraft[];
-  selectedTypes: string[];
+  captureType: string;
+  onCaptureTypeChange: (type: string) => void;
   voiceNote?: string;
   onPhotosChange: (photos: VisitPhotoDraft[]) => void;
-  onTypesChange: (types: string[]) => void;
   onVoiceNoteChange?: (text: string) => void;
   validatePhoto?: (dataBase64: string, mimeType?: string) => Promise<{
     ok: boolean;
     issues: VisitPhotoValidationIssue[];
     retakeRecommended: boolean;
   }>;
+  classifyPhoto?: typeof agronomistClient.classifyVisitPhoto;
   strictPhotoQc?: boolean;
 };
 
@@ -42,24 +51,9 @@ const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
 
 async function pickImages(
   source: 'camera' | 'library',
-  selectedTypes: string[],
-  availableTypes: string[],
+  captureType: string,
   existingPhotos: VisitPhotoDraft[]
 ): Promise<VisitPhotoDraft[]> {
-  const hasField = existingPhotos.some((p) => isFieldLevelPhotoType(p.photoType));
-  const hasSymptom = existingPhotos.some((p) => isSymptomPhotoType(p.photoType));
-  let photoType = selectedTypes[0] ?? availableTypes[0] ?? 'whole_field';
-  if (!hasField) {
-    photoType =
-      selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
-      availableTypes.find((t) => isFieldLevelPhotoType(t)) ??
-      'whole_field';
-  } else if (!hasSymptom) {
-    photoType =
-      selectedTypes.find((t) => isSymptomPhotoType(t)) ??
-      availableTypes.find((t) => isSymptomPhotoType(t)) ??
-      'leaf';
-  }
   const remaining = Math.max(1, 12 - existingPhotos.length);
   const options: ImagePicker.ImagePickerOptions = {
     mediaTypes: ['images'],
@@ -83,22 +77,24 @@ async function pickImages(
       filename: a.fileName ?? `photo-${Date.now()}-${i}.jpg`,
       mimeType: a.mimeType ?? 'image/jpeg',
       dataBase64: a.base64!,
-      photoType,
+      photoType: captureType,
     }));
 }
 
 export function VisitPhotosStep({
   cropType,
   photos,
-  selectedTypes,
+  captureType,
+  onCaptureTypeChange,
   voiceNote,
   onPhotosChange,
-  onTypesChange,
   onVoiceNoteChange,
   validatePhoto = agronomistClient.validateVisitPhoto,
+  classifyPhoto = agronomistClient.classifyVisitPhoto,
   strictPhotoQc = false,
 }: Props) {
   const [customPhotoTypes, setCustomPhotoTypes] = useState<VisitPhotoTypeOption[]>([]);
+  const [captureLocked, setCaptureLocked] = useState(false);
   const basePhotoTypes = getVisitPhotoTypesForCrop(cropType);
   const photoTypes = useMemo(() => {
     const seen = new Set(basePhotoTypes.map((t) => t.value));
@@ -111,49 +107,24 @@ export function VisitPhotosStep({
     }
     return merged;
   }, [basePhotoTypes, customPhotoTypes]);
-  function resolveNextCapturePhotoType(): string {
-    const hasField = photos.some((p) => isFieldLevelPhotoType(p.photoType));
-    const hasSymptom = photos.some((p) => isSymptomPhotoType(p.photoType));
-    if (!hasField) {
-      return (
-        selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
-        photoTypes.find((t) => isFieldLevelPhotoType(t.value))?.value ??
-        'whole_field'
-      );
-    }
-    if (!hasSymptom) {
-      return (
-        selectedTypes.find((t) => isSymptomPhotoType(t)) ??
-        photoTypes.find((t) => isSymptomPhotoType(t.value))?.value ??
-        'leaf'
-      );
-    }
-    return selectedTypes[0] ?? photoTypes[0]?.value ?? 'whole_field';
-  }
 
+  const availableTypeValues = photoTypes.map((t) => t.value);
+  const nextCaptureType = resolveCapturePhotoType({
+    captureType,
+    selectedTypes: [captureType],
+    availableTypes: availableTypeValues,
+    existingPhotoTypes: photos.map((p) => p.photoType),
+  });
+  const requirementCopy = photoRequirementHint(availableTypeValues);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
-  const nextCaptureType = resolveNextCapturePhotoType();
-  const requirementCopy = photoRequirementHint(photoTypes.map((t) => t.value));
 
   function updatePhotoType(index: number, photoType: string) {
-    onPhotosChange(photos.map((p, i) => (i === index ? { ...p, photoType } : p)));
+    onPhotosChange(photos.map((p, i) => (i === index ? { ...p, photoType, aiTagged: false } : p)));
   }
 
   function setActiveCaptureType(type: string) {
-    const rest = selectedTypes.filter((t) => t !== type);
-    onTypesChange([type, ...rest]);
-  }
-
-  function toggleType(type: string) {
-    if (!selectedTypes.includes(type)) {
-      setActiveCaptureType(type);
-      return;
-    }
-    if (selectedTypes[0] === type) {
-      onTypesChange(selectedTypes.filter((t) => t !== type));
-      return;
-    }
-    setActiveCaptureType(type);
+    setCaptureLocked(true);
+    onCaptureTypeChange(type);
   }
 
   async function addPhotoType(label: string) {
@@ -166,31 +137,57 @@ export function VisitPhotosStep({
   }
 
   async function addFrom(source: 'camera' | 'library') {
-    const picked = await pickImages(
-      source,
-      selectedTypes,
-      photoTypes.map((t) => t.value),
-      photos
-    );
+    const picked = await pickImages(source, captureType || nextCaptureType, photos);
     if (!picked.length) return;
+
     const validated: VisitPhotoDraft[] = [];
     for (const photo of picked) {
+      let photoType = photo.photoType;
+      let aiTagged = false;
+      try {
+        const classified = await classifyPhoto({
+          dataBase64: photo.dataBase64,
+          mimeType: photo.mimeType,
+          cropType,
+          availableTypes: availableTypeValues,
+        });
+        if (classified && classified.confidence >= 0.68 && (!captureLocked || !captureType)) {
+          photoType = classified.photoType;
+          aiTagged = true;
+        } else if (classified && classified.confidence >= 0.68 && captureLocked) {
+          photoType = captureType || classified.photoType;
+          aiTagged = photoType === classified.photoType;
+        } else if (!captureLocked && classified) {
+          photoType = classified.photoType;
+          aiTagged = classified.confidence >= 0.55;
+        }
+      } catch {
+        // Keep manual / default tag
+      }
+
       try {
         const result = await validatePhoto(photo.dataBase64, photo.mimeType);
         validated.push({
           ...photo,
+          photoType,
+          aiTagged,
           validationIssues: result.issues,
           retakeRecommended: result.retakeRecommended,
         });
       } catch {
-        validated.push(photo);
+        validated.push({ ...photo, photoType, aiTagged });
       }
     }
-    if (strictPhotoQc && validated.some((p) => p.retakeRecommended)) {
-      onPhotosChange([...photos, ...validated].slice(0, 12));
-      return;
-    }
-    onPhotosChange([...photos, ...validated].slice(0, 12));
+
+    const merged = [...photos, ...validated].slice(0, 12);
+    onPhotosChange(merged);
+    setCaptureLocked(false);
+    onCaptureTypeChange(
+      suggestNextCapturePhotoType(
+        merged.map((p) => p.photoType),
+        availableTypeValues
+      )
+    );
   }
 
   return (
@@ -210,24 +207,23 @@ export function VisitPhotosStep({
         <Text style={styles.hint}>{formatCropPhotoGuidance(cropType)}</Text>
         <Text style={styles.requirement}>{requirementCopy}</Text>
         <Text style={styles.captureActive}>
-          Next capture tags as: {getVisitPhotoTypeLabel(cropType, nextCaptureType)}
+          Next capture tags as: {getVisitPhotoTypeLabel(cropType, captureType || nextCaptureType)}
         </Text>
+        <Text style={styles.aiHint}>AI auto-tags each photo after capture; tap a type below to override.</Text>
         <View style={styles.typeRow}>
           {photoTypes.map((t) => {
-            const active = selectedTypes.includes(t.value);
-            const isCaptureType = selectedTypes[0] === t.value;
+            const isCaptureType = captureType === t.value;
             return (
               <Pressable
                 key={t.value}
-                onPress={() => toggleType(t.value)}
+                onPress={() => setActiveCaptureType(t.value)}
                 style={[
                   styles.typeChip,
-                  active && styles.typeChipActive,
                   isCaptureType && styles.typeChipCapture,
-                  t.recommended && !active ? styles.typeChipRecommended : null,
+                  t.recommended && !isCaptureType ? styles.typeChipRecommended : null,
                 ]}
               >
-                <Text style={[styles.typeChipText, active && styles.typeChipTextActive]}>{t.label}</Text>
+                <Text style={[styles.typeChipText, isCaptureType && styles.typeChipTextActive]}>{t.label}</Text>
               </Pressable>
             );
           })}
@@ -235,7 +231,7 @@ export function VisitPhotosStep({
         <DynamicSelect
           label="Photo type for capture"
           placeholder="Select type for next photo"
-          value={selectedTypes[0] ?? ''}
+          value={captureType}
           options={photoTypes.map((t) => ({ key: t.value, value: t.value, label: t.label }))}
           allowAdd
           addPlaceholder="New photo type label"
@@ -266,6 +262,7 @@ export function VisitPhotosStep({
                 />
                 <Text style={styles.thumbMeta} numberOfLines={1}>
                   {getVisitPhotoTypeLabel(cropType, p.photoType)}
+                  {p.aiTagged ? ' · AI' : ''}
                   {isFieldLevelPhotoType(p.photoType) ? ' · field' : isSymptomPhotoType(p.photoType) ? ' · symptom' : ''}
                 </Text>
                 {p.retakeRecommended && p.validationIssues?.length ? (
@@ -312,7 +309,8 @@ const styles = StyleSheet.create({
   captureLabel: { fontSize: 15, fontWeight: '600', color: tokens.green800 },
   hint: { fontSize: 13, color: tokens.textMuted, marginBottom: 10, lineHeight: 18 },
   requirement: { fontSize: 12, color: tokens.green800, marginBottom: 6, lineHeight: 16 },
-  captureActive: { fontSize: 12, fontWeight: '600', color: tokens.text, marginBottom: 10 },
+  captureActive: { fontSize: 12, fontWeight: '600', color: tokens.text, marginBottom: 4 },
+  aiHint: { fontSize: 11, color: tokens.textMuted, marginBottom: 10 },
   typeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   typeChip: {
     paddingVertical: 8,
@@ -323,8 +321,7 @@ const styles = StyleSheet.create({
     backgroundColor: tokens.bg,
   },
   typeChipRecommended: { borderColor: tokens.green500, borderStyle: 'dashed' },
-  typeChipActive: { backgroundColor: tokens.green100, borderColor: tokens.green500, borderStyle: 'solid' },
-  typeChipCapture: { borderWidth: 2, borderColor: tokens.green700 },
+  typeChipCapture: { borderWidth: 2, borderColor: tokens.green700, backgroundColor: tokens.green100 },
   typeChipText: { fontSize: 12, color: tokens.textMuted },
   typeChipTextActive: { color: tokens.green800, fontWeight: '600' },
   gallery: { gap: 10, paddingVertical: 4 },

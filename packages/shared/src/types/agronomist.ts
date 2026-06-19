@@ -228,6 +228,28 @@ export type AgronomistRecommendationRow = {
   createdAt: string;
 };
 
+/** Prefill payload when opening a farm visit from a farmer-workspace recommendation or escalation. */
+export type RecommendationVisitContext = {
+  recommendationId: string | null;
+  farmerId: string;
+  farmerName: string | null;
+  blockId: string | null;
+  blockName: string | null;
+  cropType: string | null;
+  aiSessionId: string | null;
+  escalationId: string | null;
+  issueDetected: string | null;
+  aiDiagnosis: string | null;
+  aiConfidence: number | null;
+  recommendationText: string;
+  symptomsText: string | null;
+  images: Array<{ url: string; caption: string | null; suggestedPhotoType?: string | null }>;
+  source: string | null;
+  status: string | null;
+  /** True when visit is opened to verify/correct a prior AI advisory. */
+  rectificationMode?: boolean;
+};
+
 export type FieldVisitQuestion = {
   key: string;
   label: string;

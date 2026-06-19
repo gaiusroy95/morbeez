@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, TextInput } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { agronomistClient, tokens } from '@morbeez/shared';
@@ -30,6 +30,15 @@ export default function AddRecommendationScreen() {
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedId, setSavedId] = useState(params.recommendationId ? String(params.recommendationId) : '');
+
+  useEffect(() => {
+    const id = params.recommendationId ? String(params.recommendationId) : '';
+    if (!id) return;
+    void agronomistClient.getRecommendationVisitContext(id).then((ctx) => {
+      if (ctx.issueDetected?.trim()) setIssueDetected(ctx.issueDetected.trim());
+      if (ctx.recommendationText.trim()) setRecommendationText(ctx.recommendationText.trim());
+    }).catch(() => {});
+  }, [params.recommendationId]);
 
   async function saveDraft(): Promise<string | null> {
     if (!canWrite || !farmerId) return null;

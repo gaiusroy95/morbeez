@@ -10,6 +10,10 @@ import { agronomistCaseReviewService } from '../admin/agronomist-case-review.ser
 import { agronomistWorkflowService } from '../admin/agronomist-workflow.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
+import {
+  resolveAdvisoryImageUrl,
+  urlFromWhatsAppPayload,
+} from '../core/advisory-image-storage.service.js';
 import { normalizeSoilMetrics, SOIL_MACRO_FIELDS } from '../soil/soil-lab-metrics.js';
 
 function soilMetricCells(metrics: ReturnType<typeof normalizeSoilMetrics>) {
@@ -115,6 +119,88 @@ function farmersFromRelationRows(
     if (farmers.length >= limit) break;
   }
   return farmers;
+}
+
+async function loadAiSessionVisitImages(
+  farmerId: string,
+  aiSessionId: string
+): Promise<{
+  symptomsText: string | null;
+  images: Array<{ url: string; caption: string | null }>;
+  cropType: string | null;
+  aiDiagnosis: string | null;
+  aiConfidence: number | null;
+}> {
+  const images: Array<{ url: string; caption: string | null }> = [];
+  const seenUrls = new Set<string>();
+  const pushImage = (url: string | null | undefined, caption: string | null) => {
+    if (!url || seenUrls.has(url) || images.length >= 6) return;
+    seenUrls.add(url);
+    images.push({ url, caption });
+  };
+
+  const { data: sessionRow } = await supabase
+    .from('ai_advisory_sessions')
+    .select('image_storage_path, symptoms_text, created_at, crop_type, confidence_score')
+    .eq('id', aiSessionId)
+    .maybeSingle();
+
+  const symptomsText = sessionRow?.symptoms_text ? String(sessionRow.symptoms_text).trim() : null;
+  const sessionCreated = sessionRow?.created_at ? String(sessionRow.created_at) : null;
+  const cropType = sessionRow?.crop_type ? String(sessionRow.crop_type) : null;
+  const aiConfidence =
+    sessionRow?.confidence_score != null ? Number(sessionRow.confidence_score) : null;
+
+  const { data: outputRow } = await supabase
+    .from('ai_advisory_outputs')
+    .select('probable_issue')
+    .eq('session_id', aiSessionId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const aiDiagnosis = outputRow?.probable_issue ? String(outputRow.probable_issue) : null;
+
+  const mainPath = sessionRow?.image_storage_path ? String(sessionRow.image_storage_path) : null;
+  if (mainPath) {
+    const url = await resolveAdvisoryImageUrl(mainPath);
+    pushImage(url, symptomsText ? symptomsText.slice(0, 120) : null);
+  }
+
+  const { data: imageLogs } = await supabase
+    .from('interaction_logs')
+    .select('id, message_type, content, created_at, raw_payload')
+    .eq('farmer_id', farmerId)
+    .eq('direction', 'inbound')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  for (const log of imageLogs ?? []) {
+    if (images.length >= 6) break;
+    const payload = (log.raw_payload as Record<string, unknown>) ?? {};
+    const nestedMessage = payload.message as Record<string, unknown> | undefined;
+    const path =
+      (payload.storagePath as string) ||
+      (payload.image_storage_path as string) ||
+      (payload.path as string) ||
+      (nestedMessage?.storagePath as string) ||
+      null;
+    let url = path ? await resolveAdvisoryImageUrl(path) : null;
+    if (!url) url = urlFromWhatsAppPayload(payload);
+    if (!url && nestedMessage) url = urlFromWhatsAppPayload(nestedMessage);
+
+    const msgType = String(log.message_type ?? '');
+    const isMediaType = ['image', 'image_message', 'document', 'photo', 'media', 'picture'].includes(msgType);
+    if (!url && !path && !isMediaType) continue;
+    if (!url) continue;
+    const t = new Date(String(log.created_at)).getTime();
+    if (sessionCreated) {
+      const s = new Date(sessionCreated).getTime();
+      if (Math.abs(t - s) > 72 * 60 * 60 * 1000) continue;
+    }
+    pushImage(url, log.content ? String(log.content).slice(0, 200) : null);
+  }
+
+  return { symptomsText, images, cropType, aiDiagnosis, aiConfidence };
 }
 
 export const agronomistMobileService = {
@@ -1281,5 +1367,152 @@ export const agronomistMobileService = {
 
     notifications.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
     return notifications.slice(0, 50);
+  },
+
+  async getRecommendationVisitContext(recommendationId: string) {
+    const row = await recommendationRecordsService.getById(recommendationId);
+    if (!row) throw new NotFoundError('Recommendation not found');
+
+    const farmerId = String(row.farmer_id);
+    const farmer = row.farmers as { name?: string | null; phone?: string | null } | null;
+    const blockJoin = row.farm_blocks as { name?: string | null; crop_type?: string | null } | null;
+
+    let blockId = row.block_id ? String(row.block_id) : null;
+    let blockName = blockJoin?.name ? String(blockJoin.name) : null;
+    let cropType = blockJoin?.crop_type ? String(blockJoin.crop_type) : null;
+
+    if (!blockId) {
+      const primary = await blockService.getPrimaryBlock(farmerId);
+      if (primary) {
+        blockId = String(primary.id);
+        blockName = primary.name ? String(primary.name) : blockName;
+        cropType = primary.crop_type ? String(primary.crop_type) : cropType;
+      }
+    }
+
+    const aiSessionId = row.ai_session_id ? String(row.ai_session_id) : null;
+    let escalationId: string | null = null;
+    let symptomsText: string | null = null;
+    let aiDiagnosis: string | null = row.issue_detected ? String(row.issue_detected) : null;
+    let aiConfidence: number | null = null;
+    const images: Array<{ url: string; caption: string | null }> = [];
+
+    if (aiSessionId) {
+      const { data: esc } = await supabase
+        .from('agronomist_escalations')
+        .select('id')
+        .eq('session_id', aiSessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      escalationId = esc?.id ? String(esc.id) : null;
+
+      const sessionPack = await loadAiSessionVisitImages(farmerId, aiSessionId);
+      symptomsText = sessionPack.symptomsText;
+      images.push(...sessionPack.images);
+      cropType = cropType ?? sessionPack.cropType;
+      aiDiagnosis = aiDiagnosis ?? sessionPack.aiDiagnosis;
+      aiConfidence = sessionPack.aiConfidence;
+    }
+
+    return {
+      recommendationId,
+      farmerId,
+      farmerName: farmer?.name ? String(farmer.name) : null,
+      blockId,
+      blockName,
+      cropType,
+      aiSessionId,
+      escalationId,
+      issueDetected: row.issue_detected ? String(row.issue_detected) : null,
+      aiDiagnosis,
+      aiConfidence,
+      recommendationText: String(row.recommendation_text ?? ''),
+      symptomsText,
+      images,
+      source: row.source ? String(row.source) : null,
+      status: row.status ? String(row.status) : null,
+      rectificationMode: Boolean(escalationId || row.status === 'draft'),
+    };
+  },
+
+  async getEscalationVisitContext(escalationId: string) {
+    const { data: esc, error } = await supabase
+      .from('agronomist_escalations')
+      .select(
+        'id, farmer_id, session_id, reason, confidence_at_escalation, status, farmers(name, first_name, last_name)'
+      )
+      .eq('id', escalationId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not load escalation');
+    if (!esc) throw new NotFoundError('Escalation not found');
+
+    const farmerId = String(esc.farmer_id);
+    const f = normalizeJoinRow(esc.farmers);
+    const aiSessionId = esc.session_id ? String(esc.session_id) : null;
+
+    const primary = await blockService.getPrimaryBlock(farmerId);
+    let blockId = primary ? String(primary.id) : null;
+    let blockName = primary?.name ? String(primary.name) : null;
+    let cropType = primary?.crop_type ? String(primary.crop_type) : null;
+
+    let symptomsText: string | null = esc.reason ? String(esc.reason) : null;
+    let aiDiagnosis: string | null = null;
+    let aiConfidence =
+      esc.confidence_at_escalation != null ? Number(esc.confidence_at_escalation) : null;
+    const images: Array<{ url: string; caption: string | null }> = [];
+
+    if (aiSessionId) {
+      const sessionPack = await loadAiSessionVisitImages(farmerId, aiSessionId);
+      symptomsText = sessionPack.symptomsText ?? symptomsText;
+      images.push(...sessionPack.images);
+      cropType = cropType ?? sessionPack.cropType;
+      aiDiagnosis = sessionPack.aiDiagnosis;
+      if (aiConfidence == null) aiConfidence = sessionPack.aiConfidence;
+    }
+
+    let recommendationId: string | null = null;
+    let recommendationText = '';
+    let issueDetected: string | null = aiDiagnosis;
+    if (aiSessionId) {
+      const { data: rec } = await supabase
+        .from('recommendation_records')
+        .select('id, issue_detected, recommendation_text, block_id, farm_blocks(name, crop_type)')
+        .eq('ai_session_id', aiSessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (rec) {
+        recommendationId = String(rec.id);
+        recommendationText = String(rec.recommendation_text ?? '');
+        issueDetected = rec.issue_detected ? String(rec.issue_detected) : issueDetected;
+        if (!blockId && rec.block_id) {
+          blockId = String(rec.block_id);
+          const bj = rec.farm_blocks as { name?: string | null; crop_type?: string | null } | null;
+          blockName = bj?.name ? String(bj.name) : blockName;
+          cropType = cropType ?? (bj?.crop_type ? String(bj.crop_type) : null);
+        }
+      }
+    }
+
+    return {
+      recommendationId,
+      farmerId,
+      farmerName: farmerDisplayName(f),
+      blockId,
+      blockName,
+      cropType,
+      aiSessionId,
+      escalationId: String(esc.id),
+      issueDetected,
+      aiDiagnosis,
+      aiConfidence,
+      recommendationText,
+      symptomsText,
+      images,
+      source: 'escalation',
+      status: String(esc.status),
+      rectificationMode: true,
+    };
   },
 };

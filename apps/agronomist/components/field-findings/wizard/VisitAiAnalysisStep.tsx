@@ -13,6 +13,7 @@ import {
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 import type { VisitPhotoDraft } from './types';
+import { ensureVisitPhotoBase64 } from '@/lib/prefillVisitPhotos';
 
 type Props = {
   farmerId: string;
@@ -82,9 +83,10 @@ export function VisitAiAnalysisStep({
         }))
         .filter((m) => m.value);
 
-      const analyzePhotos = visitPhotos
+      const photosWithData = await ensureVisitPhotoBase64(visitPhotos);
+      const analyzePhotos = photosWithData
         .filter((p) => p.dataBase64?.length > 100)
-        .slice(0, 12)
+        .slice(0, 4)
         .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
 
       const detected = await agronomistClient.analyzeVisit({

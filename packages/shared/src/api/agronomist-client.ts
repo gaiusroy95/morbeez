@@ -7,6 +7,7 @@ import type {
   AgronomistDashboard,
   AgronomistDocumentRow,
   AgronomistRecommendationRow,
+  RecommendationVisitContext,
   AgronomistEscalationRow,
   AgronomistFarmerSearchRow,
   AgronomistRouteSummary,
@@ -153,6 +154,20 @@ export const agronomistClient = {
       `${AGRO}/farmers/${farmerId}/recommendations?limit=${limit}`
     );
     return r.recommendations ?? [];
+  },
+
+  async getRecommendationVisitContext(recommendationId: string): Promise<RecommendationVisitContext> {
+    const r = await staffApi<{ ok: boolean; context: RecommendationVisitContext }>(
+      `${AGRO}/recommendations/${recommendationId}/visit-context`
+    );
+    return r.context;
+  },
+
+  async getEscalationVisitContext(escalationId: string): Promise<RecommendationVisitContext> {
+    const r = await staffApi<{ ok: boolean; context: RecommendationVisitContext }>(
+      `${AGRO}/escalations/${escalationId}/visit-context`
+    );
+    return r.context;
   },
 
   async createFarmerRecommendation(
@@ -673,6 +688,25 @@ export const agronomistClient = {
       `${FIELD}/visits/photos/validate`,
       { method: 'POST', body: JSON.stringify({ dataBase64, mimeType }) }
     );
+  },
+
+  async classifyVisitPhoto(body: {
+    dataBase64: string;
+    mimeType?: string;
+    cropType: string;
+    availableTypes: string[];
+    caption?: string;
+  }) {
+    const r = await staffApi<{
+      ok: boolean;
+      classification: {
+        photoType: string;
+        confidence: number;
+        source: 'vision' | 'heuristic';
+        label?: string;
+      } | null;
+    }>(`${FIELD}/visits/photos/classify`, { method: 'POST', body: JSON.stringify(body) });
+    return r.classification;
   },
 
   async getVisitEnvironment(farmerId: string, blockId: string) {

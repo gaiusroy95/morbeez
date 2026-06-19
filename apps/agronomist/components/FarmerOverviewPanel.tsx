@@ -12,6 +12,7 @@ export type { FarmerWorkspaceTab };
 
 type Props = {
   farmerId: string;
+  farmerName: string;
   leadId?: string | null;
   recommendations: AgronomistRecommendationRow[];
   onNavigate: (tab: FarmerWorkspaceTab) => void;
@@ -32,7 +33,7 @@ function KpiTile({ card, onPress }: { card: KpiCard; onPress: () => void }) {
   );
 }
 
-export function FarmerOverviewPanel({ farmerId, leadId, recommendations, onNavigate }: Props) {
+export function FarmerOverviewPanel({ farmerId, farmerName, leadId, recommendations, onNavigate }: Props) {
   const [dashboard, setDashboard] = useState<FarmerWorkspaceDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -97,6 +98,7 @@ export function FarmerOverviewPanel({ farmerId, leadId, recommendations, onNavig
       </Panel>
       <RecommendationSection
         farmerId={farmerId}
+        farmerName={farmerName}
         leadId={leadId}
         recommendations={recommendations}
         compact

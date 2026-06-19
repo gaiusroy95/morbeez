@@ -37,7 +37,7 @@ export function resolveMatchConfidenceBand(score: number): ConfidenceBand {
 
 export function needsMoreEvidence(ctx: InvestigationContext): boolean {
   if (!ctx.hasPhoto) return true;
-  if (ctx.matchConfidence < 0.7) return true;
+  if (ctx.matchConfidence < 0.85) return true;
   if (ctx.category === 'unknown_low_conf') return true;
   return false;
 }

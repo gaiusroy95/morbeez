@@ -1,7 +1,7 @@
 import { env } from '../../../config/env.js';
 import { logger } from '../../../lib/logger.js';
 import { supabase } from '../../../lib/supabase.js';
-import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
 import { aiReuseService, buildDapBucket } from '../../ai/ai-reuse.service.js';
 import { normalizeRegionalFarmerQuery } from '../../ai/regional-query-normalize.util.js';
 import { buildQuestionReuseKeys } from '../../ai/question-reuse-keys.util.js';
@@ -28,6 +28,7 @@ import { expertFollowUpLearningService } from '../../core/expert-follow-up-learn
 import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
 import type { MaiosCase } from '../../../domain/case/types.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
+import { getReviewThreshold } from '../../../domain/ai-training/confidence-routing.js';
 import {
   localizeChoice,
   YES_NO_CHOICES,
@@ -35,6 +36,8 @@ import {
 } from './follow-up-question.types.js';
 
 const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
+const MAX_POST_DIAGNOSIS_QUESTIONS = () =>
+  Number(process.env.DIAGNOSIS_POST_FOLLOW_UP_MAX_QUESTIONS ?? 3);
 const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 1);
 const STRONG_MATCH_SCORE = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_STRONG_MATCH ?? 0.9);
 
@@ -59,6 +62,186 @@ export type FollowUpQuestion = {
 };
 
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
+type PostDiagnosisIntakeContext = NonNullable<SessionContext['postDiagnosisIntake']>;
+
+function issueKeywordHints(label: string): Set<string> {
+  const l = label.toLowerCase();
+  const hints = new Set<string>();
+  if (/water|irrigat|drought|moisture|stress|dry/.test(l)) hints.add('water');
+  if (/nutrient|deficien|nitrogen|phosph|potash|yellow/.test(l)) hints.add('nutrient');
+  if (/fung|blast|spot|mildew|rot|phyllosticta|pyricularia/.test(l)) hints.add('fungal');
+  if (/pest|insect|thrip|mite|bore|chew|hole/.test(l)) hints.add('pest');
+  return hints;
+}
+
+function issuesMatch(a: string, b: string): boolean {
+  const na = a.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  const nb = b.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const ha = issueKeywordHints(a);
+  const hb = issueKeywordHints(b);
+  for (const h of ha) {
+    if (hb.has(h)) return true;
+  }
+  return false;
+}
+
+const POST_QUESTION_ML: Record<string, string> = {
+  water_dry_soil:
+    'മണ്ണിൽ ഒരു വിരൽ ആഴത്തില്‍ നോക്കുമ്പോൾ ഉണങ്ങിയതാണോ?',
+  water_recent_irrigation:
+    'കഴിഞ്ഞ 3 ദിവസത്തിനുള്ളിൽ ഈ പ്ലോട്ടിൽ നീരൊഴുക്ക് ചെയ്തിട്ടുണ്ടോ?',
+  nutrient_old_leaves:
+    'മഞ്ഞനിറം പ്രധാനമായും താഴത്തെ പഴയ ഇലകളിലാണോ, അല്ലെങ്കിൽ ഇലയുടെ അറ്റങ്ങളിലാണോ?',
+  fungal_spots:
+    'ഇലകളിൽ തവിട്ട് വൃത്താകാര സ്പോട്ടുകളും മഞ്ഞ വളയവും കാണാമോ?',
+  pest_visible:
+    'ഇലകളിൽ പുഴുക്കൾ, ചുരങ്ങൾ, അല്ലെങ്കിൽ ചുരുൾ പോലുള്ള അവശിഷ്ടം കാണാമോ?',
+};
+
+function yesNoQuestion(
+  id: string,
+  en: string,
+  purpose?: string
+): FollowUpQuestion {
+  return {
+    id,
+    kind: 'yes_no',
+    text: en,
+    choices: YES_NO_CHOICES,
+    purpose,
+  };
+}
+
+function localizePostQuestion(q: FollowUpQuestion, language: AdvisoryLanguage): FollowUpQuestion {
+  if (language === 'ml') {
+    const mlText = POST_QUESTION_ML[q.id];
+    if (mlText) return { ...q, text: mlText };
+  }
+  return q;
+}
+
+function buildDifferentialClarificationQuestions(
+  advisory: StructuredAdvisory,
+  language: AdvisoryLanguage
+): FollowUpQuestion[] {
+  const primary = advisory.probableIssue?.trim() ?? '';
+  const primaryHints = issueKeywordHints(primary);
+  const used = new Set<string>();
+  const questions: FollowUpQuestion[] = [];
+
+  const push = (q: FollowUpQuestion) => {
+    if (used.has(q.id) || questions.length >= MAX_POST_DIAGNOSIS_QUESTIONS()) return;
+    used.add(q.id);
+    questions.push(localizePostQuestion(q, language));
+  };
+
+  if (primaryHints.has('water')) {
+    push(
+      yesNoQuestion(
+        'water_dry_soil',
+        'When you dig soil one finger deep, is it dry?',
+        'confirm_water_stress'
+      )
+    );
+    push(
+      yesNoQuestion(
+        'water_recent_irrigation',
+        'Have you irrigated this plot in the last 3 days?',
+        'confirm_water_stress'
+      )
+    );
+  } else if (primaryHints.has('nutrient')) {
+    push(
+      yesNoQuestion(
+        'nutrient_old_leaves',
+        'Is yellowing mainly on older leaves at the bottom of the plant?',
+        'confirm_nutrient'
+      )
+    );
+  } else if (primaryHints.has('fungal')) {
+    push(
+      yesNoQuestion(
+        'fungal_spots',
+        'Do you see brown circular spots with yellow halos on the leaves?',
+        'confirm_fungal'
+      )
+    );
+  } else if (primaryHints.has('pest')) {
+    push(
+      yesNoQuestion(
+        'pest_visible',
+        'Do you see insects, holes, or sticky residue on the leaves?',
+        'confirm_pest'
+      )
+    );
+  }
+
+  const differentials = (advisory.differentialDiagnosis ?? [])
+    .filter((d) => d.label?.trim() && !issuesMatch(d.label, primary))
+    .filter(
+      (d) =>
+        (d.probability ?? 0) >= 0.03 ||
+        !/no .*observed|ruled out|not seen|no visible|no characteristic/i.test(d.reason ?? '')
+    )
+    .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0));
+
+  for (const alt of differentials) {
+    const hints = issueKeywordHints(alt.label);
+    if (hints.has('nutrient')) {
+      push(
+        yesNoQuestion(
+          'nutrient_old_leaves',
+          'Is yellowing mainly on older leaves at the bottom of the plant?',
+          `rule_out:${alt.label}`
+        )
+      );
+    } else if (hints.has('water')) {
+      push(
+        yesNoQuestion(
+          'water_dry_soil',
+          'When you dig soil one finger deep, is it dry?',
+          `rule_out:${alt.label}`
+        )
+      );
+    } else if (hints.has('fungal')) {
+      push(
+        yesNoQuestion(
+          'fungal_spots',
+          'Do you see brown circular spots with yellow halos on the leaves?',
+          `rule_out:${alt.label}`
+        )
+      );
+    } else if (hints.has('pest')) {
+      push(
+        yesNoQuestion(
+          'pest_visible',
+          'Do you see insects, holes, or sticky residue on the leaves?',
+          `rule_out:${alt.label}`
+        )
+      );
+    } else {
+      const id = `alt_${alt.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40)}`;
+      if (!used.has(id)) {
+        const reason = alt.reason?.trim();
+        const en = reason
+          ? `Could this match what you see: ${reason}?`
+          : `Could the issue also be ${alt.label} on your farm?`;
+        push(yesNoQuestion(id, en, `rule_out:${alt.label}`));
+      }
+    }
+    if (questions.length >= MAX_POST_DIAGNOSIS_QUESTIONS()) break;
+  }
+
+  return questions;
+}
+
+function attachPostQuestionToIntake(intake: PostDiagnosisIntakeContext, q: FollowUpQuestion): void {
+  intake.questionTexts = intake.questionTexts ?? {};
+  intake.questionChoices = intake.questionChoices ?? {};
+  intake.questionTexts[q.id] = q.text;
+  intake.questionChoices[q.id] = q.choices;
+}
 
 function choiceButtonId(optionId: string, questionId: string): string {
   if (optionId === 'yes' || optionId === 'no') return `dfq.${optionId}.${questionId}`;
@@ -855,6 +1038,177 @@ export const diagnosisFollowUpService = {
     }
 
     await this.sendCurrentQuestion(params.phone, params.language, intake);
+    return { handled: true, ready: false };
+  },
+
+  shouldDeferDiagnosisDelivery(confidence: number): boolean {
+    if (!this.enabled()) return false;
+    return confidence < getReviewThreshold();
+  },
+
+  async startPostDiagnosisClarification(params: {
+    farmerId: string;
+    phone: string;
+    language: AdvisoryLanguage;
+    sessionId: string;
+    advisory: StructuredAdvisory;
+    escalated: boolean;
+    reused: boolean;
+    plotLabel?: string;
+  }): Promise<boolean> {
+    if (!this.enabled()) return false;
+    if (!this.shouldDeferDiagnosisDelivery(params.advisory.confidence)) return false;
+
+    const questions = buildDifferentialClarificationQuestions(params.advisory, params.language);
+    if (!questions.length) return false;
+
+    const intake: PostDiagnosisIntakeContext = {
+      sessionId: params.sessionId,
+      probableIssue: params.advisory.probableIssue,
+      confidence: params.advisory.confidence,
+      questions: questions.map((q) => ({
+        id: q.id,
+        kind: 'yes_no' as const,
+        text: q.text,
+        choices: q.choices,
+        purpose: q.purpose,
+      })),
+      currentIndex: 0,
+      answers: {},
+      questionTexts: {},
+      questionChoices: {},
+      questionsAsked: 0,
+      maxQuestions: questions.length,
+    };
+    for (const q of questions) {
+      attachPostQuestionToIntake(intake, q);
+    }
+
+    await conversationSessionService.patchContext(params.farmerId, {
+      postDiagnosisIntake: intake,
+      pendingDiagnosisDelivery: {
+        sessionId: params.sessionId,
+        escalated: params.escalated,
+        reused: params.reused,
+        confidence: params.advisory.confidence,
+        plotLabel: params.plotLabel,
+      },
+    });
+    await conversationSessionService.setState(params.farmerId, 'post_diagnosis_intake');
+
+    const intro =
+      params.language === 'ml'
+        ? `നിങ്ങളുടെ ഫോട്ടോകൾ വിശകലനം ചെയ്തു (${Math.round(params.advisory.confidence * 100)}% സാധ്യത: ${params.advisory.probableIssue}). പൂർണ്ണ നിർണയം നൽകുന്നതിന് മുമ്പ് 2-3 ചെറിയ ചോദ്യങ്ങൾ:`
+        : `I analyzed your photos (${Math.round(params.advisory.confidence * 100)}% likely: ${params.advisory.probableIssue}). Before I share the full diagnosis, please answer a few quick questions:`;
+
+    await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, intro);
+    logger.info(
+      {
+        farmerId: params.farmerId,
+        sessionId: params.sessionId,
+        confidence: params.advisory.confidence,
+        questionCount: questions.length,
+      },
+      'Post-diagnosis clarification started'
+    );
+    return true;
+  },
+
+  async sendPostDiagnosisQuestion(
+    phone: string,
+    language: AdvisoryLanguage,
+    intake: PostDiagnosisIntakeContext,
+    prefix?: string
+  ): Promise<void> {
+    const q = intake.questions[intake.currentIndex];
+    if (!q) return;
+
+    const step =
+      intake.maxQuestions > 1
+        ? language === 'ml'
+          ? `(ചോദ്യം ${intake.currentIndex + 1} / ${intake.maxQuestions})\n\n`
+          : `(Question ${intake.currentIndex + 1} of ${intake.maxQuestions})\n\n`
+        : '';
+    const body = prefix ? `${prefix}\n\n${step}${q.text}` : `${step}${q.text}`;
+
+    const choices = q.choices?.length
+      ? q.choices
+      : intake.questionChoices?.[q.id]?.length
+        ? intake.questionChoices[q.id]
+        : YES_NO_CHOICES;
+
+    try {
+      await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
+      return;
+    } catch {
+      const labels = choices.map((c) => localizeChoice(c, language)).join(' / ');
+      await whatsappService.sendText(phone, `${body}\n\nReply: ${labels}`);
+    }
+  },
+
+  async handlePostDiagnosisMessage(params: {
+    farmerId: string;
+    phone: string;
+    language: AdvisoryLanguage;
+    text: string;
+  }): Promise<{ handled: boolean; ready?: boolean }> {
+    const ctx = await conversationSessionService.getContext(params.farmerId);
+    const intake = ctx.postDiagnosisIntake;
+    if (!intake?.questions?.length) return { handled: false };
+
+    const current = intake.questions[intake.currentIndex];
+    if (!current) {
+      return { handled: true, ready: true };
+    }
+
+    const choices =
+      current.choices?.length
+        ? current.choices
+        : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+    const choiceIds = new Set(choices.map((c) => c.id));
+
+    const btn = this.parseButtonReply(params.text);
+    let answer = btn?.questionId === current.id ? btn.answer : undefined;
+
+    if (!answer) {
+      const typed = this.parseTextAnswer(params.text);
+      if (typed && choiceIds.has(typed)) answer = typed;
+      else if (typed === 'yes' || typed === 'no') answer = typed;
+    }
+
+    if (!answer || !choiceIds.has(answer)) {
+      await whatsappService.sendText(
+        params.phone,
+        params.language === 'ml'
+          ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ, അല്ലെങ്കിൽ Yes / No എന്ന് മറുപടി നൽകൂ.'
+          : 'Please tap one of the option buttons, or reply Yes / No.'
+      );
+      return { handled: true, ready: false };
+    }
+
+    intake.answers[current.id] = answer;
+    intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+    intake.currentIndex += 1;
+
+    await conversationSessionService.patchContext(params.farmerId, { postDiagnosisIntake: intake });
+
+    if (intake.currentIndex >= intake.questions.length) {
+      await conversationSessionService.patchContext(params.farmerId, {
+        postDiagnosisIntake: undefined,
+      });
+      await conversationSessionService.setState(params.farmerId, 'diagnosis');
+      logger.info(
+        {
+          farmerId: params.farmerId,
+          sessionId: intake.sessionId,
+          answerCount: Object.keys(intake.answers).length,
+        },
+        'Post-diagnosis clarification complete'
+      );
+      return { handled: true, ready: true };
+    }
+
+    await this.sendPostDiagnosisQuestion(params.phone, params.language, intake);
     return { handled: true, ready: false };
   },
 

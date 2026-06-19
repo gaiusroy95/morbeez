@@ -3,6 +3,7 @@ import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-na
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatDate, t, tokens, type AgronomistTaskItem } from '@morbeez/shared';
 import { AlertBox, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import { openEscalationVisit } from '@/lib/open-escalation-visit';
 import { useAgronomistQueue } from '@/context/AgronomistQueueContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -64,8 +65,24 @@ export default function TasksScreen() {
     return tasks.filter((task) => task.kind === filter);
   }, [tasks, filter]);
 
+  const [openingEscalation, setOpeningEscalation] = useState<string | null>(null);
+  const [taskError, setTaskError] = useState('');
+
   const openTask = useCallback(
-    (task: AgronomistTaskItem) => {
+    async (task: AgronomistTaskItem) => {
+      setTaskError('');
+      if (task.kind === 'escalation' && task.refId) {
+        if (openingEscalation) return;
+        setOpeningEscalation(task.refId);
+        try {
+          await openEscalationVisit(task.refId, { router });
+        } catch (e) {
+          setTaskError(e instanceof Error ? e.message : 'Could not open visit');
+        } finally {
+          setOpeningEscalation(null);
+        }
+        return;
+      }
       if (task.kind === 'finding_review' && task.refId) {
         router.push(`/finding/${task.refId}`);
         return;
@@ -82,7 +99,7 @@ export default function TasksScreen() {
         router.push('/(tabs)/visits');
       }
     },
-    [router]
+    [router, openingEscalation]
   );
 
   if (loading && tasks.length === 0) return <Loading label={t('loadingTasks', locale)} />;
@@ -102,7 +119,9 @@ export default function TasksScreen() {
           />
         }
         contentContainerStyle={styles.content}
-        ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
+        ListHeaderComponent={
+          error || taskError ? <AlertBox>{taskError || error}</AlertBox> : null
+        }
         renderItem={({ item }) => (
           <ListCard
             title={item.title}

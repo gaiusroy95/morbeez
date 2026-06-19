@@ -80,6 +80,7 @@ import { whatsappDiagnosisContextService } from './whatsapp-diagnosis-context.se
 import { assessmentPlaybookService } from '../scenarios/assessment-playbook.service.js';
 import { roiFlowService } from '../roi/roi-flow.service.js';
 import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
+import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
 import {
   scheduleImageBatch,
   type ImageBatchFlushPayload,
@@ -664,6 +665,17 @@ export const whatsappInboundPipeline = {
       send
     );
 
+    if (routeResult.handled && 'deliverPendingDiagnosis' in routeResult && routeResult.deliverPendingDiagnosis) {
+      await this.deliverPendingDiagnosis({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        language: activeLang,
+        sendText: send.text,
+        send,
+      });
+      return;
+    }
+
     if (routeResult.handled && 'runDiagnosis' in routeResult && routeResult.runDiagnosis) {
       if (routeResult.welcomePrefix) {
         await send.text(msg.phone, routeResult.welcomePrefix);
@@ -1075,19 +1087,17 @@ export const whatsappInboundPipeline = {
         caption ||
         sessCtx.pendingSymptomsText?.trim() ||
         (memoryImg.cropType === 'ginger'
-          ? 'ginger leaf spot problem'
+          ? 'ginger leaf yellowing problem'
           : `${memoryImg.cropType} crop leaf problem`);
-      if (symptomsForIntake.length >= 8) {
-        const intakeStarted = await diagnosisFollowUpService.startIntake({
-          farmerId: batch.farmerId,
-          phone: batch.phone,
-          language: batch.language,
-          symptomsText: symptomsForIntake,
-          cropType: memoryImg.cropType,
-          hasPhoto: true,
-        });
-        if (intakeStarted.started) return;
-      }
+      const intakeStarted = await diagnosisFollowUpService.startIntake({
+        farmerId: batch.farmerId,
+        phone: batch.phone,
+        language: batch.language,
+        symptomsText: symptomsForIntake,
+        cropType: memoryImg.cropType,
+        hasPhoto: true,
+      });
+      if (intakeStarted.started) return;
     }
 
     if (batch.images.length > 1) {
@@ -1646,17 +1656,24 @@ export const whatsappInboundPipeline = {
           notes: `AI confidence in medium band. Issue: ${result.advisory.probableIssue}`,
           priority: 'normal',
         });
-        await params.sendText(
-          params.phone,
-          buildDiagnosisReply({
-            advisory: result.advisory,
-            language: params.language,
-            plotLabel: sessCtx.activePlotLabel ?? undefined,
-            validationQuestion: validationQuestion(result.advisory.probableIssue, params.language),
-          })
-        );
-        await conversationSessionService.setState(params.farmerId, 'diagnosis');
-        return;
+      }
+
+      if (
+        params.channel === 'whatsapp' &&
+        maiosCase?.route !== 'emergency_callback' &&
+        !assessment.shouldRequestMoreEvidence
+      ) {
+        const clarificationStarted = await diagnosisFollowUpService.startPostDiagnosisClarification({
+          farmerId: params.farmerId,
+          phone: params.phone,
+          language: params.language,
+          sessionId: result.sessionId,
+          advisory: result.advisory,
+          escalated: Boolean(result.escalated),
+          reused: Boolean(result.reused),
+          plotLabel: sessCtx.activePlotLabel ?? undefined,
+        });
+        if (clarificationStarted) return;
       }
 
       const reuseNote = result.reused
@@ -1800,6 +1817,143 @@ export const whatsappInboundPipeline = {
           ? 'ക്ഷമിക്കണം, ഇപ്പോൾ വിശകലനം ചെയ്യാൻ കഴിഞ്ഞില്ല. വീണ്ടും ശ്രമിക്കുക അല്ലെങ്കിൽ "call" ടൈപ്പ് ചെയ്യുക.'
           : 'Sorry, we could not analyze your message right now. Try again or type "call" for help.'
       );
+    }
+  },
+
+  async deliverPendingDiagnosis(params: {
+    farmerId: string;
+    phone: string;
+    language: AdvisoryLanguage;
+    sendText: (phone: string, text: string) => Promise<void>;
+    send?: Senders;
+  }): Promise<void> {
+    const sessCtx = await conversationSessionService.getContext(params.farmerId);
+    const pending = sessCtx.pendingDiagnosisDelivery;
+    if (!pending?.sessionId) return;
+
+    const session = await cropDoctorService.getSession(pending.sessionId);
+    const outputs = (session.ai_advisory_outputs as Array<{ raw_response?: StructuredAdvisory }> | null) ?? [];
+    const latest = outputs[outputs.length - 1];
+    const advisory = normalizeStructuredAdvisory(
+      (latest?.raw_response as StructuredAdvisory) ?? {
+        probableIssue: '',
+        confidence: pending.confidence,
+        uncertain: false,
+        escalationRecommended: pending.escalated,
+        nutrientDeficiency: [],
+        stressAnalysis: [],
+        treatments: [],
+        dosageGuidance: [],
+        precautions: [],
+        farmerSummaryEn: '',
+        farmerSummaryMl: '',
+        recommendedProductTags: [],
+      }
+    );
+
+    const memory = await farmerMemoryService.build(params.farmerId);
+    const contextPack = await contextPackService.build(params.farmerId, {
+      cropType: memory.cropType,
+      dap: memory.dap,
+      blockId: memory.activePlotId,
+    });
+    const assessment = policyEngineService.evaluate(advisory, {
+      ...contextPack,
+      hasImage: true,
+    });
+
+    const reuseNote = pending.reused
+      ? params.language === 'ml'
+        ? '(സമാനമായ മുൻ കേസിൽ നിന്നുള്ള ശുപാർശ)'
+        : '(Similar successful case in your region)'
+      : undefined;
+    const escalateNote = pending.escalated
+      ? 'Our agronomist team will review your case shortly.'
+      : undefined;
+    const safetyNote = assessment.safetyNotes.length
+      ? `⚠️ ${assessment.safetyNotes.join(' ')}`
+      : undefined;
+
+    let body = buildDiagnosisBody({
+      advisory,
+      language: params.language,
+      plotLabel: pending.plotLabel ?? sessCtx.activePlotLabel ?? undefined,
+      reuseNote,
+      escalateNote,
+      safetyNote,
+    });
+
+    if (
+      env.ENABLE_WHATSAPP_DIAGNOSIS_POLISH &&
+      farmerReplyPolishService.isEnabled() &&
+      body?.trim() &&
+      !env.ENABLE_WHATSAPP_RICH_DIAGNOSIS
+    ) {
+      body = await farmerReplyPolishService.polishDiagnosisSummary({
+        advisory,
+        language: params.language,
+        memory,
+        extraLines: [reuseNote, escalateNote, safetyNote].filter(Boolean) as string[],
+      });
+    }
+
+    const productRecs =
+      (session.ai_product_recommendations as Array<{
+        shopify_product_handle?: string | null;
+        product_title?: string;
+        reason?: string;
+        dosage_schedule?: Record<string, string> | string | null;
+        priority?: number;
+        combo_kit_id?: string | null;
+      }> | null) ?? [];
+    const productBlock = shopifyLinksService.formatRecommendationsForWhatsApp(
+      productRecs.map((r) => ({
+        shopifyProductHandle: r.shopify_product_handle ?? undefined,
+        productTitle: r.product_title ?? '',
+        reason: r.reason ?? '',
+        dosageSchedule:
+          typeof r.dosage_schedule === 'object' && r.dosage_schedule
+            ? r.dosage_schedule
+            : undefined,
+        priority: r.priority ?? 0,
+        comboKitId: r.combo_kit_id ?? undefined,
+      })),
+      params.language
+    );
+    if (productBlock) body += `\n\n${productBlock}`;
+
+    const reply = buildDiagnosisReply({
+      advisory,
+      language: params.language,
+      body,
+      plotLabel: pending.plotLabel ?? sessCtx.activePlotLabel ?? undefined,
+    });
+
+    await conversationSessionService.patchContext(params.farmerId, {
+      pendingDiagnosisDelivery: undefined,
+      postDiagnosisIntake: undefined,
+    });
+
+    await this.sendAndLog(params.farmerId, params.phone, reply, params.sendText, {
+      module: pending.reused ? 'crop_doctor_reuse' : 'crop_doctor_openai',
+      language: params.language,
+      meta: {
+        cropType: memory.cropType,
+        issueLabel: advisory.probableIssue,
+      },
+    });
+
+    if (params.send) {
+      await whatsappScenarioRouter.afterDiagnosis({
+        phone: params.phone,
+        farmerId: params.farmerId,
+        lang: params.language,
+        sessionId: pending.sessionId,
+        advisory,
+        summary: reply,
+        send: params.send,
+        hasProductRecommendations: productRecs.length > 0,
+      });
     }
   },
 };

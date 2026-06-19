@@ -10,6 +10,7 @@ export type VisitPhotoDraft = {
   photoType: string;
   validationIssues?: VisitPhotoValidationIssue[];
   retakeRecommended?: boolean;
+  aiTagged?: boolean;
 };
 
 export { getDefaultSelectedPhotoTypes, getVisitPhotoTypeLabel, getVisitPhotoTypesForCrop } from './visitPhotoTypes';

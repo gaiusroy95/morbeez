@@ -298,6 +298,7 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
           {tab === 'overview' ? (
             <FarmerOverviewPanel
               farmerId={farmerId}
+              farmerName={summary.farmer.name}
               leadId={leadId}
               recommendations={recommendations}
               onNavigate={setTab}
@@ -331,7 +332,12 @@ export function FarmerWorkspaceTabs({ farmerId, summary }: Props) {
                 value={recFilter}
                 onChange={setRecFilter}
               />
-              <FarmerRecommendationsPanel recommendations={filteredRecommendations} />
+              <FarmerRecommendationsPanel
+                farmerId={farmerId}
+                farmerName={summary.farmer.name}
+                leadId={leadId}
+                recommendations={filteredRecommendations}
+              />
             </View>
           ) : null}
 

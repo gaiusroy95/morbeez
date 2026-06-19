@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { computeDap } from '../whatsapp/broadcasts/dap.service.js';
 import { plotLocationService, type PlotLocationSource } from './plot-location.service.js';
 
@@ -73,7 +74,7 @@ export const blockService = {
       .order('is_primary', { ascending: false })
       .order('created_at', { ascending: true });
 
-    if (error) throw error;
+    if (error) throwIfSupabaseError(error, 'Could not list farm blocks');
     return (data ?? []).map((r) => this.withDap(mapBlock(r)));
   },
 
@@ -81,7 +82,7 @@ export const blockService = {
     let q = supabase.from('farm_blocks').select('*').eq('id', blockId);
     if (farmerId) q = q.eq('farmer_id', farmerId);
     const { data, error } = await q.maybeSingle();
-    if (error) throw error;
+    if (error) throwIfSupabaseError(error, 'Could not load farm block');
     if (!data) return null;
     return this.withDap(mapBlock(data));
   },

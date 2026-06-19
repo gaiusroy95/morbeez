@@ -268,6 +268,24 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     return reply.send(result);
   });
 
+  app.post(`${api}/visits/photos/classify`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        dataBase64: z.string().min(100).max(7_000_000),
+        mimeType: z.string().max(100).optional(),
+        cropType: z.string().min(1).max(80),
+        availableTypes: z.array(z.string().min(1).max(80)).min(1).max(24),
+        caption: z.string().max(500).optional(),
+      })
+      .parse(request.body);
+    const { visitPhotoClassifierService } = await import(
+      '../../services/core/visit-photo-classifier.service.js'
+    );
+    const result = await visitPhotoClassifierService.classify(body);
+    return reply.send({ ok: true, classification: result });
+  });
+
   app.post(`${api}/visits/analyze`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const body = visitAnalyzeRequestSchema.parse(request.body);

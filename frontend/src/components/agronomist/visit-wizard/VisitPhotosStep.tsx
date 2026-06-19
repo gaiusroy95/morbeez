@@ -1,5 +1,10 @@
-import { useRef } from 'react';
-import { agronomistClient, isFieldLevelPhotoType, isSymptomPhotoType, photoRequirementHint, type VisitPhotoValidationIssue } from '@morbeez/shared';
+import { useRef, useState } from 'react';
+import {
+  agronomistClient,
+  resolveCapturePhotoType,
+  suggestNextCapturePhotoType,
+  type VisitPhotoValidationIssue,
+} from '@morbeez/shared';
 import { readFileAsBase64 } from '../../../lib/readFileAsBase64';
 import { Panel } from '../../ui';
 import type { VisitPhotoDraft } from './types';
@@ -13,16 +18,17 @@ import {
 type Props = {
   cropType: string;
   photos: VisitPhotoDraft[];
-  selectedTypes: string[];
+  captureType: string;
+  onCaptureTypeChange: (type: string) => void;
   voiceNote?: string;
   onPhotosChange: (photos: VisitPhotoDraft[]) => void;
-  onTypesChange: (types: string[]) => void;
   onVoiceNoteChange?: (text: string) => void;
   validatePhoto?: (dataBase64: string, mimeType?: string) => Promise<{
     ok: boolean;
     issues: VisitPhotoValidationIssue[];
     retakeRecommended: boolean;
   }>;
+  classifyPhoto?: typeof agronomistClient.classifyVisitPhoto;
 };
 
 const ISSUE_LABELS: Record<VisitPhotoValidationIssue, string> = {
@@ -42,50 +48,35 @@ export { getDefaultSelectedPhotoTypes };
 export function VisitPhotosStep({
   cropType,
   photos,
-  selectedTypes,
+  captureType,
+  onCaptureTypeChange,
   voiceNote,
   onPhotosChange,
-  onTypesChange,
   onVoiceNoteChange,
   validatePhoto = agronomistClient.validateVisitPhoto,
+  classifyPhoto = agronomistClient.classifyVisitPhoto,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [captureLocked, setCaptureLocked] = useState(false);
   const photoTypes = getVisitPhotoTypesForCrop(cropType);
+  const availableTypeValues = photoTypes.map((t) => t.value);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
 
   function setActiveCaptureType(type: string) {
-    const rest = selectedTypes.filter((t) => t !== type);
-    onTypesChange([type, ...rest]);
-  }
-
-  function toggleType(type: string) {
-    if (!selectedTypes.includes(type)) {
-      setActiveCaptureType(type);
-      return;
-    }
-    if (selectedTypes[0] === type) {
-      onTypesChange(selectedTypes.filter((t) => t !== type));
-      return;
-    }
-    setActiveCaptureType(type);
+    setCaptureLocked(true);
+    onCaptureTypeChange(type);
   }
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return;
-    const hasField = photos.some((p) => isFieldLevelPhotoType(p.photoType));
-    const hasSymptom = photos.some((p) => isSymptomPhotoType(p.photoType));
-    let photoType = selectedTypes[0] ?? photoTypes[0]?.value ?? 'whole_field';
-    if (!hasField) {
-      photoType =
-        selectedTypes.find((t) => isFieldLevelPhotoType(t)) ??
-        photoTypes.find((t) => isFieldLevelPhotoType(t.value))?.value ??
-        'whole_field';
-    } else if (!hasSymptom) {
-      photoType =
-        selectedTypes.find((t) => isSymptomPhotoType(t)) ??
-        photoTypes.find((t) => isSymptomPhotoType(t.value))?.value ??
-        'leaf';
-    }
+    const tagType =
+      captureType ||
+      resolveCapturePhotoType({
+        captureType,
+        selectedTypes: [captureType],
+        availableTypes: availableTypeValues,
+        existingPhotoTypes: photos.map((p) => p.photoType),
+      });
     const remaining = Math.max(1, 12 - photos.length);
     const toAdd: VisitPhotoDraft[] = [];
 
@@ -94,12 +85,32 @@ export function VisitPhotosStep({
       if (!file.type.startsWith('image/')) continue;
       const dataUrl = await readFileAsBase64(file);
       const dataBase64 = toRawBase64(dataUrl);
+      let photoType = tagType;
+      let aiTagged = false;
+      try {
+        const classified = await classifyPhoto({
+          dataBase64,
+          mimeType: file.type,
+          cropType,
+          availableTypes: availableTypeValues,
+        });
+        if (classified && classified.confidence >= 0.68 && !captureLocked) {
+          photoType = classified.photoType;
+          aiTagged = true;
+        } else if (classified && classified.confidence >= 0.68 && captureLocked) {
+          photoType = captureType || classified.photoType;
+          aiTagged = photoType === classified.photoType;
+        }
+      } catch {
+        // keep manual tag
+      }
       const draft: VisitPhotoDraft = {
         filename: file.name || `photo-${Date.now()}-${i}.jpg`,
         mimeType: file.type || 'image/jpeg',
         dataBase64,
         photoType,
         previewUrl: dataUrl,
+        aiTagged,
       };
       try {
         const result = await validatePhoto(dataBase64, draft.mimeType);
@@ -114,7 +125,10 @@ export function VisitPhotosStep({
     }
 
     if (toAdd.length) {
-      onPhotosChange([...photos, ...toAdd].slice(0, 12));
+      const merged = [...photos, ...toAdd].slice(0, 12);
+      onPhotosChange(merged);
+      setCaptureLocked(false);
+      onCaptureTypeChange(suggestNextCapturePhotoType(merged.map((p) => p.photoType), availableTypeValues));
     }
   }
 
@@ -140,9 +154,10 @@ export function VisitPhotosStep({
 
       <Panel title={`Photo types · ${cropLabel}`}>
         <p className="vw-hint">{formatCropPhotoGuidance(cropType)}</p>
+        <p className="vw-hint">AI auto-tags photos after upload; select a type below to override the next capture.</p>
         <div className="vw-chip-row">
           {photoTypes.map((t) => {
-            const active = selectedTypes.includes(t.value);
+            const active = captureType === t.value;
             return (
               <button
                 key={t.value}
@@ -154,7 +169,7 @@ export function VisitPhotosStep({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                onClick={() => toggleType(t.value)}
+                onClick={() => setActiveCaptureType(t.value)}
               >
                 {t.label}
               </button>
@@ -180,7 +195,10 @@ export function VisitPhotosStep({
                 >
                   ×
                 </button>
-                <div className="vw-photo-meta">{getVisitPhotoTypeLabel(cropType, p.photoType ?? 'other')}</div>
+                <div className="vw-photo-meta">
+                  {getVisitPhotoTypeLabel(cropType, p.photoType ?? 'other')}
+                  {p.aiTagged ? ' · AI' : ''}
+                </div>
                 {p.retakeRecommended && p.validationIssues?.length ? (
                   <div className="vw-photo-retake">
                     Retake: {p.validationIssues.map((issue) => ISSUE_LABELS[issue]).join(', ')}

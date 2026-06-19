@@ -113,6 +113,7 @@ export type ScenarioRouterResult =
       symptomsText?: string;
       postIntake?: PostIntakeDiagnosisPayload;
     }
+  | { handled: true; deliverPendingDiagnosis: true }
   | { handled: true; duplicateImage: true };
 
 /** Map typed or button titles to stable menu ids. */
@@ -373,6 +374,25 @@ export const whatsappScenarioRouter = {
         sessionState: session.state,
       });
       if (roiHandled) return { handled: true };
+    }
+
+    if (session.state === 'post_diagnosis_intake') {
+      const postResult = await diagnosisFollowUpService.handlePostDiagnosisMessage({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        language: lang,
+        text,
+      });
+      if (postResult.handled) {
+        if (postResult.ready) {
+          await send.text(
+            msg.phone,
+            lang === 'ml' ? 'നന്ദി. നിങ്ങളുടെ നിർണയം തയ്യാറാക്കുന്നു…' : 'Thanks. Preparing your diagnosis…'
+          );
+          return { handled: true, deliverPendingDiagnosis: true };
+        }
+        return { handled: true };
+      }
     }
 
     if (

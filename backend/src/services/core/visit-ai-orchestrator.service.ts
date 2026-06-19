@@ -1,5 +1,6 @@
 import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
+import { logger } from '../../lib/logger.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { resolveConfidenceAction } from '../../domain/ai-training/confidence-routing.js';
@@ -475,6 +476,24 @@ async function predictOutcomeWindow(
   return `${Math.max(2, mid - 2)}–${mid + 4}`;
 }
 
+function normalizeIssueCategory(category: string): VisitAnalyzeRequest['issueCategory'] {
+  const allowed = new Set<string>([
+    'disease',
+    'pest',
+    'nutrient_deficiency',
+    'nutrient_toxicity',
+    'water_stress',
+    'environmental_stress',
+    'soil_problem',
+    'growth_issue',
+    'chemical_injury',
+    'mechanical_damage',
+    'weed',
+    'other',
+  ]);
+  return (allowed.has(category) ? category : 'other') as VisitAnalyzeRequest['issueCategory'];
+}
+
 export const visitAiOrchestratorService = {
   buildContext: visitAiContextService.buildVisitAiContext.bind(visitAiContextService),
 
@@ -505,20 +524,27 @@ export const visitAiOrchestratorService = {
     const confidenceAction = resolveConfidenceAction(topConfidence);
     const skipFollowUpOptional = topConfidence >= 0.9;
 
-    const { data: aiSession } = await supabase
+    const { data: aiSession, error: sessionErr } = await supabase
       .from('ai_advisory_sessions')
       .insert({
         farmer_id: input.farmerId,
-        channel: 'field_visit',
+        channel: 'app',
         crop_type: context.cropType,
         crop_stage: context.stage,
         language: 'en',
         symptoms_text: [input.issueName, input.observation].filter(Boolean).join(' '),
         status: 'processing',
-        metadata: { visitBlockId: input.blockId, source: 'visit_ai' },
+        metadata: {
+          visitBlockId: input.blockId,
+          source: 'visit_ai',
+          channelProfile: 'field_visit',
+        },
       })
       .select('id')
       .single();
+    if (sessionErr) {
+      logger.warn({ err: sessionErr, farmerId: input.farmerId }, 'Visit AI advisory session insert failed');
+    }
 
     const { data: caseRow, error: caseErr } = await supabase
       .from('visit_ai_cases')
@@ -951,42 +977,94 @@ export const visitAiOrchestratorService = {
 
     const issues = [];
     for (const det of detected) {
-      const analyzed = await this.analyze(
+      try {
+        const analyzed = await this.analyze(
+          {
+            ...input,
+            issueCategory: normalizeIssueCategory(det.category),
+            issueName: det.issueName,
+            observation: det.observation,
+            analyzePhotos: analyzePhotos?.slice(0, 4),
+          },
+          agronomistEmail
+        );
+        const top = analyzed.hypotheses.find((h) => h.selected) ?? analyzed.hypotheses[0];
+        issues.push({
+          localId: `ai-${analyzed.aiCaseId}`,
+          category: det.category,
+          issueName: det.issueName,
+          confidence: det.confidence,
+          aiConfidence: det.confidence,
+          severity: det.severity,
+          observation: det.observation ?? '',
+          aiCaseId: analyzed.aiCaseId,
+          hypotheses: analyzed.hypotheses,
+          selectedHypothesisLabel: top?.label,
+          finalDiagnosis: top?.label ?? det.issueName,
+          finalRecommendation: undefined,
+          confidenceAction: analyzed.confidenceAction,
+          skipFollowUpOptional: analyzed.skipFollowUpOptional,
+          imageSignal: analyzed.imageSignal ?? undefined,
+          similarCases: analyzed.similarCases,
+          rootCause: det.rootCause,
+          evidence: det.evidence,
+          initialRecommendation: top
+            ? {
+                text: `Preliminary advisory for ${top.label}. Complete agronomist review and Q&A to finalize treatment.`,
+                dose: undefined,
+                method: 'Pending review',
+                category: det.category,
+              }
+            : undefined,
+        });
+      } catch (err) {
+        logger.warn({ err, issueName: det.issueName, farmerId: input.farmerId }, 'Visit AI per-issue analyze failed');
+      }
+    }
+
+    if (!issues.length) {
+      const fallback = await this.analyze(
         {
           ...input,
-          issueCategory: det.category as VisitAnalyzeRequest['issueCategory'],
-          issueName: det.issueName,
-          observation: det.observation,
+          issueCategory: 'other',
+          issueName: imageSignal?.label ?? 'Field observation',
+          observation: input.fieldVoiceNote,
           analyzePhotos: analyzePhotos?.slice(0, 4),
         },
         agronomistEmail
       );
-      const top = analyzed.hypotheses.find((h) => h.selected) ?? analyzed.hypotheses[0];
+      const top = fallback.hypotheses.find((h) => h.selected) ?? fallback.hypotheses[0];
       issues.push({
-        localId: `ai-${analyzed.aiCaseId}`,
-        category: det.category,
-        issueName: det.issueName,
-        confidence: det.confidence,
-        aiConfidence: det.confidence,
-        severity: det.severity,
-        observation: det.observation ?? '',
-        aiCaseId: analyzed.aiCaseId,
-        hypotheses: analyzed.hypotheses,
+        localId: `ai-${fallback.aiCaseId}`,
+        category: 'other',
+        issueName: imageSignal?.label ?? 'Field observation',
+        confidence: imageSignal?.confidence ?? 0.65,
+        aiConfidence: imageSignal?.confidence ?? 0.65,
+        severity: 'medium',
+        observation: input.fieldVoiceNote ?? '',
+        aiCaseId: fallback.aiCaseId,
+        hypotheses: fallback.hypotheses,
         selectedHypothesisLabel: top?.label,
-        finalDiagnosis: top?.label ?? det.issueName,
+        finalDiagnosis: top?.label ?? imageSignal?.label ?? 'Field observation',
         finalRecommendation: undefined,
-        confidenceAction: analyzed.confidenceAction,
-        skipFollowUpOptional: analyzed.skipFollowUpOptional,
-        imageSignal: analyzed.imageSignal ?? undefined,
-        similarCases: analyzed.similarCases,
-        rootCause: det.rootCause,
-        evidence: det.evidence,
+        confidenceAction: fallback.confidenceAction,
+        skipFollowUpOptional: fallback.skipFollowUpOptional,
+        imageSignal: fallback.imageSignal ?? undefined,
+        similarCases: fallback.similarCases,
+        rootCause: {
+          symptoms: input.fieldVoiceNote ? [input.fieldVoiceNote] : ['Field signs observed'],
+          photoSignals: imageSignal ? [imageSignal.label] : [],
+          soilSignals: [],
+          weatherSignals: [],
+          conclusion: imageSignal?.label ?? 'Further review recommended',
+        },
+        evidence: buildEvidencePack(context, imageSignal),
         initialRecommendation: top
           ? {
               text: `Preliminary advisory for ${top.label}. Complete agronomist review and Q&A to finalize treatment.`,
               dose: undefined,
               method: 'Pending review',
-              category: det.category,
+              category: 'other',
             }
           : undefined,
       });

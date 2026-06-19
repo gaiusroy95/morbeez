@@ -105,4 +105,31 @@ export interface SessionContext {
     pendingPhoto?: boolean;
     evidenceMode?: boolean;
   };
+  /** After Crop Doctor when confidence is below review threshold — clarify before final reply. */
+  postDiagnosisIntake?: {
+    sessionId: string;
+    probableIssue: string;
+    confidence: number;
+    questions: Array<{
+      id: string;
+      kind: 'yes_no';
+      text: string;
+      choices: Array<{ id: string; labelEn: string; labelMl: string }>;
+      purpose?: string;
+    }>;
+    currentIndex: number;
+    answers: Record<string, string>;
+    questionTexts: Record<string, string>;
+    questionChoices: Record<string, Array<{ id: string; labelEn: string; labelMl: string }>>;
+    questionsAsked: number;
+    maxQuestions: number;
+  };
+  /** Stored until post-diagnosis Q&A completes (then farmer gets full advisory). */
+  pendingDiagnosisDelivery?: {
+    sessionId: string;
+    escalated: boolean;
+    reused: boolean;
+    confidence: number;
+    plotLabel?: string;
+  };
 }

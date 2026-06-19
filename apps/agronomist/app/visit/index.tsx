@@ -7,6 +7,7 @@ import {
   getNextWizardStep,
   getPrevWizardStep,
   getVisibleWizardSteps,
+  suggestNextCapturePhotoType,
   validateVisitWizardStep,
   type BlockHealthLevel,
   type CropPerformanceLevel,
@@ -40,9 +41,14 @@ import { VisitFinalDiagnosisStep } from '@/components/field-findings/wizard/Visi
 import { VisitRecPlanningStep } from '@/components/field-findings/wizard/VisitRecPlanningStep';
 import { VisitRecApprovalStep } from '@/components/field-findings/wizard/VisitRecApprovalStep';
 import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummaryStep';
-import { type VisitPhotoDraft, getDefaultSelectedPhotoTypes } from '@/components/field-findings/wizard/types';
+import { type VisitPhotoDraft, getVisitPhotoTypesForCrop, newIssueDraft, pickDefaultCategory } from '@/components/field-findings/wizard/types';
 import { useStaffAuth } from '@/context/StaffAuth';
+import { applyVisitPrefillContext } from '@/lib/applyVisitPrefill';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
+
+function initialCapturePhotoType(crop: string): string {
+  return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
+}
 
 function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhotoDraft[]) {
   const sharedPhotos = visitPhotos.map((p) => ({
@@ -70,6 +76,9 @@ export default function VisitScreen() {
     blockName: string;
     cropType: string;
     farmerName: string;
+    recommendationId?: string;
+    escalationId?: string;
+    rectification?: string;
   }>();
 
   const farmerId = String(params.farmerId ?? '');
@@ -77,6 +86,9 @@ export default function VisitScreen() {
   const blockName = String(params.blockName ?? '');
   const cropType = String(params.cropType ?? '');
   const farmerName = String(params.farmerName ?? '');
+  const recommendationId = params.recommendationId ? String(params.recommendationId) : '';
+  const escalationId = params.escalationId ? String(params.escalationId) : '';
+  const rectificationMode = params.rectification === '1' || Boolean(escalationId);
 
   const sessionRef = useRef<string | null>(null);
   const [step, setStep] = useState<VisitWizardStep>('overview');
@@ -93,7 +105,8 @@ export default function VisitScreen() {
   const [issues, setIssues] = useState<IssueDraft[]>([]);
   const [visitPhotos, setVisitPhotos] = useState<VisitPhotoDraft[]>([]);
   const [fieldVoiceNote, setFieldVoiceNote] = useState('');
-  const [photoTypes, setPhotoTypes] = useState<string[]>(() => getDefaultSelectedPhotoTypes(cropType));
+  const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
+  const [prefillDiagnosis, setPrefillDiagnosis] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -165,12 +178,14 @@ export default function VisitScreen() {
         );
 
         const draft = await loadVisitDraft(blockId);
+        let restoredIssues = false;
         if (draft && draft.farmerId === farmerId) {
           setBlockHealth(draft.blockHealth ?? null);
           setCropPerformance(draft.cropPerformance ?? null);
           setSoilMoisture(draft.soilMoisture ?? null);
           setMeasurements(draft.measurements ?? {});
           if (draft.issues?.length) {
+            restoredIssues = true;
             setIssues(
               draft.issues.map((i, idx) => ({
                 ...i,
@@ -179,6 +194,37 @@ export default function VisitScreen() {
               }))
             );
           }
+        }
+
+        const prefillSource = escalationId
+          ? await agronomistClient.getEscalationVisitContext(escalationId).catch(() => null)
+          : recommendationId
+            ? await agronomistClient.getRecommendationVisitContext(recommendationId).catch(() => null)
+            : null;
+
+        if (prefillSource && !cancelled) {
+          const applied = await applyVisitPrefillContext(prefillSource);
+          if (applied.fieldVoiceNote) setFieldVoiceNote(applied.fieldVoiceNote);
+          if (applied.issues.length && !restoredIssues) {
+            setIssues(
+              applied.issues.map((row, idx) => ({
+                ...newIssueDraft(pickDefaultCategory(), `ai-prefill-${idx}`),
+                issueName: row.issueName,
+                observation: row.observation,
+              }))
+            );
+          }
+          if (applied.photos.length) {
+            setVisitPhotos(applied.photos);
+            setCapturePhotoType(
+              suggestNextCapturePhotoType(
+                applied.photos.map((p) => p.photoType),
+                getVisitPhotoTypesForCrop(prefillSource.cropType ?? cropType).map((t) => t.value)
+              )
+            );
+          }
+          const diagnosis = prefillSource.aiDiagnosis ?? prefillSource.issueDetected;
+          if (diagnosis) setPrefillDiagnosis(diagnosis);
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not start visit');
@@ -191,11 +237,13 @@ export default function VisitScreen() {
     return () => {
       cancelled = true;
     };
-  }, [cropType, farmerId, blockId]);
+  }, [cropType, farmerId, blockId, recommendationId, escalationId]);
 
   useEffect(() => {
-    setPhotoTypes(getDefaultSelectedPhotoTypes(cropType));
-  }, [cropType]);
+    if (!visitPhotos.length) {
+      setCapturePhotoType(initialCapturePhotoType(cropType));
+    }
+  }, [cropType, visitPhotos.length]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -325,8 +373,9 @@ export default function VisitScreen() {
         }))
         .filter((m) => m.value);
 
-      const issuePayload = mergeVisitPhotosIntoIssues(issues, visitPhotos);
-      const visitPhotoPayload = visitPhotos.map((p) => ({
+      const resolvedPhotos = await ensureVisitPhotoBase64(visitPhotos);
+      const issuePayload = mergeVisitPhotosIntoIssues(issues, resolvedPhotos);
+      const visitPhotoPayload = resolvedPhotos.map((p) => ({
         filename: p.filename,
         mimeType: p.mimeType,
         dataBase64: p.dataBase64,
@@ -429,14 +478,21 @@ export default function VisitScreen() {
           />
         ) : null}
 
+        {rectificationMode && prefillDiagnosis ? (
+          <AlertBox>
+            Rectification visit — verify or correct AI diagnosis: {prefillDiagnosis}. Use review steps to reject and
+            record the correct diagnosis.
+          </AlertBox>
+        ) : null}
+
         {step === 'photos' ? (
           <VisitPhotosStep
             cropType={cropType}
             photos={visitPhotos}
-            selectedTypes={photoTypes}
+            captureType={capturePhotoType}
+            onCaptureTypeChange={setCapturePhotoType}
             voiceNote={fieldVoiceNote}
             onPhotosChange={setVisitPhotos}
-            onTypesChange={setPhotoTypes}
             onVoiceNoteChange={setFieldVoiceNote}
           />
         ) : null}
@@ -547,7 +603,7 @@ export default function VisitScreen() {
         {step === 'summary' ? (
           <VisitSummaryStep
             photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
-            photoTypeCount={photoTypes.length}
+            photoTypeCount={visitPhotos.length}
             templates={templates}
             measurements={measurements}
             issues={issues}
