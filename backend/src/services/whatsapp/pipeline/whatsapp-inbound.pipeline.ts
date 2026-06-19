@@ -1672,6 +1672,7 @@ export const whatsappInboundPipeline = {
           escalated: Boolean(result.escalated),
           reused: Boolean(result.reused),
           plotLabel: sessCtx.activePlotLabel ?? undefined,
+          symptomsText,
         });
         if (clarificationStarted) return;
       }

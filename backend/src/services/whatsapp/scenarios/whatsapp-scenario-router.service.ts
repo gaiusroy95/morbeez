@@ -382,6 +382,7 @@ export const whatsappScenarioRouter = {
         phone: msg.phone,
         language: lang,
         text,
+        hasPhoto: CROP_MEDIA_INTAKE.has(msg.msgType),
       });
       if (postResult.handled) {
         if (postResult.ready) {

@@ -64,182 +64,24 @@ export type FollowUpQuestion = {
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
 type PostDiagnosisIntakeContext = NonNullable<SessionContext['postDiagnosisIntake']>;
 
-function issueKeywordHints(label: string): Set<string> {
-  const l = label.toLowerCase();
-  const hints = new Set<string>();
-  if (/water|irrigat|drought|moisture|stress|dry/.test(l)) hints.add('water');
-  if (/nutrient|deficien|nitrogen|phosph|potash|yellow/.test(l)) hints.add('nutrient');
-  if (/fung|blast|spot|mildew|rot|phyllosticta|pyricularia/.test(l)) hints.add('fungal');
-  if (/pest|insect|thrip|mite|bore|chew|hole/.test(l)) hints.add('pest');
-  return hints;
-}
-
-function issuesMatch(a: string, b: string): boolean {
-  const na = a.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-  const nb = b.toLowerCase().replace(/[^a-z0-9]+/g, ' ');
-  if (na.includes(nb) || nb.includes(na)) return true;
-  const ha = issueKeywordHints(a);
-  const hb = issueKeywordHints(b);
-  for (const h of ha) {
-    if (hb.has(h)) return true;
-  }
-  return false;
-}
-
-const POST_QUESTION_ML: Record<string, string> = {
-  water_dry_soil:
-    'മണ്ണിൽ ഒരു വിരൽ ആഴത്തില്‍ നോക്കുമ്പോൾ ഉണങ്ങിയതാണോ?',
-  water_recent_irrigation:
-    'കഴിഞ്ഞ 3 ദിവസത്തിനുള്ളിൽ ഈ പ്ലോട്ടിൽ നീരൊഴുക്ക് ചെയ്തിട്ടുണ്ടോ?',
-  nutrient_old_leaves:
-    'മഞ്ഞനിറം പ്രധാനമായും താഴത്തെ പഴയ ഇലകളിലാണോ, അല്ലെങ്കിൽ ഇലയുടെ അറ്റങ്ങളിലാണോ?',
-  fungal_spots:
-    'ഇലകളിൽ തവിട്ട് വൃത്താകാര സ്പോട്ടുകളും മഞ്ഞ വളയവും കാണാമോ?',
-  pest_visible:
-    'ഇലകളിൽ പുഴുക്കൾ, ചുരങ്ങൾ, അല്ലെങ്കിൽ ചുരുൾ പോലുള്ള അവശിഷ്ടം കാണാമോ?',
-};
-
-function yesNoQuestion(
-  id: string,
-  en: string,
-  purpose?: string
-): FollowUpQuestion {
+function toAdvisorySnapshot(advisory: StructuredAdvisory): PostDiagnosisIntakeContext['advisorySnapshot'] {
   return {
-    id,
-    kind: 'yes_no',
-    text: en,
-    choices: YES_NO_CHOICES,
-    purpose,
+    probableIssue: advisory.probableIssue,
+    confidence: advisory.confidence,
+    uncertain: advisory.uncertain,
+    imageObservations: advisory.imageObservations,
+    stressAnalysis: advisory.stressAnalysis,
+    differentialDiagnosis: advisory.differentialDiagnosis,
+    rejectedHypotheses: advisory.rejectedHypotheses,
   };
-}
-
-function localizePostQuestion(q: FollowUpQuestion, language: AdvisoryLanguage): FollowUpQuestion {
-  if (language === 'ml') {
-    const mlText = POST_QUESTION_ML[q.id];
-    if (mlText) return { ...q, text: mlText };
-  }
-  return q;
-}
-
-function buildDifferentialClarificationQuestions(
-  advisory: StructuredAdvisory,
-  language: AdvisoryLanguage
-): FollowUpQuestion[] {
-  const primary = advisory.probableIssue?.trim() ?? '';
-  const primaryHints = issueKeywordHints(primary);
-  const used = new Set<string>();
-  const questions: FollowUpQuestion[] = [];
-
-  const push = (q: FollowUpQuestion) => {
-    if (used.has(q.id) || questions.length >= MAX_POST_DIAGNOSIS_QUESTIONS()) return;
-    used.add(q.id);
-    questions.push(localizePostQuestion(q, language));
-  };
-
-  if (primaryHints.has('water')) {
-    push(
-      yesNoQuestion(
-        'water_dry_soil',
-        'When you dig soil one finger deep, is it dry?',
-        'confirm_water_stress'
-      )
-    );
-    push(
-      yesNoQuestion(
-        'water_recent_irrigation',
-        'Have you irrigated this plot in the last 3 days?',
-        'confirm_water_stress'
-      )
-    );
-  } else if (primaryHints.has('nutrient')) {
-    push(
-      yesNoQuestion(
-        'nutrient_old_leaves',
-        'Is yellowing mainly on older leaves at the bottom of the plant?',
-        'confirm_nutrient'
-      )
-    );
-  } else if (primaryHints.has('fungal')) {
-    push(
-      yesNoQuestion(
-        'fungal_spots',
-        'Do you see brown circular spots with yellow halos on the leaves?',
-        'confirm_fungal'
-      )
-    );
-  } else if (primaryHints.has('pest')) {
-    push(
-      yesNoQuestion(
-        'pest_visible',
-        'Do you see insects, holes, or sticky residue on the leaves?',
-        'confirm_pest'
-      )
-    );
-  }
-
-  const differentials = (advisory.differentialDiagnosis ?? [])
-    .filter((d) => d.label?.trim() && !issuesMatch(d.label, primary))
-    .filter(
-      (d) =>
-        (d.probability ?? 0) >= 0.03 ||
-        !/no .*observed|ruled out|not seen|no visible|no characteristic/i.test(d.reason ?? '')
-    )
-    .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0));
-
-  for (const alt of differentials) {
-    const hints = issueKeywordHints(alt.label);
-    if (hints.has('nutrient')) {
-      push(
-        yesNoQuestion(
-          'nutrient_old_leaves',
-          'Is yellowing mainly on older leaves at the bottom of the plant?',
-          `rule_out:${alt.label}`
-        )
-      );
-    } else if (hints.has('water')) {
-      push(
-        yesNoQuestion(
-          'water_dry_soil',
-          'When you dig soil one finger deep, is it dry?',
-          `rule_out:${alt.label}`
-        )
-      );
-    } else if (hints.has('fungal')) {
-      push(
-        yesNoQuestion(
-          'fungal_spots',
-          'Do you see brown circular spots with yellow halos on the leaves?',
-          `rule_out:${alt.label}`
-        )
-      );
-    } else if (hints.has('pest')) {
-      push(
-        yesNoQuestion(
-          'pest_visible',
-          'Do you see insects, holes, or sticky residue on the leaves?',
-          `rule_out:${alt.label}`
-        )
-      );
-    } else {
-      const id = `alt_${alt.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40)}`;
-      if (!used.has(id)) {
-        const reason = alt.reason?.trim();
-        const en = reason
-          ? `Could this match what you see: ${reason}?`
-          : `Could the issue also be ${alt.label} on your farm?`;
-        push(yesNoQuestion(id, en, `rule_out:${alt.label}`));
-      }
-    }
-    if (questions.length >= MAX_POST_DIAGNOSIS_QUESTIONS()) break;
-  }
-
-  return questions;
 }
 
 function attachPostQuestionToIntake(intake: PostDiagnosisIntakeContext, q: FollowUpQuestion): void {
   intake.questionTexts = intake.questionTexts ?? {};
+  intake.questionKinds = intake.questionKinds ?? {};
   intake.questionChoices = intake.questionChoices ?? {};
   intake.questionTexts[q.id] = q.text;
+  intake.questionKinds[q.id] = q.kind;
   intake.questionChoices[q.id] = q.choices;
 }
 
@@ -612,6 +454,44 @@ export const diagnosisFollowUpService = {
       maxQuestions,
       learnedPatterns: investigation.learnedPatterns,
       evidenceGaps,
+    });
+
+    if (result.intakeComplete || !result.question) {
+      return { intakeComplete: true };
+    }
+
+    return {
+      intakeComplete: false,
+      question: {
+        id: result.question.id,
+        kind: result.question.kind,
+        text: result.question.text,
+        choices: result.question.choices,
+        purpose: result.question.purpose,
+        fromExpertLibrary: false,
+      },
+    };
+  },
+
+  async planNextPostDiagnosisQuestion(
+    investigation: InvestigationContext,
+    intake: PostDiagnosisIntakeContext
+  ): Promise<{ intakeComplete: boolean; question?: FollowUpQuestion }> {
+    const maxQuestions = intake.maxQuestions ?? MAX_POST_DIAGNOSIS_QUESTIONS();
+    const questionsAsked = intake.questionsAsked ?? Object.keys(intake.answers).length;
+
+    if (questionsAsked >= maxQuestions) {
+      return { intakeComplete: true };
+    }
+
+    const result = await diagnosisFollowUpQuestionGenerator.planPostDiagnosisQuestion({
+      ctx: investigation,
+      advisory: intake.advisorySnapshot,
+      priorAnswers: intake.answers,
+      questionTexts: intake.questionTexts ?? {},
+      questionsAsked,
+      maxQuestions,
+      learnedPatterns: investigation.learnedPatterns,
     });
 
     if (result.intakeComplete || !result.question) {
@@ -1055,34 +935,46 @@ export const diagnosisFollowUpService = {
     escalated: boolean;
     reused: boolean;
     plotLabel?: string;
+    symptomsText?: string;
   }): Promise<boolean> {
     if (!this.enabled()) return false;
     if (!this.shouldDeferDiagnosisDelivery(params.advisory.confidence)) return false;
 
-    const questions = buildDifferentialClarificationQuestions(params.advisory, params.language);
-    if (!questions.length) return false;
+    const memory = await farmerMemoryService.build(params.farmerId, {
+      symptomsText: params.symptomsText,
+    });
+    const investigation = await this.buildInvestigationContext({
+      farmerId: params.farmerId,
+      language: params.language,
+      symptomsText:
+        params.symptomsText?.trim() ||
+        `${memory.cropType} crop field issue — post photo analysis`,
+      cropType: memory.cropType,
+      hasPhoto: true,
+    });
 
-    const intake: PostDiagnosisIntakeContext = {
+    const draftIntake: PostDiagnosisIntakeContext = {
       sessionId: params.sessionId,
-      probableIssue: params.advisory.probableIssue,
-      confidence: params.advisory.confidence,
-      questions: questions.map((q) => ({
-        id: q.id,
-        kind: 'yes_no' as const,
-        text: q.text,
-        choices: q.choices,
-        purpose: q.purpose,
-      })),
+      cropType: memory.cropType,
+      advisorySnapshot: toAdvisorySnapshot(params.advisory),
+      questions: [],
       currentIndex: 0,
       answers: {},
       questionTexts: {},
+      questionKinds: {},
       questionChoices: {},
       questionsAsked: 0,
-      maxQuestions: questions.length,
+      maxQuestions: MAX_POST_DIAGNOSIS_QUESTIONS(),
     };
-    for (const q of questions) {
-      attachPostQuestionToIntake(intake, q);
-    }
+
+    const planned = await this.planNextPostDiagnosisQuestion(investigation, draftIntake);
+    if (planned.intakeComplete || !planned.question) return false;
+
+    const intake: PostDiagnosisIntakeContext = {
+      ...draftIntake,
+      questions: [planned.question],
+    };
+    attachPostQuestionToIntake(intake, planned.question);
 
     await conversationSessionService.patchContext(params.farmerId, {
       postDiagnosisIntake: intake,
@@ -1096,10 +988,12 @@ export const diagnosisFollowUpService = {
     });
     await conversationSessionService.setState(params.farmerId, 'post_diagnosis_intake');
 
-    const intro =
-      params.language === 'ml'
-        ? `നിങ്ങളുടെ ഫോട്ടോകൾ വിശകലനം ചെയ്തു (${Math.round(params.advisory.confidence * 100)}% സാധ്യത: ${params.advisory.probableIssue}). പൂർണ്ണ നിർണയം നൽകുന്നതിന് മുമ്പ് 2-3 ചെറിയ ചോദ്യങ്ങൾ:`
-        : `I analyzed your photos (${Math.round(params.advisory.confidence * 100)}% likely: ${params.advisory.probableIssue}). Before I share the full diagnosis, please answer a few quick questions:`;
+    const intro = diagnosisFollowUpReasoningEngine.buildPostDiagnosisIntro({
+      language: params.language,
+      probableIssue: params.advisory.probableIssue,
+      confidence: params.advisory.confidence,
+      differentialCount: params.advisory.differentialDiagnosis?.length ?? 0,
+    });
 
     await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, intro);
     logger.info(
@@ -1107,9 +1001,9 @@ export const diagnosisFollowUpService = {
         farmerId: params.farmerId,
         sessionId: params.sessionId,
         confidence: params.advisory.confidence,
-        questionCount: questions.length,
+        firstQuestionId: planned.question.id,
       },
-      'Post-diagnosis clarification started'
+      'Post-diagnosis AI clarification started'
     );
     return true;
   },
@@ -1126,10 +1020,20 @@ export const diagnosisFollowUpService = {
     const step =
       intake.maxQuestions > 1
         ? language === 'ml'
-          ? `(ചോദ്യം ${intake.currentIndex + 1} / ${intake.maxQuestions})\n\n`
-          : `(Question ${intake.currentIndex + 1} of ${intake.maxQuestions})\n\n`
+          ? `(ചോദ്യം ${intake.currentIndex + 1} / ${intake.maxQuestions} വരെ)\n\n`
+          : `(Question ${intake.currentIndex + 1} of up to ${intake.maxQuestions})\n\n`
         : '';
     const body = prefix ? `${prefix}\n\n${step}${q.text}` : `${step}${q.text}`;
+
+    if (q.kind === 'photo') {
+      await whatsappService.sendText(
+        phone,
+        language === 'ml'
+          ? `${body}\n\n(അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" ടൈപ്പ് ചെയ്യൂ.)`
+          : `${body}\n\n(Send a close photo, or type skip.)`
+      );
+      return;
+    }
 
     const choices = q.choices?.length
       ? q.choices
@@ -1151,6 +1055,7 @@ export const diagnosisFollowUpService = {
     phone: string;
     language: AdvisoryLanguage;
     text: string;
+    hasPhoto?: boolean;
   }): Promise<{ handled: boolean; ready?: boolean }> {
     const ctx = await conversationSessionService.getContext(params.farmerId);
     const intake = ctx.postDiagnosisIntake;
@@ -1161,34 +1066,70 @@ export const diagnosisFollowUpService = {
       return { handled: true, ready: true };
     }
 
-    const choices =
-      current.choices?.length
-        ? current.choices
-        : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
-    const choiceIds = new Set(choices.map((c) => c.id));
+    const isPhotoQ = current.kind === 'photo';
 
-    const btn = this.parseButtonReply(params.text);
-    let answer = btn?.questionId === current.id ? btn.answer : undefined;
+    if (isPhotoQ && params.hasPhoto) {
+      intake.answers[current.id] = 'yes';
+      intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+      intake.currentIndex += 1;
+    } else if (isPhotoQ) {
+      const skip = /skip/i.test(params.text);
+      if (!skip && !params.hasPhoto) {
+        await whatsappService.sendText(
+          params.phone,
+          params.language === 'ml'
+            ? 'ദയവായി അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" എന്ന് ടൈപ്പ് ചെയ്യൂ.'
+            : 'Please send a close photo, or type skip.'
+        );
+        return { handled: true, ready: false };
+      }
+      intake.answers[current.id] = skip ? 'skip' : 'yes';
+      intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+      intake.currentIndex += 1;
+    } else {
+      const choices =
+        current.choices?.length
+          ? current.choices
+          : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+      const choiceIds = new Set(choices.map((c) => c.id));
 
-    if (!answer) {
-      const typed = this.parseTextAnswer(params.text);
-      if (typed && choiceIds.has(typed)) answer = typed;
-      else if (typed === 'yes' || typed === 'no') answer = typed;
+      const btn = this.parseButtonReply(params.text);
+      let answer = btn?.questionId === current.id ? btn.answer : undefined;
+
+      if (!answer) {
+        const typed = this.parseTextAnswer(params.text);
+        if (typed && choiceIds.has(typed)) answer = typed;
+        else if (typed === 'yes' || typed === 'no') answer = typed;
+      }
+
+      if (!answer || !choiceIds.has(answer)) {
+        await whatsappService.sendText(
+          params.phone,
+          params.language === 'ml'
+            ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ, അല്ലെങ്കിൽ Yes / No എന്ന് മറുപടി നൽകൂ.'
+            : 'Please tap one of the option buttons, or reply Yes / No.'
+        );
+        return { handled: true, ready: false };
+      }
+
+      intake.answers[current.id] = answer;
+      intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+      intake.currentIndex += 1;
     }
 
-    if (!answer || !choiceIds.has(answer)) {
-      await whatsappService.sendText(
-        params.phone,
-        params.language === 'ml'
-          ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ, അല്ലെങ്കിൽ Yes / No എന്ന് മറുപടി നൽകൂ.'
-          : 'Please tap one of the option buttons, or reply Yes / No.'
-      );
-      return { handled: true, ready: false };
-    }
+    const investigation = await this.buildInvestigationContext({
+      farmerId: params.farmerId,
+      language: params.language,
+      symptomsText: `${intake.cropType} crop — post-diagnosis clarification`,
+      cropType: intake.cropType,
+      hasPhoto: true,
+    });
 
-    intake.answers[current.id] = answer;
-    intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
-    intake.currentIndex += 1;
+    const next = await this.planNextPostDiagnosisQuestion(investigation, intake);
+    if (!next.intakeComplete && next.question) {
+      intake.questions.push(next.question);
+      attachPostQuestionToIntake(intake, next.question);
+    }
 
     await conversationSessionService.patchContext(params.farmerId, { postDiagnosisIntake: intake });
 

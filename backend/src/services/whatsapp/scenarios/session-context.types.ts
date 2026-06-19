@@ -105,14 +105,22 @@ export interface SessionContext {
     pendingPhoto?: boolean;
     evidenceMode?: boolean;
   };
-  /** After Crop Doctor when confidence is below review threshold — clarify before final reply. */
+  /** After Crop Doctor when confidence is below review threshold — AI-planned clarification before final reply. */
   postDiagnosisIntake?: {
     sessionId: string;
-    probableIssue: string;
-    confidence: number;
+    cropType: string;
+    advisorySnapshot: {
+      probableIssue: string;
+      confidence: number;
+      uncertain?: boolean;
+      imageObservations?: string[];
+      stressAnalysis?: string[];
+      differentialDiagnosis?: Array<{ label: string; reason: string; probability?: number }>;
+      rejectedHypotheses?: string[];
+    };
     questions: Array<{
       id: string;
-      kind: 'yes_no';
+      kind: 'yes_no' | 'multiple_choice' | 'photo';
       text: string;
       choices: Array<{ id: string; labelEn: string; labelMl: string }>;
       purpose?: string;
@@ -120,6 +128,7 @@ export interface SessionContext {
     currentIndex: number;
     answers: Record<string, string>;
     questionTexts: Record<string, string>;
+    questionKinds: Record<string, 'yes_no' | 'multiple_choice' | 'photo'>;
     questionChoices: Record<string, Array<{ id: string; labelEn: string; labelMl: string }>>;
     questionsAsked: number;
     maxQuestions: number;

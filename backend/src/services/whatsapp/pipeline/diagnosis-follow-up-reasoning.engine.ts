@@ -117,6 +117,29 @@ export const diagnosisFollowUpReasoningEngine = {
     return `${caseLine}${matchLine}${weatherLine}${confLine}${patternHint}`;
   },
 
+  buildPostDiagnosisIntro(params: {
+    language: AdvisoryLanguage;
+    probableIssue: string;
+    confidence: number;
+    differentialCount: number;
+  }): string {
+    const pct = Math.round(params.confidence * 100);
+    const issue = params.probableIssue?.trim() || 'your crop issue';
+    const diffHint =
+      params.differentialCount > 1
+        ? params.language === 'ml'
+          ? ' AI അടുത്ത ചോദ്യം ഈ വിശകലനത്തിലെ ബദൽ സാധ്യതകൾ വേർതിരിക്കാൻ തയ്യാറാക്കും.'
+          : ' AI will plan the next question from your diagnosis differentials — not a fixed script.'
+        : params.language === 'ml'
+          ? ' AI അടുത്ത ചോദ്യം ഫീൽഡ് സ്ഥിരീകരണത്തിനായി തയ്യാറാക്കും.'
+          : ' AI will plan a field confirmation question from the analysis.';
+
+    if (params.language === 'ml') {
+      return `ഫോട്ടോ വിശകലനം പൂർത്തിയായി (${pct}% സാധ്യത: ${issue}). പൂർണ്ണ നിർണയം അയയ്ക്കുന്നതിന് മുമ്പ് ഒരൊന്നായി ചോദ്യങ്ങൾ:${diffHint}`;
+    }
+    return `Photo analysis is done (${pct}% likely: ${issue}). A few one-by-one questions before the full diagnosis:${diffHint}`;
+  },
+
   enrichSymptomsFromAnswers(
     initial: string,
     answers: Record<string, string>,
