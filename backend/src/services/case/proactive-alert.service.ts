@@ -90,7 +90,11 @@ export const proactiveAlertService = {
       scheduled++;
     }
 
-    logger.info({ scheduled }, 'MAIOS proactive alert scan complete');
+    if (scheduled > 0) {
+      logger.info({ scheduled }, 'MAIOS proactive alert scan complete');
+    } else {
+      logger.debug({ scheduled }, 'MAIOS proactive alert scan complete');
+    }
     return { scheduled };
   },
 };

@@ -9,6 +9,23 @@ import { visitAdvisoryEscalationService } from '../core/visit-advisory-escalatio
 import type { AdvisoryLanguage } from '../ai/types.js';
 
 const POLL_MS = 60_000;
+const PROACTIVE_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+let lastProactiveScanMs = 0;
+
+function runProactiveScanIfDue(): void {
+  if (env.ENABLE_MAIOS_V12 === false) return;
+
+  const now = Date.now();
+  if (lastProactiveScanMs && now - lastProactiveScanMs < PROACTIVE_SCAN_INTERVAL_MS) {
+    return;
+  }
+  lastProactiveScanMs = now;
+
+  import('../case/proactive-alert.service.js')
+    .then((m) => m.proactiveAlertService.scheduleDailyScan())
+    .catch((err) => logger.warn({ err }, 'MAIOS proactive scan failed'));
+}
 
 async function processJob(job: {
   id: string;
@@ -181,6 +198,7 @@ async function bootstrapScheduledJobs(): Promise<void> {
   }
 
   const { proactiveAlertService } = await import('../case/proactive-alert.service.js');
+  lastProactiveScanMs = Date.now();
   void proactiveAlertService.scheduleDailyScan();
 }
 
@@ -192,11 +210,7 @@ export function startAdvisoryAutomationWorker(): void {
 
   interval = setInterval(() => {
     poll().catch((err) => logger.error({ err }, 'Automation poll error'));
-    if (env.ENABLE_MAIOS_V12 !== false) {
-      import('../case/proactive-alert.service.js')
-        .then((m) => m.proactiveAlertService.scheduleDailyScan())
-        .catch((err) => logger.warn({ err }, 'MAIOS proactive scan failed'));
-    }
+    runProactiveScanIfDue();
   }, POLL_MS);
 
   logger.info('Advisory automation worker started');

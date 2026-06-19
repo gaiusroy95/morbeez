@@ -99,6 +99,29 @@ function attachQuestionToIntake(intake: IntakeContext, q: FollowUpQuestion): voi
   intake.questionChoices[q.id] = q.choices;
 }
 
+function looksLikeSymptomDescription(text: string): boolean {
+  const t = text.trim();
+  if (!t || t.length < 6) return false;
+  if (/^(yes|no|y|n|skip|1|2)$/i.test(t)) return false;
+  if (t.startsWith('dfq.') || t.startsWith('menu.') || t.startsWith('lang.')) return false;
+  return true;
+}
+
+function farmerSentCropEvidence(params: { text: string; hasPhoto: boolean }): boolean {
+  return params.hasPhoto || looksLikeSymptomDescription(params.text);
+}
+
+async function abandonDiagnosisIntake(farmerId: string): Promise<void> {
+  await conversationSessionService.patchContext(farmerId, { diagnosisIntake: undefined });
+  await conversationSessionService.setState(farmerId, 'diagnosis');
+}
+
+function intakeAnswerHint(language: AdvisoryLanguage): string {
+  return language === 'ml'
+    ? 'ദയവായി ചോദ്യത്തിന് മറുപടി നൽകൂ (അല്ലെങ്കിൽ Yes / No ടൈപ്പ് ചെയ്യൂ):'
+    : 'Please answer the question below (or type Yes / No):';
+}
+
 async function sendStructuredChoices(params: {
   phone: string;
   language: AdvisoryLanguage;
@@ -851,11 +874,19 @@ export const diagnosisFollowUpService = {
       }
 
       if (!answer || !choiceIds.has(answer)) {
-        await whatsappService.sendText(
+        if (farmerSentCropEvidence(params)) {
+          await abandonDiagnosisIntake(params.farmerId);
+          logger.info(
+            { farmerId: params.farmerId, hasPhoto: params.hasPhoto, text: params.text?.slice(0, 80) },
+            'Diagnosis intake abandoned — farmer sent crop photo/symptoms instead of structured answer'
+          );
+          return { handled: false };
+        }
+        await this.sendCurrentQuestion(
           params.phone,
-          params.language === 'ml'
-            ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ.'
-            : 'Please tap one of the option buttons.'
+          params.language,
+          intake,
+          intakeAnswerHint(params.language)
         );
         return { handled: true, ready: false };
       }
@@ -1103,11 +1134,11 @@ export const diagnosisFollowUpService = {
       }
 
       if (!answer || !choiceIds.has(answer)) {
-        await whatsappService.sendText(
+        await this.sendPostDiagnosisQuestion(
           params.phone,
-          params.language === 'ml'
-            ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ, അല്ലെങ്കിൽ Yes / No എന്ന് മറുപടി നൽകൂ.'
-            : 'Please tap one of the option buttons, or reply Yes / No.'
+          params.language,
+          intake,
+          intakeAnswerHint(params.language)
         );
         return { handled: true, ready: false };
       }
