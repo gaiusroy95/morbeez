@@ -59,6 +59,13 @@ export interface SessionContext {
   /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
   pendingDiagnosisImagePath?: string;
   pendingDiagnosisImageMime?: string;
+  /** Multiple photos batched when farmer sends several images at once. */
+  pendingDiagnosisImageBatch?: Array<{
+    path: string;
+    mime: string;
+    hash: string;
+    messageId?: string;
+  }>;
   /** AI-planned follow-up before Crop Doctor (one question at a time, no hardcoded bank). */
   diagnosisIntake?: {
     initialSymptoms: string;

@@ -74,6 +74,8 @@ export function buildUserPrompt(params: {
   fieldInvestigation?: string;
   issueLabelHint?: string;
   language: string;
+  /** When farmer sent multiple photos in one burst. */
+  photoCount?: number;
 }): string {
   return [
     `Crop: ${params.cropType} (already known from farmer profile — do not ask farmer to name crop again unless message clearly refers to a different crop).`,
@@ -101,6 +103,9 @@ export function buildUserPrompt(params: {
     params.fieldInvestigation ? `\n${params.fieldInvestigation}\n` : null,
     params.issueLabelHint
       ? `Suggested probableIssue (align with investigation unless image clearly contradicts): ${params.issueLabelHint}`
+      : null,
+    params.photoCount && params.photoCount > 1
+      ? `Farmer sent ${params.photoCount} photos in one message — analyze ALL images together; note differences between angles in imageObservations.`
       : null,
     'Produce a complete structured diagnosis — all JSON fields populated with specific, actionable detail.',
     'Analyze the crop image if provided. Merge Plant.id signals when available (Plant.id may miss thrips — trust visible streaking/lesions on leaves).',

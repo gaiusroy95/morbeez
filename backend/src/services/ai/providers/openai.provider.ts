@@ -40,6 +40,20 @@ export const openaiVisionProvider: VisionProvider = {
 
   async analyzeVision(input: VisionInput): Promise<StructuredAdvisory> {
     const model = env.OPENAI_VISION_MODEL;
+    const imageParts = [
+      {
+        imageBase64: input.imageBase64,
+        mimeType: input.mimeType,
+      },
+      ...(input.additionalImages ?? []),
+    ].map((img) => ({
+      type: 'image_url' as const,
+      image_url: {
+        url: `data:${img.mimeType};base64,${img.imageBase64}`,
+        detail: 'high' as const,
+      },
+    }));
+
     const body = {
       model,
       ...openaiTokenLimitBody(model, 3000),
@@ -48,16 +62,7 @@ export const openaiVisionProvider: VisionProvider = {
         { role: 'system', content: input.systemPrompt },
         {
           role: 'user',
-          content: [
-            { type: 'text', text: input.userPrompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${input.mimeType};base64,${input.imageBase64}`,
-                detail: 'high',
-              },
-            },
-          ],
+          content: [{ type: 'text', text: input.userPrompt }, ...imageParts],
         },
       ],
     };

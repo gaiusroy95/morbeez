@@ -66,6 +66,8 @@ const envSchema = z.object({
     .default('true'),
   WHATSAPP_TYPING_MIN_MS: z.coerce.number().default(700),
   WHATSAPP_TYPING_MAX_MS: z.coerce.number().default(2200),
+  /** Debounce window (ms) to batch simultaneous WhatsApp photo uploads into one diagnosis. */
+  WHATSAPP_IMAGE_BATCH_MS: z.coerce.number().default(2500),
   SHOPIFY_STOREFRONT_URL: z.string().url().optional(),
 
   OPENAI_API_KEY: z.string().optional(),

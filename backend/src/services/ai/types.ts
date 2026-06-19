@@ -77,6 +77,12 @@ export interface DiagnoseInput {
   imageMimeType?: string;
   /** Supabase storage path in advisory-images (set when farmer photo is persisted). */
   imageStoragePath?: string;
+  /** All photos from a batched WhatsApp upload (primary image is imageBase64 / imageStoragePath). */
+  diagnosisImages?: Array<{
+    imageBase64?: string;
+    imageMimeType: string;
+    imageStoragePath?: string;
+  }>;
   channel: 'api' | 'whatsapp' | 'web' | 'telecaller';
   /** WhatsApp pipeline: minimal history string (low token cost) */
   compactHistory?: string;

@@ -233,6 +233,7 @@ export const cropDoctorService = {
       fieldInvestigation: input.fieldInvestigation,
       issueLabelHint: input.issueLabelHint,
       language: input.language,
+      photoCount: input.diagnosisImages?.length ?? (input.imageBase64 ? 1 : 0),
     });
 
     let advisory: StructuredAdvisory | undefined;
@@ -240,11 +241,19 @@ export const cropDoctorService = {
 
     try {
       if (input.imageBase64 && input.imageMimeType) {
+        const additionalImages = (input.diagnosisImages ?? [])
+          .slice(1)
+          .filter((img) => img.imageBase64)
+          .map((img) => ({
+            imageBase64: img.imageBase64!,
+            mimeType: img.imageMimeType,
+          }));
         advisory = await openaiVisionProvider.analyzeVision({
           imageBase64: input.imageBase64,
           mimeType: input.imageMimeType,
           systemPrompt: CROP_DOCTOR_SYSTEM_PROMPT,
           userPrompt: fullUserPrompt,
+          additionalImages: additionalImages.length ? additionalImages : undefined,
         });
       } else {
         advisory = await openaiTextAdvisory(CROP_DOCTOR_SYSTEM_PROMPT, fullUserPrompt);
