@@ -77,4 +77,11 @@ export async function osAnalyticsRoutes(app: FastifyInstance): Promise<void> {
     const precision = await osPrecisionService.getModulePrecision(days);
     return reply.send({ ok: true, precision });
   });
+
+  app.get(`${api}/maios`, async (request, reply) => {
+    await assertModuleAccess(request, 'analytics', 'read');
+    const days = parseDays(request.query as { days?: string });
+    const maios = await osAnalyticsService.getMaiosKpis(days);
+    return reply.send({ ok: true, maios });
+  });
 }

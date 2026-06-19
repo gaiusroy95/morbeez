@@ -1,1 +1,1 @@
-{"version":3,"file":"os-partner.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/admin/os-partner.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAiB/C,wBAAsB,eAAe,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CAgSzE"}
+{"version":3,"file":"os-partner.routes.d.ts","sourceRoot":"","sources":["../../../src/routes/admin/os-partner.routes.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,SAAS,CAAC;AAiB/C,wBAAsB,eAAe,CAAC,GAAG,EAAE,eAAe,GAAG,OAAO,CAAC,IAAI,CAAC,CA6TzE"}

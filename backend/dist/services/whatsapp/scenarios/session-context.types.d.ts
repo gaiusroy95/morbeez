@@ -57,6 +57,16 @@ export interface SessionContext {
     /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
     pendingDiagnosisImagePath?: string;
     pendingDiagnosisImageMime?: string;
+    /** Multiple photos batched when farmer sends several images at once. */
+    pendingDiagnosisImageBatch?: Array<{
+        path: string;
+        mime: string;
+        hash: string;
+        messageId?: string;
+    }>;
+    /** Latest Ginger SOP v3 case snapshot (persisted on ai_advisory_sessions.metadata too). */
+    gingerSopCase?: import('../../../domain/ginger-sop/types.js').GingerSopCase;
+    maiosCase?: import('../../../domain/case/types.js').MaiosCase;
     /** AI-planned follow-up before Crop Doctor (one question at a time, no hardcoded bank). */
     diagnosisIntake?: {
         initialSymptoms: string;

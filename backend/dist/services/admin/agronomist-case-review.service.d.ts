@@ -90,7 +90,7 @@ export declare const agronomistCaseReviewService: {
         review: {
             action: "approve_ai" | "correct_ai" | "partial_match" | "escalate_urgent" | null;
             correctDiagnosis: any;
-            severity: "mild" | "moderate" | "severe" | null;
+            severity: "moderate" | "mild" | "severe" | null;
             recommendationText: string | null;
             dosage: string | null;
             notesForLearning: string | null;
@@ -158,6 +158,8 @@ export declare const agronomistCaseReviewService: {
             issueDetected: any;
             recommendationText: any;
         } | null;
+        gingerSopV3: {} | null;
+        maiosCase: {} | null;
         timeline: {
             at: string | null;
             label: string;

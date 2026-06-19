@@ -534,12 +534,28 @@ export const osAnalyticsService = {
     let d14Total = 0;
     let overrides = 0;
     let total = 0;
+    let eqsSum = 0;
+    let recoveryStarted = 0;
+    let recoveryCompleted = 0;
+    const failureBreakdown: Record<string, number> = {};
 
     for (const s of sessions ?? []) {
       total++;
       if (s.human_reviewed || s.corrected) overrides++;
       const meta = (s.metadata as Record<string, unknown>) ?? {};
-      const mc = meta.maiosCase as { outcomes?: Array<{ day: number; status: string }> } | undefined;
+      const mc = meta.maiosCase as {
+        outcomes?: Array<{ day: number; status: string }>;
+        evidence?: { eqs?: number };
+        failureType?: string | null;
+      } | undefined;
+      if (mc?.evidence?.eqs != null) eqsSum += mc.evidence.eqs;
+      if (mc?.outcomes?.length) {
+        recoveryStarted++;
+        if (mc.outcomes.some((o) => o.day >= 14)) recoveryCompleted++;
+      }
+      if (mc?.failureType) {
+        failureBreakdown[mc.failureType] = (failureBreakdown[mc.failureType] ?? 0) + 1;
+      }
       const d14 = mc?.outcomes?.find((o) => o.day >= 14);
       if (d14) {
         d14Total++;
@@ -547,12 +563,25 @@ export const osAnalyticsService = {
       }
     }
 
+    const { count: proactiveAlerts } = await supabase
+      .from('advisory_automation_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_type', 'maios_proactive_alert')
+      .gte('created_at', since);
+
     return {
       periodDays: days,
       casesWithMaios: total,
       agronomistOverrideRate: total ? Math.round((overrides / total) * 1000) / 10 : 0,
       d14RecoveryRate: d14Total ? Math.round((d14Improved / d14Total) * 1000) / 10 : 0,
       d14SampleSize: d14Total,
+      avgEqs: total ? Math.round((eqsSum / total) * 10) / 10 : 0,
+      recoveryLoopStartRate: total ? Math.round((recoveryStarted / total) * 1000) / 10 : 0,
+      recoveryLoopCompletionRate: recoveryStarted
+        ? Math.round((recoveryCompleted / recoveryStarted) * 1000) / 10
+        : 0,
+      proactiveAlertsSent: proactiveAlerts ?? 0,
+      failureBreakdown: Object.entries(failureBreakdown).map(([type, count]) => ({ type, count })),
     };
   },
 };

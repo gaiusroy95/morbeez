@@ -148,6 +148,7 @@ export type MaiosGroundRemote = {
   geoPhotoCount?: number;
   stressFlags?: Array<{ type: string; score: number; capturedAt?: string }>;
   satelliteNdvi?: number | null;
+  ndviSource?: 'block_stress' | 'weather_snapshot' | 'unavailable';
 };
 
 export type MaiosCausalLink = {
@@ -257,6 +258,7 @@ export type MaiosBuildInput = {
     causalChain?: MaiosCausalLink[];
     explanation?: string;
     rejectedHypotheses?: string[];
+    recommendedProductTags?: string[];
   };
   plantIdConfidence?: number;
   fieldMetrics?: MaiosFieldMetrics;

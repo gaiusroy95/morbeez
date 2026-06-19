@@ -39,9 +39,44 @@ type BuildContextInput = {
     }>;
     latitude?: number;
     longitude?: number;
+    fieldVoiceNote?: string;
 };
+export type VisitContextSnapshot = {
+    measurements: Array<{
+        key: string;
+        value: string;
+        unit?: string;
+    }>;
+    blockAssessment?: BuildContextInput['blockAssessment'];
+    soilTestSummary: VisitAiContextPack['soilTestSummary'];
+    weatherSnapshot: VisitAiContextPack['weatherSnapshot'];
+    imageSignal?: {
+        label: string;
+        confidence: number;
+        source?: string;
+        photoCount?: number;
+    } | null;
+    fieldVoiceNote?: string | null;
+    analyzePhotoCount?: number;
+    capturedAt: string;
+};
+declare function snapshotFromPack(pack: VisitAiContextPack, extras?: {
+    imageSignal?: VisitContextSnapshot['imageSignal'];
+    fieldVoiceNote?: string | null;
+    analyzePhotoCount?: number;
+}): VisitContextSnapshot;
 export declare const visitAiContextService: {
+    snapshotFromPack: typeof snapshotFromPack;
+    mergeSnapshotIntoInput(input: BuildContextInput, snapshot: VisitContextSnapshot | null | undefined): BuildContextInput;
+    applySnapshotToPack(pack: VisitAiContextPack, snapshot: VisitContextSnapshot | null | undefined): VisitAiContextPack;
+    snapshotFromCaseMetadata(metadata: Record<string, unknown>): VisitContextSnapshot | null;
     buildVisitAiContext(input: BuildContextInput): Promise<VisitAiContextPack>;
+    buildContextForCase(caseRow: {
+        farmer_id: string;
+        block_id: string;
+        session_id?: string | null;
+        metadata?: Record<string, unknown> | null;
+    }): Promise<VisitAiContextPack>;
 };
 export {};
 //# sourceMappingURL=visit-ai-context.service.d.ts.map

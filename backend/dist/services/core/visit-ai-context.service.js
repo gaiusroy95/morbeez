@@ -2,7 +2,45 @@ import { supabase } from '../../lib/supabase.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from './block.service.js';
 import { weatherSnapshotService } from './weather-snapshot.service.js';
+function snapshotFromPack(pack, extras) {
+    return {
+        measurements: pack.measurements,
+        blockAssessment: pack.blockAssessment,
+        soilTestSummary: pack.soilTestSummary,
+        weatherSnapshot: pack.weatherSnapshot,
+        imageSignal: extras?.imageSignal ?? null,
+        fieldVoiceNote: extras?.fieldVoiceNote ?? null,
+        analyzePhotoCount: extras?.analyzePhotoCount,
+        capturedAt: new Date().toISOString(),
+    };
+}
 export const visitAiContextService = {
+    snapshotFromPack,
+    mergeSnapshotIntoInput(input, snapshot) {
+        if (!snapshot)
+            return input;
+        return {
+            ...input,
+            blockAssessment: input.blockAssessment ?? snapshot.blockAssessment,
+            measurements: input.measurements?.length ? input.measurements : snapshot.measurements,
+            fieldVoiceNote: input.fieldVoiceNote ?? snapshot.fieldVoiceNote ?? undefined,
+        };
+    },
+    applySnapshotToPack(pack, snapshot) {
+        if (!snapshot)
+            return pack;
+        return {
+            ...pack,
+            measurements: snapshot.measurements.length ? snapshot.measurements : pack.measurements,
+            blockAssessment: snapshot.blockAssessment ?? pack.blockAssessment,
+            soilTestSummary: snapshot.soilTestSummary ?? pack.soilTestSummary,
+            weatherSnapshot: snapshot.weatherSnapshot ?? pack.weatherSnapshot,
+        };
+    },
+    snapshotFromCaseMetadata(metadata) {
+        const snap = metadata.contextSnapshot;
+        return snap ?? null;
+    },
     async buildVisitAiContext(input) {
         const block = await blockService.getById(input.blockId, input.farmerId);
         if (!block)
@@ -57,6 +95,16 @@ export const visitAiContextService = {
                 : null,
             gps: lat != null && lon != null ? { latitude: lat, longitude: lon } : null,
         };
+    },
+    async buildContextForCase(caseRow) {
+        const meta = caseRow.metadata ?? {};
+        const snapshot = visitAiContextService.snapshotFromCaseMetadata(meta);
+        const base = await visitAiContextService.buildVisitAiContext({
+            farmerId: String(caseRow.farmer_id),
+            blockId: String(caseRow.block_id),
+            sessionId: caseRow.session_id ? String(caseRow.session_id) : undefined,
+        });
+        return visitAiContextService.applySnapshotToPack(base, snapshot);
     },
 };
 //# sourceMappingURL=visit-ai-context.service.js.map

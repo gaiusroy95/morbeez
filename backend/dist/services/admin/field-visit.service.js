@@ -163,6 +163,12 @@ export const fieldVisitService = {
         const createdIssues = [];
         const createdRecs = [];
         let savedRecommendationGroups = [];
+        const { data: farmerLangRow } = await supabase
+            .from('farmers')
+            .select('preferred_language')
+            .eq('id', input.farmerId)
+            .maybeSingle();
+        const farmerPreferredLanguage = farmerLangRow?.preferred_language ?? 'en';
         for (let i = 0; i < input.issues.length; i++) {
             const issue = input.issues[i];
             const { data: issueRow, error: issueErr } = await supabase
@@ -358,6 +364,20 @@ export const fieldVisitService = {
                 await supabase
                     .from('recommendation_records')
                     .update({
+                    dosage: groupProducts
+                        .map((p) => {
+                        const name = typeof p.technicalName === 'string' ? p.technicalName : 'Product';
+                        const dose = typeof p.dose === 'string' ? p.dose : '';
+                        return dose ? `${name}: ${dose}` : name;
+                    })
+                        .filter(Boolean)
+                        .join('; ') || null,
+                    application_type: (groupApplicationType ??
+                        groupProducts
+                            .map((p) => (typeof p.method === 'string' ? p.method : null))
+                            .filter(Boolean)
+                            .join('; ')) || null,
+                    language: farmerPreferredLanguage,
                     metadata: {
                         recommendationType: rec.recommendationType ?? 'other',
                         priority: rec.priority ?? 'normal',
@@ -376,13 +396,25 @@ export const fieldVisitService = {
                 })
                     .eq('id', row.id);
                 if (savedRecommendationGroups.length) {
-                    await monitoringPlanService.createForRecommendation(String(row.id), {
+                    const monItem = await monitoringPlanService.createForRecommendation(String(row.id), {
                         severity: issue.severity,
                         materials: groupProducts.map((product) => ({
                             category: typeof product.category === 'string' ? product.category : null,
                             technicalName: typeof product.technicalName === 'string' ? product.technicalName : null,
                         })),
                     });
+                    if (!partnerId && visitIssueId) {
+                        void monitoringPlanService
+                            .scheduleProgressionJob({
+                            farmerId: input.farmerId,
+                            fieldFindingId: findingId,
+                            visitIssueId,
+                            severity: issue.severity,
+                            sessionId: input.sessionId ?? null,
+                            intervalDays: monItem.intervalDays,
+                        })
+                            .catch(() => { });
+                    }
                 }
                 if (issue.aiCaseId) {
                     await supabase
@@ -481,6 +513,16 @@ export const fieldVisitService = {
                 notes: `[${fu.followed}] ${fu.notes ?? ''}`.trim(),
                 issueResolved: fu.outcome === 'improved',
             }, agentEmail);
+        }
+        if (!partnerId) {
+            const { visitCaseClosureService } = await import('../core/visit-case-closure.service.js');
+            void visitCaseClosureService
+                .closeCase({
+                fieldFindingId: findingId,
+                closedBy: agentEmail,
+                learningConsent: true,
+            })
+                .catch(() => { });
         }
         return {
             findingId,

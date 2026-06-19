@@ -1,14 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import type { MaiosCase } from '../../domain/case/types.js';
 
-/** Convert MaiosCase to legacy ginger shape for backward compatibility */
-function toGingerShim(maiosCase: MaiosCase): Record<string, unknown> {
-  return {
-    ...maiosCase,
-    sopVersion: maiosCase.sopVersion,
-  };
-}
-
 export const casePersistService = {
   async persistToSession(sessionId: string, maiosCase: MaiosCase): Promise<void> {
     const { data: row } = await supabase
@@ -18,7 +10,6 @@ export const casePersistService = {
       .maybeSingle();
 
     const metadata = (row?.metadata as Record<string, unknown>) ?? {};
-    const isGinger = maiosCase.identity.cropType.toLowerCase().includes('ginger');
 
     await supabase
       .from('ai_advisory_sessions')
@@ -26,7 +17,6 @@ export const casePersistService = {
         metadata: {
           ...metadata,
           maiosCase,
-          ...(isGinger ? { gingerSopV3: toGingerShim(maiosCase) } : {}),
         },
         confidence_score: maiosCase.diagnostics.fusedConfidence,
         escalation_recommended:

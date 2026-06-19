@@ -499,6 +499,20 @@ export const recommendationFollowUpService = {
             issueLabel: rec.issue_detected,
             notes: `No KPI reply after outcome message. Rec ${recommendationRecordId.slice(0, 8)}`,
         });
+        const sessionId = await resolveEscalationSessionId(rec);
+        await visitAdvisoryEscalationService.scheduleEscalationJob({
+            farmerId,
+            reason: 'outcome_no_whatsapp_response',
+            sessionId,
+            scheduledAt: addDays(1),
+            payload: {
+                recommendationRecordId,
+                fieldFindingId: rec.field_finding_id ?? null,
+                visitIssueId: rec.visit_issue_id ?? null,
+                issueLabel: rec.issue_detected,
+                notes: 'Scheduled callback after outcome no-response',
+            },
+        }).catch(() => { });
     },
     async handleApplicationReply(farmerId, recommendationRecordId, reply) {
         const rec = await this.loadRecord(recommendationRecordId);
@@ -557,14 +571,26 @@ export const recommendationFollowUpService = {
                 updated_at: now,
             })
                 .eq('id', recommendationRecordId);
-            await this.scheduleJob({
-                farmerId,
-                recommendationRecordId,
-                jobType: 'rec_outcome_check',
-                scheduledAt: new Date(Date.now() + OUTCOME_CHECK_DAYS() * 24 * 60 * 60 * 1000).toISOString(),
-                payload: { language: rec.language, phase: 'outcome_check' },
-                sessionId: rec.ai_session_id,
-            });
+            let skipGenericOutcome = false;
+            if (env.MAIOS_DISABLE_GENERIC_OUTCOME !== false && rec.ai_session_id) {
+                const { data: session } = await supabase
+                    .from('ai_advisory_sessions')
+                    .select('metadata')
+                    .eq('id', rec.ai_session_id)
+                    .maybeSingle();
+                const meta = session?.metadata ?? {};
+                skipGenericOutcome = Boolean(meta.maiosCase ?? meta.gingerSopV3);
+            }
+            if (!skipGenericOutcome) {
+                await this.scheduleJob({
+                    farmerId,
+                    recommendationRecordId,
+                    jobType: 'rec_outcome_check',
+                    scheduledAt: new Date(Date.now() + OUTCOME_CHECK_DAYS() * 24 * 60 * 60 * 1000).toISOString(),
+                    payload: { language: rec.language, phase: 'outcome_check' },
+                    sessionId: rec.ai_session_id,
+                });
+            }
             await this.upsertLearningSample(rec, { applicationConfirmed: true });
             const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
             void farmerEventCaptureService.trackRecommendationApplied({
@@ -775,6 +801,19 @@ export const recommendationFollowUpService = {
             priority: 'high',
         });
         const sessionId = await resolveEscalationSessionId(rec);
+        await visitAdvisoryEscalationService.scheduleEscalationJob({
+            farmerId,
+            reason: 'recommendation_not_applied',
+            sessionId,
+            scheduledAt: addDays(2),
+            payload: {
+                recommendationRecordId,
+                fieldFindingId: rec.field_finding_id ?? null,
+                visitIssueId: rec.visit_issue_id ?? null,
+                issueLabel: rec.issue_detected,
+                notes: 'Scheduled callback after no improvement',
+            },
+        }).catch(() => { });
         if (sessionId) {
             await escalationService.ensureOpenEscalation({
                 sessionId,
@@ -796,6 +835,19 @@ export const recommendationFollowUpService = {
             priority: 'urgent',
         });
         const sessionId = await resolveEscalationSessionId(rec);
+        await visitAdvisoryEscalationService.scheduleEscalationJob({
+            farmerId,
+            reason: 'outcome_worse',
+            sessionId,
+            scheduledAt: addDays(1),
+            payload: {
+                recommendationRecordId: rec.id,
+                fieldFindingId: rec.field_finding_id ?? null,
+                visitIssueId: rec.visit_issue_id ?? null,
+                issueLabel: rec.issue_detected,
+                notes: 'Scheduled callback after worsened outcome',
+            },
+        }).catch(() => { });
         if (sessionId) {
             await escalationService.ensureOpenEscalation({
                 sessionId,

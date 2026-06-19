@@ -16,6 +16,17 @@ export interface DosageItem {
     method: string;
     frequency?: string;
 }
+export type AdvisorySeverity = 'mild' | 'moderate' | 'severe';
+export interface DifferentialDiagnosisItem {
+    label: string;
+    reason: string;
+    /** 0–1 probability estimate (SOP v3 top-5 differential) */
+    probability?: number;
+}
+export interface CostEstimateItem {
+    item: string;
+    note: string;
+}
 export interface StructuredAdvisory {
     probableIssue: string;
     confidence: number;
@@ -30,6 +41,22 @@ export interface StructuredAdvisory {
     farmerSummaryEn: string;
     farmerSummaryMl: string;
     recommendedProductTags: string[];
+    /** Systematic photo / field observations */
+    imageObservations?: string[];
+    severity?: AdvisorySeverity;
+    differentialDiagnosis?: DifferentialDiagnosisItem[];
+    causalChain?: Array<{
+        cause: string;
+        effect: string;
+        confidence?: number;
+    }>;
+    explanation?: string;
+    rejectedHypotheses?: string[];
+    sprayTiming?: string;
+    rootCorrection?: string;
+    agronomistAssessment?: string;
+    morbeezDataUsed?: string[];
+    costEstimate?: CostEstimateItem[];
 }
 export interface PlantIdHealthResult {
     diseases?: Array<{
@@ -55,6 +82,12 @@ export interface DiagnoseInput {
     imageMimeType?: string;
     /** Supabase storage path in advisory-images (set when farmer photo is persisted). */
     imageStoragePath?: string;
+    /** All photos from a batched WhatsApp upload (primary image is imageBase64 / imageStoragePath). */
+    diagnosisImages?: Array<{
+        imageBase64?: string;
+        imageMimeType: string;
+        imageStoragePath?: string;
+    }>;
     channel: 'api' | 'whatsapp' | 'web' | 'telecaller';
     /** WhatsApp pipeline: minimal history string (low token cost) */
     compactHistory?: string;
@@ -62,6 +95,10 @@ export interface DiagnoseInput {
     contextPack?: Record<string, unknown>;
     /** Pre-formatted environmental block for the model prompt */
     environmentalContext?: string;
+    /** Full Morbeez field intelligence block (soil, fusion, expert cases) */
+    morbeezFieldContext?: string;
+    /** Active farm block for soil/weather context */
+    activePlotId?: string | null;
     /** Farmer follow-up Q&A — when set, skip reuse cache and require model to honor answers */
     fieldInvestigation?: string;
     /** Hint from similar cases + intake reasoning */
@@ -77,6 +114,16 @@ export interface DiagnoseInput {
             kind?: string;
         }>;
     };
+    /** Ginger SOP v3 — photo count for evidence scoring */
+    gingerSopPhotoCount?: number;
+    gingerSopPhotoPaths?: string[];
+    gingerSopIntakeConfidence?: number;
+    gingerSopHasSoilReport?: boolean;
+    /** MAIOS v12 aliases */
+    maiosPhotoCount?: number;
+    maiosPhotoPaths?: string[];
+    maiosIntakeConfidence?: number;
+    maiosHasSoilReport?: boolean;
 }
 export interface DiagnoseResult {
     sessionId: string;
@@ -88,6 +135,10 @@ export interface DiagnoseResult {
     confidence?: number;
     /** Scenario 38 — served from advisory_reuse_cases without OpenAI */
     reused?: boolean;
+    /** Ginger SOP v3 case snapshot when crop is ginger */
+    gingerSopCase?: import('../../domain/ginger-sop/types.js').GingerSopCase;
+    /** MAIOS v12 universal case */
+    maiosCase?: import('../../domain/case/types.js').MaiosCase;
 }
 export interface ProductRecommendation {
     shopifyProductHandle?: string;

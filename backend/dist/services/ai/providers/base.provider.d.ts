@@ -4,6 +4,11 @@ export interface VisionInput {
     mimeType: string;
     userPrompt: string;
     systemPrompt: string;
+    /** Additional photos from the same farmer message burst (analyzed together). */
+    additionalImages?: Array<{
+        imageBase64: string;
+        mimeType: string;
+    }>;
 }
 export interface VisionProvider {
     readonly name: string;

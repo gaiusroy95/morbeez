@@ -13,18 +13,6 @@ export type GingerSopV3Detail = {
     eqs?: number;
     photos?: Array<{ slot: string; status: string; qualityScore?: number }>;
   };
-  diagnostics?: {
-    hypotheses?: Array<{ label: string; probability: number }>;
-    moduleScores?: Array<{
-      module: string;
-      weight: number;
-      score: number;
-      completeness: number;
-      source?: string;
-    }>;
-    fusedConfidence?: number;
-    modelConfidence?: number;
-  };
   gates?: Array<{ gate: string; passed: boolean; reason: string; action?: string }>;
   fieldMetrics?: {
     spad?: number | null;
@@ -57,6 +45,32 @@ export type GingerSopV3Detail = {
     heatStress?: number;
     waterStress?: number;
     diseasePressure?: number;
+  };
+  outcomes?: Array<{ day: number; status: string; at?: string }>;
+  predictiveRisk?: { disease?: number; pest?: number; nutrient?: number; irrigation?: number; weather?: number };
+  labReports?: Array<{ type: string; reportedAt?: string; source?: string }>;
+  groundRemote?: { geoPhotoCount?: number; satelliteNdvi?: number | null; ndviSource?: string };
+  resistanceScore?: number | null;
+  resistanceClasses?: string[];
+  supplySignals?: { stockStatus?: string; substitutes?: string[]; leadTimeDays?: number | null };
+  failureType?: string | null;
+  executionVerification?: { score: number; checks: string[] };
+  regionalClusterId?: string | null;
+  diagnostics?: {
+    hypotheses?: Array<{ label: string; probability: number; source?: string }>;
+    moduleScores?: Array<{
+      module: string;
+      weight: number;
+      score: number;
+      completeness: number;
+      source?: string;
+    }>;
+    fusedConfidence?: number;
+    modelConfidence?: number;
+    causalChain?: Array<{ cause: string; effect: string; confidence?: number }>;
+    explanation?: string;
+    rejectedHypotheses?: string[];
+    temporalComparison?: string;
   };
 };
 
@@ -248,6 +262,123 @@ export function GingerSopReviewPanel({ sop }: { sop: GingerSopV3Detail }) {
               </li>
             ))}
           </ul>
+        </div>
+      ) : null}
+
+      {sop.diagnostics?.explanation ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Explanation</h4>
+          <p className="cr-sop-v">{sop.diagnostics.explanation}</p>
+        </div>
+      ) : null}
+
+      {sop.diagnostics?.causalChain && sop.diagnostics.causalChain.length > 0 ? (
+        <div className="cr-sop-hyp">
+          <h4 className="cr-sop-k">Causal chain</h4>
+          <ol className="cr-sop-hyp-list">
+            {sop.diagnostics.causalChain.map((c, i) => (
+              <li key={i}>
+                {c.cause} → {c.effect}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+
+      {sop.evidence?.photos && sop.evidence.photos.length > 0 ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Photo slots</h4>
+          <ul className="cr-sop-metrics">
+            {sop.evidence.photos.map((p) => (
+              <li key={p.slot}>
+                {p.slot}: {p.status}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {sop.weatherStress ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Weather stress</h4>
+          <p className="cr-sop-v">
+            Heat {sop.weatherStress.heatStress ?? 0} · Water {sop.weatherStress.waterStress ?? 0} ·
+            Disease {sop.weatherStress.diseasePressure ?? 0}
+          </p>
+        </div>
+      ) : null}
+
+      {sop.outcomes && sop.outcomes.length > 0 ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Recovery outcomes</h4>
+          <ul className="cr-sop-metrics">
+            {sop.outcomes.map((o) => (
+              <li key={`${o.day}-${o.at}`}>
+                D{o.day}: {o.status}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {sop.predictiveRisk ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Predictive risk</h4>
+          <p className="cr-sop-v">
+            Disease {sop.predictiveRisk.disease ?? 0} · Pest {sop.predictiveRisk.pest ?? 0} · Nutrient{' '}
+            {sop.predictiveRisk.nutrient ?? 0}
+          </p>
+        </div>
+      ) : null}
+
+      {sop.labReports && sop.labReports.length > 0 ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Lab reports</h4>
+          <ul className="cr-sop-metrics">
+            {sop.labReports.map((r, i) => (
+              <li key={i}>
+                {r.type} ({r.source ?? 'lab'})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {sop.resistanceScore != null ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Resistance</h4>
+          <p className="cr-sop-v">
+            Score {sop.resistanceScore}
+            {sop.resistanceClasses?.length ? ` · ${sop.resistanceClasses.join(', ')}` : ''}
+          </p>
+        </div>
+      ) : null}
+
+      {sop.supplySignals ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Supply signals</h4>
+          <p className="cr-sop-v">
+            {sop.supplySignals.stockStatus ?? 'unknown'}
+            {sop.supplySignals.substitutes?.length
+              ? ` · ${sop.supplySignals.substitutes.join(', ')}`
+              : ''}
+          </p>
+        </div>
+      ) : null}
+
+      {sop.failureType ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Failure type</h4>
+          <p className="cr-sop-v">{sop.failureType}</p>
+        </div>
+      ) : null}
+
+      {sop.executionVerification ? (
+        <div className="cr-sop-card">
+          <h4 className="cr-sop-k">Execution verification</h4>
+          <p className="cr-sop-v">
+            Score {sop.executionVerification.score} · {sop.executionVerification.checks.join(', ')}
+          </p>
         </div>
       ) : null}
     </section>

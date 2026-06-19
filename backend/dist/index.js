@@ -10,6 +10,9 @@ import { startMarketInsightBroadcastWorker } from './services/whatsapp/market-in
 import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-prompt.worker.js';
 import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
 async function main() {
+    if (!env.OPENAI_API_KEY?.trim()) {
+        logger.warn('OPENAI_API_KEY is not set — visit AI diagnosis will use fallback hypotheses and generic recommendations');
+    }
     const app = await buildApp();
     startOutboxWorkerIfEnabled();
     startAdvisoryAutomationWorker();

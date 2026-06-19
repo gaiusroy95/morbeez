@@ -203,5 +203,12 @@ export declare const osAnalyticsService: {
             count: number;
         }[];
     }>;
+    getMaiosKpis(days?: number): Promise<{
+        periodDays: number;
+        casesWithMaios: number;
+        agronomistOverrideRate: number;
+        d14RecoveryRate: number;
+        d14SampleSize: number;
+    }>;
 };
 //# sourceMappingURL=os-analytics.service.d.ts.map

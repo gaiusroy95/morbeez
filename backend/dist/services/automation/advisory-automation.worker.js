@@ -55,6 +55,22 @@ async function processJob(job) {
     else if (job.job_type === 'visit_callback_escalation') {
         await visitAdvisoryEscalationService.processEscalationJob(job);
     }
+    else if (job.job_type.startsWith('ginger_sop_recovery_d')) {
+        const { gingerSopFollowUpService } = await import('../ginger-sop/ginger-sop-follow-up.service.js');
+        await gingerSopFollowUpService.processRecoveryJob(job);
+    }
+    else if (job.job_type.startsWith('maios_recovery_d')) {
+        const { recoveryValidationService } = await import('../case/recovery-validation.service.js');
+        await recoveryValidationService.processRecoveryJobSend(job);
+    }
+    else if (job.job_type === 'maios_proactive_alert') {
+        const msg = String(job.payload.message ?? 'Crop risk alert from Morbeez.');
+        await whatsappService.sendText(farmer.phone, msg);
+    }
+    else if (job.job_type === 'ml_retraining_weekly' || job.job_type === 'ml_retraining_monthly') {
+        const { retrainingPipelineService } = await import('../ml/retraining-pipeline.service.js');
+        await retrainingPipelineService.runWeekly();
+    }
     await supabase
         .from('advisory_automation_jobs')
         .update({

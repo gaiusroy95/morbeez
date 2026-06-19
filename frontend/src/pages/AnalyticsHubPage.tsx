@@ -11,7 +11,8 @@ type Tab =
   | 'broadcasts'
   | 'recommendations'
   | 'ai_accuracy'
-  | 'module_precision';
+  | 'module_precision'
+  | 'maios';
 
 type Summary = {
   periodDays: number;
@@ -91,6 +92,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'recommendations', label: 'Recommendations' },
   { id: 'ai_accuracy', label: 'AI Accuracy' },
   { id: 'module_precision', label: 'Morbeez precision' },
+  { id: 'maios', label: 'MAIOS v12' },
 ];
 
 type AiTrends = {
@@ -134,6 +136,17 @@ export function AnalyticsHubPage() {
   const [aiLoading, setAiLoading] = useState(false);
   const [modulePrecision, setModulePrecision] = useState<ModulePrecision | null>(null);
   const [precisionLoading, setPrecisionLoading] = useState(false);
+  const [maiosKpis, setMaiosKpis] = useState<{
+    casesWithMaios: number;
+    agronomistOverrideRate: number;
+    d14RecoveryRate: number;
+    d14SampleSize: number;
+    avgEqs: number;
+    recoveryLoopCompletionRate: number;
+    proactiveAlertsSent: number;
+    failureBreakdown: Array<{ type: string; count: number }>;
+  } | null>(null);
+  const [maiosLoading, setMaiosLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,6 +183,15 @@ export function AnalyticsHubPage() {
       .then((d) => setModulePrecision(d.precision))
       .catch(() => setModulePrecision(null))
       .finally(() => setPrecisionLoading(false));
+  }, [tab, days]);
+
+  useEffect(() => {
+    if (tab !== 'maios') return;
+    setMaiosLoading(true);
+    api<{ ok: boolean; maios: typeof maiosKpis }>(`${base}/maios?days=${days}`)
+      .then((d) => setMaiosKpis(d.maios))
+      .catch(() => setMaiosKpis(null))
+      .finally(() => setMaiosLoading(false));
   }, [tab, days]);
 
   async function drillDistrict(district: string) {
@@ -554,6 +576,54 @@ export function AnalyticsHubPage() {
                     No attribution data yet — replies will appear after farmers receive module-tagged
                     answers.
                   </p>
+                </Panel>
+              )}
+            </div>
+          ) : null}
+
+          {tab === 'maios' ? (
+            <div className="space-y-6">
+              {maiosLoading ? (
+                <Panel title="MAIOS v12 KPIs">
+                  <p className="text-sm text-slate-500">Loading MAIOS analytics…</p>
+                </Panel>
+              ) : maiosKpis ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <KpiCard label="Cases with MAIOS" value={String(maiosKpis.casesWithMaios)} />
+                    <KpiCard
+                      label="Override rate"
+                      value={`${maiosKpis.agronomistOverrideRate}%`}
+                    />
+                    <KpiCard
+                      label="D14 recovery rate"
+                      value={`${maiosKpis.d14RecoveryRate}%`}
+                      tone={maiosKpis.d14RecoveryRate >= 50 ? 'good' : 'warn'}
+                    />
+                    <KpiCard label="D14 sample" value={String(maiosKpis.d14SampleSize)} />
+                    <KpiCard label="Avg EQS" value={String(maiosKpis.avgEqs)} />
+                    <KpiCard
+                      label="Recovery completion"
+                      value={`${maiosKpis.recoveryLoopCompletionRate}%`}
+                    />
+                    <KpiCard
+                      label="Proactive alerts"
+                      value={String(maiosKpis.proactiveAlertsSent)}
+                    />
+                  </div>
+                  {maiosKpis.failureBreakdown.length > 0 ? (
+                    <StatusTable
+                      title="Failure breakdown"
+                      rows={maiosKpis.failureBreakdown.map((f) => ({
+                        status: f.type,
+                        count: f.count,
+                      }))}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <Panel title="MAIOS v12 KPIs">
+                  <p className="text-sm text-slate-500">No MAIOS cases in this period yet.</p>
                 </Panel>
               )}
             </div>

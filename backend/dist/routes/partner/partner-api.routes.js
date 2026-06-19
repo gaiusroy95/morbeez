@@ -395,6 +395,15 @@ export async function partnerApiRoutes(app) {
             const result = await visitAiOrchestratorService.analyze(body, 'partner');
             return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
         });
+        partnerApp.post(`${api}/visits/analyze-visit`, async (request, reply) => {
+            await requirePartner(request);
+            const { visitAnalyzeVisitRequestSchema } = await import('../../domain/ai-training/validators.js');
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const { sanitizeVisitAiForPartner } = await import('../../services/partner/partner-response-sanitizer.js');
+            const body = visitAnalyzeVisitRequestSchema.parse(request.body);
+            const result = await visitAiOrchestratorService.analyzeVisit(body, 'partner');
+            return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
+        });
         partnerApp.get(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
             await requirePartner(request);
             const { aiCaseId } = request.params;

@@ -21,6 +21,14 @@ export declare const diagnosisFlowService: {
         }[];
     };
     formatQuantityReply(farmerId: string, language: AdvisoryLanguage, waterLiters: number): Promise<string>;
+    quantityActionButtons(language: AdvisoryLanguage): {
+        prompt: string;
+        options: Array<{
+            id: string;
+            title: string;
+        }>;
+    };
+    formatBuyReply(farmerId: string, language: AdvisoryLanguage): Promise<string>;
     technicalOnlyReply(advisory: StructuredAdvisory, language: AdvisoryLanguage): string;
     productUnavailableReply(language: AdvisoryLanguage): string;
     lowConfidenceReply(language: AdvisoryLanguage): string;

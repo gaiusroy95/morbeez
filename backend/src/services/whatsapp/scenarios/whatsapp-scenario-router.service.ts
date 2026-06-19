@@ -457,11 +457,14 @@ export const whatsappScenarioRouter = {
     const gingerRecovery = text?.match(/^ginger\.recovery\.d(\d+)\.(improved|same|worse)$/i);
     if (gingerRecovery) {
       const ctx = await conversationSessionService.getContext(captured.farmerId);
-      const reply = await gingerSopFollowUpService.handleRecoveryReply({
+      const sessionId =
+        ctx.maiosCase?.sessionId ?? ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId;
+      const handler = ctx.maiosCase ? recoveryValidationService : gingerSopFollowUpService;
+      const reply = await handler.handleRecoveryReply({
         farmerId: captured.farmerId,
         day: Number(gingerRecovery[1]),
         outcome: gingerRecovery[2]!.toLowerCase() as 'improved' | 'same' | 'worse',
-        sessionId: ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+        sessionId,
       });
       await send.text(msg.phone, reply);
       return { handled: true };

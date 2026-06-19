@@ -1,13 +1,11 @@
+import { env } from '../../../config/env.js';
 import { supabase } from '../../../lib/supabase.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { soilFlowService } from './soil-flow.service.js';
 import { responseComposerService } from '../pipeline/response-composer.service.js';
 import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
-function localizedSummary(advisory, language) {
-    if (language === 'ml' && advisory.farmerSummaryMl)
-        return advisory.farmerSummaryMl;
-    return advisory.farmerSummaryEn;
-}
+import { whatsappDiagnosisRendererService } from '../pipeline/whatsapp-diagnosis-renderer.service.js';
+import { pickLocalizedFarmerSummary } from '../pipeline/crop-message-intent.service.js';
 function validationQuestion(issue, language) {
     const lower = issue.toLowerCase();
     if (/thrip|silver|streak|scrap/.test(lower)) {
@@ -47,6 +45,35 @@ export function soilGatePreface(language) {
             : language === 'hi'
                 ? 'पत्तियों के लक्षण पोषक की कमी या अन्य तनाव दिखा सकते हैं। उर्वरक सुझाने से पहले मिट्टी जांच रिपोर्ट बेहतर होगी।'
                 : 'Leaf symptoms may point to nutrient shortage or other stress. A soil test report helps before we recommend fertilizer.';
+}
+function buildDeliverReply(advisory, language, extraFooter) {
+    let body;
+    if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
+        body = whatsappDiagnosisRendererService.render({ advisory, language });
+    }
+    else {
+        body = pickLocalizedFarmerSummary(advisory, language);
+    }
+    if (extraFooter)
+        body += `\n\n${extraFooter}`;
+    const productBlock = shopifyLinksService.formatRecommendationsForWhatsApp([], language);
+    if (productBlock)
+        body += `\n\n${productBlock}`;
+    const footer = env.ENABLE_WHATSAPP_RICH_DIAGNOSIS
+        ? responseComposerService.brandFooter(language)
+        : responseComposerService.advisoryDisclaimer(language);
+    if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
+        return responseComposerService.composeDiagnosis({
+            body,
+            validationQuestion: validationQuestion(advisory.probableIssue, language),
+            footer,
+        });
+    }
+    return responseComposerService.compose({
+        body,
+        validationQuestion: validationQuestion(advisory.probableIssue, language),
+        footer,
+    });
 }
 export const nutrientSoilGateService = {
     suggestsNutrientDeficiency,
@@ -91,17 +118,7 @@ export const nutrientSoilGateService = {
         if (!pending)
             return null;
         const advisory = pending.advisory;
-        let body = localizedSummary(advisory, params.language);
-        if (params.extraFooter)
-            body += `\n\n${params.extraFooter}`;
-        const productBlock = shopifyLinksService.formatRecommendationsForWhatsApp([], params.language);
-        if (productBlock)
-            body += `\n\n${productBlock}`;
-        const reply = responseComposerService.compose({
-            body,
-            validationQuestion: validationQuestion(advisory.probableIssue, params.language),
-            footer: responseComposerService.advisoryDisclaimer(params.language),
-        });
+        const reply = buildDeliverReply(advisory, params.language, params.extraFooter);
         await params.sendText(params.phone, reply);
         await this.clearPending(params.farmerId);
         return { delivered: true, summary: reply, sessionId: pending.sessionId, advisory };

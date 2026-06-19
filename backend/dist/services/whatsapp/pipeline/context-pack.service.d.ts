@@ -15,9 +15,11 @@ export type ContextPack = {
     maxTempCToday?: number;
     soilPh?: number;
     soilEc?: number;
+    soilLabSummary?: string;
     drainageRisk: 'low' | 'moderate' | 'high';
     diseasePriors: DiseaseWeatherPrior[];
     nearbySummary?: string;
+    dap?: number;
 };
 export declare const contextPackService: {
     build(farmerId: string, options?: {

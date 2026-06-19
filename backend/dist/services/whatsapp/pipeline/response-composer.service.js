@@ -40,6 +40,30 @@ export const responseComposerService = {
         };
         return map[language] ?? map.en;
     },
+    brandFooter(language) {
+        const map = {
+            en: '— Morbeez field intelligence',
+            ml: '— മോർബീസ് ഫീൽഡ് ഇന്റലിജൻസ്',
+            ta: '— Morbeez field intelligence',
+            kn: '— Morbeez field intelligence',
+            hi: '— Morbeez field intelligence',
+        };
+        return map[language] ?? map.en;
+    },
+    /** Diagnosis replies — no char cap or paragraph limit. */
+    composeDiagnosis(input) {
+        let body = normalizeWhitespace(input.body.trim());
+        const parts = [body];
+        const q = input.validationQuestion?.trim();
+        if (q) {
+            const question = q.endsWith('?') ? q : `${q}?`;
+            parts.push(question);
+        }
+        const footer = input.footer?.trim();
+        if (footer)
+            parts.push(footer);
+        return parts.join('\n\n');
+    },
 };
 function normalizeWhitespace(text) {
     return text.replace(/\n{3,}/g, '\n\n').replace(/[ \t]+\n/g, '\n').trim();

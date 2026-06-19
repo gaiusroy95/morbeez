@@ -1,5 +1,6 @@
 import type { AdvisoryLanguage, DiagnoseInput } from '../../ai/types.js';
 import { type MorbeezReplyModule, type ReplyAttributionMeta } from './reply-attribution.service.js';
+import { type ImageBatchFlushPayload } from './whatsapp-image-batch.service.js';
 import type { InboundMessage } from './types.js';
 type Senders = {
     text: (phone: string, text: string) => Promise<void>;
@@ -42,6 +43,7 @@ export declare const whatsappInboundPipeline: {
         language: AdvisoryLanguage;
         isPremium: boolean;
     }, sendText: (phone: string, text: string) => Promise<void>, senders?: Senders): Promise<void>;
+    flushBatchedDiagnosisImages(batch: ImageBatchFlushPayload): Promise<void>;
     processText(msg: InboundMessage, captured: {
         farmerId: string;
         phone: string;
@@ -70,6 +72,11 @@ export declare const whatsappInboundPipeline: {
         imageBase64?: string;
         imageMimeType?: string;
         imageStoragePath?: string;
+        diagnosisImages?: Array<{
+            imageBase64?: string;
+            imageMimeType: string;
+            imageStoragePath?: string;
+        }>;
         fieldInvestigation?: string;
         issueLabelHint?: string;
         skipReuseCache?: boolean;

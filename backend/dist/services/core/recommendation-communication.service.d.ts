@@ -16,7 +16,19 @@ type RecRow = {
         preferred_language: string | null;
     };
 };
-export declare function buildApprovedRecommendationMessage(row: RecRow): string;
+export type RecommendationMessageExtras = {
+    blockName?: string;
+    products?: Array<{
+        technicalName?: string;
+        dose?: string;
+        method?: string;
+        applicationDay?: number;
+        applicationType?: string;
+    }>;
+    reviewDate?: string;
+    monitoringInterval?: string;
+};
+export declare function buildApprovedRecommendationMessage(row: RecRow, extras?: RecommendationMessageExtras): string;
 export declare const recommendationCommunicationService: {
     sendApprovedRecommendation(recommendationId: string, options?: {
         force?: boolean;
@@ -50,6 +62,36 @@ export declare const recommendationCommunicationService: {
         reason?: string;
         messageId?: string;
     }>;
+    previewVisitMessages(input: {
+        farmerId: string;
+        blockName?: string;
+        recommendationGroups?: Array<{
+            applicationType: string;
+            applicationDay?: number;
+            materials: Array<{
+                technicalName: string;
+                dose?: string;
+                method?: string;
+                issueIndex?: number;
+            }>;
+        }>;
+        reviewDate?: string;
+        monitoringInterval?: string;
+        issues: Array<{
+            issueName: string;
+            finalDiagnosis?: string;
+            finalRecommendation?: string;
+            initialRecommendation?: {
+                text: string;
+                dose?: string;
+                method?: string;
+            };
+        }>;
+    }): Promise<{
+        issueLabel: string;
+        message: string;
+        compliancePrompt: string;
+    }[]>;
 };
 export {};
 //# sourceMappingURL=recommendation-communication.service.d.ts.map

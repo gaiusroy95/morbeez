@@ -16,6 +16,11 @@ import { isOpenAiQuotaAppError, logOpenAiQuotaInsufficient } from './openai-quot
 import { advisoryFromKnowledgeText, knowledgeFallbackService, } from '../whatsapp/pipeline/knowledge-fallback.service.js';
 import { farmerMemoryService } from '../whatsapp/pipeline/farmer-memory.service.js';
 import { leadService } from '../crm/lead.service.js';
+import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-diagnosis-context.service.js';
+import { normalizeStructuredAdvisory } from './advisory-normalize.js';
+import { gingerSopCaseService } from '../ginger-sop/ginger-sop-case.service.js';
+import { caseBuilderService } from '../case/case-builder.service.js';
+import { casePersistService } from '../case/case-persist.service.js';
 async function getFarmerHistory(farmerId) {
     const { data } = await supabase
         .from('disease_history')
@@ -94,6 +99,7 @@ export const cropDoctorService = {
         const skipReuse = input.skipReuseCache === true || Boolean(input.fieldInvestigation?.trim());
         const reused = skipReuse ? null : await aiReuseService.tryReuse(input, sessionId);
         if (reused) {
+            reused.advisory = normalizeStructuredAdvisory(reused.advisory);
             await persistRecommendations(sessionId, reused.productRecommendations);
             await supabase.from('disease_history').insert({
                 farmer_id: input.farmerId,
@@ -172,6 +178,14 @@ export const cropDoctorService = {
         const verifiedRegionalHints = await farmerExperienceLearningService
             .getVerifiedRegionalHints(input.farmerId, input.cropType)
             .catch(() => null);
+        const morbeezFieldContext = input.morbeezFieldContext ??
+            (await whatsappDiagnosisContextService.buildFieldContext({
+                farmerId: input.farmerId,
+                blockId: input.activePlotId,
+                cropType: input.cropType,
+                issueName: input.issueLabelHint ?? input.symptomsText?.slice(0, 80) ?? 'field issue',
+                observation: input.symptomsText ?? input.voiceTranscript,
+            }));
         const fullUserPrompt = buildUserPrompt({
             cropType: input.cropType,
             cropStage: input.cropStage,
@@ -182,19 +196,29 @@ export const cropDoctorService = {
             whatsappContext: input.compactHistory,
             verifiedRegionalHints: verifiedRegionalHints ?? undefined,
             environmentalContext: input.environmentalContext,
+            morbeezFieldContext: morbeezFieldContext ?? undefined,
             fieldInvestigation: input.fieldInvestigation,
             issueLabelHint: input.issueLabelHint,
             language: input.language,
+            photoCount: input.diagnosisImages?.length ?? (input.imageBase64 ? 1 : 0),
         });
         let advisory;
         const visionStarted = Date.now();
         try {
             if (input.imageBase64 && input.imageMimeType) {
+                const additionalImages = (input.diagnosisImages ?? [])
+                    .slice(1)
+                    .filter((img) => img.imageBase64)
+                    .map((img) => ({
+                    imageBase64: img.imageBase64,
+                    mimeType: img.imageMimeType,
+                }));
                 advisory = await openaiVisionProvider.analyzeVision({
                     imageBase64: input.imageBase64,
                     mimeType: input.imageMimeType,
                     systemPrompt: CROP_DOCTOR_SYSTEM_PROMPT,
                     userPrompt: fullUserPrompt,
+                    additionalImages: additionalImages.length ? additionalImages : undefined,
                 });
             }
             else {
@@ -249,6 +273,112 @@ export const cropDoctorService = {
             await supabase.from('ai_advisory_sessions').update({ status: 'failed' }).eq('id', sessionId);
             throw new Error('Crop Doctor produced no advisory');
         }
+        advisory = normalizeStructuredAdvisory(advisory);
+        const ctxPack = input.contextPack;
+        let maiosCase = null;
+        let gingerSopCase = null;
+        const photoCount = input.maiosPhotoCount ??
+            input.gingerSopPhotoCount ??
+            (input.imageBase64 ? 1 : 0);
+        const photoPaths = input.maiosPhotoPaths ?? input.gingerSopPhotoPaths;
+        const intakeConf = input.maiosIntakeConfidence ?? input.gingerSopIntakeConfidence;
+        const hasSoil = input.maiosHasSoilReport ?? input.gingerSopHasSoilReport;
+        if (env.ENABLE_MAIOS_V12 !== false) {
+            maiosCase = await caseBuilderService.buildCase({
+                farmerId: input.farmerId,
+                blockId: input.activePlotId,
+                cropType: input.cropType,
+                channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
+                sessionId,
+                symptomsText: input.symptomsText,
+                photoCount,
+                photoStoragePaths: photoPaths,
+                hasSoilReport: hasSoil,
+                hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+                intakeMatchConfidence: intakeConf,
+                contextPack: ctxPack
+                    ? {
+                        soilPh: ctxPack.soilPh,
+                        soilEc: ctxPack.soilEc,
+                        weatherRiskScore: ctxPack.weatherRiskScore,
+                        heavyRainLikely: ctxPack.heavyRainLikely,
+                        highHeatLikely: ctxPack.highHeatLikely,
+                        highHumidityLikely: ctxPack.highHumidityLikely,
+                        drainageRisk: ctxPack.drainageRisk,
+                        dap: ctxPack.dap,
+                    }
+                    : undefined,
+                advisory: {
+                    probableIssue: advisory.probableIssue,
+                    confidence: advisory.confidence,
+                    severity: advisory.severity,
+                    uncertain: advisory.uncertain,
+                    escalationRecommended: advisory.escalationRecommended,
+                    differentialDiagnosis: advisory.differentialDiagnosis,
+                    causalChain: advisory.causalChain,
+                    explanation: advisory.explanation,
+                    rejectedHypotheses: advisory.rejectedHypotheses,
+                },
+            });
+            if (maiosCase && gingerSopCaseService.isGingerCrop(input.cropType)) {
+                gingerSopCase = maiosCase;
+            }
+            if (maiosCase) {
+                advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+                if (maiosCase.route === 'field_visit' ||
+                    maiosCase.route === 'emergency_callback') {
+                    advisory.escalationRecommended = true;
+                    advisory.escalationReason =
+                        advisory.escalationReason ??
+                            `MAIOS v12 route: ${maiosCase.route} (${maiosCase.triage.level})`;
+                }
+            }
+        }
+        else if (env.ENABLE_GINGER_SOP_V3 !== false && gingerSopCaseService.isGingerCrop(input.cropType)) {
+            gingerSopCase = await gingerSopCaseService.buildCase({
+                farmerId: input.farmerId,
+                blockId: input.activePlotId,
+                cropType: input.cropType,
+                channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
+                sessionId,
+                symptomsText: input.symptomsText,
+                photoCount: input.gingerSopPhotoCount ?? (input.imageBase64 ? 1 : 0),
+                photoStoragePaths: input.gingerSopPhotoPaths,
+                hasSoilReport: input.gingerSopHasSoilReport,
+                hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+                intakeMatchConfidence: input.gingerSopIntakeConfidence,
+                contextPack: ctxPack
+                    ? {
+                        soilPh: ctxPack.soilPh,
+                        soilEc: ctxPack.soilEc,
+                        weatherRiskScore: ctxPack.weatherRiskScore,
+                        heavyRainLikely: ctxPack.heavyRainLikely,
+                        highHeatLikely: ctxPack.highHeatLikely,
+                        highHumidityLikely: ctxPack.highHumidityLikely,
+                        drainageRisk: ctxPack.drainageRisk,
+                        dap: ctxPack.dap,
+                    }
+                    : undefined,
+                advisory: {
+                    probableIssue: advisory.probableIssue,
+                    confidence: advisory.confidence,
+                    severity: advisory.severity,
+                    uncertain: advisory.uncertain,
+                    escalationRecommended: advisory.escalationRecommended,
+                    differentialDiagnosis: advisory.differentialDiagnosis,
+                },
+            });
+            if (gingerSopCase) {
+                advisory.confidence = gingerSopCase.diagnostics.fusedConfidence;
+                if (gingerSopCase.route === 'field_visit' ||
+                    gingerSopCase.route === 'emergency_callback') {
+                    advisory.escalationRecommended = true;
+                    advisory.escalationReason =
+                        advisory.escalationReason ??
+                            `Ginger SOP v3 route: ${gingerSopCase.route} (${gingerSopCase.triage.level})`;
+                }
+            }
+        }
         await persistOutput(sessionId, advisory, 'openai', input.language);
         const productRecommendations = recommendationService.recommend(input.cropType, advisory);
         await persistRecommendations(sessionId, productRecommendations);
@@ -258,6 +388,14 @@ export const cropDoctorService = {
             advisory,
             plantId: plantIdResult,
         });
+        if (maiosCase) {
+            maiosCase.sessionId = sessionId;
+            await casePersistService.persistToSession(sessionId, maiosCase);
+        }
+        else if (gingerSopCase) {
+            gingerSopCase.sessionId = sessionId;
+            await gingerSopCaseService.persistToSession(sessionId, gingerSopCase);
+        }
         await supabase
             .from('ai_advisory_sessions')
             .update({
@@ -344,7 +482,9 @@ export const cropDoctorService = {
             productRecommendations,
             escalated,
             escalationId,
-            confidence,
+            confidence: maiosCase?.diagnostics.fusedConfidence ?? gingerSopCase?.diagnostics.fusedConfidence ?? confidence,
+            gingerSopCase: gingerSopCase ?? undefined,
+            maiosCase: maiosCase ?? undefined,
         };
     },
     async scheduleFollowUp(farmerId, sessionId, language) {

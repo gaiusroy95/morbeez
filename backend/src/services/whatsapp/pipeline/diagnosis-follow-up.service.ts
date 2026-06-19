@@ -25,6 +25,8 @@ import {
   type LearnedInvestigationPattern,
 } from './diagnosis-follow-up-question.generator.js';
 import { expertFollowUpLearningService } from '../../core/expert-follow-up-learning.service.js';
+import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
+import type { MaiosCase } from '../../../domain/case/types.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import {
   localizeChoice,
@@ -375,9 +377,23 @@ export const diagnosisFollowUpService = {
     };
   },
 
+  async deriveEvidenceGaps(farmerId: string): Promise<string[]> {
+    const ctx = await conversationSessionService.getContext(farmerId);
+    const maiosCase = ctx.maiosCase as MaiosCase | undefined;
+    if (!maiosCase?.evidence?.photos?.length) return [];
+
+    const pack = await cropPackLoaderService.load(maiosCase.identity.cropType);
+    const captured = maiosCase.evidence.photos
+      .filter((p) => p.status === 'captured')
+      .map((p) => p.slot);
+    const missing = cropPackLoaderService.nextMissingSlots(pack, captured, 5);
+    return missing.map((s) => s.labelEn || s.id);
+  },
+
   async planNextQuestionForIntake(
     investigation: InvestigationContext,
-    intake: IntakeContext
+    intake: IntakeContext,
+    opts?: { evidenceGaps?: string[]; farmerId?: string }
   ): Promise<{ intakeComplete: boolean; question?: FollowUpQuestion }> {
     const maxQuestions = intake.maxQuestions ?? MAX_QUESTIONS();
     const questionsAsked = intake.questionsAsked ?? Object.keys(intake.answers).length;
@@ -401,6 +417,10 @@ export const diagnosisFollowUpService = {
       return { intakeComplete: false, question: saved };
     }
 
+    const evidenceGaps =
+      opts?.evidenceGaps ??
+      (opts?.farmerId ? await this.deriveEvidenceGaps(opts.farmerId) : []);
+
     const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
       ctx: investigation,
       priorAnswers: intake.answers as Record<string, string>,
@@ -408,6 +428,7 @@ export const diagnosisFollowUpService = {
       questionsAsked,
       maxQuestions,
       learnedPatterns: investigation.learnedPatterns,
+      evidenceGaps,
     });
 
     if (result.intakeComplete || !result.question) {
@@ -575,7 +596,9 @@ export const diagnosisFollowUpService = {
       evidenceMode: evidenceMode && !hasSavedQuestions,
     };
 
-    const planned = await this.planNextQuestionForIntake(ctx, draftIntake);
+    const planned = await this.planNextQuestionForIntake(ctx, draftIntake, {
+      farmerId: params.farmerId,
+    });
 
     if (planned.intakeComplete || !planned.question) return { started: false };
 
@@ -711,7 +734,9 @@ export const diagnosisFollowUpService = {
         cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
         hasPhoto: true,
       });
-      const next = await this.planNextQuestionForIntake(investigation, intake);
+      const next = await this.planNextQuestionForIntake(investigation, intake, {
+        farmerId: params.farmerId,
+      });
       if (!next.intakeComplete && next.question) {
         intake.questions.push(next.question);
         attachQuestionToIntake(intake, next.question);
@@ -739,7 +764,9 @@ export const diagnosisFollowUpService = {
         cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
         hasPhoto: !skip && (params.hasPhoto || !intake.pendingPhoto),
       });
-      const next = await this.planNextQuestionForIntake(investigation, intake);
+      const next = await this.planNextQuestionForIntake(investigation, intake, {
+        farmerId: params.farmerId,
+      });
       if (!next.intakeComplete && next.question) {
         intake.questions.push(next.question);
         attachQuestionToIntake(intake, next.question);
@@ -782,7 +809,9 @@ export const diagnosisFollowUpService = {
         hasPhoto: params.hasPhoto || !intake.pendingPhoto,
       });
 
-      const next = await this.planNextQuestionForIntake(investigation, intake);
+      const next = await this.planNextQuestionForIntake(investigation, intake, {
+        farmerId: params.farmerId,
+      });
       if (!next.intakeComplete && next.question) {
         intake.questions.push(next.question);
         attachQuestionToIntake(intake, next.question);

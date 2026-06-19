@@ -24,6 +24,8 @@ export type PlanNextQuestionInput = {
     questionsAsked: number;
     maxQuestions: number;
     learnedPatterns: LearnedInvestigationPattern[];
+    /** MAIOS v12 — missing evidence slots from case (photo/module gaps) */
+    evidenceGaps?: string[];
 };
 export type PlanNextQuestionResult = {
     intakeComplete: boolean;

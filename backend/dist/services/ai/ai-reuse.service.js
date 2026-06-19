@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
 import { aiLogService } from './ai-log.service.js';
 import { recommendationService } from './recommendation.service.js';
+import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 import { blockService } from '../core/block.service.js';
 import { buildCrossLanguageIntentSlug, pickLocalizedFarmerSummary, } from '../whatsapp/pipeline/crop-message-intent.service.js';
 import { buildQuestionReuseKeys, buildSymptomKey } from './question-reuse-keys.util.js';
@@ -66,7 +67,7 @@ export const aiReuseService = {
             })[0];
             if (!hit)
                 continue;
-            const advisory = hit.advisory_snapshot;
+            const advisory = normalizeStructuredAdvisory(hit.advisory_snapshot);
             const products = (hit.product_snapshot ?? []);
             await supabase
                 .from('advisory_reuse_cases')

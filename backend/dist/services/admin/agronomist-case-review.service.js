@@ -8,6 +8,7 @@ import { weatherAlertsService } from '../whatsapp/scenarios/weather-alerts.servi
 import { resolveAdvisoryImageUrl, urlFromWhatsAppPayload, } from '../core/advisory-image-storage.service.js';
 import { mapRecordSeverityToUi, mapUiSeverityToRecord, parseEscalationCorrection, pickFarmerFacingSummary, pickLatestOutput, resolveFarmerQuestion, resolveProbableIssue, textsLikelySame, } from './case-review-inquiry.util.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
+import { fieldContextService } from '../case/field-context.service.js';
 function formatDt(iso) {
     if (!iso)
         return null;
@@ -364,6 +365,51 @@ export const agronomistCaseReviewService = {
                 kind: 'pending',
             },
         ];
+        const sessionMeta = sessionRow?.metadata ?? {};
+        let maiosCase = sessionMeta.maiosCase ?? sessionMeta.gingerSopV3 ?? null;
+        let gingerSopV3 = sessionMeta.gingerSopV3 ?? maiosCase ?? null;
+        if (maiosCase && typeof maiosCase === 'object' && primary) {
+            try {
+                const fieldCtx = await fieldContextService.loadFieldContext({
+                    farmerId: esc.farmerId,
+                    blockId: primary.id,
+                    dap: primary.dap,
+                });
+                maiosCase = {
+                    ...maiosCase,
+                    fieldMetrics: fieldCtx.fieldMetrics ?? maiosCase.fieldMetrics,
+                    canopyAudit: fieldCtx.canopyAudit ?? maiosCase.canopyAudit,
+                    waterReading: fieldCtx.waterReading ?? maiosCase.waterReading,
+                    inputHistory: fieldCtx.inputHistory ?? maiosCase.inputHistory,
+                };
+                if (primary.crop_type?.toLowerCase().includes('ginger')) {
+                    gingerSopV3 = maiosCase;
+                }
+            }
+            catch (err) {
+                logger.warn({ err, escalationId }, 'MAIOS field context refresh failed');
+            }
+        }
+        if (maiosCase && typeof maiosCase === 'object') {
+            const g = maiosCase;
+            if (g.createdAt) {
+                timeline.splice(2, 0, {
+                    at: g.createdAt,
+                    label: `MAIOS — ${g.evidence?.tier ?? 'T?'} EQS ${g.evidence?.eqs ?? g.evidence?.completenessPct ?? 0} → ${g.route ?? 'pending'}`,
+                    status: 'done',
+                    kind: 'ai',
+                });
+            }
+            const failedGate = g.gates?.find((x) => !x.passed);
+            if (failedGate) {
+                timeline.splice(timeline.length - 1, 0, {
+                    at: g.createdAt ?? sessionCreated,
+                    label: `Gate ${failedGate.gate}: ${failedGate.reason}`,
+                    status: 'done',
+                    kind: 'ai',
+                });
+            }
+        }
         return {
             escalation: {
                 id: esc.id,
@@ -507,6 +553,8 @@ export const agronomistCaseReviewService = {
                     recommendationText: existingRec.recommendation_text,
                 }
                 : null,
+            gingerSopV3,
+            maiosCase,
             timeline,
         };
     },

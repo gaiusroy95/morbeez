@@ -125,7 +125,7 @@ export const partnerFarmerWorkspaceService = {
             .eq('id', farmerId)
             .single();
         throwIfSupabaseError(error, 'Could not load farmer');
-        const [blocks, timeline, ownership, opportunities, partnerVisits, openRecsRes, lastVisitRes, pendingTasksRes, recRows,] = await Promise.all([
+        const [blocks, timeline, ownership, opportunities, partnerVisits, openRecsRes, lastVisitRes, pendingTasksRes, soilTasksRes, recRows,] = await Promise.all([
             fieldPwaService.getFarmerBlocks(farmerId),
             farmerTeamTimelineService.listForFarmer(farmerId, 60),
             farmerOwnershipService.getOwnership(farmerId),
@@ -155,6 +155,13 @@ export const partnerFarmerWorkspaceService = {
                 .eq('farmer_id', farmerId)
                 .eq('assigned_partner_id', partnerId)
                 .in('status', ['pending', 'in_progress']),
+            supabase
+                .from('crm_tasks')
+                .select('id', { count: 'exact', head: true })
+                .eq('farmer_id', farmerId)
+                .eq('assigned_partner_id', partnerId)
+                .in('status', ['pending', 'in_progress'])
+                .eq('task_category', 'soil_sampling'),
             recommendationRecordsService.listByFarmer(farmerId, 5),
         ]);
         const openIssueCount = blocks.reduce((sum, b) => sum + Number(b.openIssueCount ?? 0), 0);
@@ -166,8 +173,40 @@ export const partnerFarmerWorkspaceService = {
             pendingPartnerTasks: pendingTasksRes.count ?? 0,
             daysSinceLastVisit: daysSince,
             openIssueCount,
-            hasSoilTask: false,
+            hasSoilTask: (soilTasksRes.count ?? 0) > 0,
         });
+        const partnerIds = [
+            ownership?.enrollmentOwnerPartnerId,
+            ownership?.customerOwnerPartnerId,
+            ownership?.assignedPartnerId,
+        ].filter(Boolean);
+        const partnerNameById = new Map();
+        if (partnerIds.length) {
+            const { data: partnerRows } = await supabase
+                .from('partners')
+                .select('id, full_name, partner_code')
+                .in('id', [...new Set(partnerIds)]);
+            for (const p of partnerRows ?? []) {
+                partnerNameById.set(String(p.id), String(p.full_name ?? p.partner_code ?? 'Partner'));
+            }
+        }
+        const ownershipWithNames = ownership
+            ? {
+                ...ownership,
+                enrollmentOwnerPartnerName: ownership.enrollmentOwnerPartnerId
+                    ? partnerNameById.get(ownership.enrollmentOwnerPartnerId) ?? null
+                    : null,
+                customerOwnerPartnerName: ownership.customerOwnerPartnerId
+                    ? partnerNameById.get(ownership.customerOwnerPartnerId) ?? null
+                    : null,
+                assignedPartnerName: ownership.assignedPartnerId
+                    ? partnerNameById.get(ownership.assignedPartnerId) ?? null
+                    : null,
+                assignedExpertEmail: farmerRow.assigned_expert_email
+                    ? String(farmerRow.assigned_expert_email)
+                    : ownership.assignedExpertEmail,
+            }
+            : null;
         const currentRecRow = recRows.find((r) => ['open', 'monitoring', 'draft'].includes(String(r.status)));
         const currentRecommendation = currentRecRow
             ? {
@@ -212,7 +251,7 @@ export const partnerFarmerWorkspaceService = {
             header,
             blocks,
             timeline,
-            ownership,
+            ownership: ownershipWithNames,
             farmSnapshot,
             currentRecommendation,
             suggestedAction,

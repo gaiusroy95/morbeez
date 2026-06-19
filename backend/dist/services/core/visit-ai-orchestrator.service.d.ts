@@ -1,5 +1,5 @@
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
-import type { VisitAiRejectBody, VisitAnalyzeRequest, VisitAiAnswersBody } from '../../domain/ai-training/validators.js';
+import type { VisitAiRejectBody, VisitAnalyzeRequest, VisitAnalyzeVisitRequest, VisitAiAnswersBody } from '../../domain/ai-training/validators.js';
 type HypothesisRow = {
     label: string;
     confidence: number;
@@ -25,6 +25,7 @@ export declare const visitAiOrchestratorService: {
         }>;
         latitude?: number;
         longitude?: number;
+        fieldVoiceNote?: string;
     }) => Promise<import("./visit-ai-context.service.js").VisitAiContextPack>;
     analyze(input: VisitAnalyzeRequest, agronomistEmail: string): Promise<{
         aiCaseId: string;
@@ -106,6 +107,61 @@ export declare const visitAiOrchestratorService: {
         reviewAfterDays: number;
         reviewDate: string;
         expectedImprovementDays: string;
+    }>;
+    analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string): Promise<{
+        issues: {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: "low" | "high" | "medium";
+            observation: string;
+            aiCaseId: string;
+            hypotheses: {
+                label: string;
+                confidence: number;
+                rationale: string | undefined;
+                selected: boolean;
+                imagePrediction: string | undefined;
+                imageConfidence: number | undefined;
+            }[];
+            selectedHypothesisLabel: string;
+            finalDiagnosis: string;
+            finalRecommendation: undefined;
+            confidenceAction: "auto_send" | "employee_review" | "escalate";
+            skipFollowUpOptional: boolean;
+            imageSignal: {
+                label: string;
+                confidence: number;
+            } | undefined;
+            similarCases: {
+                issueLabel: string;
+                score: number;
+                confidence: number;
+                outcome: string | null;
+            }[];
+            rootCause: {
+                symptoms: string[];
+                photoSignals: string[];
+                soilSignals: string[];
+                weatherSignals: string[];
+                conclusion: string;
+            };
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+            initialRecommendation: {
+                text: string;
+                dose: undefined;
+                method: string;
+                category: string;
+            } | undefined;
+        }[];
     }>;
     similarCases(farmerId: string, cropType: string, issueName: string): Promise<{
         issueLabel: string;

@@ -135,7 +135,7 @@ export declare const farmerPortalMobileService: {
         sessionId: string;
         detectedIssue: string;
         confidence: number;
-        severity: "low" | "medium" | "high";
+        severity: "low" | "high" | "medium";
         spreadRisk: string | null;
         description: string;
         escalated: boolean;
@@ -146,7 +146,7 @@ export declare const farmerPortalMobileService: {
         sessionId: string;
         detectedIssue: string;
         confidence: number;
-        severity: "low" | "medium" | "high";
+        severity: "low" | "high" | "medium";
         spreadRisk: string | null;
         description: string;
         escalated: boolean;

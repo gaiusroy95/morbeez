@@ -132,7 +132,22 @@ export declare const partnerMobileService: {
             area: string | null;
         }[];
         timeline: import("../crm/farmer-team-timeline.service.js").TeamTimelineEntry[];
-        ownership: import("./partner.types.js").FarmerOwnership | null;
+        ownership: {
+            enrollmentOwnerPartnerName: string | null;
+            customerOwnerPartnerName: string | null;
+            assignedPartnerName: string | null;
+            assignedExpertEmail: string | null;
+            enrollmentOwnerType: import("./partner.types.js").EnrollmentOwnerType | null;
+            enrollmentOwnerPartnerId: string | null;
+            enrollmentSource: string | null;
+            enrollmentEventId: string | null;
+            customerOwnerType: import("./partner.types.js").CustomerOwnerType | null;
+            customerOwnerPartnerId: string | null;
+            serviceModel: import("./partner.types.js").ServiceModel | null;
+            assignedPartnerId: string | null;
+            assignedTelecallerEmail: string | null;
+            partnerCodeAtEnrollment: string | null;
+        } | null;
         farmSnapshot: import("./partner-farmer-workspace.service.js").PartnerFarmSnapshot;
         currentRecommendation: import("./partner-farmer-workspace.service.js").PartnerCurrentRecommendation;
         suggestedAction: import("./partner-farmer-workspace.service.js").PartnerSuggestedAction;

@@ -51,7 +51,10 @@ OUTPUT: Respond ONLY with valid JSON matching this schema:
   "escalationReason": "string or null",
   "farmerSummaryEn": "backup plain summary if sections empty — otherwise brief recap",
   "farmerSummaryMl": "Malayalam backup recap when language is ml",
-  "recommendedProductTags": ["tag1","tag2"]
+  "recommendedProductTags": ["tag1","tag2"],
+  "causalChain": [{"cause":"string","effect":"string","confidence":0.0-1.0}],
+  "explanation": "2-4 sentence reasoning chain for agronomist review",
+  "rejectedHypotheses": ["ruled-out issue 1", "ruled-out issue 2"]
 }
 
 Focus crops: ginger (primary), pepper, banana, vegetables.

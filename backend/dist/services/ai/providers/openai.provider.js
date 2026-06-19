@@ -2,6 +2,7 @@ import { env } from '../../../config/env.js';
 import { AppError } from '../../../lib/errors.js';
 import { logger } from '../../../lib/logger.js';
 import { logOpenAiQuotaInsufficient, parseOpenAiHttpError, } from '../openai-quota.service.js';
+import { normalizeStructuredAdvisory } from '../advisory-normalize.js';
 import { openaiTokenLimitBody } from './openai-chat-params.js';
 const OPENAI_BASE = 'https://api.openai.com/v1';
 async function openaiFetch(path, init) {
@@ -23,33 +24,34 @@ function parseStructuredJson(content) {
         throw new AppError('Invalid AI response format', 502, 'AI_PARSE_ERROR');
     }
     const parsed = JSON.parse(jsonMatch[0]);
-    parsed.confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5));
-    parsed.uncertain = Boolean(parsed.uncertain);
-    parsed.escalationRecommended = Boolean(parsed.escalationRecommended);
-    return parsed;
+    return normalizeStructuredAdvisory(parsed);
 }
 export const openaiVisionProvider = {
     name: 'openai',
     async analyzeVision(input) {
         const model = env.OPENAI_VISION_MODEL;
+        const imageParts = [
+            {
+                imageBase64: input.imageBase64,
+                mimeType: input.mimeType,
+            },
+            ...(input.additionalImages ?? []),
+        ].map((img) => ({
+            type: 'image_url',
+            image_url: {
+                url: `data:${img.mimeType};base64,${img.imageBase64}`,
+                detail: 'high',
+            },
+        }));
         const body = {
             model,
-            ...openaiTokenLimitBody(model, 2048),
+            ...openaiTokenLimitBody(model, 3000),
             response_format: { type: 'json_object' },
             messages: [
                 { role: 'system', content: input.systemPrompt },
                 {
                     role: 'user',
-                    content: [
-                        { type: 'text', text: input.userPrompt },
-                        {
-                            type: 'image_url',
-                            image_url: {
-                                url: `data:${input.mimeType};base64,${input.imageBase64}`,
-                                detail: 'high',
-                            },
-                        },
-                    ],
+                    content: [{ type: 'text', text: input.userPrompt }, ...imageParts],
                 },
             ],
         };
@@ -104,7 +106,7 @@ export async function openaiTextAdvisory(systemPrompt, userPrompt) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             model: env.OPENAI_TEXT_MODEL,
-            ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 2048),
+            ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 3000),
             response_format: { type: 'json_object' },
             messages: [
                 { role: 'system', content: systemPrompt },

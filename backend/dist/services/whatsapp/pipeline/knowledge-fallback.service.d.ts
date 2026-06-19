@@ -1,4 +1,5 @@
-import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
+import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { StructuredAdvisory } from '../../ai/types.js';
 import { type FarmerMemorySnapshot } from './farmer-memory.service.js';
 import type { MorbeezReplyModule, ReplyAttributionMeta } from './reply-attribution.service.js';
 export declare function isFertilizerOrNutrientQuestion(text: string): boolean;

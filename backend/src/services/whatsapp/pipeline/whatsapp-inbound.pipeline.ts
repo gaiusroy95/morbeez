@@ -88,7 +88,6 @@ import { evidenceQualityService } from '../../case/evidence-quality.service.js';
 import { caseBuilderService } from '../../case/case-builder.service.js';
 import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
 import { recoveryValidationService } from '../../case/recovery-validation.service.js';
-import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
 import { soilFlowService } from '../scenarios/soil-flow.service.js';
 import {
   hasInboundImageAttachment,
@@ -1515,13 +1514,8 @@ export const whatsappInboundPipeline = {
         maiosPhotoPaths: photoPaths,
         maiosIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
         maiosHasSoilReport: hasSoilReport,
-        gingerSopPhotoCount: photoCount,
-        gingerSopPhotoPaths: photoPaths,
-        gingerSopIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
-        gingerSopHasSoilReport: hasSoilReport,
       });
       const maiosCase = result.maiosCase;
-      const gingerCase = result.gingerSopCase ?? maiosCase;
       const hasImage = Boolean(imageBase64);
       const assessment = policyEngineService.evaluate(result.advisory, {
         ...contextPack,
@@ -1546,19 +1540,19 @@ export const whatsappInboundPipeline = {
 
       await createTelecallerTask({
         farmerId: params.farmerId,
-        title: gingerCase?.triage.level === 'L4' ? 'Ginger SOP — emergency' : 'Symptom Confirmation Required',
+        title: maiosCase?.triage.level === 'L4' ? 'MAIOS — emergency' : 'Symptom Confirmation Required',
         notes: maiosCase
           ? caseBuilderService.formatTelecallerNotes(maiosCase)
           : `Probable issue: ${result.advisory.probableIssue}; confidence ${Math.round(result.advisory.confidence * 100)}%; crop ${memory.cropType}`,
         priority:
-          gingerCase?.route === 'emergency_callback' || assessment.escalationPriority === 'urgent'
+          maiosCase?.route === 'emergency_callback' || assessment.escalationPriority === 'urgent'
             ? 'urgent'
-            : gingerCase?.route === 'field_visit'
+            : maiosCase?.route === 'field_visit'
               ? 'high'
               : 'normal',
       });
 
-      if (gingerCase?.route === 'emergency_callback') {
+      if (maiosCase?.route === 'emergency_callback') {
         await params.sendText(
           params.phone,
           params.language === 'ml'
@@ -1568,11 +1562,11 @@ export const whatsappInboundPipeline = {
       }
 
       if (
-        gingerCase &&
-        gingerCase.evidence.completenessPct < 30 &&
-        gingerCase.evidence.tier === 'T0'
+        maiosCase &&
+        maiosCase.evidence.completenessPct < 30 &&
+        maiosCase.evidence.tier === 'T0'
       ) {
-        const capturedSlots = gingerCase.evidence.photos
+        const capturedSlots = maiosCase.evidence.photos
           .filter((p) => p.status === 'captured')
           .map((p) => p.slot);
         const pack = await cropPackLoaderService.load(memory.cropType);
@@ -1581,13 +1575,7 @@ export const whatsappInboundPipeline = {
           params.phone,
           evidenceQualityService.missingSlotPrompt(pack, params.language, missing)
         );
-        const ctxPatch: Record<string, unknown> = {};
-        if (maiosCase) ctxPatch.maiosCase = maiosCase;
-        else if (gingerCase) ctxPatch.gingerSopCase = gingerCase;
-        await conversationSessionService.patchContext(
-          params.farmerId,
-          ctxPatch as Parameters<typeof conversationSessionService.patchContext>[1]
-        );
+        await conversationSessionService.patchContext(params.farmerId, { maiosCase });
         await conversationSessionService.setState(params.farmerId, 'diagnosis_awaiting_photos');
         return;
       }
@@ -1775,21 +1763,6 @@ export const whatsappInboundPipeline = {
             farmerId: params.farmerId,
             sessionId: result.sessionId,
             cropType: memory.cropType,
-            language: params.language,
-            recommendationRecordId: rec?.id ?? null,
-          });
-        } else if (gingerCase && gingerSopFollowUpService.enabled()) {
-          const { data: rec } = await supabase
-            .from('recommendation_records')
-            .select('id')
-            .eq('ai_session_id', result.sessionId)
-            .eq('farmer_id', params.farmerId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          void gingerSopFollowUpService.scheduleRecoveryLoop({
-            farmerId: params.farmerId,
-            sessionId: result.sessionId,
             language: params.language,
             recommendationRecordId: rec?.id ?? null,
           });

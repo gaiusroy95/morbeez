@@ -34,6 +34,8 @@ import { isExplicitAgronomyQuestion } from '../pipeline/agriculture-free-text.se
 import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
+import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
+import { recoveryValidationService } from '../../case/recovery-validation.service.js';
 const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 const CROP_MEDIA = new Set(['image', 'image_message', 'document']);
 const MENU_IDS = new Set([
@@ -324,6 +326,45 @@ export const whatsappScenarioRouter = {
                 });
                 return { handled: true };
             }
+        }
+        // Visit AI evidence replies (photos/text after reject need_more_evidence)
+        if (text || CROP_MEDIA.has(msg.msgType)) {
+            const { visitEvidenceInboundService } = await import('../../core/visit-evidence-inbound.service.js');
+            const evidenceResult = await visitEvidenceInboundService.tryHandleFarmerMessage({
+                farmerId: captured.farmerId,
+                msgType: msg.msgType,
+                text,
+            });
+            if (evidenceResult.handled && evidenceResult.ack) {
+                await send.text(msg.phone, evidenceResult.ack);
+                return { handled: true };
+            }
+        }
+        // Ginger SOP v3 — Day 3/7/14 recovery validation buttons
+        const gingerRecovery = text?.match(/^ginger\.recovery\.d(\d+)\.(improved|same|worse)$/i);
+        if (gingerRecovery) {
+            const ctx = await conversationSessionService.getContext(captured.farmerId);
+            const reply = await gingerSopFollowUpService.handleRecoveryReply({
+                farmerId: captured.farmerId,
+                day: Number(gingerRecovery[1]),
+                outcome: gingerRecovery[2].toLowerCase(),
+                sessionId: ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+            });
+            await send.text(msg.phone, reply);
+            return { handled: true };
+        }
+        // MAIOS v12 — universal recovery validation buttons
+        const maiosRecovery = text?.match(/^maios\.recovery\.d(\d+)\.(improved|same|worse)$/i);
+        if (maiosRecovery) {
+            const ctx = await conversationSessionService.getContext(captured.farmerId);
+            const reply = await recoveryValidationService.handleRecoveryReply({
+                farmerId: captured.farmerId,
+                day: Number(maiosRecovery[1]),
+                outcome: maiosRecovery[2].toLowerCase(),
+                sessionId: ctx.maiosCase?.sessionId ?? ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+            });
+            await send.text(msg.phone, reply);
+            return { handled: true };
         }
         // Recommendation follow-up buttons (application + Day-5 outcome)
         if (text?.startsWith('rec.')) {
@@ -833,6 +874,10 @@ export const whatsappScenarioRouter = {
             await send.text(msg.phone, await callbackFlowService.createCallback(captured.farmerId, lang));
             return { handled: true };
         }
+        if (/^buy$/i.test(text) || text === 'action.buy') {
+            await send.text(msg.phone, await diagnosisFlowService.formatBuyReply(captured.farmerId, lang));
+            return { handled: true };
+        }
         if (/^technical$/i.test(text) || text === 'action.technical') {
             const ctx = await conversationSessionService.getContext(captured.farmerId);
             if (ctx.diagnosis?.lastAdvisorySummary) {
@@ -1305,6 +1350,17 @@ export const whatsappScenarioRouter = {
             await send.text(msg.phone, await callbackFlowService.createCallback(captured.farmerId, lang));
             return true;
         }
+        if (text === 'action.buy') {
+            await send.text(msg.phone, await diagnosisFlowService.formatBuyReply(captured.farmerId, lang));
+            return true;
+        }
+        if (text === 'action.technical') {
+            const ctx = await conversationSessionService.getContext(captured.farmerId);
+            if (ctx.diagnosis?.dosageItems?.length) {
+                await send.text(msg.phone, diagnosisFlowService.technicalOnlyReply({ dosageGuidance: ctx.diagnosis.dosageItems }, lang));
+            }
+            return true;
+        }
         const liters = diagnosisFlowService.parseWaterLiters(text);
         if (liters == null) {
             if (text === 'water.custom') {
@@ -1317,6 +1373,17 @@ export const whatsappScenarioRouter = {
         }
         const reply = await diagnosisFlowService.formatQuantityReply(captured.farmerId, lang, liters);
         await send.text(msg.phone, reply);
+        const actionButtons = diagnosisFlowService.quantityActionButtons(lang);
+        if (send.buttons) {
+            await send.buttons({
+                phone: msg.phone,
+                body: actionButtons.prompt,
+                buttons: actionButtons.options,
+            });
+        }
+        else {
+            await send.text(msg.phone, actionButtons.prompt);
+        }
         await conversationSessionService.setState(captured.farmerId, 'main_menu');
         return true;
     },

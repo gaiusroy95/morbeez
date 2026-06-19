@@ -1,5 +1,6 @@
 import { env } from '../../../config/env.js';
 import { logger } from '../../../lib/logger.js';
+import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
 import { aiReuseService, buildDapBucket, buildSymptomKey } from '../../ai/ai-reuse.service.js';
 import { blockService } from '../../core/block.service.js';
 import { supabase } from '../../../lib/supabase.js';
@@ -89,7 +90,7 @@ function scanTextForCaMgConflict(text, language) {
  */
 /** Minimal advisory object when Crop Doctor cannot call OpenAI. */
 export function advisoryFromKnowledgeText(summary, language) {
-    return {
+    return normalizeStructuredAdvisory({
         probableIssue: 'Field guidance (verified rules)',
         confidence: 0.58,
         uncertain: true,
@@ -103,7 +104,11 @@ export function advisoryFromKnowledgeText(summary, language) {
         farmerSummaryEn: summary,
         farmerSummaryMl: language === 'ml' ? summary : summary,
         recommendedProductTags: [],
-    };
+        imageObservations: [],
+        differentialDiagnosis: [],
+        morbeezDataUsed: ['Verified Morbeez field guide'],
+        agronomistAssessment: summary.slice(0, 500),
+    });
 }
 function metaFromMemory(memory, district) {
     return {

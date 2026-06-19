@@ -24,5 +24,35 @@ export declare const monitoringPlanService: {
     }): Promise<MonitoringPlanItemRow>;
     listByRecommendation(recommendationRecordId: string): Promise<MonitoringPlanItemRow[]>;
     deleteForRecommendation(recommendationRecordId: string): Promise<void>;
+    previewForVisit(input: {
+        issues: Array<{
+            localId: string;
+            issueName: string;
+            severity: string;
+        }>;
+        recommendationGroups?: Array<{
+            applicationType: string;
+            applicationDay?: number;
+            materials: Array<{
+                technicalName: string;
+                category?: string;
+            }>;
+        }>;
+    }): {
+        localId: string;
+        issueLocalId: string;
+        issueLabel: string;
+        intervalDays: number;
+        checkType: string;
+        severity: MonitoringSeverity;
+    }[];
+    scheduleProgressionJob(params: {
+        farmerId: string;
+        fieldFindingId: string;
+        visitIssueId: string;
+        severity: string;
+        sessionId?: string | null;
+        intervalDays?: number;
+    }): Promise<void>;
 };
 //# sourceMappingURL=monitoring-plan.service.d.ts.map

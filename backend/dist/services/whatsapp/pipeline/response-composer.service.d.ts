@@ -11,5 +11,8 @@ export declare const responseComposerService: {
     /** Pull first sentence ending with ? from text if no explicit question provided. */
     extractValidationQuestion(text: string): string | null;
     advisoryDisclaimer(language: AdvisoryLanguage): string;
+    brandFooter(language: AdvisoryLanguage): string;
+    /** Diagnosis replies — no char cap or paragraph limit. */
+    composeDiagnosis(input: ComposeFarmerReplyInput): string;
 };
 //# sourceMappingURL=response-composer.service.d.ts.map

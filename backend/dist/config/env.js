@@ -60,6 +60,8 @@ const envSchema = z.object({
         .default('true'),
     WHATSAPP_TYPING_MIN_MS: z.coerce.number().default(700),
     WHATSAPP_TYPING_MAX_MS: z.coerce.number().default(2200),
+    /** Debounce window (ms) to batch simultaneous WhatsApp photo uploads into one diagnosis. */
+    WHATSAPP_IMAGE_BATCH_MS: z.coerce.number().default(2500),
     SHOPIFY_STOREFRONT_URL: z.string().url().optional(),
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
@@ -128,6 +130,39 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** Rich sectioned WhatsApp diagnosis (renderer + extended prompt). Default on. */
+    ENABLE_WHATSAPP_RICH_DIAGNOSIS: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** OpenAI polish pass on diagnosis body — default off (preserves structure). */
+    ENABLE_WHATSAPP_DIAGNOSIS_POLISH: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    /** Ginger Crop Doctor SOP v3 — evidence scoring, fused confidence, D3/D7/D14 recovery loop. */
+    ENABLE_GINGER_SOP_V3: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** MAIOS v12 — universal crop intelligence case engine + crop packs. */
+    ENABLE_MAIOS_V12: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    MAIOS_RECOVERY_DAYS: z.string().optional(),
+    MAIOS_DISABLE_GENERIC_OUTCOME: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    ENABLE_MAIOS_SUPPLY_INTEL: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_MAIOS_PREDICTIVE_RISK: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     ENABLE_OUTBOX_WORKER: z
         .string()
         .transform((v) => v !== 'false')
@@ -152,6 +187,11 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** Append Day-1 application check prompt to initial approved recommendation WhatsApp */
+    REC_SEND_COMPLIANCE_IN_INITIAL: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
     ENABLE_WHATSAPP_BROADCASTS: z
         .string()
         .transform((v) => v !== 'false')

@@ -76,5 +76,35 @@ export const monitoringPlanService = {
             .eq('recommendation_record_id', recommendationRecordId);
         throwIfSupabaseError(error, 'Could not delete monitoring plan items');
     },
+    previewForVisit(input) {
+        return input.issues.map((issue, index) => {
+            const linkedGroup = input.recommendationGroups?.find((g) => g.materials.some((m) => m.technicalName.toLowerCase().includes(issue.issueName.split(' ')[0].toLowerCase()))) ?? input.recommendationGroups?.[index];
+            const materials = linkedGroup?.materials ?? [];
+            const intervalDays = this.resolveIntervalDays(issue.severity, materials);
+            return {
+                localId: `mon-${issue.localId}`,
+                issueLocalId: issue.localId,
+                issueLabel: issue.issueName,
+                intervalDays,
+                checkType: this.resolveCheckType(materials),
+                severity: normalizeSeverity(issue.severity),
+            };
+        });
+    },
+    async scheduleProgressionJob(params) {
+        const days = params.intervalDays ?? SEVERITY_INTERVAL_DAYS[normalizeSeverity(params.severity)];
+        const scheduledAt = addDaysIso(days);
+        await supabase.from('advisory_automation_jobs').insert({
+            farmer_id: params.farmerId,
+            session_id: params.sessionId ?? null,
+            job_type: 'visit_monitoring_progression',
+            scheduled_at: scheduledAt,
+            payload: {
+                fieldFindingId: params.fieldFindingId,
+                visitIssueId: params.visitIssueId,
+                severity: params.severity,
+            },
+        });
+    },
 };
 //# sourceMappingURL=monitoring-plan.service.js.map

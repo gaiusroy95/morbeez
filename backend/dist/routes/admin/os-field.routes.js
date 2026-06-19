@@ -9,9 +9,11 @@ import { visitCaseClosureService } from '../../services/core/visit-case-closure.
 import { trainingExportService } from '../../services/core/training-export.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { recommendationCompatibilityService } from '../../services/core/recommendation-compatibility.service.js';
+import { recommendationCommunicationService } from '../../services/core/recommendation-communication.service.js';
+import { monitoringPlanService } from '../../services/core/monitoring-plan.service.js';
 import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
 import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
-import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAiAnswersBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
+import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAnalyzeVisitRequestSchema, visitMonitoringPreviewSchema, visitWhatsappPreviewSchema, visitAiAnswersBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
     mimeType: z.string().min(3).max(80),
@@ -225,6 +227,24 @@ export async function osFieldRoutes(app) {
         const body = visitAnalyzeRequestSchema.parse(request.body);
         const result = await visitAiOrchestratorService.analyze(body, admin.email);
         return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/visits/analyze-visit`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'write');
+        const body = visitAnalyzeVisitRequestSchema.parse(request.body);
+        const result = await visitAiOrchestratorService.analyzeVisit(body, admin.email);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/visits/monitoring-plan/preview`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = visitMonitoringPreviewSchema.parse(request.body);
+        const items = monitoringPlanService.previewForVisit(body);
+        return reply.send({ ok: true, items });
+    });
+    app.post(`${api}/visits/whatsapp-preview`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = visitWhatsappPreviewSchema.parse(request.body);
+        const messages = await recommendationCommunicationService.previewVisitMessages(body);
+        return reply.send({ ok: true, messages });
     });
     app.get(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'read');

@@ -1,4 +1,4 @@
-export type VisitPhotoValidationIssue = 'blur' | 'dark' | 'low_resolution';
+export type VisitPhotoValidationIssue = 'blur' | 'dark' | 'low_resolution' | 'coverage';
 export type VisitPhotoValidationResult = {
     ok: boolean;
     issues: VisitPhotoValidationIssue[];

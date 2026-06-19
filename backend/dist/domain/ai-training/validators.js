@@ -182,6 +182,7 @@ export const visitAiContextRequestSchema = z.object({
     measurements: z.array(visitMeasurementInputSchema).max(20).optional(),
     latitude: z.number().optional(),
     longitude: z.number().optional(),
+    fieldVoiceNote: z.string().max(4000).optional(),
 });
 export const visitAnalyzeRequestSchema = visitAiContextRequestSchema.extend({
     issueCategory: issueCategorySchema,
@@ -250,5 +251,43 @@ export const visitAiRejectBodySchema = z
     if (data.reason === 'custom_recommendation' && !data.customRecommendation) {
         ctx.addIssue({ code: 'custom', message: 'customRecommendation required', path: ['customRecommendation'] });
     }
+});
+export const visitAnalyzeVisitRequestSchema = visitAiContextRequestSchema.extend({
+    fieldVoiceNote: z.string().max(4000).optional(),
+    analyzePhotos: z
+        .array(z.object({
+        dataBase64: z.string().min(100).max(12_000_000),
+        mimeType: z.string().max(100).optional(),
+        photoType: z.string().max(80).optional(),
+    }))
+        .max(12)
+        .optional(),
+});
+export const visitMonitoringPreviewSchema = z.object({
+    issues: z.array(z.object({
+        localId: z.string(),
+        issueName: z.string(),
+        severity: z.enum(RECORD_SEVERITIES),
+    })),
+    recommendationGroups: z.array(recommendationGroupSchema).optional(),
+});
+export const visitWhatsappPreviewSchema = z.object({
+    farmerId: z.string().uuid(),
+    blockName: z.string().max(200).optional(),
+    recommendationGroups: z.array(recommendationGroupSchema).optional(),
+    reviewDate: z.string().optional(),
+    monitoringInterval: z.string().optional(),
+    issues: z.array(z.object({
+        issueName: z.string(),
+        finalDiagnosis: z.string().optional(),
+        finalRecommendation: z.string().optional(),
+        initialRecommendation: z
+            .object({
+            text: z.string(),
+            dose: z.string().optional(),
+            method: z.string().optional(),
+        })
+            .optional(),
+    })),
 });
 //# sourceMappingURL=validators.js.map

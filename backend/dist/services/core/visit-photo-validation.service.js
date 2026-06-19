@@ -40,6 +40,9 @@ export function validateVisitPhotoBuffer(buffer, mimeType) {
     if (estimateBrightness(buffer) < 45) {
         issues.push('dark');
     }
+    if (buffer.length < 8000 && !/symptom|leaf|pest|disease|close/i.test(mimeType ?? '')) {
+        issues.push('coverage');
+    }
     const retakeRecommended = issues.length > 0;
     return { ok: issues.length === 0, issues, retakeRecommended };
 }

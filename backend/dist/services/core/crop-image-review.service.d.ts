@@ -54,7 +54,7 @@ export declare const cropImageReviewService: {
             aiPrediction: string | null;
             aiConfidence: number | null;
             agronomistLabel: string | null;
-            severity: "mild" | "moderate" | "severe" | null;
+            severity: "moderate" | "mild" | "severe" | null;
             reviewStatus: ImageReviewStatus;
             reviewAction: string | null;
             reviewedBy: string | null;
@@ -97,7 +97,7 @@ export declare const cropImageReviewService: {
             aiPrediction: string | null;
             aiConfidence: number | null;
             agronomistLabel: string | null;
-            severity: "mild" | "moderate" | "severe" | null;
+            severity: "moderate" | "mild" | "severe" | null;
             reviewStatus: ImageReviewStatus;
             reviewAction: string | null;
             reviewedBy: string | null;
@@ -138,7 +138,7 @@ export declare const cropImageReviewService: {
         aiPrediction: string | null;
         aiConfidence: number | null;
         agronomistLabel: string | null;
-        severity: "mild" | "moderate" | "severe" | null;
+        severity: "moderate" | "mild" | "severe" | null;
         reviewStatus: ImageReviewStatus;
         reviewAction: string | null;
         reviewedBy: string | null;

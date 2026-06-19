@@ -54,6 +54,8 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_TYPING_SIMULATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     WHATSAPP_TYPING_MIN_MS: z.ZodDefault<z.ZodNumber>;
     WHATSAPP_TYPING_MAX_MS: z.ZodDefault<z.ZodNumber>;
+    /** Debounce window (ms) to batch simultaneous WhatsApp photo uploads into one diagnosis. */
+    WHATSAPP_IMAGE_BATCH_MS: z.ZodDefault<z.ZodNumber>;
     SHOPIFY_STOREFRONT_URL: z.ZodOptional<z.ZodString>;
     OPENAI_API_KEY: z.ZodOptional<z.ZodString>;
     OPENAI_VISION_MODEL: z.ZodDefault<z.ZodString>;
@@ -95,12 +97,26 @@ declare const envSchema: z.ZodObject<{
     ENABLE_WHATSAPP_OPENAI_REPLY: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Natural-language polish for verified DB/diagnosis replies (facts locked). Default on. */
     ENABLE_WHATSAPP_REPLY_POLISH: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Rich sectioned WhatsApp diagnosis (renderer + extended prompt). Default on. */
+    ENABLE_WHATSAPP_RICH_DIAGNOSIS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** OpenAI polish pass on diagnosis body — default off (preserves structure). */
+    ENABLE_WHATSAPP_DIAGNOSIS_POLISH: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Ginger Crop Doctor SOP v3 — evidence scoring, fused confidence, D3/D7/D14 recovery loop. */
+    ENABLE_GINGER_SOP_V3: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** MAIOS v12 — universal crop intelligence case engine + crop packs. */
+    ENABLE_MAIOS_V12: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    MAIOS_RECOVERY_DAYS: z.ZodOptional<z.ZodString>;
+    MAIOS_DISABLE_GENERIC_OUTCOME: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_MAIOS_SUPPLY_INTEL: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    ENABLE_MAIOS_PREDICTIVE_RISK: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_OUTBOX_WORKER: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_RETENTION_CLEANUP: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_AI_CROP_DOCTOR: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_ADVISORY_FOLLOW_UPS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_ADVISORY_AUTOMATION: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_STRUCTURED_FIELD_VISITS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Append Day-1 application check prompt to initial approved recommendation WhatsApp */
+    REC_SEND_COMPLIANCE_IN_INITIAL: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_WHATSAPP_BROADCASTS: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     /** Fetch mandi prices + copy via OpenAI per pincode/day (cached). */
@@ -172,6 +188,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_TYPING_SIMULATION: boolean;
     WHATSAPP_TYPING_MIN_MS: number;
     WHATSAPP_TYPING_MAX_MS: number;
+    WHATSAPP_IMAGE_BATCH_MS: number;
     OPENAI_VISION_MODEL: string;
     OPENAI_TEXT_MODEL: string;
     OPENAI_WHISPER_MODEL: string;
@@ -194,12 +211,20 @@ declare const envSchema: z.ZodObject<{
     ENABLE_WHATSAPP_AUTO_REPLY: boolean;
     ENABLE_WHATSAPP_OPENAI_REPLY: boolean;
     ENABLE_WHATSAPP_REPLY_POLISH: boolean;
+    ENABLE_WHATSAPP_RICH_DIAGNOSIS: boolean;
+    ENABLE_WHATSAPP_DIAGNOSIS_POLISH: boolean;
+    ENABLE_GINGER_SOP_V3: boolean;
+    ENABLE_MAIOS_V12: boolean;
+    MAIOS_DISABLE_GENERIC_OUTCOME: boolean;
+    ENABLE_MAIOS_SUPPLY_INTEL: boolean;
+    ENABLE_MAIOS_PREDICTIVE_RISK: boolean;
     ENABLE_OUTBOX_WORKER: boolean;
     ENABLE_RETENTION_CLEANUP: boolean;
     ENABLE_AI_CROP_DOCTOR: boolean;
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
     ENABLE_STRUCTURED_FIELD_VISITS: boolean;
+    REC_SEND_COMPLIANCE_IN_INITIAL: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
     ENABLE_MARKET_INSIGHT_OPENAI: boolean;
@@ -276,6 +301,7 @@ declare const envSchema: z.ZodObject<{
     COMPANY_BANK_ACCOUNT?: string | undefined;
     COMPANY_BANK_IFSC?: string | undefined;
     COMPANY_BANK_BRANCH?: string | undefined;
+    MAIOS_RECOVERY_DAYS?: string | undefined;
     GSC_SITE_URL?: string | undefined;
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;
@@ -337,6 +363,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_TYPING_SIMULATION?: string | undefined;
     WHATSAPP_TYPING_MIN_MS?: number | undefined;
     WHATSAPP_TYPING_MAX_MS?: number | undefined;
+    WHATSAPP_IMAGE_BATCH_MS?: number | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     OPENAI_VISION_MODEL?: string | undefined;
@@ -367,12 +394,21 @@ declare const envSchema: z.ZodObject<{
     ENABLE_WHATSAPP_AUTO_REPLY?: string | undefined;
     ENABLE_WHATSAPP_OPENAI_REPLY?: string | undefined;
     ENABLE_WHATSAPP_REPLY_POLISH?: string | undefined;
+    ENABLE_WHATSAPP_RICH_DIAGNOSIS?: string | undefined;
+    ENABLE_WHATSAPP_DIAGNOSIS_POLISH?: string | undefined;
+    ENABLE_GINGER_SOP_V3?: string | undefined;
+    ENABLE_MAIOS_V12?: string | undefined;
+    MAIOS_RECOVERY_DAYS?: string | undefined;
+    MAIOS_DISABLE_GENERIC_OUTCOME?: string | undefined;
+    ENABLE_MAIOS_SUPPLY_INTEL?: string | undefined;
+    ENABLE_MAIOS_PREDICTIVE_RISK?: string | undefined;
     ENABLE_OUTBOX_WORKER?: string | undefined;
     ENABLE_RETENTION_CLEANUP?: string | undefined;
     ENABLE_AI_CROP_DOCTOR?: string | undefined;
     ENABLE_ADVISORY_FOLLOW_UPS?: string | undefined;
     ENABLE_ADVISORY_AUTOMATION?: string | undefined;
     ENABLE_STRUCTURED_FIELD_VISITS?: string | undefined;
+    REC_SEND_COMPLIANCE_IN_INITIAL?: string | undefined;
     ENABLE_WHATSAPP_BROADCASTS?: string | undefined;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST?: string | undefined;
     ENABLE_MARKET_INSIGHT_OPENAI?: string | undefined;
@@ -436,6 +472,7 @@ export declare const env: {
     WHATSAPP_TYPING_SIMULATION: boolean;
     WHATSAPP_TYPING_MIN_MS: number;
     WHATSAPP_TYPING_MAX_MS: number;
+    WHATSAPP_IMAGE_BATCH_MS: number;
     OPENAI_VISION_MODEL: string;
     OPENAI_TEXT_MODEL: string;
     OPENAI_WHISPER_MODEL: string;
@@ -458,12 +495,20 @@ export declare const env: {
     ENABLE_WHATSAPP_AUTO_REPLY: boolean;
     ENABLE_WHATSAPP_OPENAI_REPLY: boolean;
     ENABLE_WHATSAPP_REPLY_POLISH: boolean;
+    ENABLE_WHATSAPP_RICH_DIAGNOSIS: boolean;
+    ENABLE_WHATSAPP_DIAGNOSIS_POLISH: boolean;
+    ENABLE_GINGER_SOP_V3: boolean;
+    ENABLE_MAIOS_V12: boolean;
+    MAIOS_DISABLE_GENERIC_OUTCOME: boolean;
+    ENABLE_MAIOS_SUPPLY_INTEL: boolean;
+    ENABLE_MAIOS_PREDICTIVE_RISK: boolean;
     ENABLE_OUTBOX_WORKER: boolean;
     ENABLE_RETENTION_CLEANUP: boolean;
     ENABLE_AI_CROP_DOCTOR: boolean;
     ENABLE_ADVISORY_FOLLOW_UPS: boolean;
     ENABLE_ADVISORY_AUTOMATION: boolean;
     ENABLE_STRUCTURED_FIELD_VISITS: boolean;
+    REC_SEND_COMPLIANCE_IN_INITIAL: boolean;
     ENABLE_WHATSAPP_BROADCASTS: boolean;
     ENABLE_MARKET_INSIGHT_IMAGE_BROADCAST: boolean;
     ENABLE_MARKET_INSIGHT_OPENAI: boolean;
@@ -540,6 +585,7 @@ export declare const env: {
     COMPANY_BANK_ACCOUNT?: string | undefined;
     COMPANY_BANK_IFSC?: string | undefined;
     COMPANY_BANK_BRANCH?: string | undefined;
+    MAIOS_RECOVERY_DAYS?: string | undefined;
     GSC_SITE_URL?: string | undefined;
     GSC_CLIENT_ID?: string | undefined;
     GSC_CLIENT_SECRET?: string | undefined;

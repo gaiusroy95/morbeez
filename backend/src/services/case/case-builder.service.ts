@@ -1,4 +1,5 @@
 import { env } from '../../config/env.js';
+import { supabase } from '../../lib/supabase.js';
 import { blockService } from '../core/block.service.js';
 import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
 import { evidenceQualityService } from './evidence-quality.service.js';
@@ -14,6 +15,9 @@ import { resistanceDetectionService } from './resistance-detection.service.js';
 import { predictiveRiskService } from '../predictive-risk/predictive-risk.service.js';
 import { regionalLearningService } from '../regional-learning/regional-learning.service.js';
 import { groundIntelligenceService } from '../ground-intelligence/ground-intelligence.service.js';
+import { knowledgeGraphService } from '../knowledge-graph/knowledge-graph.service.js';
+import { supplyIntelligenceService } from '../supply-intelligence/supply-intelligence.service.js';
+import { cultivationContextService } from './cultivation-context.service.js';
 import type { MaiosBuildInput, MaiosCase, MaiosHypothesis } from '../../domain/case/types.js';
 import { MAIOS_VERSION as MAIOS_VER } from '../../domain/case/types.js';
 
@@ -45,6 +49,42 @@ function needsNutrientAdvice(issue?: string, tags?: string[]): boolean {
   const blob = (issue ?? '').toLowerCase();
   if (/nutrient|deficien|chlorosis|yellow|k\b|n\b|zn|iron/.test(blob)) return true;
   return Boolean(tags?.includes('NUTRIENT_DEFICIENCY_RISK'));
+}
+
+async function loadTemporalComparison(params: {
+  farmerId: string;
+  blockId?: string | null;
+  currentIssue?: string;
+  excludeSessionId?: string;
+}): Promise<string | undefined> {
+  let q = supabase
+    .from('ai_advisory_sessions')
+    .select('id, metadata, created_at')
+    .eq('farmer_id', params.farmerId)
+    .not('metadata->maiosCase', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const { data: rows } = await q;
+  for (const row of rows ?? []) {
+    if (params.excludeSessionId && row.id === params.excludeSessionId) continue;
+    const meta = (row.metadata as Record<string, unknown>) ?? {};
+    const prior = meta.maiosCase as {
+      identity?: { blockId?: string | null };
+      diagnostics?: { primary?: string; hypotheses?: Array<{ label: string }> };
+    } | undefined;
+    if (!prior) continue;
+    if (params.blockId && prior.identity?.blockId && prior.identity.blockId !== params.blockId) {
+      continue;
+    }
+    const priorIssue = prior.diagnostics?.primary ?? prior.diagnostics?.hypotheses?.[0]?.label;
+    if (!priorIssue) continue;
+    if (params.currentIssue && priorIssue.toLowerCase() === params.currentIssue.toLowerCase()) {
+      return `Same primary issue as prior case (${priorIssue}) on ${String(row.created_at).slice(0, 10)}`;
+    }
+    return `Shift from prior ${priorIssue} (${String(row.created_at).slice(0, 10)}) to current ${params.currentIssue ?? 'issue'}`;
+  }
+  return undefined;
 }
 
 export const caseBuilderService = {
@@ -102,10 +142,16 @@ export const caseBuilderService = {
       farmerId: input.farmerId,
       blockId: identity.blockId ?? input.blockId,
       dap: identity.dap ?? input.contextPack?.dap ?? null,
+      pack,
       metadata: {
         irrigationPh: input.waterReading?.irrigationPh ?? undefined,
         irrigationEc: input.waterReading?.irrigationEc ?? undefined,
       },
+    });
+
+    const cultivationCtx = await cultivationContextService.loadForBlock({
+      cropType: identity.cropType,
+      dap: identity.dap,
     });
 
     const labReports =
@@ -113,12 +159,7 @@ export const caseBuilderService = {
       (await labIntelligenceService.loadForFarmer(input.farmerId, identity.blockId));
 
     const fieldMetrics = input.fieldMetrics ?? fieldCtx.fieldMetrics;
-    let canopyAudit = input.canopyAudit ?? fieldCtx.canopyAudit;
-    if (!canopyAudit && fieldCtx.canopyAudit) {
-      canopyAudit = fieldCtx.canopyAudit;
-    } else if (!canopyAudit) {
-      canopyAudit = undefined;
-    }
+    const canopyAudit = input.canopyAudit ?? fieldCtx.canopyAudit;
     const waterReading = input.waterReading ?? fieldCtx.waterReading;
     const inputHistory = input.inputHistory ?? fieldCtx.inputHistory;
 
@@ -152,6 +193,7 @@ export const caseBuilderService = {
     const resistance = await resistanceDetectionService.score({
       farmerId: input.farmerId,
       blockId: identity.blockId,
+      cropType: identity.cropType,
       inputHistory,
     });
 
@@ -171,6 +213,10 @@ export const caseBuilderService = {
       resistanceScore: resistance.score,
     });
 
+    if (cultivationCtx.hasOverdue) {
+      riskTags.push('ROOT_STRESS_RISK');
+    }
+
     const weatherStress = riskTagsService.weatherStress({
       weatherRiskScore: input.contextPack?.weatherRiskScore,
       heavyRainLikely: input.contextPack?.heavyRainLikely,
@@ -189,6 +235,13 @@ export const caseBuilderService = {
       cropType: identity.cropType,
       soilPh: input.contextPack?.soilPh,
     });
+
+    const regionalPriors = regionalCluster
+      ? await regionalLearningService.topIssuePriors(
+          identity.cropType,
+          regionalCluster.clusterKey.split(':')[1] ?? ''
+        )
+      : [];
 
     const moduleScores = moduleFusionService.buildModuleScores({
       pack,
@@ -231,10 +284,23 @@ export const caseBuilderService = {
     });
 
     let hypotheses = buildHypotheses(input);
-    const mm = multiModelFusionService.enrichHypotheses(hypotheses, {
+
+    const kgCandidates = await knowledgeGraphService.queryCandidates({
+      cropType: identity.cropType,
+      symptoms: [
+        input.symptomsText ?? '',
+        input.advisory?.probableIssue ?? '',
+        ...(input.advisory?.differentialDiagnosis?.map((d) => d.label) ?? []),
+      ].filter(Boolean),
+    });
+
+    const mm = await multiModelFusionService.enrichHypotheses(hypotheses, {
       modelConfidence,
       hasPlantId: Boolean(input.plantIdConfidence),
       moduleScores,
+      regionalPriors,
+      kgCandidates,
+      labReports,
     });
     hypotheses = mm.hypotheses;
 
@@ -243,14 +309,40 @@ export const caseBuilderService = {
         ? await predictiveRiskService.scoreBlock({
             farmerId: input.farmerId,
             blockId: identity.blockId,
+            cropType: identity.cropType,
             contextPack: input.contextPack,
             riskTagCount: riskTags.length,
+            regionalClusterKey: regionalCluster?.clusterKey,
           })
         : undefined;
 
     const groundRemote = identity.blockId
       ? await groundIntelligenceService.loadForBlock(identity.blockId).catch(() => undefined)
       : undefined;
+
+    const supplySignals = await supplyIntelligenceService.suggestFromTags({
+      cropType: identity.cropType,
+      productTags: input.advisory?.recommendedProductTags ?? [],
+      farmerId: input.farmerId,
+    });
+
+    const temporalComparison = await loadTemporalComparison({
+      farmerId: input.farmerId,
+      blockId: identity.blockId,
+      currentIssue: input.advisory?.probableIssue,
+      excludeSessionId: input.sessionId,
+    });
+
+    if (input.advisory?.probableIssue && regionalCluster) {
+      const district = regionalCluster.clusterKey.split(':')[1];
+      if (district) {
+        void regionalLearningService.recordIssueStat(
+          district,
+          identity.cropType,
+          input.advisory.probableIssue
+        );
+      }
+    }
 
     return {
       maiosVersion: MAIOS_VER,
@@ -273,6 +365,7 @@ export const caseBuilderService = {
         causalChain: input.advisory?.causalChain,
         explanation: input.advisory?.explanation,
         rejectedHypotheses: input.advisory?.rejectedHypotheses,
+        temporalComparison,
       },
       gates,
       route,
@@ -287,6 +380,7 @@ export const caseBuilderService = {
       resistanceScore: resistance.score,
       resistanceClasses: resistance.classes,
       predictiveRisk,
+      supplySignals,
       regionalClusterId: regionalCluster?.clusterKey ?? null,
     };
   },

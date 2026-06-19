@@ -2,6 +2,8 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { partnerSettingsService } from './partner-settings.service.js';
 import { partnerService } from './partner.service.js';
+import { farmerOwnershipService } from './farmer-ownership.service.js';
+import { partnerAttributionCaptureService } from './partner-attribution-capture.service.js';
 function tierBoost(tier) {
     if (tier === 'master')
         return 1.4;
@@ -94,9 +96,35 @@ export const partnerLeadAllocationService = {
             .eq('id', allocationId)
             .eq('partner_id', partnerId)
             .eq('status', 'offered')
-            .select('*')
+            .select('*, leads(farmer_id)')
             .single();
         throwIfSupabaseError(error, 'Could not respond to lead offer');
+        if (action === 'accepted' && data) {
+            const leadRel = data.leads;
+            const farmerId = data.farmer_id != null
+                ? String(data.farmer_id)
+                : leadRel?.farmer_id
+                    ? String(leadRel.farmer_id)
+                    : null;
+            if (farmerId) {
+                await farmerOwnershipService.changeCustomerOwner({
+                    farmerId,
+                    customerOwnerType: 'partner',
+                    customerOwnerPartnerId: partnerId,
+                    serviceModel: 'partner_assisted',
+                    assignedPartnerId: partnerId,
+                    reason: 'lead_allocation_accepted',
+                    changedBy: partnerId,
+                });
+                await partnerAttributionCaptureService.upsertTouch({
+                    farmerId,
+                    partnerId,
+                    attributionType: 'enrollment',
+                    metadata: { source: 'lead_allocation', allocationId },
+                });
+                await partnerService.incrementActiveFarmers(partnerId, 1);
+            }
+        }
         return data;
     },
     async listOffers(partnerId) {

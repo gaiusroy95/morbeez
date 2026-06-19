@@ -160,6 +160,13 @@ const COPY = {
         kn: 'ಮಣ್ಣು/ರಸಗೊಬ್ಬರ ಪ್ರಶ್ನೆಯನ್ನು ಇಲ್ಲಿ ಟೈಪ್ ಮಾಡಿ.\n\n• *Enter lab values* • *Upload Report* • *Expert Help*\n\n*Hi* ಅಥವಾ *Hello* — ಎಲ್ಲಾ ಆಯ್ಕೆಗಳು.',
         hi: 'मिट्टी/खाद का सवाल यहाँ टाइप करें।\n\n• *Enter lab values* • *Upload Report* • *Expert Help*\n\n*Hi* या *Hello* — सभी विकल्प।',
     },
+    quantitySelectPrompt: {
+        en: 'Select Buy for shop link, Technical for names only, or Callback.',
+        ml: 'ഷോപ്പ് ലിങ്കിന് Buy, പേരുകൾ മാത്രം Technical, അല്ലെങ്കിൽ Callback തിരഞ്ഞെടുക്കുക.',
+        ta: 'கடை இணைப்புக்கு Buy, பெயர்கள் மட்டும் Technical, அல்லது Callback தேர்ந்தெடுக்கவும்.',
+        kn: 'ಅಂಗಡಿ ಲಿಂಕ್‌ಗೆ Buy, ಹೆಸರುಗಳು ಮಾತ್ರ Technical, ಅಥವಾ Callback ಆಯ್ಕೆಮಾಡಿ.',
+        hi: 'दुकान लिंक के लिए Buy, सिर्फ नाम Technical, या Callback चुनें।',
+    },
 };
 export function t(key, lang) {
     return COPY[key][lang] ?? COPY[key].en;
