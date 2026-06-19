@@ -23,6 +23,8 @@ import {
 } from '../whatsapp/pipeline/knowledge-fallback.service.js';
 import { farmerMemoryService } from '../whatsapp/pipeline/farmer-memory.service.js';
 import { leadService } from '../crm/lead.service.js';
+import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-diagnosis-context.service.js';
+import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 
 async function getFarmerHistory(farmerId: string): Promise<string> {
   const { data } = await supabase
@@ -105,7 +107,7 @@ export const cropDoctorService = {
 
     void (async () => {
       const { weatherSnapshotService } = await import('../core/weather-snapshot.service.js');
-      const blockId = (input as { activePlotId?: string | null }).activePlotId ?? null;
+      const blockId = input.activePlotId ?? null;
       await weatherSnapshotService.capture({
         farmerId: input.farmerId,
         blockId,
@@ -119,6 +121,7 @@ export const cropDoctorService = {
 
     const reused = skipReuse ? null : await aiReuseService.tryReuse(input, sessionId);
     if (reused) {
+      reused.advisory = normalizeStructuredAdvisory(reused.advisory);
       await persistRecommendations(sessionId, reused.productRecommendations);
       await supabase.from('disease_history').insert({
         farmer_id: input.farmerId,
@@ -160,7 +163,7 @@ export const cropDoctorService = {
           farmerId: input.farmerId,
           storagePath: input.imageStoragePath,
           cropType: input.cropType,
-          blockId: (input as { activePlotId?: string | null }).activePlotId ?? null,
+          blockId: input.activePlotId ?? null,
           symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
           aiPrediction: reused.advisory.probableIssue,
           aiConfidence: confidence,
@@ -205,6 +208,17 @@ export const cropDoctorService = {
     const verifiedRegionalHints = await farmerExperienceLearningService
       .getVerifiedRegionalHints(input.farmerId, input.cropType)
       .catch(() => null);
+
+    const morbeezFieldContext =
+      input.morbeezFieldContext ??
+      (await whatsappDiagnosisContextService.buildFieldContext({
+        farmerId: input.farmerId,
+        blockId: input.activePlotId,
+        cropType: input.cropType,
+        issueName: input.issueLabelHint ?? input.symptomsText?.slice(0, 80) ?? 'field issue',
+        observation: input.symptomsText ?? input.voiceTranscript,
+      }));
+
     const fullUserPrompt = buildUserPrompt({
       cropType: input.cropType,
       cropStage: input.cropStage,
@@ -215,6 +229,7 @@ export const cropDoctorService = {
       whatsappContext: input.compactHistory,
       verifiedRegionalHints: verifiedRegionalHints ?? undefined,
       environmentalContext: input.environmentalContext,
+      morbeezFieldContext: morbeezFieldContext ?? undefined,
       fieldInvestigation: input.fieldInvestigation,
       issueLabelHint: input.issueLabelHint,
       language: input.language,
@@ -286,6 +301,8 @@ export const cropDoctorService = {
       throw new Error('Crop Doctor produced no advisory');
     }
 
+    advisory = normalizeStructuredAdvisory(advisory);
+
     await persistOutput(sessionId, advisory, 'openai', input.language);
     const productRecommendations = recommendationService.recommend(input.cropType, advisory);
     await persistRecommendations(sessionId, productRecommendations);
@@ -327,7 +344,7 @@ export const cropDoctorService = {
         farmerId: input.farmerId,
         storagePath: input.imageStoragePath,
         cropType: input.cropType,
-        blockId: (input as { activePlotId?: string | null }).activePlotId ?? null,
+        blockId: input.activePlotId ?? null,
         symptoms: input.symptomsText ? [input.symptomsText.slice(0, 200)] : [],
         aiPrediction: advisory.probableIssue,
         aiConfidence: confidence,
@@ -366,7 +383,7 @@ export const cropDoctorService = {
       escalated,
     });
 
-    const activeBlockId = (input as { activePlotId?: string | null }).activePlotId;
+    const activeBlockId = input.activePlotId;
     const recText =
       input.language === 'ml' && advisory.farmerSummaryMl
         ? advisory.farmerSummaryMl

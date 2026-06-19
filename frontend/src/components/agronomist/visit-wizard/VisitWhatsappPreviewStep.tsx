@@ -1,16 +1,29 @@
 import { useEffect, useState } from 'react';
-import { agronomistClient, type WhatsappPreviewMessage } from '@morbeez/shared';
+import { agronomistClient, type RecommendationGroupDraft, type WhatsappPreviewMessage } from '@morbeez/shared';
 import { Alert, Btn, Loading } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
 type Props = {
   farmerId: string;
+  blockName?: string;
   issues: VisitIssueDraft[];
+  recommendationGroups?: RecommendationGroupDraft[];
+  reviewDate?: string;
+  monitoringInterval?: string;
   confirmed: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
 };
 
-export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfirmedChange }: Props) {
+export function VisitWhatsappPreviewStep({
+  farmerId,
+  blockName,
+  issues,
+  recommendationGroups,
+  reviewDate,
+  monitoringInterval,
+  confirmed,
+  onConfirmedChange,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [messages, setMessages] = useState<WhatsappPreviewMessage[]>([]);
@@ -18,7 +31,7 @@ export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfir
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [farmerId, issues, recommendationGroups, blockName, reviewDate, monitoringInterval]);
 
   async function load() {
     setLoading(true);
@@ -26,6 +39,10 @@ export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfir
     try {
       const rows = await agronomistClient.previewWhatsappMessages({
         farmerId,
+        blockName,
+        recommendationGroups: recommendationGroups?.length ? recommendationGroups : undefined,
+        reviewDate,
+        monitoringInterval,
         issues: issues.map((i) => ({
           issueName: i.issueName,
           finalDiagnosis: i.finalDiagnosis,
@@ -34,6 +51,7 @@ export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfir
         })),
       });
       setMessages(rows);
+      onConfirmedChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load WhatsApp preview');
     } finally {

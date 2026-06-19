@@ -26,12 +26,15 @@ export type PartnerAttributionType =
 export type FarmerOwnership = {
   enrollmentOwnerType: EnrollmentOwnerType | null;
   enrollmentOwnerPartnerId: string | null;
+  enrollmentOwnerPartnerName?: string | null;
   enrollmentSource: string | null;
   enrollmentEventId: string | null;
   customerOwnerType: CustomerOwnerType | null;
   customerOwnerPartnerId: string | null;
+  customerOwnerPartnerName?: string | null;
   serviceModel: ServiceModel | null;
   assignedPartnerId: string | null;
+  assignedPartnerName?: string | null;
   assignedTelecallerEmail: string | null;
   assignedExpertEmail: string | null;
   partnerCodeAtEnrollment: string | null;

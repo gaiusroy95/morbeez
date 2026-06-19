@@ -56,6 +56,8 @@ Open this farmer in the agronomist or partner app — you should see three new g
 
 **Tests:** soil-report-driven nutrient diagnosis (not disease).
 
+**Expected AI hypotheses (top-2 should cite soil):** Potassium Deficiency, Magnesium Deficiency — fusion rules boost these when K &lt; 100 kg/ha and Mg &lt; 50 ppm.
+
 ---
 
 ## Scenario 3 — Waterlogging E2E (~120 DAS)
@@ -69,10 +71,41 @@ Open this farmer in the agronomist or partner app — you should see three new g
 
 **Tests:** full 16-step workflow — multi-issue, rec groups, monitoring, Q&A.
 
+**Expected AI hypotheses:** Nitrogen Deficiency and Zinc Deficiency in top-2 for yellowing + low N (110 kg/ha) and Zn (0.3 ppm); soil section must appear in LLM prompt context.
+
+---
+
+## Verification
+
+Run integration tests:
+
+```bash
+cd backend && npm test -- tests/visit-ai-prompt-context-ginger.test.ts
+```
+
+Manual E2E on farmer **+916282873542**, block `e0000000-0000-4000-8000-000000000013` (S3): after Q&A, diagnosis and recommendation should refresh; WhatsApp preview should list product doses in farmer language.
+
+## WhatsApp Crop Doctor (rich diagnosis)
+
+After `ENABLE_WHATSAPP_RICH_DIAGNOSIS=true` (default), farmers receive a **sectioned** WhatsApp message:
+
+- What I see (image observations)
+- Primary issue + severity
+- Less likely (differential)
+- Immediate action (dosage table)
+- Spray timing, root/soil correction, Morbeez assessment
+- Footer: `— Morbeez field intelligence`
+
+Run tests:
+
+```bash
+cd backend && npm test -- tests/whatsapp-diagnosis-renderer.test.ts tests/whatsapp-diagnosis-context.test.ts
+```
+
+**WhatsApp E2E (S2 nutrient block):** Send a yellowing-leaf photo on **+916282873542** with active block S2 — diagnosis should cite soil K 85 kg/ha and Mg 45 ppm in `morbeezDataUsed` / assessment sections, not a generic one-liner.
+
 ---
 
 ## Code reference
-
-`backend/src/domain/advisory/ginger-advisory-samples.ts` — structured metrics for tests (`GINGER_ADVISORY_SAMPLE_PHONE`).
 
 After `supabase db push`, start a visit on any sample block → **Soil** step shows the lab panel from `crm_soil_reports.metrics`.

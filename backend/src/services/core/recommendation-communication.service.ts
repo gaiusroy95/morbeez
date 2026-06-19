@@ -21,11 +21,27 @@ type RecRow = {
   farmers?: { phone: string | null; name: string | null; preferred_language: string | null };
 };
 
+export type RecommendationMessageExtras = {
+  blockName?: string;
+  products?: Array<{
+    technicalName?: string;
+    dose?: string;
+    method?: string;
+    applicationDay?: number;
+    applicationType?: string;
+  }>;
+  reviewDate?: string;
+  monitoringInterval?: string;
+};
+
 function pickSummary(text: string): string {
   return text.trim();
 }
 
-export function buildApprovedRecommendationMessage(row: RecRow): string {
+export function buildApprovedRecommendationMessage(
+  row: RecRow,
+  extras?: RecommendationMessageExtras
+): string {
   const lang = String(row.language || row.farmers?.preferred_language || 'en').toLowerCase();
   const copy: Record<string, { title: string; issue: string; advice: string; dosage: string; app: string; footer: string }> = {
     en: {
@@ -70,19 +86,43 @@ export function buildApprovedRecommendationMessage(row: RecRow): string {
     },
   };
   const t = copy[lang] ?? copy.en;
+  const productLines =
+    extras?.products?.map((p) => {
+      const day = p.applicationDay != null ? `Day ${p.applicationDay}` : '';
+      const parts = [p.technicalName, p.dose, p.method, day].filter(Boolean);
+      return `• ${parts.join(' · ')}`;
+    }) ?? [];
+
   const lines = [
     t.title,
     '',
+    extras?.blockName ? (lang === 'ml' ? `*ബ്ലോക്ക്:* ${extras.blockName}` : `*Block:* ${extras.blockName}`) : null,
     row.issue_detected ? `${t.issue} ${row.issue_detected}` : null,
     `${t.advice} ${pickSummary(row.recommendation_text)}`,
     row.dosage ? `${t.dosage} ${row.dosage}` : null,
     row.application_type ? `${t.app} ${row.application_type}` : null,
+    productLines.length ? (lang === 'ml' ? '*ഉൽപ്പന്നങ്ങൾ:*' : '*Products & schedule:*') : null,
+    ...productLines,
+    extras?.reviewDate ? (lang === 'ml' ? `*പുനര്പരിശോധന:* ${extras.reviewDate}` : `*Review:* ${extras.reviewDate}`) : null,
+    extras?.monitoringInterval
+      ? lang === 'ml'
+        ? `*നിരീക്ഷണം:* ഓരോ ${extras.monitoringInterval} ദിവസവും`
+        : `*Monitoring:* every ${extras.monitoringInterval} days`
+      : null,
     row.weather_warning ? `⚠️ ${row.weather_warning}` : null,
     '',
     t.footer,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
 
-  return lines.join('\n');
+  let text = lines.join('\n');
+  if (env.REC_SEND_COMPLIANCE_IN_INITIAL) {
+    const compliance =
+      lang === 'ml'
+        ? `\n\n_ചികിത്സ പൂർത്തിയാക്കിയോ? Yes അല്ലെങ്കിൽ No എന്ന് മറുപടി നൽകുക._`
+        : `\n\n_Have you applied this treatment? Reply Yes or No._`;
+    text += compliance;
+  }
+  return text;
 }
 
 export const recommendationCommunicationService = {
@@ -126,7 +166,17 @@ export const recommendationCommunicationService = {
       return { sent: false, reason: 'whatsapp_not_configured' };
     }
 
-    const text = buildApprovedRecommendationMessage(row);
+    const text = buildApprovedRecommendationMessage(row, {
+      blockName:
+        typeof row.metadata?.blockName === 'string' ? String(row.metadata.blockName) : undefined,
+      products: Array.isArray(row.metadata?.products)
+        ? (row.metadata!.products as RecommendationMessageExtras['products'])
+        : undefined,
+      reviewDate:
+        typeof row.metadata?.reviewDate === 'string'
+          ? new Date(String(row.metadata.reviewDate)).toLocaleDateString()
+          : undefined,
+    });
     await whatsappService.sendText(phone, text.slice(0, 4000));
 
     const now = new Date().toISOString();
@@ -219,38 +269,78 @@ export const recommendationCommunicationService = {
       return { sent: false, reason: 'whatsapp_not_configured' };
     }
 
-    const photoLabels: Record<string, string> = {
-      whole_plant: 'Whole plant photo',
-      lower_leaf: 'Lower leaf photo',
-      root_rhizome: 'Root/rhizome photo',
-      field_view: 'Field view photo',
+    const lang = String(farmer?.preferred_language ?? 'en').toLowerCase();
+    const photoLabels: Record<string, Record<string, string>> = {
+      en: {
+        whole_plant: 'Whole plant photo',
+        lower_leaf: 'Lower leaf photo',
+        root_rhizome: 'Root/rhizome photo',
+        field_view: 'Field view photo',
+      },
+      ml: {
+        whole_plant: 'മുഴുവൻ ചെടിയുടെ ഫോട്ടോ',
+        lower_leaf: 'താഴത്തെ ഇലയുടെ ഫോട്ടോ',
+        root_rhizome: 'വേര്/റൈസോം ഫോട്ടോ',
+        field_view: 'കൃഷിയിടത്തിന്റെ ഫോട്ടോ',
+      },
     };
-    const photoLines = params.photoTypes.map((t) => `• ${photoLabels[t] ?? t}`);
+    const labels = photoLabels[lang] ?? photoLabels.en!;
+    const photoLines = params.photoTypes.map((t) => `• ${labels[t] ?? t}`);
     const questionLines = params.questions.map((q) => {
       const ans = q.answer?.trim() ? ` (${q.answer})` : '';
       return `• ${q.text}${ans}`;
     });
 
+    const copy =
+      lang === 'ml'
+        ? {
+            title: '📸 *കൂടുതൽ വിവരങ്ങൾ ആവശ്യമാണ്*',
+            intro: `ഞങ്ങളുടെ അഗ്രോണമിസ്റ്റ് നിങ്ങളുടെ കൃഷിയിടത്തിലെ *${params.diagnosis}* പരിശോധിക്കുന്നു.`,
+            photos: '*ഈ ഫോട്ടോകൾ അയയ്ക്കുക:*',
+            confirm: '*ദയവായി സ്ഥിരീകരിക്കുക:*',
+            footer: '_ഫോട്ടോകളും ഉത്തരങ്ങളും വാട്ട്സാപ്പിൽ അയയ്ക്കുക. നന്ദി!_',
+          }
+        : {
+            title: '📸 *More information needed*',
+            intro: `Our agronomist is reviewing *${params.diagnosis}* on your field.`,
+            photos: '*Please send these photos:*',
+            confirm: '*Please confirm:*',
+            footer: '_Reply with photos and answers on WhatsApp. Thank you!_',
+          };
+
     const text = [
-      '📸 *More information needed*',
+      copy.title,
       '',
-      `Our agronomist is reviewing *${params.diagnosis}* on your field.`,
+      copy.intro,
       '',
-      '*Please send these photos:*',
+      copy.photos,
       ...photoLines,
       '',
-      '*Please confirm:*',
+      copy.confirm,
       ...questionLines,
       '',
-      '_Reply with photos and answers on WhatsApp. Thank you!_',
+      copy.footer,
     ].join('\n');
 
     const result = await whatsappService.sendText(phone, text.slice(0, 4000));
     return { sent: true, messageId: typeof result === 'object' && result && 'id' in result ? String((result as { id?: string }).id) : undefined };
   },
 
-  previewVisitMessages(input: {
+  async previewVisitMessages(input: {
     farmerId: string;
+    blockName?: string;
+    recommendationGroups?: Array<{
+      applicationType: string;
+      applicationDay?: number;
+      materials: Array<{
+        technicalName: string;
+        dose?: string;
+        method?: string;
+        issueIndex?: number;
+      }>;
+    }>;
+    reviewDate?: string;
+    monitoringInterval?: string;
     issues: Array<{
       issueName: string;
       finalDiagnosis?: string;
@@ -258,25 +348,79 @@ export const recommendationCommunicationService = {
       initialRecommendation?: { text: string; dose?: string; method?: string };
     }>;
   }) {
-    return input.issues.map((issue) => {
+    const { data: farmer } = await supabase
+      .from('farmers')
+      .select('preferred_language')
+      .eq('id', input.farmerId)
+      .maybeSingle();
+    const lang = String(farmer?.preferred_language ?? 'en').toLowerCase();
+
+    const allProducts =
+      input.recommendationGroups?.flatMap((g) =>
+        g.materials.map((m) => ({
+          technicalName: m.technicalName,
+          dose: m.dose,
+          method: m.method ?? g.applicationType,
+          applicationDay: g.applicationDay,
+          applicationType: g.applicationType,
+          issueIndex: m.issueIndex,
+        }))
+      ) ?? [];
+
+    return input.issues.map((issue, issueIndex) => {
       const diagnosis = issue.finalDiagnosis ?? issue.issueName;
       const recText = issue.finalRecommendation ?? issue.initialRecommendation?.text ?? 'Recommendation pending';
-      const message = buildApprovedRecommendationMessage({
-        id: 'preview',
-        farmer_id: input.farmerId,
-        issue_detected: diagnosis,
-        recommendation_text: recText,
-        dosage: issue.initialRecommendation?.dose ?? null,
-        application_type: issue.initialRecommendation?.method ?? null,
-        weather_warning: null,
-        language: 'en',
-        status: 'approved',
-        farmers: { phone: null, name: null, preferred_language: 'en' },
-      });
+      const issueProducts = allProducts.filter(
+        (p) => p.issueIndex === undefined || p.issueIndex === issueIndex
+      );
+      const productsForIssue =
+        issueProducts.length > 0
+          ? issueProducts
+          : allProducts.length
+            ? allProducts
+            : issue.initialRecommendation?.dose
+              ? [
+                  {
+                    technicalName: diagnosis,
+                    dose: issue.initialRecommendation.dose,
+                    method: issue.initialRecommendation.method,
+                  },
+                ]
+              : [];
+
+      const dosageFromProducts = productsForIssue
+        .map((p) => [p.technicalName, p.dose].filter(Boolean).join(': '))
+        .filter(Boolean)
+        .join('; ');
+
+      const message = buildApprovedRecommendationMessage(
+        {
+          id: 'preview',
+          farmer_id: input.farmerId,
+          issue_detected: diagnosis,
+          recommendation_text: recText,
+          dosage: dosageFromProducts || (issue.initialRecommendation?.dose ?? null),
+          application_type: issue.initialRecommendation?.method ?? null,
+          weather_warning: null,
+          language: lang,
+          status: 'approved',
+          farmers: { phone: null, name: null, preferred_language: lang },
+        },
+        {
+          blockName: input.blockName,
+          products: productsForIssue,
+          reviewDate: input.reviewDate,
+          monitoringInterval: input.monitoringInterval,
+        }
+      );
+      const compliancePrompt =
+        lang === 'ml'
+          ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ? Yes അല്ലെങ്കിൽ No എന്ന് മറുപടി നൽകുക.`
+          : `Have you completed ${diagnosis} treatment? Reply Yes or No.`;
       return {
         issueLabel: diagnosis,
         message,
-        compliancePrompt: `Have you completed ${diagnosis} treatment? Reply Yes or No.`,
+        compliancePrompt,
       };
     });
   },

@@ -45,6 +45,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
   const [trainingModules, setTrainingModules] = useState<Array<Record<string, unknown>>>([]);
   const [towerFarmerId, setTowerFarmerId] = useState('');
   const [towerData, setTowerData] = useState<Record<string, unknown> | null>(null);
+  const [assignPartnerId, setAssignPartnerId] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -85,6 +86,9 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
           `${base}/events/list`
         );
         setEvents(r.events ?? []);
+      } else if (tab === 'controlTower') {
+        const r = await api<{ ok: boolean; partners: PartnerRow[] }>(base);
+        setPartners(r.partners ?? []);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
@@ -176,7 +180,26 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
+  async function assignFarmerPartner() {
+    if (!canWrite || !towerFarmerId.trim() || !assignPartnerId) return;
+    setBusy(true);
+    setError('');
+    try {
+      await api(`${base}/farmers/${towerFarmerId.trim()}/assign`, {
+        method: 'POST',
+        body: JSON.stringify({ partnerId: assignPartnerId, reason: 'control_tower_assign' }),
+      });
+      await loadControlTower();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Assign failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const fraudSignals = (towerData?.fraudSignals as Array<Record<string, unknown>>) ?? [];
+  const towerAttributions =
+    (towerData?.attributions as Array<Record<string, unknown>>) ?? [];
 
   return (
     <div className="hub-page">
@@ -408,11 +431,36 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                       farmer: towerData.farmer,
                       ownership: towerData.ownership,
                       partnerReliability: towerData.partnerReliability,
+                      attributions: towerAttributions,
                     },
                     null,
                     2
                   )}
                 </pre>
+                {canWrite ? (
+                  <div className="mt-4 flex flex-wrap items-end gap-3">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">
+                        Assign to partner
+                      </label>
+                      <select
+                        className={inputClass}
+                        value={assignPartnerId}
+                        onChange={(e) => setAssignPartnerId(e.target.value)}
+                      >
+                        <option value="">Select partner…</option>
+                        {partners.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.fullName} ({p.partnerCode})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Btn disabled={busy || !assignPartnerId} onClick={() => void assignFarmerPartner()}>
+                      Assign farmer
+                    </Btn>
+                  </div>
+                ) : null}
               </Panel>
               <Panel title="Fraud / reliability signals">
                 {fraudSignals.length ? (

@@ -14,6 +14,8 @@ import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
+import { visitAiPromptContextService, computeFusionHints } from './visit-ai-prompt-context.service.js';
+import { visitAiRetrievalService } from './visit-ai-retrieval.service.js';
 import { expertFollowUpLearningService } from './expert-follow-up-learning.service.js';
 import { nearbyCasesService } from '../whatsapp/pipeline/nearby-cases.service.js';
 import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
@@ -149,7 +151,9 @@ async function buildHypotheses(params: {
   issueCategory: string;
   issueName: string;
   observation?: string;
-  similarCases: Array<{ issueLabel: string; score: number; confidence: number }>;
+  similarCases: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;
+  imageSignal?: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
+  qaAnswers?: Array<{ question: string; answer: string }>;
 }): Promise<HypothesisRow[]> {
   const primary: HypothesisRow = {
     label: params.issueName,
@@ -157,34 +161,57 @@ async function buildHypotheses(params: {
     rationale: `Reported ${params.issueCategory.replace(/_/g, ' ')} on ${params.context.cropType}.`,
   };
 
+  const trainingExamples = await visitAiRetrievalService.findTrainingExamples({
+    farmerId: params.context.farmerId,
+    cropType: params.context.cropType,
+    issueName: params.issueName,
+    observation: params.observation,
+  });
+  const verifiedCases = await visitAiRetrievalService.findVerifiedCases({
+    cropType: params.context.cropType,
+    issueName: params.issueName,
+  });
+
   const fromSimilar = params.similarCases
     .filter((c) => c.issueLabel.toLowerCase() !== params.issueName.toLowerCase())
     .slice(0, 3)
     .map((c, i) => ({
       label: c.issueLabel,
       confidence: clampConfidence(c.confidence * (1 - i * 0.08)),
-      rationale: 'Similar verified regional case.',
+      rationale: c.outcome ? `Similar case (outcome: ${c.outcome}).` : 'Similar verified regional case.',
     }));
 
   if (env.OPENAI_API_KEY) {
     try {
-      const prompt = `Crop: ${params.context.cropType}, DAP: ${params.context.dap ?? '?'}
-Category: ${params.issueCategory}
-Issue: ${params.issueName}
-Observation: ${params.observation ?? 'none'}
-Measurements: ${JSON.stringify(params.context.measurements)}
-Weather: ${JSON.stringify(params.context.weatherSnapshot)}
-Similar cases: ${params.similarCases.map((s) => s.issueLabel).join(', ') || 'none'}
+      const promptBlock = await visitAiPromptContextService.buildPromptBlock({
+        context: params.context,
+        issueCategory: params.issueCategory,
+        issueName: params.issueName,
+        observation: params.observation,
+        imageSignal: params.imageSignal,
+        similarCases: [
+          ...params.similarCases.map((s) => ({
+            issueLabel: s.issueLabel,
+            outcome: s.outcome ?? null,
+          })),
+          ...verifiedCases,
+        ],
+        trainingExamples,
+        qaAnswers: params.qaAnswers,
+      });
 
-Return JSON {"hypotheses":[{"label":"...","confidence":0.0-1.0,"rationale":"..."}]} with 2-4 ranked diagnoses.`;
+      const prompt = `${promptBlock}
+
+Return JSON {"hypotheses":[{"label":"...","confidence":0.0-1.0,"rationale":"..."}]} with 2-4 ranked diagnoses.
+Use soil test, measurements, weather, image signal, Q&A, and expert corrections. Cite evidence in rationale.`;
 
       const result = await openaiJsonCompletion<{ hypotheses: HypothesisRow[] }>(
-        'Rank agronomic diagnoses by likelihood. confidence is 0-1.',
+        'Rank agronomic diagnoses by likelihood using all field signals. confidence is 0-1.',
         prompt,
-        800
+        1200
       );
       if (Array.isArray(result.hypotheses) && result.hypotheses.length) {
-        return result.hypotheses
+        let ranked = result.hypotheses
           .map((h, i) => ({
             label: String(h.label).trim(),
             confidence: clampConfidence(Number(h.confidence) || 0.5 - i * 0.05),
@@ -192,6 +219,20 @@ Return JSON {"hypotheses":[{"label":"...","confidence":0.0-1.0,"rationale":"..."
           }))
           .filter((h) => h.label)
           .slice(0, 5);
+
+        const fusionHints = computeFusionHints(params.context, params.issueCategory, params.imageSignal);
+        for (const hint of fusionHints) {
+          const idx = ranked.findIndex((h) => h.label.toLowerCase().includes(hint.label.toLowerCase().split(' ')[0] ?? ''));
+          if (idx >= 0) {
+            const row = ranked[idx]!;
+            ranked[idx] = {
+              ...row,
+              confidence: clampConfidence(row.confidence + hint.boost),
+              rationale: `${row.rationale ?? ''} ${hint.reason}`.trim(),
+            };
+          }
+        }
+        return ranked.sort((a, b) => b.confidence - a.confidence);
       }
     } catch {
       // fallback below
@@ -249,22 +290,17 @@ function inferSeverity(confidence: number, measurements: Array<{ key: string; va
 
 function buildEvidencePack(
   context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>,
-  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>
+  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>,
+  historySummary?: string
 ) {
-  const soilMetrics = context.soilTestSummary?.metrics as Record<string, unknown> | undefined;
-  const soilKeys = soilMetrics ? Object.keys(soilMetrics).slice(0, 4) : [];
-  const soilSummary = soilKeys.length
-    ? soilKeys.map((k) => `${k}: ${String(soilMetrics![k])}`).join('; ')
-    : 'Soil report on file';
-  const weather = context.weatherSnapshot as Record<string, unknown> | null;
+  const soilSummary = visitAiPromptContextService.formatSoilBlock(context.soilTestSummary);
+  const weatherSummary = visitAiPromptContextService.formatWeatherBlock(context.weatherSnapshot);
   return {
     photoSummary: imageSignal ? `Image signal: ${imageSignal.label}` : 'Field photos captured',
     measurementSummary: context.measurements.map((m) => `${m.key}: ${m.value}`).join(', ') || 'No measurements',
     soilSummary,
-    weatherSummary: weather
-      ? `Temp ${weather.temperature ?? '?'}°C, humidity ${weather.humidity ?? '?'}%`
-      : 'Weather snapshot loaded',
-    historySummary: 'Prior visits and recommendations loaded',
+    weatherSummary,
+    historySummary: historySummary ?? 'Prior visits loaded from recommendation history',
   };
 }
 
@@ -293,15 +329,18 @@ async function detectVisitIssues(params: {
   if (!env.OPENAI_API_KEY) return [fallback];
 
   try {
-    const prompt = `Crop: ${params.context.cropType}, DAP: ${params.context.dap ?? '?'}, Stage: ${params.context.stage ?? '?'}
-Measurements: ${JSON.stringify(params.context.measurements)}
-Soil: ${evidence.soilSummary}
-Weather: ${evidence.weatherSummary}
-Image: ${params.imageSignal?.label ?? 'none'}
-Voice note: ${params.fieldVoiceNote ?? 'none'}
+    const promptBlock = await visitAiPromptContextService.buildPromptBlock({
+      context: params.context,
+      issueCategory: 'multi',
+      issueName: 'field visit',
+      observation: params.fieldVoiceNote,
+      imageSignal: params.imageSignal,
+    });
+
+    const prompt = `${promptBlock}
 
 Return JSON {"issues":[{"issueName":"...","confidence":0.0-1.0,"severity":"low|medium|high","symptoms":["..."],"photoSignals":["..."],"soilSignals":["..."],"weatherSignals":["..."],"conclusion":"...","observation":"..."}]}
-List 1-5 ranked field issues. confidence 0-1.`;
+List 1-5 ranked field issues. Use soil test and DAP. confidence 0-1.`;
 
     const result = await openaiJsonCompletion<{ issues: Array<Record<string, unknown>> }>(
       'Detect multiple crop issues from field visit data.',
@@ -441,7 +480,11 @@ export const visitAiOrchestratorService = {
 
   async analyze(input: VisitAnalyzeRequest, agronomistEmail: string) {
     const context = await visitAiContextService.buildVisitAiContext(input);
-    const imageSignal = await resolveVisitImagePredictions(input.analyzePhotos);
+    const imageSignal = await resolveVisitImagePredictions(input.analyzePhotos, {
+      cropType: context.cropType,
+      dap: context.dap,
+      stage: context.stage,
+    });
     const similarCases = await loadSimilarCases(
       input.farmerId,
       context.cropType,
@@ -454,6 +497,7 @@ export const visitAiOrchestratorService = {
       issueName: input.issueName,
       observation: input.observation,
       similarCases,
+      imageSignal,
     });
     hypotheses = mergeImageIntoHypotheses(hypotheses, imageSignal);
 
@@ -494,6 +538,13 @@ export const visitAiOrchestratorService = {
           observation: input.observation ?? null,
           cropType: context.cropType,
           dap: context.dap,
+          contextSnapshot: visitAiContextService.snapshotFromPack(context, {
+            imageSignal: imageSignal
+              ? { label: imageSignal.label, confidence: imageSignal.confidence, source: imageSignal.source, photoCount: imageSignal.photoCount }
+              : null,
+            fieldVoiceNote: input.fieldVoiceNote ?? null,
+            analyzePhotoCount: input.analyzePhotos?.length ?? 0,
+          }),
           contextSummary: {
             dap: context.dap,
             stage: context.stage,
@@ -501,8 +552,8 @@ export const visitAiOrchestratorService = {
           },
           imageSignal: imageSignal ?? null,
           imageAiEnabled: true,
-          voiceNotesEnabled: false,
-          outcomePredictionEnabled: false,
+          voiceNotesEnabled: Boolean(input.fieldVoiceNote),
+          outcomePredictionEnabled: true,
         },
       })
       .select('id')
@@ -646,11 +697,7 @@ export const visitAiOrchestratorService = {
     if (meta.qaSkipped) {
       return [];
     }
-    const context = await visitAiContextService.buildVisitAiContext({
-      farmerId: String(caseRow.farmer_id),
-      blockId: String(caseRow.block_id),
-      sessionId: caseRow.session_id ? String(caseRow.session_id) : undefined,
-    });
+    const context = await visitAiContextService.buildContextForCase(caseRow);
 
     const drafts = await visitAiQuestionsService.buildVisitFollowUpQuestions({
       farmerId: String(caseRow.farmer_id),
@@ -718,15 +765,13 @@ export const visitAiOrchestratorService = {
       .eq('visit_ai_case_id', aiCaseId)
       .not('answer', 'is', null);
 
-    const context = await visitAiContextService.buildVisitAiContext({
-      farmerId: String(caseRow.farmer_id),
-      blockId: String(caseRow.block_id),
-      sessionId: caseRow.session_id ? String(caseRow.session_id) : undefined,
-    });
+    const context = await visitAiContextService.buildContextForCase(caseRow);
 
     const answerSummary = (answers ?? [])
       .map((a) => `${a.question_text}: ${a.answer}`)
       .join('; ');
+    const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
+    const imageSignal = meta.imageSignal as Awaited<ReturnType<typeof resolveVisitImagePredictions>> | null;
     const similarCases = await loadSimilarCases(
       String(caseRow.farmer_id),
       context.cropType,
@@ -737,8 +782,13 @@ export const visitAiOrchestratorService = {
       context,
       issueCategory: String(caseRow.category),
       issueName: String(caseRow.selected_hypothesis_label ?? caseRow.issue_name),
-      observation: answerSummary,
+      observation: [String(meta.observation ?? ''), answerSummary].filter(Boolean).join('; '),
       similarCases,
+      imageSignal,
+      qaAnswers: (answers ?? []).map((a) => ({
+        question: String(a.question_text),
+        answer: String(a.answer),
+      })),
     });
 
     await supabase.from('visit_ai_hypotheses').delete().eq('visit_ai_case_id', aiCaseId);
@@ -785,11 +835,7 @@ export const visitAiOrchestratorService = {
       (caseRow.final_diagnosis ? String(caseRow.final_diagnosis) : null) ||
       (caseRow.selected_hypothesis_label ? String(caseRow.selected_hypothesis_label) : String(caseRow.issue_name));
 
-    const context = await visitAiContextService.buildVisitAiContext({
-      farmerId: String(caseRow.farmer_id),
-      blockId: String(caseRow.block_id),
-      sessionId: caseRow.session_id ? String(caseRow.session_id) : undefined,
-    });
+    const context = await visitAiContextService.buildContextForCase(caseRow);
 
     let aiText = `Monitor ${diagnosis} on ${context.cropType}. Apply recommended crop protection as per label rates. Re-check in 7 days.`;
     let dosage: string | null = null;
@@ -812,15 +858,33 @@ export const visitAiOrchestratorService = {
       reviewAfterDays = template.review_after_days != null ? Number(template.review_after_days) : 7;
     } else if (env.OPENAI_API_KEY) {
       try {
+        const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
+        const imageSignal = meta.imageSignal as Awaited<ReturnType<typeof resolveVisitImagePredictions>> | null;
+        const { data: qaRows } = await supabase
+          .from('visit_ai_questions')
+          .select('question_text, answer')
+          .eq('visit_ai_case_id', aiCaseId)
+          .not('answer', 'is', null);
+        const promptBlock = await visitAiPromptContextService.buildPromptBlock({
+          context,
+          issueCategory: String(caseRow.category),
+          issueName: diagnosis,
+          observation: meta.observation ? String(meta.observation) : undefined,
+          imageSignal,
+          qaAnswers: (qaRows ?? []).map((q) => ({
+            question: String(q.question_text),
+            answer: String(q.answer),
+          })),
+        });
         const result = await openaiJsonCompletion<{
           text: string;
           dosage?: string;
           priority?: string;
           reviewAfterDays?: number;
         }>(
-          'Return JSON with recommendation text, optional dosage, priority (normal|high|critical), reviewAfterDays.',
-          `Crop: ${context.cropType}, DAP: ${context.dap}, Diagnosis: ${diagnosis}, Severity category: ${caseRow.category}`,
-          600
+          'Return JSON with field-specific recommendation using soil, weather, measurements, and diagnosis.',
+          `${promptBlock}\n\nDiagnosis: ${diagnosis}\nReturn JSON {text, dosage, priority, reviewAfterDays}.`,
+          800
         );
         if (result.text?.trim()) aiText = result.text.trim();
         dosage = result.dosage?.trim() ?? null;
@@ -874,7 +938,11 @@ export const visitAiOrchestratorService = {
       dataBase64: p.dataBase64,
       mimeType: p.mimeType,
     }));
-    const imageSignal = await resolveVisitImagePredictions(analyzePhotos);
+    const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
+      cropType: context.cropType,
+      dap: context.dap,
+      stage: context.stage,
+    });
     const detected = await detectVisitIssues({
       context,
       imageSignal,
@@ -894,7 +962,6 @@ export const visitAiOrchestratorService = {
         agronomistEmail
       );
       const top = analyzed.hypotheses.find((h) => h.selected) ?? analyzed.hypotheses[0];
-      const rec = await this.recommend(analyzed.aiCaseId, top?.label ?? det.issueName);
       issues.push({
         localId: `ai-${analyzed.aiCaseId}`,
         category: det.category,
@@ -907,19 +974,21 @@ export const visitAiOrchestratorService = {
         hypotheses: analyzed.hypotheses,
         selectedHypothesisLabel: top?.label,
         finalDiagnosis: top?.label ?? det.issueName,
-        finalRecommendation: rec.text,
+        finalRecommendation: undefined,
         confidenceAction: analyzed.confidenceAction,
         skipFollowUpOptional: analyzed.skipFollowUpOptional,
         imageSignal: analyzed.imageSignal ?? undefined,
         similarCases: analyzed.similarCases,
         rootCause: det.rootCause,
         evidence: det.evidence,
-        initialRecommendation: {
-          text: rec.text,
-          dose: rec.dosage ?? undefined,
-          method: rec.priority === 'critical' ? 'Spray (urgent)' : 'Spray',
-          category: det.category,
-        },
+        initialRecommendation: top
+          ? {
+              text: `Preliminary advisory for ${top.label}. Complete agronomist review and Q&A to finalize treatment.`,
+              dose: undefined,
+              method: 'Pending review',
+              category: det.category,
+            }
+          : undefined,
       });
     }
 

@@ -505,7 +505,14 @@ export function VisitWizardPage({ canWrite }: Props) {
       {step === 'whatsappPreview' ? (
         <VisitWhatsappPreviewStep
           farmerId={farmerId}
+          blockName={blockName}
           issues={issues}
+          recommendationGroups={recommendationGroups}
+          monitoringInterval={
+            monitoringPlan[0]?.intervalDays != null
+              ? String(monitoringPlan[0].intervalDays)
+              : undefined
+          }
           confirmed={whatsappConfirmed}
           onConfirmedChange={setWhatsappConfirmed}
         />

@@ -226,6 +226,7 @@ export const visitAiContextRequestSchema = z.object({
   measurements: z.array(visitMeasurementInputSchema).max(20).optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
+  fieldVoiceNote: z.string().max(4000).optional(),
 });
 
 export const visitAnalyzeRequestSchema = visitAiContextRequestSchema.extend({
@@ -337,6 +338,10 @@ export const visitMonitoringPreviewSchema = z.object({
 
 export const visitWhatsappPreviewSchema = z.object({
   farmerId: z.string().uuid(),
+  blockName: z.string().max(200).optional(),
+  recommendationGroups: z.array(recommendationGroupSchema).optional(),
+  reviewDate: z.string().optional(),
+  monitoringInterval: z.string().optional(),
   issues: z.array(
     z.object({
       issueName: z.string(),

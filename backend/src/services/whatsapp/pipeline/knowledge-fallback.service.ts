@@ -1,6 +1,8 @@
 import { env } from '../../../config/env.js';
 import { logger } from '../../../lib/logger.js';
-import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
+import type { AdvisoryLanguage } from '../../ai/types.js';
+import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
+import type { StructuredAdvisory } from '../../ai/types.js';
 import { aiReuseService, buildDapBucket, buildSymptomKey } from '../../ai/ai-reuse.service.js';
 import { blockService } from '../../core/block.service.js';
 import { supabase } from '../../../lib/supabase.js';
@@ -113,7 +115,7 @@ function scanTextForCaMgConflict(text: string, language: AdvisoryLanguage): stri
  */
 /** Minimal advisory object when Crop Doctor cannot call OpenAI. */
 export function advisoryFromKnowledgeText(summary: string, language: AdvisoryLanguage): StructuredAdvisory {
-  return {
+  return normalizeStructuredAdvisory({
     probableIssue: 'Field guidance (verified rules)',
     confidence: 0.58,
     uncertain: true,
@@ -127,7 +129,11 @@ export function advisoryFromKnowledgeText(summary: string, language: AdvisoryLan
     farmerSummaryEn: summary,
     farmerSummaryMl: language === 'ml' ? summary : summary,
     recommendedProductTags: [],
-  };
+    imageObservations: [],
+    differentialDiagnosis: [],
+    morbeezDataUsed: ['Verified Morbeez field guide'],
+    agronomistAssessment: summary.slice(0, 500),
+  });
 }
 
 export type KnowledgeFallbackHit = {

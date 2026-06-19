@@ -75,6 +75,8 @@ import {
 } from './compatibility-lookup.service.js';
 import { isExplicitAgronomyQuestion } from './agriculture-free-text.service.js';
 import { responseComposerService } from './response-composer.service.js';
+import { whatsappDiagnosisRendererService } from './whatsapp-diagnosis-renderer.service.js';
+import { whatsappDiagnosisContextService } from './whatsapp-diagnosis-context.service.js';
 import { assessmentPlaybookService } from '../scenarios/assessment-playbook.service.js';
 import { roiFlowService } from '../roi/roi-flow.service.js';
 import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
@@ -160,6 +162,67 @@ async function askCropSelection(
 
 function localizedSummary(advisory: StructuredAdvisory, language: AdvisoryLanguage): string {
   return pickLocalizedFarmerSummary(advisory, language);
+}
+
+function buildDiagnosisBody(params: {
+  advisory: StructuredAdvisory;
+  language: AdvisoryLanguage;
+  plotLabel?: string;
+  reuseNote?: string;
+  escalateNote?: string;
+  safetyNote?: string;
+}): string {
+  if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
+    return whatsappDiagnosisRendererService.render({
+      advisory: params.advisory,
+      language: params.language,
+      plotLabel: params.plotLabel,
+      reuseNote: params.reuseNote,
+      escalateNote: params.escalateNote,
+      safetyNote: params.safetyNote,
+    });
+  }
+  let body = localizedSummary(params.advisory, params.language);
+  if (params.plotLabel) body = `📍 ${params.plotLabel}\n\n${body}`;
+  if (params.reuseNote) body += `\n\n${params.reuseNote}`;
+  if (params.escalateNote) body += `\n\n${params.escalateNote}`;
+  if (params.safetyNote) body += `\n\n${params.safetyNote}`;
+  return body;
+}
+
+function buildDiagnosisReply(params: {
+  advisory: StructuredAdvisory;
+  language: AdvisoryLanguage;
+  plotLabel?: string;
+  body?: string;
+  validationQuestion?: string | null;
+  reuseNote?: string;
+  escalateNote?: string;
+  safetyNote?: string;
+}): string {
+  const body =
+    params.body ??
+    buildDiagnosisBody({
+      advisory: params.advisory,
+      language: params.language,
+      plotLabel: params.plotLabel,
+      reuseNote: params.reuseNote,
+      escalateNote: params.escalateNote,
+      safetyNote: params.safetyNote,
+    });
+  const footer = responseComposerService.brandFooter(params.language);
+  if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
+    return responseComposerService.composeDiagnosis({
+      body,
+      validationQuestion: params.validationQuestion,
+      footer,
+    });
+  }
+  return responseComposerService.compose({
+    body,
+    validationQuestion: params.validationQuestion,
+    footer: responseComposerService.advisoryDisclaimer(params.language),
+  });
 }
 
 function languageFromSelection(text: string): AdvisoryLanguage | null {
@@ -1265,6 +1328,13 @@ export const whatsappInboundPipeline = {
         blockId: memory.activePlotId,
       });
       const environmentalContext = contextPackService.formatForPrompt(contextPack);
+      const morbeezFieldContext = await whatsappDiagnosisContextService.buildFieldContext({
+        farmerId: params.farmerId,
+        blockId: memory.activePlotId,
+        cropType: memory.cropType,
+        issueName: params.issueLabelHint ?? symptomsText?.slice(0, 80) ?? 'field issue',
+        observation: symptomsText ?? params.voiceTranscript,
+      });
 
       let imageStoragePath: string | undefined = storagePath;
       if (imageBase64 && !imageStoragePath) {
@@ -1303,6 +1373,8 @@ export const whatsappInboundPipeline = {
         compactHistory: farmerMemoryService.formatCompactHistory(memory),
         contextPack,
         environmentalContext,
+        morbeezFieldContext: morbeezFieldContext ?? undefined,
+        activePlotId: memory.activePlotId,
       });
       const hasImage = Boolean(imageBase64);
       const assessment = policyEngineService.evaluate(result.advisory, {
@@ -1401,17 +1473,17 @@ export const whatsappInboundPipeline = {
         });
         await params.sendText(
           params.phone,
-          responseComposerService.compose({
-            body: localizedSummary(result.advisory, params.language),
+          buildDiagnosisReply({
+            advisory: result.advisory,
+            language: params.language,
+            plotLabel: sessCtx.activePlotLabel ?? undefined,
             validationQuestion: validationQuestion(result.advisory.probableIssue, params.language),
-            footer: responseComposerService.advisoryDisclaimer(params.language),
           })
         );
         await conversationSessionService.setState(params.farmerId, 'diagnosis');
         return;
       }
 
-      const plotPrefix = sessCtx.activePlotLabel ? `📍 ${sessCtx.activePlotLabel}\n\n` : '';
       const reuseNote = result.reused
         ? params.language === 'ml'
           ? '(സമാനമായ മുൻ കേസിൽ നിന്നുള്ള ശുപാർശ)'
@@ -1424,11 +1496,21 @@ export const whatsappInboundPipeline = {
         ? `⚠️ ${assessment.safetyNotes.join(' ')}`
         : undefined;
 
-      let body = localizedSummary(result.advisory, params.language);
+      let body = buildDiagnosisBody({
+        advisory: result.advisory,
+        language: params.language,
+        plotLabel: sessCtx.activePlotLabel ?? undefined,
+        reuseNote,
+        escalateNote,
+        safetyNote,
+      });
+
       if (
+        env.ENABLE_WHATSAPP_DIAGNOSIS_POLISH &&
         farmerReplyPolishService.isEnabled() &&
         body?.trim() &&
-        params.channel === 'whatsapp'
+        params.channel === 'whatsapp' &&
+        !env.ENABLE_WHATSAPP_RICH_DIAGNOSIS
       ) {
         body = await farmerReplyPolishService.polishDiagnosisSummary({
           advisory: result.advisory,
@@ -1436,13 +1518,7 @@ export const whatsappInboundPipeline = {
           memory,
           extraLines: [reuseNote, escalateNote, safetyNote].filter(Boolean) as string[],
         });
-      } else {
-        if (result.reused && reuseNote) body += `\n\n${reuseNote}`;
-        if (result.escalated && escalateNote) body += `\n\n${escalateNote}`;
-        if (safetyNote) body += `\n\n${safetyNote}`;
       }
-
-      body = plotPrefix + body;
 
       const productBlock = shopifyLinksService.formatRecommendationsForWhatsApp(
         result.productRecommendations,
@@ -1454,10 +1530,11 @@ export const whatsappInboundPipeline = {
         ? validationQuestion(result.advisory.probableIssue, params.language)
         : responseComposerService.extractValidationQuestion(body);
 
-      const reply = responseComposerService.compose({
+      const reply = buildDiagnosisReply({
+        advisory: result.advisory,
+        language: params.language,
         body,
         validationQuestion: validationQ,
-        footer: responseComposerService.advisoryDisclaimer(params.language),
       });
 
       if (sessCtx.pendingSymptomsText) {

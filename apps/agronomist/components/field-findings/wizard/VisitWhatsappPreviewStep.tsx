@@ -1,17 +1,35 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens, type WhatsappPreviewMessage } from '@morbeez/shared';
+import {
+  agronomistClient,
+  tokens,
+  type RecommendationGroupDraft,
+  type WhatsappPreviewMessage,
+} from '@morbeez/shared';
 import { AlertBox, Btn } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
 type Props = {
   farmerId: string;
+  blockName?: string;
   issues: IssueDraft[];
+  recommendationGroups?: RecommendationGroupDraft[];
+  reviewDate?: string;
+  monitoringInterval?: string;
   confirmed: boolean;
   onConfirmedChange: (confirmed: boolean) => void;
 };
 
-export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfirmedChange }: Props) {
+export function VisitWhatsappPreviewStep({
+  farmerId,
+  blockName,
+  issues,
+  recommendationGroups,
+  reviewDate,
+  monitoringInterval,
+  confirmed,
+  onConfirmedChange,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [messages, setMessages] = useState<WhatsappPreviewMessage[]>([]);
@@ -19,13 +37,18 @@ export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfir
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [farmerId, issues, recommendationGroups, blockName, reviewDate, monitoringInterval]);
 
   async function load() {
     setLoading(true);
+    setError('');
     try {
       const rows = await agronomistClient.previewWhatsappMessages({
         farmerId,
+        blockName,
+        recommendationGroups: recommendationGroups?.length ? recommendationGroups : undefined,
+        reviewDate,
+        monitoringInterval,
         issues: issues.map((i) => ({
           issueName: i.issueName,
           finalDiagnosis: i.finalDiagnosis,
@@ -34,6 +57,7 @@ export function VisitWhatsappPreviewStep({ farmerId, issues, confirmed, onConfir
         })),
       });
       setMessages(rows);
+      onConfirmedChange(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load preview');
     } finally {

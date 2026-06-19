@@ -137,6 +137,16 @@ const envSchema = z.object({
     .string()
     .transform((v) => v !== 'false')
     .default('true'),
+  /** Rich sectioned WhatsApp diagnosis (renderer + extended prompt). Default on. */
+  ENABLE_WHATSAPP_RICH_DIAGNOSIS: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  /** OpenAI polish pass on diagnosis body — default off (preserves structure). */
+  ENABLE_WHATSAPP_DIAGNOSIS_POLISH: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
   ENABLE_OUTBOX_WORKER: z
     .string()
     .transform((v) => v !== 'false')
@@ -161,6 +171,11 @@ const envSchema = z.object({
     .string()
     .transform((v) => v !== 'false')
     .default('true'),
+  /** Append Day-1 application check prompt to initial approved recommendation WhatsApp */
+  REC_SEND_COMPLIANCE_IN_INITIAL: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
   ENABLE_WHATSAPP_BROADCASTS: z
     .string()
     .transform((v) => v !== 'false')

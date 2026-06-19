@@ -15,6 +15,12 @@ export type VisitImageSignal = {
   photoCount: number;
 };
 
+export type VisitImageContext = {
+  cropType?: string;
+  dap?: number | null;
+  stage?: string | null;
+};
+
 function topPlantIdLabel(result: Awaited<ReturnType<typeof plantIdProvider.assessHealth>>): VisitImageSignal | null {
   const diseases = result?.diseases ?? [];
   if (!diseases.length) return null;
@@ -32,7 +38,10 @@ function clamp(n: number): number {
   return Math.max(0.05, Math.min(0.98, n));
 }
 
-async function analyzeOnePhoto(photo: VisitAnalyzePhotoInput): Promise<VisitImageSignal | null> {
+async function analyzeOnePhoto(
+  photo: VisitAnalyzePhotoInput,
+  ctx?: VisitImageContext
+): Promise<VisitImageSignal | null> {
   const mime = photo.mimeType ?? 'image/jpeg';
   if (env.PLANT_ID_API_KEY) {
     try {
@@ -51,7 +60,7 @@ async function analyzeOnePhoto(photo: VisitAnalyzePhotoInput): Promise<VisitImag
         mimeType: mime,
         systemPrompt:
           'Identify the most likely crop disease, pest, or nutrient problem. Reply JSON only: {"label":"...","confidence":0.0-1.0}',
-        userPrompt: 'What is the primary crop health issue visible in this field photo?',
+        userPrompt: `Crop: ${ctx?.cropType ?? 'unknown'}, DAP: ${ctx?.dap ?? '?'}. What is the primary crop health issue visible in this field photo?`,
       });
       const label = String(advisory.probableIssue ?? '').trim();
       if (!label) return null;
@@ -71,14 +80,15 @@ async function analyzeOnePhoto(photo: VisitAnalyzePhotoInput): Promise<VisitImag
 
 /** Run issue + visit photos through Plant.id or vision; fuse when multiple (up to 8). */
 export async function resolveVisitImagePredictions(
-  photos: VisitAnalyzePhotoInput[] | undefined
+  photos: VisitAnalyzePhotoInput[] | undefined,
+  ctx?: VisitImageContext
 ): Promise<VisitImageSignal | null> {
   const batch = (photos ?? []).filter((p) => p.dataBase64?.length > 100).slice(0, 8);
   if (!batch.length) return null;
 
   const signals: VisitImageSignal[] = [];
   for (const photo of batch.slice(0, 4)) {
-    const signal = await analyzeOnePhoto(photo);
+    const signal = await analyzeOnePhoto(photo, ctx);
     if (signal) signals.push(signal);
   }
   if (!signals.length) return null;

@@ -292,7 +292,7 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
   app.post(`${api}/visits/whatsapp-preview`, async (request, reply) => {
     await assertModuleAccess(request, 'agronomist', 'read');
     const body = visitWhatsappPreviewSchema.parse(request.body);
-    const messages = recommendationCommunicationService.previewVisitMessages(body);
+    const messages = await recommendationCommunicationService.previewVisitMessages(body);
     return reply.send({ ok: true, messages });
   });
 

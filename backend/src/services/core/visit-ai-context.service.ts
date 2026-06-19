@@ -38,9 +38,72 @@ type BuildContextInput = {
   measurements?: Array<{ key: string; value: string; unit?: string }>;
   latitude?: number;
   longitude?: number;
+  fieldVoiceNote?: string;
 };
 
+export type VisitContextSnapshot = {
+  measurements: Array<{ key: string; value: string; unit?: string }>;
+  blockAssessment?: BuildContextInput['blockAssessment'];
+  soilTestSummary: VisitAiContextPack['soilTestSummary'];
+  weatherSnapshot: VisitAiContextPack['weatherSnapshot'];
+  imageSignal?: { label: string; confidence: number; source?: string; photoCount?: number } | null;
+  fieldVoiceNote?: string | null;
+  analyzePhotoCount?: number;
+  capturedAt: string;
+};
+
+function snapshotFromPack(
+  pack: VisitAiContextPack,
+  extras?: {
+    imageSignal?: VisitContextSnapshot['imageSignal'];
+    fieldVoiceNote?: string | null;
+    analyzePhotoCount?: number;
+  }
+): VisitContextSnapshot {
+  return {
+    measurements: pack.measurements,
+    blockAssessment: pack.blockAssessment,
+    soilTestSummary: pack.soilTestSummary,
+    weatherSnapshot: pack.weatherSnapshot,
+    imageSignal: extras?.imageSignal ?? null,
+    fieldVoiceNote: extras?.fieldVoiceNote ?? null,
+    analyzePhotoCount: extras?.analyzePhotoCount,
+    capturedAt: new Date().toISOString(),
+  };
+}
+
 export const visitAiContextService = {
+  snapshotFromPack,
+
+  mergeSnapshotIntoInput(
+    input: BuildContextInput,
+    snapshot: VisitContextSnapshot | null | undefined
+  ): BuildContextInput {
+    if (!snapshot) return input;
+    return {
+      ...input,
+      blockAssessment: input.blockAssessment ?? snapshot.blockAssessment,
+      measurements: input.measurements?.length ? input.measurements : snapshot.measurements,
+      fieldVoiceNote: input.fieldVoiceNote ?? snapshot.fieldVoiceNote ?? undefined,
+    };
+  },
+
+  applySnapshotToPack(pack: VisitAiContextPack, snapshot: VisitContextSnapshot | null | undefined): VisitAiContextPack {
+    if (!snapshot) return pack;
+    return {
+      ...pack,
+      measurements: snapshot.measurements.length ? snapshot.measurements : pack.measurements,
+      blockAssessment: snapshot.blockAssessment ?? pack.blockAssessment,
+      soilTestSummary: snapshot.soilTestSummary ?? pack.soilTestSummary,
+      weatherSnapshot: snapshot.weatherSnapshot ?? pack.weatherSnapshot,
+    };
+  },
+
+  snapshotFromCaseMetadata(metadata: Record<string, unknown>): VisitContextSnapshot | null {
+    const snap = metadata.contextSnapshot as VisitContextSnapshot | undefined;
+    return snap ?? null;
+  },
+
   async buildVisitAiContext(input: BuildContextInput): Promise<VisitAiContextPack> {
     const block = await blockService.getById(input.blockId, input.farmerId);
     if (!block) throw new NotFoundError('Block not found');
@@ -98,5 +161,21 @@ export const visitAiContextService = {
         : null,
       gps: lat != null && lon != null ? { latitude: lat, longitude: lon } : null,
     };
+  },
+
+  async buildContextForCase(caseRow: {
+    farmer_id: string;
+    block_id: string;
+    session_id?: string | null;
+    metadata?: Record<string, unknown> | null;
+  }): Promise<VisitAiContextPack> {
+    const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
+    const snapshot = visitAiContextService.snapshotFromCaseMetadata(meta);
+    const base = await visitAiContextService.buildVisitAiContext({
+      farmerId: String(caseRow.farmer_id),
+      blockId: String(caseRow.block_id),
+      sessionId: caseRow.session_id ? String(caseRow.session_id) : undefined,
+    });
+    return visitAiContextService.applySnapshotToPack(base, snapshot);
   },
 };

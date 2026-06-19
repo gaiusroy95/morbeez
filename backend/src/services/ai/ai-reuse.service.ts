@@ -3,6 +3,7 @@ import { supabase } from '../../lib/supabase.js';
 import { aiLogService } from './ai-log.service.js';
 import { recommendationService } from './recommendation.service.js';
 import type { DiagnoseInput, DiagnoseResult, StructuredAdvisory } from './types.js';
+import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 import { blockService } from '../core/block.service.js';
 import {
   buildCrossLanguageIntentSlug,
@@ -101,7 +102,7 @@ export const aiReuseService = {
 
       if (!hit) continue;
 
-      const advisory = hit.advisory_snapshot as StructuredAdvisory;
+      const advisory = normalizeStructuredAdvisory(hit.advisory_snapshot as StructuredAdvisory);
       const products = (hit.product_snapshot ?? []) as DiagnoseResult['productRecommendations'];
 
       await supabase

@@ -508,6 +508,10 @@ export const agronomistClient = {
 
   async previewWhatsappMessages(body: {
     farmerId: string;
+    blockName?: string;
+    recommendationGroups?: import('../visit-wizard/index.js').RecommendationGroupDraft[];
+    reviewDate?: string;
+    monitoringInterval?: string;
     issues: Array<{
       issueName: string;
       finalDiagnosis?: string;

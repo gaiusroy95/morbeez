@@ -202,6 +202,12 @@ export const fieldVisitService = {
     let savedRecommendationGroups: Awaited<
       ReturnType<typeof recommendationGroupService.replaceForFieldFinding>
     > = [];
+    const { data: farmerLangRow } = await supabase
+      .from('farmers')
+      .select('preferred_language')
+      .eq('id', input.farmerId)
+      .maybeSingle();
+    const farmerPreferredLanguage = farmerLangRow?.preferred_language ?? 'en';
 
     for (let i = 0; i < input.issues.length; i++) {
       const issue = input.issues[i];
@@ -436,6 +442,23 @@ export const fieldVisitService = {
         await supabase
           .from('recommendation_records')
           .update({
+            dosage:
+              groupProducts
+                .map((p) => {
+                  const name =
+                    typeof p.technicalName === 'string' ? p.technicalName : 'Product';
+                  const dose = typeof p.dose === 'string' ? p.dose : '';
+                  return dose ? `${name}: ${dose}` : name;
+                })
+                .filter(Boolean)
+                .join('; ') || null,
+            application_type:
+              (groupApplicationType ??
+                groupProducts
+                  .map((p) => (typeof p.method === 'string' ? p.method : null))
+                  .filter(Boolean)
+                  .join('; ')) || null,
+            language: farmerPreferredLanguage,
             metadata: {
               recommendationType: rec.recommendationType ?? 'other',
               priority: rec.priority ?? 'normal',

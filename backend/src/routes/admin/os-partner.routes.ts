@@ -147,6 +147,35 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, ownership, attributions });
   });
 
+  app.post(`${api}/farmers/:farmerId/assign`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'partner_program', 'write');
+    const { farmerId } = request.params as { farmerId: string };
+    const body = z
+      .object({
+        partnerId: z.string().uuid(),
+        serviceModel: z.enum(['partner_assisted', 'remote_advisory']).optional(),
+        reason: z.string().max(500).optional(),
+      })
+      .parse(request.body);
+    const ownership = await farmerOwnershipService.changeCustomerOwner({
+      farmerId,
+      customerOwnerType: 'partner',
+      customerOwnerPartnerId: body.partnerId,
+      serviceModel: body.serviceModel ?? 'partner_assisted',
+      assignedPartnerId: body.partnerId,
+      reason: body.reason ?? 'admin_manual_assign',
+      changedBy: admin.email,
+    });
+    await partnerAttributionCaptureService.upsertTouch({
+      farmerId,
+      partnerId: body.partnerId,
+      attributionType: 'enrollment',
+      metadata: { source: 'admin_assign', changedBy: admin.email },
+    });
+    const attributions = await partnerAttributionCaptureService.listForFarmer(farmerId);
+    return reply.send({ ok: true, ownership, attributions });
+  });
+
   app.post(`${api}/tasks`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'partner_program', 'write');
     const body = z

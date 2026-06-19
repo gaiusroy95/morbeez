@@ -6,6 +6,7 @@ import {
   parseOpenAiHttpError,
 } from '../openai-quota.service.js';
 import type { StructuredAdvisory } from '../types.js';
+import { normalizeStructuredAdvisory } from '../advisory-normalize.js';
 import type { TranscriptionInput, TranscriptionProvider, VisionInput, VisionProvider } from './base.provider.js';
 import { openaiTokenLimitBody } from './openai-chat-params.js';
 
@@ -31,10 +32,7 @@ function parseStructuredJson(content: string): StructuredAdvisory {
     throw new AppError('Invalid AI response format', 502, 'AI_PARSE_ERROR');
   }
   const parsed = JSON.parse(jsonMatch[0]) as StructuredAdvisory;
-  parsed.confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5));
-  parsed.uncertain = Boolean(parsed.uncertain);
-  parsed.escalationRecommended = Boolean(parsed.escalationRecommended);
-  return parsed;
+  return normalizeStructuredAdvisory(parsed);
 }
 
 export const openaiVisionProvider: VisionProvider = {
@@ -44,7 +42,7 @@ export const openaiVisionProvider: VisionProvider = {
     const model = env.OPENAI_VISION_MODEL;
     const body = {
       model,
-      ...openaiTokenLimitBody(model, 2048),
+      ...openaiTokenLimitBody(model, 3000),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: input.systemPrompt },
@@ -127,7 +125,7 @@ export async function openaiTextAdvisory(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: env.OPENAI_TEXT_MODEL,
-      ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 2048),
+      ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 3000),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

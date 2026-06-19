@@ -21,6 +21,18 @@ export interface DosageItem {
   frequency?: string;
 }
 
+export type AdvisorySeverity = 'mild' | 'moderate' | 'severe';
+
+export interface DifferentialDiagnosisItem {
+  label: string;
+  reason: string;
+}
+
+export interface CostEstimateItem {
+  item: string;
+  note: string;
+}
+
 export interface StructuredAdvisory {
   probableIssue: string;
   confidence: number;
@@ -35,6 +47,15 @@ export interface StructuredAdvisory {
   farmerSummaryEn: string;
   farmerSummaryMl: string;
   recommendedProductTags: string[];
+  /** Systematic photo / field observations */
+  imageObservations?: string[];
+  severity?: AdvisorySeverity;
+  differentialDiagnosis?: DifferentialDiagnosisItem[];
+  sprayTiming?: string;
+  rootCorrection?: string;
+  agronomistAssessment?: string;
+  morbeezDataUsed?: string[];
+  costEstimate?: CostEstimateItem[];
 }
 
 export interface PlantIdHealthResult {
@@ -63,6 +84,10 @@ export interface DiagnoseInput {
   contextPack?: Record<string, unknown>;
   /** Pre-formatted environmental block for the model prompt */
   environmentalContext?: string;
+  /** Full Morbeez field intelligence block (soil, fusion, expert cases) */
+  morbeezFieldContext?: string;
+  /** Active farm block for soil/weather context */
+  activePlotId?: string | null;
   /** Farmer follow-up Q&A — when set, skip reuse cache and require model to honor answers */
   fieldInvestigation?: string;
   /** Hint from similar cases + intake reasoning */

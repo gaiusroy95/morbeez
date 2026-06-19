@@ -91,11 +91,27 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
         if (!answers.length) continue;
         await client.saveVisitAiAnswers(issue.aiCaseId, answers);
         const result = await client.reanalyzeVisitAiCase(issue.aiCaseId);
+        let finalRecommendation = issue.finalRecommendation;
+        let initialRecommendation = issue.initialRecommendation;
+        try {
+          const rec = await client.recommendVisitAiCase(issue.aiCaseId, result.finalDiagnosis);
+          finalRecommendation = rec.text;
+          initialRecommendation = {
+            text: rec.text,
+            dose: rec.dosage ?? undefined,
+            method: rec.priority === 'critical' ? 'Spray (urgent)' : 'Spray',
+            category: issue.category,
+          };
+        } catch {
+          // keep prior recommendation if refresh fails
+        }
         next[i] = {
           ...issue,
           finalDiagnosis: result.finalDiagnosis,
           selectedHypothesisLabel: result.finalDiagnosis,
           confidenceAction: result.confidenceAction,
+          finalRecommendation,
+          initialRecommendation,
           photoRequests: derivePhotoRequestsFromFollowUp(issue.followUpQuestions ?? []),
           hypotheses: (result.hypotheses ?? []).map((h) => ({
             label: h.label,

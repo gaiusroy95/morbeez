@@ -7,6 +7,7 @@ import {
 } from './disease-weather-rules.service.js';
 import { nearbyCasesService } from './nearby-cases.service.js';
 import { plotLocationService } from '../../core/plot-location.service.js';
+import { whatsappDiagnosisContextService } from './whatsapp-diagnosis-context.service.js';
 
 export type ContextPack = {
   district?: string;
@@ -23,6 +24,7 @@ export type ContextPack = {
   maxTempCToday?: number;
   soilPh?: number;
   soilEc?: number;
+  soilLabSummary?: string;
   drainageRisk: 'low' | 'moderate' | 'high';
   diseasePriors: DiseaseWeatherPrior[];
   nearbySummary?: string;
@@ -61,6 +63,10 @@ export const contextPackService = {
     const meta = (farmer?.metadata ?? {}) as Record<string, unknown>;
     const soilPh = meta.soilPh != null ? Number(meta.soilPh) : undefined;
     const soilEc = meta.soilEc != null ? Number(meta.soilEc) : undefined;
+    const soilLabSummary = await whatsappDiagnosisContextService.loadSoilSummaryForBlock(
+      farmerId,
+      blockId
+    );
 
     const drainageRisk: 'low' | 'moderate' | 'high' = weather.heavyRainLikely
       ? 'high'
@@ -101,6 +107,7 @@ export const contextPackService = {
       maxTempCToday: weather.maxTempCToday,
       soilPh,
       soilEc,
+      soilLabSummary: soilLabSummary ?? undefined,
       drainageRisk,
       diseasePriors,
       nearbySummary: nearbySummary || undefined,
@@ -134,6 +141,14 @@ export const contextPackService = {
     }
     if (pack.highHeatLikely) lines.push('High heat likely — avoid midday foliar sprays.');
     lines.push(`Weather risk score: ${pack.weatherRiskScore}/100; drainage risk: ${pack.drainageRisk}.`);
+
+    if (pack.soilPh != null || pack.soilEc != null) {
+      lines.push(`Farmer-reported soil: pH ${pack.soilPh ?? '?'}, EC ${pack.soilEc ?? '?'} dS/m.`);
+    }
+    if (pack.soilLabSummary) {
+      lines.push('Latest soil lab report:');
+      lines.push(pack.soilLabSummary);
+    }
 
     const priors = diseaseWeatherRulesService.formatForPrompt(pack.diseasePriors);
     if (priors) {
