@@ -33,6 +33,8 @@ export type PlanNextQuestionInput = {
   questionsAsked: number;
   maxQuestions: number;
   learnedPatterns: LearnedInvestigationPattern[];
+  /** MAIOS v12 — missing evidence slots from case (photo/module gaps) */
+  evidenceGaps?: string[];
 };
 
 export type PlanNextQuestionResult = {
@@ -132,6 +134,9 @@ function buildUserPrompt(input: PlanNextQuestionInput): string {
     patternLines.length
       ? `Verified patterns from similar cases:\n${patternLines.join('\n\n')}`
       : 'No prior patterns — ask the most diagnostic structured question.',
+    input.evidenceGaps?.length
+      ? `MAIOS evidence gaps (prioritize closing these): ${input.evidenceGaps.join(', ')}`
+      : null,
     '',
     questionsAsked >= maxQuestions
       ? 'Question budget exhausted — set intakeComplete true.'

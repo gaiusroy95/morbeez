@@ -520,4 +520,39 @@ export const osAnalyticsService = {
       ],
     };
   },
+
+  async getMaiosKpis(days = 30) {
+    const since = daysAgoIso(days);
+    const { data: sessions } = await supabase
+      .from('ai_advisory_sessions')
+      .select('metadata, human_reviewed, corrected')
+      .gte('created_at', since)
+      .not('metadata->maiosCase', 'is', null)
+      .limit(500);
+
+    let d14Improved = 0;
+    let d14Total = 0;
+    let overrides = 0;
+    let total = 0;
+
+    for (const s of sessions ?? []) {
+      total++;
+      if (s.human_reviewed || s.corrected) overrides++;
+      const meta = (s.metadata as Record<string, unknown>) ?? {};
+      const mc = meta.maiosCase as { outcomes?: Array<{ day: number; status: string }> } | undefined;
+      const d14 = mc?.outcomes?.find((o) => o.day >= 14);
+      if (d14) {
+        d14Total++;
+        if (d14.status === 'improved') d14Improved++;
+      }
+    }
+
+    return {
+      periodDays: days,
+      casesWithMaios: total,
+      agronomistOverrideRate: total ? Math.round((overrides / total) * 1000) / 10 : 0,
+      d14RecoveryRate: d14Total ? Math.round((d14Improved / d14Total) * 1000) / 10 : 0,
+      d14SampleSize: d14Total,
+    };
+  },
 };

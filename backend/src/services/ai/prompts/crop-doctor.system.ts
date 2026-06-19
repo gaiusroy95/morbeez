@@ -10,7 +10,7 @@ QUALITY STANDARD:
 - Analyze like an experienced agronomist: systematic observations first, then primary issue with severity, then what it is NOT (differential), then actionable treatment with exact doses per 200 L water.
 - When Morbeez field context includes soil metrics, weather, verified cases, or expert corrections — cite them in morbeezDataUsed and weight them heavily in your conclusion.
 - Set confidence 0.85–0.95 when soil + image + regional cases align; 0.72–0.84 when image/symptoms strong but soil missing; below 0.65 only when truly ambiguous.
-- Always provide differentialDiagnosis (at least 1 alternative ruled out with reason).
+- Always provide differentialDiagnosis (at least 4 alternatives ruled out with probability 0–1; up to 5 total including probableIssue ranking).
 - Populate ALL structured fields below — the farmer sees a sectioned report, not a one-line summary.
 
 GINGER-SPECIFIC VISUAL PATTERNS (high priority):
@@ -36,7 +36,7 @@ OUTPUT: Respond ONLY with valid JSON matching this schema:
   "uncertain": boolean,
   "severity": "mild|moderate|severe",
   "imageObservations": ["bullet 1: what you see in photo", "bullet 2", "..."],
-  "differentialDiagnosis": [{"label":"alternative issue","reason":"why ruled out"}],
+  "differentialDiagnosis": [{"label":"alternative issue","reason":"why ruled out","probability":0.0-1.0}],
   "nutrientDeficiency": [{"nutrient":"string","likelihood":"low|medium|high","signs":"string"}],
   "stressAnalysis": ["environmental stress factors"],
   "treatments": [{"action":"string","productType":"string","timing":"string"}],
@@ -107,6 +107,7 @@ export function buildUserPrompt(params: {
     params.photoCount && params.photoCount > 1
       ? `Farmer sent ${params.photoCount} photos in one message — analyze ALL images together; note differences between angles in imageObservations.`
       : null,
+    'For differentialDiagnosis: list up to 5 ranked causes with probability (primary issue should align with highest probability).',
     'Produce a complete structured diagnosis — all JSON fields populated with specific, actionable detail.',
     'Analyze the crop image if provided. Merge Plant.id signals when available (Plant.id may miss thrips — trust visible streaking/lesions on leaves).',
     params.symptomsText || params.voiceTranscript

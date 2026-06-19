@@ -18,6 +18,8 @@ import {
   IconWhatsApp,
 } from './case-review-icons';
 import { DiagnosisLabelPicker } from './DiagnosisLabelPicker';
+import { GingerSopReviewPanel, type GingerSopV3Detail } from './GingerSopReviewPanel';
+import { MaiosCaseReviewPanel, type MaiosCaseDetail } from './MaiosCaseReviewPanel';
 import '../../styles/case-review.css';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
@@ -119,6 +121,8 @@ type CaseDetail = {
     dap: number | null;
   }>;
   timeline: Array<{ at: string | null; label: string; status: 'done' | 'pending'; kind?: TimelineKind }>;
+  gingerSopV3?: GingerSopV3Detail | null;
+  maiosCase?: MaiosCaseDetail | null;
 };
 
 type ReviewAction = 'approve_ai' | 'correct_ai' | 'partial_match' | 'escalate_urgent';
@@ -268,6 +272,8 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
         farmerFeedback: r.farmerFeedback,
         similarCases: r.similarCases ?? [],
         timeline: r.timeline ?? [],
+        gingerSopV3: r.gingerSopV3 ?? r.maiosCase ?? null,
+        maiosCase: r.maiosCase ?? r.gingerSopV3 ?? null,
       });
       setImageIndex(0);
       setZoom(100);
@@ -765,6 +771,10 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                   View full history <IconChevronRight />
                 </button>
               </section>
+
+              {(detail.maiosCase ?? detail.gingerSopV3) ? (
+                <MaiosCaseReviewPanel sop={detail.maiosCase ?? detail.gingerSopV3!} />
+              ) : null}
 
               <div className="cr-bottom-row">
                 <section className="cr-card">

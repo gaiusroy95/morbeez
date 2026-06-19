@@ -66,6 +66,9 @@ export interface SessionContext {
     hash: string;
     messageId?: string;
   }>;
+  /** Latest Ginger SOP v3 case snapshot (persisted on ai_advisory_sessions.metadata too). */
+  gingerSopCase?: import('../../../domain/ginger-sop/types.js').GingerSopCase;
+  maiosCase?: import('../../../domain/case/types.js').MaiosCase;
   /** AI-planned follow-up before Crop Doctor (one question at a time, no hardcoded bank). */
   diagnosisIntake?: {
     initialSymptoms: string;

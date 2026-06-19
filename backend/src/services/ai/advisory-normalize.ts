@@ -15,7 +15,16 @@ export function normalizeStructuredAdvisory(raw: StructuredAdvisory): Structured
   advisory.farmerSummaryEn = advisory.farmerSummaryEn ?? '';
   advisory.farmerSummaryMl = advisory.farmerSummaryMl ?? '';
   advisory.imageObservations = advisory.imageObservations ?? [];
-  advisory.differentialDiagnosis = advisory.differentialDiagnosis ?? [];
+  advisory.differentialDiagnosis = (advisory.differentialDiagnosis ?? []).map((d) => ({
+    ...d,
+    probability:
+      d.probability != null
+        ? Math.min(1, Math.max(0, Number(d.probability)))
+        : undefined,
+  }));
+  advisory.causalChain = advisory.causalChain ?? [];
+  advisory.explanation = advisory.explanation ?? '';
+  advisory.rejectedHypotheses = advisory.rejectedHypotheses ?? [];
   advisory.morbeezDataUsed = advisory.morbeezDataUsed ?? [];
   advisory.costEstimate = advisory.costEstimate ?? [];
   if (!advisory.severity) {

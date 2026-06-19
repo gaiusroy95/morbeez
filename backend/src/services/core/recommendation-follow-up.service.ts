@@ -720,16 +720,29 @@ export const recommendationFollowUpService = {
         })
         .eq('id', recommendationRecordId);
 
-      await this.scheduleJob({
-        farmerId,
-        recommendationRecordId,
-        jobType: 'rec_outcome_check',
-        scheduledAt: new Date(
-          Date.now() + OUTCOME_CHECK_DAYS() * 24 * 60 * 60 * 1000
-        ).toISOString(),
-        payload: { language: rec.language, phase: 'outcome_check' },
-        sessionId: rec.ai_session_id,
-      });
+      let skipGenericOutcome = false;
+      if (env.MAIOS_DISABLE_GENERIC_OUTCOME !== false && rec.ai_session_id) {
+        const { data: session } = await supabase
+          .from('ai_advisory_sessions')
+          .select('metadata')
+          .eq('id', rec.ai_session_id)
+          .maybeSingle();
+        const meta = (session?.metadata as Record<string, unknown>) ?? {};
+        skipGenericOutcome = Boolean(meta.maiosCase ?? meta.gingerSopV3);
+      }
+
+      if (!skipGenericOutcome) {
+        await this.scheduleJob({
+          farmerId,
+          recommendationRecordId,
+          jobType: 'rec_outcome_check',
+          scheduledAt: new Date(
+            Date.now() + OUTCOME_CHECK_DAYS() * 24 * 60 * 60 * 1000
+          ).toISOString(),
+          payload: { language: rec.language, phase: 'outcome_check' },
+          sessionId: rec.ai_session_id,
+        });
+      }
 
       await this.upsertLearningSample(rec, { applicationConfirmed: true });
       const { farmerEventCaptureService } = await import(

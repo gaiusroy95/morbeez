@@ -21,6 +21,7 @@ import {
   textsLikelySame,
 } from './case-review-inquiry.util.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
+import { fieldContextService } from '../case/field-context.service.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
 
 function formatDt(iso: string | null | undefined): string | null {
@@ -460,6 +461,59 @@ export const agronomistCaseReviewService = {
       },
     ];
 
+    const sessionMeta = (sessionRow?.metadata as Record<string, unknown> | null) ?? {};
+    let maiosCase = sessionMeta.maiosCase ?? sessionMeta.gingerSopV3 ?? null;
+    let gingerSopV3 = sessionMeta.gingerSopV3 ?? maiosCase ?? null;
+
+    if (maiosCase && typeof maiosCase === 'object' && primary) {
+      try {
+        const fieldCtx = await fieldContextService.loadFieldContext({
+          farmerId: esc.farmerId,
+          blockId: primary.id,
+          dap: primary.dap,
+        });
+        maiosCase = {
+          ...(maiosCase as Record<string, unknown>),
+          fieldMetrics: fieldCtx.fieldMetrics ?? (maiosCase as { fieldMetrics?: unknown }).fieldMetrics,
+          canopyAudit: fieldCtx.canopyAudit ?? (maiosCase as { canopyAudit?: unknown }).canopyAudit,
+          waterReading: fieldCtx.waterReading ?? (maiosCase as { waterReading?: unknown }).waterReading,
+          inputHistory: fieldCtx.inputHistory ?? (maiosCase as { inputHistory?: unknown }).inputHistory,
+        };
+        if (primary.crop_type?.toLowerCase().includes('ginger')) {
+          gingerSopV3 = maiosCase;
+        }
+      } catch (err) {
+        logger.warn({ err, escalationId }, 'MAIOS field context refresh failed');
+      }
+    }
+    if (maiosCase && typeof maiosCase === 'object') {
+      const g = maiosCase as {
+        createdAt?: string;
+        evidence?: { tier?: string; completenessPct?: number; eqs?: number };
+        route?: string;
+        triage?: { level?: string };
+        gates?: Array<{ gate: string; passed: boolean; reason: string }>;
+        identity?: { cropType?: string };
+      };
+      if (g.createdAt) {
+        timeline.splice(2, 0, {
+          at: g.createdAt,
+          label: `MAIOS — ${g.evidence?.tier ?? 'T?'} EQS ${g.evidence?.eqs ?? g.evidence?.completenessPct ?? 0} → ${g.route ?? 'pending'}`,
+          status: 'done',
+          kind: 'ai',
+        });
+      }
+      const failedGate = g.gates?.find((x) => !x.passed);
+      if (failedGate) {
+        timeline.splice(timeline.length - 1, 0, {
+          at: g.createdAt ?? sessionCreated,
+          label: `Gate ${failedGate.gate}: ${failedGate.reason}`,
+          status: 'done',
+          kind: 'ai',
+        });
+      }
+    }
+
     return {
       escalation: {
         id: esc.id,
@@ -610,6 +664,8 @@ export const agronomistCaseReviewService = {
             recommendationText: existingRec.recommendation_text,
           }
         : null,
+      gingerSopV3,
+      maiosCase,
       timeline,
     };
   },

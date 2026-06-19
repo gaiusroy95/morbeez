@@ -56,6 +56,8 @@ import { regionalTerminologyProcessor } from '../../regional-terminology/regiona
 import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
 import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
+import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
+import { recoveryValidationService } from '../../case/recovery-validation.service.js';
 
 const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 
@@ -449,6 +451,34 @@ export const whatsappScenarioRouter = {
         await send.text(msg.phone, evidenceResult.ack);
         return { handled: true };
       }
+    }
+
+    // Ginger SOP v3 — Day 3/7/14 recovery validation buttons
+    const gingerRecovery = text?.match(/^ginger\.recovery\.d(\d+)\.(improved|same|worse)$/i);
+    if (gingerRecovery) {
+      const ctx = await conversationSessionService.getContext(captured.farmerId);
+      const reply = await gingerSopFollowUpService.handleRecoveryReply({
+        farmerId: captured.farmerId,
+        day: Number(gingerRecovery[1]),
+        outcome: gingerRecovery[2]!.toLowerCase() as 'improved' | 'same' | 'worse',
+        sessionId: ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+      });
+      await send.text(msg.phone, reply);
+      return { handled: true };
+    }
+
+    // MAIOS v12 — universal recovery validation buttons
+    const maiosRecovery = text?.match(/^maios\.recovery\.d(\d+)\.(improved|same|worse)$/i);
+    if (maiosRecovery) {
+      const ctx = await conversationSessionService.getContext(captured.farmerId);
+      const reply = await recoveryValidationService.handleRecoveryReply({
+        farmerId: captured.farmerId,
+        day: Number(maiosRecovery[1]),
+        outcome: maiosRecovery[2]!.toLowerCase() as 'improved' | 'same' | 'worse',
+        sessionId: ctx.maiosCase?.sessionId ?? ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+      });
+      await send.text(msg.phone, reply);
+      return { handled: true };
     }
 
     // Recommendation follow-up buttons (application + Day-5 outcome)

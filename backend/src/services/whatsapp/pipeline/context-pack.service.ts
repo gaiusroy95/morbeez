@@ -28,6 +28,7 @@ export type ContextPack = {
   drainageRisk: 'low' | 'moderate' | 'high';
   diseasePriors: DiseaseWeatherPrior[];
   nearbySummary?: string;
+  dap?: number;
 };
 
 export const contextPackService = {

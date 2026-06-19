@@ -149,6 +149,29 @@ const envSchema = z.object({
     .string()
     .transform((v) => v === 'true')
     .default('false'),
+  /** Ginger Crop Doctor SOP v3 — evidence scoring, fused confidence, D3/D7/D14 recovery loop. */
+  ENABLE_GINGER_SOP_V3: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  /** MAIOS v12 — universal crop intelligence case engine + crop packs. */
+  ENABLE_MAIOS_V12: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  MAIOS_RECOVERY_DAYS: z.string().optional(),
+  MAIOS_DISABLE_GENERIC_OUTCOME: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  ENABLE_MAIOS_SUPPLY_INTEL: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_MAIOS_PREDICTIVE_RISK: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
   ENABLE_OUTBOX_WORKER: z
     .string()
     .transform((v) => v !== 'false')

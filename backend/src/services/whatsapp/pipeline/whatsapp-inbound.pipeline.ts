@@ -84,6 +84,12 @@ import {
   scheduleImageBatch,
   type ImageBatchFlushPayload,
 } from './whatsapp-image-batch.service.js';
+import { evidenceQualityService } from '../../case/evidence-quality.service.js';
+import { caseBuilderService } from '../../case/case-builder.service.js';
+import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
+import { recoveryValidationService } from '../../case/recovery-validation.service.js';
+import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
+import { soilFlowService } from '../scenarios/soil-flow.service.js';
 import {
   hasInboundImageAttachment,
   withNormalizedMediaFields,
@@ -1477,6 +1483,13 @@ export const whatsappInboundPipeline = {
         }
       }
 
+      const photoPaths = [
+        ...(params.diagnosisImages?.map((i) => i.imageStoragePath).filter(Boolean) as string[]),
+        ...(imageStoragePath && !params.diagnosisImages?.length ? [imageStoragePath] : []),
+      ];
+      const photoCount = params.diagnosisImages?.length ?? (imageBase64 ? 1 : 0);
+      const hasSoilReport = await soilFlowService.hasSoilReport(params.farmerId);
+
       const result = await cropDoctorService.diagnose({
         farmerId: params.farmerId,
         cropType: memory.cropType,
@@ -1498,7 +1511,17 @@ export const whatsappInboundPipeline = {
         environmentalContext,
         morbeezFieldContext: morbeezFieldContext ?? undefined,
         activePlotId: memory.activePlotId,
+        maiosPhotoCount: photoCount,
+        maiosPhotoPaths: photoPaths,
+        maiosIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
+        maiosHasSoilReport: hasSoilReport,
+        gingerSopPhotoCount: photoCount,
+        gingerSopPhotoPaths: photoPaths,
+        gingerSopIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
+        gingerSopHasSoilReport: hasSoilReport,
       });
+      const maiosCase = result.maiosCase;
+      const gingerCase = result.gingerSopCase ?? maiosCase;
       const hasImage = Boolean(imageBase64);
       const assessment = policyEngineService.evaluate(result.advisory, {
         ...contextPack,
@@ -1523,10 +1546,51 @@ export const whatsappInboundPipeline = {
 
       await createTelecallerTask({
         farmerId: params.farmerId,
-        title: 'Symptom Confirmation Required',
-        notes: `Probable issue: ${result.advisory.probableIssue}; confidence ${Math.round(result.advisory.confidence * 100)}%; crop ${memory.cropType}`,
-        priority: assessment.escalationPriority === 'urgent' ? 'urgent' : 'normal',
+        title: gingerCase?.triage.level === 'L4' ? 'Ginger SOP — emergency' : 'Symptom Confirmation Required',
+        notes: maiosCase
+          ? caseBuilderService.formatTelecallerNotes(maiosCase)
+          : `Probable issue: ${result.advisory.probableIssue}; confidence ${Math.round(result.advisory.confidence * 100)}%; crop ${memory.cropType}`,
+        priority:
+          gingerCase?.route === 'emergency_callback' || assessment.escalationPriority === 'urgent'
+            ? 'urgent'
+            : gingerCase?.route === 'field_visit'
+              ? 'high'
+              : 'normal',
       });
+
+      if (gingerCase?.route === 'emergency_callback') {
+        await params.sendText(
+          params.phone,
+          params.language === 'ml'
+            ? 'ഗുരുതരമായ ലക്ഷണങ്ങൾ കണ്ടെത്തി. ഞങ്ങളുടെ വിദഗ്ധ ടീം ഉടൻ ബന്ധപ്പെടും.'
+            : 'Severe symptoms detected. Our expert team will contact you urgently.'
+        );
+      }
+
+      if (
+        gingerCase &&
+        gingerCase.evidence.completenessPct < 30 &&
+        gingerCase.evidence.tier === 'T0'
+      ) {
+        const capturedSlots = gingerCase.evidence.photos
+          .filter((p) => p.status === 'captured')
+          .map((p) => p.slot);
+        const pack = await cropPackLoaderService.load(memory.cropType);
+        const missing = cropPackLoaderService.nextMissingSlots(pack, capturedSlots, 3).map((s) => s.id);
+        await params.sendText(
+          params.phone,
+          evidenceQualityService.missingSlotPrompt(pack, params.language, missing)
+        );
+        const ctxPatch: Record<string, unknown> = {};
+        if (maiosCase) ctxPatch.maiosCase = maiosCase;
+        else if (gingerCase) ctxPatch.gingerSopCase = gingerCase;
+        await conversationSessionService.patchContext(
+          params.farmerId,
+          ctxPatch as Parameters<typeof conversationSessionService.patchContext>[1]
+        );
+        await conversationSessionService.setState(params.farmerId, 'diagnosis_awaiting_photos');
+        return;
+      }
 
       if (assessment.shouldRequestMoreEvidence) {
         await createTelecallerTask({
@@ -1697,6 +1761,39 @@ export const whatsappInboundPipeline = {
           send: params.send,
           hasProductRecommendations: (result.productRecommendations?.length ?? 0) > 0,
         });
+
+        if (maiosCase && recoveryValidationService.enabled()) {
+          const { data: rec } = await supabase
+            .from('recommendation_records')
+            .select('id')
+            .eq('ai_session_id', result.sessionId)
+            .eq('farmer_id', params.farmerId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          void recoveryValidationService.scheduleRecoveryLoop({
+            farmerId: params.farmerId,
+            sessionId: result.sessionId,
+            cropType: memory.cropType,
+            language: params.language,
+            recommendationRecordId: rec?.id ?? null,
+          });
+        } else if (gingerCase && gingerSopFollowUpService.enabled()) {
+          const { data: rec } = await supabase
+            .from('recommendation_records')
+            .select('id')
+            .eq('ai_session_id', result.sessionId)
+            .eq('farmer_id', params.farmerId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          void gingerSopFollowUpService.scheduleRecoveryLoop({
+            farmerId: params.farmerId,
+            sessionId: result.sessionId,
+            language: params.language,
+            recommendationRecordId: rec?.id ?? null,
+          });
+        }
       }
     } catch (err) {
       logger.error({ err, farmerId: params.farmerId }, 'WhatsApp pipeline diagnosis failed');

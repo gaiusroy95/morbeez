@@ -1,0 +1,37 @@
+import type { CropPackConfig } from '../types.js';
+
+export const DEFAULT_PACK: CropPackConfig = {
+  cropType: '_default',
+  version: '12.0',
+  displayName: 'Universal crop',
+  photoSlots: [
+    { id: 'field_wide', group: 'farm', labelEn: 'Full field', labelMl: 'മുഴുവൻ വയൽ', whatsappPriority: 1 },
+    { id: 'affected_zone', group: 'farm', labelEn: 'Affected area', labelMl: 'ബാധിത ഭാഗം', whatsappPriority: 2 },
+    { id: 'healthy_zone', group: 'farm', labelEn: 'Healthy area', labelMl: 'ആരോഗ്യമുള്ള ഭാഗം', whatsappPriority: 3 },
+    { id: 'canopy_top', group: 'canopy', labelEn: 'Canopy', labelMl: 'മേൽപ്പടം', whatsappPriority: 4 },
+    { id: 'new_leaf_close', group: 'leaf', labelEn: 'Leaf top', labelMl: 'ഇല മുകളിൽ', whatsappPriority: 5 },
+    { id: 'leaf_underside', group: 'leaf', labelEn: 'Leaf bottom', labelMl: 'ഇല അടിവശം', whatsappPriority: 6 },
+    { id: 'stem_close', group: 'leaf', labelEn: 'Stem', labelMl: 'തണ്ട്', whatsappPriority: 7 },
+    { id: 'root_zone', group: 'root', labelEn: 'Root zone', labelMl: 'വേര് മേഖല', whatsappPriority: 8 },
+  ],
+  rootPhotoSlots: ['root_zone'],
+  measurementKeys: ['spad', 'plant_height', 'canopy_cover'],
+  moduleWeights: {
+    geo: 8,
+    photo: 20,
+    canopy: 8,
+    field: 12,
+    root: 15,
+    soil: 12,
+    water: 10,
+    history: 10,
+    weather: 5,
+  },
+  recoveryDays: [3, 7, 14],
+  stageModel: [
+    { id: 'germination', label: 'Germination', dapMin: 0, dapMax: 14 },
+    { id: 'vegetative', label: 'Vegetative', dapMin: 15, dapMax: 60 },
+    { id: 'reproductive', label: 'Reproductive', dapMin: 61, dapMax: 120 },
+    { id: 'harvest', label: 'Harvest/Maturity', dapMin: 121, dapMax: null },
+  ],
+};

@@ -25,6 +25,10 @@ import { farmerMemoryService } from '../whatsapp/pipeline/farmer-memory.service.
 import { leadService } from '../crm/lead.service.js';
 import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-diagnosis-context.service.js';
 import { normalizeStructuredAdvisory } from './advisory-normalize.js';
+import { gingerSopCaseService } from '../ginger-sop/ginger-sop-case.service.js';
+import { caseBuilderService } from '../case/case-builder.service.js';
+import { casePersistService } from '../case/case-persist.service.js';
+import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
 
 async function getFarmerHistory(farmerId: string): Promise<string> {
   const { data } = await supabase
@@ -312,6 +316,118 @@ export const cropDoctorService = {
 
     advisory = normalizeStructuredAdvisory(advisory);
 
+    const ctxPack = input.contextPack as ContextPack | undefined;
+    let maiosCase = null;
+    let gingerSopCase = null;
+
+    const photoCount =
+      input.maiosPhotoCount ??
+      input.gingerSopPhotoCount ??
+      (input.imageBase64 ? 1 : 0);
+    const photoPaths = input.maiosPhotoPaths ?? input.gingerSopPhotoPaths;
+    const intakeConf = input.maiosIntakeConfidence ?? input.gingerSopIntakeConfidence;
+    const hasSoil = input.maiosHasSoilReport ?? input.gingerSopHasSoilReport;
+
+    if (env.ENABLE_MAIOS_V12 !== false) {
+      maiosCase = await caseBuilderService.buildCase({
+        farmerId: input.farmerId,
+        blockId: input.activePlotId,
+        cropType: input.cropType,
+        channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
+        sessionId,
+        symptomsText: input.symptomsText,
+        photoCount,
+        photoStoragePaths: photoPaths,
+        hasSoilReport: hasSoil,
+        hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+        intakeMatchConfidence: intakeConf,
+        contextPack: ctxPack
+          ? {
+              soilPh: ctxPack.soilPh,
+              soilEc: ctxPack.soilEc,
+              weatherRiskScore: ctxPack.weatherRiskScore,
+              heavyRainLikely: ctxPack.heavyRainLikely,
+              highHeatLikely: ctxPack.highHeatLikely,
+              highHumidityLikely: ctxPack.highHumidityLikely,
+              drainageRisk: ctxPack.drainageRisk,
+              dap: ctxPack.dap,
+            }
+          : undefined,
+        advisory: {
+          probableIssue: advisory.probableIssue,
+          confidence: advisory.confidence,
+          severity: advisory.severity,
+          uncertain: advisory.uncertain,
+          escalationRecommended: advisory.escalationRecommended,
+          differentialDiagnosis: advisory.differentialDiagnosis,
+          causalChain: advisory.causalChain,
+          explanation: advisory.explanation,
+          rejectedHypotheses: advisory.rejectedHypotheses,
+        },
+      });
+      if (maiosCase && gingerSopCaseService.isGingerCrop(input.cropType)) {
+        gingerSopCase = maiosCase as unknown as import('../../domain/ginger-sop/types.js').GingerSopCase;
+      }
+      if (maiosCase) {
+        advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+        if (
+          maiosCase.route === 'field_visit' ||
+          maiosCase.route === 'emergency_callback'
+        ) {
+          advisory.escalationRecommended = true;
+          advisory.escalationReason =
+            advisory.escalationReason ??
+            `MAIOS v12 route: ${maiosCase.route} (${maiosCase.triage.level})`;
+        }
+      }
+    } else if (env.ENABLE_GINGER_SOP_V3 !== false && gingerSopCaseService.isGingerCrop(input.cropType)) {
+      gingerSopCase = await gingerSopCaseService.buildCase({
+        farmerId: input.farmerId,
+        blockId: input.activePlotId,
+        cropType: input.cropType,
+        channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
+        sessionId,
+        symptomsText: input.symptomsText,
+        photoCount: input.gingerSopPhotoCount ?? (input.imageBase64 ? 1 : 0),
+        photoStoragePaths: input.gingerSopPhotoPaths,
+        hasSoilReport: input.gingerSopHasSoilReport,
+        hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+        intakeMatchConfidence: input.gingerSopIntakeConfidence,
+        contextPack: ctxPack
+          ? {
+              soilPh: ctxPack.soilPh,
+              soilEc: ctxPack.soilEc,
+              weatherRiskScore: ctxPack.weatherRiskScore,
+              heavyRainLikely: ctxPack.heavyRainLikely,
+              highHeatLikely: ctxPack.highHeatLikely,
+              highHumidityLikely: ctxPack.highHumidityLikely,
+              drainageRisk: ctxPack.drainageRisk,
+              dap: ctxPack.dap,
+            }
+          : undefined,
+        advisory: {
+          probableIssue: advisory.probableIssue,
+          confidence: advisory.confidence,
+          severity: advisory.severity,
+          uncertain: advisory.uncertain,
+          escalationRecommended: advisory.escalationRecommended,
+          differentialDiagnosis: advisory.differentialDiagnosis,
+        },
+      });
+      if (gingerSopCase) {
+        advisory.confidence = gingerSopCase.diagnostics.fusedConfidence;
+        if (
+          gingerSopCase.route === 'field_visit' ||
+          gingerSopCase.route === 'emergency_callback'
+        ) {
+          advisory.escalationRecommended = true;
+          advisory.escalationReason =
+            advisory.escalationReason ??
+            `Ginger SOP v3 route: ${gingerSopCase.route} (${gingerSopCase.triage.level})`;
+        }
+      }
+    }
+
     await persistOutput(sessionId, advisory, 'openai', input.language);
     const productRecommendations = recommendationService.recommend(input.cropType, advisory);
     await persistRecommendations(sessionId, productRecommendations);
@@ -322,6 +438,14 @@ export const cropDoctorService = {
       advisory,
       plantId: plantIdResult,
     });
+
+    if (maiosCase) {
+      maiosCase.sessionId = sessionId;
+      await casePersistService.persistToSession(sessionId, maiosCase);
+    } else if (gingerSopCase) {
+      gingerSopCase.sessionId = sessionId;
+      await gingerSopCaseService.persistToSession(sessionId, gingerSopCase);
+    }
 
     await supabase
       .from('ai_advisory_sessions')
@@ -432,7 +556,9 @@ export const cropDoctorService = {
       productRecommendations,
       escalated,
       escalationId,
-      confidence,
+      confidence: maiosCase?.diagnostics.fusedConfidence ?? gingerSopCase?.diagnostics.fusedConfidence ?? confidence,
+      gingerSopCase: gingerSopCase ?? undefined,
+      maiosCase: maiosCase ?? undefined,
     };
   },
 

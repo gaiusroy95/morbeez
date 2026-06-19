@@ -1,0 +1,157 @@
+import { env } from '../../config/env.js';
+import { supabase } from '../../lib/supabase.js';
+import { logger } from '../../lib/logger.js';
+import { whatsappService } from '../whatsapp/whatsapp.service.js';
+import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
+import type { AdvisoryLanguage } from '../ai/types.js';
+
+function addDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
+export const recoveryValidationService = {
+  enabled(): boolean {
+    if (env.ENABLE_MAIOS_V12 === false) return false;
+    return env.ENABLE_GINGER_SOP_V3 !== false;
+  },
+
+  async scheduleRecoveryLoop(params: {
+    farmerId: string;
+    sessionId: string;
+    cropType: string;
+    language: AdvisoryLanguage;
+    recommendationRecordId?: string | null;
+  }): Promise<void> {
+    if (!this.enabled()) return;
+
+    const pack = await cropPackLoaderService.load(params.cropType);
+    const days = pack.recoveryDays.length ? pack.recoveryDays : [3, 7, 14];
+
+    for (const day of days) {
+      await supabase.from('advisory_automation_jobs').insert({
+        farmer_id: params.farmerId,
+        session_id: params.sessionId,
+        job_type: `maios_recovery_d${day}`,
+        scheduled_at: addDays(day),
+        payload: {
+          sessionId: params.sessionId,
+          day,
+          language: params.language,
+          recommendationRecordId: params.recommendationRecordId,
+          cropType: params.cropType,
+          sopVersion: pack.version,
+        },
+      });
+    }
+  },
+
+  async processRecoveryJobSend(job: {
+    farmer_id: string;
+    job_type: string;
+    payload: Record<string, unknown>;
+  }): Promise<void> {
+    const day = Number(job.payload.day ?? 0);
+    const lang = String(job.payload.language ?? 'en') as AdvisoryLanguage;
+    const sessionId = String(job.payload.sessionId ?? '');
+
+    const { data: farmer } = await supabase
+      .from('farmers')
+      .select('phone')
+      .eq('id', job.farmer_id)
+      .maybeSingle();
+
+    if (!farmer?.phone) return;
+
+    const body =
+      lang === 'ml'
+        ? `MAIOS പരിശോധന — ദിവസം ${day}: ഇപ്പോൾ വിളയുടെ നില എങ്ങനെയാണ്?`
+        : `MAIOS check-in — Day ${day}: How is the crop now?`;
+
+    try {
+      await whatsappService.sendButtons({
+        to: farmer.phone,
+        body,
+        buttons: [
+          { id: `maios.recovery.d${day}.improved`, title: 'Improved' },
+          { id: `maios.recovery.d${day}.same`, title: 'Same' },
+          { id: `maios.recovery.d${day}.worse`, title: 'Worse' },
+        ],
+      });
+    } catch (err) {
+      logger.warn({ err, day, sessionId }, 'MAIOS recovery buttons failed — text fallback');
+      await whatsappService.sendText(
+        farmer.phone,
+        `${body}\n\nReply: Improved / Same / Worse`
+      );
+    }
+
+    const recId = job.payload.recommendationRecordId;
+    if (recId) {
+      await supabase.from('recommendation_follow_ups').insert({
+        recommendation_record_id: String(recId),
+        phase: 'outcome_check',
+        channel: 'whatsapp',
+        metadata: { maiosRecoveryDay: day, sessionId },
+      }).then(({ error }) => {
+        if (error) logger.warn({ error, day }, 'MAIOS recovery follow-up row insert skipped');
+      });
+    }
+  },
+
+  async handleRecoveryReply(params: {
+    farmerId: string;
+    sessionId?: string;
+    day: number;
+    outcome: 'improved' | 'same' | 'worse';
+  }): Promise<string> {
+    if (params.sessionId) {
+      const { data: session } = await supabase
+        .from('ai_advisory_sessions')
+        .select('metadata')
+        .eq('id', params.sessionId)
+        .maybeSingle();
+
+      const meta = (session?.metadata as Record<string, unknown>) ?? {};
+      const maiosCase = (meta.maiosCase as Record<string, unknown>) ?? {};
+      const outcomes = Array.isArray(maiosCase.outcomes) ? [...maiosCase.outcomes] : [];
+      outcomes.push({
+        day: params.day,
+        status: params.outcome,
+        at: new Date().toISOString(),
+      });
+
+      await supabase
+        .from('ai_advisory_sessions')
+        .update({
+          metadata: { ...meta, maiosCase: { ...maiosCase, outcomes } },
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', params.sessionId);
+    }
+
+    if (params.outcome === 'worse') {
+      await createTelecallerTask({
+        farmerId: params.farmerId,
+        title: 'MAIOS — no recovery',
+        notes: `Day ${params.day} recovery check: farmer reported WORSE. Session ${params.sessionId ?? 'n/a'}`,
+        priority: 'urgent',
+      });
+      return 'Thank you. We marked this as urgent — our agronomist team will contact you soon.';
+    }
+    if (params.outcome === 'same' && params.day >= 7) {
+      await createTelecallerTask({
+        farmerId: params.farmerId,
+        title: 'MAIOS — stagnant recovery',
+        notes: `Day ${params.day}: no improvement reported.`,
+        priority: 'high',
+      });
+      return 'Thank you. Since improvement is limited, our team will review and suggest the next step.';
+    }
+    return params.day < 14
+      ? 'Thank you. We will check again on the next follow-up day.'
+      : 'Thank you for the update. Send a fresh photo anytime if symptoms change.';
+  },
+};

@@ -26,6 +26,8 @@ export type AdvisorySeverity = 'mild' | 'moderate' | 'severe';
 export interface DifferentialDiagnosisItem {
   label: string;
   reason: string;
+  /** 0–1 probability estimate (SOP v3 top-5 differential) */
+  probability?: number;
 }
 
 export interface CostEstimateItem {
@@ -51,6 +53,9 @@ export interface StructuredAdvisory {
   imageObservations?: string[];
   severity?: AdvisorySeverity;
   differentialDiagnosis?: DifferentialDiagnosisItem[];
+  causalChain?: Array<{ cause: string; effect: string; confidence?: number }>;
+  explanation?: string;
+  rejectedHypotheses?: string[];
   sprayTiming?: string;
   rootCorrection?: string;
   agronomistAssessment?: string;
@@ -105,6 +110,16 @@ export interface DiagnoseInput {
     issueLabel: string;
     qa: Array<{ question: string; answer: string; kind?: string }>;
   };
+  /** Ginger SOP v3 — photo count for evidence scoring */
+  gingerSopPhotoCount?: number;
+  gingerSopPhotoPaths?: string[];
+  gingerSopIntakeConfidence?: number;
+  gingerSopHasSoilReport?: boolean;
+  /** MAIOS v12 aliases */
+  maiosPhotoCount?: number;
+  maiosPhotoPaths?: string[];
+  maiosIntakeConfidence?: number;
+  maiosHasSoilReport?: boolean;
 }
 
 export interface DiagnoseResult {
@@ -117,6 +132,10 @@ export interface DiagnoseResult {
   confidence?: number;
   /** Scenario 38 — served from advisory_reuse_cases without OpenAI */
   reused?: boolean;
+  /** Ginger SOP v3 case snapshot when crop is ginger */
+  gingerSopCase?: import('../../domain/ginger-sop/types.js').GingerSopCase;
+  /** MAIOS v12 universal case */
+  maiosCase?: import('../../domain/case/types.js').MaiosCase;
 }
 
 export interface ProductRecommendation {
