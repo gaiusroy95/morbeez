@@ -1,6 +1,6 @@
 import { deleteSessionItem, readSessionItem, writeSessionItem } from './secure-storage';
 import { parseApiError } from './errors';
-import { fetchWithRetry } from '../network/fetch.js';
+import { fetchWithRetry } from '../network/fetch';
 import { STAFF_API_V1, getApiOrigin, resolveStaffApiUrl } from './config';
 
 export const STAFF_TOKEN_KEY = 'morbeez_admin_token';

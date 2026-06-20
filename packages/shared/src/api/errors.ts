@@ -1,4 +1,4 @@
-import { NetworkOfflineError } from '../network/connectivity.js';
+import { NetworkOfflineError } from '../network/connectivity';
 
 export type ApiErrorBody = {
   message?: string;

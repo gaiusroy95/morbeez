@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, t, type AgronomistFarmerSearchRow, tokens } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, Loading, stableRowKey } from '@morbeez/ui-native';
 import { FarmerCard } from '@/components/FarmerCard';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -76,7 +76,7 @@ export default function FarmersScreen() {
     <View style={styles.root}>
       <FlatList
         data={farmers}
-        keyExtractor={(f) => f.id}
+        keyExtractor={(f, i) => stableRowKey(f.id, i)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

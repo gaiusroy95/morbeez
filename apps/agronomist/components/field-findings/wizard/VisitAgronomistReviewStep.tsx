@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { tokens, type AgronomistReviewAction, type IssueCategory, type IssueMasterRow } from '@morbeez/shared';
-import { Btn } from '@morbeez/ui-native';
+import { Btn, TextField } from '@morbeez/ui-native';
 import { type IssueDraft } from '../IssueCard';
 import { getIssueCategoryLabel } from './visitIssueTypes';
 import { AddIssueModal } from './AddIssueModal';
@@ -46,12 +46,33 @@ export function VisitAgronomistReviewStep({
   function setReviewAction(localId: string, action: AgronomistReviewAction) {
     const issue = issues.find((i) => i.localId === localId);
     if (!issue) return;
+    const keepModifyFields = action === 'correct_ai' || action === 'partial_match';
     patchIssue(localId, {
       agronomistReview: {
         action,
         finalDiagnosis: issue.finalDiagnosis,
         finalRecommendation: issue.finalRecommendation,
-        modificationReason: action === 'correct_ai' ? issue.agronomistReview?.modificationReason : undefined,
+        modificationReason: keepModifyFields ? issue.agronomistReview?.modificationReason : undefined,
+      },
+    });
+  }
+
+  function patchReviewFields(
+    localId: string,
+    patch: { observation?: string; modificationReason?: string }
+  ) {
+    const issue = issues.find((i) => i.localId === localId);
+    if (!issue?.agronomistReview?.action) return;
+    patchIssue(localId, {
+      ...(patch.observation !== undefined ? { observation: patch.observation } : {}),
+      agronomistReview: {
+        ...issue.agronomistReview,
+        action: issue.agronomistReview.action,
+        finalDiagnosis: issue.finalDiagnosis,
+        finalRecommendation: issue.finalRecommendation,
+        ...(patch.modificationReason !== undefined
+          ? { modificationReason: patch.modificationReason }
+          : {}),
       },
     });
   }
@@ -70,7 +91,10 @@ export function VisitAgronomistReviewStep({
       </Text>
       <Btn label="+ Add issue" onPress={() => { setEditing(null); setModalVisible(true); }} />
 
-      {issues.map((issue) => (
+      {issues.map((issue) => {
+        const action = issue.agronomistReview?.action;
+        const needsModifyFields = action === 'correct_ai' || action === 'partial_match';
+        return (
         <View key={issue.localId} style={styles.card}>
           <Pressable onPress={() => { setEditing(issue); setModalVisible(true); }}>
             <Text style={styles.category}>{getIssueCategoryLabel(issue.category)}</Text>
@@ -79,7 +103,7 @@ export function VisitAgronomistReviewStep({
           </Pressable>
           <View style={styles.actions}>
             {REVIEW_ACTIONS.map((a) => {
-              const active = issue.agronomistReview?.action === a.value;
+              const active = action === a.value;
               return (
                 <Pressable
                   key={a.value}
@@ -91,12 +115,29 @@ export function VisitAgronomistReviewStep({
               );
             })}
           </View>
-          {(issue.agronomistReview?.action === 'correct_ai' || issue.agronomistReview?.action === 'partial_match') &&
-          !issue.observation?.trim() ? (
-            <Text style={styles.warn}>Tap card to add observation for modify.</Text>
+          {needsModifyFields ? (
+            <View style={styles.modifyFields}>
+              <TextField
+                label="Your observation"
+                value={issue.observation ?? ''}
+                onChangeText={(observation) => patchReviewFields(issue.localId, { observation })}
+                multiline
+                placeholder="What you see in the field…"
+              />
+              <TextField
+                label="Reason for change"
+                value={issue.agronomistReview?.modificationReason ?? ''}
+                onChangeText={(modificationReason) =>
+                  patchReviewFields(issue.localId, { modificationReason })
+                }
+                multiline
+                placeholder="Why you are changing the AI diagnosis…"
+              />
+            </View>
           ) : null}
         </View>
-      ))}
+        );
+      })}
 
       <AddIssueModal
         visible={modalVisible}
@@ -139,5 +180,5 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: tokens.green700, backgroundColor: tokens.green100 },
   chipText: { fontSize: 12, color: tokens.textMuted },
   chipTextActive: { color: tokens.green800, fontWeight: '700' },
-  warn: { fontSize: 12, color: '#c0392b' },
+  modifyFields: { gap: 8, marginTop: 4 },
 });

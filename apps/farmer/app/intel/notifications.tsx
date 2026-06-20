@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchPortalNotifications, t, tokens, type PortalNotification } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
 type GroupKey = 'Market' | 'Tasks' | 'Weather' | 'Orders';
@@ -61,7 +61,7 @@ export default function NotificationsScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       sections={sections}
-      keyExtractor={(i) => i.id}
+      keyExtractor={(item, index) => stableRowKey(item.id, index)}
       ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
       ListEmptyComponent={<EmptyState>No notifications right now.</EmptyState>}
       renderSectionHeader={({ section: { title } }) => (

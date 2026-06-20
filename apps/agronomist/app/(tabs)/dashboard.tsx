@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t, tokens } from '@morbeez/shared';
-import { AlertBox, Loading, QuickActionGrid, StatCard } from '@morbeez/ui-native';
+import { AlertBox, Loading, QuickActionGrid, StatCard, stableRowKey } from '@morbeez/ui-native';
 import { useAgronomistDashboard } from '@/context/AgronomistDashboardContext';
 import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
@@ -85,9 +85,9 @@ export default function DashboardScreen() {
         <View style={styles.focusSection}>
           <Text style={styles.sectionTitle}>{t('focusFarmers', locale)}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.focusRow}>
-            {dashboard!.focusFarmers.map((f) => (
+            {dashboard!.focusFarmers.map((f, index) => (
               <Pressable
-                key={f.farmerId}
+                key={stableRowKey(f.farmerId, index)}
                 style={styles.focusCard}
                 onPress={() => router.push(`/farmer/${f.farmerId}`)}
               >

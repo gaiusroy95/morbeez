@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, Pressable, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchScanHistory, t, tokens } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
 export default function ScanHistoryScreen() {
@@ -36,7 +36,7 @@ export default function ScanHistoryScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={scans}
-      keyExtractor={(item) => item.sessionId}
+      keyExtractor={(item, i) => stableRowKey(item.sessionId, i)}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
       ListEmptyComponent={<EmptyState>{t('scanHistory', locale)} — none yet</EmptyState>}

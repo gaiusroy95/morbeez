@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { formatDate, partnerClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, Loading, Panel, TextField } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, Loading, Panel, TextField, stableRowKey } from '@morbeez/ui-native';
 
 type TaskRow = {
   id: string;
@@ -112,7 +112,7 @@ export default function TasksScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={tasks}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item, i) => stableRowKey(item.id, i)}
       ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
       ListEmptyComponent={<EmptyState>No pending tasks.</EmptyState>}
       renderItem={({ item }) => {

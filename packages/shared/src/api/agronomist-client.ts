@@ -1,4 +1,5 @@
 import { STAFF_API_V1 } from './config';
+import { dedupeBy } from '../list-utils';
 import { fetchWithCache } from './response-cache';
 import { staffApi } from './staff-client';
 import type {
@@ -52,7 +53,11 @@ export const agronomistClient = {
       DASHBOARD_TTL_MS,
       async () => {
         const r = await staffApi<{ ok: boolean; dashboard: AgronomistDashboard }>(`${AGRO}/mobile/dashboard`);
-        return r.dashboard;
+        const dashboard = r.dashboard;
+        return {
+          ...dashboard,
+          focusFarmers: dedupeBy(dashboard.focusFarmers ?? [], (f) => f.farmerId),
+        };
       },
       opts
     );
@@ -62,7 +67,7 @@ export const agronomistClient = {
     const r = await staffApi<{ ok: boolean; farmers: AgronomistFarmerSearchRow[] }>(
       `${FIELD}/farmers/search?q=${encodeURIComponent(q)}&limit=${limit}`
     );
-    return r.farmers ?? [];
+    return dedupeBy(r.farmers ?? [], (f) => f.id);
   },
 
   async listFarmers(opts?: {
@@ -81,7 +86,7 @@ export const agronomistClient = {
     const r = await staffApi<{ ok: boolean; farmers: AgronomistFarmerSearchRow[] }>(
       `${AGRO}/mobile/farmers?${params}`
     );
-    return r.farmers ?? [];
+    return dedupeBy(r.farmers ?? [], (f) => f.id);
   },
 
   async getFarmerBlocks(farmerId: string): Promise<AgronomistBlockRow[]> {
@@ -209,7 +214,7 @@ export const agronomistClient = {
   async listTasks(filter?: string): Promise<AgronomistTaskItem[]> {
     const q = filter ? `?filter=${encodeURIComponent(filter)}` : '';
     const r = await staffApi<{ ok: boolean; tasks: AgronomistTaskItem[] }>(`${AGRO}/mobile/tasks${q}`);
-    return r.tasks ?? [];
+    return dedupeBy(r.tasks ?? [], (t) => t.id);
   },
 
   async listCallbacks(): Promise<AgronomistCallbackRow[]> {
@@ -903,6 +908,6 @@ export const agronomistClient = {
         farmerId?: string;
       }>;
     }>(`${AGRO}/mobile/notifications`);
-    return r.notifications ?? [];
+    return dedupeBy(r.notifications ?? [], (n) => n.id);
   },
 };

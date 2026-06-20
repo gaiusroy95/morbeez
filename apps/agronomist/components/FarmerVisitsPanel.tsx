@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, formatDate, tokens, type FarmerVisitRow } from '@morbeez/shared';
-import { AlertBox, ListCard, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, ListCard, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 
 type Props = {
   farmerId: string;
@@ -43,7 +43,7 @@ export function FarmerVisitsPanel({ farmerId }: Props) {
       </Panel>
       <FlatList
         data={visits}
-        keyExtractor={(v) => v.id}
+        keyExtractor={(v, i) => stableRowKey(v.id, i)}
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <ListCard

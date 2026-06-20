@@ -10,7 +10,7 @@ import {
   type LabelStackItem,
   type WarehouseEmployee,
 } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 export default function AssignLabelsScreen() {
@@ -140,7 +140,7 @@ export default function AssignLabelsScreen() {
         ) : (
           <FlatList
             data={orders}
-            keyExtractor={(o) => o.id}
+            keyExtractor={(o, i) => stableRowKey(o.id, i)}
             scrollEnabled={false}
             renderItem={({ item }) => (
               <Btn

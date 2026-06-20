@@ -1,6 +1,6 @@
 import { deletePersistedItem, readPersistedItem, writePersistedItem } from './secure-storage';
 import { parseApiError } from './errors';
-import { fetchWithRetry } from '../network/fetch.js';
+import { fetchWithRetry } from '../network/fetch';
 import { getApiOrigin, resolveApiUrl } from './config';
 import { fetchWithCache } from './response-cache';
 import type {

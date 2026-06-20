@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { filterPickQueue, tokens, type PickQueueTab } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
 const TABS: Array<{ id: PickQueueTab; label: string }> = [
@@ -45,7 +45,7 @@ export default function PickingQueueScreen() {
     <View style={styles.root}>
       <FlatList
         data={filtered}
-        keyExtractor={(r) => r.id}
+        keyExtractor={(r, i) => stableRowKey(r.id, i)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

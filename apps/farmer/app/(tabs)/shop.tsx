@@ -21,7 +21,7 @@ import {
   tokens,
   type StoreProduct,
 } from '@morbeez/shared';
-import { AlertBox, EmptyState, HeaderPressable, Loading, ProductCard, PromoBanner, SectionHeader } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, HeaderPressable, Loading, ProductCard, PromoBanner, SectionHeader, stableRowKey } from '@morbeez/ui-native';
 import { useShopCart } from '@/context/ShopCartContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -119,7 +119,7 @@ export default function ShopScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={products}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item, i) => stableRowKey(item.id, i)}
       numColumns={2}
       columnWrapperStyle={styles.row}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void refresh()} />}

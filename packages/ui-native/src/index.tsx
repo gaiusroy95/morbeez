@@ -14,6 +14,7 @@ import { HeaderMorbeezLogo } from './MorbeezLogo';
 import { androidPressHandlers } from './mobile-nav';
 
 export { MorbeezLogo, HeaderMorbeezLogo, BrandedHeaderTitle, MORBEEZ_HEADER_LOGO_HEIGHT } from './MorbeezLogo';
+export { stableRowKey, dedupeBy } from '@morbeez/shared';
 export {
   androidPressHandlers,
   ANDROID_NAV_BAR_MIN,

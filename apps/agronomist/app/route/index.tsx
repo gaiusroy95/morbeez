@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, tokens, type AgronomistRouteSummary } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, ListCard, Loading } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 
 export default function RouteListScreen() {
   const router = useRouter();
@@ -57,7 +57,7 @@ export default function RouteListScreen() {
     <View style={styles.root}>
       <FlatList
         data={routes}
-        keyExtractor={(r) => r.id}
+        keyExtractor={(r, i) => stableRowKey(r.id, i)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }

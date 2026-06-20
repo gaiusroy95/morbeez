@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchRoiHistoryV2, formatInr, t, tokens, type CropSeasonSummary } from '@morbeez/shared';
-import { AlertBox, EmptyState, HubTabs, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, HubTabs, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
 type ActiveSeason = CropSeasonSummary & {
@@ -71,7 +71,7 @@ export default function CropHistoryScreen() {
       ) : (
         <FlatList
           data={completed}
-          keyExtractor={(s) => s.id}
+          keyExtractor={(s, i) => stableRowKey(s.id, i)}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={<EmptyState>{t('noPastSeasons', locale)}</EmptyState>}
           renderItem={({ item }) => (

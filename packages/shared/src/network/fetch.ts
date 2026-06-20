@@ -1,5 +1,5 @@
-import { formatFetchError } from '../api/errors.js';
-import { notifyNetworkFailure, notifyNetworkSuccess } from './connectivity.js';
+import { formatFetchError } from '../api/errors';
+import { notifyNetworkFailure, notifyNetworkSuccess } from './connectivity';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

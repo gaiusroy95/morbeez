@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { filterLrPending, tokens, warehouseClient, type QueueOrder } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, ListCard, Loading } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 
 export default function LrPendingScreen() {
   const router = useRouter();
@@ -36,7 +36,7 @@ export default function LrPendingScreen() {
     <View style={styles.root}>
       <FlatList
         data={filtered}
-        keyExtractor={(r) => r.id}
+        keyExtractor={(r, i) => stableRowKey(r.id, i)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }

@@ -8,7 +8,7 @@ import {
   tokens,
   type AgentRouteSummary,
 } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, KeyValueRow, ListCard, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, KeyValueRow, ListCard, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 
 export default function RouteDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -86,7 +86,7 @@ export default function RouteDetailScreen() {
     <View style={styles.root}>
       <FlatList
         data={route.stops}
-        keyExtractor={(s) => s.id}
+        keyExtractor={(s, i) => stableRowKey(s.id, i)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }

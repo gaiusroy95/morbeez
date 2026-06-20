@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchFieldBlocks, t, tokens, type FieldBlock } from '@morbeez/shared';
-import { AlertBox, BlockCard, Btn, EmptyState, Loading } from '@morbeez/ui-native';
+import {AlertBox, BlockCard, Btn, EmptyState, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { OfflineBanner } from '@/context/OfflineContext';
 
@@ -49,7 +49,7 @@ export default function BlocksListScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={filtered}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item, i) => stableRowKey(item.id, i)}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}
       ListHeaderComponent={
         <View>

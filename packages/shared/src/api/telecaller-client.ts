@@ -1,4 +1,5 @@
 import { STAFF_API_V1 } from './config';
+import { dedupeBy } from '../list-utils';
 import { fetchWithCache } from './response-cache';
 import { staffApi } from './staff-client';
 import type {
@@ -34,8 +35,8 @@ function normalizeDashboard(raw: {
     overview: { ...EMPTY_TELECALLER_DASHBOARD.overview, ...(raw.overview ?? {}) },
     qc: { ...EMPTY_TELECALLER_DASHBOARD.qc, ...(raw.qc ?? {}) },
     queueHealth: raw.queueHealth,
-    actionQueue: raw.actionQueue ?? [],
-    todaysTasks: raw.todaysTasks ?? [],
+    actionQueue: dedupeBy(raw.actionQueue ?? [], (item) => item.id),
+    todaysTasks: dedupeBy(raw.todaysTasks ?? [], (task) => task.id),
     escalations: raw.escalations ?? 0,
   };
 }
@@ -81,7 +82,7 @@ export const telecallerClient = {
     const r = await staffApi<{ ok: boolean; leads: TelecallerLeadRow[] }>(
       `${TEL}/mobile/leads?${params}`
     );
-    return r.leads ?? [];
+    return dedupeBy(r.leads ?? [], (l) => l.id);
   },
 
   async listOperationalLeads(opts?: {
@@ -100,7 +101,7 @@ export const telecallerClient = {
     const r = await staffApi<{ ok: boolean; leads: TelecallerOperationalLeadRow[] }>(
       `${TEL}/mobile/leads/operational?${params}`
     );
-    return r.leads ?? [];
+    return dedupeBy(r.leads ?? [], (l) => l.id);
   },
 
   async getQueueSummary(scope: 'mine' | 'all' = 'mine'): Promise<TelecallerQueueSummary> {
@@ -114,7 +115,7 @@ export const telecallerClient = {
     const r = await staffApi<{ ok: boolean; tasks: TelecallerTaskRow[] }>(
       `${TEL}/mobile/follow-ups?status=${encodeURIComponent(status)}`
     );
-    return r.tasks ?? [];
+    return dedupeBy(r.tasks ?? [], (t) => t.id);
   },
 
   async listFollowUpSections(): Promise<TelecallerFollowUpSections> {
@@ -138,7 +139,7 @@ export const telecallerClient = {
     const r = await staffApi<{ ok: boolean; notifications: TelecallerNotification[] }>(
       `${TEL}/mobile/notifications`
     );
-    return r.notifications ?? [];
+    return dedupeBy(r.notifications ?? [], (n) => n.id);
   },
 
   async getLeadDetail(leadId: string): Promise<Record<string, unknown>> {

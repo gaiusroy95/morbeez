@@ -1,5 +1,6 @@
 import { resolveApiUrl, getApiOrigin } from './config';
-import { fetchWithRetry } from '../network/fetch.js';
+import { dedupeBy } from '../list-utils';
+import { fetchWithRetry } from '../network/fetch';
 import type {
   PartnerDashboardStats,
   PartnerProfile,
@@ -105,12 +106,12 @@ export const partnerClient = {
 
   async listFarmers(): Promise<PartnerFarmerListRow[]> {
     const r = await partnerApi<{ ok: boolean; farmers: PartnerFarmerListRow[] }>('/farmers');
-    return r.farmers ?? [];
+    return dedupeBy(r.farmers ?? [], (f) => f.id);
   },
 
   async listTasks() {
     const r = await partnerApi<{ ok: boolean; tasks: Array<Record<string, unknown>> }>('/tasks');
-    return r.tasks;
+    return dedupeBy(r.tasks ?? [], (t) => String(t.id ?? ''));
   },
 
   async acceptTask(taskId: string) {
@@ -212,7 +213,7 @@ export const partnerClient = {
     const r = await partnerApi<{ ok: boolean; tasks: PartnerFarmerTaskRow[] }>(
       `/farmers/${farmerId}/tasks`
     );
-    return r.tasks ?? [];
+    return dedupeBy(r.tasks ?? [], (t) => t.id);
   },
 
   async getFarmerOrders(farmerId: string): Promise<PartnerFarmerOrderRow[]> {
@@ -456,7 +457,7 @@ export const partnerClient = {
     const r = await partnerApi<{ ok: boolean; notifications: Record<string, unknown>[] }>(
       '/notifications'
     );
-    return r.notifications ?? [];
+    return dedupeBy(r.notifications ?? [], (n) => String(n.id ?? ''));
   },
 
   async createSalesOpportunity(

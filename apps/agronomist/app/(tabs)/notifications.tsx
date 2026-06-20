@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, formatDate, tokens } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, Loading, stableRowKey } from '@morbeez/ui-native';
 
 function categoryLabel(category: string): string {
   switch (category) {
@@ -55,7 +55,7 @@ export default function NotificationsScreen() {
     <View style={styles.root}>
       <FlatList
         data={items}
-        keyExtractor={(n) => n.id}
+        keyExtractor={(n, i) => stableRowKey(n.id, i)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }

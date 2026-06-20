@@ -9,7 +9,7 @@ import {
   tokens,
   type TransactionRow,
 } from '@morbeez/shared';
-import { AlertBox, Btn, HubTabs, Loading } from '@morbeez/ui-native';
+import {AlertBox, Btn, HubTabs, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useRoiFilter } from '@/context/RoiFilterContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -80,7 +80,7 @@ export default function TransactionsScreen() {
       />
       <FlatList
         data={rows}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, i) => stableRowKey(item.id, i)}
         refreshControl={<RefreshControl refreshing={false} onRefresh={() => void load()} />}
         ListHeaderComponent={
           <View style={styles.addRow}>

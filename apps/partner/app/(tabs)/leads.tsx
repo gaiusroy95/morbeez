@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { formatDate, partnerClient, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, Loading, Panel } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, Loading, Panel, stableRowKey } from '@morbeez/ui-native';
 
 type LeadOffer = {
   id: string;
@@ -66,7 +66,7 @@ export default function LeadsScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={offers}
-      keyExtractor={(o) => o.id}
+      keyExtractor={(o, i) => stableRowKey(o.id, i)}
       ListHeaderComponent={error ? <AlertBox>{error}</AlertBox> : null}
       ListEmptyComponent={<EmptyState>No pending lead offers.</EmptyState>}
       renderItem={({ item }) => (

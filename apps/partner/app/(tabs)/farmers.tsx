@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { partnerClient, tokens, type PartnerFarmerListRow } from '@morbeez/shared';
-import { AlertBox, EmptyState, Loading } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, Loading, stableRowKey } from '@morbeez/ui-native';
 
 export default function FarmersScreen() {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function FarmersScreen() {
     <View style={styles.root}>
       <FlatList
         data={filtered}
-        keyExtractor={(f) => f.id}
+        keyExtractor={(f, i) => stableRowKey(f.id, i)}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }

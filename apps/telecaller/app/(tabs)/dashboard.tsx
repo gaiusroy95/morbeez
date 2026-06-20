@@ -1,7 +1,7 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { t, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, Loading, Panel, StatCard } from '@morbeez/ui-native';
+import { AlertBox, Btn, Loading, Panel, StatCard, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { useTelecallerDashboard } from '@/context/TelecallerDashboardContext';
@@ -62,9 +62,9 @@ export default function DashboardScreen() {
 
       <Panel title="Action queue">
         {actionQueue.length ? (
-          actionQueue.map((item) => (
+          actionQueue.map((item, index) => (
             <Pressable
-              key={item.id}
+              key={stableRowKey(item.id, index)}
               style={styles.queueRow}
               onPress={() => item.leadId && router.push(`/lead/${item.leadId}`)}
             >
@@ -81,9 +81,9 @@ export default function DashboardScreen() {
 
       <Panel title="Today's tasks">
         {todaysTasks.length ? (
-          todaysTasks.map((task) => (
+          todaysTasks.map((task, index) => (
             <Pressable
-              key={task.id}
+              key={stableRowKey(task.id, index)}
               style={styles.queueRow}
               onPress={() => task.leadId && router.push(`/lead/${task.leadId}`)}
             >

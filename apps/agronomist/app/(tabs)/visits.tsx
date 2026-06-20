@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, tokens, type AgronomistBlockRow } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, ListCard, Panel } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, ListCard, Panel, stableRowKey } from '@morbeez/ui-native';
 import { AgronomistBlockCard } from '@/components/AgronomistBlockCard';
 
 type Farmer = { id: string; name: string; phone: string | null; district: string | null };
@@ -68,7 +68,7 @@ export default function VisitsScreen() {
     <View style={styles.root}>
       <FlatList
         data={listData}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item, i) => stableRowKey(item.id, i)}
         contentContainerStyle={styles.content}
         ListHeaderComponent={
           <>

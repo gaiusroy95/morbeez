@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlatList, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { fetchPortalOrders, formatInr, t, tokens, type PortalOrder } from '@morbeez/shared';
-import { AlertBox, EmptyState, HubTabs, Loading, OrderStatusChip } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, HubTabs, Loading, OrderStatusChip, stableRowKey } from '@morbeez/ui-native';
 import { whatsAppUrl } from '@/lib/config';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -46,7 +46,7 @@ export default function OrdersScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={filtered}
-      keyExtractor={(o) => o.id}
+      keyExtractor={(o, i) => stableRowKey(o.id, i)}
       ListHeaderComponent={
         <>
           {error ? <AlertBox>{error}</AlertBox> : null}

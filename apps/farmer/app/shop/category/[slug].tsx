@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { fetchStoreProducts, formatInr, t, tokens, type StoreProduct } from '@morbeez/shared';
-import { AlertBox, EmptyState, HubTabs, Loading, ProductCard } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, HubTabs, Loading, ProductCard, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 
 type SortKey = 'featured' | 'price_low' | 'price_high';
@@ -64,7 +64,7 @@ export default function CategoryListingScreen() {
       style={styles.list}
       contentContainerStyle={styles.content}
       data={visible}
-      keyExtractor={(p) => p.id}
+      keyExtractor={(p, i) => stableRowKey(p.id, i)}
       numColumns={2}
       columnWrapperStyle={styles.row}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />}

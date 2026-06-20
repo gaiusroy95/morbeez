@@ -8,7 +8,7 @@ import {
   tokens,
   type PackQueueTab,
 } from '@morbeez/shared';
-import { AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import {AlertBox, Btn, EmptyState, HubTabs, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { useWarehouseQueue } from '@/context/WarehouseQueueContext';
 
@@ -67,7 +67,7 @@ export default function PackingQueueScreen() {
     <View style={styles.root}>
       <FlatList
         data={filtered}
-        keyExtractor={(r) => r.id}
+        keyExtractor={(r, i) => stableRowKey(r.id, i)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

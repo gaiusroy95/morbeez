@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { formatDate, t, tokens, type AgronomistTaskItem } from '@morbeez/shared';
-import { AlertBox, EmptyState, HubTabs, ListCard, Loading } from '@morbeez/ui-native';
+import {AlertBox, EmptyState, HubTabs, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 import { openEscalationVisit } from '@/lib/open-escalation-visit';
 import { useAgronomistQueue } from '@/context/AgronomistQueueContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -111,7 +111,7 @@ export default function TasksScreen() {
       </ScrollView>
       <FlatList
         data={filtered}
-        keyExtractor={(task) => task.id}
+        keyExtractor={(task, i) => stableRowKey(task.id, i)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
