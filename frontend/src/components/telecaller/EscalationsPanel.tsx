@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { HubTabs } from '../ui';
+import { Btn, HubTabs } from '../ui';
 import { EscalationDetailModal, type EscalationListRow } from './EscalationDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -30,6 +30,8 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
   const [selected, setSelected] = useState<EscalationListRow | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [clearingId, setClearingId] = useState<string | null>(null);
+  const [clearingAll, setClearingAll] = useState(false);
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -74,11 +76,51 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
     return 'Pending';
   }
 
-  function handleSaved(opts?: { completed?: boolean }) {
+  function handleSaved(opts?: { completed?: boolean; cleared?: boolean }) {
     void loadList();
     onBadgeRefresh?.();
-    if (opts?.completed && escTab === 'open') {
+    if ((opts?.completed && escTab === 'open') || opts?.cleared) {
       setSelected(null);
+    }
+  }
+
+  async function clearEscalation(id: string, farmerName: string) {
+    if (!canWrite) return;
+    if (!window.confirm(`Clear escalation for ${farmerName}? It will be removed from this list.`)) return;
+    setClearingId(id);
+    setError('');
+    try {
+      await api(`${base}/escalations/${encodeURIComponent(id)}/clear`, { method: 'POST' });
+      if (selected?.id === id) setSelected(null);
+      await loadList();
+      onBadgeRefresh?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not clear escalation');
+    } finally {
+      setClearingId(null);
+    }
+  }
+
+  async function clearAllCompleted() {
+    if (!canWrite || items.length === 0) return;
+    if (
+      !window.confirm(
+        `Clear all ${items.length} completed escalation(s)? They will be removed from this list.`
+      )
+    ) {
+      return;
+    }
+    setClearingAll(true);
+    setError('');
+    try {
+      await api(`${base}/escalations/clear-completed`, { method: 'POST' });
+      setSelected(null);
+      await loadList();
+      onBadgeRefresh?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not clear escalations');
+    } finally {
+      setClearingAll(false);
     }
   }
 
@@ -90,10 +132,20 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
           <p className="text-sm text-slate-600">
             {escTab === 'open'
               ? 'Open cases needing review. Mark completed to move them off this list.'
-              : 'Resolved escalations — completed cases are kept here for reference.'}
+              : 'Completed cases you can clear when no longer needed in the queue.'}
           </p>
         </div>
-        <HubTabs
+        <div className="flex flex-wrap items-center gap-2">
+          {escTab === 'completed' && canWrite && items.length > 0 ? (
+            <Btn
+              variant="secondary"
+              disabled={clearingAll}
+              onClick={() => void clearAllCompleted()}
+            >
+              {clearingAll ? 'Clearing…' : 'Clear all completed'}
+            </Btn>
+          ) : null}
+          <HubTabs
           tabs={[
             { id: 'open' as const, label: 'Open escalations' },
             { id: 'completed' as const, label: 'Completed escalations' },
@@ -101,6 +153,7 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
           active={escTab}
           onChange={setEscTab}
         />
+        </div>
       </div>
 
       {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
@@ -118,6 +171,9 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
                 <th className="px-4 py-3">Crop</th>
                 <th className="px-4 py-3">Priority</th>
                 <th className="px-4 py-3">Date</th>
+                {escTab === 'completed' && canWrite ? (
+                  <th className="px-4 py-3 text-right">Action</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -169,6 +225,21 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
                     <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
                       {dateLabel ?? '—'}
                     </td>
+                    {escTab === 'completed' && canWrite ? (
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                          disabled={clearingId === e.id || clearingAll}
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            void clearEscalation(e.id, e.farmerName);
+                          }}
+                        >
+                          {clearingId === e.id ? 'Clearing…' : 'Clear'}
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
@@ -189,6 +260,7 @@ export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
           row={selected}
           canWrite={canWrite}
           onSaved={handleSaved}
+          onCleared={() => handleSaved({ cleared: true })}
           onClose={() => setSelected(null)}
         />
       ) : null}

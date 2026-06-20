@@ -1987,6 +1987,7 @@ export const telecallerAdminService = {
       supabase
         .from('agronomist_escalations')
         .select('id', { count: 'exact', head: true })
+        .is('dismissed_at', null)
         .in('status', ['pending', 'assigned', 'in_review']),
     ]);
     return {

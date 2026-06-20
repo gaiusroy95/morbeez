@@ -1816,6 +1816,19 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, escalation });
   });
 
+  app.post(`${api}/escalations/clear-completed`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const result = await escalationAdminService.clearCompleted(admin.email);
+    return reply.send(result);
+  });
+
+  app.post(`${api}/escalations/:id/clear`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id } = request.params as { id: string };
+    const result = await escalationAdminService.clear(id, admin.email);
+    return reply.send(result);
+  });
+
   app.get(`${api}/leads/:id/field-activities/blocks`, async (request, reply) => {
     await assertModuleAccess(request, 'telecaller_crm', 'read');
     const { id } = request.params as { id: string };

@@ -53,6 +53,7 @@ type Props = {
   canWrite?: boolean;
   onClose: () => void;
   onSaved?: (opts?: { completed?: boolean }) => void;
+  onCleared?: () => void;
 };
 
 function statusBadgeClass(workflow: string): string {
@@ -67,9 +68,10 @@ function roleLabel(role: string): string {
   return 'Staff';
 }
 
-export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props) {
+export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onCleared }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState('');
   const [detail, setDetail] = useState<EscalationDetail | null>(null);
   const [workflowStatus, setWorkflowStatus] =
@@ -123,6 +125,28 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
       setError(e instanceof Error ? e.message : 'Could not save');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function clearEscalation() {
+    if (!canWrite || !detail) return;
+    if (
+      !window.confirm(
+        'Clear this escalation? It will be removed from the completed list (record kept for audit).'
+      )
+    ) {
+      return;
+    }
+    setClearing(true);
+    setError('');
+    try {
+      await api(`${base}/escalations/${encodeURIComponent(detail.id)}/clear`, { method: 'POST' });
+      onCleared?.();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not clear escalation');
+    } finally {
+      setClearing(false);
     }
   }
 
@@ -270,6 +294,7 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
                   />
                 </Field>
               ) : null}
+              <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={saving}
@@ -278,6 +303,17 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
               >
                 {saving ? 'Saving…' : 'Save'}
               </button>
+              {workflowStatus === 'completed' ? (
+                <button
+                  type="button"
+                  disabled={clearing || saving}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+                  onClick={() => void clearEscalation()}
+                >
+                  {clearing ? 'Clearing…' : 'Clear escalation'}
+                </button>
+              ) : null}
+              </div>
             </div>
           ) : (
             <p className="text-xs text-amber-800">Read-only — you need write access to update.</p>
