@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { agronomistClient, type AgronomistTaskItem } from '@morbeez/shared';
+import { agronomistClient, formatAppError, type AgronomistTaskItem } from '@morbeez/shared';
+import { useNetwork, useOnReconnect } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type State = {
@@ -23,6 +24,7 @@ const Ctx = createContext<State | null>(null);
 
 export function AgronomistQueueProvider({ children }: { children: ReactNode }) {
   const { authed } = useStaffAuth();
+  const { isOnline } = useNetwork();
   const [tasks, setTasks] = useState<AgronomistTaskItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,12 +41,16 @@ export function AgronomistQueueProvider({ children }: { children: ReactNode }) {
       const t = await agronomistClient.listTasks(filter);
       setTasks(t);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load tasks');
+      setError(formatAppError(e, isOnline));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOnline]);
+
+  useOnReconnect(() => {
+    if (authed) void refresh();
+  });
 
   useEffect(() => {
     if (!authed) return;

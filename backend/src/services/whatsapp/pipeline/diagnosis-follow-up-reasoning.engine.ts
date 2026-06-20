@@ -12,6 +12,8 @@ export type InvestigationContext = {
   cropType: string;
   symptomsText: string;
   hasPhoto: boolean;
+  /** From Crop Doctor / vision — authoritative for photo-grounded Q&A */
+  imageObservations?: string[];
   dap?: number;
   similarCases: SimilarLearnedCase[];
   totalVerifiedCases: number;
@@ -71,49 +73,58 @@ export const diagnosisFollowUpReasoningEngine = {
     const count = Math.max(ctx.similarCases.length, ctx.totalVerifiedCases);
     const band = resolveMatchConfidenceBand(ctx.matchConfidence);
     const issue = ctx.bestIssueLabel;
+    const hasVision = (ctx.imageObservations?.length ?? 0) > 0;
     const patternHint =
-      ctx.learnedPatterns.length > 0
+      ctx.learnedPatterns.length > 0 && !hasVision
         ? ctx.language === 'ml'
-          ? '\n\nസമാന കേസുകളിൽ സഹായിച്ച ചോദ്യങ്ങൾ അടിസ്ഥാനമാക്കി AI അടുത്ത ചോദ്യം തയ്യാറാക്കും.'
-          : '\n\nAI will ask tailored questions based on what helped in similar verified cases.'
-        : '';
+          ? '\n\nAI ചോദ്യങ്ങൾ നിങ്ങൾ പറഞ്ഞ ലക്ഷണങ്ങൾ + സമാന കേസുകൾ അടിസ്ഥാനമാക്കി തയ്യാറാക്കും (ഫോട്ടോ വിശകലനം ഇല്ല).'
+          : '\n\nAI questions are based on your message and similar past cases (text only — not photo analysis).'
+        : hasVision
+          ? ctx.language === 'ml'
+            ? '\n\nAI ഫോട്ടോയിൽ കണ്ടത് + നിങ്ങളുടെ മറുപടികൾ അടിസ്ഥാനമാക്കി അടുത്ത ചോദ്യം തയ്യാറാക്കും.'
+            : '\n\nAI will plan the next question from what was seen in your photos plus your answers.'
+          : '';
 
     if (ctx.language === 'ml') {
-      const caseLine =
-        count > 0
-          ? `മോർബീസിൽ ഈ ${ctx.cropType} വിളയിൽ ${count}+ വിജയകരമായ സമാന കേസുകൾ ഉണ്ട്.`
+      const caseLine = hasVision
+        ? 'ഫോട്ടോ വിശകലനം പൂർത്തിയായി. കൃത്യമായ ഉപദേശത്തിന് ഒരൊന്നായി ചോദ്യങ്ങൾ:'
+        : count > 0
+          ? `മോർബീസിൽ ഈ ${ctx.cropType} വിളയിൽ ${count}+ സമാന കേസുകൾ ഉണ്ട് (ടെക്സ്റ്റ് സാമ്യം മാത്രം).`
           : 'നിങ്ങളുടെ പ്രശ്നം കൃത്യമായി മനസ്സിലാക്കാൻ ചില ചോദ്യങ്ങൾ ചോദിക്കുന്നു.';
-      const matchLine = issue ? `\nഏറ്റവും അടുത്ത പ്രശ്നം: ${issue}.` : '';
+      const matchLine =
+        issue && !hasVision
+          ? `\nടെക്സ്റ്റ് സാമ്യം (ഫോട്ടോ സ്ഥിരീകരിച്ചിട്ടില്ല): ${issue}.`
+          : '';
       const weatherLine = ctx.highHumidityLikely
         ? '\nഈ ആഴ്ച ഉയർന്ന humidity — fungal/blast അപകടം കൂടാം.'
         : ctx.heavyRainLikely
           ? '\nമഴ അധികം — drainage/rot ശ്രദ്ധിക്കണം.'
           : '';
       const confLine =
-        band === 'medium'
-          ? '\n\n2–3 ചെറിയ ചോദ്യങ്ങൾ — ശരിയായ ഉപദേശം നൽകാൻ:'
-          : band === 'low'
-            ? '\n\nകൂടുതൽ വിവരം ശേഖരിക്കുന്നു (agronomist review ആവശ്യമാകാം):'
-            : '\n\nconfirmation ചോദ്യങ്ങൾ:';
+        band === 'low' && !hasVision
+          ? '\n\nകൂടുതൽ വിവരം ശേഖരിക്കുന്നു (agronomist review ആവശ്യമാകാം):'
+          : '\n\n';
       return `${caseLine}${matchLine}${weatherLine}${confLine}${patternHint}`;
     }
 
-    const caseLine =
-      count > 0
-        ? `Morbeez found ${count}+ similar successful ${ctx.cropType} cases in your region.`
+    const caseLine = hasVision
+      ? 'Photo analysis is done. A few one-by-one questions to confirm field details:'
+      : count > 0
+        ? `Morbeez has ${count}+ similar ${ctx.cropType} cases in your region (text similarity only — not from your photo).`
         : 'A few quick questions will help give accurate advice.';
-    const matchLine = issue ? `\nClosest match: ${issue}.` : '';
+    const matchLine =
+      issue && !hasVision
+        ? `\nText similarity hint (not photo-confirmed): ${issue}.`
+        : '';
     const weatherLine = ctx.highHumidityLikely
       ? '\nHigh humidity this week — fungal/blast risk may be elevated.'
       : ctx.heavyRainLikely
         ? '\nHeavy rain likely — check drainage and rot signs.'
         : '';
     const confLine =
-      band === 'medium'
-        ? '\n\nA few one-by-one questions for the most accurate advice:'
-        : band === 'low'
-          ? '\n\nGathering more field evidence (agronomist review may follow):'
-          : '\n\nQuick confirmation questions:';
+      band === 'low' && !hasVision
+        ? '\n\nGathering more field evidence (agronomist review may follow):'
+        : '\n\n';
     return `${caseLine}${matchLine}${weatherLine}${confLine}${patternHint}`;
   },
 
@@ -128,11 +139,11 @@ export const diagnosisFollowUpReasoningEngine = {
     const diffHint =
       params.differentialCount > 1
         ? params.language === 'ml'
-          ? ' AI അടുത്ത ചോദ്യം ഈ വിശകലനത്തിലെ ബദൽ സാധ്യതകൾ വേർതിരിക്കാൻ തയ്യാറാക്കും.'
-          : ' AI will plan the next question from your diagnosis differentials — not a fixed script.'
+          ? ' AI ഫോട്ടോയിൽ കണ്ടതും ബദൽ സാധ്യതകളും അടിസ്ഥാനമാക്കി അടുത്ത ചോദ്യം തയ്യാറാക്കും.'
+          : ' AI will plan the next question from your photo analysis and differentials — not a fixed script.'
         : params.language === 'ml'
-          ? ' AI അടുത്ത ചോദ്യം ഫീൽഡ് സ്ഥിരീകരണത്തിനായി തയ്യാറാക്കും.'
-          : ' AI will plan a field confirmation question from the analysis.';
+          ? ' AI ഫോട്ടോ വിശകലനം + ഫീൽഡ് സ്ഥിരീകരണം അടിസ്ഥാനമാക്കി ചോദ്യം തയ്യാറാക്കും.'
+          : ' AI will plan a field confirmation question from your photo analysis.';
 
     if (params.language === 'ml') {
       return `ഫോട്ടോ വിശകലനം പൂർത്തിയായി (${pct}% സാധ്യത: ${issue}). പൂർണ്ണ നിർണയം അയയ്ക്കുന്നതിന് മുമ്പ് ഒരൊന്നായി ചോദ്യങ്ങൾ:${diffHint}`;

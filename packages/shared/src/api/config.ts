@@ -1,5 +1,34 @@
 /** Resolve API origin from Expo public env or Vite staff console env */
+let apiOriginOverride = '';
+
+/** Call from Expo app entry (e.g. _layout) so mobile builds always resolve the API host. */
+export function setApiOrigin(url: string): void {
+  apiOriginOverride = String(url ?? '').replace(/\/$/, '');
+}
+
+function readExpoApiBaseUrl(): string {
+  if (typeof document !== 'undefined') return '';
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Constants = require('expo-constants').default as {
+      expoConfig?: { extra?: { apiBaseUrl?: string } };
+      manifest2?: { extra?: { expoClient?: { extra?: { apiBaseUrl?: string } } } };
+      manifest?: { extra?: { apiBaseUrl?: string } };
+    };
+    return String(
+      Constants.expoConfig?.extra?.apiBaseUrl ??
+        Constants.manifest2?.extra?.expoClient?.extra?.apiBaseUrl ??
+        Constants.manifest?.extra?.apiBaseUrl ??
+        ''
+    );
+  } catch {
+    return '';
+  }
+}
+
 export function getApiOrigin(): string {
+  if (apiOriginOverride) return apiOriginOverride;
+
   let fromVite = '';
   try {
     const meta = import.meta as ImportMeta & { env?: Record<string, string | undefined> };
@@ -10,19 +39,7 @@ export function getApiOrigin(): string {
     fromVite = '';
   }
 
-  let fromExpoExtra = '';
-  const isBrowser = typeof document !== 'undefined';
-  if (!isBrowser && !fromVite) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const Constants = require('expo-constants').default as {
-        expoConfig?: { extra?: { apiBaseUrl?: string } };
-      };
-      fromExpoExtra = String(Constants.expoConfig?.extra?.apiBaseUrl ?? '');
-    } catch {
-      fromExpoExtra = '';
-    }
-  }
+  const fromExpoExtra = readExpoApiBaseUrl();
 
   const raw =
     fromVite ||

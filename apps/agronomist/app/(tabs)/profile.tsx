@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { agronomistClient, t, tokens } from '@morbeez/shared';
-import { AlertBox, Btn, KeyValueRow, LanguagePicker, Loading, Panel } from '@morbeez/ui-native';
+import { AlertBox, Btn, KeyValueRow, LanguagePicker, Loading, Panel, useAppError, useOnReconnect } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
 import { useStaffAuth } from '@/context/StaffAuth';
 
@@ -10,6 +10,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { admin, logout } = useStaffAuth();
   const { locale, setLocale } = useLocale();
+  const formatError = useAppError();
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -20,16 +21,20 @@ export default function ProfileScreen() {
     try {
       setProfile(await agronomistClient.getProfileStats());
     } catch (e) {
-      setError(e instanceof Error ? e.message : t('loadingProfile', locale));
+      setError(formatError(e, t('loadingProfile', locale)));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [locale]);
+  }, [formatError, locale]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useOnReconnect(() => {
+    void load();
+  });
 
   if (loading && !profile) return <Loading label={t('loadingProfile', locale)} />;
 

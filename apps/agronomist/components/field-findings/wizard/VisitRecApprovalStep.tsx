@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens, type RecommendationGroupDraft } from '@morbeez/shared';
+import { agronomistClient, formatMaterialApplicationMode, formatMaterialDose, tokens, type RecommendationGroupDraft } from '@morbeez/shared';
 import { AlertBox, Btn, Panel } from '@morbeez/ui-native';
 
 type Props = {
@@ -75,11 +75,17 @@ export function VisitRecApprovalStep({
             <Text style={styles.groupTitle}>
               Group {i + 1}: {g.applicationType.replace(/_/g, ' ')} · Day {g.applicationDay}
             </Text>
-            {g.materials.map((m) => (
-              <Text key={m.localId} style={styles.materialLine}>
-                • {m.technicalName || 'Unnamed'} {m.dose ? `(${m.dose})` : ''}
-              </Text>
-            ))}
+            {g.materials.map((m) => {
+              const dose = formatMaterialDose(m);
+              const mode = formatMaterialApplicationMode(m.applicationMode);
+              return (
+                <Text key={m.localId} style={styles.materialLine}>
+                  • {m.technicalName || 'Unnamed'}
+                  {dose ? ` — ${dose}` : ''}
+                  {mode ? ` (${mode})` : ''}
+                </Text>
+              );
+            })}
           </View>
         ))}
       </Panel>

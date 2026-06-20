@@ -238,6 +238,11 @@ export type StructuredFieldVisitPayload = {
   latitude?: number;
   longitude?: number;
   sendVisitSummary?: boolean;
+  whatsappMessages?: Array<{
+    issueIndex: number;
+    message: string;
+    compliancePrompt?: string;
+  }>;
   recommendationGroups?: Array<{
     applicationType: string;
     applicationDay?: number;

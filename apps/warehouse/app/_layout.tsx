@@ -2,6 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NetworkProvider } from '@morbeez/ui-native';
 import { tokens } from '@morbeez/shared';
 import { LocaleProvider } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
@@ -32,14 +33,16 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <LocaleProvider>
-        <StaffAuthProvider>
-          <Gate>
+        <NetworkProvider>
+          <StaffAuthProvider>
+            <Gate>
             <Stack screenOptions={{ headerShown: false }}>
               <Stack.Screen name="(auth)" />
               <Stack.Screen name="(app)" />
             </Stack>
           </Gate>
         </StaffAuthProvider>
+        </NetworkProvider>
       </LocaleProvider>
     </SafeAreaProvider>
   );

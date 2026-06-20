@@ -1,5 +1,6 @@
 import { deletePersistedItem, readPersistedItem, writePersistedItem } from './secure-storage';
 import { parseApiError } from './errors';
+import { fetchWithRetry } from '../network/fetch.js';
 import { getApiOrigin, resolveApiUrl } from './config';
 import { fetchWithCache } from './response-cache';
 import type {
@@ -125,7 +126,7 @@ export async function farmerApi<T = unknown>(path: string, options: RequestInit 
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const url = resolveApiUrl(path);
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetchWithRetry(url, { ...options, headers }, 2, origin);
   const data = (await res.json().catch(() => ({}))) as T & { message?: string; error?: string };
 
   if (!res.ok) {

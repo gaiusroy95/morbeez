@@ -121,6 +121,25 @@ export {
   mapClassifierCategoryToVisitPhotoType,
 } from './photo-categories';
 
+export {
+  DOSE_BASIS_OPTIONS,
+  DOSE_UNIT_OPTIONS,
+  MATERIAL_APPLICATION_MODE_OPTIONS,
+  defaultRecommendationMaterial,
+  formatMaterialDose,
+  formatMaterialApplicationMode,
+  mapRecommendationGroupsForSubmit,
+} from './recommendation-material';
+
+export type { DoseBasis, DoseUnit, MaterialApplicationMode, RecommendationGroupDraft, RecommendationGroupMaterialDraft } from './recommendation-material';
+
+export { buildPriorRecommendationFollowUps } from './prior-recommendation-followups';
+
+export type {
+  PriorRecommendationFollowUpDraft,
+  PriorRecommendationFollowUpSource,
+} from './prior-recommendation-followups';
+
 
 
 export type VisitWizardStep =
@@ -275,6 +294,8 @@ export type MonitoringPlanPreviewItem = {
 
 export type WhatsappPreviewMessage = {
 
+  issueIndex: number;
+
   issueLabel: string;
 
   message: string;
@@ -405,39 +426,9 @@ export type VisitPhotoValidationResult = {
 
 
 
-export type RecommendationGroupMaterialDraft = {
+export type RecommendationGroupMaterialDraft = import('./recommendation-material.js').RecommendationGroupMaterialDraft;
 
-  localId: string;
-
-  issueLocalId: string;
-
-  category: string;
-
-  technicalName: string;
-
-  dose?: string;
-
-  method?: string;
-
-  relatedIssueLocalId?: string;
-
-};
-
-
-
-export type RecommendationGroupDraft = {
-
-  localId: string;
-
-  applicationType: string;
-
-  applicationDay: number;
-
-  sortOrder: number;
-
-  materials: RecommendationGroupMaterialDraft[];
-
-};
+export type RecommendationGroupDraft = import('./recommendation-material.js').RecommendationGroupDraft;
 
 
 
@@ -554,6 +545,8 @@ export type VisitWizardValidationContext = {
   monitoringPlan?: MonitoringPlanPreviewItem[];
 
   whatsappConfirmed?: boolean;
+
+  whatsappMessages?: WhatsappPreviewMessage[];
 
   recApproved?: boolean;
 
@@ -809,7 +802,15 @@ export function validateVisitWizardStep(
 
       for (const m of group.materials) {
 
-        if (!m.technicalName.trim()) return 'Each material needs a product name.';
+        if (!m.technicalName.trim()) return 'Each material needs a name.';
+
+        if (!m.doseQuantity?.trim()) return 'Enter dose quantity for each material.';
+
+        if (!m.doseUnit) return 'Select qty unit (KG, LTR, or ML).';
+
+        if (!m.doseBasis) return 'Select dose basis (per 200 ltr water or per acre).';
+
+        if (!m.applicationMode) return 'Select application mode.';
 
       }
 
@@ -855,6 +856,14 @@ export function validateVisitWizardStep(
 
       return 'Confirm the WhatsApp preview before continuing.';
 
+    }
+
+    if (!ctx.partnerMode) {
+      const msgs = ctx.whatsappMessages ?? [];
+      if (!msgs.length) return 'Generate WhatsApp messages before continuing.';
+      for (const msg of msgs) {
+        if (!msg.message.trim()) return 'Each WhatsApp message must have text before continuing.';
+      }
     }
 
   }

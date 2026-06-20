@@ -1,4 +1,4 @@
-import type { RecommendationPriority, VisitAiQuestion } from '../types/field-findings';
+import type { RecommendationPriority, VisitAiAnswerType, VisitAiQuestion } from '../types/field-findings';
 
 /** Injectable visit AI client for agronomist vs partner visit wizard steps. */
 export type VisitAiClient = {
@@ -8,6 +8,16 @@ export type VisitAiClient = {
     aiCaseId: string,
     answers: Array<{ questionId: string; answer: string }>
   ): Promise<unknown>;
+  syncVisitAiQuestions(
+    aiCaseId: string,
+    questions: Array<{
+      id?: string;
+      questionText: string;
+      answer?: string;
+      answerType?: VisitAiAnswerType;
+    }>
+  ): Promise<VisitAiQuestion[]>;
+  regenerateVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]>;
   reanalyzeVisitAiCase(aiCaseId: string): Promise<{
     ok: boolean;
     finalDiagnosis: string;

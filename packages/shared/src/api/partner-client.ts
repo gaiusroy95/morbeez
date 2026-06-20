@@ -1,4 +1,5 @@
-import { resolveApiUrl } from './config';
+import { resolveApiUrl, getApiOrigin } from './config';
+import { fetchWithRetry } from '../network/fetch.js';
 import type {
   PartnerDashboardStats,
   PartnerProfile,
@@ -43,14 +44,20 @@ export async function setPartnerToken(token: string | null): Promise<void> {
 
 async function partnerApi<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await readToken();
-  const res = await fetch(resolveApiUrl(`${PARTNER_API}${path}`), {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
+  const origin = getApiOrigin();
+  const res = await fetchWithRetry(
+    resolveApiUrl(`${PARTNER_API}${path}`),
+    {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(init?.headers ?? {}),
+      },
     },
-  });
+    2,
+    origin
+  );
   const body = (await res.json().catch(() => ({}))) as T & { message?: string; ok?: boolean };
   if (!res.ok) throw new Error(body.message ?? `Request failed (${res.status})`);
   return body;
@@ -339,6 +346,30 @@ export const partnerClient = {
       method: 'POST',
       body: JSON.stringify({ answers }),
     });
+  },
+
+  async syncVisitAiQuestions(
+    aiCaseId: string,
+    questions: Array<{
+      id?: string;
+      questionText: string;
+      answer?: string;
+      answerType?: import('../types/field-findings.js').VisitAiAnswerType;
+    }>
+  ): Promise<VisitAiQuestion[]> {
+    const r = await partnerApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`,
+      { method: 'PUT', body: JSON.stringify({ questions }) }
+    );
+    return r.questions ?? [];
+  },
+
+  async regenerateVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]> {
+    const r = await partnerApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions/regenerate`,
+      { method: 'POST' }
+    );
+    return r.questions ?? [];
   },
 
   async reanalyzeVisitAiCase(aiCaseId: string) {

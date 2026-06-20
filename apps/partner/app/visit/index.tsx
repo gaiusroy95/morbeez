@@ -8,6 +8,8 @@ import {
   getPrevWizardStep,
   getVisibleWizardSteps,
   validateVisitWizardStep,
+  mapRecommendationGroupsForSubmit,
+  buildPriorRecommendationFollowUps,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueCategory,
@@ -173,17 +175,17 @@ export default function VisitScreen() {
         setLatestSoilTest(soilReports?.[0] ?? null);
         setFarmContext((detail?.farmContext as VisitFarmContext | undefined) ?? null);
 
-        const openRecs = (recs as Array<Record<string, unknown>>).filter(
-          (r) => r.blockId === blockId && ['communicated', 'approved', 'open', 'monitoring'].includes(String(r.status))
-        );
         setFollowUps(
-          openRecs.slice(0, 5).map((r) => ({
-            recommendationId: String(r.id),
-            label: String(r.recommendationText ?? 'Recommendation').slice(0, 60),
-            followed: 'not_applicable' as const,
-            outcome: 'not_reviewed' as const,
-            notes: '',
-          }))
+          buildPriorRecommendationFollowUps(
+            (recs as Array<{
+              id: string;
+              blockId: string | null;
+              issueDetected?: string | null;
+              recommendationText: string;
+              status: string;
+            }>),
+            blockId
+          )
         );
 
         const draft = await loadVisitDraft(blockId);
@@ -401,18 +403,9 @@ export default function VisitScreen() {
           agronomistReview: issue.agronomistReview,
         })),
         recommendationGroups: recommendationGroups.length
-          ? recommendationGroups.map((g) => ({
-              applicationType: g.applicationType,
-              applicationDay: g.applicationDay,
-              sortOrder: g.sortOrder,
-              materials: g.materials.map((m) => ({
-                issueIndex: issues.findIndex((i) => i.localId === m.issueLocalId),
-                category: m.category,
-                technicalName: m.technicalName,
-                dose: m.dose,
-                method: m.method,
-              })),
-            }))
+          ? mapRecommendationGroupsForSubmit(recommendationGroups, (localId) =>
+              issues.findIndex((i) => i.localId === localId)
+            )
           : undefined,
         followUps: followUps
           .filter((f) => f.outcome !== 'not_reviewed' || f.followed !== 'not_applicable')

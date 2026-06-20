@@ -10,10 +10,12 @@ import {
 } from 'react';
 import {
   warehouseClient,
+  formatAppError,
   type QueueOrder,
   type WarehouseCompletedToday,
   type WarehouseStats,
 } from '@morbeez/shared';
+import { useNetwork, useOnReconnect } from '@morbeez/ui-native';
 
 type WarehouseQueueState = {
   queue: QueueOrder[];
@@ -33,6 +35,7 @@ const EMPTY_COMPLETED: WarehouseCompletedToday = { packedToday: [], handedOverTo
 const WarehouseQueueContext = createContext<WarehouseQueueState | null>(null);
 
 export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
+  const { isOnline } = useNetwork();
   const [queue, setQueue] = useState<QueueOrder[]>([]);
   const [completedToday, setCompletedToday] = useState<WarehouseCompletedToday>(EMPTY_COMPLETED);
   const [stats, setStats] = useState<WarehouseStats | null>(null);
@@ -58,12 +61,12 @@ export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
       });
       setQueue(q);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load queue');
+      setError(formatAppError(e, isOnline));
     } finally {
       setQueueLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOnline]);
 
   const refreshStats = useCallback(async (opts?: { force?: boolean }) => {
     const background = statsRef.current != null;
@@ -73,12 +76,12 @@ export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
       setStats(s);
     } catch (e) {
       if (!background) {
-        setError(e instanceof Error ? e.message : 'Failed to load stats');
+        setError(formatAppError(e, isOnline));
       }
     } finally {
       setStatsLoading(false);
     }
-  }, []);
+  }, [isOnline]);
 
   const refreshCompletedToday = useCallback(async (opts?: { force?: boolean }) => {
     try {
@@ -95,6 +98,12 @@ export function WarehouseQueueProvider({ children }: { children: ReactNode }) {
     void refreshCompletedToday();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
   }, []);
+
+  useOnReconnect(() => {
+    void refreshQueue({ force: true });
+    void refreshStats({ force: true });
+    void refreshCompletedToday({ force: true });
+  });
 
   const value = useMemo(
     () => ({

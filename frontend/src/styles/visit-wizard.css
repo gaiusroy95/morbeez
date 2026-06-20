@@ -626,6 +626,62 @@
   cursor: not-allowed;
 }
 
+.vw-qa-block {
+  margin-bottom: 16px;
+}
+
+.vw-qa-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.vw-qa-input {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.vw-qa-remove {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vw-qa-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.vw-qa-secondary {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #15803d;
+  background: #fff;
+  color: #166534;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.vw-qa-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .vw-retry-link {
   text-align: center;
   color: #15803d;

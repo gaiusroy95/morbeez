@@ -3,12 +3,15 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { t, tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, NetworkProvider } from '@morbeez/ui-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AgronomistDashboardProvider } from '@/context/AgronomistDashboardContext';
 import { AgronomistQueueProvider } from '@/context/AgronomistQueueContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
+import { initAgronomistApiConfig } from '@/lib/api-config';
+
+initAgronomistApiConfig();
 
 function Gate({ children }: { children: React.ReactNode }) {
   const { ready: authReady, authed } = useStaffAuth();
@@ -110,19 +113,29 @@ function RootStack() {
   );
 }
 
+function RootLayoutInner() {
+  const { locale } = useLocale();
+
+  return (
+    <NetworkProvider locale={locale}>
+      <AgronomistDashboardProvider>
+        <AgronomistQueueProvider>
+          <Gate>
+            <RootStack />
+          </Gate>
+        </AgronomistQueueProvider>
+      </AgronomistDashboardProvider>
+    </NetworkProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
       <SafeAreaProvider>
         <LocaleProvider>
           <StaffAuthProvider>
-            <AgronomistDashboardProvider>
-              <AgronomistQueueProvider>
-                <Gate>
-                  <RootStack />
-                </Gate>
-              </AgronomistQueueProvider>
-            </AgronomistDashboardProvider>
+            <RootLayoutInner />
           </StaffAuthProvider>
         </LocaleProvider>
       </SafeAreaProvider>

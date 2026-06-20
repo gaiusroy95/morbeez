@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { partnerClient, tokens, type PartnerDashboardStats } from '@morbeez/shared';
-import { AlertBox, Btn, Loading, Panel, StatCard } from '@morbeez/ui-native';
+import { AlertBox, Btn, Loading, Panel, StatCard, useAppError, useOnReconnect } from '@morbeez/ui-native';
 import { usePartnerAuth } from '@/context/PartnerAuth';
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { partner } = usePartnerAuth();
+  const formatError = useAppError();
   const [stats, setStats] = useState<PartnerDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -18,16 +19,20 @@ export default function DashboardScreen() {
     try {
       setStats(await partnerClient.dashboard());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard');
+      setError(formatError(e, 'Failed to load dashboard'));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [formatError]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useOnReconnect(() => {
+    void load();
+  });
 
   if (loading && !stats) return <Loading label="Loading dashboard…" />;
 

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { formatAppError } from '@morbeez/shared';
+import { useWebOnReconnect, useWebOnline } from '../components/WebNetworkBanner';
 
 export function useAsyncData<T>(
   loader: () => Promise<T>,
@@ -9,6 +11,7 @@ export function useAsyncData<T>(
   error: string;
   reload: () => Promise<void>;
 } {
+  const isOnline = useWebOnline();
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -21,16 +24,20 @@ export function useAsyncData<T>(
       setData(result);
     } catch (e) {
       setData(null);
-      setError(e instanceof Error ? e.message : 'Failed to load');
+      setError(formatAppError(e, isOnline));
     } finally {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- caller supplies deps
-  }, deps);
+  }, [isOnline, ...deps]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useWebOnReconnect(() => {
+    void reload();
+  });
 
   return { data, loading, error, reload };
 }

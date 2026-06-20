@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, NetworkProvider } from '@morbeez/ui-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { PartnerAuthProvider, usePartnerAuth } from '@/context/PartnerAuth';
@@ -37,8 +37,9 @@ export default function RootLayout() {
     <ErrorBoundary>
       <SafeAreaProvider>
         <LocaleProvider>
-          <PartnerAuthProvider>
-            <Gate>
+          <NetworkProvider>
+            <PartnerAuthProvider>
+              <Gate>
               <Stack
                 screenOptions={{
                   headerStyle: { backgroundColor: tokens.green800 },
@@ -59,6 +60,7 @@ export default function RootLayout() {
               </Stack>
             </Gate>
           </PartnerAuthProvider>
+          </NetworkProvider>
         </LocaleProvider>
       </SafeAreaProvider>
     </ErrorBoundary>

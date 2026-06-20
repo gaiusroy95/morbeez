@@ -1,6 +1,12 @@
 import { useMemo } from 'react';
-import { type RecommendationGroupDraft } from '@morbeez/shared';
-import { Btn, Input, Panel } from '../../ui';
+import {
+  defaultRecommendationMaterial,
+  DOSE_BASIS_OPTIONS,
+  DOSE_UNIT_OPTIONS,
+  MATERIAL_APPLICATION_MODE_OPTIONS,
+  type RecommendationGroupDraft,
+} from '@morbeez/shared';
+import { Btn, Input, Panel, StaticSelect } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
 const APPLICATION_DAYS = [0, 7, 14, 21] as const;
@@ -31,18 +37,7 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
         applicationType: 'foliar_spray',
         applicationDay: 0,
         sortOrder: groups.length,
-        materials: issueLocalId
-          ? [
-              {
-                localId: newLocalId('mat'),
-                issueLocalId,
-                category: 'fungicide',
-                technicalName: '',
-                dose: '',
-                method: 'foliar spray',
-              },
-            ]
-          : [],
+        materials: issueLocalId ? [defaultRecommendationMaterial(issueLocalId, newLocalId('mat'))] : [],
       },
     ]);
   }
@@ -56,17 +51,7 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
     if (!g) return;
     const issueLocalId = issues[0]?.localId ?? '';
     updateGroup(groupIndex, {
-      materials: [
-        ...g.materials,
-        {
-          localId: newLocalId('mat'),
-          issueLocalId,
-          category: 'fungicide',
-          technicalName: '',
-          dose: '',
-          method: '',
-        },
-      ],
+      materials: [...g.materials, defaultRecommendationMaterial(issueLocalId, newLocalId('mat'))],
     });
   }
 
@@ -85,7 +70,7 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
   return (
     <div className="vw-stack">
       <p className="vw-hint">
-        Plan recommendation groups with application day, materials, dose, and method.
+        Plan recommendation groups with application day and materials (name, dose, qty unit, application mode).
       </p>
       {groups.map((group, gi) => (
         <Panel key={group.localId} title={`Group ${gi + 1}`}>
@@ -139,23 +124,72 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
                   </button>
                 ))}
               </div>
+              <span className="vw-field-label">Name</span>
               <Input
-                placeholder="Product / technical name"
+                placeholder="Product / material name"
                 value={mat.technicalName}
                 onChange={(e) => updateMaterial(gi, mi, { technicalName: e.target.value })}
               />
+              <span className="vw-field-label">Dose</span>
               <Input
                 className="mt-1.5"
-                placeholder="Dose (e.g. 2 ml/L)"
-                value={mat.dose ?? ''}
-                onChange={(e) => updateMaterial(gi, mi, { dose: e.target.value })}
+                placeholder="Quantity (e.g. 2, 500)"
+                value={mat.doseQuantity ?? ''}
+                onChange={(e) => updateMaterial(gi, mi, { doseQuantity: e.target.value })}
+                inputMode="decimal"
               />
-              <Input
+              <span className="vw-field-label">Dose per</span>
+              <StaticSelect
                 className="mt-1.5"
-                placeholder="Method"
-                value={mat.method ?? ''}
-                onChange={(e) => updateMaterial(gi, mi, { method: e.target.value })}
-              />
+                value={mat.doseBasis ?? ''}
+                onChange={(e) =>
+                  updateMaterial(gi, mi, {
+                    doseBasis: e.target.value as RecommendationGroupDraft['materials'][number]['doseBasis'],
+                  })
+                }
+              >
+                <option value="">Select basis</option>
+                {DOSE_BASIS_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </StaticSelect>
+              <span className="vw-field-label">Qty unit</span>
+              <StaticSelect
+                className="mt-1.5"
+                value={mat.doseUnit ?? ''}
+                onChange={(e) =>
+                  updateMaterial(gi, mi, {
+                    doseUnit: e.target.value as RecommendationGroupDraft['materials'][number]['doseUnit'],
+                  })
+                }
+              >
+                <option value="">Select unit</option>
+                {DOSE_UNIT_OPTIONS.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit}
+                  </option>
+                ))}
+              </StaticSelect>
+              <span className="vw-field-label">Application mode</span>
+              <StaticSelect
+                className="mt-1.5"
+                value={mat.applicationMode ?? ''}
+                onChange={(e) =>
+                  updateMaterial(gi, mi, {
+                    applicationMode: e.target
+                      .value as RecommendationGroupDraft['materials'][number]['applicationMode'],
+                  })
+                }
+              >
+                <option value="">Select mode</option>
+                {MATERIAL_APPLICATION_MODE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </StaticSelect>
             </div>
           ))}
           <Btn variant="secondary" size="sm" className="mt-2" onClick={() => addMaterial(gi)}>

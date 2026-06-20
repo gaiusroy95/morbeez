@@ -69,11 +69,5 @@ export function useOffline(): OfflineState {
 }
 
 export function OfflineBanner() {
-  const { isOnline, lastUpdated } = useOffline();
-  if (isOnline) return null;
-  return (
-    <Text style={{ backgroundColor: '#fef3c7', color: '#92400e', padding: 8, textAlign: 'center', fontSize: 12 }}>
-      Offline — showing last saved data{lastUpdated ? ` · ${new Date(lastUpdated).toLocaleString('en-IN')}` : ''}
-    </Text>
-  );
+  return null;
 }

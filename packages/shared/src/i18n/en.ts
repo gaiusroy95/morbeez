@@ -45,6 +45,8 @@ export const en = {
   addFirstField: 'Add your first block',
   pullRefresh: 'Pull to refresh',
   offlineBanner: 'Offline — showing last saved data',
+  noInternetBanner: 'No internet connection. Will refresh automatically when you are back online.',
+  onlineAgainBanner: 'Back online — refreshing…',
   lastUpdated: 'Last updated',
   retry: 'Retry',
   somethingWrong: 'Something went wrong',

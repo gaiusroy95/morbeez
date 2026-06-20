@@ -210,6 +210,16 @@ export const structuredFieldVisitSchema = z.object({
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   sendVisitSummary: z.boolean().optional(),
+  whatsappMessages: z
+    .array(
+      z.object({
+        issueIndex: z.number().int().min(0).max(11),
+        message: z.string().min(1).max(4000),
+        compliancePrompt: z.string().max(500).optional(),
+      })
+    )
+    .max(12)
+    .optional(),
 });
 
 export const visitAiContextRequestSchema = z.object({
@@ -254,6 +264,19 @@ export const visitAiAnswerSchema = z.object({
 export const visitAiAnswersBodySchema = z.object({
   answers: z.array(visitAiAnswerSchema).min(1).max(20),
 });
+
+export const visitAiQuestionDraftSchema = z.object({
+  id: z.string().uuid().optional(),
+  questionText: z.string().min(1).max(500),
+  answer: z.string().max(500).optional(),
+  answerType: z.enum(['yes_no_unknown', 'text', 'number']).optional(),
+});
+
+export const visitAiSyncQuestionsBodySchema = z.object({
+  questions: z.array(visitAiQuestionDraftSchema).max(15),
+});
+
+export type VisitAiSyncQuestionsBody = z.infer<typeof visitAiSyncQuestionsBodySchema>;
 
 export const visitAiRecommendBodySchema = z.object({
   finalDiagnosis: z.string().max(200).optional(),

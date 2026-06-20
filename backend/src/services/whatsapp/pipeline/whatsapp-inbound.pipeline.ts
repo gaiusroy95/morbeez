@@ -1078,27 +1078,7 @@ export const whatsappInboundPipeline = {
       }
     }
 
-    if (diagnosisFollowUpService.enabled()) {
-      const memoryImg = await farmerMemoryService.build(batch.farmerId, {
-        symptomsText: caption || undefined,
-      });
-      const sessCtx = await conversationSessionService.getContext(batch.farmerId);
-      const symptomsForIntake =
-        caption ||
-        sessCtx.pendingSymptomsText?.trim() ||
-        (memoryImg.cropType === 'ginger'
-          ? 'ginger leaf yellowing problem'
-          : `${memoryImg.cropType} crop leaf problem`);
-      const intakeStarted = await diagnosisFollowUpService.startIntake({
-        farmerId: batch.farmerId,
-        phone: batch.phone,
-        language: batch.language,
-        symptomsText: symptomsForIntake,
-        cropType: memoryImg.cropType,
-        hasPhoto: true,
-      });
-      if (intakeStarted.started) return;
-    }
+    // Vision-first for photos: Crop Doctor runs below; follow-up Q&A only after analysis (post_diagnosis_intake).
 
     if (batch.images.length > 1) {
       await batch.sendText(

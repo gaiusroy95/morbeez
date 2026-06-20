@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { agronomistClient, type AgronomistDashboard } from '@morbeez/shared';
+import { agronomistClient, formatAppError, type AgronomistDashboard } from '@morbeez/shared';
+import { useOnReconnect, useNetwork } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type State = {
@@ -23,6 +24,7 @@ const Ctx = createContext<State | null>(null);
 
 export function AgronomistDashboardProvider({ children }: { children: ReactNode }) {
   const { authed } = useStaffAuth();
+  const { isOnline } = useNetwork();
   const [dashboard, setDashboard] = useState<AgronomistDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,12 +41,16 @@ export function AgronomistDashboardProvider({ children }: { children: ReactNode 
       const d = await agronomistClient.getDashboard({ force: opts?.force });
       setDashboard(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard');
+      setError(formatAppError(e, isOnline));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [isOnline]);
+
+  useOnReconnect(() => {
+    if (authed) void refresh({ force: true });
+  });
 
   useEffect(() => {
     if (!authed) return;

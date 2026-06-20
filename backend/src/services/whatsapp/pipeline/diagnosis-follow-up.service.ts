@@ -371,6 +371,7 @@ export const diagnosisFollowUpService = {
     symptomsText: string;
     cropType: string;
     hasPhoto: boolean;
+    imageObservations?: string[];
   }): Promise<InvestigationContext> {
     const { data: farmer } = await supabase
       .from('farmers')
@@ -409,6 +410,7 @@ export const diagnosisFollowUpService = {
       cropType: params.cropType,
       symptomsText: params.symptomsText,
       hasPhoto: params.hasPhoto,
+      imageObservations: params.imageObservations,
       dap: memory.dap,
       similarCases: similar,
       totalVerifiedCases: totalVerified,
@@ -588,8 +590,18 @@ export const diagnosisFollowUpService = {
     symptomsText: string;
     cropType: string;
     hasPhoto: boolean;
+    imageObservations?: string[];
   }): Promise<{ started: boolean; mode?: 'learned' | 'evidence' }> {
     if (!this.enabled()) return { started: false };
+
+    // Vision-first: photo messages must be analyzed before follow-up Q&A.
+    if (params.hasPhoto && !(params.imageObservations?.length ?? 0)) {
+      logger.info(
+        { farmerId: params.farmerId },
+        'Pre-diagnosis intake skipped: photo requires Crop Doctor vision first'
+      );
+      return { started: false };
+    }
 
     const ctx = await this.buildInvestigationContext(params);
     const band = diagnosisFollowUpReasoningEngine.resolveMatchConfidenceBand(ctx.matchConfidence);
@@ -612,14 +624,17 @@ export const diagnosisFollowUpService = {
       .maybeSingle();
     const district = farmerRow?.district ? String(farmerRow.district).trim().toLowerCase() : null;
 
-    const savedLibrary = await expertFollowUpLearningService.findForFarmer({
-      cropType: params.cropType,
-      district,
-      symptomsText: params.symptomsText,
-      issueLabelHint: ctx.bestIssueLabel,
-      language: params.language,
-      max: MAX_QUESTIONS(),
-    });
+    const savedLibrary =
+      params.hasPhoto && (params.imageObservations?.length ?? 0) > 0
+        ? []
+        : await expertFollowUpLearningService.findForFarmer({
+            cropType: params.cropType,
+            district,
+            symptomsText: params.symptomsText,
+            issueLabelHint: ctx.bestIssueLabel,
+            language: params.language,
+            max: MAX_QUESTIONS(),
+          });
 
     const hasSavedQuestions = savedLibrary.length > 0;
     const evidenceMode =
@@ -982,6 +997,7 @@ export const diagnosisFollowUpService = {
         `${memory.cropType} crop field issue — post photo analysis`,
       cropType: memory.cropType,
       hasPhoto: true,
+      imageObservations: params.advisory.imageObservations,
     });
 
     const draftIntake: PostDiagnosisIntakeContext = {
@@ -1025,8 +1041,19 @@ export const diagnosisFollowUpService = {
       confidence: params.advisory.confidence,
       differentialCount: params.advisory.differentialDiagnosis?.length ?? 0,
     });
+    const visionNote =
+      (params.advisory.imageObservations?.length ?? 0) > 0
+        ? params.language === 'ml'
+          ? `\n\nഫോട്ടോയിൽ കണ്ടത്: ${params.advisory.imageObservations!.slice(0, 2).join('; ')}`
+          : `\n\nFrom your photo: ${params.advisory.imageObservations!.slice(0, 2).join('; ')}`
+        : '';
 
-    await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, intro);
+    await this.sendPostDiagnosisQuestion(
+      params.phone,
+      params.language,
+      intake,
+      `${intro}${visionNote}`
+    );
     logger.info(
       {
         farmerId: params.farmerId,
@@ -1154,6 +1181,7 @@ export const diagnosisFollowUpService = {
       symptomsText: `${intake.cropType} crop — post-diagnosis clarification`,
       cropType: intake.cropType,
       hasPhoto: true,
+      imageObservations: intake.advisorySnapshot.imageObservations,
     });
 
     const next = await this.planNextPostDiagnosisQuestion(investigation, intake);

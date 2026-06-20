@@ -1,5 +1,7 @@
 import type { ReactNode, ButtonHTMLAttributes, SelectHTMLAttributes, InputHTMLAttributes } from 'react';
+import { formatAppError, isNetworkFailureMessage } from '@morbeez/shared';
 import { cn } from '../../lib/cn';
+import { useWebOnline } from '../WebNetworkBanner';
 
 const fieldBase =
   'w-full rounded-lg border border-slate-200 bg-white text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60';
@@ -25,6 +27,16 @@ export function Alert({
   children: ReactNode;
   className?: string;
 }) {
+  const isOnline = useWebOnline();
+  const text = typeof children === 'string' || typeof children === 'number' ? String(children).trim() : '';
+  if (tone === 'error' && text) {
+    if (!isOnline && isNetworkFailureMessage(text)) return null;
+    const friendly = formatAppError(new Error(text), isOnline);
+    if (!friendly) return null;
+    children = friendly;
+  } else if (!children || (typeof children === 'string' && !children.trim())) {
+    return null;
+  }
   const tones = {
     error: 'border-red-200 bg-red-50 text-red-800',
     success: 'border-emerald-200 bg-emerald-50 text-emerald-900',

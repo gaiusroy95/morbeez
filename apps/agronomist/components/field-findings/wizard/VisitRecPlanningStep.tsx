@@ -1,7 +1,14 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { tokens, type RecommendationGroupDraft } from '@morbeez/shared';
-import { Btn, Panel } from '@morbeez/ui-native';
+import {
+  defaultRecommendationMaterial,
+  DOSE_BASIS_OPTIONS,
+  DOSE_UNIT_OPTIONS,
+  MATERIAL_APPLICATION_MODE_OPTIONS,
+  tokens,
+  type RecommendationGroupDraft,
+} from '@morbeez/shared';
+import { Btn, DynamicSelect, Panel } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
 const APPLICATION_DAYS = [0, 7, 14, 21] as const;
@@ -17,11 +24,22 @@ function newLocalId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function toSelectOptions<T extends string>(items: Array<{ value: T; label: string }>) {
+  return items.map((item) => ({ key: item.value, value: item.value, label: item.label }));
+}
+
 export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
   const issueOptions = useMemo(
     () => issues.map((i) => ({ id: i.localId, label: i.issueName })),
     [issues]
   );
+
+  const doseBasisOptions = useMemo(() => toSelectOptions(DOSE_BASIS_OPTIONS), []);
+  const doseUnitOptions = useMemo(
+    () => DOSE_UNIT_OPTIONS.map((unit) => ({ key: unit, value: unit, label: unit })),
+    []
+  );
+  const applicationModeOptions = useMemo(() => toSelectOptions(MATERIAL_APPLICATION_MODE_OPTIONS), []);
 
   function addGroup() {
     const issueLocalId = issues[0]?.localId ?? '';
@@ -32,18 +50,7 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
         applicationType: 'foliar_spray',
         applicationDay: 0,
         sortOrder: groups.length,
-        materials: issueLocalId
-          ? [
-              {
-                localId: newLocalId('mat'),
-                issueLocalId,
-                category: 'fungicide',
-                technicalName: '',
-                dose: '',
-                method: 'foliar spray',
-              },
-            ]
-          : [],
+        materials: issueLocalId ? [defaultRecommendationMaterial(issueLocalId, newLocalId('mat'))] : [],
       },
     ]);
   }
@@ -57,21 +64,15 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
     if (!g) return;
     const issueLocalId = issues[0]?.localId ?? '';
     updateGroup(groupIndex, {
-      materials: [
-        ...g.materials,
-        {
-          localId: newLocalId('mat'),
-          issueLocalId,
-          category: 'fungicide',
-          technicalName: '',
-          dose: '',
-          method: '',
-        },
-      ],
+      materials: [...g.materials, defaultRecommendationMaterial(issueLocalId, newLocalId('mat'))],
     });
   }
 
-  function updateMaterial(groupIndex: number, matIndex: number, patch: Partial<RecommendationGroupDraft['materials'][number]>) {
+  function updateMaterial(
+    groupIndex: number,
+    matIndex: number,
+    patch: Partial<RecommendationGroupDraft['materials'][number]>
+  ) {
     const g = groups[groupIndex];
     if (!g) return;
     updateGroup(groupIndex, {
@@ -81,7 +82,9 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
 
   return (
     <View style={styles.root}>
-      <Text style={styles.intro}>Plan recommendation groups with application day, materials, dose, and method.</Text>
+      <Text style={styles.intro}>
+        Plan recommendation groups with application day and materials (name, dose, qty unit, application mode).
+      </Text>
       {groups.map((group, gi) => (
         <Panel key={group.localId} title={`Group ${gi + 1}`}>
           <Text style={styles.fieldLabel}>Application type</Text>
@@ -129,23 +132,43 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
                   </Pressable>
                 ))}
               </View>
+              <Text style={styles.fieldLabel}>Name</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Product / technical name"
+                placeholder="Product / material name"
                 value={mat.technicalName}
                 onChangeText={(v) => updateMaterial(gi, mi, { technicalName: v })}
               />
+              <Text style={styles.fieldLabel}>Dose</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Dose (e.g. 2 ml/L)"
-                value={mat.dose ?? ''}
-                onChangeText={(v) => updateMaterial(gi, mi, { dose: v })}
+                placeholder="Quantity (e.g. 2, 500)"
+                value={mat.doseQuantity ?? ''}
+                onChangeText={(v) => updateMaterial(gi, mi, { doseQuantity: v })}
+                keyboardType="decimal-pad"
               />
-              <TextInput
-                style={styles.input}
-                placeholder="Method"
-                value={mat.method ?? ''}
-                onChangeText={(v) => updateMaterial(gi, mi, { method: v })}
+              <DynamicSelect
+                label="Dose per"
+                placeholder="Select basis"
+                value={mat.doseBasis ?? ''}
+                options={doseBasisOptions}
+                onChange={(value) => updateMaterial(gi, mi, { doseBasis: value as typeof mat.doseBasis })}
+              />
+              <DynamicSelect
+                label="Qty unit"
+                placeholder="Select unit"
+                value={mat.doseUnit ?? ''}
+                options={doseUnitOptions}
+                onChange={(value) => updateMaterial(gi, mi, { doseUnit: value as typeof mat.doseUnit })}
+              />
+              <DynamicSelect
+                label="Application mode"
+                placeholder="Select mode"
+                value={mat.applicationMode ?? ''}
+                options={applicationModeOptions}
+                onChange={(value) =>
+                  updateMaterial(gi, mi, { applicationMode: value as typeof mat.applicationMode })
+                }
               />
             </View>
           ))}
@@ -179,7 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radiusSm,
     borderWidth: 1,
     borderColor: tokens.border,
-    gap: 6,
+    gap: 4,
   },
   materialTitle: { fontSize: 13, fontWeight: '700', color: tokens.text },
   input: {

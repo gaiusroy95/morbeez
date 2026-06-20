@@ -23,6 +23,7 @@ import {
   visitMonitoringPreviewSchema,
   visitWhatsappPreviewSchema,
   visitAiAnswersBodySchema,
+  visitAiSyncQuestionsBodySchema,
   visitAiRecommendBodySchema,
   visitAiRejectBodySchema,
   recommendationOutcomeSchema,
@@ -327,6 +328,21 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const body = visitAiAnswersBodySchema.parse(request.body);
     const result = await visitAiOrchestratorService.saveAnswers(aiCaseId, body);
     return reply.send({ ok: true, ...result });
+  });
+
+  app.put(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const body = visitAiSyncQuestionsBodySchema.parse(request.body);
+    const result = await visitAiOrchestratorService.syncQuestions(aiCaseId, body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/questions/regenerate`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const questions = await visitAiOrchestratorService.regenerateQuestions(aiCaseId);
+    return reply.send({ ok: true, questions });
   });
 
   app.post(`${api}/visits/ai-case/:aiCaseId/reanalyze`, async (request, reply) => {

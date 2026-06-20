@@ -2,7 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { t, tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle, MorbeezLogo } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MorbeezLogo, NetworkProvider } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { OfflineProvider } from '@/context/OfflineContext';
@@ -98,22 +98,31 @@ function AppStack() {
   );
 }
 
+function AppProviders({ children }: { children: React.ReactNode }) {
+  const { locale } = useLocale();
+  return (
+    <NetworkProvider locale={locale}>
+      <FarmerAuthProvider>
+        <RoiFilterProvider>
+          <HomeDashboardProvider>
+            <ShopCartProvider>{children}</ShopCartProvider>
+          </HomeDashboardProvider>
+        </RoiFilterProvider>
+      </FarmerAuthProvider>
+    </NetworkProvider>
+  );
+}
+
 export default function RootLayout() {
   return (
     <ErrorBoundary>
       <LocaleProvider>
         <OfflineProvider>
-          <FarmerAuthProvider>
-            <RoiFilterProvider>
-              <HomeDashboardProvider>
-                <ShopCartProvider>
-                  <AuthGate>
-                    <AppStack />
-                  </AuthGate>
-                </ShopCartProvider>
-              </HomeDashboardProvider>
-            </RoiFilterProvider>
-          </FarmerAuthProvider>
+          <AppProviders>
+            <AuthGate>
+              <AppStack />
+            </AuthGate>
+          </AppProviders>
         </OfflineProvider>
       </LocaleProvider>
     </ErrorBoundary>

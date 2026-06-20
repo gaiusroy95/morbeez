@@ -1,10 +1,30 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, derivePhotoRequestsFromFollowUp, shouldRunFollowUp, tokens, type VisitAiClient } from '@morbeez/shared';
-import { AlertBox, Panel } from '@morbeez/ui-native';
+import {
+  agronomistClient,
+  derivePhotoRequestsFromFollowUp,
+  shouldRunFollowUp,
+  tokens,
+  type VisitAiClient,
+  type VisitAiQuestion,
+} from '@morbeez/shared';
+import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
 const ANSWER_CHIPS = ['yes', 'no', 'unknown'] as const;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function isPersistedQuestionId(id: string): boolean {
+  return UUID_RE.test(id);
+}
+
+function newLocalQuestion(): VisitAiQuestion {
+  return {
+    id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    questionText: '',
+    answerType: 'yes_no_unknown',
+  };
+}
 
 type Props = {
   issues: IssueDraft[];
@@ -16,6 +36,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
   const client = visitAiClient ?? agronomistClient;
   const [loading, setLoading] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
+  const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState('');
 
@@ -43,17 +64,63 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
     }
   }
 
-  function setAnswer(issueIndex: number, questionId: string, answer: string) {
+  function patchIssue(issueIndex: number, patch: Partial<IssueDraft>) {
     const next = [...issues];
     const issue = next[issueIndex];
     if (!issue) return;
-    next[issueIndex] = {
-      ...issue,
+    next[issueIndex] = { ...issue, ...patch };
+    onChange(next);
+  }
+
+  function setQuestionText(issueIndex: number, questionId: string, questionText: string) {
+    const issue = issues[issueIndex];
+    if (!issue) return;
+    patchIssue(issueIndex, {
+      followUpQuestions: (issue.followUpQuestions ?? []).map((q) =>
+        q.id === questionId ? { ...q, questionText } : q
+      ),
+    });
+  }
+
+  function setAnswer(issueIndex: number, questionId: string, answer: string) {
+    const issue = issues[issueIndex];
+    if (!issue) return;
+    patchIssue(issueIndex, {
       followUpQuestions: (issue.followUpQuestions ?? []).map((q) =>
         q.id === questionId ? { ...q, answer } : q
       ),
-    };
-    onChange(next);
+    });
+  }
+
+  function addQuestion(issueIndex: number) {
+    const issue = issues[issueIndex];
+    if (!issue) return;
+    patchIssue(issueIndex, {
+      followUpQuestions: [...(issue.followUpQuestions ?? []), newLocalQuestion()],
+    });
+  }
+
+  function removeQuestion(issueIndex: number, questionId: string) {
+    const issue = issues[issueIndex];
+    if (!issue) return;
+    patchIssue(issueIndex, {
+      followUpQuestions: (issue.followUpQuestions ?? []).filter((q) => q.id !== questionId),
+    });
+  }
+
+  async function regenerateQuestions(issueIndex: number) {
+    const issue = issues[issueIndex];
+    if (!issue?.aiCaseId) return;
+    setRegeneratingIndex(issueIndex);
+    setError('');
+    try {
+      const questions = await client.regenerateVisitAiQuestions(issue.aiCaseId);
+      patchIssue(issueIndex, { followUpQuestions: questions });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not regenerate questions');
+    } finally {
+      setRegeneratingIndex(null);
+    }
   }
 
   async function skipQa(issueIndex: number) {
@@ -63,13 +130,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
     setError('');
     try {
       await client.skipVisitAiFollowUp(issue.aiCaseId);
-      const next = [...issues];
-      next[issueIndex] = {
-        ...issue,
-        qaSkipped: true,
-        followUpQuestions: [],
-      };
-      onChange(next);
+      patchIssue(issueIndex, { qaSkipped: true, followUpQuestions: [] });
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not skip Q&A');
     } finally {
@@ -85,11 +146,28 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
         if (!issue.aiCaseId || issue.qaSkipped || !issue.followUpQuestions?.length) continue;
-        const answers = issue.followUpQuestions
-          .filter((q) => q.answer?.trim())
-          .map((q) => ({ questionId: q.id, answer: q.answer!.trim() }));
-        if (!answers.length) continue;
-        await client.saveVisitAiAnswers(issue.aiCaseId, answers);
+
+        const payload = issue.followUpQuestions
+          .map((q) => ({
+            id: isPersistedQuestionId(q.id) ? q.id : undefined,
+            questionText: q.questionText.trim(),
+            answer: q.answer?.trim(),
+            answerType: q.answerType,
+          }))
+          .filter((q) => q.questionText.length > 0);
+
+        if (!payload.length) {
+          setError('Add at least one question before saving.');
+          return;
+        }
+
+        const synced = await client.syncVisitAiQuestions(issue.aiCaseId, payload);
+        const answered = synced.filter((q) => q.answer?.trim());
+        if (!answered.length) {
+          setError('Answer at least one question before updating the diagnosis.');
+          return;
+        }
+
         const result = await client.reanalyzeVisitAiCase(issue.aiCaseId);
         let finalRecommendation = issue.finalRecommendation;
         let initialRecommendation = issue.initialRecommendation;
@@ -107,12 +185,13 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
         }
         next[i] = {
           ...issue,
+          followUpQuestions: synced,
           finalDiagnosis: result.finalDiagnosis,
           selectedHypothesisLabel: result.finalDiagnosis,
           confidenceAction: result.confidenceAction,
           finalRecommendation,
           initialRecommendation,
-          photoRequests: derivePhotoRequestsFromFollowUp(issue.followUpQuestions ?? []),
+          photoRequests: derivePhotoRequestsFromFollowUp(synced),
           hypotheses: (result.hypotheses ?? []).map((h) => ({
             label: h.label,
             confidence: h.confidence ?? 0.5,
@@ -143,11 +222,19 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
       {error ? <AlertBox>{error}</AlertBox> : null}
       {issues.map((issue, issueIndex) => {
         const canSkip = issue.skipFollowUpOptional && !issue.qaSkipped;
+        const regenerating = regeneratingIndex === issueIndex;
         return (
           <Panel key={issue.localId} title={issue.finalDiagnosis ?? issue.issueName}>
             {issue.confidenceAction === 'escalate' ? (
               <Text style={styles.escalationHint}>
-                Low AI confidence — consider escalating if answers do not clarify the diagnosis.
+                Low AI confidence — edit questions to match what you see in the field, then save answers to
+                refine the diagnosis.
+              </Text>
+            ) : null}
+            {!issue.qaSkipped ? (
+              <Text style={styles.editHint}>
+                Questions are AI-generated from photos and context. Edit wording, add your own, or regenerate
+                if they do not match this case.
               </Text>
             ) : null}
             {canSkip ? (
@@ -162,29 +249,76 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
             {issue.qaSkipped ? (
               <Text style={styles.skippedNote}>Follow-up Q&A skipped — high confidence case.</Text>
             ) : null}
-            {(issue.followUpQuestions ?? []).map((q) => (
+            {(issue.followUpQuestions ?? []).map((q, qIndex) => (
               <View key={q.id} style={styles.questionBlock}>
-                <Text style={styles.question}>{q.questionText}</Text>
-                <View style={styles.chipRow}>
-                  {ANSWER_CHIPS.map((chip) => {
-                    const active = q.answer === chip;
-                    return (
-                      <Pressable
-                        key={chip}
-                        style={[styles.chip, active && styles.chipActive]}
-                        onPress={() => setAnswer(issueIndex, q.id, chip)}
-                      >
-                        <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                          {chip.charAt(0).toUpperCase() + chip.slice(1)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <Text style={styles.questionLabel}>Question {qIndex + 1}</Text>
+                <TextField
+                  label="Question text"
+                  value={q.questionText}
+                  onChangeText={(text) => setQuestionText(issueIndex, q.id, text)}
+                  placeholder="Enter a field-specific follow-up question"
+                  multiline
+                />
+                {q.answerType === 'text' || q.answerType === 'number' ? (
+                  <TextField
+                    label={q.answerType === 'number' ? 'Answer (number)' : 'Answer'}
+                    value={q.answer ?? ''}
+                    onChangeText={(text) => setAnswer(issueIndex, q.id, text)}
+                    placeholder={q.answerType === 'number' ? 'e.g. 7' : 'Your answer'}
+                    keyboardType={q.answerType === 'number' ? 'numeric' : 'default'}
+                  />
+                ) : (
+                  <>
+                    <Text style={styles.answerLabel}>Answer</Text>
+                    <View style={styles.chipRow}>
+                      {ANSWER_CHIPS.map((chip) => {
+                        const active = q.answer === chip;
+                        return (
+                          <Pressable
+                            key={chip}
+                            style={[styles.chip, active && styles.chipActive]}
+                            onPress={() => setAnswer(issueIndex, q.id, chip)}
+                          >
+                            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                              {chip.charAt(0).toUpperCase() + chip.slice(1)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                    <TextField
+                      label="Or type answer"
+                      value={q.answer && !ANSWER_CHIPS.includes(q.answer as (typeof ANSWER_CHIPS)[number]) ? q.answer : ''}
+                      onChangeText={(text) => setAnswer(issueIndex, q.id, text)}
+                      placeholder="Custom answer (optional)"
+                    />
+                  </>
+                )}
+                <Pressable style={styles.removeBtn} onPress={() => removeQuestion(issueIndex, q.id)}>
+                  <Text style={styles.removeBtnText}>Remove question</Text>
+                </Pressable>
               </View>
             ))}
+            {!issue.qaSkipped ? (
+              <View style={styles.qaActions}>
+                <Pressable style={styles.secondaryBtn} onPress={() => addQuestion(issueIndex)}>
+                  <Text style={styles.secondaryBtnText}>+ Add question</Text>
+                </Pressable>
+                {issue.aiCaseId ? (
+                  <Pressable
+                    style={styles.secondaryBtn}
+                    onPress={() => void regenerateQuestions(issueIndex)}
+                    disabled={regenerating}
+                  >
+                    <Text style={styles.secondaryBtnText}>
+                      {regenerating ? 'Regenerating…' : 'Regenerate from photos'}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
             {!issue.qaSkipped && !issue.followUpQuestions?.length ? (
-              <Text style={styles.muted}>No follow-up questions for this issue.</Text>
+              <Text style={styles.muted}>No follow-up questions yet. Add one or regenerate from photos.</Text>
             ) : null}
           </Panel>
         );
@@ -208,6 +342,12 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radiusSm,
     marginBottom: 10,
   },
+  editHint: {
+    fontSize: 13,
+    color: tokens.textMuted,
+    marginBottom: 10,
+    lineHeight: 18,
+  },
   skipChip: {
     alignSelf: 'flex-start',
     paddingHorizontal: 14,
@@ -220,8 +360,9 @@ const styles = StyleSheet.create({
   },
   skipChipText: { fontSize: 13, fontWeight: '700', color: tokens.green800 },
   skippedNote: { fontSize: 13, color: tokens.textMuted, fontStyle: 'italic', marginBottom: 8 },
-  questionBlock: { marginBottom: 14 },
-  question: { fontSize: 14, fontWeight: '600', color: tokens.text, marginBottom: 8 },
+  questionBlock: { marginBottom: 16, gap: 8 },
+  questionLabel: { fontSize: 12, fontWeight: '700', color: tokens.textMuted, textTransform: 'uppercase' },
+  answerLabel: { fontSize: 13, fontWeight: '600', color: tokens.text },
   chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {
     paddingHorizontal: 14,
@@ -234,6 +375,18 @@ const styles = StyleSheet.create({
   chipActive: { borderColor: tokens.green700, backgroundColor: tokens.green100 },
   chipText: { fontSize: 13, color: tokens.textMuted, fontWeight: '600' },
   chipTextActive: { color: tokens.green800 },
+  removeBtn: { alignSelf: 'flex-start', paddingVertical: 4 },
+  removeBtnText: { fontSize: 12, color: '#b91c1c', fontWeight: '600' },
+  qaActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  secondaryBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.green700,
+    backgroundColor: tokens.bg,
+  },
+  secondaryBtnText: { fontSize: 13, fontWeight: '600', color: tokens.green800 },
   muted: { fontSize: 13, color: tokens.textMuted },
   reanalyzeBtn: {
     backgroundColor: tokens.green700,

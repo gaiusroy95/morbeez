@@ -8,6 +8,8 @@ import {
   mergeVisitPhotosIntoIssues,
   suggestNextCapturePhotoType,
   validateVisitWizardStep,
+  mapRecommendationGroupsForSubmit,
+  buildPriorRecommendationFollowUps,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueMasterRow,
@@ -18,6 +20,7 @@ import {
   type SoilMoistureLevel,
   type VisitFarmContext,
   type VisitWizardStep,
+  type WhatsappPreviewMessage,
 } from '@morbeez/shared';
 import { Alert, Btn, Loading } from '../../components/ui';
 import { VisitWizardStepper } from '../../components/agronomist/visit-wizard/VisitWizardStepper';
@@ -74,6 +77,7 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [recApproved, setRecApproved] = useState(false);
   const [monitoringPlan, setMonitoringPlan] = useState<MonitoringPlanPreviewItem[]>([]);
   const [whatsappConfirmed, setWhatsappConfirmed] = useState(false);
+  const [whatsappMessages, setWhatsappMessages] = useState<WhatsappPreviewMessage[]>([]);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<VisitIssueDraft[]>([]);
@@ -138,18 +142,7 @@ export function VisitWizardPage({ canWrite }: Props) {
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
         setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
 
-        const openRecs = recs.filter(
-          (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
-        );
-        setFollowUps(
-          openRecs.slice(0, 5).map((r) => ({
-            recommendationId: r.id,
-            label: r.issueDetected?.trim() || r.recommendationText.slice(0, 60),
-            followed: 'not_applicable' as const,
-            outcome: 'not_reviewed' as const,
-            notes: '',
-          }))
-        );
+        setFollowUps(buildPriorRecommendationFollowUps(recs, blockId));
 
         const draft = loadVisitDraft(blockId);
         if (draft && draft.farmerId === farmerId) {
@@ -204,6 +197,7 @@ export function VisitWizardPage({ canWrite }: Props) {
       recommendationGroups,
       monitoringPlan,
       whatsappConfirmed,
+      whatsappMessages,
       recApproved,
       blockHealth,
       cropPerformance,
@@ -331,20 +325,15 @@ export function VisitWizardPage({ canWrite }: Props) {
           agronomistReview: issue.agronomistReview!,
         })),
         recommendationGroups: recommendationGroups.length
-          ? recommendationGroups.map((g) => ({
-              applicationType: g.applicationType,
-              applicationDay: g.applicationDay,
-              sortOrder: g.sortOrder,
-              materials: g.materials.map((m) => ({
-                issueIndex: issues.findIndex((i) => i.localId === m.issueLocalId),
-                category: m.category,
-                technicalName: m.technicalName,
-                dose: m.dose,
-                method: m.method,
-                relatedIssueIndex: m.relatedIssueLocalId
-                  ? issues.findIndex((i) => i.localId === m.relatedIssueLocalId)
-                  : undefined,
-              })),
+          ? mapRecommendationGroupsForSubmit(recommendationGroups, (localId) =>
+              issues.findIndex((i) => i.localId === localId)
+            )
+          : undefined,
+        whatsappMessages: whatsappMessages.length
+          ? whatsappMessages.map((m) => ({
+              issueIndex: m.issueIndex,
+              message: m.message.trim(),
+              compliancePrompt: m.compliancePrompt?.trim() || undefined,
             }))
           : undefined,
         followUps: followUps
@@ -520,6 +509,8 @@ export function VisitWizardPage({ canWrite }: Props) {
           }
           confirmed={whatsappConfirmed}
           onConfirmedChange={setWhatsappConfirmed}
+          messages={whatsappMessages}
+          onMessagesChange={setWhatsappMessages}
         />
       ) : null}
 

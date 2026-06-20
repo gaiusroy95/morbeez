@@ -70,9 +70,11 @@ Your job: decide the SINGLE best next follow-up question OR mark intake complete
 RULES:
 - ONLY structured response types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
 - NEVER use open text / free typing questions.
-- Learn from verified investigation patterns; after expert-saved questions are used, add NEW questions only if needed.
+- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume thrips, fungal spots, blast lesions, etc. unless the farmer stated them OR imageObservations list them.
+- When imageObservations are provided, they are AUTHORITATIVE for what the photo shows. NEVER ask the farmer to confirm a sign that observations say is absent (e.g. "no spots", "no lesions", "yellowing only" → do not ask about leaf spots).
+- Prefer questions about field context NOT visible in photos: irrigation timing, soil moisture, symptom spread, recent spray/fertilizer, pests on leaf undersides.
 - Do NOT repeat what the farmer already stated in initial symptoms or prior answers.
-- multiple_choice: provide 2–8 clear tap options (e.g. spray timing, severity bands, symptom patterns).
+- multiple_choice: provide 2–8 clear tap options.
 - yes_no: omit choices array (system adds Yes/No).
 - photo: omit choices array (farmer sends image or skip).
 - Write question text in English and Malayalam.
@@ -103,7 +105,9 @@ Your job: plan the SINGLE best next structured follow-up question to discriminat
 
 RULES:
 - Base every question ONLY on the provided preliminary diagnosis, differentialDiagnosis, imageObservations, and stressAnalysis. Do NOT use a fixed question bank.
-- Each question must target a specific gap between the top hypothesis and a named alternative (or confirm a key field sign not visible in photos).
+- imageObservations are AUTHORITATIVE for what the photo shows. NEVER ask about signs observations ruled out (no spots, no lesions, no fungal marks → do NOT ask about leaf spots or fungal rings).
+- Each question must target a field fact NOT visible in photos OR discriminate between hypotheses using non-visual evidence (irrigation, soil, progression, spray history).
+- learnedPatterns are style hints from past cases — NOT ground truth for this farmer's photo.
 - NEVER repeat what photos already established or what the farmer already answered.
 - ONLY structured types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
 - NEVER use open text questions.
@@ -171,13 +175,24 @@ function buildUserPrompt(input: PlanNextQuestionInput): string {
     return `${i + 1}. Issue: ${p.issueLabel}\n   Initial: ${p.initialSymptoms.slice(0, 180)}\n${qa}`;
   });
 
+  const obsLines = (ctx.imageObservations ?? []).slice(0, 8).map((o) => `- ${o}`);
+
   return [
     `Crop: ${ctx.cropType}`,
     `Language: ${ctx.language}`,
     `Has photo: ${ctx.hasPhoto}`,
     ctx.dap != null ? `Crop stage: ${ctx.dap} DAP` : null,
-    `Match confidence: ${(ctx.matchConfidence * 100).toFixed(0)}%`,
-    ctx.bestIssueLabel ? `Closest learned issue: ${ctx.bestIssueLabel}` : null,
+    ctx.hasPhoto && obsLines.length
+      ? `\nImage observations (AUTHORITATIVE — do not ask about ruled-out signs):\n${obsLines.join('\n')}`
+      : ctx.hasPhoto
+        ? '\nPhoto attached but no vision observations yet — ask only non-visual field context questions.'
+        : null,
+    !ctx.hasPhoto && ctx.matchConfidence
+      ? `Text match confidence: ${(ctx.matchConfidence * 100).toFixed(0)}%`
+      : null,
+    !ctx.hasPhoto && ctx.bestIssueLabel
+      ? `Text similarity hint (NOT photo-confirmed): ${ctx.bestIssueLabel}`
+      : null,
     ctx.heavyRainLikely ? 'Weather: heavy rain likely' : null,
     ctx.highHumidityLikely ? 'Weather: high humidity' : null,
     `Initial farmer message:\n${ctx.symptomsText.trim().slice(0, 600)}`,
@@ -187,8 +202,8 @@ function buildUserPrompt(input: PlanNextQuestionInput): string {
       : `No follow-ups asked yet (${questionsAsked}/${maxQuestions} max).`,
     '',
     patternLines.length
-      ? `Verified patterns from similar cases:\n${patternLines.join('\n\n')}`
-      : 'No prior patterns — ask the most diagnostic structured question.',
+      ? `Past case Q&A (style reference only — do NOT copy diagnosis labels):\n${patternLines.join('\n\n')}`
+      : 'No prior patterns — ask the most diagnostic non-visual field question.',
     input.evidenceGaps?.length
       ? `MAIOS evidence gaps (prioritize closing these): ${input.evidenceGaps.join(', ')}`
       : null,
@@ -235,7 +250,7 @@ function buildPostDiagnosisUserPrompt(input: PlanPostDiagnosisQuestionInput): st
     diffLines.length
       ? `Differential diagnosis (ranked alternatives to discriminate):\n${diffLines.join('\n')}`
       : 'No differential list — ask the most diagnostic field confirmation question.',
-    obsLines.length ? `\nImage observations already extracted:\n${obsLines.join('\n')}` : null,
+    obsLines.length ? `\nImage observations (AUTHORITATIVE — never ask about ruled-out signs):\n${obsLines.join('\n')}` : null,
     stressLines.length ? `\nStress analysis:\n${stressLines.join('\n')}` : null,
     rejected.length ? `\nRejected hypotheses: ${rejected.join('; ')}` : null,
     ctx.heavyRainLikely ? 'Weather: heavy rain likely' : null,
@@ -251,7 +266,7 @@ function buildPostDiagnosisUserPrompt(input: PlanPostDiagnosisQuestionInput): st
     '',
     questionsAsked >= maxQuestions
       ? 'Question budget exhausted — set intakeComplete true.'
-      : 'Plan the next single structured question to raise confidence or rule out the top alternative.',
+      : 'Plan the next single structured question using imageObservations + differentials — field facts not visible in the photo.',
   ]
     .filter(Boolean)
     .join('\n');

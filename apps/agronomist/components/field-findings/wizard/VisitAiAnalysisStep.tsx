@@ -4,6 +4,8 @@ import {
   agronomistClient,
   applyHypothesisSelection,
   applyManualDiagnosis,
+  formatFetchError,
+  getApiOrigin,
   isManualDiagnosis,
   isProvisionalIssueName,
   manualDiagnosisDisplayValue,
@@ -75,6 +77,23 @@ export function VisitAiAnalysisStep({
     setLoading(true);
     setError('');
     try {
+      const origin = getApiOrigin();
+      if (!origin) {
+        throw new Error(
+          'API URL is not configured. Set EXPO_PUBLIC_API_BASE_URL in apps/agronomist/.env or rebuild the app.'
+        );
+      }
+
+      // Wake Render / verify DNS before sending large photo payload
+      try {
+        const health = await fetch(`${origin}/health`, { method: 'GET' });
+        if (!health.ok) {
+          throw new Error(`API health check failed (${health.status})`);
+        }
+      } catch (pingErr) {
+        throw formatFetchError(pingErr, origin);
+      }
+
       const measurementRows = templates
         .map((tpl) => ({
           key: tpl.measurementKey,
@@ -127,7 +146,9 @@ export function VisitAiAnalysisStep({
         })) as IssueDraft[]
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'AI analysis failed');
+      setError(
+        e instanceof Error ? e.message : formatFetchError(e, getApiOrigin()).message
+      );
     } finally {
       setLoading(false);
     }

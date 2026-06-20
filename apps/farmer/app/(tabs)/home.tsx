@@ -7,6 +7,7 @@ import {
   fetchMarketTrends,
   fetchPortalSummary,
   fetchWeatherIntel,
+  formatAppError,
   formatDateInLocale,
   resolveMarketRateDisplay,
   t,
@@ -22,11 +23,13 @@ import {
   HomeQuickActions,
   Loading,
   MarketAnalyticsPanel,
+  useNetwork,
+  useOnReconnect,
   WeatherAlertBanner,
 } from '@morbeez/ui-native';
 import { useFarmerAuth } from '@/context/FarmerAuthContext';
 import { useHomeDashboard, type HomeTrendRange } from '@/context/HomeDashboardContext';
-import { OfflineBanner, useOffline } from '@/context/OfflineContext';
+import { useOffline } from '@/context/OfflineContext';
 import { useLocale } from '@/context/LocaleContext';
 
 function cropTitle(name: string) {
@@ -43,7 +46,8 @@ export default function HomeScreen() {
   const router = useRouter();
   const { locale } = useLocale();
   const { farmer } = useFarmerAuth();
-  const { isOnline, cacheGet, cacheSet } = useOffline();
+  const { isOnline } = useNetwork();
+  const { cacheGet, cacheSet } = useOffline();
   const {
     selectedCrop: persistedCrop,
     selectedMarket: persistedMarket,
@@ -151,9 +155,9 @@ export default function HomeScreen() {
         const cached = await cacheGet<PortalSummary>('portal_summary');
         if (cached) {
           setSummary(cached);
-          setError(isOnline ? (e instanceof Error ? e.message : 'Could not load dashboard') : t('offlineBanner', locale));
+          setError(formatAppError(e, isOnline));
         } else {
-          setError(e instanceof Error ? e.message : 'Could not load dashboard');
+          setError(formatAppError(e, isOnline));
         }
       } finally {
         if (requestId === requestIdRef.current) {
@@ -186,6 +190,10 @@ export default function HomeScreen() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch when filter fetch params change
   }, [filtersReady, fetchCrop, fetchMarket, fetchTrendRange]);
+
+  useOnReconnect(() => {
+    void load({ refreshSummary: true });
+  });
 
   const crops = dashboard?.crops ?? [];
   const markets = useMemo(() => dashboard?.rows?.map((r) => r.marketName) ?? [], [dashboard?.rows]);
@@ -238,7 +246,6 @@ export default function HomeScreen() {
         />
       }
     >
-      <OfflineBanner />
       {error ? <AlertBox>{error}</AlertBox> : null}
 
       <View style={styles.greetingRow}>

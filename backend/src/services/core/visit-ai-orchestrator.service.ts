@@ -10,6 +10,7 @@ import type {
   VisitAnalyzeRequest,
   VisitAnalyzeVisitRequest,
   VisitAiAnswersBody,
+  VisitAiSyncQuestionsBody,
 } from '../../domain/ai-training/validators.js';
 import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
@@ -494,6 +495,88 @@ function normalizeIssueCategory(category: string): VisitAnalyzeRequest['issueCat
   return (allowed.has(category) ? category : 'other') as VisitAnalyzeRequest['issueCategory'];
 }
 
+async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof getCaseOrThrow>>) {
+  const aiCaseId = String(caseRow.id);
+  const diagnosis =
+    caseRow.selected_hypothesis_label ? String(caseRow.selected_hypothesis_label) : String(caseRow.issue_name);
+  const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
+  const context = await visitAiContextService.buildContextForCase(caseRow);
+
+  const { data: hypothesisRows } = await supabase
+    .from('visit_ai_hypotheses')
+    .select('label, confidence, rationale')
+    .eq('visit_ai_case_id', aiCaseId)
+    .order('sort_order', { ascending: true });
+
+  const imageSignalRaw = meta.imageSignal as { label?: string; confidence?: number } | null | undefined;
+  const imageSignal =
+    imageSignalRaw?.label
+      ? { label: String(imageSignalRaw.label), confidence: Number(imageSignalRaw.confidence ?? 0.65) }
+      : null;
+  const contextSnap = (meta.contextSnapshot as Record<string, unknown> | undefined) ?? {};
+  const photoCount = Number(contextSnap.analyzePhotoCount ?? meta.analyzePhotoCount ?? 0);
+
+  const drafts = await visitAiQuestionsService.buildVisitFollowUpQuestions({
+    farmerId: String(caseRow.farmer_id),
+    cropType: context.cropType,
+    issueCategory: String(caseRow.category),
+    selectedHypothesis: diagnosis,
+    observation: meta.observation as string | undefined,
+    context,
+    imageSignal,
+    photoCount: Number.isFinite(photoCount) ? photoCount : 0,
+    hypotheses: (hypothesisRows ?? []).map((h) => ({
+      label: String(h.label),
+      confidence: Number(h.confidence),
+      rationale: h.rationale ? String(h.rationale) : undefined,
+    })),
+    evidence: {
+      photoSummary: imageSignal ? `Image signal: ${imageSignal.label}` : undefined,
+      measurementSummary:
+        context.measurements.map((m) => `${m.key}: ${m.value}`).join(', ') || undefined,
+    },
+  });
+
+  const rows: Array<{
+    id: string;
+    questionText: string;
+    answerType: 'yes_no_unknown' | 'text' | 'number';
+    answer?: string;
+  }> = [];
+
+  for (let i = 0; i < drafts.length; i++) {
+    const draft = drafts[i]!;
+    if (draft.sourceLibraryId) {
+      void expertFollowUpLearningService.recordHit(draft.sourceLibraryId).catch(() => {});
+    }
+    const { data: qRow, error } = await supabase
+      .from('visit_ai_questions')
+      .insert({
+        visit_ai_case_id: aiCaseId,
+        question_text: draft.questionText,
+        answer_type: draft.answerType,
+        sort_order: i,
+        source_library_id: draft.sourceLibraryId ?? null,
+        metadata: draft.kind ? { kind: draft.kind, source: 'ai_planner' } : { source: 'ai_planner' },
+      })
+      .select('id, question_text, answer_type')
+      .single();
+    throwIfSupabaseError(error, 'Could not save follow-up question');
+    rows.push({
+      id: String(qRow!.id),
+      questionText: String(qRow!.question_text),
+      answerType: draft.answerType,
+    });
+  }
+
+  await supabase
+    .from('visit_ai_cases')
+    .update({ status: 'qa_complete', updated_at: new Date().toISOString() })
+    .eq('id', aiCaseId);
+
+  return rows;
+}
+
 export const visitAiOrchestratorService = {
   buildContext: visitAiContextService.buildVisitAiContext.bind(visitAiContextService),
 
@@ -717,55 +800,90 @@ export const visitAiOrchestratorService = {
       }));
     }
 
-    const diagnosis =
-      caseRow.selected_hypothesis_label ? String(caseRow.selected_hypothesis_label) : String(caseRow.issue_name);
     const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
     if (meta.qaSkipped) {
       return [];
     }
-    const context = await visitAiContextService.buildContextForCase(caseRow);
 
-    const drafts = await visitAiQuestionsService.buildVisitFollowUpQuestions({
-      farmerId: String(caseRow.farmer_id),
-      cropType: context.cropType,
-      issueCategory: String(caseRow.category),
-      selectedHypothesis: diagnosis,
-      observation: meta.observation as string | undefined,
-      context,
-    });
+    return persistVisitFollowUpQuestions(caseRow);
+  },
 
-    const rows: Array<{ id: string; questionText: string; answerType: 'yes_no_unknown' | 'text' | 'number' }> = [];
-    for (let i = 0; i < drafts.length; i++) {
-      const draft = drafts[i]!;
-      if (draft.sourceLibraryId) {
-        void expertFollowUpLearningService.recordHit(draft.sourceLibraryId).catch(() => {});
+  async syncQuestions(aiCaseId: string, body: VisitAiSyncQuestionsBody) {
+    await getCaseOrThrow(aiCaseId);
+    const { data: existing } = await supabase
+      .from('visit_ai_questions')
+      .select('id')
+      .eq('visit_ai_case_id', aiCaseId);
+    const existingIds = new Set((existing ?? []).map((r) => String(r.id)));
+    const payloadIds = new Set(body.questions.filter((q) => q.id).map((q) => q.id!));
+
+    for (const id of existingIds) {
+      if (!payloadIds.has(id)) {
+        await supabase.from('visit_ai_questions').delete().eq('id', id).eq('visit_ai_case_id', aiCaseId);
       }
-      const { data: qRow, error } = await supabase
-        .from('visit_ai_questions')
-        .insert({
-          visit_ai_case_id: aiCaseId,
-          question_text: draft.questionText,
-          answer_type: draft.answerType,
-          sort_order: i,
-          source_library_id: draft.sourceLibraryId ?? null,
-          metadata: draft.kind ? { kind: draft.kind } : {},
-        })
-        .select('id, question_text, answer_type')
-        .single();
-      throwIfSupabaseError(error, 'Could not save follow-up question');
-      rows.push({
-        id: String(qRow!.id),
-        questionText: String(qRow!.question_text),
-        answerType: draft.answerType,
-      });
     }
 
-    await supabase
-      .from('visit_ai_cases')
-      .update({ status: 'qa_complete', updated_at: new Date().toISOString() })
-      .eq('id', aiCaseId);
+    const rows: Array<{
+      id: string;
+      questionText: string;
+      answerType: 'yes_no_unknown' | 'text' | 'number';
+      answer?: string;
+    }> = [];
 
-    return rows;
+    for (let i = 0; i < body.questions.length; i++) {
+      const q = body.questions[i]!;
+      const answerType = q.answerType ?? 'yes_no_unknown';
+      if (q.id && existingIds.has(q.id)) {
+        const { error } = await supabase
+          .from('visit_ai_questions')
+          .update({
+            question_text: q.questionText,
+            answer_type: answerType,
+            answer: q.answer?.trim() ? q.answer.trim() : null,
+            sort_order: i,
+            metadata: { editedByAgronomist: true },
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', q.id)
+          .eq('visit_ai_case_id', aiCaseId);
+        throwIfSupabaseError(error, 'Could not update follow-up question');
+        rows.push({
+          id: q.id,
+          questionText: q.questionText,
+          answerType,
+          answer: q.answer?.trim() ? q.answer.trim() : undefined,
+        });
+      } else {
+        const { data: qRow, error } = await supabase
+          .from('visit_ai_questions')
+          .insert({
+            visit_ai_case_id: aiCaseId,
+            question_text: q.questionText,
+            answer_type: answerType,
+            answer: q.answer?.trim() ? q.answer.trim() : null,
+            sort_order: i,
+            metadata: { source: 'agronomist_custom' },
+          })
+          .select('id, question_text, answer_type, answer')
+          .single();
+        throwIfSupabaseError(error, 'Could not add follow-up question');
+        rows.push({
+          id: String(qRow!.id),
+          questionText: String(qRow!.question_text),
+          answerType: answerType,
+          answer: qRow!.answer ? String(qRow!.answer) : undefined,
+        });
+      }
+    }
+
+    return { questions: rows };
+  },
+
+  async regenerateQuestions(aiCaseId: string) {
+    await getCaseOrThrow(aiCaseId);
+    await supabase.from('visit_ai_questions').delete().eq('visit_ai_case_id', aiCaseId);
+    const caseRow = await getCaseOrThrow(aiCaseId);
+    return persistVisitFollowUpQuestions(caseRow);
   },
 
   async saveAnswers(aiCaseId: string, body: VisitAiAnswersBody) {

@@ -9,6 +9,8 @@ import {
   getVisibleWizardSteps,
   suggestNextCapturePhotoType,
   validateVisitWizardStep,
+  mapRecommendationGroupsForSubmit,
+  buildPriorRecommendationFollowUps,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueCategory,
@@ -19,6 +21,7 @@ import {
   type RecommendationGroupDraft,
   type SoilMoistureLevel,
   type VisitFarmContext,
+  type WhatsappPreviewMessage,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
 import { type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
@@ -45,6 +48,7 @@ import { type VisitPhotoDraft, getVisitPhotoTypesForCrop, newIssueDraft, pickDef
 import { useStaffAuth } from '@/context/StaffAuth';
 import { applyVisitPrefillContext } from '@/lib/applyVisitPrefill';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
+import { ensureVisitPhotoBase64 } from '@/lib/prefillVisitPhotos';
 
 function initialCapturePhotoType(crop: string): string {
   return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
@@ -100,6 +104,7 @@ export default function VisitScreen() {
   const [recApproved, setRecApproved] = useState(false);
   const [monitoringPlan, setMonitoringPlan] = useState<MonitoringPlanPreviewItem[]>([]);
   const [whatsappConfirmed, setWhatsappConfirmed] = useState(false);
+  const [whatsappMessages, setWhatsappMessages] = useState<WhatsappPreviewMessage[]>([]);
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [issueMaster, setIssueMaster] = useState<IssueMasterRow[]>([]);
   const [issues, setIssues] = useState<IssueDraft[]>([]);
@@ -164,18 +169,7 @@ export default function VisitScreen() {
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
         setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
 
-        const openRecs = recs.filter(
-          (r) => r.blockId === blockId && ['communicated', 'approved'].includes(String(r.status))
-        );
-        setFollowUps(
-          openRecs.slice(0, 5).map((r) => ({
-            recommendationId: r.id,
-            label: r.issueDetected?.trim() || r.recommendationText.slice(0, 60),
-            followed: 'not_applicable' as const,
-            outcome: 'not_reviewed' as const,
-            notes: '',
-          }))
-        );
+        setFollowUps(buildPriorRecommendationFollowUps(recs, blockId));
 
         const draft = await loadVisitDraft(blockId);
         let restoredIssues = false;
@@ -268,6 +262,7 @@ export default function VisitScreen() {
       recommendationGroups,
       monitoringPlan,
       whatsappConfirmed,
+      whatsappMessages,
       recApproved,
       blockHealth,
       cropPerformance,
@@ -394,20 +389,15 @@ export default function VisitScreen() {
           agronomistReview: issue.agronomistReview!,
         })),
         recommendationGroups: recommendationGroups.length
-          ? recommendationGroups.map((g) => ({
-              applicationType: g.applicationType,
-              applicationDay: g.applicationDay,
-              sortOrder: g.sortOrder,
-              materials: g.materials.map((m) => ({
-                issueIndex: issues.findIndex((i) => i.localId === m.issueLocalId),
-                category: m.category,
-                technicalName: m.technicalName,
-                dose: m.dose,
-                method: m.method,
-                relatedIssueIndex: m.relatedIssueLocalId
-                  ? issues.findIndex((i) => i.localId === m.relatedIssueLocalId)
-                  : undefined,
-              })),
+          ? mapRecommendationGroupsForSubmit(recommendationGroups, (localId) =>
+              issues.findIndex((i) => i.localId === localId)
+            )
+          : undefined,
+        whatsappMessages: whatsappMessages.length
+          ? whatsappMessages.map((m) => ({
+              issueIndex: m.issueIndex,
+              message: m.message.trim(),
+              compliancePrompt: m.compliancePrompt?.trim() || undefined,
             }))
           : undefined,
         followUps: followUps
@@ -597,6 +587,8 @@ export default function VisitScreen() {
             }
             confirmed={whatsappConfirmed}
             onConfirmedChange={setWhatsappConfirmed}
+            messages={whatsappMessages}
+            onMessagesChange={setWhatsappMessages}
           />
         ) : null}
 

@@ -8,8 +8,8 @@ import {
   View,
   type ViewProps,
 } from 'react-native';
-import { tokens, t, type AppLocale } from '@morbeez/shared';
-import { APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
+import { isNetworkFailureMessage, formatAppError, tokens, t, type AppLocale, APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
+import { useNetwork } from './NetworkProvider';
 import { HeaderMorbeezLogo } from './MorbeezLogo';
 import { androidPressHandlers } from './mobile-nav';
 
@@ -41,6 +41,7 @@ export {
   activityDap,
 } from './block-detail-panels';
 export { DynamicSelect, type DynamicSelectOption } from './DynamicSelect';
+export { NetworkProvider, OfflineBanner, useNetwork, useOnReconnect, useAppError } from './NetworkProvider';
 export {
   HealthBadge,
   FieldCard,
@@ -139,6 +140,22 @@ export function Btn({
 }
 
 export function AlertBox({ children }: { children: React.ReactNode }) {
+  const { isOnline } = useNetwork();
+  const text =
+    typeof children === 'string' || typeof children === 'number'
+      ? String(children).trim()
+      : '';
+  if (text && !isOnline && isNetworkFailureMessage(text)) return null;
+  if (text && isNetworkFailureMessage(text)) {
+    const friendly = formatAppError(new Error(text), isOnline);
+    if (!friendly) return null;
+    return (
+      <View style={styles.alert}>
+        <Text style={styles.alertText}>{friendly}</Text>
+      </View>
+    );
+  }
+  if (!children || (typeof children === 'string' && !children.trim())) return null;
   return (
     <View style={styles.alert}>
       <Text style={styles.alertText}>{children}</Text>

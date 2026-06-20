@@ -128,7 +128,7 @@ export function buildApprovedRecommendationMessage(
 export const recommendationCommunicationService = {
   async sendApprovedRecommendation(
     recommendationId: string,
-    options?: { force?: boolean }
+    options?: { force?: boolean; customMessage?: string }
   ): Promise<{ sent: boolean; message?: string; reason?: string }> {
     const { data, error } = await supabase
       .from('recommendation_records')
@@ -166,17 +166,19 @@ export const recommendationCommunicationService = {
       return { sent: false, reason: 'whatsapp_not_configured' };
     }
 
-    const text = buildApprovedRecommendationMessage(row, {
-      blockName:
-        typeof row.metadata?.blockName === 'string' ? String(row.metadata.blockName) : undefined,
-      products: Array.isArray(row.metadata?.products)
-        ? (row.metadata!.products as RecommendationMessageExtras['products'])
-        : undefined,
-      reviewDate:
-        typeof row.metadata?.reviewDate === 'string'
-          ? new Date(String(row.metadata.reviewDate)).toLocaleDateString()
+    const text =
+      options?.customMessage?.trim() ||
+      buildApprovedRecommendationMessage(row, {
+        blockName:
+          typeof row.metadata?.blockName === 'string' ? String(row.metadata.blockName) : undefined,
+        products: Array.isArray(row.metadata?.products)
+          ? (row.metadata!.products as RecommendationMessageExtras['products'])
           : undefined,
-    });
+        reviewDate:
+          typeof row.metadata?.reviewDate === 'string'
+            ? new Date(String(row.metadata.reviewDate)).toLocaleDateString()
+            : undefined,
+      });
     await whatsappService.sendText(phone, text.slice(0, 4000));
 
     const now = new Date().toISOString();
@@ -418,6 +420,7 @@ export const recommendationCommunicationService = {
           ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ? Yes അല്ലെങ്കിൽ No എന്ന് മറുപടി നൽകുക.`
           : `Have you completed ${diagnosis} treatment? Reply Yes or No.`;
       return {
+        issueIndex,
         issueLabel: diagnosis,
         message,
         compliancePrompt,

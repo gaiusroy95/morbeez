@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { agronomistClient, type RecommendationGroupDraft } from '@morbeez/shared';
+import { agronomistClient, formatMaterialApplicationMode, formatMaterialDose, type RecommendationGroupDraft } from '@morbeez/shared';
 import { Alert, Btn, Panel, textareaClass } from '../../ui';
 
 type Props = {
@@ -75,11 +75,17 @@ export function VisitRecApprovalStep({
             <p className="vw-row-value" style={{ textAlign: 'left' }}>
               Group {i + 1}: {g.applicationType.replace(/_/g, ' ')} · Day {g.applicationDay}
             </p>
-            {g.materials.map((m) => (
-              <p key={m.localId} className="vw-hint" style={{ marginTop: 2 }}>
-                • {m.technicalName || 'Unnamed'} {m.dose ? `(${m.dose})` : ''}
-              </p>
-            ))}
+            {g.materials.map((m) => {
+              const dose = formatMaterialDose(m);
+              const mode = formatMaterialApplicationMode(m.applicationMode);
+              return (
+                <p key={m.localId} className="vw-hint" style={{ marginTop: 2 }}>
+                  • {m.technicalName || 'Unnamed'}
+                  {dose ? ` — ${dose}` : ''}
+                  {mode ? ` (${mode})` : ''}
+                </p>
+              );
+            })}
           </div>
         ))}
       </Panel>

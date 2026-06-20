@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { telecallerClient, EMPTY_TELECALLER_DASHBOARD, type TelecallerDashboard } from '@morbeez/shared';
+import { telecallerClient, EMPTY_TELECALLER_DASHBOARD, formatAppError, type TelecallerDashboard } from '@morbeez/shared';
+import { useNetwork, useOnReconnect } from '@morbeez/ui-native';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type State = {
@@ -25,6 +26,7 @@ const Ctx = createContext<State | null>(null);
 
 export function TelecallerDashboardProvider({ children }: { children: ReactNode }) {
   const { authed } = useStaffAuth();
+  const { isOnline } = useNetwork();
   const [dashboard, setDashboard] = useState<TelecallerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -49,13 +51,17 @@ export function TelecallerDashboardProvider({ children }: { children: ReactNode 
       const d = await telecallerClient.getDashboard({ force: opts?.force });
       setDashboard(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load dashboard');
-      setDashboard(EMPTY_TELECALLER_DASHBOARD);
+      setError(formatAppError(e, isOnline));
+      if (isOnline) setDashboard(EMPTY_TELECALLER_DASHBOARD);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshOfflineCount]);
+  }, [refreshOfflineCount, isOnline]);
+
+  useOnReconnect(() => {
+    if (authed) void refresh({ force: true });
+  });
 
   const flushOffline = useCallback(async () => {
     await telecallerClient.flushOfflineQueue();

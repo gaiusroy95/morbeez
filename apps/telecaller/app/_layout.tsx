@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, NetworkProvider } from '@morbeez/ui-native';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
 import { TelecallerDashboardProvider } from '@/context/TelecallerDashboardContext';
@@ -57,13 +57,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <LocaleProvider>
-        <StaffAuthProvider>
-          <TelecallerDashboardProvider>
-            <Gate>
-              <RootStack />
-            </Gate>
-          </TelecallerDashboardProvider>
-        </StaffAuthProvider>
+        <NetworkProvider>
+          <StaffAuthProvider>
+            <TelecallerDashboardProvider>
+              <Gate>
+                <RootStack />
+              </Gate>
+            </TelecallerDashboardProvider>
+          </StaffAuthProvider>
+        </NetworkProvider>
       </LocaleProvider>
     </SafeAreaProvider>
   );

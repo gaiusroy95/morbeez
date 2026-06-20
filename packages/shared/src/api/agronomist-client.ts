@@ -569,6 +569,33 @@ export const agronomistClient = {
     });
   },
 
+  async syncVisitAiQuestions(
+    aiCaseId: string,
+    questions: Array<{
+      id?: string;
+      questionText: string;
+      answer?: string;
+      answerType?: import('../types/field-findings.js').VisitAiAnswerType;
+    }>
+  ): Promise<VisitAiQuestion[]> {
+    const r = await staffApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ questions }),
+      }
+    );
+    return r.questions ?? [];
+  },
+
+  async regenerateVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]> {
+    const r = await staffApi<{ ok: boolean; questions: VisitAiQuestion[] }>(
+      `${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/questions/regenerate`,
+      { method: 'POST' }
+    );
+    return r.questions ?? [];
+  },
+
   async reanalyzeVisitAiCase(aiCaseId: string) {
     return staffApi<{
       ok: boolean;

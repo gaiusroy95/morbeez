@@ -1,5 +1,6 @@
 import { deleteSessionItem, readSessionItem, writeSessionItem } from './secure-storage';
 import { parseApiError } from './errors';
+import { fetchWithRetry } from '../network/fetch.js';
 import { STAFF_API_V1, getApiOrigin, resolveStaffApiUrl } from './config';
 
 export const STAFF_TOKEN_KEY = 'morbeez_admin_token';
@@ -70,7 +71,7 @@ export async function staffApi<T = unknown>(path: string, options: RequestInit =
     ? resolveStaffApiUrl(path)
     : resolveStaffApiUrl(`${STAFF_API_V1}${path.startsWith('/') ? path : `/${path}`}`);
 
-  const res = await fetch(url, { ...options, headers });
+  const res = await fetchWithRetry(url, { ...options, headers }, 2, origin);
   const data = (await res.json().catch(() => ({}))) as T & { message?: string; error?: string };
 
   if (!res.ok) {
