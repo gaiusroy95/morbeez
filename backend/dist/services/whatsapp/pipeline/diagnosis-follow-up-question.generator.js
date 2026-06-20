@@ -9,9 +9,11 @@ Your job: decide the SINGLE best next follow-up question OR mark intake complete
 RULES:
 - ONLY structured response types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
 - NEVER use open text / free typing questions.
-- Learn from verified investigation patterns; after expert-saved questions are used, add NEW questions only if needed.
+- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume thrips, fungal spots, blast lesions, etc. unless the farmer stated them OR imageObservations list them.
+- When imageObservations are provided, they are AUTHORITATIVE for what the photo shows. NEVER ask the farmer to confirm a sign that observations say is absent (e.g. "no spots", "no lesions", "yellowing only" → do not ask about leaf spots).
+- Prefer questions about field context NOT visible in photos: irrigation timing, soil moisture, symptom spread, recent spray/fertilizer, pests on leaf undersides.
 - Do NOT repeat what the farmer already stated in initial symptoms or prior answers.
-- multiple_choice: provide 2–8 clear tap options (e.g. spray timing, severity bands, symptom patterns).
+- multiple_choice: provide 2–8 clear tap options.
 - yes_no: omit choices array (system adds Yes/No).
 - photo: omit choices array (farmer sends image or skip).
 - Write question text in English and Malayalam.
@@ -27,6 +29,42 @@ Output JSON only:
     "textEn": "English question",
     "textMl": "Malayalam question",
     "purpose": "what diagnosis gap this fills",
+    "choices": [
+      { "id": "option_slug", "labelEn": "...", "labelMl": "..." }
+    ]
+  }
+}
+When intakeComplete is true, omit question or set null.`;
+const POST_DIAGNOSIS_SYSTEM_PROMPT = `You are Morbeez post-diagnosis clarification planner for Indian crop farmers on WhatsApp.
+
+Crop Doctor already analyzed farmer photos and produced a preliminary diagnosis with confidence below the review threshold.
+
+Your job: plan the SINGLE best next structured follow-up question to discriminate between the primary hypothesis and alternatives — OR mark intake complete when farmer answers already resolve the differential.
+
+RULES:
+- Base every question ONLY on the provided preliminary diagnosis, differentialDiagnosis, imageObservations, and stressAnalysis. Do NOT use a fixed question bank.
+- imageObservations are AUTHORITATIVE for what the photo shows. NEVER ask about signs observations ruled out (no spots, no lesions, no fungal marks → do NOT ask about leaf spots or fungal rings).
+- Each question must target a field fact NOT visible in photos OR discriminate between hypotheses using non-visual evidence (irrigation, soil, progression, spray history).
+- learnedPatterns are style hints from past cases — NOT ground truth for this farmer's photo.
+- NEVER repeat what photos already established or what the farmer already answered.
+- ONLY structured types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
+- NEVER use open text questions.
+- multiple_choice: provide 2–8 clear tap options.
+- yes_no: omit choices array (system adds Yes/No).
+- photo: omit choices array (farmer sends image or skip).
+- Write question text in English and Malayalam.
+- questionId: short snake_case slug (unique within session).
+
+Output JSON only:
+{
+  "intakeComplete": boolean,
+  "rationale": "why this question or why done",
+  "question": {
+    "questionId": "snake_case",
+    "kind": "yes_no" | "multiple_choice" | "photo",
+    "textEn": "English question",
+    "textMl": "Malayalam question",
+    "purpose": "which differential gap this closes",
     "choices": [
       { "id": "option_slug", "labelEn": "...", "labelMl": "..." }
     ]
@@ -71,13 +109,23 @@ function buildUserPrompt(input) {
         const qa = p.qa.map((x) => `    • "${x.question}" → ${formatAnswerHuman(x.answer)}`).join('\n');
         return `${i + 1}. Issue: ${p.issueLabel}\n   Initial: ${p.initialSymptoms.slice(0, 180)}\n${qa}`;
     });
+    const obsLines = (ctx.imageObservations ?? []).slice(0, 8).map((o) => `- ${o}`);
     return [
         `Crop: ${ctx.cropType}`,
         `Language: ${ctx.language}`,
         `Has photo: ${ctx.hasPhoto}`,
         ctx.dap != null ? `Crop stage: ${ctx.dap} DAP` : null,
-        `Match confidence: ${(ctx.matchConfidence * 100).toFixed(0)}%`,
-        ctx.bestIssueLabel ? `Closest learned issue: ${ctx.bestIssueLabel}` : null,
+        ctx.hasPhoto && obsLines.length
+            ? `\nImage observations (AUTHORITATIVE — do not ask about ruled-out signs):\n${obsLines.join('\n')}`
+            : ctx.hasPhoto
+                ? '\nPhoto attached but no vision observations yet — ask only non-visual field context questions.'
+                : null,
+        !ctx.hasPhoto && ctx.matchConfidence
+            ? `Text match confidence: ${(ctx.matchConfidence * 100).toFixed(0)}%`
+            : null,
+        !ctx.hasPhoto && ctx.bestIssueLabel
+            ? `Text similarity hint (NOT photo-confirmed): ${ctx.bestIssueLabel}`
+            : null,
         ctx.heavyRainLikely ? 'Weather: heavy rain likely' : null,
         ctx.highHumidityLikely ? 'Weather: high humidity' : null,
         `Initial farmer message:\n${ctx.symptomsText.trim().slice(0, 600)}`,
@@ -87,8 +135,8 @@ function buildUserPrompt(input) {
             : `No follow-ups asked yet (${questionsAsked}/${maxQuestions} max).`,
         '',
         patternLines.length
-            ? `Verified patterns from similar cases:\n${patternLines.join('\n\n')}`
-            : 'No prior patterns — ask the most diagnostic structured question.',
+            ? `Past case Q&A (style reference only — do NOT copy diagnosis labels):\n${patternLines.join('\n\n')}`
+            : 'No prior patterns — ask the most diagnostic non-visual field question.',
         input.evidenceGaps?.length
             ? `MAIOS evidence gaps (prioritize closing these): ${input.evidenceGaps.join(', ')}`
             : null,
@@ -100,53 +148,117 @@ function buildUserPrompt(input) {
         .filter(Boolean)
         .join('\n');
 }
-export const diagnosisFollowUpQuestionGenerator = {
-    async planNextQuestion(input) {
-        if (!env.OPENAI_API_KEY) {
-            logger.warn('Follow-up planner: OpenAI not configured — skipping intake');
-            return { intakeComplete: true, rationale: 'openai_unavailable' };
-        }
-        if (input.questionsAsked >= input.maxQuestions) {
-            return { intakeComplete: true, rationale: 'max_questions_reached' };
-        }
-        try {
-            const raw = await openaiJsonCompletion(SYSTEM_PROMPT, buildUserPrompt(input), 900);
-            if (Boolean(raw.intakeComplete)) {
-                return {
-                    intakeComplete: true,
-                    rationale: String(raw.rationale ?? 'model_complete'),
-                };
-            }
-            const q = raw.question;
-            if (!q || typeof q !== 'object') {
-                return { intakeComplete: true, rationale: 'no_question_generated' };
-            }
-            const id = sanitizeQuestionId(String(q.questionId ?? q.id ?? ''));
-            if (input.priorAnswers[id] !== undefined) {
-                return { intakeComplete: true, rationale: 'duplicate_question_id' };
-            }
-            const kind = normalizeFollowUpKind(q.kind);
-            const choices = normalizeChoiceOptions(q.choices, kind);
-            const text = localizeQuestion({ textEn: String(q.textEn ?? ''), textMl: String(q.textMl ?? '') }, input.ctx.language);
-            if (!text || text.length < 8) {
-                return { intakeComplete: true, rationale: 'empty_question_text' };
-            }
+function buildPostDiagnosisUserPrompt(input) {
+    const { ctx, advisory, priorAnswers, questionTexts, questionsAsked, maxQuestions, learnedPatterns } = input;
+    const priorLines = Object.entries(priorAnswers).map(([id, ans]) => {
+        const q = questionTexts[id] ?? id;
+        return `- Q: ${q}\n  A: ${formatAnswerHuman(ans)}`;
+    });
+    const diffLines = (advisory.differentialDiagnosis ?? []).slice(0, 6).map((d, i) => {
+        const prob = d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
+        return `${i + 1}. ${d.label}${prob}${d.reason ? ` — ${d.reason}` : ''}`;
+    });
+    const obsLines = (advisory.imageObservations ?? []).slice(0, 6).map((o) => `- ${o}`);
+    const stressLines = (advisory.stressAnalysis ?? []).slice(0, 4).map((s) => `- ${s}`);
+    const rejected = (advisory.rejectedHypotheses ?? []).slice(0, 4);
+    const patternLines = learnedPatterns.slice(0, 6).map((p, i) => {
+        const qa = p.qa.map((x) => `    • "${x.question}" → ${formatAnswerHuman(x.answer)}`).join('\n');
+        return `${i + 1}. Issue: ${p.issueLabel}\n   Initial: ${p.initialSymptoms.slice(0, 160)}\n${qa}`;
+    });
+    return [
+        `Crop: ${ctx.cropType}`,
+        `Language: ${ctx.language}`,
+        `Preliminary diagnosis: ${advisory.probableIssue}`,
+        `AI confidence: ${(advisory.confidence * 100).toFixed(0)}%`,
+        advisory.uncertain ? 'Flagged uncertain by Crop Doctor' : null,
+        '',
+        diffLines.length
+            ? `Differential diagnosis (ranked alternatives to discriminate):\n${diffLines.join('\n')}`
+            : 'No differential list — ask the most diagnostic field confirmation question.',
+        obsLines.length ? `\nImage observations (AUTHORITATIVE — never ask about ruled-out signs):\n${obsLines.join('\n')}` : null,
+        stressLines.length ? `\nStress analysis:\n${stressLines.join('\n')}` : null,
+        rejected.length ? `\nRejected hypotheses: ${rejected.join('; ')}` : null,
+        ctx.heavyRainLikely ? 'Weather: heavy rain likely' : null,
+        ctx.highHumidityLikely ? 'Weather: high humidity' : null,
+        '',
+        priorLines.length
+            ? `Already asked (${questionsAsked}/${maxQuestions}):\n${priorLines.join('\n')}`
+            : `No clarification questions yet (${questionsAsked}/${maxQuestions} max).`,
+        '',
+        patternLines.length
+            ? `Verified patterns from similar cases (learn question style, not copy verbatim):\n${patternLines.join('\n\n')}`
+            : null,
+        '',
+        questionsAsked >= maxQuestions
+            ? 'Question budget exhausted — set intakeComplete true.'
+            : 'Plan the next single structured question using imageObservations + differentials — field facts not visible in the photo.',
+    ]
+        .filter(Boolean)
+        .join('\n');
+}
+async function planStructuredQuestion(systemPrompt, userPrompt, input) {
+    if (!env.OPENAI_API_KEY) {
+        logger.warn('Follow-up planner: OpenAI not configured — skipping intake');
+        return { intakeComplete: true, rationale: 'openai_unavailable' };
+    }
+    if (input.questionsAsked >= input.maxQuestions) {
+        return { intakeComplete: true, rationale: 'max_questions_reached' };
+    }
+    try {
+        const raw = await openaiJsonCompletion(systemPrompt, userPrompt, 900);
+        if (Boolean(raw.intakeComplete)) {
             return {
-                intakeComplete: false,
-                rationale: String(raw.rationale ?? ''),
-                question: {
-                    id,
-                    kind,
-                    text,
-                    choices,
-                    purpose: q.purpose ? String(q.purpose) : undefined,
-                },
+                intakeComplete: true,
+                rationale: String(raw.rationale ?? 'model_complete'),
             };
         }
-        catch (err) {
-            logger.warn({ err }, 'Follow-up question generation failed — proceeding to diagnosis');
-            return { intakeComplete: true, rationale: 'generation_error' };
+        const q = raw.question;
+        if (!q || typeof q !== 'object') {
+            return { intakeComplete: true, rationale: 'no_question_generated' };
         }
+        const id = sanitizeQuestionId(String(q.questionId ?? q.id ?? ''));
+        if (input.priorAnswers[id] !== undefined) {
+            return { intakeComplete: true, rationale: 'duplicate_question_id' };
+        }
+        const kind = normalizeFollowUpKind(q.kind);
+        const choices = normalizeChoiceOptions(q.choices, kind);
+        const text = localizeQuestion({ textEn: String(q.textEn ?? ''), textMl: String(q.textMl ?? '') }, input.language);
+        if (!text || text.length < 8) {
+            return { intakeComplete: true, rationale: 'empty_question_text' };
+        }
+        return {
+            intakeComplete: false,
+            rationale: String(raw.rationale ?? ''),
+            question: {
+                id,
+                kind,
+                text,
+                choices,
+                purpose: q.purpose ? String(q.purpose) : undefined,
+            },
+        };
+    }
+    catch (err) {
+        logger.warn({ err }, 'Follow-up question generation failed — proceeding to diagnosis');
+        return { intakeComplete: true, rationale: 'generation_error' };
+    }
+}
+export const diagnosisFollowUpQuestionGenerator = {
+    async planNextQuestion(input) {
+        return planStructuredQuestion(SYSTEM_PROMPT, buildUserPrompt(input), {
+            priorAnswers: input.priorAnswers,
+            questionsAsked: input.questionsAsked,
+            maxQuestions: input.maxQuestions,
+            language: input.ctx.language,
+        });
+    },
+    async planPostDiagnosisQuestion(input) {
+        return planStructuredQuestion(POST_DIAGNOSIS_SYSTEM_PROMPT, buildPostDiagnosisUserPrompt(input), {
+            priorAnswers: input.priorAnswers,
+            questionsAsked: input.questionsAsked,
+            maxQuestions: input.maxQuestions,
+            language: input.ctx.language,
+        });
     },
     buildInvestigationPattern(params) {
         const qa = Object.entries(params.answers)

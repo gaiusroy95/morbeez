@@ -283,6 +283,18 @@ export async function osAgronomistRoutes(app) {
             return reply.code(404).send({ ok: false, message: 'Not found' });
         return reply.send({ ok: true, recommendation: row });
     });
+    app.get(`${api}/recommendations/:id/visit-context`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { id } = request.params;
+        const context = await agronomistMobileService.getRecommendationVisitContext(id);
+        return reply.send({ ok: true, context });
+    });
+    app.get(`${api}/escalations/:id/visit-context`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { id } = request.params;
+        const context = await agronomistMobileService.getEscalationVisitContext(id);
+        return reply.send({ ok: true, context });
+    });
     app.post(`${api}/recommendations/:id/communicate`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'write');
         const { id } = request.params;

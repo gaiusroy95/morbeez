@@ -22,6 +22,17 @@ export function buildDapBucket(dap: number): number {
   return Math.floor(Math.max(0, dap) / 15) * 15;
 }
 
+/** True when diagnosis must run fresh vision — never reuse text-only cache. */
+export function hasDiagnosisMedia(
+  input: Pick<DiagnoseInput, 'imageBase64' | 'imageStoragePath' | 'diagnosisImages'>
+): boolean {
+  return Boolean(
+    input.imageBase64?.trim() ||
+      input.imageStoragePath?.trim() ||
+      (input.diagnosisImages?.length ?? 0) > 0
+  );
+}
+
 async function getFarmerDistrict(farmerId: string): Promise<string | null> {
   const { data } = await supabase.from('farmers').select('district').eq('id', farmerId).maybeSingle();
   return data?.district ? String(data.district).trim().toLowerCase() : null;
@@ -44,7 +55,9 @@ export const aiReuseService = {
     voiceTranscript?: string;
     compactHistory?: string;
     activePlotId?: string | null;
+    hasMedia?: boolean;
   }): Promise<boolean> {
+    if (input.hasMedia) return false;
     if (!env.ENABLE_AI_REUSE_CACHE) return false;
     const district = await getFarmerDistrict(input.farmerId);
     const dap = await getFarmerDap(input.farmerId, input.activePlotId);
@@ -233,6 +246,7 @@ export const aiReuseService = {
     input: DiagnoseInput & { activePlotId?: string | null },
     sessionId: string
   ): Promise<DiagnoseResult | null> {
+    if (hasDiagnosisMedia(input)) return null;
     if (!env.ENABLE_AI_REUSE_CACHE) return null;
 
     const district = await getFarmerDistrict(input.farmerId);

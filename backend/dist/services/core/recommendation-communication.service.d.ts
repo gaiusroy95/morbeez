@@ -32,6 +32,7 @@ export declare function buildApprovedRecommendationMessage(row: RecRow, extras?:
 export declare const recommendationCommunicationService: {
     sendApprovedRecommendation(recommendationId: string, options?: {
         force?: boolean;
+        customMessage?: string;
     }): Promise<{
         sent: boolean;
         message?: string;
@@ -88,6 +89,7 @@ export declare const recommendationCommunicationService: {
             };
         }>;
     }): Promise<{
+        issueIndex: number;
         issueLabel: string;
         message: string;
         compliancePrompt: string;

@@ -157,6 +157,7 @@ export const knowledgeFallbackService = {
     language: AdvisoryLanguage;
     memory?: FarmerMemorySnapshot;
     followUp?: boolean;
+    hasMedia?: boolean;
   }): Promise<string | null> {
     const hit = await this.tryReplyWithModule(params);
     return hit?.text ?? null;
@@ -168,6 +169,7 @@ export const knowledgeFallbackService = {
     language: AdvisoryLanguage;
     memory?: FarmerMemorySnapshot;
     followUp?: boolean;
+    hasMedia?: boolean;
   }): Promise<KnowledgeFallbackHit | null> {
     const text = params.text.trim();
     if (!text) return null;
@@ -210,7 +212,7 @@ export const knowledgeFallbackService = {
       };
     }
 
-    if (env.ENABLE_AI_REUSE_CACHE) {
+    if (env.ENABLE_AI_REUSE_CACHE && !params.hasMedia) {
       let dap = memory.dap ?? 0;
       if (memory.activePlotId) {
         const block = await blockService.getById(memory.activePlotId, params.farmerId);

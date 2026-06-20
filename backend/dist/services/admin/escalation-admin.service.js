@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { NotFoundError } from '../../lib/errors.js';
+import { NotFoundError, ValidationError } from '../../lib/errors.js';
 function formatDt(iso) {
     if (!iso)
         return null;
@@ -70,6 +70,7 @@ export const escalationAdminService = {
             .from('agronomist_escalations')
             .select('id, reason, status, priority, confidence_at_escalation, created_at, assigned_to')
             .eq('farmer_id', farmerId)
+            .is('dismissed_at', null)
             .order('created_at', { ascending: false })
             .limit(50);
         throwIfSupabaseError(error, 'Could not load escalations');
@@ -137,14 +138,18 @@ export const escalationAdminService = {
         const from = (page - 1) * limit;
         let query = supabase
             .from('agronomist_escalations')
-            .select(`id, session_id, farmer_id, reason, confidence_at_escalation, priority, status, assigned_to, created_at, updated_at,
+            .select(`id, session_id, farmer_id, reason, confidence_at_escalation, priority, status, assigned_to, created_at, updated_at, resolved_at,
          farmers(id, phone, name, first_name, last_name, district, preferred_language),
          ai_advisory_sessions(crop_type, crop_stage, language, symptoms_text, voice_transcript)`, { count: 'exact' })
+            .is('dismissed_at', null)
             .order('created_at', { ascending: false })
             .range(from, from + limit - 1);
         if (params.status && params.status !== 'all') {
             if (params.status === 'open') {
                 query = query.in('status', [...OPEN_ESCALATION_DB_STATUSES]);
+            }
+            else if (params.status === 'completed') {
+                query = query.in('status', ['resolved', 'closed']);
             }
             else {
                 query = query.eq('status', params.status);
@@ -170,6 +175,8 @@ export const escalationAdminService = {
                 assignedTo: row.assigned_to,
                 createdAt: row.created_at,
                 createdLabel: formatDt(row.created_at),
+                resolvedAt: row.resolved_at,
+                resolvedLabel: formatDt(row.resolved_at),
             };
         });
         return { items, total: count ?? 0, page, limit };
@@ -283,8 +290,53 @@ export const escalationAdminService = {
         const { count } = await supabase
             .from('agronomist_escalations')
             .select('id', { count: 'exact', head: true })
+            .is('dismissed_at', null)
             .in('status', [...OPEN_ESCALATION_DB_STATUSES]);
         return count ?? 0;
+    },
+    /** Remove a completed escalation from CRM lists (soft dismiss). */
+    async clear(id, agentEmail) {
+        const { data: row, error: loadErr } = await supabase
+            .from('agronomist_escalations')
+            .select('id, status, dismissed_at')
+            .eq('id', id)
+            .maybeSingle();
+        throwIfSupabaseError(loadErr, 'Could not load escalation');
+        if (!row)
+            throw new NotFoundError('Escalation not found');
+        if (row.dismissed_at)
+            return { ok: true, alreadyCleared: true };
+        const status = String(row.status ?? '');
+        if (status !== 'resolved' && status !== 'closed') {
+            throw new ValidationError('Only completed escalations can be cleared. Mark as Completed first.');
+        }
+        const now = new Date().toISOString();
+        const { error } = await supabase
+            .from('agronomist_escalations')
+            .update({
+            dismissed_at: now,
+            dismissed_by: agentEmail,
+            updated_at: now,
+        })
+            .eq('id', id);
+        throwIfSupabaseError(error, 'Could not clear escalation');
+        return { ok: true, cleared: true };
+    },
+    /** Clear all completed escalations from the CRM completed tab. */
+    async clearCompleted(agentEmail) {
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('agronomist_escalations')
+            .update({
+            dismissed_at: now,
+            dismissed_by: agentEmail,
+            updated_at: now,
+        })
+            .is('dismissed_at', null)
+            .in('status', ['resolved', 'closed'])
+            .select('id');
+        throwIfSupabaseError(error, 'Could not clear completed escalations');
+        return { ok: true, cleared: (data ?? []).length };
     },
 };
 //# sourceMappingURL=escalation-admin.service.js.map

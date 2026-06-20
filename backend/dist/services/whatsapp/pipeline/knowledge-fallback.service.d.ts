@@ -21,6 +21,7 @@ export declare const knowledgeFallbackService: {
         language: AdvisoryLanguage;
         memory?: FarmerMemorySnapshot;
         followUp?: boolean;
+        hasMedia?: boolean;
     }): Promise<string | null>;
     tryReplyWithModule(params: {
         farmerId: string;
@@ -28,6 +29,7 @@ export declare const knowledgeFallbackService: {
         language: AdvisoryLanguage;
         memory?: FarmerMemorySnapshot;
         followUp?: boolean;
+        hasMedia?: boolean;
     }): Promise<KnowledgeFallbackHit | null>;
 };
 //# sourceMappingURL=knowledge-fallback.service.d.ts.map

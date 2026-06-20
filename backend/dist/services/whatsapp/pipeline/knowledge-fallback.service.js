@@ -156,7 +156,7 @@ export const knowledgeFallbackService = {
                 meta: baseMeta,
             };
         }
-        if (env.ENABLE_AI_REUSE_CACHE) {
+        if (env.ENABLE_AI_REUSE_CACHE && !params.hasMedia) {
             let dap = memory.dap ?? 0;
             if (memory.activePlotId) {
                 const block = await blockService.getById(memory.activePlotId, params.farmerId);

@@ -102,6 +102,7 @@ async function loadFarmerMetrics(farmerIds) {
                 .from('agronomist_escalations')
                 .select('farmer_id, status')
                 .in('farmer_id', slice)
+                .is('dismissed_at', null)
                 .in('status', OPEN_ESCALATION_STATUSES),
             supabase
                 .from('farm_blocks')

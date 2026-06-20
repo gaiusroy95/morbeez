@@ -9,6 +9,9 @@ import { resolveAdvisoryImageUrl, urlFromWhatsAppPayload, } from '../core/adviso
 import { mapRecordSeverityToUi, mapUiSeverityToRecord, parseEscalationCorrection, pickFarmerFacingSummary, pickLatestOutput, resolveFarmerQuestion, resolveProbableIssue, textsLikelySame, } from './case-review-inquiry.util.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
 import { fieldContextService } from '../case/field-context.service.js';
+import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
+import { economicGateService } from '../case/economic-gate.service.js';
+import { goldLearningQueueService } from '../ml/retraining-pipeline.service.js';
 function formatDt(iso) {
     if (!iso)
         return null;
@@ -370,10 +373,13 @@ export const agronomistCaseReviewService = {
         let gingerSopV3 = sessionMeta.gingerSopV3 ?? maiosCase ?? null;
         if (maiosCase && typeof maiosCase === 'object' && primary) {
             try {
+                const cropType = String(primary.crop_type ?? 'ginger');
+                const pack = await cropPackLoaderService.load(cropType);
                 const fieldCtx = await fieldContextService.loadFieldContext({
                     farmerId: esc.farmerId,
                     blockId: primary.id,
                     dap: primary.dap,
+                    pack,
                 });
                 maiosCase = {
                     ...maiosCase,
@@ -382,9 +388,6 @@ export const agronomistCaseReviewService = {
                     waterReading: fieldCtx.waterReading ?? maiosCase.waterReading,
                     inputHistory: fieldCtx.inputHistory ?? maiosCase.inputHistory,
                 };
-                if (primary.crop_type?.toLowerCase().includes('ginger')) {
-                    gingerSopV3 = maiosCase;
-                }
             }
             catch (err) {
                 logger.warn({ err, escalationId }, 'MAIOS field context refresh failed');
@@ -659,6 +662,22 @@ export const agronomistCaseReviewService = {
         }
         let selfApproved = false;
         if (body.submitForApproval && recommendationId) {
+            const latestOutput = detail.ai;
+            const costEst = latestOutput.costEstimate?.[0];
+            const treatmentCost = costEst?.note
+                ? Number(String(costEst.note).replace(/[^\d.]/g, '')) || undefined
+                : undefined;
+            const economic = economicGateService.assess({
+                treatmentCostInr: treatmentCost,
+                expectedBenefitInr: treatmentCost ? treatmentCost * 1.2 : undefined,
+            });
+            const fusedConf = detail.maiosCase
+                ?.diagnostics?.fusedConfidence;
+            if (!economic.proceed &&
+                (fusedConf ?? detail.ai.confidence ?? 0) < 0.8 &&
+                body.action === 'approve_ai') {
+                throw new Error(`Economic gate blocked auto-approval: ${economic.reason}. Correct diagnosis or escalate.`);
+            }
             const currentStatus = detail.review.recommendationStatus;
             if (currentStatus !== 'pending_approval') {
                 await agronomistWorkflowService.submitForApproval(recommendationId, agentEmail);
@@ -676,6 +695,15 @@ export const agronomistCaseReviewService = {
                     .catch(() => { });
                 selfApproved = true;
             }
+        }
+        if (body.action === 'correct_ai' && esc.sessionId) {
+            void goldLearningQueueService.enqueue({
+                sessionId: esc.sessionId,
+                cropType: String(detail.block?.cropType ?? ''),
+                district: detail.location.district ? String(detail.location.district) : undefined,
+                failureType: 'agronomist_failure',
+                metadata: { action: body.action, correctDiagnosis: body.correctDiagnosis },
+            });
         }
         if (recommendationId &&
             body.submitForApproval &&
@@ -822,7 +850,7 @@ export const agronomistCaseReviewService = {
         }
         let rtq = supabase
             .from('recommendation_templates')
-            .select('issue_label_en, crop_type')
+            .select('issue_label_en, crop_type, issue_key')
             .not('issue_label_en', 'is', null)
             .neq('status', 'archived')
             .limit(200);

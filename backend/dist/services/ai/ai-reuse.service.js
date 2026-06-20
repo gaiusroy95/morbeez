@@ -13,6 +13,12 @@ const VERIFIED_STAFF_CONFIDENCE = 0.85;
 export function buildDapBucket(dap) {
     return Math.floor(Math.max(0, dap) / 15) * 15;
 }
+/** True when diagnosis must run fresh vision — never reuse text-only cache. */
+export function hasDiagnosisMedia(input) {
+    return Boolean(input.imageBase64?.trim() ||
+        input.imageStoragePath?.trim() ||
+        (input.diagnosisImages?.length ?? 0) > 0);
+}
 async function getFarmerDistrict(farmerId) {
     const { data } = await supabase.from('farmers').select('district').eq('id', farmerId).maybeSingle();
     return data?.district ? String(data.district).trim().toLowerCase() : null;
@@ -28,6 +34,8 @@ async function getFarmerDap(farmerId, activeBlockId) {
 }
 export const aiReuseService = {
     async peekMatch(input) {
+        if (input.hasMedia)
+            return false;
         if (!env.ENABLE_AI_REUSE_CACHE)
             return false;
         const district = await getFarmerDistrict(input.farmerId);
@@ -160,6 +168,8 @@ export const aiReuseService = {
         return null;
     },
     async tryReuse(input, sessionId) {
+        if (hasDiagnosisMedia(input))
+            return null;
         if (!env.ENABLE_AI_REUSE_CACHE)
             return null;
         const district = await getFarmerDistrict(input.farmerId);

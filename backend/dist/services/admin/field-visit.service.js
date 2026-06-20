@@ -423,8 +423,11 @@ export const fieldVisitService = {
                         .eq('visit_ai_case_id', issue.aiCaseId);
                 }
                 if (shouldApprove) {
+                    const whatsappOverride = input.whatsappMessages?.find((m) => m.issueIndex === i);
                     void recommendationCommunicationService
-                        .sendApprovedRecommendation(String(row.id))
+                        .sendApprovedRecommendation(String(row.id), {
+                        customMessage: whatsappOverride?.message,
+                    })
                         .catch(() => ({ sent: false }));
                     if (issue.aiCaseId && !partnerId) {
                         const { data: qaRows } = await supabase

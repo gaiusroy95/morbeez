@@ -15,11 +15,33 @@ import { nearbyCasesService } from './nearby-cases.service.js';
 import { diagnosisFollowUpReasoningEngine, } from './diagnosis-follow-up-reasoning.engine.js';
 import { diagnosisFollowUpQuestionGenerator, } from './diagnosis-follow-up-question.generator.js';
 import { expertFollowUpLearningService } from '../../core/expert-follow-up-learning.service.js';
+import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
+import { getReviewThreshold } from '../../../domain/ai-training/confidence-routing.js';
 import { localizeChoice, YES_NO_CHOICES, } from './follow-up-question.types.js';
 const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
+const MAX_POST_DIAGNOSIS_QUESTIONS = () => Number(process.env.DIAGNOSIS_POST_FOLLOW_UP_MAX_QUESTIONS ?? 3);
 const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 1);
 const STRONG_MATCH_SCORE = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_STRONG_MATCH ?? 0.9);
+function toAdvisorySnapshot(advisory) {
+    return {
+        probableIssue: advisory.probableIssue,
+        confidence: advisory.confidence,
+        uncertain: advisory.uncertain,
+        imageObservations: advisory.imageObservations,
+        stressAnalysis: advisory.stressAnalysis,
+        differentialDiagnosis: advisory.differentialDiagnosis,
+        rejectedHypotheses: advisory.rejectedHypotheses,
+    };
+}
+function attachPostQuestionToIntake(intake, q) {
+    intake.questionTexts = intake.questionTexts ?? {};
+    intake.questionKinds = intake.questionKinds ?? {};
+    intake.questionChoices = intake.questionChoices ?? {};
+    intake.questionTexts[q.id] = q.text;
+    intake.questionKinds[q.id] = q.kind;
+    intake.questionChoices[q.id] = q.choices;
+}
 function choiceButtonId(optionId, questionId) {
     if (optionId === 'yes' || optionId === 'no')
         return `dfq.${optionId}.${questionId}`;
@@ -32,6 +54,28 @@ function attachQuestionToIntake(intake, q) {
     intake.questionTexts[q.id] = q.text;
     intake.questionKinds[q.id] = q.kind;
     intake.questionChoices[q.id] = q.choices;
+}
+function looksLikeSymptomDescription(text) {
+    const t = text.trim();
+    if (!t || t.length < 6)
+        return false;
+    if (/^(yes|no|y|n|skip|1|2)$/i.test(t))
+        return false;
+    if (t.startsWith('dfq.') || t.startsWith('menu.') || t.startsWith('lang.'))
+        return false;
+    return true;
+}
+function farmerSentCropEvidence(params) {
+    return params.hasPhoto || looksLikeSymptomDescription(params.text);
+}
+async function abandonDiagnosisIntake(farmerId) {
+    await conversationSessionService.patchContext(farmerId, { diagnosisIntake: undefined });
+    await conversationSessionService.setState(farmerId, 'diagnosis');
+}
+function intakeAnswerHint(language) {
+    return language === 'ml'
+        ? 'ദയവായി ചോദ്യത്തിന് മറുപടി നൽകൂ (അല്ലെങ്കിൽ Yes / No ടൈപ്പ് ചെയ്യൂ):'
+        : 'Please answer the question below (or type Yes / No):';
 }
 async function sendStructuredChoices(params) {
     const buttons = params.choices.map((c) => ({
@@ -252,6 +296,7 @@ export const diagnosisFollowUpService = {
             cropType: params.cropType,
             symptomsText: params.symptomsText,
             hasPhoto: params.hasPhoto,
+            imageObservations: params.imageObservations,
             dap: memory.dap,
             similarCases: similar,
             totalVerifiedCases: totalVerified,
@@ -267,7 +312,19 @@ export const diagnosisFollowUpService = {
             learnedPatterns,
         };
     },
-    async planNextQuestionForIntake(investigation, intake) {
+    async deriveEvidenceGaps(farmerId) {
+        const ctx = await conversationSessionService.getContext(farmerId);
+        const maiosCase = ctx.maiosCase;
+        if (!maiosCase?.evidence?.photos?.length)
+            return [];
+        const pack = await cropPackLoaderService.load(maiosCase.identity.cropType);
+        const captured = maiosCase.evidence.photos
+            .filter((p) => p.status === 'captured')
+            .map((p) => p.slot);
+        const missing = cropPackLoaderService.nextMissingSlots(pack, captured, 5);
+        return missing.map((s) => s.labelEn || s.id);
+    },
+    async planNextQuestionForIntake(investigation, intake, opts) {
         const maxQuestions = intake.maxQuestions ?? MAX_QUESTIONS();
         const questionsAsked = intake.questionsAsked ?? Object.keys(intake.answers).length;
         if (questionsAsked >= maxQuestions) {
@@ -287,8 +344,41 @@ export const diagnosisFollowUpService = {
             }
             return { intakeComplete: false, question: saved };
         }
+        const evidenceGaps = opts?.evidenceGaps ??
+            (opts?.farmerId ? await this.deriveEvidenceGaps(opts.farmerId) : []);
         const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
             ctx: investigation,
+            priorAnswers: intake.answers,
+            questionTexts: intake.questionTexts ?? {},
+            questionsAsked,
+            maxQuestions,
+            learnedPatterns: investigation.learnedPatterns,
+            evidenceGaps,
+        });
+        if (result.intakeComplete || !result.question) {
+            return { intakeComplete: true };
+        }
+        return {
+            intakeComplete: false,
+            question: {
+                id: result.question.id,
+                kind: result.question.kind,
+                text: result.question.text,
+                choices: result.question.choices,
+                purpose: result.question.purpose,
+                fromExpertLibrary: false,
+            },
+        };
+    },
+    async planNextPostDiagnosisQuestion(investigation, intake) {
+        const maxQuestions = intake.maxQuestions ?? MAX_POST_DIAGNOSIS_QUESTIONS();
+        const questionsAsked = intake.questionsAsked ?? Object.keys(intake.answers).length;
+        if (questionsAsked >= maxQuestions) {
+            return { intakeComplete: true };
+        }
+        const result = await diagnosisFollowUpQuestionGenerator.planPostDiagnosisQuestion({
+            ctx: investigation,
+            advisory: intake.advisorySnapshot,
             priorAnswers: intake.answers,
             questionTexts: intake.questionTexts ?? {},
             questionsAsked,
@@ -337,6 +427,11 @@ export const diagnosisFollowUpService = {
     async startIntake(params) {
         if (!this.enabled())
             return { started: false };
+        // Vision-first: photo messages must be analyzed before follow-up Q&A.
+        if (params.hasPhoto && !(params.imageObservations?.length ?? 0)) {
+            logger.info({ farmerId: params.farmerId }, 'Pre-diagnosis intake skipped: photo requires Crop Doctor vision first');
+            return { started: false };
+        }
         const ctx = await this.buildInvestigationContext(params);
         const band = diagnosisFollowUpReasoningEngine.resolveMatchConfidenceBand(ctx.matchConfidence);
         if (diagnosisFollowUpReasoningEngine.shouldSkipFollowUpIntake(ctx)) {
@@ -350,14 +445,16 @@ export const diagnosisFollowUpService = {
             .eq('id', params.farmerId)
             .maybeSingle();
         const district = farmerRow?.district ? String(farmerRow.district).trim().toLowerCase() : null;
-        const savedLibrary = await expertFollowUpLearningService.findForFarmer({
-            cropType: params.cropType,
-            district,
-            symptomsText: params.symptomsText,
-            issueLabelHint: ctx.bestIssueLabel,
-            language: params.language,
-            max: MAX_QUESTIONS(),
-        });
+        const savedLibrary = params.hasPhoto && (params.imageObservations?.length ?? 0) > 0
+            ? []
+            : await expertFollowUpLearningService.findForFarmer({
+                cropType: params.cropType,
+                district,
+                symptomsText: params.symptomsText,
+                issueLabelHint: ctx.bestIssueLabel,
+                language: params.language,
+                max: MAX_QUESTIONS(),
+            });
         const hasSavedQuestions = savedLibrary.length > 0;
         const evidenceMode = !hasLearnedPool &&
             !hasSavedQuestions &&
@@ -408,7 +505,9 @@ export const diagnosisFollowUpService = {
             pendingPhoto: !params.hasPhoto,
             evidenceMode: evidenceMode && !hasSavedQuestions,
         };
-        const planned = await this.planNextQuestionForIntake(ctx, draftIntake);
+        const planned = await this.planNextQuestionForIntake(ctx, draftIntake, {
+            farmerId: params.farmerId,
+        });
         if (planned.intakeComplete || !planned.question)
             return { started: false };
         const intake = {
@@ -516,7 +615,9 @@ export const diagnosisFollowUpService = {
                 cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
                 hasPhoto: true,
             });
-            const next = await this.planNextQuestionForIntake(investigation, intake);
+            const next = await this.planNextQuestionForIntake(investigation, intake, {
+                farmerId: params.farmerId,
+            });
             if (!next.intakeComplete && next.question) {
                 intake.questions.push(next.question);
                 attachQuestionToIntake(intake, next.question);
@@ -542,7 +643,9 @@ export const diagnosisFollowUpService = {
                 cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
                 hasPhoto: !skip && (params.hasPhoto || !intake.pendingPhoto),
             });
-            const next = await this.planNextQuestionForIntake(investigation, intake);
+            const next = await this.planNextQuestionForIntake(investigation, intake, {
+                farmerId: params.farmerId,
+            });
             if (!next.intakeComplete && next.question) {
                 intake.questions.push(next.question);
                 attachQuestionToIntake(intake, next.question);
@@ -563,9 +666,12 @@ export const diagnosisFollowUpService = {
                     answer = typed;
             }
             if (!answer || !choiceIds.has(answer)) {
-                await whatsappService.sendText(params.phone, params.language === 'ml'
-                    ? 'ദയവായി ബട്ടൺ തിരഞ്ഞെടുക്കൂ.'
-                    : 'Please tap one of the option buttons.');
+                if (farmerSentCropEvidence(params)) {
+                    await abandonDiagnosisIntake(params.farmerId);
+                    logger.info({ farmerId: params.farmerId, hasPhoto: params.hasPhoto, text: params.text?.slice(0, 80) }, 'Diagnosis intake abandoned — farmer sent crop photo/symptoms instead of structured answer');
+                    return { handled: false };
+                }
+                await this.sendCurrentQuestion(params.phone, params.language, intake, intakeAnswerHint(params.language));
                 return { handled: true, ready: false };
             }
             intake.answers[current.id] = answer;
@@ -578,7 +684,9 @@ export const diagnosisFollowUpService = {
                 cropType: (await farmerMemoryService.build(params.farmerId)).cropType,
                 hasPhoto: params.hasPhoto || !intake.pendingPhoto,
             });
-            const next = await this.planNextQuestionForIntake(investigation, intake);
+            const next = await this.planNextQuestionForIntake(investigation, intake, {
+                farmerId: params.farmerId,
+            });
             if (!next.intakeComplete && next.question) {
                 intake.questions.push(next.question);
                 attachQuestionToIntake(intake, next.question);
@@ -616,6 +724,188 @@ export const diagnosisFollowUpService = {
             };
         }
         await this.sendCurrentQuestion(params.phone, params.language, intake);
+        return { handled: true, ready: false };
+    },
+    shouldDeferDiagnosisDelivery(confidence) {
+        if (!this.enabled())
+            return false;
+        return confidence < getReviewThreshold();
+    },
+    async startPostDiagnosisClarification(params) {
+        if (!this.enabled())
+            return false;
+        if (!this.shouldDeferDiagnosisDelivery(params.advisory.confidence))
+            return false;
+        const memory = await farmerMemoryService.build(params.farmerId, {
+            symptomsText: params.symptomsText,
+        });
+        const investigation = await this.buildInvestigationContext({
+            farmerId: params.farmerId,
+            language: params.language,
+            symptomsText: params.symptomsText?.trim() ||
+                `${memory.cropType} crop field issue — post photo analysis`,
+            cropType: memory.cropType,
+            hasPhoto: true,
+            imageObservations: params.advisory.imageObservations,
+        });
+        const draftIntake = {
+            sessionId: params.sessionId,
+            cropType: memory.cropType,
+            advisorySnapshot: toAdvisorySnapshot(params.advisory),
+            questions: [],
+            currentIndex: 0,
+            answers: {},
+            questionTexts: {},
+            questionKinds: {},
+            questionChoices: {},
+            questionsAsked: 0,
+            maxQuestions: MAX_POST_DIAGNOSIS_QUESTIONS(),
+        };
+        const planned = await this.planNextPostDiagnosisQuestion(investigation, draftIntake);
+        if (planned.intakeComplete || !planned.question)
+            return false;
+        const intake = {
+            ...draftIntake,
+            questions: [planned.question],
+        };
+        attachPostQuestionToIntake(intake, planned.question);
+        await conversationSessionService.patchContext(params.farmerId, {
+            postDiagnosisIntake: intake,
+            pendingDiagnosisDelivery: {
+                sessionId: params.sessionId,
+                escalated: params.escalated,
+                reused: params.reused,
+                confidence: params.advisory.confidence,
+                plotLabel: params.plotLabel,
+            },
+        });
+        await conversationSessionService.setState(params.farmerId, 'post_diagnosis_intake');
+        const intro = diagnosisFollowUpReasoningEngine.buildPostDiagnosisIntro({
+            language: params.language,
+            probableIssue: params.advisory.probableIssue,
+            confidence: params.advisory.confidence,
+            differentialCount: params.advisory.differentialDiagnosis?.length ?? 0,
+        });
+        const visionNote = (params.advisory.imageObservations?.length ?? 0) > 0
+            ? params.language === 'ml'
+                ? `\n\nഫോട്ടോയിൽ കണ്ടത്: ${params.advisory.imageObservations.slice(0, 2).join('; ')}`
+                : `\n\nFrom your photo: ${params.advisory.imageObservations.slice(0, 2).join('; ')}`
+            : '';
+        await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, `${intro}${visionNote}`);
+        logger.info({
+            farmerId: params.farmerId,
+            sessionId: params.sessionId,
+            confidence: params.advisory.confidence,
+            firstQuestionId: planned.question.id,
+        }, 'Post-diagnosis AI clarification started');
+        return true;
+    },
+    async sendPostDiagnosisQuestion(phone, language, intake, prefix) {
+        const q = intake.questions[intake.currentIndex];
+        if (!q)
+            return;
+        const step = intake.maxQuestions > 1
+            ? language === 'ml'
+                ? `(ചോദ്യം ${intake.currentIndex + 1} / ${intake.maxQuestions} വരെ)\n\n`
+                : `(Question ${intake.currentIndex + 1} of up to ${intake.maxQuestions})\n\n`
+            : '';
+        const body = prefix ? `${prefix}\n\n${step}${q.text}` : `${step}${q.text}`;
+        if (q.kind === 'photo') {
+            await whatsappService.sendText(phone, language === 'ml'
+                ? `${body}\n\n(അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" ടൈപ്പ് ചെയ്യൂ.)`
+                : `${body}\n\n(Send a close photo, or type skip.)`);
+            return;
+        }
+        const choices = q.choices?.length
+            ? q.choices
+            : intake.questionChoices?.[q.id]?.length
+                ? intake.questionChoices[q.id]
+                : YES_NO_CHOICES;
+        try {
+            await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
+            return;
+        }
+        catch {
+            const labels = choices.map((c) => localizeChoice(c, language)).join(' / ');
+            await whatsappService.sendText(phone, `${body}\n\nReply: ${labels}`);
+        }
+    },
+    async handlePostDiagnosisMessage(params) {
+        const ctx = await conversationSessionService.getContext(params.farmerId);
+        const intake = ctx.postDiagnosisIntake;
+        if (!intake?.questions?.length)
+            return { handled: false };
+        const current = intake.questions[intake.currentIndex];
+        if (!current) {
+            return { handled: true, ready: true };
+        }
+        const isPhotoQ = current.kind === 'photo';
+        if (isPhotoQ && params.hasPhoto) {
+            intake.answers[current.id] = 'yes';
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+            intake.currentIndex += 1;
+        }
+        else if (isPhotoQ) {
+            const skip = /skip/i.test(params.text);
+            if (!skip && !params.hasPhoto) {
+                await whatsappService.sendText(params.phone, params.language === 'ml'
+                    ? 'ദയവായി അടുത്ത ഫോട്ടോ അയയ്ക്കൂ, അല്ലെങ്കിൽ "skip" എന്ന് ടൈപ്പ് ചെയ്യൂ.'
+                    : 'Please send a close photo, or type skip.');
+                return { handled: true, ready: false };
+            }
+            intake.answers[current.id] = skip ? 'skip' : 'yes';
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+            intake.currentIndex += 1;
+        }
+        else {
+            const choices = current.choices?.length
+                ? current.choices
+                : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+            const choiceIds = new Set(choices.map((c) => c.id));
+            const btn = this.parseButtonReply(params.text);
+            let answer = btn?.questionId === current.id ? btn.answer : undefined;
+            if (!answer) {
+                const typed = this.parseTextAnswer(params.text);
+                if (typed && choiceIds.has(typed))
+                    answer = typed;
+                else if (typed === 'yes' || typed === 'no')
+                    answer = typed;
+            }
+            if (!answer || !choiceIds.has(answer)) {
+                await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, intakeAnswerHint(params.language));
+                return { handled: true, ready: false };
+            }
+            intake.answers[current.id] = answer;
+            intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
+            intake.currentIndex += 1;
+        }
+        const investigation = await this.buildInvestigationContext({
+            farmerId: params.farmerId,
+            language: params.language,
+            symptomsText: `${intake.cropType} crop — post-diagnosis clarification`,
+            cropType: intake.cropType,
+            hasPhoto: true,
+            imageObservations: intake.advisorySnapshot.imageObservations,
+        });
+        const next = await this.planNextPostDiagnosisQuestion(investigation, intake);
+        if (!next.intakeComplete && next.question) {
+            intake.questions.push(next.question);
+            attachPostQuestionToIntake(intake, next.question);
+        }
+        await conversationSessionService.patchContext(params.farmerId, { postDiagnosisIntake: intake });
+        if (intake.currentIndex >= intake.questions.length) {
+            await conversationSessionService.patchContext(params.farmerId, {
+                postDiagnosisIntake: undefined,
+            });
+            await conversationSessionService.setState(params.farmerId, 'diagnosis');
+            logger.info({
+                farmerId: params.farmerId,
+                sessionId: intake.sessionId,
+                answerCount: Object.keys(intake.answers).length,
+            }, 'Post-diagnosis clarification complete');
+            return { handled: true, ready: true };
+        }
+        await this.sendPostDiagnosisQuestion(params.phone, params.language, intake);
         return { handled: true, ready: false };
     },
     async resolveAfterIntake(params) {

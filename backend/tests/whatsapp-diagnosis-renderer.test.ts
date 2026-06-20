@@ -56,7 +56,7 @@ describe('whatsapp diagnosis renderer', () => {
     assert.match(text, /ഉടനടി നടപടി/);
   });
 
-  it('falls back to farmerSummary when no rich sections', () => {
+  it('falls back to farmerSummary when no rich sections and no image evidence required', () => {
     const thin: StructuredAdvisory = {
       ...richAdvisory,
       imageObservations: [],

@@ -275,6 +275,22 @@ export const whatsappScenarioRouter = {
             if (roiHandled)
                 return { handled: true };
         }
+        if (session.state === 'post_diagnosis_intake') {
+            const postResult = await diagnosisFollowUpService.handlePostDiagnosisMessage({
+                farmerId: captured.farmerId,
+                phone: msg.phone,
+                language: lang,
+                text,
+                hasPhoto: CROP_MEDIA_INTAKE.has(msg.msgType),
+            });
+            if (postResult.handled) {
+                if (postResult.ready) {
+                    await send.text(msg.phone, lang === 'ml' ? 'നന്ദി. നിങ്ങളുടെ നിർണയം തയ്യാറാക്കുന്നു…' : 'Thanks. Preparing your diagnosis…');
+                    return { handled: true, deliverPendingDiagnosis: true };
+                }
+                return { handled: true };
+            }
+        }
         if (session.state === 'diagnosis_intake' ||
             text.startsWith('dfq.')) {
             const intakeResult = await diagnosisFollowUpService.handleIntakeMessage({
@@ -344,11 +360,13 @@ export const whatsappScenarioRouter = {
         const gingerRecovery = text?.match(/^ginger\.recovery\.d(\d+)\.(improved|same|worse)$/i);
         if (gingerRecovery) {
             const ctx = await conversationSessionService.getContext(captured.farmerId);
-            const reply = await gingerSopFollowUpService.handleRecoveryReply({
+            const sessionId = ctx.maiosCase?.sessionId ?? ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId;
+            const handler = ctx.maiosCase ? recoveryValidationService : gingerSopFollowUpService;
+            const reply = await handler.handleRecoveryReply({
                 farmerId: captured.farmerId,
                 day: Number(gingerRecovery[1]),
                 outcome: gingerRecovery[2].toLowerCase(),
-                sessionId: ctx.gingerSopCase?.sessionId ?? ctx.diagnosis?.lastSessionId,
+                sessionId,
             });
             await send.text(msg.phone, reply);
             return { handled: true };

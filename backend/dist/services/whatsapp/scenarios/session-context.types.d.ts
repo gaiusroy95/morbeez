@@ -119,5 +119,53 @@ export interface SessionContext {
         pendingPhoto?: boolean;
         evidenceMode?: boolean;
     };
+    /** After Crop Doctor when confidence is below review threshold — AI-planned clarification before final reply. */
+    postDiagnosisIntake?: {
+        sessionId: string;
+        cropType: string;
+        advisorySnapshot: {
+            probableIssue: string;
+            confidence: number;
+            uncertain?: boolean;
+            imageObservations?: string[];
+            stressAnalysis?: string[];
+            differentialDiagnosis?: Array<{
+                label: string;
+                reason: string;
+                probability?: number;
+            }>;
+            rejectedHypotheses?: string[];
+        };
+        questions: Array<{
+            id: string;
+            kind: 'yes_no' | 'multiple_choice' | 'photo';
+            text: string;
+            choices: Array<{
+                id: string;
+                labelEn: string;
+                labelMl: string;
+            }>;
+            purpose?: string;
+        }>;
+        currentIndex: number;
+        answers: Record<string, string>;
+        questionTexts: Record<string, string>;
+        questionKinds: Record<string, 'yes_no' | 'multiple_choice' | 'photo'>;
+        questionChoices: Record<string, Array<{
+            id: string;
+            labelEn: string;
+            labelMl: string;
+        }>>;
+        questionsAsked: number;
+        maxQuestions: number;
+    };
+    /** Stored until post-diagnosis Q&A completes (then farmer gets full advisory). */
+    pendingDiagnosisDelivery?: {
+        sessionId: string;
+        escalated: boolean;
+        reused: boolean;
+        confidence: number;
+        plotLabel?: string;
+    };
 }
 //# sourceMappingURL=session-context.types.d.ts.map

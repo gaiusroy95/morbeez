@@ -13,7 +13,8 @@ import { escalationService } from './escalation.service.js';
 import { farmerExperienceLearningService } from '../core/farmer-experience-learning.service.js';
 import type { DiagnoseInput, DiagnoseResult, StructuredAdvisory } from './types.js';
 import { env } from '../../config/env.js';
-import { aiReuseService, buildSymptomKey } from './ai-reuse.service.js';
+import { aiReuseService, buildSymptomKey, hasDiagnosisMedia } from './ai-reuse.service.js';
+import { whatsappDiagnosisRendererService } from '../whatsapp/pipeline/whatsapp-diagnosis-renderer.service.js';
 import { computeDap } from '../whatsapp/broadcasts/dap.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
 import { isOpenAiQuotaAppError, logOpenAiQuotaInsufficient } from './openai-quota.service.js';
@@ -120,7 +121,9 @@ export const cropDoctorService = {
     })();
 
     const skipReuse =
-      input.skipReuseCache === true || Boolean(input.fieldInvestigation?.trim());
+      input.skipReuseCache === true ||
+      Boolean(input.fieldInvestigation?.trim()) ||
+      hasDiagnosisMedia(input);
 
     const reused = skipReuse ? null : await aiReuseService.tryReuse(input, sessionId);
     if (reused) {
@@ -258,6 +261,20 @@ export const cropDoctorService = {
           userPrompt: fullUserPrompt,
           additionalImages: additionalImages.length ? additionalImages : undefined,
         });
+        advisory = normalizeStructuredAdvisory(advisory);
+        if (
+          !whatsappDiagnosisRendererService.hasImageEvidence(advisory) &&
+          !whatsappDiagnosisRendererService.hasRichSections(advisory)
+        ) {
+          const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from the attached photo (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
+          advisory = await openaiVisionProvider.analyzeVision({
+            imageBase64: input.imageBase64,
+            mimeType: input.imageMimeType,
+            systemPrompt: CROP_DOCTOR_SYSTEM_PROMPT,
+            userPrompt: retryPrompt,
+            additionalImages: additionalImages.length ? additionalImages : undefined,
+          });
+        }
       } else {
         advisory = await openaiTextAdvisory(CROP_DOCTOR_SYSTEM_PROMPT, fullUserPrompt);
       }
@@ -289,6 +306,7 @@ export const cropDoctorService = {
           text: symptomText || input.compactHistory || 'crop problem',
           language: input.language,
           memory,
+          hasMedia: hasDiagnosisMedia(input),
         });
         if (kb) {
           advisory = advisoryFromKnowledgeText(kb, input.language);

@@ -27,6 +27,28 @@ export type PlanNextQuestionInput = {
     /** MAIOS v12 — missing evidence slots from case (photo/module gaps) */
     evidenceGaps?: string[];
 };
+export type PostDiagnosisAdvisorySnapshot = {
+    probableIssue: string;
+    confidence: number;
+    uncertain?: boolean;
+    imageObservations?: string[];
+    stressAnalysis?: string[];
+    differentialDiagnosis?: Array<{
+        label: string;
+        reason: string;
+        probability?: number;
+    }>;
+    rejectedHypotheses?: string[];
+};
+export type PlanPostDiagnosisQuestionInput = {
+    ctx: InvestigationContext;
+    advisory: PostDiagnosisAdvisorySnapshot;
+    priorAnswers: Record<string, string>;
+    questionTexts: Record<string, string>;
+    questionsAsked: number;
+    maxQuestions: number;
+    learnedPatterns: LearnedInvestigationPattern[];
+};
 export type PlanNextQuestionResult = {
     intakeComplete: boolean;
     question?: GeneratedFollowUpQuestion;
@@ -34,6 +56,7 @@ export type PlanNextQuestionResult = {
 };
 export declare const diagnosisFollowUpQuestionGenerator: {
     planNextQuestion(input: PlanNextQuestionInput): Promise<PlanNextQuestionResult>;
+    planPostDiagnosisQuestion(input: PlanPostDiagnosisQuestionInput): Promise<PlanNextQuestionResult>;
     buildInvestigationPattern(params: {
         initialSymptoms: string;
         issueLabel: string;

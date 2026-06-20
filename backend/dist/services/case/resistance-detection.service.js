@@ -10,10 +10,11 @@ export const resistanceDetectionService = {
         const qoiSprays = sprays.filter((s) => s.products.some((p) => QOI_PATTERN.test(p)));
         if (qoiSprays.length >= 2)
             warnings.push('qoi_rotation_risk');
+        const cropKey = (params.cropType ?? '_default').toLowerCase().trim();
         const { data: groups } = await supabase
             .from('resistance_rotation_groups')
             .select('mode_of_action, technical_name')
-            .eq('crop_type', 'ginger')
+            .eq('crop_type', cropKey)
             .limit(50);
         const classes = new Set();
         for (const spray of sprays) {

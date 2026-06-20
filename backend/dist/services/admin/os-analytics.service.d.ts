@@ -209,6 +209,14 @@ export declare const osAnalyticsService: {
         agronomistOverrideRate: number;
         d14RecoveryRate: number;
         d14SampleSize: number;
+        avgEqs: number;
+        recoveryLoopStartRate: number;
+        recoveryLoopCompletionRate: number;
+        proactiveAlertsSent: number;
+        failureBreakdown: {
+            type: string;
+            count: number;
+        }[];
     }>;
 };
 //# sourceMappingURL=os-analytics.service.d.ts.map

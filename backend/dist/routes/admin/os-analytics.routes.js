@@ -62,5 +62,11 @@ export async function osAnalyticsRoutes(app) {
         const precision = await osPrecisionService.getModulePrecision(days);
         return reply.send({ ok: true, precision });
     });
+    app.get(`${api}/maios`, async (request, reply) => {
+        await assertModuleAccess(request, 'analytics', 'read');
+        const days = parseDays(request.query);
+        const maios = await osAnalyticsService.getMaiosKpis(days);
+        return reply.send({ ok: true, maios });
+    });
 }
 //# sourceMappingURL=os-analytics.routes.js.map

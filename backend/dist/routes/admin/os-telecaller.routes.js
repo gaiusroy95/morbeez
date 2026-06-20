@@ -1485,7 +1485,7 @@ export async function osTelecallerRoutes(app) {
         await assertModuleAccess(request, 'telecaller_crm', 'read');
         const q = request.query;
         const result = await escalationAdminService.list({
-            status: q.status ?? 'pending',
+            status: q.status ?? 'open',
             page: q.page ? Number(q.page) : 1,
             limit: q.limit ? Number(q.limit) : 50,
         });
@@ -1514,6 +1514,17 @@ export async function osTelecallerRoutes(app) {
             .parse(request.body);
         const escalation = await escalationAdminService.update(id, body, admin.email);
         return reply.send({ ok: true, escalation });
+    });
+    app.post(`${api}/escalations/clear-completed`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const result = await escalationAdminService.clearCompleted(admin.email);
+        return reply.send(result);
+    });
+    app.post(`${api}/escalations/:id/clear`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'telecaller_crm', 'write');
+        const { id } = request.params;
+        const result = await escalationAdminService.clear(id, admin.email);
+        return reply.send(result);
     });
     app.get(`${api}/leads/:id/field-activities/blocks`, async (request, reply) => {
         await assertModuleAccess(request, 'telecaller_crm', 'read');

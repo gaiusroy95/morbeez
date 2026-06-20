@@ -2,6 +2,7 @@ export declare const predictiveRiskService: {
     scoreBlock(params: {
         farmerId: string;
         blockId?: string | null;
+        cropType?: string;
         contextPack?: {
             weatherRiskScore?: number;
             heavyRainLikely?: boolean;
@@ -10,6 +11,7 @@ export declare const predictiveRiskService: {
             drainageRisk?: "low" | "moderate" | "high";
         };
         riskTagCount?: number;
+        regionalClusterKey?: string;
     }): Promise<{
         disease: number;
         pest: number;

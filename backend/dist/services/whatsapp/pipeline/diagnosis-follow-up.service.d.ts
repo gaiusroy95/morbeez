@@ -1,4 +1,4 @@
-import type { AdvisoryLanguage } from '../../ai/types.js';
+import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
 import type { SessionContext } from '../scenarios/session-context.types.js';
 import { type InvestigationContext, type PostIntakeDiagnosisPayload } from './diagnosis-follow-up-reasoning.engine.js';
 import { type FollowUpQuestionKind } from './diagnosis-follow-up-question.generator.js';
@@ -22,6 +22,7 @@ export type FollowUpQuestion = {
     fromExpertLibrary?: boolean;
 };
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
+type PostDiagnosisIntakeContext = NonNullable<SessionContext['postDiagnosisIntake']>;
 export declare const diagnosisFollowUpService: {
     enabled(): boolean;
     findSimilarLearnedCases(params: {
@@ -36,8 +37,17 @@ export declare const diagnosisFollowUpService: {
         symptomsText: string;
         cropType: string;
         hasPhoto: boolean;
+        imageObservations?: string[];
     }): Promise<InvestigationContext>;
-    planNextQuestionForIntake(investigation: InvestigationContext, intake: IntakeContext): Promise<{
+    deriveEvidenceGaps(farmerId: string): Promise<string[]>;
+    planNextQuestionForIntake(investigation: InvestigationContext, intake: IntakeContext, opts?: {
+        evidenceGaps?: string[];
+        farmerId?: string;
+    }): Promise<{
+        intakeComplete: boolean;
+        question?: FollowUpQuestion;
+    }>;
+    planNextPostDiagnosisQuestion(investigation: InvestigationContext, intake: PostDiagnosisIntakeContext): Promise<{
         intakeComplete: boolean;
         question?: FollowUpQuestion;
     }>;
@@ -49,6 +59,7 @@ export declare const diagnosisFollowUpService: {
         symptomsText: string;
         cropType: string;
         hasPhoto: boolean;
+        imageObservations?: string[];
     }): Promise<{
         started: boolean;
         mode?: "learned" | "evidence";
@@ -75,6 +86,29 @@ export declare const diagnosisFollowUpService: {
         escalateHint?: boolean;
     } | {
         handled: false;
+    }>;
+    shouldDeferDiagnosisDelivery(confidence: number): boolean;
+    startPostDiagnosisClarification(params: {
+        farmerId: string;
+        phone: string;
+        language: AdvisoryLanguage;
+        sessionId: string;
+        advisory: StructuredAdvisory;
+        escalated: boolean;
+        reused: boolean;
+        plotLabel?: string;
+        symptomsText?: string;
+    }): Promise<boolean>;
+    sendPostDiagnosisQuestion(phone: string, language: AdvisoryLanguage, intake: PostDiagnosisIntakeContext, prefix?: string): Promise<void>;
+    handlePostDiagnosisMessage(params: {
+        farmerId: string;
+        phone: string;
+        language: AdvisoryLanguage;
+        text: string;
+        hasPhoto?: boolean;
+    }): Promise<{
+        handled: boolean;
+        ready?: boolean;
     }>;
     resolveAfterIntake(params: {
         farmerId: string;

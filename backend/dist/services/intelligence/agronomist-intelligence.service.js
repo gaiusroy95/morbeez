@@ -62,8 +62,11 @@ export const agronomistIntelligenceService = {
                 if (s && s.trust < 8)
                     farmersNeedingTrust++;
             }
+            const seenFocus = new Set();
             for (const row of recentFindings ?? []) {
                 const fid = String(row.farmer_id);
+                if (seenFocus.has(fid))
+                    continue;
                 const farmer = row.farmers;
                 const s = scoreMap.get(fid);
                 const band = riskMap.get(fid) ?? null;
@@ -71,6 +74,7 @@ export const agronomistIntelligenceService = {
                 if (opp == null && band !== 'at_risk')
                     continue;
                 if ((opp != null && opp >= 65) || band === 'at_risk' || (s && s.trust < 8)) {
+                    seenFocus.add(fid);
                     focusFarmers.push({
                         farmerId: fid,
                         farmerName: farmer?.name ?? farmer?.phone ?? 'Farmer',

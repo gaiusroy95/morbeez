@@ -4472,6 +4472,13 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  min-height: 0;
+  max-height: calc(100vh - 280px);
+  overflow: hidden;
+}
+
+.tc-workspace-split--list .tc-leads-pane--queue {
+  max-height: calc(100vh - 320px);
 }
 
 .tc-lq-tasks-row {
@@ -4484,11 +4491,24 @@
   flex-direction: column;
   gap: 0;
   min-width: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Block 1: metrics */
 .tc-lq-metrics-block {
   margin-bottom: 14px;
+  flex-shrink: 0;
+}
+
+.tc-lq-filters-bar,
+.tc-lq-command-panel,
+.tc-lq-bulk-bar,
+.tc-lq-column-panel,
+.tc-lq-filter-hint,
+.tc-lq-error {
+  flex-shrink: 0;
 }
 
 .tc-lq-metrics-head {
@@ -4892,10 +4912,15 @@
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   margin: 0 15px;
+  flex: 1;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
 }
 
 .tc-lq-table-scroll-hint {
-  display: none;
+  display: block;
+  flex-shrink: 0;
   padding: 8px 14px;
   font-size: 11px;
   font-weight: 600;
@@ -4904,18 +4929,25 @@
   border-bottom: 1px solid #eef2f0;
 }
 
-@media (max-width: 1280px) {
+@media (min-width: 1281px) {
   .tc-lq-table-scroll-hint {
-    display: block;
+    padding: 6px 14px;
+    font-size: 10px;
   }
 }
 
 .tc-lq-table-wrap {
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  max-height: min(58vh, 640px);
+  max-height: min(52vh, 560px);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.tc-lq-table-panel.is-scrolled-y .tc-lq-th {
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
 }
 
 .tc-lq-table-wrap::-webkit-scrollbar {

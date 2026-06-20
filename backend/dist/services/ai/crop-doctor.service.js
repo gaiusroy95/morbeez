@@ -9,7 +9,8 @@ import { recommendationService } from './recommendation.service.js';
 import { escalationService } from './escalation.service.js';
 import { farmerExperienceLearningService } from '../core/farmer-experience-learning.service.js';
 import { env } from '../../config/env.js';
-import { aiReuseService, buildSymptomKey } from './ai-reuse.service.js';
+import { aiReuseService, buildSymptomKey, hasDiagnosisMedia } from './ai-reuse.service.js';
+import { whatsappDiagnosisRendererService } from '../whatsapp/pipeline/whatsapp-diagnosis-renderer.service.js';
 import { computeDap } from '../whatsapp/broadcasts/dap.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
 import { isOpenAiQuotaAppError, logOpenAiQuotaInsufficient } from './openai-quota.service.js';
@@ -18,7 +19,6 @@ import { farmerMemoryService } from '../whatsapp/pipeline/farmer-memory.service.
 import { leadService } from '../crm/lead.service.js';
 import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-diagnosis-context.service.js';
 import { normalizeStructuredAdvisory } from './advisory-normalize.js';
-import { gingerSopCaseService } from '../ginger-sop/ginger-sop-case.service.js';
 import { caseBuilderService } from '../case/case-builder.service.js';
 import { casePersistService } from '../case/case-persist.service.js';
 async function getFarmerHistory(farmerId) {
@@ -96,7 +96,9 @@ export const cropDoctorService = {
                 eventId: sessionId,
             });
         })();
-        const skipReuse = input.skipReuseCache === true || Boolean(input.fieldInvestigation?.trim());
+        const skipReuse = input.skipReuseCache === true ||
+            Boolean(input.fieldInvestigation?.trim()) ||
+            hasDiagnosisMedia(input);
         const reused = skipReuse ? null : await aiReuseService.tryReuse(input, sessionId);
         if (reused) {
             reused.advisory = normalizeStructuredAdvisory(reused.advisory);
@@ -220,6 +222,18 @@ export const cropDoctorService = {
                     userPrompt: fullUserPrompt,
                     additionalImages: additionalImages.length ? additionalImages : undefined,
                 });
+                advisory = normalizeStructuredAdvisory(advisory);
+                if (!whatsappDiagnosisRendererService.hasImageEvidence(advisory) &&
+                    !whatsappDiagnosisRendererService.hasRichSections(advisory)) {
+                    const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from the attached photo (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
+                    advisory = await openaiVisionProvider.analyzeVision({
+                        imageBase64: input.imageBase64,
+                        mimeType: input.imageMimeType,
+                        systemPrompt: CROP_DOCTOR_SYSTEM_PROMPT,
+                        userPrompt: retryPrompt,
+                        additionalImages: additionalImages.length ? additionalImages : undefined,
+                    });
+                }
             }
             else {
                 advisory = await openaiTextAdvisory(CROP_DOCTOR_SYSTEM_PROMPT, fullUserPrompt);
@@ -252,6 +266,7 @@ export const cropDoctorService = {
                     text: symptomText || input.compactHistory || 'crop problem',
                     language: input.language,
                     memory,
+                    hasMedia: hasDiagnosisMedia(input),
                 });
                 if (kb) {
                     advisory = advisoryFromKnowledgeText(kb, input.language);
@@ -276,7 +291,6 @@ export const cropDoctorService = {
         advisory = normalizeStructuredAdvisory(advisory);
         const ctxPack = input.contextPack;
         let maiosCase = null;
-        let gingerSopCase = null;
         const photoCount = input.maiosPhotoCount ??
             input.gingerSopPhotoCount ??
             (input.imageBase64 ? 1 : 0);
@@ -318,11 +332,9 @@ export const cropDoctorService = {
                     causalChain: advisory.causalChain,
                     explanation: advisory.explanation,
                     rejectedHypotheses: advisory.rejectedHypotheses,
+                    recommendedProductTags: advisory.recommendedProductTags,
                 },
             });
-            if (maiosCase && gingerSopCaseService.isGingerCrop(input.cropType)) {
-                gingerSopCase = maiosCase;
-            }
             if (maiosCase) {
                 advisory.confidence = maiosCase.diagnostics.fusedConfidence;
                 if (maiosCase.route === 'field_visit' ||
@@ -334,19 +346,19 @@ export const cropDoctorService = {
                 }
             }
         }
-        else if (env.ENABLE_GINGER_SOP_V3 !== false && gingerSopCaseService.isGingerCrop(input.cropType)) {
-            gingerSopCase = await gingerSopCaseService.buildCase({
+        else {
+            maiosCase = await caseBuilderService.buildCase({
                 farmerId: input.farmerId,
                 blockId: input.activePlotId,
-                cropType: input.cropType,
+                cropType: input.cropType || '_default',
                 channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
                 sessionId,
                 symptomsText: input.symptomsText,
-                photoCount: input.gingerSopPhotoCount ?? (input.imageBase64 ? 1 : 0),
-                photoStoragePaths: input.gingerSopPhotoPaths,
-                hasSoilReport: input.gingerSopHasSoilReport,
+                photoCount,
+                photoStoragePaths: photoPaths,
+                hasSoilReport: hasSoil,
                 hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
-                intakeMatchConfidence: input.gingerSopIntakeConfidence,
+                intakeMatchConfidence: intakeConf,
                 contextPack: ctxPack
                     ? {
                         soilPh: ctxPack.soilPh,
@@ -366,17 +378,14 @@ export const cropDoctorService = {
                     uncertain: advisory.uncertain,
                     escalationRecommended: advisory.escalationRecommended,
                     differentialDiagnosis: advisory.differentialDiagnosis,
+                    causalChain: advisory.causalChain,
+                    explanation: advisory.explanation,
+                    rejectedHypotheses: advisory.rejectedHypotheses,
+                    recommendedProductTags: advisory.recommendedProductTags,
                 },
             });
-            if (gingerSopCase) {
-                advisory.confidence = gingerSopCase.diagnostics.fusedConfidence;
-                if (gingerSopCase.route === 'field_visit' ||
-                    gingerSopCase.route === 'emergency_callback') {
-                    advisory.escalationRecommended = true;
-                    advisory.escalationReason =
-                        advisory.escalationReason ??
-                            `Ginger SOP v3 route: ${gingerSopCase.route} (${gingerSopCase.triage.level})`;
-                }
+            if (maiosCase) {
+                advisory.confidence = maiosCase.diagnostics.fusedConfidence;
             }
         }
         await persistOutput(sessionId, advisory, 'openai', input.language);
@@ -391,10 +400,6 @@ export const cropDoctorService = {
         if (maiosCase) {
             maiosCase.sessionId = sessionId;
             await casePersistService.persistToSession(sessionId, maiosCase);
-        }
-        else if (gingerSopCase) {
-            gingerSopCase.sessionId = sessionId;
-            await gingerSopCaseService.persistToSession(sessionId, gingerSopCase);
         }
         await supabase
             .from('ai_advisory_sessions')
@@ -482,8 +487,7 @@ export const cropDoctorService = {
             productRecommendations,
             escalated,
             escalationId,
-            confidence: maiosCase?.diagnostics.fusedConfidence ?? gingerSopCase?.diagnostics.fusedConfidence ?? confidence,
-            gingerSopCase: gingerSopCase ?? undefined,
+            confidence: maiosCase?.diagnostics.fusedConfidence ?? confidence,
             maiosCase: maiosCase ?? undefined,
         };
     },

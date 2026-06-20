@@ -37,6 +37,43 @@ export const labIntelligenceService = {
                 source: String(water.source ?? 'lab'),
             });
         }
+        let leafQ = supabase
+            .from('crm_leaf_reports')
+            .select('metrics, reported_at, source')
+            .eq('farmer_id', farmerId)
+            .order('reported_at', { ascending: false })
+            .limit(1);
+        if (blockId)
+            leafQ = leafQ.eq('block_id', blockId);
+        const { data: leaf } = await leafQ.maybeSingle();
+        if (leaf) {
+            reports.push({
+                type: 'leaf',
+                reportedAt: String(leaf.reported_at),
+                metrics: leaf.metrics ?? {},
+                source: String(leaf.source ?? 'lab'),
+            });
+        }
+        let pathogenQ = supabase
+            .from('crm_pathogen_reports')
+            .select('metrics, reported_at, source, pathogen')
+            .eq('farmer_id', farmerId)
+            .order('reported_at', { ascending: false })
+            .limit(1);
+        if (blockId)
+            pathogenQ = pathogenQ.eq('block_id', blockId);
+        const { data: pathogen } = await pathogenQ.maybeSingle();
+        if (pathogen) {
+            reports.push({
+                type: 'pathogen',
+                reportedAt: String(pathogen.reported_at),
+                metrics: {
+                    ...(pathogen.metrics ?? {}),
+                    detected: pathogen.pathogen,
+                },
+                source: String(pathogen.source ?? 'lab'),
+            });
+        }
         return reports;
     },
 };

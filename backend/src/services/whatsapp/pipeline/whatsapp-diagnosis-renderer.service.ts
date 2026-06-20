@@ -90,7 +90,13 @@ export type RenderDiagnosisInput = {
   reuseNote?: string;
   safetyNote?: string;
   escalateNote?: string;
+  /** When true, refuse generic farmerSummary-only output without photo observations. */
+  requiresImageEvidence?: boolean;
 };
+
+function hasImageEvidence(advisory: StructuredAdvisory): boolean {
+  return Boolean(advisory.imageObservations?.length);
+}
 
 function hasRichSections(advisory: StructuredAdvisory): boolean {
   return Boolean(
@@ -114,9 +120,17 @@ function severityLabel(severity: string | undefined, language: AdvisoryLanguage)
 
 export const whatsappDiagnosisRendererService = {
   hasRichSections,
+  hasImageEvidence,
 
   render(input: RenderDiagnosisInput): string {
     const { advisory, language } = input;
+    if (
+      input.requiresImageEvidence &&
+      !hasImageEvidence(advisory) &&
+      !hasRichSections(advisory)
+    ) {
+      return imageEvidenceFallback(input);
+    }
     if (!hasRichSections(advisory)) {
       return legacyFallback(input);
     }
@@ -202,6 +216,21 @@ function legacyFallback(input: RenderDiagnosisInput): string {
   const parts = [input.plotLabel ? `📍 ${input.plotLabel}` : null, summary].filter(Boolean) as string[];
   if (input.reuseNote) parts.push(input.reuseNote);
   if (input.safetyNote) parts.push(input.safetyNote);
+  if (input.escalateNote) parts.push(input.escalateNote);
+  return parts.join('\n\n');
+}
+
+function imageEvidenceFallback(input: RenderDiagnosisInput): string {
+  const t = LABELS[input.language] ?? LABELS.en;
+  const issue = input.advisory.probableIssue?.trim();
+  const ask =
+    input.language === 'ml'
+      ? 'വ്യക്തമായ ഇലയുടെ അടുത്ത ഫോട്ടോ വീണ്ടും അയയ്ക്കുക — ഈ ചിത്രത്തിൽ നിർദ്ദിഷ്ട ചികിത്സ നൽകാൻ കഴിഞ്ഞില്ല.'
+      : 'Please send a closer photo of the affected leaves — we could not give specific treatment advice from this image alone.';
+  const parts: string[] = [];
+  if (input.plotLabel?.trim()) parts.push(`📍 ${input.plotLabel.trim()}`);
+  if (issue) parts.push(`${t.primaryIssue}: ${issue}`);
+  parts.push(ask);
   if (input.escalateNote) parts.push(input.escalateNote);
   return parts.join('\n\n');
 }

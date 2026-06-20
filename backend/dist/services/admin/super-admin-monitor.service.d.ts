@@ -39,7 +39,7 @@ export declare const superAdminMonitorService: {
             returnCostInr: number;
             adAllocationInr: number;
             netContributionInr: number;
-            contributionLabel: "Good" | "Moderate" | "Weak" | "Strong";
+            contributionLabel: "Moderate" | "Good" | "Weak" | "Strong";
             realizationStatus: string;
         }[];
         realizationMonitoring: {
@@ -135,7 +135,7 @@ export declare const superAdminMonitorService: {
             returnCostInr: number;
             adAllocationInr: number;
             netContributionInr: number;
-            contributionLabel: "Good" | "Moderate" | "Weak" | "Strong";
+            contributionLabel: "Moderate" | "Good" | "Weak" | "Strong";
             realizationStatus: string;
         }[];
         realizationMonitoring: {

@@ -53,6 +53,20 @@ export function whatsappImageBatchPendingCount(farmerId: string): number {
   return pendingByFarmer.get(farmerId)?.images.length ?? 0;
 }
 
+/** Merge symptom/caption text into a pending image batch (split message delivery). */
+export function mergeImageBatchCaption(farmerId: string, caption: string): boolean {
+  const trimmed = caption.trim();
+  if (!trimmed) return false;
+  const pending = pendingByFarmer.get(farmerId);
+  if (!pending) return false;
+  if (!pending.caption?.trim()) {
+    pending.caption = trimmed;
+  } else if (!pending.caption.includes(trimmed)) {
+    pending.caption = `${pending.caption.trim()}\n${trimmed}`;
+  }
+  return true;
+}
+
 export function cancelImageBatch(farmerId: string): void {
   const pending = pendingByFarmer.get(farmerId);
   if (!pending) return;

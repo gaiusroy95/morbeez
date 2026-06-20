@@ -1,5 +1,5 @@
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
-import type { VisitAiRejectBody, VisitAnalyzeRequest, VisitAnalyzeVisitRequest, VisitAiAnswersBody } from '../../domain/ai-training/validators.js';
+import type { VisitAiRejectBody, VisitAnalyzeRequest, VisitAnalyzeVisitRequest, VisitAiAnswersBody, VisitAiSyncQuestionsBody } from '../../domain/ai-training/validators.js';
 type HypothesisRow = {
     label: string;
     confidence: number;
@@ -89,6 +89,21 @@ export declare const visitAiOrchestratorService: {
         id: string;
         questionText: string;
         answerType: "yes_no_unknown" | "text" | "number";
+        answer?: string;
+    }[]>;
+    syncQuestions(aiCaseId: string, body: VisitAiSyncQuestionsBody): Promise<{
+        questions: {
+            id: string;
+            questionText: string;
+            answerType: "yes_no_unknown" | "text" | "number";
+            answer?: string;
+        }[];
+    }>;
+    regenerateQuestions(aiCaseId: string): Promise<{
+        id: string;
+        questionText: string;
+        answerType: "yes_no_unknown" | "text" | "number";
+        answer?: string;
     }[]>;
     saveAnswers(aiCaseId: string, body: VisitAiAnswersBody): Promise<{
         saved: number;
@@ -109,7 +124,7 @@ export declare const visitAiOrchestratorService: {
         expectedImprovementDays: string;
     }>;
     analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string): Promise<{
-        issues: {
+        issues: ({
             localId: string;
             category: string;
             issueName: string;
@@ -161,7 +176,59 @@ export declare const visitAiOrchestratorService: {
                 method: string;
                 category: string;
             } | undefined;
-        }[];
+        } | {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: string;
+            observation: string;
+            aiCaseId: string;
+            hypotheses: {
+                label: string;
+                confidence: number;
+                rationale: string | undefined;
+                selected: boolean;
+                imagePrediction: string | undefined;
+                imageConfidence: number | undefined;
+            }[];
+            selectedHypothesisLabel: string;
+            finalDiagnosis: string;
+            finalRecommendation: undefined;
+            confidenceAction: "auto_send" | "employee_review" | "escalate";
+            skipFollowUpOptional: boolean;
+            imageSignal: {
+                label: string;
+                confidence: number;
+            } | undefined;
+            similarCases: {
+                issueLabel: string;
+                score: number;
+                confidence: number;
+                outcome: string | null;
+            }[];
+            rootCause: {
+                symptoms: string[];
+                photoSignals: string[];
+                soilSignals: never[];
+                weatherSignals: never[];
+                conclusion: string;
+            };
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+            initialRecommendation: {
+                text: string;
+                dose: undefined;
+                method: string;
+                category: string;
+            } | undefined;
+        })[];
     }>;
     similarCases(farmerId: string, cropType: string, issueName: string): Promise<{
         issueLabel: string;

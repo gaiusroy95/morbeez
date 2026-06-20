@@ -37,10 +37,13 @@
     "crm:seed": "node scripts/seed-telecaller-crm.mjs",
     "crm:masters": "node scripts/seed-crm-masters.mjs",
     "archive:reset-demo": "node scripts/reset-archive-for-production.mjs --mode=demo",
-    "archive:reset": "node scripts/reset-archive-for-production.mjs --mode=full --confirm"
+    "archive:reset": "node scripts/reset-archive-for-production.mjs --mode=full --confirm",
+    "db:reset-retest": "node scripts/reset-archive-for-production.mjs --mode=retest --confirm",
+    "db:reset-ai": "node scripts/run-sql-reset.mjs scripts/sql/reset-ai-diagnostic-only.sql"
   },
   "devDependencies": {
     "@shopify/prettier-plugin-liquid": "^1.5.0",
+    "pg": "^8.22.0",
     "prettier": "^3.3.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.0"

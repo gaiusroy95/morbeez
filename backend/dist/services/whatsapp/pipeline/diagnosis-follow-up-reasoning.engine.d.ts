@@ -8,6 +8,8 @@ export type InvestigationContext = {
     cropType: string;
     symptomsText: string;
     hasPhoto: boolean;
+    /** From Crop Doctor / vision — authoritative for photo-grounded Q&A */
+    imageObservations?: string[];
     dap?: number;
     similarCases: SimilarLearnedCase[];
     totalVerifiedCases: number;
@@ -31,6 +33,12 @@ export declare const diagnosisFollowUpReasoningEngine: {
     shouldSkipFollowUpIntake: typeof shouldSkipFollowUpIntake;
     needsMoreEvidence: typeof needsMoreEvidence;
     buildIntro(ctx: InvestigationContext): string;
+    buildPostDiagnosisIntro(params: {
+        language: AdvisoryLanguage;
+        probableIssue: string;
+        confidence: number;
+        differentialCount: number;
+    }): string;
     enrichSymptomsFromAnswers(initial: string, answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
     formatFieldInvestigationSummary(answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;
     inferPrimaryIssueFromIntake(initialSymptoms: string, answers: Record<string, string>, questionTexts: Record<string, string>, questionChoices: Record<string, FollowUpChoiceOption[]>, ctx: InvestigationContext): string;

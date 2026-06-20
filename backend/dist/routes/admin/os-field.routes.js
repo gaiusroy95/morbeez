@@ -13,7 +13,7 @@ import { recommendationCommunicationService } from '../../services/core/recommen
 import { monitoringPlanService } from '../../services/core/monitoring-plan.service.js';
 import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
 import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
-import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAnalyzeVisitRequestSchema, visitMonitoringPreviewSchema, visitWhatsappPreviewSchema, visitAiAnswersBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
+import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAnalyzeVisitRequestSchema, visitMonitoringPreviewSchema, visitWhatsappPreviewSchema, visitAiAnswersBodySchema, visitAiSyncQuestionsBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
     mimeType: z.string().min(3).max(80),
@@ -222,6 +222,21 @@ export async function osFieldRoutes(app) {
         const result = visitPhotoValidationService.validateBase64(body.dataBase64, body.mimeType);
         return reply.send(result);
     });
+    app.post(`${api}/visits/photos/classify`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z
+            .object({
+            dataBase64: z.string().min(100).max(7_000_000),
+            mimeType: z.string().max(100).optional(),
+            cropType: z.string().min(1).max(80),
+            availableTypes: z.array(z.string().min(1).max(80)).min(1).max(24),
+            caption: z.string().max(500).optional(),
+        })
+            .parse(request.body);
+        const { visitPhotoClassifierService } = await import('../../services/core/visit-photo-classifier.service.js');
+        const result = await visitPhotoClassifierService.classify(body);
+        return reply.send({ ok: true, classification: result });
+    });
     app.post(`${api}/visits/analyze`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'write');
         const body = visitAnalyzeRequestSchema.parse(request.body);
@@ -258,6 +273,19 @@ export async function osFieldRoutes(app) {
         const body = visitAiAnswersBodySchema.parse(request.body);
         const result = await visitAiOrchestratorService.saveAnswers(aiCaseId, body);
         return reply.send({ ok: true, ...result });
+    });
+    app.put(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { aiCaseId } = request.params;
+        const body = visitAiSyncQuestionsBodySchema.parse(request.body);
+        const result = await visitAiOrchestratorService.syncQuestions(aiCaseId, body);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/visits/ai-case/:aiCaseId/questions/regenerate`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { aiCaseId } = request.params;
+        const questions = await visitAiOrchestratorService.regenerateQuestions(aiCaseId);
+        return reply.send({ ok: true, questions });
     });
     app.post(`${api}/visits/ai-case/:aiCaseId/reanalyze`, async (request, reply) => {
         await assertModuleAccess(request, 'agronomist', 'write');

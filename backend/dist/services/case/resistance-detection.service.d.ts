@@ -3,6 +3,7 @@ export declare const resistanceDetectionService: {
     score(params: {
         farmerId: string;
         blockId?: string | null;
+        cropType?: string;
         inputHistory?: MaiosInputHistorySummary;
     }): Promise<{
         score: number;

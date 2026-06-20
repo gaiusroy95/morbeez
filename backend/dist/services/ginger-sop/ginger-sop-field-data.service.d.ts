@@ -1,4 +1,5 @@
 import type { GingerCanopyAudit, GingerFieldMetrics, GingerInputHistorySummary, GingerWaterReading } from '../../domain/ginger-sop/types.js';
+/** @deprecated Use fieldContextService from services/case — ginger-only shim retained for legacy tests. */
 export declare const gingerSopFieldDataService: {
     loadLatestMeasurements(farmerId: string, blockId?: string | null): Promise<{
         findingId: string | null;

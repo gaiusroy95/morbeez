@@ -83,6 +83,8 @@ import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
 import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
 import {
   scheduleImageBatch,
+  mergeImageBatchCaption,
+  whatsappImageBatchPendingCount,
   type ImageBatchFlushPayload,
 } from './whatsapp-image-batch.service.js';
 import { evidenceQualityService } from '../../case/evidence-quality.service.js';
@@ -181,6 +183,7 @@ function buildDiagnosisBody(params: {
   reuseNote?: string;
   escalateNote?: string;
   safetyNote?: string;
+  requiresImageEvidence?: boolean;
 }): string {
   if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
     return whatsappDiagnosisRendererService.render({
@@ -190,6 +193,7 @@ function buildDiagnosisBody(params: {
       reuseNote: params.reuseNote,
       escalateNote: params.escalateNote,
       safetyNote: params.safetyNote,
+      requiresImageEvidence: params.requiresImageEvidence,
     });
   }
   let body = localizedSummary(params.advisory, params.language);
@@ -399,6 +403,7 @@ async function sendKnowledgeFallbackOrLimit(params: {
   sendText: (phone: string, text: string) => Promise<void>;
   limitMessage: string;
   followUp?: boolean;
+  hasMedia?: boolean;
 }): Promise<boolean> {
   const memory = await farmerMemoryService.build(params.farmerId, {
     symptomsText: params.text,
@@ -409,6 +414,7 @@ async function sendKnowledgeFallbackOrLimit(params: {
     language: params.language,
     memory,
     followUp: params.followUp,
+    hasMedia: params.hasMedia,
   });
   if (kb) {
     const outbound = await replyAttributionService.deliverAttributedReply({
@@ -1019,6 +1025,7 @@ export const whatsappInboundPipeline = {
       symptomsText: caption || undefined,
       activePlotId: memoryPeek.activePlotId,
       compactHistory: farmerMemoryService.formatCompactHistory(memoryPeek),
+      hasMedia: true,
     });
 
     if (!willReuse) {
@@ -1162,6 +1169,22 @@ export const whatsappInboundPipeline = {
     }
 
     await classifyCommercialLead(captured.farmerId, msg.text);
+
+    const sessCtxEarly = await conversationSessionService.getContext(captured.farmerId);
+    const batchPending = whatsappImageBatchPendingCount(captured.farmerId);
+    const hasPendingImage =
+      batchPending > 0 ||
+      Boolean(
+        sessCtxEarly.pendingDiagnosisImagePath ||
+          (sessCtxEarly.pendingDiagnosisImageBatch?.length ?? 0) > 0
+      );
+    if (hasPendingImage) {
+      mergeImageBatchCaption(captured.farmerId, msg.text.trim());
+      await conversationSessionService.patchContext(captured.farmerId, {
+        pendingSymptomsText: msg.text.trim(),
+      });
+      return;
+    }
 
     if (
       shouldUseConversationalContinuation(msg.text) ||
@@ -1506,7 +1529,31 @@ export const whatsappInboundPipeline = {
         maiosHasSoilReport: hasSoilReport,
       });
       const maiosCase = result.maiosCase;
-      const hasImage = Boolean(imageBase64);
+      const hasImage = Boolean(
+        imageBase64 || imageStoragePath || (params.diagnosisImages?.length ?? 0) > 0
+      );
+
+      if (hasImage && result.reused) {
+        logger.warn(
+          { farmerId: params.farmerId, sessionId: result.sessionId },
+          'Unexpected reuse cache hit for image diagnosis'
+        );
+      }
+
+      if (
+        hasImage &&
+        !whatsappDiagnosisRendererService.hasImageEvidence(result.advisory)
+      ) {
+        await params.sendText(
+          params.phone,
+          params.language === 'ml'
+            ? 'ചിത്രം വ്യക്തമല്ല. ദയവായി ബാധിത ഇലയുടെ അടുത്ത ഫോട്ടോ വീണ്ടും അയയ്ക്കുക.'
+            : 'The photo was not clear enough for a specific diagnosis. Please send a closer photo of the affected leaves.'
+        );
+        await conversationSessionService.setState(params.farmerId, 'diagnosis_awaiting_photos');
+        return;
+      }
+
       const assessment = policyEngineService.evaluate(result.advisory, {
         ...contextPack,
         hasImage,
@@ -1676,6 +1723,7 @@ export const whatsappInboundPipeline = {
         reuseNote,
         escalateNote,
         safetyNote,
+        requiresImageEvidence: hasImage,
       });
 
       if (
@@ -1777,6 +1825,13 @@ export const whatsappInboundPipeline = {
         text: symptomText || 'crop advisory',
         language: params.language,
         memory,
+        hasMedia: Boolean(
+          params.imageBase64 ||
+            params.imageStoragePath ||
+            params.diagnosisImages?.length ||
+            (await conversationSessionService.getContext(params.farmerId))
+              .pendingDiagnosisImagePath
+        ),
       });
       if (kb) {
         const outbound = await this.sendAndLog(params.farmerId, params.phone, kb.text, params.sendText, {
@@ -1862,6 +1917,7 @@ export const whatsappInboundPipeline = {
       reuseNote,
       escalateNote,
       safetyNote,
+      requiresImageEvidence: true,
     });
 
     if (

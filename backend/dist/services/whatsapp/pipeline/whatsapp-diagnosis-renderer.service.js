@@ -66,6 +66,9 @@ const LABELS = {
         precautions: '⚠️ सावधानी',
     },
 };
+function hasImageEvidence(advisory) {
+    return Boolean(advisory.imageObservations?.length);
+}
 function hasRichSections(advisory) {
     return Boolean(advisory.imageObservations?.length ||
         advisory.differentialDiagnosis?.length ||
@@ -84,8 +87,14 @@ function severityLabel(severity, language) {
 }
 export const whatsappDiagnosisRendererService = {
     hasRichSections,
+    hasImageEvidence,
     render(input) {
         const { advisory, language } = input;
+        if (input.requiresImageEvidence &&
+            !hasImageEvidence(advisory) &&
+            !hasRichSections(advisory)) {
+            return imageEvidenceFallback(input);
+        }
         if (!hasRichSections(advisory)) {
             return legacyFallback(input);
         }
@@ -158,6 +167,22 @@ function legacyFallback(input) {
         parts.push(input.reuseNote);
     if (input.safetyNote)
         parts.push(input.safetyNote);
+    if (input.escalateNote)
+        parts.push(input.escalateNote);
+    return parts.join('\n\n');
+}
+function imageEvidenceFallback(input) {
+    const t = LABELS[input.language] ?? LABELS.en;
+    const issue = input.advisory.probableIssue?.trim();
+    const ask = input.language === 'ml'
+        ? 'വ്യക്തമായ ഇലയുടെ അടുത്ത ഫോട്ടോ വീണ്ടും അയയ്ക്കുക — ഈ ചിത്രത്തിൽ നിർദ്ദിഷ്ട ചികിത്സ നൽകാൻ കഴിഞ്ഞില്ല.'
+        : 'Please send a closer photo of the affected leaves — we could not give specific treatment advice from this image alone.';
+    const parts = [];
+    if (input.plotLabel?.trim())
+        parts.push(`📍 ${input.plotLabel.trim()}`);
+    if (issue)
+        parts.push(`${t.primaryIssue}: ${issue}`);
+    parts.push(ask);
     if (input.escalateNote)
         parts.push(input.escalateNote);
     return parts.join('\n\n');

@@ -1,6 +1,8 @@
 import type { DiagnoseInput, DiagnoseResult, StructuredAdvisory } from './types.js';
 export { buildSymptomKey, buildLooseSymptomKey } from './question-reuse-keys.util.js';
 export declare function buildDapBucket(dap: number): number;
+/** True when diagnosis must run fresh vision — never reuse text-only cache. */
+export declare function hasDiagnosisMedia(input: Pick<DiagnoseInput, 'imageBase64' | 'imageStoragePath' | 'diagnosisImages'>): boolean;
 export declare const aiReuseService: {
     peekMatch(input: {
         farmerId: string;
@@ -9,6 +11,7 @@ export declare const aiReuseService: {
         voiceTranscript?: string;
         compactHistory?: string;
         activePlotId?: string | null;
+        hasMedia?: boolean;
     }): Promise<boolean>;
     findReusableCase(params: {
         cropType: string;

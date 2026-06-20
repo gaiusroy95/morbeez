@@ -16,6 +16,7 @@ function measurementsToMap(rows) {
     }
     return m;
 }
+/** @deprecated Use fieldContextService from services/case — ginger-only shim retained for legacy tests. */
 export const gingerSopFieldDataService = {
     async loadLatestMeasurements(farmerId, blockId) {
         let q = supabase

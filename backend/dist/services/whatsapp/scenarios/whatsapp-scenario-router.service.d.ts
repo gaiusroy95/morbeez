@@ -44,6 +44,9 @@ export type ScenarioRouterResult = {
     postIntake?: PostIntakeDiagnosisPayload;
 } | {
     handled: true;
+    deliverPendingDiagnosis: true;
+} | {
+    handled: true;
     duplicateImage: true;
 };
 export declare const whatsappScenarioRouter: {

@@ -7,6 +7,20 @@ import { cultivationLoggingService } from '../whatsapp/cultivation/cultivation-l
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { visitAdvisoryEscalationService } from '../core/visit-advisory-escalation.service.js';
 const POLL_MS = 60_000;
+const PROACTIVE_SCAN_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let lastProactiveScanMs = 0;
+function runProactiveScanIfDue() {
+    if (env.ENABLE_MAIOS_V12 === false)
+        return;
+    const now = Date.now();
+    if (lastProactiveScanMs && now - lastProactiveScanMs < PROACTIVE_SCAN_INTERVAL_MS) {
+        return;
+    }
+    lastProactiveScanMs = now;
+    import('../case/proactive-alert.service.js')
+        .then((m) => m.proactiveAlertService.scheduleDailyScan())
+        .catch((err) => logger.warn({ err }, 'MAIOS proactive scan failed'));
+}
 async function processJob(job) {
     const { data: farmer } = await supabase
         .from('farmers')
@@ -56,15 +70,38 @@ async function processJob(job) {
         await visitAdvisoryEscalationService.processEscalationJob(job);
     }
     else if (job.job_type.startsWith('ginger_sop_recovery_d')) {
-        const { gingerSopFollowUpService } = await import('../ginger-sop/ginger-sop-follow-up.service.js');
-        await gingerSopFollowUpService.processRecoveryJob(job);
+        const sessionId = String(job.payload.sessionId ?? '');
+        let useMaios = false;
+        if (sessionId) {
+            const { data: session } = await supabase
+                .from('ai_advisory_sessions')
+                .select('metadata')
+                .eq('id', sessionId)
+                .maybeSingle();
+            useMaios = Boolean(session?.metadata?.maiosCase);
+        }
+        if (useMaios) {
+            const { recoveryValidationService } = await import('../case/recovery-validation.service.js');
+            const day = Number(String(job.job_type).replace('ginger_sop_recovery_d', ''));
+            await recoveryValidationService.processRecoveryJobSend({
+                ...job,
+                job_type: `maios_recovery_d${day}`,
+            });
+        }
+        else {
+            const { gingerSopFollowUpService } = await import('../ginger-sop/ginger-sop-follow-up.service.js');
+            await gingerSopFollowUpService.processRecoveryJob(job);
+        }
     }
     else if (job.job_type.startsWith('maios_recovery_d')) {
         const { recoveryValidationService } = await import('../case/recovery-validation.service.js');
         await recoveryValidationService.processRecoveryJobSend(job);
     }
     else if (job.job_type === 'maios_proactive_alert') {
-        const msg = String(job.payload.message ?? 'Crop risk alert from Morbeez.');
+        const cropType = String(job.payload.cropType ?? '_default');
+        const pack = await (await import('../crop-pack/crop-pack-loader.service.js')).cropPackLoaderService.load(cropType);
+        const msg = String(job.payload.message ?? '') ||
+            `MAIOS alert (${pack.displayName}): elevated crop risk. Send a fresh photo or reply HELP.`;
         await whatsappService.sendText(farmer.phone, msg);
     }
     else if (job.job_type === 'ml_retraining_weekly' || job.job_type === 'ml_retraining_monthly') {
@@ -108,13 +145,41 @@ async function poll() {
     }
 }
 let interval = null;
+let bootstrapDone = false;
+async function bootstrapScheduledJobs() {
+    if (bootstrapDone || env.NODE_ENV === 'test')
+        return;
+    bootstrapDone = true;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(2, 0, 0, 0);
+    const { count } = await supabase
+        .from('advisory_automation_jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('job_type', 'ml_retraining_weekly')
+        .eq('status', 'pending');
+    const { data: anyFarmer } = await supabase.from('farmers').select('id').limit(1).maybeSingle();
+    if (!count && anyFarmer?.id) {
+        await supabase.from('advisory_automation_jobs').insert({
+            farmer_id: anyFarmer.id,
+            job_type: 'ml_retraining_weekly',
+            scheduled_at: tomorrow.toISOString(),
+            payload: { source: 'maios_bootstrap' },
+        });
+    }
+    const { proactiveAlertService } = await import('../case/proactive-alert.service.js');
+    lastProactiveScanMs = Date.now();
+    void proactiveAlertService.scheduleDailyScan();
+}
 export function startAdvisoryAutomationWorker() {
     if (env.NODE_ENV === 'test' || !env.ENABLE_ADVISORY_AUTOMATION)
         return;
     if (interval)
         return;
+    void bootstrapScheduledJobs();
     interval = setInterval(() => {
         poll().catch((err) => logger.error({ err }, 'Automation poll error'));
+        runProactiveScanIfDue();
     }, POLL_MS);
     logger.info('Advisory automation worker started');
 }

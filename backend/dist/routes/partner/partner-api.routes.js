@@ -421,6 +421,22 @@ export async function partnerApiRoutes(app) {
             const result = await visitAiOrchestratorService.saveAnswers(aiCaseId, body);
             return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
         });
+        partnerApp.put(`${api}/visits/ai-case/:aiCaseId/questions`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiSyncQuestionsBodySchema } = await import('../../domain/ai-training/validators.js');
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const body = visitAiSyncQuestionsBodySchema.parse(request.body);
+            const result = await visitAiOrchestratorService.syncQuestions(aiCaseId, body);
+            return reply.send({ ok: true, ...result });
+        });
+        partnerApp.post(`${api}/visits/ai-case/:aiCaseId/questions/regenerate`, async (request, reply) => {
+            await requirePartner(request);
+            const { aiCaseId } = request.params;
+            const { visitAiOrchestratorService } = await import('../../services/core/visit-ai-orchestrator.service.js');
+            const questions = await visitAiOrchestratorService.regenerateQuestions(aiCaseId);
+            return reply.send({ ok: true, questions });
+        });
         partnerApp.post(`${api}/visits/ai-case/:aiCaseId/reanalyze`, async (request, reply) => {
             await requirePartner(request);
             const { aiCaseId } = request.params;

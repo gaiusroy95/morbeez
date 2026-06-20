@@ -51,6 +51,8 @@ export declare const escalationAdminService: {
             assignedTo: any;
             createdAt: any;
             createdLabel: string | null;
+            resolvedAt: any;
+            resolvedLabel: string | null;
         }[];
         total: number;
         page: number;
@@ -164,6 +166,21 @@ export declare const escalationAdminService: {
         }[];
     }>;
     countPending(): Promise<number>;
+    /** Remove a completed escalation from CRM lists (soft dismiss). */
+    clear(id: string, agentEmail: string): Promise<{
+        ok: boolean;
+        alreadyCleared: boolean;
+        cleared?: undefined;
+    } | {
+        ok: boolean;
+        cleared: boolean;
+        alreadyCleared?: undefined;
+    }>;
+    /** Clear all completed escalations from the CRM completed tab. */
+    clearCompleted(agentEmail: string): Promise<{
+        ok: boolean;
+        cleared: number;
+    }>;
 };
 export {};
 //# sourceMappingURL=escalation-admin.service.d.ts.map

@@ -45,16 +45,16 @@ export declare const structuredFieldFindingSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     severity?: "moderate" | "mild" | "severe" | undefined;
     weatherContext?: Record<string, unknown> | undefined;
+    aiPrediction?: string | undefined;
     findingType?: "disease" | "pest" | "nutrient_deficiency" | "irrigation" | "weather_stress" | "growth_observation" | "other" | undefined;
     affectedAreaPct?: number | undefined;
-    aiPrediction?: string | undefined;
     finalConfirmedIssue?: string | undefined;
 }, {
     severity?: "moderate" | "mild" | "severe" | undefined;
     weatherContext?: Record<string, unknown> | undefined;
+    aiPrediction?: string | undefined;
     findingType?: "disease" | "pest" | "nutrient_deficiency" | "irrigation" | "weather_stress" | "growth_observation" | "other" | undefined;
     affectedAreaPct?: number | undefined;
-    aiPrediction?: string | undefined;
     finalConfirmedIssue?: string | undefined;
 }>;
 /** Max WhatsApp recommendation body (agronomist case review). DB is TEXT; outbound WhatsApp capped separately. */
@@ -976,6 +976,19 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
     latitude: z.ZodOptional<z.ZodNumber>;
     longitude: z.ZodOptional<z.ZodNumber>;
     sendVisitSummary: z.ZodOptional<z.ZodBoolean>;
+    whatsappMessages: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        issueIndex: z.ZodNumber;
+        message: z.ZodString;
+        compliancePrompt: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        message: string;
+        issueIndex: number;
+        compliancePrompt?: string | undefined;
+    }, {
+        message: string;
+        issueIndex: number;
+        compliancePrompt?: string | undefined;
+    }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     issues: {
         category: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
@@ -1075,6 +1088,11 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         applicationDay?: number | undefined;
     }[] | undefined;
     sendVisitSummary?: boolean | undefined;
+    whatsappMessages?: {
+        message: string;
+        issueIndex: number;
+        compliancePrompt?: string | undefined;
+    }[] | undefined;
 }, {
     issues: {
         category: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
@@ -1174,6 +1192,11 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         applicationDay?: number | undefined;
     }[] | undefined;
     sendVisitSummary?: boolean | undefined;
+    whatsappMessages?: {
+        message: string;
+        issueIndex: number;
+        compliancePrompt?: string | undefined;
+    }[] | undefined;
 }>;
 export declare const visitAiContextRequestSchema: z.ZodObject<{
     farmerId: z.ZodString;
@@ -1295,8 +1318,8 @@ export declare const visitAnalyzeRequestSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     farmerId: string;
     blockId: string;
-    issueName: string;
     issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
+    issueName: string;
     latitude?: number | undefined;
     longitude?: number | undefined;
     sessionId?: string | undefined;
@@ -1321,8 +1344,8 @@ export declare const visitAnalyzeRequestSchema: z.ZodObject<{
 }, {
     farmerId: string;
     blockId: string;
-    issueName: string;
     issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
+    issueName: string;
     latitude?: number | undefined;
     longitude?: number | undefined;
     sessionId?: string | undefined;
@@ -1377,6 +1400,55 @@ export declare const visitAiAnswersBodySchema: z.ZodObject<{
         answer: string;
     }[];
 }>;
+export declare const visitAiQuestionDraftSchema: z.ZodObject<{
+    id: z.ZodOptional<z.ZodString>;
+    questionText: z.ZodString;
+    answer: z.ZodOptional<z.ZodString>;
+    answerType: z.ZodOptional<z.ZodEnum<["yes_no_unknown", "text", "number"]>>;
+}, "strip", z.ZodTypeAny, {
+    questionText: string;
+    id?: string | undefined;
+    answer?: string | undefined;
+    answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+}, {
+    questionText: string;
+    id?: string | undefined;
+    answer?: string | undefined;
+    answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+}>;
+export declare const visitAiSyncQuestionsBodySchema: z.ZodObject<{
+    questions: z.ZodArray<z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+        questionText: z.ZodString;
+        answer: z.ZodOptional<z.ZodString>;
+        answerType: z.ZodOptional<z.ZodEnum<["yes_no_unknown", "text", "number"]>>;
+    }, "strip", z.ZodTypeAny, {
+        questionText: string;
+        id?: string | undefined;
+        answer?: string | undefined;
+        answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+    }, {
+        questionText: string;
+        id?: string | undefined;
+        answer?: string | undefined;
+        answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+    }>, "many">;
+}, "strip", z.ZodTypeAny, {
+    questions: {
+        questionText: string;
+        id?: string | undefined;
+        answer?: string | undefined;
+        answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+    }[];
+}, {
+    questions: {
+        questionText: string;
+        id?: string | undefined;
+        answer?: string | undefined;
+        answerType?: "number" | "text" | "yes_no_unknown" | undefined;
+    }[];
+}>;
+export type VisitAiSyncQuestionsBody = z.infer<typeof visitAiSyncQuestionsBodySchema>;
 export declare const visitAiRecommendBodySchema: z.ZodObject<{
     finalDiagnosis: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {

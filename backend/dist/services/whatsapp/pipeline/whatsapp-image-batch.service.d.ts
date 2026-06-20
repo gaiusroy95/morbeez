@@ -43,6 +43,8 @@ export type ImageBatchFlushPayload = {
 };
 export declare const WHATSAPP_IMAGE_BATCH_MAX = 4;
 export declare function whatsappImageBatchPendingCount(farmerId: string): number;
+/** Merge symptom/caption text into a pending image batch (split message delivery). */
+export declare function mergeImageBatchCaption(farmerId: string, caption: string): boolean;
 export declare function cancelImageBatch(farmerId: string): void;
 export declare function scheduleImageBatch(params: {
     farmerId: string;

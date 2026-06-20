@@ -86,6 +86,13 @@ export declare const whatsappInboundPipeline: {
         sendText: (phone: string, text: string) => Promise<void>;
         send?: Senders;
     }): Promise<void>;
+    deliverPendingDiagnosis(params: {
+        farmerId: string;
+        phone: string;
+        language: AdvisoryLanguage;
+        sendText: (phone: string, text: string) => Promise<void>;
+        send?: Senders;
+    }): Promise<void>;
 };
 export {};
 //# sourceMappingURL=whatsapp-inbound.pipeline.d.ts.map

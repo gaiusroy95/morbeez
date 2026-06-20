@@ -170,6 +170,7 @@ export function LeadOperationsTable({
   const resizeRef = useRef<{ colId: LeadQueueColumnId; startX: number; startW: number } | null>(null);
   const tableWrapRef = useRef<HTMLDivElement>(null);
   const [tableScrolledX, setTableScrolledX] = useState(false);
+  const [tableScrolledY, setTableScrolledY] = useState(false);
 
   const filterParams = useMemo<LeadQueueFilterParams>(
     () => ({
@@ -446,7 +447,10 @@ export function LeadOperationsTable({
   useEffect(() => {
     const el = tableWrapRef.current;
     if (!el) return;
-    const onScroll = () => setTableScrolledX(el.scrollLeft > 8);
+    const onScroll = () => {
+      setTableScrolledX(el.scrollLeft > 8);
+      setTableScrolledY(el.scrollTop > 4);
+    };
     onScroll();
     el.addEventListener('scroll', onScroll, { passive: true });
     return () => el.removeEventListener('scroll', onScroll);
@@ -1030,9 +1034,9 @@ export function LeadOperationsTable({
         <Loading label="Loading lead queue…" />
       ) : (
         <>
-          <div className={`tc-lq-table-panel${tableScrolledX ? ' is-scrolled-x' : ''}`}>
+          <div className={`tc-lq-table-panel${tableScrolledX ? ' is-scrolled-x' : ''}${tableScrolledY ? ' is-scrolled-y' : ''}`}>
             <div className="tc-lq-table-scroll-hint" aria-hidden>
-              Scroll horizontally for more columns →
+              Scroll inside table for more rows · scroll horizontally for more columns →
             </div>
             <div className="tc-lq-table-wrap" ref={tableWrapRef}>
             <table className="tc-lq-table">
