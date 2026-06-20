@@ -109,6 +109,17 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
 
   const dueTodayNotifiedRef = useRef(false);
 
+  const loadBadges = useCallback(async () => {
+    try {
+      const badges = await api<{ ok: boolean; badges: { pendingEscalations?: number } }>(
+        `${base}/nav-badges`
+      );
+      setPendingEscalations(badges.badges.pendingEscalations ?? 0);
+    } catch {
+      /* ignore */
+    }
+  }, [base]);
+
   const pushNotification = useCallback((message: string) => {
     const at = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
     setNotifications((prev) => [{ id: `${Date.now()}-${Math.random()}`, message, at }, ...prev.slice(0, 19)]);
@@ -425,7 +436,9 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       ) : null}
 
       {crmView === 'qc' ? <TelecallerQcDashboard /> : null}
-      {crmView === 'escalations' ? <EscalationsPanel canWrite={canWrite} /> : null}
+      {crmView === 'escalations' ? (
+        <EscalationsPanel canWrite={canWrite} onBadgeRefresh={() => void loadBadges()} />
+      ) : null}
 
       {crmView === 'workspace' && showNewLead && canWrite ? (
         <NewLeadModal

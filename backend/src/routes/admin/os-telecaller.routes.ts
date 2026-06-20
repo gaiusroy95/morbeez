@@ -1783,7 +1783,7 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
     await assertModuleAccess(request, 'telecaller_crm', 'read');
     const q = request.query as { status?: string; page?: string; limit?: string };
     const result = await escalationAdminService.list({
-      status: q.status ?? 'pending',
+      status: q.status ?? 'open',
       page: q.page ? Number(q.page) : 1,
       limit: q.limit ? Number(q.limit) : 50,
     });

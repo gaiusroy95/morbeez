@@ -155,7 +155,7 @@ export const escalationAdminService = {
     let query = supabase
       .from('agronomist_escalations')
       .select(
-        `id, session_id, farmer_id, reason, confidence_at_escalation, priority, status, assigned_to, created_at, updated_at,
+        `id, session_id, farmer_id, reason, confidence_at_escalation, priority, status, assigned_to, created_at, updated_at, resolved_at,
          farmers(id, phone, name, first_name, last_name, district, preferred_language),
          ai_advisory_sessions(crop_type, crop_stage, language, symptoms_text, voice_transcript)`,
         { count: 'exact' }
@@ -166,6 +166,8 @@ export const escalationAdminService = {
     if (params.status && params.status !== 'all') {
       if (params.status === 'open') {
         query = query.in('status', [...OPEN_ESCALATION_DB_STATUSES]);
+      } else if (params.status === 'completed') {
+        query = query.in('status', ['resolved', 'closed']);
       } else {
         query = query.eq('status', params.status);
       }
@@ -191,7 +193,9 @@ export const escalationAdminService = {
         status: row.status,
         assignedTo: row.assigned_to,
         createdAt: row.created_at,
-        createdLabel: formatDt(row.created_at),
+        createdLabel: formatDt(row.created_at as string),
+        resolvedAt: row.resolved_at,
+        resolvedLabel: formatDt(row.resolved_at as string),
       };
     });
 

@@ -52,7 +52,7 @@ type Props = {
   row: EscalationListRow;
   canWrite?: boolean;
   onClose: () => void;
-  onSaved?: () => void;
+  onSaved?: (opts?: { completed?: boolean }) => void;
 };
 
 function statusBadgeClass(workflow: string): string {
@@ -115,8 +115,10 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved }: Props
         }),
       });
       setComment('');
-      onSaved?.();
-      await loadDetail();
+      onSaved?.({ completed: workflowStatus === 'completed' });
+      if (workflowStatus !== 'completed') {
+        await loadDetail();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save');
     } finally {

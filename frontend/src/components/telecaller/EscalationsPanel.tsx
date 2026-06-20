@@ -1,16 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { StaticSelect } from '../ui';
+import { HubTabs } from '../ui';
 import { EscalationDetailModal, type EscalationListRow } from './EscalationDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 
-const STATUS_FILTERS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in_review', label: 'Needs agronomist review' },
-  { value: 'resolved', label: 'Completed' },
-  { value: 'all', label: 'All' },
-];
+type EscalationTab = 'open' | 'completed';
 
 type EscRow = {
   id: string;
@@ -21,10 +16,16 @@ type EscRow = {
   priority: string;
   status: string;
   createdLabel: string;
+  resolvedLabel?: string | null;
 };
 
-export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
-  const [statusFilter, setStatusFilter] = useState('pending');
+type Props = {
+  canWrite: boolean;
+  onBadgeRefresh?: () => void;
+};
+
+export function EscalationsPanel({ canWrite, onBadgeRefresh }: Props) {
+  const [escTab, setEscTab] = useState<EscalationTab>('open');
   const [items, setItems] = useState<EscRow[]>([]);
   const [selected, setSelected] = useState<EscalationListRow | null>(null);
   const [error, setError] = useState('');
@@ -34,8 +35,9 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
     setLoading(true);
     setError('');
     try {
+      const status = escTab === 'open' ? 'open' : 'completed';
       const data = await api<{ ok: boolean; items: EscRow[] }>(
-        `${base}/escalations?status=${encodeURIComponent(statusFilter)}&limit=50`
+        `${base}/escalations?status=${encodeURIComponent(status)}&limit=50`
       );
       setItems(data.items ?? []);
     } catch (e) {
@@ -43,11 +45,15 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [escTab]);
 
   useEffect(() => {
     void loadList();
   }, [loadList]);
+
+  useEffect(() => {
+    setSelected(null);
+  }, [escTab]);
 
   function priorityClass(p: string) {
     if (p === 'urgent') return 'bg-red-100 text-red-800';
@@ -68,20 +74,32 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
     return 'Pending';
   }
 
+  function handleSaved(opts?: { completed?: boolean }) {
+    void loadList();
+    onBadgeRefresh?.();
+    if (opts?.completed && escTab === 'open') {
+      setSelected(null);
+    }
+  }
+
   return (
     <div className="flex flex-col">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Agronomist escalations</h2>
           <p className="text-sm text-slate-600">
-            Click a case to review, comment, and update status.
+            {escTab === 'open'
+              ? 'Open cases needing review. Mark completed to move them off this list.'
+              : 'Resolved escalations — completed cases are kept here for reference.'}
           </p>
         </div>
-        <StaticSelect
-          className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={STATUS_FILTERS}
+        <HubTabs
+          tabs={[
+            { id: 'open' as const, label: 'Open escalations' },
+            { id: 'completed' as const, label: 'Completed escalations' },
+          ]}
+          active={escTab}
+          onChange={setEscTab}
         />
       </div>
 
@@ -99,6 +117,7 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Crop</th>
                 <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Date</th>
               </tr>
             </thead>
             <tbody>
@@ -110,6 +129,8 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
                     : workflow === 'agronomist_review'
                       ? 'bg-amber-100 text-amber-900'
                       : 'bg-slate-100 text-slate-800';
+                const dateLabel =
+                  escTab === 'completed' ? e.resolvedLabel ?? e.createdLabel : e.createdLabel;
                 const row: EscalationListRow = {
                   id: e.id,
                   summary: e.reason.slice(0, 160),
@@ -145,6 +166,9 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
                         {e.priority}
                       </span>
                     </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-600">
+                      {dateLabel ?? '—'}
+                    </td>
                   </tr>
                 );
               })}
@@ -152,7 +176,11 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
           </table>
         )}
         {!loading && items.length === 0 ? (
-          <p className="p-6 text-center text-sm text-slate-500">No escalations in this filter.</p>
+          <p className="p-6 text-center text-sm text-slate-500">
+            {escTab === 'open'
+              ? 'No open escalations — all caught up.'
+              : 'No completed escalations yet.'}
+          </p>
         ) : null}
       </div>
 
@@ -160,7 +188,7 @@ export function EscalationsPanel({ canWrite }: { canWrite: boolean }) {
         <EscalationDetailModal
           row={selected}
           canWrite={canWrite}
-          onSaved={() => void loadList()}
+          onSaved={handleSaved}
           onClose={() => setSelected(null)}
         />
       ) : null}
