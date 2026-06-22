@@ -1,6 +1,5 @@
 import { env } from '../../config/env.js';
 import type { DiagnosisEnvelope, DiagnosisHypothesis, DiagnosisSource } from '../../domain/diagnosis/types.js';
-import { INSUFFICIENT_EVIDENCE_LABEL } from '../../domain/diagnosis/types.js';
 
 export function isDiagnosisInferenceAvailable(): boolean {
   return Boolean(env.OPENAI_API_KEY?.trim() || env.PLANT_ID_API_KEY?.trim());

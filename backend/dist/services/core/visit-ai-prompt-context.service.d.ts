@@ -13,14 +13,20 @@ export type VisitPromptTrainingExample = {
     outcome: string | null;
     reviewAction: string | null;
 };
-export type VisitPromptFusionHint = {
-    label: string;
-    boost: number;
+/** Context-only evidence signals — never mutate diagnosis confidence post-hoc. */
+export type VisitPromptEvidenceSignal = {
+    signal: string;
     reason: string;
+};
+/** @deprecated Use VisitPromptEvidenceSignal — kept for migration compatibility */
+export type VisitPromptFusionHint = VisitPromptEvidenceSignal & {
+    boost?: number;
 };
 declare function formatSoilBlock(soilTestSummary: VisitAiContextPack['soilTestSummary']): string;
 declare function formatWeatherBlock(weather: VisitAiContextPack['weatherSnapshot']): string;
-export declare function computeFusionHints(context: VisitAiContextPack, issueCategory: string, imageSignal: VisitImageSignal | null | undefined): VisitPromptFusionHint[];
+export declare function computeEvidenceSignals(context: VisitAiContextPack, issueCategory: string, imageSignal: VisitImageSignal | null | undefined): VisitPromptEvidenceSignal[];
+/** @deprecated Context-only — do not use boost values for confidence mutation */
+export declare function computeFusionHints(context: VisitAiContextPack, issueCategory: string, imageSignal: VisitImageSignal | null | undefined): VisitPromptEvidenceSignal[];
 export declare const visitAiPromptContextService: {
     buildPromptBlock(params: {
         context: VisitAiContextPack;
@@ -37,6 +43,7 @@ export declare const visitAiPromptContextService: {
     }): Promise<string>;
     formatSoilBlock: typeof formatSoilBlock;
     formatWeatherBlock: typeof formatWeatherBlock;
+    computeEvidenceSignals: typeof computeEvidenceSignals;
     computeFusionHints: typeof computeFusionHints;
 };
 export {};

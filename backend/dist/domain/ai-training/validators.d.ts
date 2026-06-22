@@ -589,6 +589,8 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
     sessionId: z.ZodOptional<z.ZodString>;
     leadId: z.ZodOptional<z.ZodString>;
     visitedAt: z.ZodOptional<z.ZodString>;
+    visitClassification: z.ZodOptional<z.ZodEnum<["first", "follow_up", "rectification"]>>;
+    selectedRecommendationOptionId: z.ZodOptional<z.ZodString>;
     blockAssessment: z.ZodOptional<z.ZodObject<{
         blockHealth: z.ZodEnum<["good", "average", "need_assistance"]>;
         cropPerformance: z.ZodEnum<["above_expectation", "as_expected", "below_expectation"]>;
@@ -1065,6 +1067,8 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         notes?: string | undefined;
     }[] | undefined;
     visitedAt?: string | undefined;
+    visitClassification?: "follow_up" | "first" | "rectification" | undefined;
+    selectedRecommendationOptionId?: string | undefined;
     visitPhotos?: {
         mimeType: string;
         filename: string;
@@ -1169,6 +1173,8 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         notes?: string | undefined;
     }[] | undefined;
     visitedAt?: string | undefined;
+    visitClassification?: "follow_up" | "first" | "rectification" | undefined;
+    selectedRecommendationOptionId?: string | undefined;
     visitPhotos?: {
         mimeType: string;
         filename: string;

@@ -1,4 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
+import { plotDigitalTwinService } from '../intelligence/plot-digital-twin.service.js';
+import { regionalThreatRadarService } from '../intelligence/regional-threat-radar.service.js';
 function formatSoilBlock(soilTestSummary) {
     if (!soilTestSummary?.metrics)
         return 'No soil report on file';
@@ -33,36 +35,39 @@ function parseMeasurementValue(measurements, pattern) {
     const n = parseFloat(row.value);
     return Number.isFinite(n) ? n : null;
 }
-export function computeFusionHints(context, issueCategory, imageSignal) {
+export function computeEvidenceSignals(context, issueCategory, imageSignal) {
     const hints = [];
     const metrics = (context.soilTestSummary?.metrics ?? {});
     const n = Number(metrics.nitrogen ?? metrics.N ?? metrics.n);
     const incidence = parseMeasurementValue(context.measurements, /incidence/i);
     const severity = parseMeasurementValue(context.measurements, /severity|damage/i);
     if (Number.isFinite(n) && n < 200) {
-        hints.push({ label: 'Nitrogen Deficiency', boost: 0.12, reason: `Soil N ${n} below typical threshold` });
+        hints.push({ signal: 'Low soil nitrogen', reason: `Soil N ${n} below typical threshold` });
     }
     if (incidence != null && incidence >= 30 && /disease|pest/.test(issueCategory)) {
         hints.push({
-            label: issueCategory.includes('pest') ? 'Pest infestation' : 'Disease outbreak',
-            boost: 0.1,
+            signal: issueCategory.includes('pest') ? 'High pest incidence' : 'High disease incidence',
             reason: `Field incidence ${incidence}%`,
         });
     }
     if (severity != null && severity >= 50) {
-        hints.push({ label: 'Severe crop damage', boost: 0.08, reason: `Damage severity ${severity}%` });
+        hints.push({ signal: 'Severe crop damage reported', reason: `Damage severity ${severity}%` });
     }
     if (context.blockAssessment?.blockHealth === 'need_assistance' ||
         context.blockAssessment?.cropPerformance === 'below_expectation') {
-        hints.push({ label: 'Stress-related disorder', boost: 0.06, reason: 'Poor block/crop assessment' });
+        hints.push({ signal: 'Poor block/crop assessment', reason: 'Agronomist flagged block stress' });
     }
     if (imageSignal && context.soilTestSummary && Number.isFinite(n) && n < 200) {
         const imgHay = imageSignal.label.toLowerCase();
         if (/yellow|chlorosis|deficien/.test(imgHay)) {
-            hints.push({ label: 'Nitrogen Deficiency', boost: 0.15, reason: 'Image + soil N align' });
+            hints.push({ signal: 'Yellowing/chlorosis in photos with low soil N', reason: 'Image + soil N align' });
         }
     }
     return hints;
+}
+/** @deprecated Context-only — do not use boost values for confidence mutation */
+export function computeFusionHints(context, issueCategory, imageSignal) {
+    return computeEvidenceSignals(context, issueCategory, imageSignal);
 }
 async function loadPriorVisitHistory(farmerId, blockId) {
     const { data: recs } = await supabase
@@ -80,8 +85,13 @@ async function loadPriorVisitHistory(farmerId, blockId) {
 }
 export const visitAiPromptContextService = {
     async buildPromptBlock(params) {
-        const fusionHints = computeFusionHints(params.context, params.issueCategory, params.imageSignal);
+        const evidenceSignals = computeEvidenceSignals(params.context, params.issueCategory, params.imageSignal);
         const history = await loadPriorVisitHistory(params.context.farmerId, params.context.blockId);
+        const plotTwin = await plotDigitalTwinService.getLatest(params.context.blockId);
+        const plotMemory = plotDigitalTwinService.formatForPrompt(plotTwin);
+        const regionalFlags = await regionalThreatRadarService
+            .riskFlagsForFarmer(params.context.farmerId, params.context.cropType)
+            .catch(() => []);
         const sections = [
             `=== CROP ===`,
             `Crop: ${params.context.cropType}, DAP: ${params.context.dap ?? '?'}, Stage: ${params.context.stage ?? '?'}`,
@@ -103,6 +113,11 @@ export const visitAiPromptContextService = {
                 : 'None',
             `=== PRIOR VISITS ===`,
             history,
+            `=== PLOT DIGITAL TWIN (context) ===`,
+            plotMemory,
+            ...(regionalFlags.length
+                ? [`=== REGIONAL RISK FLAGS (context only) ===`, regionalFlags.join('\n')]
+                : []),
             `=== ISSUE ===`,
             `Category: ${params.issueCategory}, Name: ${params.issueName}`,
             `Observation: ${params.observation ?? 'none'}`,
@@ -122,13 +137,14 @@ export const visitAiPromptContextService = {
                 .map((e) => `AI said "${e.aiDiagnosis}" → expert "${e.expertDiagnosis}" (${e.reviewAction}, outcome ${e.outcome ?? 'unknown'})`)
                 .join('\n'));
         }
-        if (fusionHints.length) {
-            sections.push(`=== RULE-BASED SIGNALS ===`, fusionHints.map((h) => `Boost "${h.label}" +${h.boost}: ${h.reason}`).join('; '));
+        if (evidenceSignals.length) {
+            sections.push(`=== EVIDENCE SIGNALS (context only — weigh with photos and measurements) ===`, evidenceSignals.map((h) => `${h.signal}: ${h.reason}`).join('; '));
         }
         return sections.join('\n');
     },
     formatSoilBlock,
     formatWeatherBlock,
+    computeEvidenceSignals,
     computeFusionHints,
 };
 //# sourceMappingURL=visit-ai-prompt-context.service.js.map

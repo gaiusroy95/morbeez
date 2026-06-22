@@ -74,8 +74,8 @@ export const plotDigitalTwinService = {
     await supabase.from('plot_intelligence_snapshots').insert({
       block_id: blockId,
       farmer_id: farmerId,
-      crop_type: block?.cropType ?? null,
-      season_label: block?.plantingDate ? String(block.plantingDate).slice(0, 4) : null,
+      crop_type: block?.crop_type ?? null,
+      season_label: block?.planting_date ? String(block.planting_date).slice(0, 4) : null,
       trends,
       recurring_issues: recurringIssues,
       outcome_summary: { items: outcomeHistory },

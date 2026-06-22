@@ -24,6 +24,12 @@ export async function healthRoutes(app) {
             status: 'ok',
             service: 'morbeez-api',
             timestamp: new Date().toISOString(),
+            diagnosis: {
+                capable: Boolean(env.OPENAI_API_KEY?.trim() || env.PLANT_ID_API_KEY?.trim()),
+                diagnosisDegraded: !env.OPENAI_API_KEY?.trim(),
+                openaiConfigured: Boolean(env.OPENAI_API_KEY?.trim()),
+                plantIdConfigured: Boolean(env.PLANT_ID_API_KEY?.trim()),
+            },
             features: {
                 aiCropDoctor: env.ENABLE_AI_CROP_DOCTOR,
                 razorpayCheckout: env.ENABLE_RAZORPAY_CHECKOUT,

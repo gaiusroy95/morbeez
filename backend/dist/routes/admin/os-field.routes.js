@@ -4,6 +4,7 @@ import { fieldPwaService } from '../../services/admin/field-pwa.service.js';
 import { fieldVisitService } from '../../services/admin/field-visit.service.js';
 import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
 import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-up-questions.service.js';
+import { diagnosisOrchestratorService } from '../../services/diagnosis/diagnosis-orchestrator.service.js';
 import { visitAiOrchestratorService } from '../../services/core/visit-ai-orchestrator.service.js';
 import { visitCaseClosureService } from '../../services/core/visit-case-closure.service.js';
 import { trainingExportService } from '../../services/core/training-export.service.js';
@@ -13,6 +14,9 @@ import { recommendationCommunicationService } from '../../services/core/recommen
 import { monitoringPlanService } from '../../services/core/monitoring-plan.service.js';
 import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
 import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
+import { plotDigitalTwinService } from '../../services/intelligence/plot-digital-twin.service.js';
+import { recommendationOptimizerService } from '../../services/diagnosis/recommendation-optimizer.service.js';
+import { regionalThreatRadarService } from '../../services/intelligence/regional-threat-radar.service.js';
 import { structuredFieldVisitSchema, issueCategorySchema, visitAiContextRequestSchema, visitAnalyzeRequestSchema, visitAnalyzeVisitRequestSchema, visitMonitoringPreviewSchema, visitWhatsappPreviewSchema, visitAiAnswersBodySchema, visitAiSyncQuestionsBodySchema, visitAiRecommendBodySchema, visitAiRejectBodySchema, recommendationOutcomeSchema, } from '../../domain/ai-training/validators.js';
 const photoSchema = z.object({
     filename: z.string().min(1).max(200),
@@ -243,10 +247,50 @@ export async function osFieldRoutes(app) {
         const result = await visitAiOrchestratorService.analyze(body, admin.email);
         return reply.send({ ok: true, ...result });
     });
+    app.get(`${api}/blocks/:blockId/plot-intelligence`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const { blockId } = request.params;
+        const q = z.object({ farmerId: z.string().uuid() }).parse(request.query ?? {});
+        let trends = await plotDigitalTwinService.getLatest(blockId);
+        if (!trends)
+            trends = await plotDigitalTwinService.buildSnapshot(blockId, q.farmerId);
+        return reply.send({ ok: true, trends, promptBlock: plotDigitalTwinService.formatForPrompt(trends) });
+    });
+    app.post(`${api}/visits/recommendation-options/preview`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z
+            .object({
+            issueLabel: z.string().min(1),
+            cropType: z.string().min(1),
+            farmerSegment: z.enum(['premium', 'roi_focused', 'low_budget']).optional(),
+        })
+            .parse(request.body);
+        const options = await recommendationOptimizerService.buildOptions(body);
+        return reply.send({ ok: true, options });
+    });
+    app.get(`${api}/regional-threat-radar`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = z
+            .object({
+            district: z.string().optional(),
+            cropType: z.string().optional(),
+            limit: z.coerce.number().optional(),
+        })
+            .parse(request.query ?? {});
+        const threats = await regionalThreatRadarService.listActive(q);
+        return reply.send({ ok: true, threats });
+    });
+    app.post(`${api}/visits/triage-preview`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = visitAnalyzeVisitRequestSchema.parse(request.body);
+        const triage = await diagnosisOrchestratorService.triagePreview(body);
+        const capability = diagnosisOrchestratorService.getCapabilityStatus();
+        return reply.send({ ok: true, triage, capability });
+    });
     app.post(`${api}/visits/analyze-visit`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'write');
         const body = visitAnalyzeVisitRequestSchema.parse(request.body);
-        const result = await visitAiOrchestratorService.analyzeVisit(body, admin.email);
+        const result = await diagnosisOrchestratorService.analyzeVisit(body, admin.email);
         return reply.send({ ok: true, ...result });
     });
     app.post(`${api}/visits/monitoring-plan/preview`, async (request, reply) => {

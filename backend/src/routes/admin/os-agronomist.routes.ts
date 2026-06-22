@@ -26,6 +26,7 @@ import { telecallerAdminService } from '../../services/admin/telecaller-admin.se
 import { farmerNotesService } from '../../services/admin/farmer-notes.service.js';
 import { agronomistCopilotService } from '../../services/diagnosis/agronomist-copilot.service.js';
 import { outcomeIntelligenceService } from '../../services/intelligence/outcome-intelligence.service.js';
+import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
 
 const draftSchema = z.object({
   findingId: z.string().uuid(),

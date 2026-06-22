@@ -92,9 +92,20 @@ export const diagnosisOrchestratorService = {
     const result = await visitAiOrchestratorService.analyzeVisit(input, agronomistEmail);
 
     const issues = (result.issues ?? []).map((issue) => {
-      const src = (issue as { diagnosisSource?: DiagnosisSource }).diagnosisSource ?? 'model';
-      const envelope: DiagnosisEnvelope = (issue as { diagnosisEnvelope?: DiagnosisEnvelope }).diagnosisEnvelope ?? {
-        hypotheses: (issue.hypotheses ?? []).map((h) => ({
+      const row = issue as {
+        hypotheses?: Array<{
+          label: string;
+          confidence: number;
+          rationale?: string;
+          selected?: boolean;
+        }>;
+        confidenceAction?: string;
+        diagnosisSource?: DiagnosisSource;
+        diagnosisEnvelope?: DiagnosisEnvelope;
+      };
+      const src = row.diagnosisSource ?? 'model';
+      const envelope: DiagnosisEnvelope = row.diagnosisEnvelope ?? {
+        hypotheses: (row.hypotheses ?? []).map((h) => ({
           label: h.label,
           confidence: h.confidence,
           rationale: h.rationale ?? '',
@@ -102,7 +113,7 @@ export const diagnosisOrchestratorService = {
         })),
         source: src,
         degraded: src === 'insufficient_evidence',
-        escalationRequired: src === 'insufficient_evidence' || issue.confidenceAction === 'escalate',
+        escalationRequired: src === 'insufficient_evidence' || row.confidenceAction === 'escalate',
         evidenceSummary: [],
         triage,
       };
@@ -118,8 +129,8 @@ export const diagnosisOrchestratorService = {
   },
 
   resolveSourceFromImage(
-    imageSource?: 'plant_id' | 'vision' | 'fusion' | null,
-    hasModel: boolean
+    hasModel: boolean,
+    imageSource?: 'plant_id' | 'vision' | 'fusion' | null
   ): DiagnosisSource {
     if (hasModel) return 'model';
     return mapImageSourceToDiagnosisSource(imageSource);

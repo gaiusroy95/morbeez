@@ -9,9 +9,10 @@ import { startBroadcastCampaignWorker } from './services/whatsapp/broadcasts/bro
 import { startMarketInsightBroadcastWorker } from './services/whatsapp/market-insights/market-insight-broadcast.worker.js';
 import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-prompt.worker.js';
 import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
+import { startRegionalThreatRadarWorker } from './services/intelligence/regional-threat-radar.worker.js';
 async function main() {
     if (!env.OPENAI_API_KEY?.trim()) {
-        logger.warn('OPENAI_API_KEY is not set — visit AI diagnosis will use fallback hypotheses and generic recommendations');
+        logger.warn('OPENAI_API_KEY is not set — visit AI diagnosis will fail closed (insufficient evidence / escalation)');
     }
     const app = await buildApp();
     startOutboxWorkerIfEnabled();
@@ -22,6 +23,7 @@ async function main() {
     startMarketInsightBroadcastWorker();
     startRoiDailyPromptWorker();
     startFarmerOpportunityScoreWorker();
+    startRegionalThreatRadarWorker();
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Morbeez API started');
 }

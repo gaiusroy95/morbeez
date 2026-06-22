@@ -152,6 +152,8 @@ export const structuredFieldVisitSchema = z.object({
     sessionId: z.string().uuid().optional(),
     leadId: z.string().uuid().optional(),
     visitedAt: z.string().datetime().optional(),
+    visitClassification: z.enum(['first', 'follow_up', 'rectification']).optional(),
+    selectedRecommendationOptionId: z.string().max(40).optional(),
     blockAssessment: z
         .object({
         blockHealth: blockHealthSchema,

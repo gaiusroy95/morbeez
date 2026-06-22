@@ -14,6 +14,7 @@ import { recommendationCompatibilityService } from '../../services/core/recommen
 import { recommendationCommunicationService } from '../../services/core/recommendation-communication.service.js';
 import { monitoringPlanService } from '../../services/core/monitoring-plan.service.js';
 import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
+import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
 import { plotDigitalTwinService } from '../../services/intelligence/plot-digital-twin.service.js';
 import { recommendationOptimizerService } from '../../services/diagnosis/recommendation-optimizer.service.js';
 import { regionalThreatRadarService } from '../../services/intelligence/regional-threat-radar.service.js';

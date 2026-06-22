@@ -3,6 +3,8 @@ import type { StructuredAdvisory } from '../../ai/types.js';
 import { type FarmerMemorySnapshot } from './farmer-memory.service.js';
 import type { MorbeezReplyModule, ReplyAttributionMeta } from './reply-attribution.service.js';
 export declare function isFertilizerOrNutrientQuestion(text: string): boolean;
+/** True when farmer is asking for a crop disease/pest diagnosis (not tank-mix or fertilizer). */
+export declare function isDiseaseDiagnosisIntent(text: string): boolean;
 /**
  * Rule-based / verified-case replies when OpenAI is unavailable (quota, outage).
  * Uses advisory_reuse_cases, spray_compatibility_rules, Ca nitrate chart, and field playbooks.
