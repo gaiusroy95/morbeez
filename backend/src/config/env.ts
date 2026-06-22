@@ -1,6 +1,15 @@
 import { z } from 'zod';
 import 'dotenv/config';
 
+/** Parse integer env vars; empty string / invalid → default (avoids NaN on Render). */
+function coerceEnvInt(defaultValue: number) {
+  return z.preprocess((val) => {
+    if (val === undefined || val === null || val === '') return defaultValue;
+    const n = Number(val);
+    return Number.isFinite(n) ? n : defaultValue;
+  }, z.number().int().min(0));
+}
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'staging', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
@@ -287,14 +296,19 @@ const envSchema = z.object({
   AI_AUTO_SEND_THRESHOLD: z.coerce.number().min(0).max(1).default(0.95),
   /** ≥ this → employee review; below → escalate. */
   AI_REVIEW_THRESHOLD: z.coerce.number().min(0).max(1).default(0.8),
-  AI_DAILY_TEXT_LIMIT_FREE: z.coerce.number().default(10),
-  AI_DAILY_TEXT_LIMIT_PREMIUM: z.coerce.number().default(100),
-  AI_DAILY_IMAGE_LIMIT_FREE: z.coerce.number().default(3),
-  AI_DAILY_IMAGE_LIMIT_PREMIUM: z.coerce.number().default(50),
-  AI_DAILY_VOICE_LIMIT_FREE: z.coerce.number().default(5),
-  AI_DAILY_VOICE_LIMIT_PREMIUM: z.coerce.number().default(30),
   AI_MAX_VOICE_DURATION_SEC: z.coerce.number().default(60),
   AI_MIN_REQUEST_INTERVAL_SEC: z.coerce.number().default(30),
+  /** When false, per-farmer WhatsApp text/image/voice daily caps are not enforced. */
+  ENABLE_AI_DAILY_LIMITS: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  AI_DAILY_TEXT_LIMIT_FREE: coerceEnvInt(10),
+  AI_DAILY_TEXT_LIMIT_PREMIUM: coerceEnvInt(100),
+  AI_DAILY_IMAGE_LIMIT_FREE: coerceEnvInt(3),
+  AI_DAILY_IMAGE_LIMIT_PREMIUM: coerceEnvInt(50),
+  AI_DAILY_VOICE_LIMIT_FREE: coerceEnvInt(5),
+  AI_DAILY_VOICE_LIMIT_PREMIUM: coerceEnvInt(30),
 
   GSC_SITE_URL: z.string().url().optional(),
   GSC_CLIENT_ID: z.string().optional(),

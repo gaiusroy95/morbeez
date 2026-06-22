@@ -50,26 +50,29 @@ export const aiUsageControlService = {
       }
     }
 
-    const textLimit = params.isPremium ? env.AI_DAILY_TEXT_LIMIT_PREMIUM : env.AI_DAILY_TEXT_LIMIT_FREE;
-    const imageLimit = params.isPremium ? env.AI_DAILY_IMAGE_LIMIT_PREMIUM : env.AI_DAILY_IMAGE_LIMIT_FREE;
-    const voiceLimit = params.isPremium ? env.AI_DAILY_VOICE_LIMIT_PREMIUM : env.AI_DAILY_VOICE_LIMIT_FREE;
+    if (env.ENABLE_AI_DAILY_LIMITS) {
+      const textLimit = params.isPremium ? env.AI_DAILY_TEXT_LIMIT_PREMIUM : env.AI_DAILY_TEXT_LIMIT_FREE;
+      const imageLimit = params.isPremium ? env.AI_DAILY_IMAGE_LIMIT_PREMIUM : env.AI_DAILY_IMAGE_LIMIT_FREE;
+      const voiceLimit = params.isPremium ? env.AI_DAILY_VOICE_LIMIT_PREMIUM : env.AI_DAILY_VOICE_LIMIT_FREE;
 
-    if (params.kind === 'text' && row.text_queries >= textLimit) {
-      await this.recordBlocked(params.farmerId);
-      return { allowed: false, reason: 'daily_text' };
+      if (params.kind === 'text' && row.text_queries >= textLimit) {
+        await this.recordBlocked(params.farmerId);
+        return { allowed: false, reason: 'daily_text' };
+      }
+      if (params.kind === 'image' && row.image_queries >= imageLimit) {
+        await this.recordBlocked(params.farmerId);
+        return { allowed: false, reason: 'daily_image' };
+      }
+      if (params.kind === 'voice' && row.voice_queries >= voiceLimit) {
+        await this.recordBlocked(params.farmerId);
+        return { allowed: false, reason: 'daily_voice' };
+      }
     }
-    if (params.kind === 'image' && row.image_queries >= imageLimit) {
-      await this.recordBlocked(params.farmerId);
-      return { allowed: false, reason: 'daily_image' };
-    }
+
     if (params.kind === 'voice') {
       if ((params.voiceDurationSec ?? 0) > env.AI_MAX_VOICE_DURATION_SEC) {
         await this.recordBlocked(params.farmerId);
         return { allowed: false, reason: 'voice_too_long' };
-      }
-      if (row.voice_queries >= voiceLimit) {
-        await this.recordBlocked(params.farmerId);
-        return { allowed: false, reason: 'daily_voice' };
       }
     }
 
