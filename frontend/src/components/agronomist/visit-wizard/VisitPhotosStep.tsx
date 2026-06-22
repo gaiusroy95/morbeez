@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import {
   agronomistClient,
   resolveCapturePhotoType,
@@ -11,6 +11,8 @@ import type { VisitPhotoDraft } from './types';
 import {
   formatCropPhotoGuidance,
   getDefaultSelectedPhotoTypes,
+  getDetailPhotoTypes,
+  getMandatoryPhotoTypes,
   getVisitPhotoTypeLabel,
   getVisitPhotoTypesForCrop,
 } from './visitPhotoTypes';
@@ -59,8 +61,48 @@ export function VisitPhotosStep({
   const inputRef = useRef<HTMLInputElement>(null);
   const [captureLocked, setCaptureLocked] = useState(false);
   const photoTypes = getVisitPhotoTypesForCrop(cropType);
+  const mandatoryTypes = getMandatoryPhotoTypes(cropType);
+  const detailTypes = getDetailPhotoTypes(cropType);
   const availableTypeValues = photoTypes.map((t) => t.value);
   const cropLabel = cropType.replace(/_/g, ' ').trim() || 'crop';
+
+  const qualitySummary = useMemo(() => {
+    const capturedMandatory = new Set(
+      photos.map((p) => p.photoType).filter((t) => mandatoryTypes.some((m) => m.value === t))
+    );
+    const retake = photos.filter((p) => p.retakeRecommended || (p.validationIssues?.length ?? 0) > 0).length;
+    return {
+      mandatoryDone: capturedMandatory.size,
+      mandatoryTotal: mandatoryTypes.length,
+      retake,
+      total: photos.length,
+    };
+  }, [photos, mandatoryTypes]);
+
+  function renderPhotoChips(types: typeof photoTypes) {
+    return types.map((t) => {
+      const active = captureType === t.value;
+      const captured = photos.some((p) => p.photoType === t.value);
+      return (
+        <button
+          key={t.value}
+          type="button"
+          className={[
+            'vw-chip',
+            active ? 'vw-chip--active' : '',
+            t.recommended && !active ? 'vw-chip--recommended' : '',
+            captured ? 'vw-chip--captured' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          onClick={() => setActiveCaptureType(t.value)}
+        >
+          {t.label}
+          {captured ? ' ✓' : ''}
+        </button>
+      );
+    });
+  }
 
   function setActiveCaptureType(type: string) {
     setCaptureLocked(true);
@@ -134,6 +176,17 @@ export function VisitPhotosStep({
 
   return (
     <div className="vw-stack">
+      <div className="vw-photo-quality-strip">
+        <span>
+          Evidence: {qualitySummary.mandatoryDone}/{qualitySummary.mandatoryTotal} core shots
+        </span>
+        <span>{qualitySummary.total} photos</span>
+        {qualitySummary.retake ? (
+          <span className="vw-photo-quality-warn">{qualitySummary.retake} need retake</span>
+        ) : (
+          <span className="vw-photo-quality-ok">Quality OK</span>
+        )}
+      </div>
       <div className="vw-upload-row">
         <button type="button" className="vw-upload-card" onClick={() => inputRef.current?.click()}>
           <span aria-hidden>📷</span>
@@ -152,30 +205,19 @@ export function VisitPhotosStep({
         />
       </div>
 
-      <Panel title={`Photo types · ${cropLabel}`}>
+      <Panel title={`Photo evidence · ${cropLabel}`}>
         <p className="vw-hint">{formatCropPhotoGuidance(cropType)}</p>
-        <p className="vw-hint">AI auto-tags photos after upload; select a type below to override the next capture.</p>
-        <div className="vw-chip-row">
-          {photoTypes.map((t) => {
-            const active = captureType === t.value;
-            return (
-              <button
-                key={t.value}
-                type="button"
-                className={[
-                  'vw-chip',
-                  active ? 'vw-chip--active' : '',
-                  t.recommended && !active ? 'vw-chip--recommended' : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                onClick={() => setActiveCaptureType(t.value)}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
+        <p className="vw-hint">AI checks blur, lighting, and coverage after upload. Tag the next capture below.</p>
+        <p className="vw-field-label">Core evidence (required)</p>
+        <div className="vw-chip-row">{renderPhotoChips(mandatoryTypes)}</div>
+        {detailTypes.length ? (
+          <>
+            <p className="vw-field-label" style={{ marginTop: 12 }}>
+              Detail shots (crop-specific)
+            </p>
+            <div className="vw-chip-row">{renderPhotoChips(detailTypes)}</div>
+          </>
+        ) : null}
       </Panel>
 
       <Panel title={`Photos added (${photos.length})`}>

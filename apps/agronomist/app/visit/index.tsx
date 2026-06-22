@@ -36,6 +36,7 @@ import { VisitApplicationScheduleStep } from '@/components/field-findings/wizard
 import { VisitMonitoringPlanStep } from '@/components/field-findings/wizard/VisitMonitoringPlanStep';
 import { VisitWhatsappPreviewStep } from '@/components/field-findings/wizard/VisitWhatsappPreviewStep';
 import { VisitCaseClosureStep } from '@/components/field-findings/wizard/VisitCaseClosureStep';
+import { VisitFieldIntelligenceStep } from '@/components/field-findings/wizard/VisitFieldIntelligenceStep';
 import { VisitMeasurementsStep } from '@/components/field-findings/wizard/VisitMeasurementsStep';
 import { VisitOverviewStep } from '@/components/field-findings/wizard/VisitOverviewStep';
 import { VisitPhotosStep } from '@/components/field-findings/wizard/VisitPhotosStep';
@@ -364,7 +365,7 @@ export default function VisitScreen() {
     for (const tpl of templates) {
       if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
         setError(`Required measurement: ${tpl.labelEn}`);
-        setStep('measurements');
+        setStep('fieldIntelligence');
         return;
       }
     }
@@ -511,6 +512,17 @@ export default function VisitScreen() {
             voiceNote={fieldVoiceNote}
             onPhotosChange={setVisitPhotos}
             onVoiceNoteChange={setFieldVoiceNote}
+          />
+        ) : null}
+
+        {step === 'fieldIntelligence' ? (
+          <VisitFieldIntelligenceStep
+            cropType={cropType}
+            farmerId={farmerId}
+            blockId={blockId}
+            templates={templates}
+            measurements={measurements}
+            onMeasurementChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
           />
         ) : null}
 

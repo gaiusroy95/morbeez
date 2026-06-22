@@ -2,29 +2,41 @@ export type VisitPhotoTypeOption = {
   value: string;
   label: string;
   recommended?: boolean;
+  /** Core evidence photos agronomists should capture first. */
+  tier?: 'mandatory' | 'detail';
 };
 
 const COMMON = {
-  wholeField: { value: 'whole_field', label: 'Whole field', recommended: true },
-  plant: { value: 'plant', label: 'Plant' },
-  leaf: { value: 'leaf', label: 'Leaf' },
-  pest: { value: 'pest', label: 'Pest' },
-  disease: { value: 'disease', label: 'Disease' },
-  stem: { value: 'stem', label: 'Stem' },
-  fruit: { value: 'fruit', label: 'Fruit' },
-  flower: { value: 'flower', label: 'Flower' },
-  other: { value: 'other', label: 'Other' },
+  wholeField: { value: 'whole_field', label: 'Whole field', recommended: true, tier: 'mandatory' as const },
+  blockView: { value: 'block_view', label: 'Block view', tier: 'mandatory' as const },
+  plant: { value: 'plant', label: 'Whole plant', recommended: true, tier: 'mandatory' as const },
+  symptom: { value: 'disease', label: 'Symptom close-up', recommended: true, tier: 'mandatory' as const },
+  leaf: { value: 'leaf', label: 'Leaf', tier: 'detail' as const },
+  leafUnderside: { value: 'leaf_underside', label: 'Leaf underside', tier: 'detail' as const },
+  pest: { value: 'pest', label: 'Pest signs', tier: 'detail' as const },
+  disease: { value: 'disease', label: 'Disease', tier: 'detail' as const },
+  stem: { value: 'stem', label: 'Stem base', tier: 'detail' as const },
+  root: { value: 'root', label: 'Root / rhizome', tier: 'detail' as const },
+  fruit: { value: 'fruit', label: 'Fruit', tier: 'detail' as const },
+  flower: { value: 'flower', label: 'Flower', tier: 'detail' as const },
+  irrigation: { value: 'irrigation', label: 'Irrigation source', tier: 'detail' as const },
+  soil: { value: 'soil', label: 'Soil surface', tier: 'detail' as const },
+  other: { value: 'other', label: 'Other', tier: 'detail' as const },
 } as const;
 
 const RHIZOME_TYPES: VisitPhotoTypeOption[] = [
   COMMON.wholeField,
-  { value: 'rhizome', label: 'Rhizome', recommended: true },
+  COMMON.blockView,
+  { value: 'rhizome', label: 'Rhizome', recommended: true, tier: 'mandatory' },
   COMMON.plant,
+  COMMON.symptom,
   COMMON.leaf,
+  COMMON.leafUnderside,
   COMMON.pest,
-  COMMON.disease,
   COMMON.stem,
-  { value: 'drainage', label: 'Drainage / soil' },
+  COMMON.root,
+  { value: 'drainage', label: 'Drainage / soil', tier: 'detail' },
+  COMMON.irrigation,
   COMMON.other,
 ];
 
@@ -141,10 +153,21 @@ export function getVisitPhotoTypeLabel(cropType: string, value: string): string 
 
 export function formatCropPhotoGuidance(cropType: string): string {
   const crop = cropType.replace(/_/g, ' ').trim() || 'this crop';
-  const types = getVisitPhotoTypesForCrop(cropType);
-  const recommended = types.filter((t) => t.recommended).map((t) => t.label);
-  if (!recommended.length) {
-    return `Select photo types relevant to ${crop} before capture (optional).`;
+  const mandatory = getMandatoryPhotoTypes(cropType).map((t) => t.label);
+  if (!mandatory.length) {
+    return `Capture field context and symptom close-ups for ${crop}.`;
   }
-  return `Recommended for ${crop}: ${recommended.join(', ')}. Select types before capture (optional).`;
+  return `Required evidence for ${crop}: ${mandatory.join(', ')}. Add detail shots as needed.`;
+}
+
+export function getMandatoryPhotoTypes(cropType: string): VisitPhotoTypeOption[] {
+  const types = getVisitPhotoTypesForCrop(cropType);
+  const mandatory = types.filter((t) => t.tier === 'mandatory' || t.recommended);
+  return mandatory.length ? mandatory : types.slice(0, 4);
+}
+
+export function getDetailPhotoTypes(cropType: string): VisitPhotoTypeOption[] {
+  const types = getVisitPhotoTypesForCrop(cropType);
+  const mandatoryValues = new Set(getMandatoryPhotoTypes(cropType).map((t) => t.value));
+  return types.filter((t) => !mandatoryValues.has(t.value));
 }

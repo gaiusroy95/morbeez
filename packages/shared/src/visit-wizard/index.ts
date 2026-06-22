@@ -157,6 +157,8 @@ export type VisitWizardStep =
 
   | 'photos'
 
+  | 'fieldIntelligence'
+
   | 'measurements'
 
   | 'soilWeather'
@@ -196,6 +198,8 @@ export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> =
   { id: 'overview', label: 'Overview' },
 
   { id: 'photos', label: 'Photos' },
+
+  { id: 'fieldIntelligence', label: 'Field intel' },
 
   { id: 'measurements', label: 'Measures' },
 
@@ -728,7 +732,7 @@ export function validateVisitWizardStep(
 
   }
 
-  if (step === 'measurements') {
+  if (step === 'measurements' || step === 'fieldIntelligence') {
 
     for (const tpl of ctx.templates) {
 
@@ -921,6 +925,8 @@ export function normalizeVisitWizardStep(step: string): VisitWizardStep {
   if (step === 'issues') return 'agronomistReview';
 
   if (step === 'review') return 'agronomistReview';
+
+  if (step === 'measurements' || step === 'soilWeather') return 'fieldIntelligence';
 
   const known = VISIT_WIZARD_STEPS.find((s) => s.id === step);
 

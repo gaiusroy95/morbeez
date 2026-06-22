@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   agronomistClient,
   derivePhotoRequestsFromFollowUp,
+  issueTopConfidence,
   shouldRunFollowUp,
   type VisitAiQuestion,
 } from '@morbeez/shared';
@@ -211,8 +212,32 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
     );
   }
 
+  const gateConfidence = issues.length
+    ? Math.min(...issues.map((i) => issueTopConfidence(i)))
+    : 1;
+  const gateTone =
+    gateConfidence >= 0.85 ? 'ok' : gateConfidence >= 0.65 ? 'warn' : 'danger';
+  const gateMessage =
+    gateTone === 'ok'
+      ? 'Confidence high — validate key answers and continue.'
+      : gateTone === 'warn'
+        ? 'Confidence moderate — confirm answers before final diagnosis.'
+        : 'Confidence low — add evidence or escalate after Q&A.';
+
   return (
     <div className="vw-stack">
+      <div
+        className={[
+          'vw-confidence-gate',
+          gateTone === 'ok' ? 'vw-confidence-gate--ok' : '',
+          gateTone === 'warn' ? 'vw-confidence-gate--warn' : '',
+          gateTone === 'danger' ? 'vw-confidence-gate--danger' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <strong>Confidence gate</strong> · {Math.round(gateConfidence * 100)}% — {gateMessage}
+      </div>
       {error ? <Alert tone="error">{error}</Alert> : null}
       {issues.map((issue, issueIndex) => {
         const canSkip = issue.skipFollowUpOptional && !issue.qaSkipped;

@@ -101,8 +101,7 @@ export function getVisibleWizardSteps(partnerMode?: boolean): VisitWizardStep[] 
     [
       'overview',
       'photos',
-      'measurements',
-      'soilWeather',
+      'fieldIntelligence',
       'aiTriage',
       'aiAnalysis',
       'agronomistReview',

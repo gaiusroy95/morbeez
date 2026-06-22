@@ -7,6 +7,8 @@ type Props = {
   farmerId: string;
   blockId: string;
   hideScores?: boolean;
+  soilOnly?: boolean;
+  weatherOnly?: boolean;
   fetchEnvironment?: typeof agronomistClient.getVisitEnvironment;
 };
 
@@ -34,6 +36,8 @@ export function VisitSoilWeatherStep({
   farmerId,
   blockId,
   hideScores = false,
+  soilOnly = false,
+  weatherOnly = false,
   fetchEnvironment = agronomistClient.getVisitEnvironment,
 }: Props) {
   const [loading, setLoading] = useState(true);
@@ -72,9 +76,21 @@ export function VisitSoilWeatherStep({
   const macro = env?.soilReport?.metrics.filter((m) => m.group === 'macro') ?? [];
   const micro = env?.soilReport?.metrics.filter((m) => m.group === 'micro') ?? [];
 
+  if (weatherOnly) {
+    return (
+      <View style={styles.root}>
+        {error ? <AlertBox>{error}</AlertBox> : null}
+        <Panel title="Weather">
+          <WeatherCard weather={env?.weather ?? { current: null, forecast: null }} />
+        </Panel>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
+      {soilOnly || !weatherOnly ? (
       <Panel title="Soil lab panel">
         {env?.soilReport ? (
           <>
@@ -110,6 +126,8 @@ export function VisitSoilWeatherStep({
           <Text style={styles.muted}>No soil report on file for this block.</Text>
         )}
       </Panel>
+      ) : null}
+      {soilOnly ? null : (
       <Panel title="Weather">
         <WeatherCard weather={env?.weather ?? { current: null, forecast: null }} />
         {hideScores ? null : env?.weather.forecast ? (
@@ -118,6 +136,7 @@ export function VisitSoilWeatherStep({
           </Text>
         ) : null}
       </Panel>
+      )}
     </View>
   );
 }

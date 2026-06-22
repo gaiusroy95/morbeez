@@ -30,6 +30,7 @@ import { VisitWizardStepper } from '../../components/agronomist/visit-wizard/Vis
 import { VisitOverviewStep } from '../../components/agronomist/visit-wizard/VisitOverviewStep';
 import { VisitPhotosStep } from '../../components/agronomist/visit-wizard/VisitPhotosStep';
 import { getVisitPhotoTypesForCrop } from '../../components/agronomist/visit-wizard/visitPhotoTypes';
+import { VisitFieldIntelligenceStep } from '../../components/agronomist/visit-wizard/VisitFieldIntelligenceStep';
 import { VisitMeasurementsStep } from '../../components/agronomist/visit-wizard/VisitMeasurementsStep';
 import { VisitSoilWeatherStep } from '../../components/agronomist/visit-wizard/VisitSoilWeatherStep';
 import { VisitAgronomistReviewStep } from '../../components/agronomist/visit-wizard/VisitAgronomistReviewStep';
@@ -303,7 +304,7 @@ export function VisitWizardPage({ canWrite }: Props) {
     for (const tpl of templates) {
       if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
         setError(`Required measurement: ${tpl.labelEn}`);
-        setStep('measurements');
+        setStep('fieldIntelligence');
         return;
       }
     }
@@ -454,6 +455,17 @@ export function VisitWizardPage({ canWrite }: Props) {
           voiceNote={fieldVoiceNote}
           onPhotosChange={setVisitPhotos}
           onVoiceNoteChange={setFieldVoiceNote}
+        />
+      ) : null}
+
+      {step === 'fieldIntelligence' ? (
+        <VisitFieldIntelligenceStep
+          cropType={cropType}
+          farmerId={farmerId}
+          blockId={blockId}
+          templates={templates}
+          measurements={measurements}
+          onMeasurementChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
         />
       ) : null}
 

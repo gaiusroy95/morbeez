@@ -10,6 +10,8 @@ type Props = {
   farmerId: string;
   blockId: string;
   hideScores?: boolean;
+  soilOnly?: boolean;
+  weatherOnly?: boolean;
   fetchEnvironment?: typeof agronomistClient.getVisitEnvironment;
 };
 
@@ -45,6 +47,8 @@ export function VisitSoilWeatherStep({
   farmerId,
   blockId,
   hideScores = false,
+  soilOnly = false,
+  weatherOnly = false,
   fetchEnvironment = agronomistClient.getVisitEnvironment,
 }: Props) {
   const [loading, setLoading] = useState(true);
@@ -82,9 +86,39 @@ export function VisitSoilWeatherStep({
   const macro = env?.soilReport?.metrics.filter((m) => m.group === 'macro') ?? [];
   const micro = env?.soilReport?.metrics.filter((m) => m.group === 'micro') ?? [];
 
+  const soilAlerts: string[] = [];
+  for (const m of [...macro, ...micro]) {
+    const key = m.key.toLowerCase();
+    const val = parseFloat(String(m.value));
+    if (key.includes('ph') && !Number.isNaN(val) && (val < 5.5 || val > 8)) {
+      soilAlerts.push(val < 5.5 ? 'Low pH — nutrient lock risk' : 'High pH — micronutrient lock risk');
+    }
+    if ((key.includes('ec') || key.includes('salinity')) && !Number.isNaN(val) && val > 1.5) {
+      soilAlerts.push('High EC — salt stress risk');
+    }
+  }
+
+  if (weatherOnly) {
+    return (
+      <div className="vw-stack">
+        {error ? <Alert tone="error">{error}</Alert> : null}
+        <Panel title="Weather (current)">
+          <WeatherCard weather={env?.weather ?? { current: null, forecast: null }} />
+          {env?.weather.forecast ? (
+            <p className="vw-hint" style={{ marginTop: 8 }}>
+              7-day rain forecast: {String(env.weather.forecast.rainfallMmForecast ?? '—')} mm · review heat /
+              waterlogging pressure before recommending sprays.
+            </p>
+          ) : null}
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="vw-stack">
       {error ? <Alert tone="error">{error}</Alert> : null}
+      {soilOnly || !weatherOnly ? (
       <Panel title="Soil lab panel">
         {env?.soilReport ? (
           <>
@@ -119,7 +153,14 @@ export function VisitSoilWeatherStep({
         ) : (
           <p className="vw-hint">No soil report on file for this block.</p>
         )}
+        {soilAlerts.length ? (
+          <div className="vw-banner vw-banner--warn" style={{ marginTop: 8 }}>
+            {soilAlerts.join(' · ')}
+          </div>
+        ) : null}
       </Panel>
+      ) : null}
+      {soilOnly ? null : (
       <Panel title="Weather">
         <WeatherCard weather={env?.weather ?? { current: null, forecast: null }} />
         {hideScores ? null : env?.weather.forecast ? (
@@ -128,6 +169,7 @@ export function VisitSoilWeatherStep({
           </p>
         ) : null}
       </Panel>
+      )}
     </div>
   );
 }

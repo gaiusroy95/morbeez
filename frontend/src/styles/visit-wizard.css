@@ -203,6 +203,77 @@
   border-color: #22c55e;
 }
 
+.vw-chip--captured {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.vw-photo-quality-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.vw-photo-quality-ok {
+  color: #15803d;
+  font-weight: 600;
+}
+
+.vw-photo-quality-warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.vw-activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.vw-activity-table th,
+.vw-activity-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 8px 6px;
+  text-align: left;
+}
+
+.vw-activity-table th {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.vw-confidence-gate {
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid #e2e8f0;
+}
+
+.vw-confidence-gate--ok {
+  background: #f0fdf4;
+  border-color: #86efac;
+  color: #166534;
+}
+
+.vw-confidence-gate--warn {
+  background: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
+.vw-confidence-gate--danger {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
 .vw-assess-chip {
   flex: 1 1 calc(33% - 8px);
   min-width: 100px;
