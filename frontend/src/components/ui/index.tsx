@@ -152,11 +152,14 @@ export function Btn({
   variant = 'secondary',
   size = 'md',
   className = '',
+  label,
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
   size?: 'sm' | 'md';
+  /** Shorthand for button text when not using children. */
+  label?: ReactNode;
 }) {
   const variants = {
     primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700 active:bg-brand-800',
@@ -175,7 +178,7 @@ export function Btn({
       className={cn(btnBase, variants[variant], sizes[size], className)}
       {...props}
     >
-      {children}
+      {children ?? label}
     </button>
   );
 }
