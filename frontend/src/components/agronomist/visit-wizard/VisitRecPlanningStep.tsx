@@ -187,54 +187,38 @@ export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Pro
               <StaticSelect
                 className="mt-1.5"
                 value={mat.doseBasis ?? ''}
-                onChange={(e) =>
+                placeholder="Select basis"
+                options={DOSE_BASIS_OPTIONS}
+                onChange={(value) =>
                   updateMaterial(gi, mi, {
-                    doseBasis: e.target.value as RecommendationGroupDraft['materials'][number]['doseBasis'],
+                    doseBasis: value as RecommendationGroupDraft['materials'][number]['doseBasis'],
                   })
                 }
-              >
-                <option value="">Select basis</option>
-                {DOSE_BASIS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </StaticSelect>
+              />
               <span className="vw-field-label">Qty unit</span>
               <StaticSelect
                 className="mt-1.5"
                 value={mat.doseUnit ?? ''}
-                onChange={(e) =>
+                placeholder="Select unit"
+                options={DOSE_UNIT_OPTIONS.map((unit) => ({ value: unit, label: unit }))}
+                onChange={(value) =>
                   updateMaterial(gi, mi, {
-                    doseUnit: e.target.value as RecommendationGroupDraft['materials'][number]['doseUnit'],
+                    doseUnit: value as RecommendationGroupDraft['materials'][number]['doseUnit'],
                   })
                 }
-              >
-                <option value="">Select unit</option>
-                {DOSE_UNIT_OPTIONS.map((unit) => (
-                  <option key={unit} value={unit}>
-                    {unit}
-                  </option>
-                ))}
-              </StaticSelect>
+              />
               <span className="vw-field-label">Application mode</span>
               <StaticSelect
                 className="mt-1.5"
                 value={mat.applicationMode ?? ''}
-                onChange={(e) =>
+                placeholder="Select mode"
+                options={MATERIAL_APPLICATION_MODE_OPTIONS}
+                onChange={(value) =>
                   updateMaterial(gi, mi, {
-                    applicationMode: e.target
-                      .value as RecommendationGroupDraft['materials'][number]['applicationMode'],
+                    applicationMode: value as RecommendationGroupDraft['materials'][number]['applicationMode'],
                   })
                 }
-              >
-                <option value="">Select mode</option>
-                {MATERIAL_APPLICATION_MODE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </StaticSelect>
+              />
             </div>
           ))}
           <Btn variant="secondary" size="sm" className="mt-2" onClick={() => addMaterial(gi)}>
