@@ -1,11 +1,23 @@
 import type { RecordSeverity } from '../types/field-findings';
 import type { VisitWizardStep } from './index';
 
+export type MaiosTriageLevel = 'L1' | 'L2' | 'L3' | 'L4';
+
+export type TriagePreview = {
+  level: MaiosTriageLevel;
+  reason: string;
+  route: 'fast' | 'standard' | 'complex' | 'critical';
+  mandatoryFollowUp: boolean;
+  blockAutoApprove: boolean;
+};
+
 type StepFlowIssue = {
   aiCaseId?: string;
   qaSkipped?: boolean;
   skipFollowUpOptional?: boolean;
   confidenceAction?: string;
+  diagnosisSource?: string;
+  escalationRequired?: boolean;
   agronomistReview?: { action?: string };
   hypotheses?: Array<{ selected?: boolean; confidence?: number }>;
   photoRequests?: Array<{ photoType: string }>;
@@ -14,6 +26,7 @@ type StepFlowIssue = {
 type StepFlowCtx = {
   issues: StepFlowIssue[];
   partnerMode?: boolean;
+  triage?: TriagePreview | null;
 };
 
 const FOLLOW_UP_CONFIDENCE_THRESHOLD = 0.85;
@@ -53,13 +66,17 @@ export function derivePhotoRequestsFromFollowUp(
   return requests;
 }
 
-export function shouldRunFollowUp(issue: StepFlowIssue): boolean {
+export function shouldRunFollowUp(issue: StepFlowIssue, ctx?: StepFlowCtx): boolean {
+  if (issue.diagnosisSource === 'insufficient_evidence' || issue.escalationRequired) return false;
   if (!issue.aiCaseId) return false;
   if (issue.qaSkipped || issue.skipFollowUpOptional) return false;
+  if (ctx?.triage?.mandatoryFollowUp) return true;
+  if (ctx?.triage?.level === 'L4') return true;
   const action = issue.agronomistReview?.action;
   if (action === 'correct_ai' || action === 'partial_match' || action === 'reject_recommendation') return true;
   if (action === 'escalate_urgent') return true;
   if (issue.confidenceAction === 'escalate') return true;
+  if (ctx?.triage?.level === 'L1' && action === 'approve_ai') return false;
   if (issueTopConfidence(issue) < FOLLOW_UP_CONFIDENCE_THRESHOLD) return true;
   return false;
 }
@@ -70,7 +87,7 @@ export function hasPhotoRequests(issues: StepFlowIssue[]): boolean {
 
 export function canSkipStep(step: VisitWizardStep, ctx: StepFlowCtx): boolean {
   if (step === 'followUp') {
-    return !ctx.issues.some(shouldRunFollowUp);
+    return !ctx.issues.some((i) => shouldRunFollowUp(i, ctx));
   }
   if (step === 'additionalPhotos') {
     return !hasPhotoRequests(ctx.issues);
@@ -86,11 +103,13 @@ export function getVisibleWizardSteps(partnerMode?: boolean): VisitWizardStep[] 
       'photos',
       'measurements',
       'soilWeather',
+      'aiTriage',
       'aiAnalysis',
       'agronomistReview',
       'followUp',
       'additionalPhotos',
       'finalDiagnosis',
+      'economicOptimizer',
       'recPlanning',
       'applicationSchedule',
       'recApproval',
@@ -99,7 +118,7 @@ export function getVisibleWizardSteps(partnerMode?: boolean): VisitWizardStep[] 
       'summary',
       'caseClosure',
     ] as VisitWizardStep[]
-  ).filter((id) => !(partnerMode && id === 'recApproval'));
+  ).filter((id) => !(partnerMode && (id === 'recApproval' || id === 'economicOptimizer')));
 }
 
 export function getNextWizardStep(current: VisitWizardStep, ctx: StepFlowCtx): VisitWizardStep | null {
@@ -122,6 +141,10 @@ export function getPrevWizardStep(current: VisitWizardStep, ctx: StepFlowCtx): V
     if (!canSkipStep(prev, ctx)) return prev;
   }
   return null;
+}
+
+export function blockAutoApprove(ctx: StepFlowCtx): boolean {
+  return ctx.triage?.blockAutoApprove === true || ctx.triage?.level === 'L4';
 }
 
 export function inferSeverityFromMeasurements(

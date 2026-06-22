@@ -22,6 +22,8 @@ import { BroadcastAdminPage } from '../pages/broadcasts/BroadcastAdminPage';
 import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { PartnerProgramHubPage } from '../pages/PartnerProgramHubPage';
+import { OutcomeIntelligencePage } from '../pages/agronomist/OutcomeIntelligencePage';
+import { RegionalThreatRadarPage } from '../pages/RegionalThreatRadarPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { AgronomistOperationsPage } from '../pages/AgronomistOperationsPage';
 import { VisitWizardPage } from '../pages/agronomist/VisitWizardPage';
@@ -312,6 +314,22 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="agronomist">
                   <AgronomistAiReviewRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistOutcomeIntelligence,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <OutcomeIntelligencePage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.regionalThreatRadar,
+              element: (
+                <ProtectedPage module="operations">
+                  <RegionalThreatRadarPage />
                 </ProtectedPage>
               ),
             },

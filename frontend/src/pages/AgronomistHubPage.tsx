@@ -16,6 +16,7 @@ import { CaseLibraryPanel } from '../components/agronomist/CaseLibraryPanel';
 import { RecommendationApprovalsWorkspace } from '../components/approvals/RecommendationApprovalsWorkspace';
 import '../styles/approvals-workspace.css';
 import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIntelligenceBar';
+import { OutcomeIntelligencePage } from './agronomist/OutcomeIntelligencePage';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
@@ -23,6 +24,7 @@ type AgronomistHubTab =
   | 'case_review'
   | 'image_review'
   | 'outcome_review'
+  | 'outcome_intelligence'
   | 'training_export'
   | 'case_library'
   | 'queue'
@@ -33,6 +35,7 @@ const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'case_review', label: 'Case review' },
   { id: 'image_review', label: 'Image review' },
   { id: 'outcome_review', label: 'Outcome review' },
+  { id: 'outcome_intelligence', label: 'Outcome intelligence' },
   { id: 'training_export', label: 'Training export' },
   { id: 'case_library', label: 'Case library' },
   { id: 'queue', label: 'Field findings' },
@@ -278,6 +281,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
       {tab === 'image_review' ? <ImageReviewPanel canWrite={canWrite} /> : null}
 
       {tab === 'outcome_review' ? <OutcomeReviewPanel canWrite={canWrite} /> : null}
+      {tab === 'outcome_intelligence' ? <OutcomeIntelligencePage /> : null}
       {tab === 'training_export' ? <TrainingExportPanel canWrite={canWrite} /> : null}
       {tab === 'case_library' ? <CaseLibraryPanel canWrite={canWrite} /> : null}
 

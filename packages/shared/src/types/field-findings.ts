@@ -215,12 +215,16 @@ export type StructuredVisitIssueInput = {
   }>;
 };
 
+export type VisitClassification = 'first' | 'follow_up' | 'rectification';
+
 export type StructuredFieldVisitPayload = {
   farmerId: string;
   blockId: string;
   sessionId?: string;
   leadId?: string;
   visitedAt?: string;
+  visitClassification?: VisitClassification;
+  selectedRecommendationOptionId?: string | null;
   blockAssessment?: {
     blockHealth: BlockHealthLevel;
     cropPerformance: CropPerformanceLevel;

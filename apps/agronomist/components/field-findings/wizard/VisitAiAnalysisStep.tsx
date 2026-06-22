@@ -108,7 +108,7 @@ export function VisitAiAnalysisStep({
         .slice(0, 4)
         .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
 
-      const detected = await agronomistClient.analyzeVisit({
+      const { issues: detected, insufficientEvidence } = await agronomistClient.analyzeVisit({
         farmerId,
         blockId,
         sessionId: sessionId ?? undefined,
@@ -119,6 +119,11 @@ export function VisitAiAnalysisStep({
         longitude: gpsLon ?? undefined,
         analyzePhotos: analyzePhotos.length ? analyzePhotos : undefined,
       });
+
+      if (insufficientEvidence && !detected.length) {
+        setError('AI could not produce an evidence-backed diagnosis. Escalate to senior agronomist.');
+        return;
+      }
 
       onChange(
         detected.map((row, idx) => ({

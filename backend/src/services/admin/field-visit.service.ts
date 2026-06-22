@@ -16,6 +16,9 @@ import {
   type RecommendationGroupInput,
 } from '../core/recommendation-group.service.js';
 import { monitoringPlanService } from '../core/monitoring-plan.service.js';
+import { outcomeIntelligenceService } from '../intelligence/outcome-intelligence.service.js';
+import { recommendationOptimizerService } from '../diagnosis/recommendation-optimizer.service.js';
+import { plotDigitalTwinService } from '../intelligence/plot-digital-twin.service.js';
 import type { StructuredFieldVisitInput } from '../../domain/ai-training/validators.js';
 import type { RecommendationOutcome, ReviewAction } from '../../domain/ai-training/enums.js';
 
@@ -147,6 +150,7 @@ export const fieldVisitService = {
         crop_performance: input.blockAssessment?.cropPerformance ?? null,
         soil_moisture: input.blockAssessment?.soilMoisture ?? null,
         visit_session_id: input.sessionId ?? null,
+        visit_classification: input.visitClassification ?? null,
         dap_at_visit: dap,
         stage_at_visit: block.stage ?? null,
         visited_at: visitedAt,
@@ -154,6 +158,8 @@ export const fieldVisitService = {
         partner_id: partnerId,
       })
       .eq('id', findingId);
+
+    void plotDigitalTwinService.buildSnapshot(input.blockId, input.farmerId).catch(() => {});
 
     if (input.latitude != null && input.longitude != null) {
       await blockService.updatePlotLocation(input.blockId, {
@@ -620,6 +626,29 @@ export const fieldVisitService = {
           learningConsent: true,
         })
         .catch(() => {});
+    }
+
+    if (input.selectedRecommendationOptionId && primaryIssue) {
+      const issueLabel =
+        primaryIssue.finalDiagnosis?.trim() || primaryIssue.issueName.trim() || 'Field issue';
+      const options = await recommendationOptimizerService.buildOptions({
+        issueLabel,
+        cropType: String(block.crop_type ?? 'ginger'),
+      });
+      const opt = options.find((o) => o.id === input.selectedRecommendationOptionId);
+      if (opt) {
+        await outcomeIntelligenceService
+          .recordVariant({
+            fieldFindingId: findingId,
+            recommendationRecordId: createdRecs[0],
+            issueLabel,
+            protocolLabel: opt.label,
+            costInr: opt.costInr,
+            expectedRecoveryPct: opt.expectedRecoveryPct,
+            metadata: { selectedOptionId: opt.id, roiNote: opt.roiNote },
+          })
+          .catch(() => {});
+      }
     }
 
     return {

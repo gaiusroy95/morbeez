@@ -16,7 +16,10 @@ import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
-import { visitAiPromptContextService, computeFusionHints } from './visit-ai-prompt-context.service.js';
+import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
+import type { DiagnosisSource } from '../../domain/diagnosis/types.js';
+import { INSUFFICIENT_EVIDENCE_LABEL } from '../../domain/diagnosis/types.js';
+import { mapImageSourceToDiagnosisSource } from '../diagnosis/diagnosis-integrity.util.js';
 import { visitAiRetrievalService } from './visit-ai-retrieval.service.js';
 import { expertFollowUpLearningService } from './expert-follow-up-learning.service.js';
 import { nearbyCasesService } from '../whatsapp/pipeline/nearby-cases.service.js';
@@ -110,9 +113,6 @@ async function loadSimilarCases(
   }));
 
   const combined = [...fromReuse, ...fromNearby];
-  if (symptomKey && combined.length === 0) {
-    combined.push({ issueLabel: issueName, score: 0.5, confidence: 0.65, outcome: null });
-  }
   return combined.slice(0, 6);
 }
 
@@ -156,13 +156,7 @@ async function buildHypotheses(params: {
   similarCases: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;
   imageSignal?: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
   qaAnswers?: Array<{ question: string; answer: string }>;
-}): Promise<HypothesisRow[]> {
-  const primary: HypothesisRow = {
-    label: params.issueName,
-    confidence: 0.72,
-    rationale: `Reported ${params.issueCategory.replace(/_/g, ' ')} on ${params.context.cropType}.`,
-  };
-
+}): Promise<{ hypotheses: HypothesisRow[]; source: DiagnosisSource }> {
   const trainingExamples = await visitAiRetrievalService.findTrainingExamples({
     farmerId: params.context.farmerId,
     cropType: params.context.cropType,
@@ -173,15 +167,6 @@ async function buildHypotheses(params: {
     cropType: params.context.cropType,
     issueName: params.issueName,
   });
-
-  const fromSimilar = params.similarCases
-    .filter((c) => c.issueLabel.toLowerCase() !== params.issueName.toLowerCase())
-    .slice(0, 3)
-    .map((c, i) => ({
-      label: c.issueLabel,
-      confidence: clampConfidence(c.confidence * (1 - i * 0.08)),
-      rationale: c.outcome ? `Similar case (outcome: ${c.outcome}).` : 'Similar verified regional case.',
-    }));
 
   if (env.OPENAI_API_KEY) {
     try {
@@ -213,7 +198,7 @@ Use soil test, measurements, weather, image signal, Q&A, and expert corrections.
         1200
       );
       if (Array.isArray(result.hypotheses) && result.hypotheses.length) {
-        let ranked = result.hypotheses
+        const ranked = result.hypotheses
           .map((h, i) => ({
             label: String(h.label).trim(),
             confidence: clampConfidence(Number(h.confidence) || 0.5 - i * 0.05),
@@ -221,27 +206,32 @@ Use soil test, measurements, weather, image signal, Q&A, and expert corrections.
           }))
           .filter((h) => h.label)
           .slice(0, 5);
-
-        const fusionHints = computeFusionHints(params.context, params.issueCategory, params.imageSignal);
-        for (const hint of fusionHints) {
-          const idx = ranked.findIndex((h) => h.label.toLowerCase().includes(hint.label.toLowerCase().split(' ')[0] ?? ''));
-          if (idx >= 0) {
-            const row = ranked[idx]!;
-            ranked[idx] = {
-              ...row,
-              confidence: clampConfidence(row.confidence + hint.boost),
-              rationale: `${row.rationale ?? ''} ${hint.reason}`.trim(),
-            };
-          }
-        }
-        return ranked.sort((a, b) => b.confidence - a.confidence);
+        return {
+          hypotheses: ranked.sort((a, b) => b.confidence - a.confidence),
+          source: 'model',
+        };
       }
     } catch {
-      // fallback below
+      // fail closed below
     }
   }
 
-  return [primary, ...fromSimilar].slice(0, 4);
+  if (params.imageSignal?.label) {
+    return {
+      hypotheses: [
+        {
+          label: params.imageSignal.label,
+          confidence: params.imageSignal.confidence,
+          rationale: `Vision analysis (${params.imageSignal.source}, ${params.imageSignal.photoCount} photo(s)).`,
+          imagePrediction: params.imageSignal.label,
+          imageConfidence: params.imageSignal.confidence,
+        },
+      ],
+      source: mapImageSourceToDiagnosisSource(params.imageSignal.source),
+    };
+  }
+
+  return { hypotheses: [], source: 'insufficient_evidence' };
 }
 
 type DetectedVisitIssue = {
@@ -310,25 +300,35 @@ async function detectVisitIssues(params: {
   context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>;
   imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
   fieldVoiceNote?: string;
-}): Promise<DetectedVisitIssue[]> {
+}): Promise<{ issues: DetectedVisitIssue[]; source: DiagnosisSource }> {
   const evidence = buildEvidencePack(params.context, params.imageSignal);
-  const fallback: DetectedVisitIssue = {
-    category: inferIssueCategory(params.imageSignal?.label ?? 'Field observation'),
-    issueName: params.imageSignal?.label ?? 'Field observation',
-    confidence: params.imageSignal?.confidence ?? 0.65,
-    severity: inferSeverity(params.imageSignal?.confidence ?? 0.65, params.context.measurements),
-    observation: params.fieldVoiceNote,
-    rootCause: {
-      symptoms: params.fieldVoiceNote ? [params.fieldVoiceNote] : ['Field signs observed'],
-      photoSignals: params.imageSignal ? [params.imageSignal.label] : [],
-      soilSignals: evidence.soilSummary.split(';').filter(Boolean),
-      weatherSignals: [evidence.weatherSummary],
-      conclusion: params.imageSignal?.label ?? 'Further review recommended',
-    },
-    evidence,
-  };
 
-  if (!env.OPENAI_API_KEY) return [fallback];
+  if (!env.OPENAI_API_KEY) {
+    if (params.imageSignal?.label) {
+      const confidence = params.imageSignal.confidence;
+      return {
+        source: mapImageSourceToDiagnosisSource(params.imageSignal.source),
+        issues: [
+          {
+            category: inferIssueCategory(params.imageSignal.label),
+            issueName: params.imageSignal.label,
+            confidence,
+            severity: inferSeverity(confidence, params.context.measurements),
+            observation: params.fieldVoiceNote,
+            rootCause: {
+              symptoms: params.fieldVoiceNote ? [params.fieldVoiceNote] : [],
+              photoSignals: [params.imageSignal.label],
+              soilSignals: evidence.soilSummary.split(';').filter(Boolean),
+              weatherSignals: [evidence.weatherSummary],
+              conclusion: params.imageSignal.label,
+            },
+            evidence,
+          },
+        ],
+      };
+    }
+    return { issues: [], source: 'insufficient_evidence' };
+  }
 
   try {
     const promptBlock = await visitAiPromptContextService.buildPromptBlock({
@@ -350,7 +350,32 @@ List 1-5 ranked field issues. Use soil test and DAP. confidence 0-1.`;
       1200
     );
     const rows = Array.isArray(result.issues) ? result.issues : [];
-    if (!rows.length) return [fallback];
+    if (!rows.length) {
+      if (params.imageSignal?.label) {
+        const confidence = params.imageSignal.confidence;
+        return {
+          source: mapImageSourceToDiagnosisSource(params.imageSignal.source),
+          issues: [
+            {
+              category: inferIssueCategory(params.imageSignal.label),
+              issueName: params.imageSignal.label,
+              confidence,
+              severity: inferSeverity(confidence, params.context.measurements),
+              observation: params.fieldVoiceNote,
+              rootCause: {
+                symptoms: params.fieldVoiceNote ? [params.fieldVoiceNote] : [],
+                photoSignals: [params.imageSignal.label],
+                soilSignals: evidence.soilSummary.split(';').filter(Boolean),
+                weatherSignals: [evidence.weatherSummary],
+                conclusion: params.imageSignal.label,
+              },
+              evidence,
+            },
+          ],
+        };
+      }
+      return { issues: [], source: 'insufficient_evidence' };
+    }
     const mapped: DetectedVisitIssue[] = [];
     for (const row of rows) {
       const issueName = String(row.issueName ?? '').trim();
@@ -374,9 +399,32 @@ List 1-5 ranked field issues. Use soil test and DAP. confidence 0-1.`;
         evidence,
       });
     }
-    return mapped.slice(0, 5);
+    return { issues: mapped.slice(0, 5), source: 'model' };
   } catch {
-    return [fallback];
+    if (params.imageSignal?.label) {
+      const confidence = params.imageSignal.confidence;
+      return {
+        source: mapImageSourceToDiagnosisSource(params.imageSignal.source),
+        issues: [
+          {
+            category: inferIssueCategory(params.imageSignal.label),
+            issueName: params.imageSignal.label,
+            confidence,
+            severity: inferSeverity(confidence, params.context.measurements),
+            observation: params.fieldVoiceNote,
+            rootCause: {
+              symptoms: params.fieldVoiceNote ? [params.fieldVoiceNote] : [],
+              photoSignals: [params.imageSignal.label],
+              soilSignals: evidence.soilSummary.split(';').filter(Boolean),
+              weatherSignals: [evidence.weatherSummary],
+              conclusion: params.imageSignal.label,
+            },
+            evidence,
+          },
+        ],
+      };
+    }
+    return { issues: [], source: 'insufficient_evidence' };
   }
 }
 
@@ -593,7 +641,7 @@ export const visitAiOrchestratorService = {
       input.issueName,
       input.observation
     );
-    let hypotheses = await buildHypotheses({
+    let { hypotheses, source: diagnosisSource } = await buildHypotheses({
       context,
       issueCategory: input.issueCategory,
       issueName: input.issueName,
@@ -602,6 +650,12 @@ export const visitAiOrchestratorService = {
       imageSignal,
     });
     hypotheses = mergeImageIntoHypotheses(hypotheses, imageSignal);
+
+    if (!hypotheses.length) {
+      throw new Error(
+        `${INSUFFICIENT_EVIDENCE_LABEL} — enable OPENAI_API_KEY or capture clearer field photos`
+      );
+    }
 
     const topConfidence = hypotheses[0]?.confidence ?? 0.5;
     const confidenceAction = resolveConfidenceAction(topConfidence);
@@ -698,6 +752,7 @@ export const visitAiOrchestratorService = {
       skipFollowUpOptional,
       imageSignal: imageSignal ? { label: imageSignal.label, confidence: imageSignal.confidence } : null,
       similarCases,
+      diagnosisSource,
     };
   },
 
@@ -922,7 +977,7 @@ export const visitAiOrchestratorService = {
       String(caseRow.issue_name),
       answerSummary
     );
-    const hypotheses = await buildHypotheses({
+    const { hypotheses } = await buildHypotheses({
       context,
       issueCategory: String(caseRow.category),
       issueName: String(caseRow.selected_hypothesis_label ?? caseRow.issue_name),
@@ -934,6 +989,10 @@ export const visitAiOrchestratorService = {
         answer: String(a.answer),
       })),
     });
+
+    if (!hypotheses.length) {
+      throw new Error(`${INSUFFICIENT_EVIDENCE_LABEL} — reanalysis could not produce hypotheses`);
+    }
 
     await supabase.from('visit_ai_hypotheses').delete().eq('visit_ai_case_id', aiCaseId);
     for (let i = 0; i < hypotheses.length; i++) {
@@ -1087,11 +1146,13 @@ export const visitAiOrchestratorService = {
       dap: context.dap,
       stage: context.stage,
     });
-    const detected = await detectVisitIssues({
+    const detectedResult = await detectVisitIssues({
       context,
       imageSignal,
       fieldVoiceNote: input.fieldVoiceNote,
     });
+    const detected = detectedResult.issues;
+    const detectionSource = detectedResult.source;
 
     const issues = [];
     for (const det of detected) {
@@ -1124,6 +1185,7 @@ export const visitAiOrchestratorService = {
           skipFollowUpOptional: analyzed.skipFollowUpOptional,
           imageSignal: analyzed.imageSignal ?? undefined,
           similarCases: analyzed.similarCases,
+          diagnosisSource: analyzed.diagnosisSource ?? detectionSource,
           rootCause: det.rootCause,
           evidence: det.evidence,
           initialRecommendation: top
@@ -1141,51 +1203,30 @@ export const visitAiOrchestratorService = {
     }
 
     if (!issues.length) {
-      const fallback = await this.analyze(
-        {
-          ...input,
-          issueCategory: 'other',
-          issueName: imageSignal?.label ?? 'Field observation',
-          observation: input.fieldVoiceNote,
-          analyzePhotos: analyzePhotos?.slice(0, 4),
-        },
-        agronomistEmail
-      );
-      const top = fallback.hypotheses.find((h) => h.selected) ?? fallback.hypotheses[0];
-      issues.push({
-        localId: `ai-${fallback.aiCaseId}`,
-        category: 'other',
-        issueName: imageSignal?.label ?? 'Field observation',
-        confidence: imageSignal?.confidence ?? 0.65,
-        aiConfidence: imageSignal?.confidence ?? 0.65,
-        severity: 'medium',
-        observation: input.fieldVoiceNote ?? '',
-        aiCaseId: fallback.aiCaseId,
-        hypotheses: fallback.hypotheses,
-        selectedHypothesisLabel: top?.label,
-        finalDiagnosis: top?.label ?? imageSignal?.label ?? 'Field observation',
-        finalRecommendation: undefined,
-        confidenceAction: fallback.confidenceAction,
-        skipFollowUpOptional: fallback.skipFollowUpOptional,
-        imageSignal: fallback.imageSignal ?? undefined,
-        similarCases: fallback.similarCases,
-        rootCause: {
-          symptoms: input.fieldVoiceNote ? [input.fieldVoiceNote] : ['Field signs observed'],
-          photoSignals: imageSignal ? [imageSignal.label] : [],
-          soilSignals: [],
-          weatherSignals: [],
-          conclusion: imageSignal?.label ?? 'Further review recommended',
-        },
-        evidence: buildEvidencePack(context, imageSignal),
-        initialRecommendation: top
-          ? {
-              text: `Preliminary advisory for ${top.label}. Complete agronomist review and Q&A to finalize treatment.`,
-              dose: undefined,
-              method: 'Pending review',
-              category: 'other',
-            }
-          : undefined,
-      });
+      return {
+        issues: [
+          {
+            localId: 'insufficient-evidence',
+            category: 'other',
+            issueName: INSUFFICIENT_EVIDENCE_LABEL,
+            confidence: 0,
+            aiConfidence: 0,
+            severity: 'high' as const,
+            observation: input.fieldVoiceNote ?? '',
+            escalationRequired: true,
+            diagnosisSource: 'insufficient_evidence' as DiagnosisSource,
+            rootCause: {
+              symptoms: input.fieldVoiceNote ? [input.fieldVoiceNote] : [],
+              photoSignals: imageSignal ? [imageSignal.label] : [],
+              soilSignals: [],
+              weatherSignals: [],
+              conclusion: 'Escalate to agronomist — AI could not produce evidence-backed diagnosis',
+            },
+            evidence: buildEvidencePack(context, imageSignal),
+          },
+        ],
+        insufficientEvidence: true,
+      };
     }
 
     return { issues };

@@ -4,6 +4,7 @@ import {
   type CropPerformanceLevel,
   type PortalSoilReport,
   type SoilMoistureLevel,
+  type VisitClassification,
   type VisitFarmContext,
 } from '@morbeez/shared';
 import { Panel } from '../../ui';
@@ -29,7 +30,16 @@ type Props = {
   onBlockHealth: (v: BlockHealthLevel) => void;
   onCropPerformance: (v: CropPerformanceLevel) => void;
   onSoilMoisture: (v: SoilMoistureLevel) => void;
+  visitClassification?: VisitClassification;
+  onVisitClassification?: (v: VisitClassification) => void;
+  plotIntelSummary?: string | null;
 };
+
+const VISIT_TYPES: Array<{ value: VisitClassification; label: string }> = [
+  { value: 'first', label: 'First visit' },
+  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'rectification', label: 'Rectification' },
+];
 
 const BLOCK_HEALTH: AssessmentOption<BlockHealthLevel>[] = [
   { value: 'good', label: 'Good', tone: 'good' },
@@ -162,6 +172,9 @@ export function VisitOverviewStep({
   onBlockHealth,
   onCropPerformance,
   onSoilMoisture,
+  visitClassification,
+  onVisitClassification,
+  plotIntelSummary,
 }: Props) {
   const assessmentsComplete = Boolean(blockHealth && cropPerformance && soilMoisture);
   const ctx = farmContext ?? null;
@@ -194,6 +207,29 @@ export function VisitOverviewStep({
         <OverviewRow label="Agronomist" value={agronomistName ?? '—'} />
         <SoilTestRows soilTest={soilTest} />
       </Panel>
+
+      {onVisitClassification && visitClassification ? (
+        <Panel title="Visit type">
+          <div className="vw-chip-row">
+            {VISIT_TYPES.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                className={`vw-assess-chip${visitClassification === t.value ? ' vw-assess-chip--selected' : ''}`}
+                onClick={() => onVisitClassification(t.value)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
+      {plotIntelSummary ? (
+        <Panel title="Plot intelligence">
+          <p className="vw-hint">{plotIntelSummary}</p>
+        </Panel>
+      ) : null}
 
       {ctx?.recentVisits?.length || ctx?.recentRecommendations?.length || ctx?.recentApplications?.length ? (
         <Panel title="Previous history">

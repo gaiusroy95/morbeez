@@ -24,7 +24,8 @@ import { agronomistMobileService } from '../../services/agronomist/agronomist-mo
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
 import { farmerNotesService } from '../../services/admin/farmer-notes.service.js';
-import { whatsappOsAdminService } from '../../services/admin/whatsapp-os-admin.service.js';
+import { agronomistCopilotService } from '../../services/diagnosis/agronomist-copilot.service.js';
+import { outcomeIntelligenceService } from '../../services/intelligence/outcome-intelligence.service.js';
 
 const draftSchema = z.object({
   findingId: z.string().uuid(),
@@ -1016,5 +1017,28 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
       assignedEmployee: admin.email,
     });
     return reply.status(201).send({ ok: true, activity });
+  });
+
+  app.post(`${api}/copilot/ask`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        question: z.string().min(1).max(2000),
+        aiCaseId: z.string().uuid().optional(),
+        farmerId: z.string().uuid().optional(),
+        blockId: z.string().uuid().optional(),
+        cropType: z.string().optional(),
+        issueName: z.string().optional(),
+      })
+      .parse(request.body);
+    const result = await agronomistCopilotService.ask(body);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/outcome-intelligence`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ issue: z.string().optional(), limit: z.coerce.number().optional() }).parse(request.query ?? {});
+    const stats = await outcomeIntelligenceService.aggregateByIssue(q.issue, q.limit ?? 20);
+    return reply.send({ ok: true, stats });
   });
 }

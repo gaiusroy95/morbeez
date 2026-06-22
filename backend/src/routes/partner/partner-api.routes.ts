@@ -479,17 +479,29 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
     });
 
+    partnerApp.post(`${api}/visits/triage-preview`, async (request, reply) => {
+      await requirePartner(request);
+      const { visitAnalyzeVisitRequestSchema } = await import('../../domain/ai-training/validators.js');
+      const { diagnosisOrchestratorService } = await import(
+        '../../services/diagnosis/diagnosis-orchestrator.service.js'
+      );
+      const body = visitAnalyzeVisitRequestSchema.parse(request.body);
+      const triage = await diagnosisOrchestratorService.triagePreview(body);
+      const capability = diagnosisOrchestratorService.getCapabilityStatus();
+      return reply.send({ ok: true, triage, capability });
+    });
+
     partnerApp.post(`${api}/visits/analyze-visit`, async (request, reply) => {
       await requirePartner(request);
       const { visitAnalyzeVisitRequestSchema } = await import('../../domain/ai-training/validators.js');
-      const { visitAiOrchestratorService } = await import(
-        '../../services/core/visit-ai-orchestrator.service.js'
+      const { diagnosisOrchestratorService } = await import(
+        '../../services/diagnosis/diagnosis-orchestrator.service.js'
       );
       const { sanitizeVisitAiForPartner } = await import(
         '../../services/partner/partner-response-sanitizer.js'
       );
       const body = visitAnalyzeVisitRequestSchema.parse(request.body);
-      const result = await visitAiOrchestratorService.analyzeVisit(body, 'partner');
+      const result = await diagnosisOrchestratorService.analyzeVisit(body, 'partner');
       return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
     });
 

@@ -497,6 +497,44 @@ export const agronomistClient = {
     };
   },
 
+  async triagePreview(body: {
+    farmerId: string;
+    blockId: string;
+    blockAssessment?: StructuredFieldVisitPayload['blockAssessment'];
+    measurements?: StructuredFieldVisitPayload['measurements'];
+    analyzePhotos?: Array<{ dataBase64: string; mimeType?: string }>;
+  }) {
+    const r = await staffApi<{
+      ok: boolean;
+      triage: import('../visit-wizard/step-flow.js').TriagePreview;
+      capability: { capable: boolean; diagnosisDegraded: boolean };
+    }>(`${FIELD}/visits/triage-preview`, { method: 'POST', body: JSON.stringify(body) });
+    return { triage: r.triage, capability: r.capability };
+  },
+
+  async getPlotIntelligence(blockId: string) {
+    const r = await staffApi<{ ok: boolean; trends: Record<string, unknown> }>(
+      `${FIELD}/blocks/${encodeURIComponent(blockId)}/plot-intelligence`
+    );
+    return r.trends;
+  },
+
+  async previewRecommendationOptions(body: { issueLabel: string; cropType: string; farmerSegment?: string }) {
+    const r = await staffApi<{ ok: boolean; options: Array<Record<string, unknown>> }>(
+      `${FIELD}/visits/recommendation-options/preview`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.options ?? [];
+  },
+
+  async copilotAsk(body: { question: string; aiCaseId?: string; farmerId?: string; blockId?: string; cropType?: string; issueName?: string }) {
+    const r = await staffApi<{ ok: boolean; answer: string; citations: string[] }>(
+      `/morbeez-staff/api/v1/os/agronomist/copilot/ask`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return { answer: r.answer, citations: r.citations ?? [] };
+  },
+
   async analyzeVisit(body: {
     farmerId: string;
     blockId: string;
@@ -511,8 +549,10 @@ export const agronomistClient = {
     const r = await staffApi<{
       ok: boolean;
       issues: Array<import('../visit-wizard/index.js').VisitIssueDraft>;
+      triage?: import('../visit-wizard/step-flow.js').TriagePreview;
+      insufficientEvidence?: boolean;
     }>(`${FIELD}/visits/analyze-visit`, { method: 'POST', body: JSON.stringify(body) });
-    return r.issues ?? [];
+    return { issues: r.issues ?? [], triage: r.triage, insufficientEvidence: r.insufficientEvidence };
   },
 
   async previewMonitoringPlan(body: {

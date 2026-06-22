@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   agronomistClient,
+  blockAutoApprove,
   getNextWizardStep,
   getPrevWizardStep,
   getVisibleWizardSteps,
@@ -22,6 +23,8 @@ import {
   type SoilMoistureLevel,
   type VisitFarmContext,
   type WhatsappPreviewMessage,
+  type TriagePreview,
+  type VisitClassification,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
 import { type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
@@ -37,6 +40,8 @@ import { VisitMeasurementsStep } from '@/components/field-findings/wizard/VisitM
 import { VisitOverviewStep } from '@/components/field-findings/wizard/VisitOverviewStep';
 import { VisitPhotosStep } from '@/components/field-findings/wizard/VisitPhotosStep';
 import { VisitAiAnalysisStep } from '@/components/field-findings/wizard/VisitAiAnalysisStep';
+import { VisitAiTriageStep } from '@/components/field-findings/wizard/VisitAiTriageStep';
+import { VisitEconomicOptimizerStep } from '@/components/field-findings/wizard/VisitEconomicOptimizerStep';
 import { VisitFollowUpStep } from '@/components/field-findings/wizard/VisitFollowUpStep';
 import { VisitRecommendationStep } from '@/components/field-findings/wizard/VisitRecommendationStep';
 import { VisitSoilWeatherStep } from '@/components/field-findings/wizard/VisitSoilWeatherStep';
@@ -124,6 +129,12 @@ export default function VisitScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [triage, setTriage] = useState<TriagePreview | null>(null);
+  const [selectedRecOptionId, setSelectedRecOptionId] = useState<string | null>(null);
+  const [visitClassification, setVisitClassification] = useState<VisitClassification>(
+    rectificationMode ? 'rectification' : 'first'
+  );
+  const [plotIntelSummary, setPlotIntelSummary] = useState<string | null>(null);
 
   const persistDraft = useCallback(async () => {
     if (!blockId || !farmerId) return;
@@ -152,12 +163,13 @@ export default function VisitScreen() {
 
     async function init() {
       try {
-        const [tpls, master, session, blockDetail, recs] = await Promise.all([
+        const [tpls, master, session, blockDetail, recs, plotIntel] = await Promise.all([
           agronomistClient.getMeasurementTemplates(cropType),
           agronomistClient.searchIssueMaster({ cropType }),
           agronomistClient.startVisitSession({ farmerId, blockId }),
           agronomistClient.getBlockDetail(farmerId, blockId).catch(() => null),
           agronomistClient.listFarmerRecommendations(farmerId, 20).catch(() => []),
+          agronomistClient.getPlotIntelligence(blockId).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -168,6 +180,14 @@ export default function VisitScreen() {
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
         setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
+
+        const recurring = (plotIntel as { recurringIssues?: Array<{ label: string; count: number }> } | null)
+          ?.recurringIssues;
+        if (recurring?.length) {
+          setPlotIntelSummary(
+            `Plot memory: ${recurring.map((r) => `${r.label} (${r.count}x)`).join('; ')}`
+          );
+        }
 
         setFollowUps(buildPriorRecommendationFollowUps(recs, blockId));
 
@@ -267,6 +287,8 @@ export default function VisitScreen() {
       blockHealth,
       cropPerformance,
       soilMoisture,
+      triage,
+      selectedRecommendationOptionId: selectedRecOptionId,
     };
   }
 
@@ -408,6 +430,8 @@ export default function VisitScreen() {
             outcome: f.outcome,
             notes: f.notes.trim() || undefined,
           })),
+        visitClassification,
+        selectedRecommendationOptionId: selectedRecOptionId ?? undefined,
         latitude: gpsLat ?? undefined,
         longitude: gpsLon ?? undefined,
       });
@@ -465,6 +489,9 @@ export default function VisitScreen() {
             onBlockHealth={setBlockHealth}
             onCropPerformance={setCropPerformance}
             onSoilMoisture={setSoilMoisture}
+            visitClassification={visitClassification}
+            onVisitClassification={setVisitClassification}
+            plotIntelSummary={plotIntelSummary}
           />
         ) : null}
 
@@ -500,6 +527,21 @@ export default function VisitScreen() {
           <VisitSoilWeatherStep farmerId={farmerId} blockId={blockId} />
         ) : null}
 
+        {step === 'aiTriage' && blockHealth && cropPerformance && soilMoisture ? (
+          <VisitAiTriageStep
+            farmerId={farmerId}
+            blockId={blockId}
+            blockAssessment={{ blockHealth, cropPerformance, soilMoisture }}
+            measurements={measurements}
+            analyzePhotos={visitPhotos
+              .filter((p) => p.dataBase64?.length > 100)
+              .slice(0, 4)
+              .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType }))}
+            triage={triage}
+            onTriage={setTriage}
+          />
+        ) : null}
+
         {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
           <VisitAiAnalysisStep
             farmerId={farmerId}
@@ -524,6 +566,7 @@ export default function VisitScreen() {
             issueMaster={issueMaster}
             cropType={cropType}
             blockDap={blockDap}
+            blockAutoApprove={blockAutoApprove({ triage, issues })}
             onChange={setIssues}
             onSuggestQuestions={() => Promise.resolve([])}
             onCreateIssueType={createIssueType}
@@ -540,6 +583,15 @@ export default function VisitScreen() {
 
         {step === 'finalDiagnosis' ? (
           <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} />
+        ) : null}
+
+        {step === 'economicOptimizer' ? (
+          <VisitEconomicOptimizerStep
+            issueLabel={issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? 'Field issue'}
+            cropType={cropType}
+            selectedId={selectedRecOptionId}
+            onSelect={(id) => setSelectedRecOptionId(id)}
+          />
         ) : null}
 
         {step === 'recPlanning' ? (

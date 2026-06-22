@@ -27,7 +27,7 @@ import {
 } from '@morbeez/ui-native';
 import { SegmentedChips } from '@/components/field-findings/SegmentedChips';
 
-type BlockTab = 'activities' | 'soilTests' | 'fieldFindings' | 'recommendations';
+type BlockTab = 'activities' | 'soilTests' | 'fieldFindings' | 'recommendations' | 'plotIntel';
 
 const REC_STATUS_FILTERS = [
   { value: 'all', label: 'All' },
@@ -96,6 +96,7 @@ export default function AgronomistBlockDetailScreen() {
   const [soilReports, setSoilReports] = useState<PortalSoilReport[]>([]);
   const [fieldFindings, setFieldFindings] = useState<BlockFieldFinding[]>([]);
   const [blockRecommendations, setBlockRecommendations] = useState<BlockRecommendationItem[]>([]);
+  const [plotIntel, setPlotIntel] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -114,6 +115,8 @@ export default function AgronomistBlockDetailScreen() {
       setSoilReports(detail.soilReports ?? []);
       setFieldFindings(detail.fieldFindings ?? []);
       setBlockRecommendations(detail.blockRecommendations ?? []);
+      const twin = await agronomistClient.getPlotIntelligence(blockId).catch(() => null);
+      setPlotIntel(twin as Record<string, unknown> | null);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not load block';
       try {
@@ -191,6 +194,7 @@ export default function AgronomistBlockDetailScreen() {
           tabs={[
             { id: 'activities', label: 'Activities' },
             { id: 'soilTests', label: 'Soil tests' },
+            { id: 'plotIntel', label: 'Plot intel' },
             { id: 'fieldFindings', label: 'Field findings' },
             { id: 'recommendations', label: 'Recommendations' },
           ]}
@@ -213,6 +217,28 @@ export default function AgronomistBlockDetailScreen() {
               })
             }
           />
+        ) : null}
+
+        {tab === 'plotIntel' ? (
+          <View style={styles.plotIntelPanel}>
+            <Text style={styles.plotIntelTitle}>Plot intelligence</Text>
+            {plotIntel ? (
+              <>
+                <Text style={styles.plotIntelLine}>
+                  Visits (12m): {String((plotIntel as { visitCount12m?: number }).visitCount12m ?? 0)}
+                </Text>
+                {((plotIntel as { recurringIssues?: Array<{ label: string; count: number }> }).recurringIssues ?? []).map(
+                  (r) => (
+                    <Text key={r.label} style={styles.plotIntelLine}>
+                      {r.label} — {r.count} occurrence{r.count === 1 ? '' : 's'}
+                    </Text>
+                  )
+                )}
+              </>
+            ) : (
+              <Text style={styles.emptyText}>No plot memory snapshot yet.</Text>
+            )}
+          </View>
         ) : null}
 
         {tab === 'fieldFindings' ? (
@@ -298,6 +324,9 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { padding: 16 },
   emptyText: { fontSize: 14, color: tokens.textMuted, lineHeight: 20, paddingVertical: 8 },
+  plotIntelPanel: { gap: 8, paddingVertical: 8 },
+  plotIntelTitle: { fontSize: 16, fontWeight: '700', color: tokens.text },
+  plotIntelLine: { fontSize: 14, color: tokens.textMuted, lineHeight: 20 },
   recPanel: { marginTop: 12 },
   footerCol: { gap: 8 },
 });

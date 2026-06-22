@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   agronomistClient,
+  blockAutoApprove,
   getNextWizardStep,
   getPrevWizardStep,
   getVisibleWizardSteps,
@@ -18,6 +19,8 @@ import {
   type PortalSoilReport,
   type RecommendationGroupDraft,
   type SoilMoistureLevel,
+  type TriagePreview,
+  type VisitClassification,
   type VisitFarmContext,
   type VisitWizardStep,
   type WhatsappPreviewMessage,
@@ -36,6 +39,8 @@ import { VisitMonitoringPlanStep } from '../../components/agronomist/visit-wizar
 import { VisitWhatsappPreviewStep } from '../../components/agronomist/visit-wizard/VisitWhatsappPreviewStep';
 import { VisitCaseClosureStep } from '../../components/agronomist/visit-wizard/VisitCaseClosureStep';
 import { VisitAiAnalysisStep } from '../../components/agronomist/visit-wizard/VisitAiAnalysisStep';
+import { VisitAiTriageStep } from '../../components/agronomist/visit-wizard/VisitAiTriageStep';
+import { VisitEconomicOptimizerStep } from '../../components/agronomist/visit-wizard/VisitEconomicOptimizerStep';
 import { VisitFollowUpStep } from '../../components/agronomist/visit-wizard/VisitFollowUpStep';
 import { VisitFinalDiagnosisStep } from '../../components/agronomist/visit-wizard/VisitFinalDiagnosisStep';
 import { VisitRecommendationStep } from '../../components/agronomist/visit-wizard/VisitRecommendationStep';
@@ -96,6 +101,10 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [triage, setTriage] = useState<TriagePreview | null>(null);
+  const [selectedRecOptionId, setSelectedRecOptionId] = useState<string | null>(null);
+  const [visitClassification, setVisitClassification] = useState<VisitClassification>('first');
+  const [plotIntelSummary, setPlotIntelSummary] = useState<string | null>(null);
 
   const persistDraft = useCallback(() => {
     if (!blockId || !farmerId) return;
@@ -125,12 +134,13 @@ export function VisitWizardPage({ canWrite }: Props) {
 
     async function init() {
       try {
-        const [tpls, master, session, blockDetail, recs] = await Promise.all([
+        const [tpls, master, session, blockDetail, recs, plotIntel] = await Promise.all([
           agronomistClient.getMeasurementTemplates(cropType),
           agronomistClient.searchIssueMaster({ cropType }),
           agronomistClient.startVisitSession({ farmerId, blockId }),
           agronomistClient.getBlockDetail(farmerId, blockId).catch(() => null),
           agronomistClient.listFarmerRecommendations(farmerId, 20).catch(() => []),
+          agronomistClient.getPlotIntelligence(blockId).catch(() => null),
         ]);
         if (cancelled) return;
 
@@ -141,6 +151,14 @@ export function VisitWizardPage({ canWrite }: Props) {
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
         setFarmContext((blockDetail?.farmContext as VisitFarmContext | undefined) ?? null);
+
+        const recurring = (plotIntel as { recurringIssues?: Array<{ label: string; count: number }> } | null)
+          ?.recurringIssues;
+        if (recurring?.length) {
+          setPlotIntelSummary(
+            `Plot memory: ${recurring.map((r) => `${r.label} (${r.count}x)`).join('; ')}`
+          );
+        }
 
         setFollowUps(buildPriorRecommendationFollowUps(recs, blockId));
 
@@ -202,6 +220,8 @@ export function VisitWizardPage({ canWrite }: Props) {
       blockHealth,
       cropPerformance,
       soilMoisture,
+      triage,
+      selectedRecommendationOptionId: selectedRecOptionId,
     };
   }
 
@@ -344,6 +364,8 @@ export function VisitWizardPage({ canWrite }: Props) {
             outcome: f.outcome,
             notes: f.notes.trim() || undefined,
           })),
+        visitClassification,
+        selectedRecommendationOptionId: selectedRecOptionId ?? undefined,
         latitude: gpsLat ?? undefined,
         longitude: gpsLon ?? undefined,
       });
@@ -401,6 +423,9 @@ export function VisitWizardPage({ canWrite }: Props) {
           onBlockHealth={setBlockHealth}
           onCropPerformance={setCropPerformance}
           onSoilMoisture={setSoilMoisture}
+          visitClassification={visitClassification}
+          onVisitClassification={setVisitClassification}
+          plotIntelSummary={plotIntelSummary}
         />
       ) : null}
 
@@ -427,6 +452,21 @@ export function VisitWizardPage({ canWrite }: Props) {
 
       {step === 'soilWeather' ? (
         <VisitSoilWeatherStep farmerId={farmerId} blockId={blockId} />
+      ) : null}
+
+      {step === 'aiTriage' && blockHealth && cropPerformance && soilMoisture ? (
+        <VisitAiTriageStep
+          farmerId={farmerId}
+          blockId={blockId}
+          blockAssessment={{ blockHealth, cropPerformance, soilMoisture }}
+          measurements={measurements}
+          analyzePhotos={visitPhotos
+            .filter((p) => p.dataBase64?.length > 100)
+            .slice(0, 4)
+            .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType }))}
+          triage={triage}
+          onTriage={setTriage}
+        />
       ) : null}
 
       {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
@@ -463,6 +503,15 @@ export function VisitWizardPage({ canWrite }: Props) {
       ) : null}
 
       {step === 'finalDiagnosis' ? <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} /> : null}
+
+      {step === 'economicOptimizer' ? (
+        <VisitEconomicOptimizerStep
+          issueLabel={issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? 'Field issue'}
+          cropType={cropType}
+          selectedId={selectedRecOptionId}
+          onSelect={setSelectedRecOptionId}
+        />
+      ) : null}
 
       {step === 'recPlanning' ? (
         <>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { agronomistClient } from '@morbeez/shared';
 import { api } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { Alert, Btn, Loading, StaticSelect } from '../ui';
@@ -220,6 +221,10 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
   const [recommendationText, setRecommendationText] = useState('');
   const [dosage, setDosage] = useState('');
   const [notesForLearning, setNotesForLearning] = useState('');
+  const [copilotQuestion, setCopilotQuestion] = useState('');
+  const [copilotAnswer, setCopilotAnswer] = useState('');
+  const [copilotCitations, setCopilotCitations] = useState<string[]>([]);
+  const [copilotLoading, setCopilotLoading] = useState(false);
 
   const pageSize = 6;
 
@@ -1024,6 +1029,54 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                     : 'Save & Send submits your edited WhatsApp response for Super Admin approval. After approval, similar farmer questions reuse this answer.'}
                 </p>
               </div>
+
+              <section className="cr-timeline-block">
+                <h3 className="cr-h3">Agronomist copilot</h3>
+                <label className="cr-field">
+                  <span className="cr-field-label">Ask about this case</span>
+                  <textarea
+                    className="cr-textarea cr-textarea--compact"
+                    rows={2}
+                    value={copilotQuestion}
+                    onChange={(e) => setCopilotQuestion(e.target.value)}
+                    placeholder="Why did AI suggest nitrogen deficiency?"
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="cr-btn cr-btn--outline"
+                  disabled={copilotLoading || !copilotQuestion.trim()}
+                  onClick={() => {
+                    void (async () => {
+                      setCopilotLoading(true);
+                      try {
+                        const r = await agronomistClient.copilotAsk({
+                          question: copilotQuestion.trim(),
+                          cropType: detail.block?.cropType ?? undefined,
+                          issueName: detail.ai.probableIssue ?? undefined,
+                        });
+                        setCopilotAnswer(r.answer);
+                        setCopilotCitations(r.citations);
+                      } catch (e) {
+                        setCopilotAnswer(e instanceof Error ? e.message : 'Copilot failed');
+                        setCopilotCitations([]);
+                      } finally {
+                        setCopilotLoading(false);
+                      }
+                    })();
+                  }}
+                >
+                  {copilotLoading ? 'Thinking…' : 'Ask copilot'}
+                </button>
+                {copilotAnswer ? (
+                  <div className="cr-copilot-answer">
+                    <p>{copilotAnswer}</p>
+                    {copilotCitations.length ? (
+                      <p className="cr-muted">Sources: {copilotCitations.join(' · ')}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
 
               <section className="cr-timeline-block">
                 <h3 className="cr-h3">Case Timeline</h3>

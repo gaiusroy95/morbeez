@@ -116,7 +116,7 @@ export function VisitAiAnalysisStep({
         .slice(0, 4)
         .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
 
-      const detected = await agronomistClient.analyzeVisit({
+      const { issues: detected, insufficientEvidence } = await agronomistClient.analyzeVisit({
         farmerId,
         blockId,
         sessionId: sessionId ?? undefined,

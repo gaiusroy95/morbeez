@@ -43,6 +43,15 @@ export function isFertilizerOrNutrientQuestion(text: string): boolean {
   );
 }
 
+/** True when farmer is asking for a crop disease/pest diagnosis (not tank-mix or fertilizer). */
+export function isDiseaseDiagnosisIntent(text: string): boolean {
+  if (isFertilizerOrNutrientQuestion(text)) return false;
+  if (parseProductPairFromText(text)) return false;
+  return /disease|pest|fungus|blast|yellow|wilt|spot|symptom|chlorosis|thrips|rot|രോഗ|കീട|நோய்/i.test(
+    text
+  );
+}
+
 function fertilizerStageGuidance(memory: FarmerMemorySnapshot, language: AdvisoryLanguage): string {
   const crop = cropLabel(memory);
   const dap = memory.dap ?? 0;
@@ -212,7 +221,7 @@ export const knowledgeFallbackService = {
       };
     }
 
-    if (env.ENABLE_AI_REUSE_CACHE && !params.hasMedia) {
+    if (env.ENABLE_AI_REUSE_CACHE && !params.hasMedia && !isDiseaseDiagnosisIntent(text)) {
       let dap = memory.dap ?? 0;
       if (memory.activePlotId) {
         const block = await blockService.getById(memory.activePlotId, params.farmerId);
@@ -315,7 +324,7 @@ export const knowledgeFallbackService = {
           return {
             text: body + (FALLBACK_NOTE[params.language] ?? FALLBACK_NOTE.en),
             module: 'regional_learning',
-            meta: { ...baseMeta, issueLabel: highPriors[0]?.issueLabel },
+            meta: { ...baseMeta },
           };
         }
       } catch {

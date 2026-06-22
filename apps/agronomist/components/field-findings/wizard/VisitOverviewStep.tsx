@@ -6,10 +6,12 @@ import {
   type CropPerformanceLevel,
   type PortalSoilReport,
   type SoilMoistureLevel,
+  type VisitClassification,
   type VisitFarmContext,
 } from '@morbeez/shared';
 import { Panel } from '@morbeez/ui-native';
 import { ColoredAssessmentChips } from './ColoredAssessmentChips';
+import { SegmentedChips } from '../SegmentedChips';
 
 type Props = {
   farmerName: string;
@@ -26,7 +28,16 @@ type Props = {
   onBlockHealth: (v: BlockHealthLevel) => void;
   onCropPerformance: (v: CropPerformanceLevel) => void;
   onSoilMoisture: (v: SoilMoistureLevel) => void;
+  visitClassification?: VisitClassification;
+  onVisitClassification?: (v: VisitClassification) => void;
+  plotIntelSummary?: string | null;
 };
+
+const VISIT_TYPES = [
+  { value: 'first' as const, label: 'First visit' },
+  { value: 'follow_up' as const, label: 'Follow-up' },
+  { value: 'rectification' as const, label: 'Rectification' },
+];
 
 const BLOCK_HEALTH = [
   { value: 'good' as const, label: 'Good', tone: 'good' as const },
@@ -132,6 +143,9 @@ export function VisitOverviewStep({
   onBlockHealth,
   onCropPerformance,
   onSoilMoisture,
+  visitClassification,
+  onVisitClassification,
+  plotIntelSummary,
 }: Props) {
   const assessmentsComplete = Boolean(blockHealth && cropPerformance && soilMoisture);
   const ctx = farmContext ?? null;
@@ -168,6 +182,22 @@ export function VisitOverviewStep({
         <OverviewRow label="Agronomist" value={agronomistName ?? '—'} />
         <SoilTestRows soilTest={soilTest} />
       </Panel>
+
+      {onVisitClassification && visitClassification ? (
+        <Panel title="Visit type">
+          <SegmentedChips
+            options={VISIT_TYPES}
+            value={visitClassification}
+            onChange={onVisitClassification}
+          />
+        </Panel>
+      ) : null}
+
+      {plotIntelSummary ? (
+        <Panel title="Plot intelligence">
+          <Text style={styles.plotIntel}>{plotIntelSummary}</Text>
+        </Panel>
+      ) : null}
 
       {ctx?.recentVisits?.length || ctx?.recentRecommendations?.length || ctx?.recentApplications?.length ? (
         <Panel title="Previous history">
@@ -246,4 +276,5 @@ const styles = StyleSheet.create({
   rowLink: { color: tokens.green700 },
   historyHeading: { fontSize: 12, fontWeight: '700', color: tokens.textMuted, marginTop: 8, marginBottom: 4 },
   historyItem: { fontSize: 13, color: tokens.text, lineHeight: 18, marginBottom: 4 },
+  plotIntel: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
 });

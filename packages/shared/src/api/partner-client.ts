@@ -321,11 +321,17 @@ export const partnerClient = {
   },
 
   async analyzeVisit(body: Record<string, unknown>) {
-    const r = await partnerApi<{ ok: boolean; issues: Array<Record<string, unknown>> }>(
-      '/visits/analyze-visit',
-      { method: 'POST', body: JSON.stringify(body) }
-    );
-    return r.issues ?? [];
+    const r = await partnerApi<{
+      ok: boolean;
+      issues: Array<Record<string, unknown>>;
+      triage?: Record<string, unknown>;
+      insufficientEvidence?: boolean;
+    }>('/visits/analyze-visit', { method: 'POST', body: JSON.stringify(body) });
+    return {
+      issues: r.issues ?? [],
+      triage: r.triage,
+      insufficientEvidence: r.insufficientEvidence,
+    };
   },
 
   async skipVisitAiFollowUp(aiCaseId: string) {

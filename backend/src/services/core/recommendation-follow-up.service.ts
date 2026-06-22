@@ -20,6 +20,7 @@ import {
 import { outcomeKpiInterpretationService } from './outcome-kpi-interpretation.service.js';
 import { outcomeHumanRoutingService } from './outcome-human-routing.service.js';
 import { visitAdvisoryEscalationService } from './visit-advisory-escalation.service.js';
+import { issueFollowUpQuestionsService } from './issue-follow-up-questions.service.js';
 
 const APPLICATION_CHECK_DAYS = () =>
   Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1);
@@ -428,6 +429,22 @@ export const recommendationFollowUpService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', recommendationRecordId);
+
+    const recoveryQuestions = await issueFollowUpQuestionsService.suggest({
+      issueCategory: 'disease',
+      issueName: String(rec.issue_detected ?? 'crop recovery'),
+      cropType: String((rec.farm_blocks as { crop_type?: string } | null)?.crop_type ?? 'ginger'),
+      recommendationText: String(rec.recommendation_text ?? ''),
+      photoCount: 1,
+      observation: 'Farmer uploaded recovery photo after treatment',
+    });
+    if (recoveryQuestions.length && rec.farmers?.phone) {
+      const qText =
+        lang === 'ml'
+          ? `ഫോട്ടോ ലഭിച്ചു. ദയവായി ഇവയ്ക്ക് ഉത്തരം നൽകുക:\n${recoveryQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+          : `Thanks for the recovery photo. Please answer:\n${recoveryQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`;
+      await whatsappService.sendText(rec.farmers.phone, qText.slice(0, 1500)).catch(() => {});
+    }
 
     return followUpCopy(lang).outcomePhotoPrompt;
   },

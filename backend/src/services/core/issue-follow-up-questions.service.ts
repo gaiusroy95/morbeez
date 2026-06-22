@@ -2,26 +2,10 @@ import { env } from '../../config/env.js';
 import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
 
 const FALLBACK: Record<string, string[]> = {
-  disease: [
-    'Are new leaves affected?',
-    'Has incidence increased since last visit?',
-    'Was fungicide applied as recommended?',
-    'Any rainfall in the last 7 days?',
-  ],
-  pest: [
-    'Is pest pressure increasing on younger shoots?',
-    'Were recommended controls applied?',
-    'Any beneficial insects observed?',
-  ],
-  nutrient_deficiency: [
-    'Are deficiency symptoms spreading to older leaves?',
-    'Was the recommended nutrient application completed?',
-  ],
-  default: [
-    'Has the situation changed since the last recommendation?',
-    'Was the recommended action applied?',
-    'Any new symptoms observed?',
-  ],
+  disease: [],
+  pest: [],
+  nutrient_deficiency: [],
+  default: [],
 };
 
 export const issueFollowUpQuestionsService = {
@@ -41,7 +25,7 @@ export const issueFollowUpQuestionsService = {
     const hypothesis = input.selectedHypothesis?.trim() || input.issueName;
 
     if (!env.OPENAI_API_KEY) {
-      return fallback.slice(0, 5);
+      return [];
     }
 
     try {

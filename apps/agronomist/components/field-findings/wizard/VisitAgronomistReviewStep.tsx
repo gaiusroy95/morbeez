@@ -18,6 +18,7 @@ type Props = {
   issueMaster: IssueMasterRow[];
   cropType: string;
   blockDap?: number | null;
+  blockAutoApprove?: boolean;
   onChange: (issues: IssueDraft[]) => void;
   onSuggestQuestions: (issue: IssueDraft) => Promise<string[]>;
   onCreateIssueType?: (input: {
@@ -32,6 +33,7 @@ export function VisitAgronomistReviewStep({
   issueMaster,
   cropType,
   blockDap,
+  blockAutoApprove,
   onChange,
   onSuggestQuestions,
   onCreateIssueType,
@@ -88,6 +90,7 @@ export function VisitAgronomistReviewStep({
     <View style={styles.root}>
       <Text style={styles.intro}>
         Review each AI issue. Approve, modify (add observation), or reject before Q&A.
+        {blockAutoApprove ? ' L4 critical — auto-approve is blocked; modify or escalate.' : ''}
       </Text>
       <Btn label="+ Add issue" onPress={() => { setEditing(null); setModalVisible(true); }} />
 
@@ -104,13 +107,16 @@ export function VisitAgronomistReviewStep({
           <View style={styles.actions}>
             {REVIEW_ACTIONS.map((a) => {
               const active = action === a.value;
+              const disabled = blockAutoApprove && a.value === 'approve_ai';
               return (
                 <Pressable
                   key={a.value}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => setReviewAction(issue.localId, a.value)}
+                  style={[styles.chip, active && styles.chipActive, disabled && styles.chipDisabled]}
+                  onPress={() => !disabled && setReviewAction(issue.localId, a.value)}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{a.label}</Text>
+                  <Text style={[styles.chipText, active && styles.chipTextActive, disabled && styles.chipTextDisabled]}>
+                    {a.label}
+                  </Text>
                 </Pressable>
               );
             })}
@@ -178,7 +184,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   chipActive: { borderColor: tokens.green700, backgroundColor: tokens.green100 },
+  chipDisabled: { opacity: 0.4 },
   chipText: { fontSize: 12, color: tokens.textMuted },
   chipTextActive: { color: tokens.green800, fontWeight: '700' },
+  chipTextDisabled: { color: tokens.textMuted },
   modifyFields: { gap: 8, marginTop: 4 },
 });

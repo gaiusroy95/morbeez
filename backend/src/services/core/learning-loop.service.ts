@@ -81,7 +81,7 @@ export const learningLoopService = {
       .maybeSingle();
 
     if (!rec?.farmer_id) return;
-    if (rec.outcome && !['better', 'partial'].includes(String(rec.outcome))) return;
+    if (rec.outcome && !['better', 'partial', 'improved'].includes(String(rec.outcome))) return;
 
     const issueLabel = String(rec.issue_detected ?? 'crop issue');
     const summary = String(rec.recommendation_text ?? issueLabel).trim();
@@ -181,7 +181,7 @@ export const learningLoopService = {
 
     for (const rec of recs ?? []) {
       const out = String(rec.outcome ?? '');
-      if (['better', 'partial'].includes(out)) {
+      if (['better', 'partial', 'improved'].includes(out)) {
         await this.onLearningSampleReady(String(rec.id)).catch(() => {});
       }
     }
@@ -197,6 +197,16 @@ export const learningLoopService = {
     if (!sample?.application_confirmed) return;
     if (sample.escalated) return;
     if (!sample.outcome || ['worsened', 'no_improvement'].includes(String(sample.outcome))) return;
+
+    const { data: rec } = await supabase
+      .from('recommendation_records')
+      .select('outcome, outcome_kpi')
+      .eq('id', recommendationRecordId)
+      .maybeSingle();
+    const outcomeConfirmed =
+      Boolean(rec?.outcome_kpi) ||
+      ['better', 'partial', 'improved'].includes(String(rec?.outcome ?? ''));
+    if (!outcomeConfirmed) return;
 
     await this.promoteRecommendationToReuse(recommendationRecordId);
   },

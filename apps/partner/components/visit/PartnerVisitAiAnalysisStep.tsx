@@ -87,7 +87,7 @@ export function PartnerVisitAiAnalysisStep({
         .slice(0, 12)
         .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));
 
-      const detected = await partnerClient.analyzeVisit({
+      const { issues: detected } = await partnerClient.analyzeVisit({
         farmerId,
         blockId,
         sessionId: sessionId ?? undefined,

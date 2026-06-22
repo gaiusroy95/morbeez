@@ -98,6 +98,7 @@ import {
   getPrevWizardStep,
   issueTopConfidence,
   inferSeverityFromMeasurements,
+  blockAutoApprove,
 } from './step-flow';
 
 export {
@@ -110,7 +111,9 @@ export {
   getPrevWizardStep,
   issueTopConfidence,
   inferSeverityFromMeasurements,
+  blockAutoApprove,
 } from './step-flow';
+export type { TriagePreview, MaiosTriageLevel } from './step-flow';
 
 export {
   isFieldLevelPhotoType,
@@ -129,6 +132,11 @@ export {
   formatMaterialDose,
   formatMaterialApplicationMode,
   mapRecommendationGroupsForSubmit,
+} from './recommendation-material';
+
+import type {
+  RecommendationGroupDraft,
+  RecommendationGroupMaterialDraft,
 } from './recommendation-material';
 
 export type { DoseBasis, DoseUnit, MaterialApplicationMode, RecommendationGroupDraft, RecommendationGroupMaterialDraft } from './recommendation-material';
@@ -152,6 +160,8 @@ export type VisitWizardStep =
 
   | 'soilWeather'
 
+  | 'aiTriage'
+
   | 'aiAnalysis'
 
   | 'agronomistReview'
@@ -161,6 +171,8 @@ export type VisitWizardStep =
   | 'additionalPhotos'
 
   | 'finalDiagnosis'
+
+  | 'economicOptimizer'
 
   | 'recPlanning'
 
@@ -188,6 +200,8 @@ export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> =
 
   { id: 'soilWeather', label: 'Soil' },
 
+  { id: 'aiTriage', label: 'Triage' },
+
   { id: 'aiAnalysis', label: 'AI' },
 
   { id: 'agronomistReview', label: 'Review' },
@@ -197,6 +211,8 @@ export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> =
   { id: 'additionalPhotos', label: 'More photos' },
 
   { id: 'finalDiagnosis', label: 'Diagnosis' },
+
+  { id: 'economicOptimizer', label: 'Economics' },
 
   { id: 'recPlanning', label: 'Rec plan' },
 
@@ -426,12 +442,6 @@ export type VisitPhotoValidationResult = {
 
 
 
-export type RecommendationGroupMaterialDraft = import('./recommendation-material.js').RecommendationGroupMaterialDraft;
-
-export type RecommendationGroupDraft = import('./recommendation-material.js').RecommendationGroupDraft;
-
-
-
 export type VisitPhotoDraft = {
 
   filename: string;
@@ -556,6 +566,8 @@ export type VisitWizardValidationContext = {
 
   soilMoisture: SoilMoistureLevel | null;
 
+  triage?: import('./step-flow.js').TriagePreview | null;
+  selectedRecommendationOptionId?: string | null;
   partnerMode?: boolean;
 
 };
@@ -606,9 +618,14 @@ export function mergeVisitPhotosIntoIssues(
 
 
 
-function validateAgronomistReview(issues: VisitIssueDraft[]): string | null {
+function validateAgronomistReview(
+  issues: VisitIssueDraft[],
+  triage?: import('./step-flow.js').TriagePreview | null
+): string | null {
 
   if (!issues.length) return 'Add at least one issue.';
+
+  const l4Blocked = blockAutoApprove({ triage, issues });
 
   for (const issue of issues) {
 
@@ -617,6 +634,10 @@ function validateAgronomistReview(issues: VisitIssueDraft[]): string | null {
     if (!issue.agronomistReview?.action) return 'Record a review decision for each issue.';
 
     const action = issue.agronomistReview.action;
+
+    if (l4Blocked && action === 'approve_ai') {
+      return 'L4 critical cases cannot auto-approve AI — modify, partial match, or escalate.';
+    }
 
     if (isRejectReviewIncomplete(issue.agronomistReview)) {
 
@@ -720,6 +741,10 @@ export function validateVisitWizardStep(
 
   }
 
+  if (step === 'aiTriage') {
+    if (!ctx.triage) return 'Run triage preview before continuing.';
+  }
+
   if (step === 'aiAnalysis') {
 
     if (!ctx.issues.length) return 'Wait for AI analysis to complete.';
@@ -740,7 +765,7 @@ export function validateVisitWizardStep(
 
   if (step === 'agronomistReview') {
 
-    return validateAgronomistReview(ctx.issues);
+    return validateAgronomistReview(ctx.issues, ctx.triage);
 
   }
 
@@ -748,7 +773,7 @@ export function validateVisitWizardStep(
 
     for (const issue of ctx.issues) {
 
-      if (!shouldRunFollowUp(issue)) continue;
+      if (!shouldRunFollowUp(issue, { issues: ctx.issues, triage: ctx.triage, partnerMode: ctx.partnerMode })) continue;
 
       const qs = issue.followUpQuestions ?? [];
 
@@ -786,6 +811,10 @@ export function validateVisitWizardStep(
 
     }
 
+  }
+
+  if (step === 'economicOptimizer') {
+    // Optional step — no hard block
   }
 
   if (step === 'recPlanning') {
