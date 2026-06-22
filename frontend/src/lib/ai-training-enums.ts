@@ -77,3 +77,18 @@ export type ImageReviewStatus = (typeof IMAGE_REVIEW_STATUSES)[number];
 
 export const IMAGE_REVIEW_ACTIONS = ['confirm_ai', 'correct_ai', 'skip', 'exclude'] as const;
 export type ImageReviewAction = (typeof IMAGE_REVIEW_ACTIONS)[number];
+
+export const TRAINING_EVENT_TYPES = [
+  'correct_ai',
+  'partial_correct',
+  'wrong_recommendation',
+  'false_positive',
+] as const;
+export type TrainingEventType = (typeof TRAINING_EVENT_TYPES)[number];
+
+export const TRAINING_EVENT_TYPE_LABELS: Record<TrainingEventType, string> = {
+  correct_ai: 'Correct AI',
+  partial_correct: 'Partial correct',
+  wrong_recommendation: 'Wrong recommendation',
+  false_positive: 'False positive',
+};

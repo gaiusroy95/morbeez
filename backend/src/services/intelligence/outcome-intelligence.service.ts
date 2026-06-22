@@ -84,4 +84,78 @@ export const outcomeIntelligenceService = {
     const stats = await this.aggregateByIssue(issueLabel, 5);
     return stats.filter((s) => s.sampleCount >= 2).map((s) => s.protocolLabel);
   },
+
+  async getProtocolFunnelStats(days = 90): Promise<{
+    d3: { scheduled: number; completed: number; failed: number };
+    d7: { scheduled: number; completed: number; failed: number };
+    d14: { scheduled: number; completed: number; failed: number };
+  }> {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const dayBuckets = [3, 7, 14] as const;
+    const jobTypes = dayBuckets.flatMap((d) => [
+      `maios_recovery_d${d}`,
+      `ginger_sop_recovery_d${d}`,
+    ]);
+
+    const { data, error } = await supabase
+      .from('advisory_automation_jobs')
+      .select('job_type, status')
+      .gte('scheduled_at', since)
+      .in('job_type', jobTypes)
+      .limit(5000);
+    throwIfSupabaseError(error, 'Could not load protocol funnel jobs');
+
+    const empty = () => ({ scheduled: 0, completed: 0, failed: 0 });
+    const buckets = { d3: empty(), d7: empty(), d14: empty() };
+
+    for (const row of data ?? []) {
+      const match = String(row.job_type).match(/_d(\d+)$/);
+      const day = match ? Number(match[1]) : 0;
+      const key = day === 3 ? 'd3' : day === 7 ? 'd7' : day === 14 ? 'd14' : null;
+      if (!key) continue;
+      buckets[key].scheduled++;
+      const status = String(row.status);
+      if (status === 'completed') buckets[key].completed++;
+      if (status === 'failed') buckets[key].failed++;
+    }
+
+    return buckets;
+  },
+
+  async compareVariantsByExperiment(experimentId: string): Promise<
+    Array<{
+      variantKey: string;
+      sampleCount: number;
+      recoveryPct: number;
+      avgCostInr: number | null;
+    }>
+  > {
+    const { data, error } = await supabase
+      .from('recommendation_variants')
+      .select('variant_key, actual_outcome, cost_inr, expected_recovery_pct')
+      .eq('experiment_id', experimentId)
+      .limit(1000);
+    throwIfSupabaseError(error, 'Could not load experiment variants');
+
+    const buckets = new Map<string, { improved: number; total: number; costs: number[] }>();
+    for (const row of data ?? []) {
+      const key = String(row.variant_key ?? 'control');
+      const b = buckets.get(key) ?? { improved: 0, total: 0, costs: [] };
+      b.total++;
+      if (['better', 'improved', 'partial'].includes(String(row.actual_outcome))) b.improved++;
+      if (row.cost_inr != null) b.costs.push(Number(row.cost_inr));
+      buckets.set(key, b);
+    }
+
+    return [...buckets.entries()]
+      .map(([variantKey, b]) => ({
+        variantKey,
+        sampleCount: b.total,
+        recoveryPct: b.total ? Math.round((b.improved / b.total) * 100) : 0,
+        avgCostInr: b.costs.length
+          ? Math.round(b.costs.reduce((s, c) => s + c, 0) / b.costs.length)
+          : null,
+      }))
+      .sort((a, b) => b.recoveryPct - a.recoveryPct);
+  },
 };

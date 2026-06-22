@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { t, tokens } from '@morbeez/shared';
+import { agronomistClient, t, tokens } from '@morbeez/shared';
 import { AlertBox, Loading, QuickActionGrid, StatCard, stableRowKey } from '@morbeez/ui-native';
 import { useAgronomistDashboard } from '@/context/AgronomistDashboardContext';
 import { useLocale } from '@/context/LocaleContext';
@@ -12,6 +12,17 @@ export default function DashboardScreen() {
   const { admin } = useStaffAuth();
   const { locale } = useLocale();
   const { dashboard, loading, refreshing, error, refresh } = useAgronomistDashboard();
+  const [commandCenter, setCommandCenter] = useState<{
+    priorityQueue: Array<{ farmerName: string; priority: string }>;
+    summary: { priorityCount: number; openEscalations: number };
+  } | null>(null);
+
+  useEffect(() => {
+    void agronomistClient
+      .getVisitCommandCenter()
+      .then((c) => setCommandCenter(c))
+      .catch(() => setCommandCenter(null));
+  }, [refreshing]);
 
   const quickActions = useMemo(
     () => [
@@ -41,6 +52,21 @@ export default function DashboardScreen() {
         {admin?.fullName ? `, ${admin.fullName}` : ''}
       </Text>
       <Text style={styles.subtitle}>{t('todaysOverview', locale)}</Text>
+
+      {commandCenter ? (
+        <Pressable style={styles.commandStrip} onPress={() => router.push('/visit-command')}>
+          <Text style={styles.commandTitle}>Command center</Text>
+          <Text style={styles.commandLine}>
+            Priority visits: {commandCenter.summary.priorityCount} · Escalations:{' '}
+            {commandCenter.summary.openEscalations}
+          </Text>
+          {commandCenter.priorityQueue.slice(0, 3).map((row, i) => (
+            <Text key={i} style={styles.commandLine}>
+              {row.farmerName} ({row.priority})
+            </Text>
+          ))}
+        </Pressable>
+      ) : null}
 
       <View style={styles.statsGrid}>
         <StatCard
@@ -115,6 +141,17 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   greeting: { fontSize: 22, fontWeight: '700', color: tokens.text, marginBottom: 4 },
   subtitle: { fontSize: 14, color: tokens.textMuted, marginBottom: 16 },
+  commandStrip: {
+    backgroundColor: tokens.card,
+    borderRadius: tokens.radius,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    padding: 12,
+    marginBottom: 16,
+    gap: 4,
+  },
+  commandTitle: { fontSize: 15, fontWeight: '600', color: tokens.text },
+  commandLine: { fontSize: 13, color: tokens.textMuted },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: tokens.text, marginBottom: 10 },
   focusSection: { marginBottom: 16 },

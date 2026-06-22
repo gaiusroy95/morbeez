@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
 import { SUPPORTED_TEMPLATE_LANGUAGES, STANDARD_TEMPLATE_VARIABLES, computeLanguageCompletion, displayNameFromKey, renderLanguageTemplate, SAMPLE_VARIABLE_CONTEXT, } from './language-template-variables.js';
 import { languageTemplateTranslateService } from './language-template-translate.service.js';
 function mapDefinition(row, langRows) {
@@ -412,6 +413,26 @@ export const operationsMessagingService = {
         if (error || !data)
             throw new NotFoundError('Job not found or cannot retry');
         return data;
+    },
+    async sendExecutiveWeeklyDigest(recipientEmails = []) {
+        const { executiveCockpitService } = await import('../intelligence/enterprise-dashboard.service.js');
+        const cockpit = await executiveCockpitService.getCockpit();
+        const weekOf = new Date().toISOString().slice(0, 10);
+        const subject = `Morbeez executive digest — week of ${weekOf}`;
+        const body = [
+            'Morbeez executive cockpit (weekly)',
+            `Visits today: ${cockpit.visits}`,
+            `D14 recovery rate: ${cockpit.recoveryRate ?? '—'}%`,
+            `AI accuracy (EQS): ${cockpit.aiAccuracy ?? '—'}`,
+            `Escalation rate: ${cockpit.escalationRate ?? '—'}%`,
+            `Protocol success: ${cockpit.protocolSuccess ?? '—'}%`,
+            `Open escalations: ${cockpit.openEscalations}`,
+        ].join('\n');
+        const recipients = recipientEmails.length > 0
+            ? recipientEmails.map((e) => e.trim().toLowerCase()).filter(Boolean)
+            : [];
+        logger.info({ event: 'operations.executive_weekly_digest', subject, recipients, cockpit }, 'Executive weekly digest composed');
+        return { subject, body, recipients, logged: true };
     },
 };
 //# sourceMappingURL=operations-messaging.service.js.map

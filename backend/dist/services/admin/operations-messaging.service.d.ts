@@ -258,5 +258,11 @@ export declare const operationsMessagingService: {
     }>;
     cancelAutomationJob(id: string): Promise<any>;
     retryAutomationJob(id: string): Promise<any>;
+    sendExecutiveWeeklyDigest(recipientEmails?: string[]): Promise<{
+        subject: string;
+        body: string;
+        recipients: string[];
+        logged: boolean;
+    }>;
 };
 //# sourceMappingURL=operations-messaging.service.d.ts.map

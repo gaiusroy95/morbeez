@@ -27,3 +27,9 @@ export const INSUFFICIENT_EVIDENCE_LABEL = 'Insufficient evidence for AI diagnos
 export function isValidDiagnosisSource(source: DiagnosisSource): boolean {
   return source === 'model' || source === 'vision' || source === 'verified_reuse';
 }
+
+export type VisitAiRootCause = {
+  symptoms?: string[];
+  immediateCause?: string;
+  rootCause?: string;
+};

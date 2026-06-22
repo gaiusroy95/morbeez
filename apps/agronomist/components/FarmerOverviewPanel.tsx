@@ -35,6 +35,7 @@ function KpiTile({ card, onPress }: { card: KpiCard; onPress: () => void }) {
 
 export function FarmerOverviewPanel({ farmerId, farmerName, leadId, recommendations, onNavigate }: Props) {
   const [dashboard, setDashboard] = useState<FarmerWorkspaceDashboard | null>(null);
+  const [farmer360, setFarmer360] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -42,7 +43,12 @@ export function FarmerOverviewPanel({ farmerId, farmerName, leadId, recommendati
     setLoading(true);
     setError('');
     try {
-      setDashboard(await agronomistClient.getWorkspaceDashboard(farmerId));
+      const [dash, intel] = await Promise.all([
+        agronomistClient.getWorkspaceDashboard(farmerId),
+        agronomistClient.getFarmer360(farmerId).catch(() => null),
+      ]);
+      setDashboard(dash);
+      setFarmer360(intel);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load dashboard');
     } finally {
@@ -85,6 +91,13 @@ export function FarmerOverviewPanel({ farmerId, farmerName, leadId, recommendati
             <KpiTile key={card.label} card={card} onPress={() => onNavigate(card.tab)} />
           ))}
         </View>
+        {farmer360 ? (
+          <View style={styles.intelRow}>
+            <KeyValueRow label="Compliance" value={String(farmer360.complianceScore ?? '—')} />
+            <KeyValueRow label="Risk" value={String(farmer360.riskScore ?? '—')} />
+            <KeyValueRow label="Opportunity" value={String(farmer360.opportunityScore ?? '—')} />
+          </View>
+        ) : null}
         <KeyValueRow
           label="Last call"
           value={dashboard.lastCallAt ? formatDate(dashboard.lastCallAt) : '—'}
@@ -120,6 +133,7 @@ export function FarmerOverviewPanel({ farmerId, farmerName, leadId, recommendati
 const styles = StyleSheet.create({
   root: { padding: 12, paddingBottom: 8, gap: 12 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  intelRow: { marginBottom: 8 },
   kpi: {
     width: '31%',
     minWidth: 96,

@@ -16,6 +16,30 @@ type Props = {
   onConfirmedChange: (confirmed: boolean) => void;
 };
 
+function ExplainSnippet({ issue }: { issue: VisitIssueDraft }) {
+  const [farmerText, setFarmerText] = useState('');
+  useEffect(() => {
+    void agronomistClient
+      .explainDiagnosis({
+        issueName: issue.issueName,
+        finalDiagnosis: issue.finalDiagnosis,
+        observation: issue.observation,
+        severity: issue.severity,
+        rootCause: issue.rootCause?.conclusion
+          ? { rootCause: issue.rootCause.conclusion, symptoms: issue.rootCause.symptoms }
+          : undefined,
+      })
+      .then((r) => setFarmerText(r.farmerText))
+      .catch(() => setFarmerText(''));
+  }, [issue.issueName, issue.finalDiagnosis]);
+  if (!farmerText) return null;
+  return (
+    <p className="vw-hint mb-2">
+      <strong>Farmer explanation:</strong> {farmerText}
+    </p>
+  );
+}
+
 export function VisitWhatsappPreviewStep({
   farmerId,
   blockName,
@@ -122,6 +146,9 @@ export function VisitWhatsappPreviewStep({
       {messages.map((msg) => (
         <div key={`${msg.issueIndex}-${msg.issueLabel}`} className="vw-issue-card">
           <div className="vw-issue-title">{msg.issueLabel}</div>
+          {issues[msg.issueIndex] ? (
+            <ExplainSnippet issue={issues[msg.issueIndex]!} />
+          ) : null}
           <span className="vw-field-label">WhatsApp message</span>
           <textarea
             className="vw-textarea"

@@ -35,6 +35,9 @@
     "typescript": "^5.6.0",
     "zod": "^3.23.0"
   },
+  "optionalDependencies": {
+    "mqtt": "^5.10.4"
+  },
   "devDependencies": {
     "tsx": "^4.19.0"
   }

@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { paths, toPath } from '../../lib/routes';
 import { Btn } from '../ui';
 import {
   CropBlockFields,
@@ -80,6 +82,7 @@ function blockNoteTag(blockName: string): string {
 
 export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Props) {
   const [loading, setLoading] = useState(true);
+  const [farmerId, setFarmerId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savingSoil, setSavingSoil] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
@@ -127,6 +130,8 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
         soilReports?: SoilRow[];
         applicationTracking?: ApplicationTrackingRow[];
       }>(`${base}/leads/${leadId}/blocks/${blockId}/workspace`);
+      const leadDetail = await api<{ ok: boolean; lead: { farmerId?: string } }>(`${base}/leads/${leadId}`);
+      setFarmerId(leadDetail.lead?.farmerId ? String(leadDetail.lead.farmerId) : null);
       setBlockInfo(ws.blockInfo ?? null);
       setSoilReports(ws.soilReports ?? []);
       setApplicationTracking(ws.applicationTracking ?? []);
@@ -329,6 +334,14 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
     <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium">Block workspace</h3>
+        {farmerId ? (
+          <Link
+            to={toPath(paths.plotIntelligence.replace(':farmerId', farmerId).replace(':blockId', blockId))}
+            className="link-btn text-xs"
+          >
+            Plot intelligence
+          </Link>
+        ) : null}
         {canWrite ? (
           <div className="relative" ref={menuRef}>
             <Btn

@@ -9,6 +9,22 @@ export type PlotIntelligenceTrends = {
         potassium?: number[];
         ph?: number[];
     };
+    waterReadings?: Array<{
+        key: string;
+        value: string;
+        at: string;
+    }>;
+    yieldHistory?: Array<{
+        cropType: string;
+        yieldKgPerAcre: number | null;
+        harvestDate: string | null;
+    }>;
+    satelliteOverlays?: Array<{
+        ndvi: number | null;
+        capturedAt: string;
+        provider: string;
+    }>;
+    regionalRiskFlags?: string[];
     outcomeHistory: Array<{
         issue: string;
         outcome: string | null;

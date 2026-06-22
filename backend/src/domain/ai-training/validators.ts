@@ -209,6 +209,19 @@ export const structuredFieldVisitSchema = z.object({
   issues: z.array(visitIssueInputSchema).min(1).max(12),
   followUps: z.array(visitFollowUpInputSchema).max(20).optional(),
   recommendationGroups: z.array(recommendationGroupSchema).max(20).optional(),
+  recApproved: z.boolean().optional(),
+  compatibilityOverrideReason: z.string().max(2000).optional(),
+  compatibilityOverridePairs: z
+    .array(
+      z.object({
+        productA: z.string(),
+        productB: z.string(),
+        status: z.string().optional(),
+        compatible: z.boolean().nullable().optional(),
+      })
+    )
+    .max(30)
+    .optional(),
   latitude: z.number().optional(),
   longitude: z.number().optional(),
   sendVisitSummary: z.boolean().optional(),

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { tokens, type AgronomistReviewAction, type IssueCategory, type IssueMasterRow } from '@morbeez/shared';
+import { agronomistClient, tokens, type AgronomistReviewAction, type IssueCategory, type IssueMasterRow } from '@morbeez/shared';
 import { Btn, TextField } from '@morbeez/ui-native';
 import { type IssueDraft } from '../IssueCard';
 import { getIssueCategoryLabel } from './visitIssueTypes';
@@ -40,6 +40,21 @@ export function VisitAgronomistReviewStep({
 }: Props) {
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<IssueDraft | null>(null);
+  const [explainText, setExplainText] = useState('');
+
+  async function explainIssue(issue: IssueDraft) {
+    try {
+      const r = await agronomistClient.explainDiagnosis({
+        issueName: issue.issueName,
+        finalDiagnosis: issue.finalDiagnosis ?? undefined,
+        observation: issue.observation ?? undefined,
+        severity: issue.severity ?? undefined,
+      });
+      setExplainText(r.agronomistText || r.farmerText);
+    } catch (e) {
+      setExplainText(e instanceof Error ? e.message : 'Explain failed');
+    }
+  }
 
   function patchIssue(localId: string, patch: Partial<IssueDraft>) {
     onChange(issues.map((i) => (i.localId === localId ? { ...i, ...patch } : i)));
@@ -121,6 +136,7 @@ export function VisitAgronomistReviewStep({
               );
             })}
           </View>
+          <Btn label="Explain diagnosis" variant="secondary" onPress={() => void explainIssue(issue)} />
           {needsModifyFields ? (
             <View style={styles.modifyFields}>
               <TextField
@@ -144,6 +160,12 @@ export function VisitAgronomistReviewStep({
         </View>
         );
       })}
+
+      {explainText ? (
+        <View style={styles.explainBox}>
+          <Text style={styles.explainText}>{explainText}</Text>
+        </View>
+      ) : null}
 
       <AddIssueModal
         visible={modalVisible}
@@ -189,4 +211,12 @@ const styles = StyleSheet.create({
   chipTextActive: { color: tokens.green800, fontWeight: '700' },
   chipTextDisabled: { color: tokens.textMuted },
   modifyFields: { gap: 8, marginTop: 4 },
+  explainBox: {
+    backgroundColor: tokens.bg,
+    borderRadius: tokens.radiusSm,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: tokens.border,
+  },
+  explainText: { fontSize: 13, color: tokens.text, lineHeight: 18 },
 });

@@ -128,6 +128,12 @@ async function processJob(job: {
   } else if (job.job_type === 'ml_retraining_weekly' || job.job_type === 'ml_retraining_monthly') {
     const { retrainingPipelineService } = await import('../ml/retraining-pipeline.service.js');
     await retrainingPipelineService.runWeekly();
+  } else if (job.job_type === 'executive_weekly_email') {
+    const { operationsMessagingService } = await import('../admin/operations-messaging.service.js');
+    const recipients = Array.isArray(job.payload.recipientEmails)
+      ? (job.payload.recipientEmails as string[])
+      : [];
+    await operationsMessagingService.sendExecutiveWeeklyDigest(recipients);
   }
 
   await supabase
@@ -194,6 +200,25 @@ async function bootstrapScheduledJobs(): Promise<void> {
       job_type: 'ml_retraining_weekly',
       scheduled_at: tomorrow.toISOString(),
       payload: { source: 'maios_bootstrap' },
+    });
+  }
+
+  const nextMonday = new Date();
+  nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
+  nextMonday.setHours(6, 0, 0, 0);
+
+  const { count: execCount } = await supabase
+    .from('advisory_automation_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('job_type', 'executive_weekly_email')
+    .eq('status', 'pending');
+
+  if (!execCount && anyFarmer?.id) {
+    await supabase.from('advisory_automation_jobs').insert({
+      farmer_id: anyFarmer.id,
+      job_type: 'executive_weekly_email',
+      scheduled_at: nextMonday.toISOString(),
+      payload: { source: 'enterprise_bootstrap' },
     });
   }
 

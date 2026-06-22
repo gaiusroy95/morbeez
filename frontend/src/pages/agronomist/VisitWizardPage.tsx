@@ -80,6 +80,10 @@ export function VisitWizardPage({ canWrite }: Props) {
   const [farmContext, setFarmContext] = useState<VisitFarmContext | null>(null);
   const [recommendationGroups, setRecommendationGroups] = useState<RecommendationGroupDraft[]>([]);
   const [recApproved, setRecApproved] = useState(false);
+  const [compatibilityOverrideReason, setCompatibilityOverrideReason] = useState('');
+  const [compatibilityOverridePairs, setCompatibilityOverridePairs] = useState<
+    Array<{ productA: string; productB: string; status: string }>
+  >([]);
   const [monitoringPlan, setMonitoringPlan] = useState<MonitoringPlanPreviewItem[]>([]);
   const [whatsappConfirmed, setWhatsappConfirmed] = useState(false);
   const [whatsappMessages, setWhatsappMessages] = useState<WhatsappPreviewMessage[]>([]);
@@ -368,6 +372,9 @@ export function VisitWizardPage({ canWrite }: Props) {
         selectedRecommendationOptionId: selectedRecOptionId ?? undefined,
         latitude: gpsLat ?? undefined,
         longitude: gpsLon ?? undefined,
+        recApproved: recApproved || undefined,
+        compatibilityOverrideReason: compatibilityOverrideReason.trim() || undefined,
+        compatibilityOverridePairs: compatibilityOverridePairs.length ? compatibilityOverridePairs : undefined,
       });
 
       if (sessionRef.current) {
@@ -403,6 +410,15 @@ export function VisitWizardPage({ canWrite }: Props) {
   return (
     <div className="vw-page">
       <VisitWizardStepper current={step} />
+
+      {triage ? (
+        <div className="vw-triage-badge" style={{ marginBottom: 12 }}>
+          <span className="priority-badge">Triage {triage.level}</span>
+          <span className="muted" style={{ marginLeft: 8 }}>
+            {triage.route} · {triage.reason}
+          </span>
+        </div>
+      ) : null}
 
       {error ? <Alert tone="error">{error}</Alert> : null}
       {!canWrite ? <Alert tone="warn">Read-only — you cannot submit visits.</Alert> : null}
@@ -489,6 +505,8 @@ export function VisitWizardPage({ canWrite }: Props) {
 
       {step === 'agronomistReview' ? (
         <VisitAgronomistReviewStep
+          farmerId={farmerId}
+          blockId={blockId}
           issues={issues}
           issueMaster={issueMaster}
           cropType={cropType}
@@ -517,6 +535,7 @@ export function VisitWizardPage({ canWrite }: Props) {
         <>
           <VisitRecommendationStep issues={issues} onChange={setIssues} />
           <VisitRecPlanningStep
+            cropType={cropType}
             issues={issues}
             groups={recommendationGroups}
             onChange={setRecommendationGroups}
@@ -532,7 +551,11 @@ export function VisitWizardPage({ canWrite }: Props) {
         <VisitRecApprovalStep
           groups={recommendationGroups}
           approved={recApproved}
-          onApprovedChange={setRecApproved}
+          onApprovedChange={(approved, reason, pairs) => {
+            setRecApproved(approved);
+            setCompatibilityOverrideReason(reason ?? '');
+            setCompatibilityOverridePairs(pairs ?? []);
+          }}
         />
       ) : null}
 

@@ -36,6 +36,7 @@ import { osTelecallerRoutes } from './os-telecaller.routes.js';
 import { osIntelligenceRoutes } from './os-intelligence.routes.js';
 import { osAgronomistRoutes } from './os-agronomist.routes.js';
 import { osFieldRoutes } from './os-field.routes.js';
+import { osEnterpriseRoutes } from './os-enterprise.routes.js';
 import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
@@ -2828,6 +2829,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   await app.register(osIntelligenceRoutes);
   await app.register(osAgronomistRoutes);
   await app.register(osFieldRoutes);
+  await app.register(osEnterpriseRoutes);
   await app.register(osAnalyticsRoutes);
   await app.register(osSettingsRoutes);
   await app.register(osWarehouseRoutes);

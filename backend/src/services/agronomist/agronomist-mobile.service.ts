@@ -275,6 +275,8 @@ export const agronomistMobileService = {
     agentEmail: string,
     opts: {
       q?: string;
+      crop?: string;
+      village?: string;
       filter?: string;
       lat?: number;
       lng?: number;
@@ -376,6 +378,14 @@ export const agronomistMobileService = {
     }
     if (opts.lat != null && opts.lng != null) {
       rows.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+    }
+    if (opts.crop?.trim()) {
+      const crop = opts.crop.trim().toLowerCase();
+      rows = rows.filter((r) => String(r.primaryCrop ?? '').toLowerCase().includes(crop));
+    }
+    if (opts.village?.trim()) {
+      const village = opts.village.trim().toLowerCase();
+      rows = rows.filter((r) => String((r as { village?: string }).village ?? '').toLowerCase().includes(village));
     }
     return rows.slice(0, limit);
   },

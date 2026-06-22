@@ -284,6 +284,14 @@ export async function osFoundationRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, gaps: rows });
   });
 
+  app.patch(`${api}/product-gaps/:id/status`, async (request, reply) => {
+    await assertModuleAccess(request, 'intelligence', 'write');
+    const { id } = request.params as { id: string };
+    const body = z.object({ status: z.enum(['open', 'reviewing', 'sourcing', 'resolved']) }).parse(request.body);
+    const row = await productGapService.updateStatus(id, body.status);
+    return reply.send({ ok: true, gap: row });
+  });
+
   app.get(`${api}/recommendations/follow-up/kpis`, async (request, reply) => {
     await assertModuleAccess(request, 'analytics', 'read');
     const q = request.query as { days?: string };

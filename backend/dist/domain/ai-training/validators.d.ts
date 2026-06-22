@@ -45,16 +45,16 @@ export declare const structuredFieldFindingSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     severity?: "moderate" | "mild" | "severe" | undefined;
     weatherContext?: Record<string, unknown> | undefined;
-    aiPrediction?: string | undefined;
     findingType?: "disease" | "pest" | "nutrient_deficiency" | "irrigation" | "weather_stress" | "growth_observation" | "other" | undefined;
     affectedAreaPct?: number | undefined;
+    aiPrediction?: string | undefined;
     finalConfirmedIssue?: string | undefined;
 }, {
     severity?: "moderate" | "mild" | "severe" | undefined;
     weatherContext?: Record<string, unknown> | undefined;
-    aiPrediction?: string | undefined;
     findingType?: "disease" | "pest" | "nutrient_deficiency" | "irrigation" | "weather_stress" | "growth_observation" | "other" | undefined;
     affectedAreaPct?: number | undefined;
+    aiPrediction?: string | undefined;
     finalConfirmedIssue?: string | undefined;
 }>;
 /** Max WhatsApp recommendation body (agronomist case review). DB is TEXT; outbound WhatsApp capped separately. */
@@ -145,19 +145,19 @@ export declare const agronomistReviewSchema: z.ZodObject<{
             answer?: string | undefined;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer?: string | undefined;
         }[];
-        photoTypes: string[];
     }, {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer?: string | undefined;
         }[];
-        photoTypes: string[];
     }>>;
     customRecommendation: z.ZodOptional<z.ZodObject<{
         product: z.ZodString;
@@ -187,12 +187,12 @@ export declare const agronomistReviewSchema: z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer?: string | undefined;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -212,12 +212,12 @@ export declare const agronomistReviewSchema: z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer?: string | undefined;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -245,22 +245,22 @@ export declare const recommendationGroupSchema: z.ZodObject<{
         category: string;
         technicalName: string;
         method?: string | undefined;
-        sortOrder?: number | undefined;
         dose?: string | undefined;
         issueIndex?: number | undefined;
         issueId?: string | undefined;
         relatedIssueIndex?: number | undefined;
         relatedIssueId?: string | undefined;
+        sortOrder?: number | undefined;
     }, {
         category: string;
         technicalName: string;
         method?: string | undefined;
-        sortOrder?: number | undefined;
         dose?: string | undefined;
         issueIndex?: number | undefined;
         issueId?: string | undefined;
         relatedIssueIndex?: number | undefined;
         relatedIssueId?: string | undefined;
+        sortOrder?: number | undefined;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     applicationType: string;
@@ -268,12 +268,12 @@ export declare const recommendationGroupSchema: z.ZodObject<{
         category: string;
         technicalName: string;
         method?: string | undefined;
-        sortOrder?: number | undefined;
         dose?: string | undefined;
         issueIndex?: number | undefined;
         issueId?: string | undefined;
         relatedIssueIndex?: number | undefined;
         relatedIssueId?: string | undefined;
+        sortOrder?: number | undefined;
     }[];
     sortOrder?: number | undefined;
     applicationDay?: number | undefined;
@@ -283,12 +283,12 @@ export declare const recommendationGroupSchema: z.ZodObject<{
         category: string;
         technicalName: string;
         method?: string | undefined;
-        sortOrder?: number | undefined;
         dose?: string | undefined;
         issueIndex?: number | undefined;
         issueId?: string | undefined;
         relatedIssueIndex?: number | undefined;
         relatedIssueId?: string | undefined;
+        sortOrder?: number | undefined;
     }[];
     sortOrder?: number | undefined;
     applicationDay?: number | undefined;
@@ -343,19 +343,19 @@ export declare const visitIssueInputSchema: z.ZodObject<{
                 answer?: string | undefined;
             }>, "many">;
         }, "strip", z.ZodTypeAny, {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         }, {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         }>>;
         customRecommendation: z.ZodOptional<z.ZodObject<{
             product: z.ZodString;
@@ -385,12 +385,12 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         rejectNote?: string | undefined;
         correctedDiagnosis?: string | undefined;
         evidenceRequest?: {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         } | undefined;
         customRecommendation?: {
             method: string;
@@ -410,12 +410,12 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         rejectNote?: string | undefined;
         correctedDiagnosis?: string | undefined;
         evidenceRequest?: {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         } | undefined;
         customRecommendation?: {
             method: string;
@@ -455,19 +455,11 @@ export declare const visitIssueInputSchema: z.ZodObject<{
     severity: "low" | "high" | "medium";
     issueName: string;
     status?: "open" | "monitoring" | "resolved" | undefined;
-    observation?: string | undefined;
-    recommendations?: {
-        text: string;
-        status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-        priority?: "high" | "normal" | "critical" | undefined;
-        reviewDate?: string | undefined;
-        recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-        reviewAfterDays?: number | undefined;
-    }[] | undefined;
     finalDiagnosis?: string | undefined;
     finalRecommendation?: string | undefined;
     reviewAfterDays?: number | undefined;
     issueMasterId?: string | undefined;
+    observation?: string | undefined;
     photos?: {
         mimeType: string;
         filename: string;
@@ -486,12 +478,12 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         rejectNote?: string | undefined;
         correctedDiagnosis?: string | undefined;
         evidenceRequest?: {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         } | undefined;
         customRecommendation?: {
             method: string;
@@ -501,24 +493,24 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         } | undefined;
         rejectFlowComplete?: boolean | undefined;
     } | undefined;
+    recommendations?: {
+        text: string;
+        status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+        priority?: "high" | "normal" | "critical" | undefined;
+        reviewDate?: string | undefined;
+        recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+        reviewAfterDays?: number | undefined;
+    }[] | undefined;
 }, {
     category: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
     severity: "low" | "high" | "medium";
     issueName: string;
     status?: "open" | "monitoring" | "resolved" | undefined;
-    observation?: string | undefined;
-    recommendations?: {
-        text: string;
-        status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-        priority?: "high" | "normal" | "critical" | undefined;
-        reviewDate?: string | undefined;
-        recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-        reviewAfterDays?: number | undefined;
-    }[] | undefined;
     finalDiagnosis?: string | undefined;
     finalRecommendation?: string | undefined;
     reviewAfterDays?: number | undefined;
     issueMasterId?: string | undefined;
+    observation?: string | undefined;
     photos?: {
         mimeType: string;
         filename: string;
@@ -537,12 +529,12 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         rejectNote?: string | undefined;
         correctedDiagnosis?: string | undefined;
         evidenceRequest?: {
+            photoTypes: string[];
             questions: {
                 text: string;
                 key: string;
                 answer?: string | undefined;
             }[];
-            photoTypes: string[];
         } | undefined;
         customRecommendation?: {
             method: string;
@@ -552,6 +544,14 @@ export declare const visitIssueInputSchema: z.ZodObject<{
         } | undefined;
         rejectFlowComplete?: boolean | undefined;
     } | undefined;
+    recommendations?: {
+        text: string;
+        status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+        priority?: "high" | "normal" | "critical" | undefined;
+        reviewDate?: string | undefined;
+        recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+        reviewAfterDays?: number | undefined;
+    }[] | undefined;
 }>;
 export declare const visitMeasurementInputSchema: z.ZodObject<{
     key: z.ZodString;
@@ -683,19 +683,19 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
                     answer?: string | undefined;
                 }>, "many">;
             }, "strip", z.ZodTypeAny, {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             }, {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             }>>;
             customRecommendation: z.ZodOptional<z.ZodObject<{
                 product: z.ZodString;
@@ -725,12 +725,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -750,12 +750,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -795,19 +795,11 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         severity: "low" | "high" | "medium";
         issueName: string;
         status?: "open" | "monitoring" | "resolved" | undefined;
-        observation?: string | undefined;
-        recommendations?: {
-            text: string;
-            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-            priority?: "high" | "normal" | "critical" | undefined;
-            reviewDate?: string | undefined;
-            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-            reviewAfterDays?: number | undefined;
-        }[] | undefined;
         finalDiagnosis?: string | undefined;
         finalRecommendation?: string | undefined;
         reviewAfterDays?: number | undefined;
         issueMasterId?: string | undefined;
+        observation?: string | undefined;
         photos?: {
             mimeType: string;
             filename: string;
@@ -826,12 +818,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -841,24 +833,24 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             } | undefined;
             rejectFlowComplete?: boolean | undefined;
         } | undefined;
+        recommendations?: {
+            text: string;
+            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+            priority?: "high" | "normal" | "critical" | undefined;
+            reviewDate?: string | undefined;
+            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+            reviewAfterDays?: number | undefined;
+        }[] | undefined;
     }, {
         category: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
         severity: "low" | "high" | "medium";
         issueName: string;
         status?: "open" | "monitoring" | "resolved" | undefined;
-        observation?: string | undefined;
-        recommendations?: {
-            text: string;
-            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-            priority?: "high" | "normal" | "critical" | undefined;
-            reviewDate?: string | undefined;
-            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-            reviewAfterDays?: number | undefined;
-        }[] | undefined;
         finalDiagnosis?: string | undefined;
         finalRecommendation?: string | undefined;
         reviewAfterDays?: number | undefined;
         issueMasterId?: string | undefined;
+        observation?: string | undefined;
         photos?: {
             mimeType: string;
             filename: string;
@@ -877,12 +869,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -892,6 +884,14 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             } | undefined;
             rejectFlowComplete?: boolean | undefined;
         } | undefined;
+        recommendations?: {
+            text: string;
+            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+            priority?: "high" | "normal" | "critical" | undefined;
+            reviewDate?: string | undefined;
+            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+            reviewAfterDays?: number | undefined;
+        }[] | undefined;
     }>, "many">;
     followUps: z.ZodOptional<z.ZodArray<z.ZodObject<{
         recommendationId: z.ZodString;
@@ -927,22 +927,22 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }, {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
         applicationType: string;
@@ -950,12 +950,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -965,15 +965,33 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
+    }>, "many">>;
+    recApproved: z.ZodOptional<z.ZodBoolean>;
+    compatibilityOverrideReason: z.ZodOptional<z.ZodString>;
+    compatibilityOverridePairs: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        productA: z.ZodString;
+        productB: z.ZodString;
+        status: z.ZodOptional<z.ZodString>;
+        compatible: z.ZodOptional<z.ZodNullable<z.ZodBoolean>>;
+    }, "strip", z.ZodTypeAny, {
+        productA: string;
+        productB: string;
+        status?: string | undefined;
+        compatible?: boolean | null | undefined;
+    }, {
+        productA: string;
+        productB: string;
+        status?: string | undefined;
+        compatible?: boolean | null | undefined;
     }>, "many">>;
     latitude: z.ZodOptional<z.ZodNumber>;
     longitude: z.ZodOptional<z.ZodNumber>;
@@ -997,19 +1015,11 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         severity: "low" | "high" | "medium";
         issueName: string;
         status?: "open" | "monitoring" | "resolved" | undefined;
-        observation?: string | undefined;
-        recommendations?: {
-            text: string;
-            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-            priority?: "high" | "normal" | "critical" | undefined;
-            reviewDate?: string | undefined;
-            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-            reviewAfterDays?: number | undefined;
-        }[] | undefined;
         finalDiagnosis?: string | undefined;
         finalRecommendation?: string | undefined;
         reviewAfterDays?: number | undefined;
         issueMasterId?: string | undefined;
+        observation?: string | undefined;
         photos?: {
             mimeType: string;
             filename: string;
@@ -1028,12 +1038,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -1043,6 +1053,14 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             } | undefined;
             rejectFlowComplete?: boolean | undefined;
         } | undefined;
+        recommendations?: {
+            text: string;
+            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+            priority?: "high" | "normal" | "critical" | undefined;
+            reviewDate?: string | undefined;
+            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+            reviewAfterDays?: number | undefined;
+        }[] | undefined;
     }[];
     farmerId: string;
     blockId: string;
@@ -1060,12 +1078,6 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         key: string;
         unit?: string | undefined;
     }[] | undefined;
-    followUps?: {
-        outcome: "improved" | "worsened" | "no_change" | "not_reviewed";
-        recommendationId: string;
-        followed: "yes" | "partially" | "no" | "not_applicable";
-        notes?: string | undefined;
-    }[] | undefined;
     visitedAt?: string | undefined;
     visitClassification?: "follow_up" | "first" | "rectification" | undefined;
     selectedRecommendationOptionId?: string | undefined;
@@ -1075,21 +1087,35 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         dataBase64: string;
         photoType?: string | undefined;
     }[] | undefined;
+    followUps?: {
+        outcome: "improved" | "worsened" | "no_change" | "not_reviewed";
+        recommendationId: string;
+        followed: "yes" | "partially" | "no" | "not_applicable";
+        notes?: string | undefined;
+    }[] | undefined;
     recommendationGroups?: {
         applicationType: string;
         materials: {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
+    }[] | undefined;
+    recApproved?: boolean | undefined;
+    compatibilityOverrideReason?: string | undefined;
+    compatibilityOverridePairs?: {
+        productA: string;
+        productB: string;
+        status?: string | undefined;
+        compatible?: boolean | null | undefined;
     }[] | undefined;
     sendVisitSummary?: boolean | undefined;
     whatsappMessages?: {
@@ -1103,19 +1129,11 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         severity: "low" | "high" | "medium";
         issueName: string;
         status?: "open" | "monitoring" | "resolved" | undefined;
-        observation?: string | undefined;
-        recommendations?: {
-            text: string;
-            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
-            priority?: "high" | "normal" | "critical" | undefined;
-            reviewDate?: string | undefined;
-            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
-            reviewAfterDays?: number | undefined;
-        }[] | undefined;
         finalDiagnosis?: string | undefined;
         finalRecommendation?: string | undefined;
         reviewAfterDays?: number | undefined;
         issueMasterId?: string | undefined;
+        observation?: string | undefined;
         photos?: {
             mimeType: string;
             filename: string;
@@ -1134,12 +1152,12 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             rejectNote?: string | undefined;
             correctedDiagnosis?: string | undefined;
             evidenceRequest?: {
+                photoTypes: string[];
                 questions: {
                     text: string;
                     key: string;
                     answer?: string | undefined;
                 }[];
-                photoTypes: string[];
             } | undefined;
             customRecommendation?: {
                 method: string;
@@ -1149,6 +1167,14 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
             } | undefined;
             rejectFlowComplete?: boolean | undefined;
         } | undefined;
+        recommendations?: {
+            text: string;
+            status?: "escalated" | "open" | "monitoring" | "completed" | undefined;
+            priority?: "high" | "normal" | "critical" | undefined;
+            reviewDate?: string | undefined;
+            recommendationType?: "irrigation" | "other" | "monitoring" | "disease_management" | "pest_management" | "nutrient_management" | "soil_amendment" | undefined;
+            reviewAfterDays?: number | undefined;
+        }[] | undefined;
     }[];
     farmerId: string;
     blockId: string;
@@ -1166,12 +1192,6 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         key: string;
         unit?: string | undefined;
     }[] | undefined;
-    followUps?: {
-        outcome: "improved" | "worsened" | "no_change" | "not_reviewed";
-        recommendationId: string;
-        followed: "yes" | "partially" | "no" | "not_applicable";
-        notes?: string | undefined;
-    }[] | undefined;
     visitedAt?: string | undefined;
     visitClassification?: "follow_up" | "first" | "rectification" | undefined;
     selectedRecommendationOptionId?: string | undefined;
@@ -1181,21 +1201,35 @@ export declare const structuredFieldVisitSchema: z.ZodObject<{
         dataBase64: string;
         photoType?: string | undefined;
     }[] | undefined;
+    followUps?: {
+        outcome: "improved" | "worsened" | "no_change" | "not_reviewed";
+        recommendationId: string;
+        followed: "yes" | "partially" | "no" | "not_applicable";
+        notes?: string | undefined;
+    }[] | undefined;
     recommendationGroups?: {
         applicationType: string;
         materials: {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
+    }[] | undefined;
+    recApproved?: boolean | undefined;
+    compatibilityOverrideReason?: string | undefined;
+    compatibilityOverridePairs?: {
+        productA: string;
+        productB: string;
+        status?: string | undefined;
+        compatible?: boolean | null | undefined;
     }[] | undefined;
     sendVisitSummary?: boolean | undefined;
     whatsappMessages?: {
@@ -1324,8 +1358,8 @@ export declare const visitAnalyzeRequestSchema: z.ZodObject<{
 }, "strip", z.ZodTypeAny, {
     farmerId: string;
     blockId: string;
-    issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
     issueName: string;
+    issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
     latitude?: number | undefined;
     longitude?: number | undefined;
     sessionId?: string | undefined;
@@ -1350,8 +1384,8 @@ export declare const visitAnalyzeRequestSchema: z.ZodObject<{
 }, {
     farmerId: string;
     blockId: string;
-    issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
     issueName: string;
+    issueCategory: "disease" | "pest" | "nutrient_deficiency" | "other" | "nutrient_toxicity" | "water_stress" | "environmental_stress" | "soil_problem" | "growth_issue" | "chemical_injury" | "mechanical_damage" | "weed";
     latitude?: number | undefined;
     longitude?: number | undefined;
     sessionId?: string | undefined;
@@ -1378,32 +1412,32 @@ export declare const visitAiAnswerSchema: z.ZodObject<{
     questionId: z.ZodString;
     answer: z.ZodString;
 }, "strip", z.ZodTypeAny, {
-    questionId: string;
     answer: string;
+    questionId: string;
 }, {
-    questionId: string;
     answer: string;
+    questionId: string;
 }>;
 export declare const visitAiAnswersBodySchema: z.ZodObject<{
     answers: z.ZodArray<z.ZodObject<{
         questionId: z.ZodString;
         answer: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        questionId: string;
         answer: string;
+        questionId: string;
     }, {
-        questionId: string;
         answer: string;
+        questionId: string;
     }>, "many">;
 }, "strip", z.ZodTypeAny, {
     answers: {
-        questionId: string;
         answer: string;
+        questionId: string;
     }[];
 }, {
     answers: {
-        questionId: string;
         answer: string;
+        questionId: string;
     }[];
 }>;
 export declare const visitAiQuestionDraftSchema: z.ZodObject<{
@@ -1483,19 +1517,19 @@ export declare const visitAiRejectBodySchema: z.ZodEffects<z.ZodObject<{
             answer: string;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     }, {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     }>>;
     customRecommendation: z.ZodOptional<z.ZodObject<{
         product: z.ZodString;
@@ -1518,12 +1552,12 @@ export declare const visitAiRejectBodySchema: z.ZodEffects<z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -1537,12 +1571,12 @@ export declare const visitAiRejectBodySchema: z.ZodEffects<z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -1556,12 +1590,12 @@ export declare const visitAiRejectBodySchema: z.ZodEffects<z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -1575,12 +1609,12 @@ export declare const visitAiRejectBodySchema: z.ZodEffects<z.ZodObject<{
     rejectNote?: string | undefined;
     correctedDiagnosis?: string | undefined;
     evidenceRequest?: {
+        photoTypes: string[];
         questions: {
             text: string;
             key: string;
             answer: string;
         }[];
-        photoTypes: string[];
     } | undefined;
     customRecommendation?: {
         method: string;
@@ -1717,22 +1751,22 @@ export declare const visitMonitoringPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }, {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
         applicationType: string;
@@ -1740,12 +1774,12 @@ export declare const visitMonitoringPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1755,12 +1789,12 @@ export declare const visitMonitoringPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1777,12 +1811,12 @@ export declare const visitMonitoringPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1799,12 +1833,12 @@ export declare const visitMonitoringPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1831,22 +1865,22 @@ export declare const visitWhatsappPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }, {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }>, "many">;
     }, "strip", z.ZodTypeAny, {
         applicationType: string;
@@ -1854,12 +1888,12 @@ export declare const visitWhatsappPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1869,12 +1903,12 @@ export declare const visitWhatsappPreviewSchema: z.ZodObject<{
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
@@ -1929,25 +1963,25 @@ export declare const visitWhatsappPreviewSchema: z.ZodObject<{
         } | undefined;
     }[];
     farmerId: string;
-    blockName?: string | undefined;
     reviewDate?: string | undefined;
-    monitoringInterval?: string | undefined;
     recommendationGroups?: {
         applicationType: string;
         materials: {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
     }[] | undefined;
+    blockName?: string | undefined;
+    monitoringInterval?: string | undefined;
 }, {
     issues: {
         issueName: string;
@@ -1960,25 +1994,25 @@ export declare const visitWhatsappPreviewSchema: z.ZodObject<{
         } | undefined;
     }[];
     farmerId: string;
-    blockName?: string | undefined;
     reviewDate?: string | undefined;
-    monitoringInterval?: string | undefined;
     recommendationGroups?: {
         applicationType: string;
         materials: {
             category: string;
             technicalName: string;
             method?: string | undefined;
-            sortOrder?: number | undefined;
             dose?: string | undefined;
             issueIndex?: number | undefined;
             issueId?: string | undefined;
             relatedIssueIndex?: number | undefined;
             relatedIssueId?: string | undefined;
+            sortOrder?: number | undefined;
         }[];
         sortOrder?: number | undefined;
         applicationDay?: number | undefined;
     }[] | undefined;
+    blockName?: string | undefined;
+    monitoringInterval?: string | undefined;
 }>;
 export type VisitAiAnswersBody = z.infer<typeof visitAiAnswersBodySchema>;
 export type VisitAiRejectBody = z.infer<typeof visitAiRejectBodySchema>;

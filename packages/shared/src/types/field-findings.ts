@@ -263,6 +263,9 @@ export type StructuredFieldVisitPayload = {
       sortOrder?: number;
     }>;
   }>;
+  recApproved?: boolean;
+  compatibilityOverrideReason?: string;
+  compatibilityOverridePairs?: Array<{ productA: string; productB: string; status: string }>;
 };
 
 export type VisitAiContextPack = {

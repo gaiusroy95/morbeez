@@ -79,4 +79,31 @@ Farmer **+916282873542** — three ginger blocks with soil samples (see [GINGER-
 
 Apply migrations before intelligence layers:
 
+```bash
+supabase db push
+```
+
+## Staff console screen map (enterprise)
+
+| Area | Route |
+|------|-------|
+| Visit command center | `/agronomist/visit-command` |
+| Farmer 360 | `/farmers/:farmerId/360` |
+| Plot intelligence | `/plot-intelligence/:farmerId/:blockId` |
+| Weakness dashboard | `/ai-ops/weakness` |
+| Retraining ops | `/ai-ops/retraining` |
+| Protocol builder | `/intelligence?tab=protocols` |
+| Executive cockpit | `/executive` |
+| Escalation command | `/escalations` |
+| Similar cases | `/copilot/similar-cases` |
+| Knowledge explorer | `/copilot/knowledge` |
+
+Full inventory: [MORBEEZ-SCREEN-MAP.md](../MORBEEZ-SCREEN-MAP.md).
+
+## Explainability (Phase 1)
+
+- `POST /visits/explain-diagnosis` — dual farmer/agronomist text from orchestrator context
+- Root cause chain rendered on `finalDiagnosis` step and case review
+- Triage `level` + `route` badge on visit wizard header
+
 - `20260724000000_ai_os_intelligence_layers.sql`

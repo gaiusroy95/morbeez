@@ -234,6 +234,31 @@ export default function AgronomistBlockDetailScreen() {
                     </Text>
                   )
                 )}
+                {(plotIntel as { yieldHistory?: Array<{ cropType: string; yieldKgPerAcre: number | null }> })
+                  .yieldHistory?.length ? (
+                  <Text style={styles.plotIntelLine}>
+                    Yield:{' '}
+                    {(
+                      plotIntel as { yieldHistory: Array<{ cropType: string; yieldKgPerAcre: number | null }> }
+                    ).yieldHistory
+                      .slice(0, 4)
+                      .map((y) => `${y.yieldKgPerAcre ?? '—'}kg`)
+                      .join(' · ')}
+                  </Text>
+                ) : null}
+                {(plotIntel as { soilTrend?: { nitrogen?: number[] } }).soilTrend?.nitrogen?.length ? (
+                  <Text style={styles.plotIntelLine}>
+                    N trend:{' '}
+                    {(plotIntel as { soilTrend?: { nitrogen?: number[] } }).soilTrend!.nitrogen!.join(' → ')}
+                  </Text>
+                ) : null}
+                {(plotIntel as { waterReadings?: Array<{ key: string; value: string }> }).waterReadings
+                  ?.slice(0, 3)
+                  .map((w, i) => (
+                    <Text key={i} style={styles.plotIntelLine}>
+                      {w.key}: {w.value}
+                    </Text>
+                  ))}
               </>
             ) : (
               <Text style={styles.emptyText}>No plot memory snapshot yet.</Text>

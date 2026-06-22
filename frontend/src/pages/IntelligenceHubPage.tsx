@@ -11,19 +11,51 @@ import { Alert, HubTabs, PageShell, ReadOnlyBanner, StaticSelect } from '../comp
 const base = '/morbeez-staff/api/v1/os/intelligence';
 const CROPS = ['ginger', 'banana', 'cardamom', 'pepper', 'tomato', 'chilli', 'brinjal', 'all'];
 
+type ProtocolMaterial = {
+  technicalName: string;
+  doseQuantity: string;
+  doseUnit: string;
+  doseBasis: string;
+  applicationMode: string;
+};
+
+type ProtocolStage = {
+  day: number;
+  applicationType: string;
+  materials: ProtocolMaterial[];
+};
+
+const DEFAULT_MATERIAL: ProtocolMaterial = {
+  technicalName: '',
+  doseQuantity: '',
+  doseUnit: 'KG',
+  doseBasis: 'per_200_ltr_water',
+  applicationMode: 'foliar_spray',
+};
+
+const DEFAULT_STAGE: ProtocolStage = {
+  day: 0,
+  applicationType: 'foliar_spray',
+  materials: [{ ...DEFAULT_MATERIAL }],
+};
+
 type Tab =
   | 'pincode'
   | 'weather'
   | 'cultivation'
   | 'templates'
   | 'spray'
-  | 'rotation';
+  | 'rotation'
+  | 'protocols'
+  | 'experiments';
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'pincode', label: 'Pincode' },
   { id: 'weather', label: 'Weather rules' },
   { id: 'cultivation', label: 'Cultivation tasks' },
   { id: 'templates', label: 'Rec. templates' },
+  { id: 'protocols', label: 'Protocol builder' },
+  { id: 'experiments', label: 'A/B experiments' },
   { id: 'spray', label: 'Spray compatibility' },
   { id: 'rotation', label: 'Resistance rotation' },
 ];
@@ -71,6 +103,22 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
   const [templates, setTemplates] = useState<Array<Record<string, unknown>>>([]);
   const [sprayRules, setSprayRules] = useState<Array<Record<string, unknown>>>([]);
   const [rotation, setRotation] = useState<Array<Record<string, unknown>>>([]);
+  const [protocols, setProtocols] = useState<Array<Record<string, unknown>>>([]);
+  const [experiments, setExperiments] = useState<Array<Record<string, unknown>>>([]);
+  const [protocolDraft, setProtocolDraft] = useState({
+    cropType: 'ginger',
+    issueLabel: '',
+    label: '',
+    stages: [{ ...DEFAULT_STAGE, materials: [{ ...DEFAULT_MATERIAL }] }] as ProtocolStage[],
+  });
+  const [experimentDraft, setExperimentDraft] = useState({
+    experimentKey: '',
+    label: '',
+    hypothesis: '',
+    variants: 'control,treatment',
+  });
+  const [protocolSaving, setProtocolSaving] = useState(false);
+  const [editingProtocolId, setEditingProtocolId] = useState<string | null>(null);
 
   function filterRows(rows: Array<Record<string, unknown>>) {
     if (!search.trim()) return rows;
@@ -119,6 +167,16 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
           `${base}/recommendation-templates?status=all${cropQ}`
         );
         setTemplates(d.templates ?? []);
+      } else if (tab === 'protocols') {
+        const d = await api<{ ok: boolean; protocols: Array<Record<string, unknown>> }>(
+          '/morbeez-staff/api/v1/os/protocols'
+        );
+        setProtocols(d.protocols ?? []);
+      } else if (tab === 'experiments') {
+        const d = await api<{ ok: boolean; experiments: Array<Record<string, unknown>> }>(
+          '/morbeez-staff/api/v1/os/experiments'
+        );
+        setExperiments(d.experiments ?? []);
       } else if (tab === 'spray') {
         const d = await api<{ ok: boolean; rules: Array<Record<string, unknown>> }>(
           `${base}/spray-compatibility`
@@ -276,6 +334,300 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
           }}
           onDelete={remove}
         />
+      ) : null}
+
+      {tab === 'protocols' ? (
+        <div>
+          <p className="muted mb-2">Multi-day protocol definitions (D0/D3/D7/D14)</p>
+          {canWrite ? (
+            <div className="mb-4 p-3 border rounded">
+              <h4 className="font-semibold mb-2">Create protocol</h4>
+              <div className="grid gap-2 max-w-xl">
+                <Field label="Crop">
+                  <StaticSelect
+                    value={protocolDraft.cropType}
+                    onChange={(e) => setProtocolDraft((d) => ({ ...d, cropType: e.target.value }))}
+                  >
+                    {CROPS.filter((c) => c !== 'all').map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </StaticSelect>
+                </Field>
+                <Field label="Issue label">
+                  <input
+                    className={inputClass}
+                    value={protocolDraft.issueLabel}
+                    onChange={(e) => setProtocolDraft((d) => ({ ...d, issueLabel: e.target.value }))}
+                    placeholder="e.g. waterlogging"
+                  />
+                </Field>
+                <Field label="Protocol name">
+                  <input
+                    className={inputClass}
+                    value={protocolDraft.label}
+                    onChange={(e) => setProtocolDraft((d) => ({ ...d, label: e.target.value }))}
+                    placeholder="Ginger S3 waterlogging protocol"
+                  />
+                </Field>
+                <Field label="Stages">
+                  {protocolDraft.stages.map((stage, si) => (
+                    <div key={si} className="border rounded p-2 mb-2">
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          className={inputClass}
+                          type="number"
+                          value={stage.day}
+                          onChange={(e) =>
+                            setProtocolDraft((d) => {
+                              const stages = [...d.stages];
+                              stages[si] = { ...stages[si]!, day: Number(e.target.value) };
+                              return { ...d, stages };
+                            })
+                          }
+                          placeholder="Day"
+                        />
+                        <input
+                          className={inputClass}
+                          value={stage.applicationType}
+                          onChange={(e) =>
+                            setProtocolDraft((d) => {
+                              const stages = [...d.stages];
+                              stages[si] = { ...stages[si]!, applicationType: e.target.value };
+                              return { ...d, stages };
+                            })
+                          }
+                          placeholder="Application type"
+                        />
+                      </div>
+                      {stage.materials.map((mat, mi) => (
+                        <input
+                          key={mi}
+                          className={`${inputClass} mb-1`}
+                          value={mat.technicalName}
+                          onChange={(e) =>
+                            setProtocolDraft((d) => {
+                              const stages = [...d.stages];
+                              const materials = [...stages[si]!.materials];
+                              materials[mi] = { ...materials[mi]!, technicalName: e.target.value };
+                              stages[si] = { ...stages[si]!, materials };
+                              return { ...d, stages };
+                            })
+                          }
+                          placeholder="Product technical name"
+                        />
+                      ))}
+                      <button
+                        type="button"
+                        className="text-sm underline"
+                        onClick={() =>
+                          setProtocolDraft((d) => {
+                            const stages = [...d.stages];
+                            stages[si] = {
+                              ...stages[si]!,
+                              materials: [...stages[si]!.materials, { ...DEFAULT_MATERIAL }],
+                            };
+                            return { ...d, stages };
+                          })
+                        }
+                      >
+                        + Material
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="text-sm underline"
+                    onClick={() =>
+                      setProtocolDraft((d) => ({
+                        ...d,
+                        stages: [...d.stages, { ...DEFAULT_STAGE, materials: [{ ...DEFAULT_MATERIAL }] }],
+                      }))
+                    }
+                  >
+                    + Stage
+                  </button>
+                </Field>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={protocolSaving}
+                  onClick={() => {
+                    void (async () => {
+                      setProtocolSaving(true);
+                      setError('');
+                      try {
+                        const body = {
+                          cropType: protocolDraft.cropType,
+                          issueLabel: protocolDraft.issueLabel,
+                          label: protocolDraft.label,
+                          stages: protocolDraft.stages,
+                        };
+                        if (editingProtocolId) {
+                          await api(`/morbeez-staff/api/v1/os/protocols/${editingProtocolId}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({
+                              label: body.label,
+                              issueLabel: body.issueLabel,
+                              stages: body.stages,
+                            }),
+                          });
+                          setEditingProtocolId(null);
+                        } else {
+                          await api('/morbeez-staff/api/v1/os/protocols', {
+                            method: 'POST',
+                            body: JSON.stringify(body),
+                          });
+                        }
+                        bump();
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Could not save protocol');
+                      } finally {
+                        setProtocolSaving(false);
+                      }
+                    })();
+                  }}
+                >
+                  {protocolSaving ? 'Saving…' : editingProtocolId ? 'Update draft' : 'Create draft'}
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <ul>
+            {protocols.map((p) => (
+              <li key={String(p.id)} className="mb-2">
+                {String(p.label)} — {String(p.crop_type)} / {String(p.issue_label)} v{String(p.version)} (
+                {String(p.status)})
+                {canWrite && String(p.status) === 'draft' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="ml-2 text-sm underline"
+                      onClick={() => {
+                        setEditingProtocolId(String(p.id));
+                        setProtocolDraft({
+                          cropType: String(p.crop_type ?? 'ginger'),
+                          issueLabel: String(p.issue_label ?? ''),
+                          label: String(p.label ?? ''),
+                          stages: (Array.isArray(p.stages) ? p.stages : [{ ...DEFAULT_STAGE }]) as ProtocolStage[],
+                        });
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="ml-2 text-sm underline"
+                      onClick={() => {
+                        void api(`/morbeez-staff/api/v1/os/protocols/${String(p.id)}/publish`, { method: 'POST' }).then(
+                          () => bump()
+                        );
+                      }}
+                    >
+                      Publish
+                    </button>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {!protocols.length ? <p className="muted">No protocols yet.</p> : null}
+        </div>
+      ) : null}
+
+      {tab === 'experiments' ? (
+        <div>
+          {canWrite ? (
+            <div className="mb-4 p-3 border rounded max-w-xl">
+              <h4 className="font-semibold mb-2">Create experiment</h4>
+              <Field label="Key">
+                <input
+                  className={inputClass}
+                  value={experimentDraft.experimentKey}
+                  onChange={(e) => setExperimentDraft((d) => ({ ...d, experimentKey: e.target.value }))}
+                />
+              </Field>
+              <Field label="Label">
+                <input
+                  className={inputClass}
+                  value={experimentDraft.label}
+                  onChange={(e) => setExperimentDraft((d) => ({ ...d, label: e.target.value }))}
+                />
+              </Field>
+              <Field label="Hypothesis">
+                <input
+                  className={inputClass}
+                  value={experimentDraft.hypothesis}
+                  onChange={(e) => setExperimentDraft((d) => ({ ...d, hypothesis: e.target.value }))}
+                />
+              </Field>
+              <Field label="Variants (comma-separated)">
+                <input
+                  className={inputClass}
+                  value={experimentDraft.variants}
+                  onChange={(e) => setExperimentDraft((d) => ({ ...d, variants: e.target.value }))}
+                />
+              </Field>
+              <button
+                type="button"
+                className="btn btn-primary mt-2"
+                onClick={() => {
+                  void api('/morbeez-staff/api/v1/os/experiments', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      experimentKey: experimentDraft.experimentKey.trim(),
+                      label: experimentDraft.label.trim(),
+                      hypothesis: experimentDraft.hypothesis.trim() || undefined,
+                      variants: experimentDraft.variants
+                        .split(',')
+                        .map((v) => v.trim())
+                        .filter(Boolean)
+                        .map((key) => ({ key })),
+                    }),
+                  }).then(() => bump());
+                }}
+              >
+                Create draft
+              </button>
+            </div>
+          ) : null}
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Label</th>
+                <th>Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {experiments.map((e) => (
+                <tr key={String(e.id)}>
+                  <td>{String(e.experiment_key)}</td>
+                  <td>{String(e.label)}</td>
+                  <td>{String(e.status)}</td>
+                  <td>
+                    {canWrite && String(e.status) === 'draft' ? (
+                      <button
+                        type="button"
+                        className="text-sm underline"
+                        onClick={() => {
+                          void api(`/morbeez-staff/api/v1/os/experiments/${String(e.id)}`, {
+                            method: 'PATCH',
+                            body: JSON.stringify({ status: 'running' }),
+                          }).then(() => bump());
+                        }}
+                      >
+                        Start
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : null}
 
       {tab === 'spray' ? (

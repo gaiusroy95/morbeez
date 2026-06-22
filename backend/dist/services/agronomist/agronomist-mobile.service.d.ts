@@ -18,6 +18,8 @@ export declare const agronomistMobileService: {
     }>;
     listMobileFarmers(agentEmail: string, opts: {
         q?: string;
+        crop?: string;
+        village?: string;
         filter?: string;
         lat?: number;
         lng?: number;

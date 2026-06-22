@@ -309,6 +309,14 @@ export const agronomistMobileService = {
         if (opts.lat != null && opts.lng != null) {
             rows.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
         }
+        if (opts.crop?.trim()) {
+            const crop = opts.crop.trim().toLowerCase();
+            rows = rows.filter((r) => String(r.primaryCrop ?? '').toLowerCase().includes(crop));
+        }
+        if (opts.village?.trim()) {
+            const village = opts.village.trim().toLowerCase();
+            rows = rows.filter((r) => String(r.village ?? '').toLowerCase().includes(village));
+        }
         return rows.slice(0, limit);
     },
     async getWorkspaceSummary(farmerId) {

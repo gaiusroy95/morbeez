@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { agronomistClient } from '@morbeez/shared';
+import { api } from '../../lib/api';
 import { Alert, Btn, Loading } from '../../components/ui';
 import { paths, toPath } from '../../lib/routes';
 import '../../styles/visit-wizard.css';
@@ -52,6 +53,28 @@ export function VisitDetailPage() {
         <Link to={toPath(paths.agronomist)}>
           <Btn label="Back to operations" variant="secondary" />
         </Link>
+        {findingId ? (
+          <Btn
+            label="Download report"
+            variant="secondary"
+            onClick={() => {
+              void api<{ ok: boolean; report: { farmerText: string; agronomistText: string } }>(
+                `/morbeez-staff/api/v1/os/field/visits/${findingId}/report`
+              ).then((r) => {
+                const blob = new Blob(
+                  [`FARMER VERSION\n\n${r.report.farmerText}\n\n---\n\nAGRONOMIST VERSION\n\n${r.report.agronomistText}`],
+                  { type: 'text/plain' }
+                );
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `visit-report-${findingId}.txt`;
+                a.click();
+                URL.revokeObjectURL(url);
+              });
+            }}
+          />
+        ) : null}
       </div>
 
       <section className="visit-panel">
@@ -97,6 +120,35 @@ export function VisitDetailPage() {
           ))}
         </ul>
       </section>
+
+      {findingId ? (
+        <section className="visit-panel">
+          <h3>Reports</h3>
+          <Btn
+            variant="secondary"
+            onClick={() => {
+              void api<{ ok: boolean; report: { pdfBase64?: string; farmerHtml?: string } }>(
+                `/morbeez-staff/api/v1/os/field/visits/${findingId}/report`
+              ).then((r) => {
+                if (r.report.pdfBase64) {
+                  const bin = atob(r.report.pdfBase64);
+                  const bytes = new Uint8Array(bin.length);
+                  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                  const blob = new Blob([bytes], { type: 'application/pdf' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `visit-${findingId}.pdf`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }
+              });
+            }}
+          >
+            Download PDF report
+          </Btn>
+        </section>
+      ) : null}
     </div>
   );
 }

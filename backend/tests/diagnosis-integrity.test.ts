@@ -61,4 +61,9 @@ describe('diagnosis integrity', () => {
   it('isDiagnosisInferenceAvailable reflects env', () => {
     assert.equal(typeof isDiagnosisInferenceAvailable(), 'boolean');
   });
+
+  it('crop-doctor module exposes unified orchestrator for WhatsApp convergence', async () => {
+    const { diagnosisOrchestratorService } = await import('../src/services/ai/crop-doctor.service.js');
+    assert.equal(typeof diagnosisOrchestratorService.analyzeVisit, 'function');
+  });
 });

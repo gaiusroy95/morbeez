@@ -598,6 +598,7 @@ export default function VisitScreen() {
           <>
             <VisitRecommendationStep issues={issues} onChange={setIssues} />
             <VisitRecPlanningStep
+              cropType={cropType}
               issues={issues}
               groups={recommendationGroups}
               onChange={setRecommendationGroups}

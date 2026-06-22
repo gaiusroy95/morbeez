@@ -645,3 +645,6 @@ export const cropDoctorService = {
     });
   },
 };
+
+/** Shared diagnosis integrity surface for visit + WhatsApp convergence (Phase 6). */
+export { diagnosisOrchestratorService } from '../diagnosis/diagnosis-orchestrator.service.js';

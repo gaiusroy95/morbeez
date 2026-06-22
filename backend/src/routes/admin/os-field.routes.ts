@@ -6,6 +6,7 @@ import { fieldVisitService } from '../../services/admin/field-visit.service.js';
 import { fieldFindingsMastersService } from '../../services/admin/field-findings-masters.service.js';
 import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-up-questions.service.js';
 import { diagnosisOrchestratorService } from '../../services/diagnosis/diagnosis-orchestrator.service.js';
+import { diagnosisExplainService } from '../../services/diagnosis/diagnosis-explain.service.js';
 import { visitAiOrchestratorService } from '../../services/core/visit-ai-orchestrator.service.js';
 import { visitCaseClosureService } from '../../services/core/visit-case-closure.service.js';
 import { trainingExportService } from '../../services/core/training-export.service.js';
@@ -346,6 +347,36 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const body = visitAnalyzeVisitRequestSchema.parse(request.body);
     const result = await diagnosisOrchestratorService.analyzeVisit(body, admin.email);
     return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/explain-diagnosis`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        issueName: z.string().min(1),
+        finalDiagnosis: z.string().optional(),
+        observation: z.string().optional(),
+        severity: z.string().optional(),
+        rootCause: z
+          .object({
+            symptoms: z.array(z.string()).optional(),
+            immediateCause: z.string().optional(),
+            rootCause: z.string().optional(),
+          })
+          .optional(),
+        hypotheses: z
+          .array(
+            z.object({
+              label: z.string(),
+              confidence: z.number(),
+              rationale: z.string().optional(),
+            })
+          )
+          .optional(),
+      })
+      .parse(request.body);
+    const explanation = diagnosisExplainService.explain(body);
+    return reply.send({ ok: true, ...explanation });
   });
 
   app.post(`${api}/visits/monitoring-plan/preview`, async (request, reply) => {

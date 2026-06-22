@@ -51,6 +51,14 @@ export function VisitMonitoringPlanStep({
     <div className="vw-stack">
       {error ? <Alert tone="error">{error}</Alert> : null}
       <p className="vw-hint">Severity-based and material-based field monitoring schedule.</p>
+      <div className="vw-recovery-milestones mb-3">
+        <strong>MAIOS recovery checkpoints</strong>
+        <ul className="vw-hint" style={{ marginTop: 8 }}>
+          <li>Day 3 — early recovery check (maios_recovery_d3)</li>
+          <li>Day 7 — mid recovery validation (maios_recovery_d7)</li>
+          <li>Day 14 — outcome confirmation (maios_recovery_d14)</li>
+        </ul>
+      </div>
       {monitoringPlan.map((item) => (
         <div key={item.localId} className="vw-issue-card">
           <div className="vw-issue-title">{item.issueLabel}</div>

@@ -8,6 +8,7 @@ import {
   type FarmerWorkspaceDashboard,
 } from '@morbeez/shared';
 import { api } from '../../lib/api';
+import { CommunicationTimeline } from '../intelligence/CommunicationTimeline';
 import { Alert, Btn, HubTabs, Loading } from '../ui';
 import { BlocksTab } from '../telecaller/BlocksTab';
 import { FieldFindingsTab } from '../telecaller/FieldFindingsTab';
@@ -72,6 +73,7 @@ export function AgronomistFarmerWorkspacePanel({
   const [interactions, setInteractions] = useState<Array<Record<string, unknown>>>([]);
   const [orders, setOrders] = useState<Array<Record<string, unknown>>>([]);
   const [followUps, setFollowUps] = useState<Array<Record<string, unknown>>>([]);
+  const [commTimeline, setCommTimeline] = useState<Array<{ at: string; kind: string; summary: string }>>([]);
   const [dataVersion, setDataVersion] = useState(0);
   const [modal, setModal] = useState<CrmModalType>(null);
   const [selectedFinding, setSelectedFinding] = useState<FieldFindingListRow | null>(null);
@@ -87,7 +89,7 @@ export function AgronomistFarmerWorkspacePanel({
     setLoading(true);
     setError('');
     try {
-      const [dash, blockRows, noteRows, recRows, timeline, fu, inter, orderRows] = await Promise.all([
+      const [dash, blockRows, noteRows, recRows, timeline, fu, inter, orderRows, farmer360] = await Promise.all([
         agronomistClient.getWorkspaceDashboard(farmerId),
         agronomistClient.getFarmerBlocks(farmerId),
         agronomistClient.listFarmerNotes(farmerId).catch(() => []),
@@ -96,6 +98,9 @@ export function AgronomistFarmerWorkspacePanel({
         agronomistClient.getFarmerFollowUps(farmerId).catch(() => ({ tasks: [], recommendationFollowUps: [], callbacks: [] })),
         agronomistClient.listFarmerInteractions(farmerId, 20).catch(() => []),
         agronomistClient.listFarmerOrders(farmerId).catch(() => []),
+        api<{ ok: boolean; profile: { timeline: Array<{ at: string; kind: string; summary: string }> } }>(
+          `/morbeez-staff/api/v1/os/intelligence/farmers/${farmerId}/360`
+        ).catch(() => ({ ok: false, profile: { timeline: [] } })),
       ]);
       setDashboard(dash);
       setAgroBlocks(blockRows);
@@ -110,6 +115,7 @@ export function AgronomistFarmerWorkspacePanel({
         ...(fu.callbacks ?? []),
       ];
       setFollowUps(tasks);
+      setCommTimeline(farmer360.profile?.timeline ?? []);
 
       if (leadId) {
         const data = await api<{ ok: boolean; blocks: BlockOption[] }>(
@@ -204,9 +210,12 @@ export function AgronomistFarmerWorkspacePanel({
             <div>{agroBlocks.length}</div>
           </div>
           <Link to={toPath(paths.agronomistMap)}>Open farmer map</Link>
+          <Link to={toPath(paths.farmer360.replace(':farmerId', farmerId))}>Farmer 360</Link>
           <button type="button" className="link-btn" onClick={() => setTab('fieldFindings')}>
             View field findings
           </button>
+          <h4 className="mt-4">Communication hub</h4>
+          <CommunicationTimeline entries={commTimeline} />
         </div>
       ) : null}
 

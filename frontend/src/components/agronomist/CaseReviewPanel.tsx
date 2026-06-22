@@ -1052,6 +1052,7 @@ export function CaseReviewPanel({ canWrite }: { canWrite: boolean }) {
                       try {
                         const r = await agronomistClient.copilotAsk({
                           question: copilotQuestion.trim(),
+                          aiCaseId: selectedId ?? undefined,
                           cropType: detail.block?.cropType ?? undefined,
                           issueName: detail.ai.probableIssue ?? undefined,
                         });

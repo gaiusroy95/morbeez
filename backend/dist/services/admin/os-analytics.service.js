@@ -511,5 +511,49 @@ export const osAnalyticsService = {
             failureBreakdown: Object.entries(failureBreakdown).map(([type, count]) => ({ type, count })),
         };
     },
+    async getMaiosTrends(days = 30) {
+        const since = daysAgoIso(days);
+        const fullLabels = [];
+        const labels = [];
+        const buckets = new Map();
+        for (let i = days - 1; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const key = d.toISOString().slice(0, 10);
+            fullLabels.push(key);
+            labels.push(key.slice(5));
+            buckets.set(key, { d3: 0, d7: 0, d14: 0 });
+        }
+        const { data: jobs } = await supabase
+            .from('advisory_automation_jobs')
+            .select('job_type, status, completed_at')
+            .gte('created_at', since)
+            .in('job_type', ['maios_recovery_d3', 'maios_recovery_d7', 'maios_recovery_d14'])
+            .eq('status', 'completed')
+            .limit(2000);
+        for (const job of jobs ?? []) {
+            const at = job.completed_at ? String(job.completed_at).slice(0, 10) : null;
+            if (!at || !buckets.has(at))
+                continue;
+            const b = buckets.get(at);
+            const jt = String(job.job_type);
+            if (jt.endsWith('_d3'))
+                b.d3++;
+            else if (jt.endsWith('_d7'))
+                b.d7++;
+            else if (jt.endsWith('_d14'))
+                b.d14++;
+        }
+        const d3Responses = [];
+        const d7Responses = [];
+        const d14Responses = [];
+        for (const key of fullLabels) {
+            const b = buckets.get(key) ?? { d3: 0, d7: 0, d14: 0 };
+            d3Responses.push(b.d3);
+            d7Responses.push(b.d7);
+            d14Responses.push(b.d14);
+        }
+        return { labels, d3Responses, d7Responses, d14Responses };
+    },
 };
 //# sourceMappingURL=os-analytics.service.js.map

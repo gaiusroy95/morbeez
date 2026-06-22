@@ -68,5 +68,11 @@ export async function osAnalyticsRoutes(app) {
         const maios = await osAnalyticsService.getMaiosKpis(days);
         return reply.send({ ok: true, maios });
     });
+    app.get(`${api}/maios/trends`, async (request, reply) => {
+        await assertModuleAccess(request, 'analytics', 'read');
+        const days = parseDays(request.query);
+        const trends = await osAnalyticsService.getMaiosTrends(days);
+        return reply.send({ ok: true, trends });
+    });
 }
 //# sourceMappingURL=os-analytics.routes.js.map

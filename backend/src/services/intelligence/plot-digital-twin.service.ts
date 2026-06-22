@@ -1,10 +1,19 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { blockService } from '../core/block.service.js';
+import { yieldHistoryService } from './yield-history.service.js';
+import { sensorIngestService } from './sensor-ingest.service.js';
+import { satelliteImageryService } from './satellite-imagery.service.js';
+
+import { regionalThreatRadarService } from './regional-threat-radar.service.js';
 
 export type PlotIntelligenceTrends = {
   recurringIssues: Array<{ label: string; count: number; lastAt?: string }>;
   soilTrend?: { nitrogen?: number[]; potassium?: number[]; ph?: number[] };
+  waterReadings?: Array<{ key: string; value: string; at: string }>;
+  yieldHistory?: Array<{ cropType: string; yieldKgPerAcre: number | null; harvestDate: string | null }>;
+  satelliteOverlays?: Array<{ ndvi: number | null; capturedAt: string; provider: string }>;
+  regionalRiskFlags?: string[];
   outcomeHistory: Array<{ issue: string; outcome: string | null; at: string }>;
   visitCount12m: number;
 };
@@ -65,10 +74,86 @@ export const plotDigitalTwinService = {
       at: String(r.created_at).slice(0, 10),
     }));
 
+    const { data: soilReports } = await supabase
+      .from('crm_soil_reports')
+      .select('metrics, reported_at')
+      .eq('block_id', blockId)
+      .order('reported_at', { ascending: true })
+      .limit(8);
+
+    const soilTrend: PlotIntelligenceTrends['soilTrend'] = {
+      nitrogen: [],
+      potassium: [],
+      ph: [],
+    };
+    for (const row of soilReports ?? []) {
+      const m = row.metrics as Record<string, { value?: number | string }> | null;
+      if (!m) continue;
+      const n = Number(m.nitrogen?.value ?? m.N?.value);
+      const k = Number(m.potassium?.value ?? m.K?.value);
+      const ph = Number(m.ph?.value ?? m.pH?.value);
+      if (!Number.isNaN(n)) soilTrend.nitrogen?.push(n);
+      if (!Number.isNaN(k)) soilTrend.potassium?.push(k);
+      if (!Number.isNaN(ph)) soilTrend.ph?.push(ph);
+    }
+
+    const { data: blockFindings } = await supabase
+      .from('crm_field_findings')
+      .select('id')
+      .eq('block_id', blockId)
+      .limit(20);
+    const findingIds = (blockFindings ?? []).map((f) => String(f.id));
+
+    let waterReadings: PlotIntelligenceTrends['waterReadings'] = [];
+    if (findingIds.length) {
+      const { data: waterMeasures } = await supabase
+        .from('visit_measurements')
+        .select('measurement_key, value, created_at')
+        .in('field_finding_id', findingIds)
+        .in('measurement_key', ['water_ph', 'water_ec', 'soil_ph', 'soil_ec'])
+        .order('created_at', { ascending: false })
+        .limit(20);
+      waterReadings = (waterMeasures ?? []).map((w) => ({
+        key: String(w.measurement_key),
+        value: String(w.value),
+        at: String(w.created_at).slice(0, 10),
+      }));
+    }
+
+    const sensorRows = await sensorIngestService.listForBlock(blockId, 10).catch(() => []);
+    for (const s of sensorRows) {
+      waterReadings.push({
+        key: `sensor:${String(s.sensor_type)}`,
+        value: `${s.value}${s.unit ? ` ${s.unit}` : ''}`,
+        at: String(s.recorded_at).slice(0, 10),
+      });
+    }
+
+    const satelliteRows = await satelliteImageryService.listForBlock(blockId, 5).catch(() => []);
+    const satelliteOverlays = satelliteRows.map((row) => ({
+      ndvi: row.ndvi_mean != null ? Number(row.ndvi_mean) : null,
+      capturedAt: String(row.capture_date ?? row.created_at).slice(0, 10),
+      provider: String((row.metadata as { provider?: string })?.provider ?? 'stub'),
+    }));
+
+    const cropType = block?.crop_type ? String(block.crop_type) : 'ginger';
+    const regionalRiskFlags = await regionalThreatRadarService
+      .riskFlagsForFarmer(farmerId, cropType)
+      .catch(() => []);
+
     const trends: PlotIntelligenceTrends = {
       recurringIssues,
       outcomeHistory,
       visitCount12m: findings?.length ?? 0,
+      soilTrend,
+      waterReadings,
+      yieldHistory: (await yieldHistoryService.listForBlock(farmerId, blockId).catch(() => [])).map((y) => ({
+        cropType: y.cropType,
+        yieldKgPerAcre: y.yieldKgPerAcre,
+        harvestDate: y.harvestDate,
+      })),
+      satelliteOverlays,
+      regionalRiskFlags,
     };
 
     await supabase.from('plot_intelligence_snapshots').insert({

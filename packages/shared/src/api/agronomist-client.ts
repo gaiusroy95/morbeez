@@ -73,6 +73,8 @@ export const agronomistClient = {
   async listFarmers(opts?: {
     q?: string;
     filter?: string;
+    crop?: string;
+    village?: string;
     lat?: number;
     lng?: number;
     limit?: number;
@@ -80,6 +82,8 @@ export const agronomistClient = {
     const params = new URLSearchParams();
     if (opts?.q) params.set('q', opts.q);
     if (opts?.filter) params.set('filter', opts.filter);
+    if (opts?.crop) params.set('crop', opts.crop);
+    if (opts?.village) params.set('village', opts.village);
     if (opts?.lat != null) params.set('lat', String(opts.lat));
     if (opts?.lng != null) params.set('lng', String(opts.lng));
     if (opts?.limit) params.set('limit', String(opts.limit));
@@ -533,6 +537,68 @@ export const agronomistClient = {
       { method: 'POST', body: JSON.stringify(body) }
     );
     return { answer: r.answer, citations: r.citations ?? [] };
+  },
+
+  async explainDiagnosis(body: {
+    issueName: string;
+    finalDiagnosis?: string;
+    observation?: string;
+    severity?: string;
+    rootCause?: { symptoms?: string[]; immediateCause?: string; rootCause?: string };
+    hypotheses?: Array<{ label: string; confidence: number; rationale?: string }>;
+  }) {
+    const r = await staffApi<{ ok: boolean; farmerText: string; agronomistText: string }>(
+      `${FIELD}/visits/explain-diagnosis`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return { farmerText: r.farmerText, agronomistText: r.agronomistText };
+  },
+
+  async updateVisitPriority(findingId: string, priority: 'normal' | 'urgent' | 'emergency') {
+    const r = await staffApi<{ ok: boolean; id: string; priority: string }>(
+      `${AGRO}/field-findings/${encodeURIComponent(findingId)}/priority`,
+      { method: 'PATCH', body: JSON.stringify({ priority }) }
+    );
+    return { id: r.id, priority: r.priority };
+  },
+
+  async getVisitCommandCenter() {
+    const r = await staffApi<{
+      ok: boolean;
+      center: {
+        priorityQueue: Array<{ id: string; farmerName: string; priority: string }>;
+        summary: {
+          todaysVisits: number;
+          openIssues: number;
+          priorityCount: number;
+          openEscalations: number;
+        };
+      };
+    }>(`${AGRO}/operations/visit-command-center`);
+    return r.center;
+  },
+
+  async whyDiagnosis(aiCaseId: string) {
+    const r = await staffApi<{ ok: boolean; answer: string; citations: string[] }>(
+      `${AGRO}/copilot/why-diagnosis`,
+      { method: 'POST', body: JSON.stringify({ aiCaseId }) }
+    );
+    return { answer: r.answer, citations: r.citations ?? [] };
+  },
+
+  async getFarmer360(farmerId: string) {
+    const r = await staffApi<{ ok: boolean; profile: Record<string, unknown> }>(
+      `${STAFF_API_V1}/os/intelligence/farmers/${encodeURIComponent(farmerId)}/360`
+    );
+    return r.profile;
+  },
+
+  async listProtocols(cropType?: string) {
+    const qs = cropType ? `?crop=${encodeURIComponent(cropType)}` : '';
+    const r = await staffApi<{ ok: boolean; protocols: Array<Record<string, unknown>> }>(
+      `${STAFF_API_V1}/os/protocols${qs}`
+    );
+    return r.protocols ?? [];
   },
 
   async analyzeVisit(body: {

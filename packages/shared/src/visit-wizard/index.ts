@@ -142,6 +142,7 @@ import type {
 export type { DoseBasis, DoseUnit, MaterialApplicationMode, RecommendationGroupDraft, RecommendationGroupMaterialDraft } from './recommendation-material';
 
 export { buildPriorRecommendationFollowUps } from './prior-recommendation-followups';
+export { protocolToRecommendationGroups } from './protocol-load';
 
 export type {
   PriorRecommendationFollowUpDraft,

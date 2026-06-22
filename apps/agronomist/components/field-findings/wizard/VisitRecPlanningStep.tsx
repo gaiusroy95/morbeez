@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
+  agronomistClient,
   defaultRecommendationMaterial,
   DOSE_BASIS_OPTIONS,
   DOSE_UNIT_OPTIONS,
   MATERIAL_APPLICATION_MODE_OPTIONS,
+  protocolToRecommendationGroups,
   tokens,
   type RecommendationGroupDraft,
 } from '@morbeez/shared';
@@ -15,6 +17,7 @@ const APPLICATION_DAYS = [0, 7, 14, 21] as const;
 const APPLICATION_TYPES = ['foliar_spray', 'soil_drench', 'granular', 'seed_treatment', 'other'] as const;
 
 type Props = {
+  cropType: string;
   issues: IssueDraft[];
   groups: RecommendationGroupDraft[];
   onChange: (groups: RecommendationGroupDraft[]) => void;
@@ -28,7 +31,8 @@ function toSelectOptions<T extends string>(items: Array<{ value: T; label: strin
   return items.map((item) => ({ key: item.value, value: item.value, label: item.label }));
 }
 
-export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
+export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Props) {
+  const [protocolMsg, setProtocolMsg] = useState('');
   const issueOptions = useMemo(
     () => issues.map((i) => ({ id: i.localId, label: i.issueName })),
     [issues]
@@ -80,11 +84,39 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
     });
   }
 
+  async function loadProtocol() {
+    const issueLabel = issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? '';
+    const issueLocalId = issues[0]?.localId ?? '';
+    if (!issueLocalId) {
+      setProtocolMsg('Add an issue before loading a protocol.');
+      return;
+    }
+    try {
+      const protocols = await agronomistClient.listProtocols(cropType);
+      const match =
+        protocols.find(
+          (p) =>
+            String(p.status) === 'published' &&
+            String(p.issue_label ?? '').toLowerCase() === issueLabel.toLowerCase()
+        ) ?? protocols.find((p) => String(p.status) === 'published');
+      if (!match) {
+        setProtocolMsg('No published protocol found.');
+        return;
+      }
+      onChange(protocolToRecommendationGroups(match, issueLocalId));
+      setProtocolMsg(`Loaded: ${String(match.label)}`);
+    } catch (e) {
+      setProtocolMsg(e instanceof Error ? e.message : 'Load failed');
+    }
+  }
+
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
         Plan recommendation groups with application day and materials (name, dose, qty unit, application mode).
       </Text>
+      <Btn label="Load published protocol" variant="secondary" onPress={() => void loadProtocol()} />
+      {protocolMsg ? <Text style={styles.intro}>{protocolMsg}</Text> : null}
       {groups.map((group, gi) => (
         <Panel key={group.localId} title={`Group ${gi + 1}`}>
           <Text style={styles.fieldLabel}>Application type</Text>

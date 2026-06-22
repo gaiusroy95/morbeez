@@ -10,6 +10,7 @@ export declare const recommendationOptimizerService: {
     buildOptions(input: {
         issueLabel: string;
         cropType: string;
+        district?: string;
         farmerSegment?: "premium" | "roi_focused" | "low_budget";
         baseProtocols?: Array<{
             label: string;

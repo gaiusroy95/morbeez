@@ -372,6 +372,24 @@ export const fieldVisitService = {
       );
     }
 
+    if (input.recApproved && input.compatibilityOverrideReason?.trim()) {
+      const materials = (input.recommendationGroups ?? []).flatMap((g) =>
+        g.materials.map((m) => ({ technicalName: m.technicalName }))
+      );
+      const { compatibilityOverrideService } = await import('../core/compatibility-override.service.js');
+      void compatibilityOverrideService
+        .logApproval({
+          fieldFindingId: findingId,
+          farmerId: input.farmerId,
+          blockId: input.blockId,
+          approvedBy: agentEmail,
+          overrideReason: input.compatibilityOverrideReason.trim(),
+          incompatiblePairs: input.compatibilityOverridePairs,
+          materials,
+        })
+        .catch(() => {});
+    }
+
     for (let i = 0; i < input.issues.length; i++) {
       const issue = input.issues[i]!;
       const visitIssueId = createdIssues.find((row) => row.index === i)?.id;

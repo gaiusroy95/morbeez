@@ -19,6 +19,7 @@ import { confidenceLifecycleService } from '../../services/core/confidence-lifec
 import { outcomeReviewService } from '../../services/core/outcome-review.service.js';
 import { trainingExportService } from '../../services/core/training-export.service.js';
 import { weatherCorrelationService } from '../../services/core/weather-correlation.service.js';
+import { visitCommandCenterService } from '../../services/agronomist/visit-command-center.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
 import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
@@ -516,6 +517,20 @@ export async function osAgronomistRoutes(app) {
         reply.header('Content-Disposition', `attachment; filename="${exported.filename}"`);
         return reply.send(exported.body);
     });
+    app.get(`${api}/operations/visit-command-center`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'agronomist', 'read');
+        const center = await visitCommandCenterService.getCommandCenter(admin.email);
+        return reply.send({ ok: true, center });
+    });
+    app.patch(`${api}/field-findings/:findingId/priority`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'write');
+        const { findingId } = request.params;
+        const body = z
+            .object({ priority: z.enum(['normal', 'urgent', 'emergency']) })
+            .parse(request.body);
+        const row = await visitCommandCenterService.updatePriority(findingId, body.priority);
+        return reply.send({ ok: true, ...row });
+    });
     app.get(`${api}/mobile/dashboard`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'read');
         const dashboard = await agronomistMobileService.getMobileDashboard(admin.email);
@@ -581,6 +596,8 @@ export async function osAgronomistRoutes(app) {
         const q = z
             .object({
             q: z.string().optional(),
+            crop: z.string().optional(),
+            village: z.string().optional(),
             filter: z.enum(['assigned', 'recently_visited', 'follow_up_due', 'escalation_open', 'nearby']).optional(),
             lat: z.coerce.number().optional(),
             lng: z.coerce.number().optional(),
@@ -923,6 +940,12 @@ export async function osAgronomistRoutes(app) {
         })
             .parse(request.body);
         const result = await agronomistCopilotService.ask(body);
+        return reply.send({ ok: true, ...result });
+    });
+    app.post(`${api}/copilot/why-diagnosis`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const body = z.object({ aiCaseId: z.string().uuid() }).parse(request.body);
+        const result = await agronomistCopilotService.whyDiagnosis(body.aiCaseId);
         return reply.send({ ok: true, ...result });
     });
     app.get(`${api}/outcome-intelligence`, async (request, reply) => {

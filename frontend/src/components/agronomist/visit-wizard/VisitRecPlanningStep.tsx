@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  agronomistClient,
   defaultRecommendationMaterial,
   DOSE_BASIS_OPTIONS,
   DOSE_UNIT_OPTIONS,
   MATERIAL_APPLICATION_MODE_OPTIONS,
+  protocolToRecommendationGroups,
   type RecommendationGroupDraft,
 } from '@morbeez/shared';
 import { Btn, Input, Panel, StaticSelect } from '../../ui';
@@ -13,6 +15,7 @@ const APPLICATION_DAYS = [0, 7, 14, 21] as const;
 const APPLICATION_TYPES = ['foliar_spray', 'soil_drench', 'granular', 'seed_treatment', 'other'] as const;
 
 type Props = {
+  cropType: string;
   issues: VisitIssueDraft[];
   groups: RecommendationGroupDraft[];
   onChange: (groups: RecommendationGroupDraft[]) => void;
@@ -22,7 +25,9 @@ function newLocalId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
+export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Props) {
+  const [protocolBusy, setProtocolBusy] = useState(false);
+  const [protocolMsg, setProtocolMsg] = useState('');
   const issueOptions = useMemo(
     () => issues.map((i) => ({ id: i.localId, label: i.issueName })),
     [issues]
@@ -67,11 +72,51 @@ export function VisitRecPlanningStep({ issues, groups, onChange }: Props) {
     });
   }
 
+  async function loadProtocol() {
+    const issueLabel = issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? '';
+    const issueLocalId = issues[0]?.localId ?? '';
+    if (!issueLocalId) {
+      setProtocolMsg('Add an issue before loading a protocol.');
+      return;
+    }
+    setProtocolBusy(true);
+    setProtocolMsg('');
+    try {
+      const protocols = await agronomistClient.listProtocols(cropType);
+      const match =
+        protocols.find(
+          (p) =>
+            String(p.status) === 'published' &&
+            String(p.issue_label ?? '').toLowerCase() === issueLabel.toLowerCase()
+        ) ?? protocols.find((p) => String(p.status) === 'published');
+      if (!match) {
+        setProtocolMsg('No published protocol found for this crop/issue.');
+        return;
+      }
+      onChange(protocolToRecommendationGroups(match, issueLocalId));
+      setProtocolMsg(`Loaded protocol: ${String(match.label)}`);
+    } catch (e) {
+      setProtocolMsg(e instanceof Error ? e.message : 'Could not load protocol');
+    } finally {
+      setProtocolBusy(false);
+    }
+  }
+
   return (
     <div className="vw-stack">
       <p className="vw-hint">
         Plan recommendation groups with application day and materials (name, dose, qty unit, application mode).
       </p>
+      <div className="flex gap-2 items-center flex-wrap">
+        <Btn
+          variant="secondary"
+          size="sm"
+          label={protocolBusy ? 'Loading…' : 'Load published protocol'}
+          onClick={() => void loadProtocol()}
+          disabled={protocolBusy}
+        />
+        {protocolMsg ? <span className="vw-hint">{protocolMsg}</span> : null}
+      </div>
       {groups.map((group, gi) => (
         <Panel key={group.localId} title={`Group ${gi + 1}`}>
           <span className="vw-field-label">Application type</span>

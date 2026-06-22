@@ -18,5 +18,6 @@ export declare const visitCaseClosureService: {
         issuesUpdated: number;
         learningConsent: boolean;
     }>;
+    recordApplicationHistory(fieldFindingId: string, farmerId: string, blockId: string | null): Promise<void>;
 };
 //# sourceMappingURL=visit-case-closure.service.d.ts.map

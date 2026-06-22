@@ -18,5 +18,28 @@ export declare const outcomeIntelligenceService: {
     updateVariantOutcome(recommendationRecordId: string, outcome: string, recoveryDays?: number): Promise<void>;
     aggregateByIssue(issueLabel?: string, limit?: number): Promise<OutcomeProtocolStats[]>;
     rankVerifiedCasesForRetrieval(issueLabel: string): Promise<string[]>;
+    getProtocolFunnelStats(days?: number): Promise<{
+        d3: {
+            scheduled: number;
+            completed: number;
+            failed: number;
+        };
+        d7: {
+            scheduled: number;
+            completed: number;
+            failed: number;
+        };
+        d14: {
+            scheduled: number;
+            completed: number;
+            failed: number;
+        };
+    }>;
+    compareVariantsByExperiment(experimentId: string): Promise<Array<{
+        variantKey: string;
+        sampleCount: number;
+        recoveryPct: number;
+        avgCostInr: number | null;
+    }>>;
 };
 //# sourceMappingURL=outcome-intelligence.service.d.ts.map

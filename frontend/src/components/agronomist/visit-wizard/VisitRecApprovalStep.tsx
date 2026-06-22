@@ -6,7 +6,11 @@ type Props = {
   groups: RecommendationGroupDraft[];
   approved: boolean;
   overrideReason?: string;
-  onApprovedChange: (approved: boolean, overrideReason?: string) => void;
+  onApprovedChange: (
+    approved: boolean,
+    overrideReason?: string,
+    overridePairs?: Array<{ productA: string; productB: string; status: string }>
+  ) => void;
   checkCompatibility?: typeof agronomistClient.checkRecommendationCompatibility;
 };
 
@@ -138,7 +142,15 @@ export function VisitRecApprovalStep({
       <div className="vw-stack" style={{ gap: 8 }}>
         <Btn
           variant="primary"
-          onClick={() => onApprovedChange(true, hasIncompatible ? overrideReason : undefined)}
+          onClick={() =>
+            onApprovedChange(
+              true,
+              hasIncompatible ? overrideReason : undefined,
+              hasIncompatible
+                ? pairs.map((p) => ({ productA: p.productA, productB: p.productB, status: p.status }))
+                : undefined
+            )
+          }
           disabled={hasIncompatible && !overrideReason.trim()}
         >
           {approved ? 'Approved ✓' : 'Approve recommendations'}

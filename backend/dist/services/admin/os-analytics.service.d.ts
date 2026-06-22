@@ -218,5 +218,11 @@ export declare const osAnalyticsService: {
             count: number;
         }[];
     }>;
+    getMaiosTrends(days?: number): Promise<{
+        labels: string[];
+        d3Responses: number[];
+        d7Responses: number[];
+        d14Responses: number[];
+    }>;
 };
 //# sourceMappingURL=os-analytics.service.d.ts.map

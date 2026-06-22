@@ -1,4 +1,5 @@
 import { env } from '../../config/env.js';
+import { logger } from '../../lib/logger.js';
 import type { VisitAnalyzeVisitRequest } from '../../domain/ai-training/validators.js';
 import type { DiagnosisEnvelope, DiagnosisSource } from '../../domain/diagnosis/types.js';
 import type { MaiosTriageLevel } from '../../domain/case/types.js';
@@ -50,6 +51,15 @@ export const diagnosisOrchestratorService = {
   },
 
   async triagePreview(input: VisitAnalyzeVisitRequest): Promise<TriagePreviewResult> {
+    logger.info(
+      {
+        event: 'diagnosis.triage_preview.start',
+        farmerId: input.farmerId,
+        blockId: input.blockId,
+        photoCount: input.analyzePhotos?.length ?? 0,
+      },
+      'Diagnosis triage preview started'
+    );
     const context = await visitAiContextService.buildVisitAiContext(input);
     const analyzePhotos = input.analyzePhotos?.map((p) => ({
       dataBase64: p.dataBase64,
@@ -68,16 +78,37 @@ export const diagnosisOrchestratorService = {
       probableIssue: imageSignal?.label,
     });
     const level = triage.level;
-    return {
+    const result = {
       level,
       reason: triage.reason,
       route: triageRoute(level),
       mandatoryFollowUp: level !== 'L1',
       blockAutoApprove: level === 'L4',
     };
+    logger.info(
+      {
+        event: 'diagnosis.triage_preview.complete',
+        farmerId: input.farmerId,
+        blockId: input.blockId,
+        level: result.level,
+        route: result.route,
+        fusedConfidence,
+      },
+      'Diagnosis triage preview complete'
+    );
+    return result;
   },
 
   async analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string) {
+    logger.info(
+      {
+        event: 'diagnosis.analyze_visit.start',
+        farmerId: input.farmerId,
+        blockId: input.blockId,
+        agronomistEmail,
+      },
+      'Diagnosis analyze visit started'
+    );
     if (!this.isCapable()) {
       return {
         issues: [],
@@ -120,12 +151,24 @@ export const diagnosisOrchestratorService = {
       return { ...issue, diagnosisSource: envelope.source, diagnosisEnvelope: envelope, triage };
     });
 
-    return {
+    const output = {
       ...result,
       issues,
       triage,
       diagnosisDegraded: !env.OPENAI_API_KEY?.trim(),
     };
+    logger.info(
+      {
+        event: 'diagnosis.analyze_visit.complete',
+        farmerId: input.farmerId,
+        blockId: input.blockId,
+        issueCount: issues.length,
+        triageLevel: triage.level,
+        diagnosisDegraded: output.diagnosisDegraded,
+      },
+      'Diagnosis analyze visit complete'
+    );
+    return output;
   },
 
   resolveSourceFromImage(

@@ -12,7 +12,8 @@ type Tab =
   | 'recommendations'
   | 'ai_accuracy'
   | 'module_precision'
-  | 'maios';
+  | 'maios'
+  | 'compatibility';
 
 type Summary = {
   periodDays: number;
@@ -93,6 +94,7 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'ai_accuracy', label: 'AI Accuracy' },
   { id: 'module_precision', label: 'Morbeez precision' },
   { id: 'maios', label: 'MAIOS v12' },
+  { id: 'compatibility', label: 'Compatibility' },
 ];
 
 type AiTrends = {
@@ -147,6 +149,17 @@ export function AnalyticsHubPage() {
     failureBreakdown: Array<{ type: string; count: number }>;
   } | null>(null);
   const [maiosLoading, setMaiosLoading] = useState(false);
+  const [maiosTrends, setMaiosTrends] = useState<{
+    labels: string[];
+    d3Responses: number[];
+    d7Responses: number[];
+    d14Responses: number[];
+  } | null>(null);
+  const [compatAgg, setCompatAgg] = useState<{
+    totalOverrides: number;
+    unknownPairRate: number;
+    byPair: Array<{ productA: string; productB: string; count: number }>;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -188,10 +201,28 @@ export function AnalyticsHubPage() {
   useEffect(() => {
     if (tab !== 'maios') return;
     setMaiosLoading(true);
-    api<{ ok: boolean; maios: typeof maiosKpis }>(`${base}/maios?days=${days}`)
-      .then((d) => setMaiosKpis(d.maios))
-      .catch(() => setMaiosKpis(null))
+    void Promise.all([
+      api<{ ok: boolean; maios: typeof maiosKpis }>(`${base}/maios?days=${days}`),
+      api<{ ok: boolean; trends: NonNullable<typeof maiosTrends> }>(`${base}/maios/trends?days=${days}`),
+    ])
+      .then(([k, t]) => {
+        setMaiosKpis(k.maios);
+        setMaiosTrends(t.trends);
+      })
+      .catch(() => {
+        setMaiosKpis(null);
+        setMaiosTrends(null);
+      })
       .finally(() => setMaiosLoading(false));
+  }, [tab, days]);
+
+  useEffect(() => {
+    if (tab !== 'compatibility') return;
+    void api<{ ok: boolean; aggregates: NonNullable<typeof compatAgg> }>(
+      `/morbeez-staff/api/v1/os/analytics/compatibility-overrides?days=${days}`
+    )
+      .then((d) => setCompatAgg(d.aggregates))
+      .catch(() => setCompatAgg(null));
   }, [tab, days]);
 
   async function drillDistrict(district: string) {
@@ -620,10 +651,49 @@ export function AnalyticsHubPage() {
                       }))}
                     />
                   ) : null}
+                  {maiosTrends ? (
+                    <Panel title="Recovery response trend (D3 / D7 / D14)">
+                      <MiniBarChart labels={maiosTrends.labels} values={maiosTrends.d14Responses} />
+                      <p className="text-xs text-slate-500 mt-2">Daily D14 recovery responses</p>
+                    </Panel>
+                  ) : null}
                 </>
               ) : (
                 <Panel title="MAIOS v12 KPIs">
                   <p className="text-sm text-slate-500">No MAIOS cases in this period yet.</p>
+                </Panel>
+              )}
+            </div>
+          ) : null}
+
+          {tab === 'compatibility' ? (
+            <div className="space-y-6">
+              {compatAgg ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <KpiCard label="Total overrides" value={String(compatAgg.totalOverrides)} />
+                    <KpiCard label="Unknown pair rate" value={`${compatAgg.unknownPairRate}%`} />
+                    <KpiCard label="Tracked pairs" value={String(compatAgg.byPair.length)} />
+                  </div>
+                  <StatusTable
+                    title="Top incompatible pairs (overridden)"
+                    rows={compatAgg.byPair.map((p) => ({
+                      status: `${p.productA} + ${p.productB}`,
+                      count: p.count,
+                    }))}
+                  />
+                  {compatAgg.byPair.length ? (
+                    <Panel title="Override frequency">
+                      <MiniBarChart
+                        labels={compatAgg.byPair.slice(0, 8).map((p) => p.productA.slice(0, 8))}
+                        values={compatAgg.byPair.slice(0, 8).map((p) => p.count)}
+                      />
+                    </Panel>
+                  ) : null}
+                </>
+              ) : (
+                <Panel title="Compatibility overrides">
+                  <p className="text-sm text-slate-500">No override data in this period.</p>
                 </Panel>
               )}
             </div>

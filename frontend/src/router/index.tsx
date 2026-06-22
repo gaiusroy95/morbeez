@@ -26,6 +26,19 @@ import { OutcomeIntelligencePage } from '../pages/agronomist/OutcomeIntelligence
 import { RegionalThreatRadarPage } from '../pages/RegionalThreatRadarPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
 import { AgronomistOperationsPage } from '../pages/AgronomistOperationsPage';
+import { VisitCommandCenterPage } from '../pages/agronomist/VisitCommandCenterPage';
+import { AgronomistFarmersPage } from '../pages/agronomist/AgronomistFarmersPage';
+import { Farmer360Page } from '../pages/Farmer360Page';
+import { CommunicationHubPage } from '../pages/CommunicationHubPage';
+import { PlotIntelligencePage } from '../pages/PlotIntelligencePage';
+import { WeaknessDashboardPage } from '../pages/ai-ops/WeaknessDashboardPage';
+import { RetrainingOpsPage } from '../pages/ai-ops/RetrainingOpsPage';
+import { ResistanceIntelligencePage } from '../pages/ResistanceIntelligencePage';
+import { ExecutiveCockpitPage } from '../pages/ExecutiveCockpitPage';
+import { EscalationCommandCenterPage } from '../pages/EscalationCommandCenterPage';
+import { EconomicDashboardPage } from '../pages/EconomicDashboardPage';
+import { SimilarCasesExplorerPage } from '../pages/copilot/SimilarCasesExplorerPage';
+import { KnowledgeExplorerPage } from '../pages/copilot/KnowledgeExplorerPage';
 import { VisitWizardPage } from '../pages/agronomist/VisitWizardPage';
 import { VisitSuccessPage } from '../pages/agronomist/VisitSuccessPage';
 import { VisitDetailPage } from '../pages/agronomist/VisitDetailPage';
@@ -108,6 +121,11 @@ function AgronomistRoute() {
 function AgronomistAiReviewRoute() {
   const { can } = useAuth();
   return <AgronomistHubPage canWrite={can('agronomist', 'write')} />;
+}
+
+function VisitCommandCenterRoute() {
+  const { can } = useAuth();
+  return <VisitCommandCenterPage canWrite={can('agronomist', 'write')} />;
 }
 
 function VisitWizardRoute() {
@@ -306,6 +324,118 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="agronomist">
                   <AgronomistRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.executiveCockpit,
+              element: (
+                <ProtectedPage module="analytics">
+                  <ExecutiveCockpitPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.escalationCommand,
+              element: (
+                <ProtectedPage module="telecaller_crm">
+                  <EscalationCommandCenterPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.economicDashboard,
+              element: (
+                <ProtectedPage module="analytics">
+                  <EconomicDashboardPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.weaknessDashboard,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <WeaknessDashboardPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.retrainingOps,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <RetrainingOpsPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.resistanceDashboard,
+              element: (
+                <ProtectedPage module="intelligence">
+                  <ResistanceIntelligencePage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.similarCasesExplorer,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <SimilarCasesExplorerPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.knowledgeExplorer,
+              element: (
+                <ProtectedPage module="intelligence">
+                  <KnowledgeExplorerPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.farmer360,
+              element: (
+                <ProtectedPage module="intelligence">
+                  <Farmer360Page />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.communicationHub,
+              element: (
+                <ProtectedPage module="intelligence">
+                  <CommunicationHubPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.communicationHubFarmer,
+              element: (
+                <ProtectedPage module="intelligence">
+                  <CommunicationHubPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.plotIntelligence,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <PlotIntelligencePage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistFarmers,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <AgronomistFarmersPage />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.agronomistVisitCommand,
+              element: (
+                <ProtectedPage module="agronomist">
+                  <VisitCommandCenterRoute />
                 </ProtectedPage>
               ),
             },

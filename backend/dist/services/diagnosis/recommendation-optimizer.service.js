@@ -1,16 +1,26 @@
 import { economicGateService } from '../case/economic-gate.service.js';
 import { outcomeIntelligenceService } from '../intelligence/outcome-intelligence.service.js';
+import { regionalLearningService } from '../regional-learning/regional-learning.service.js';
 export const recommendationOptimizerService = {
     async buildOptions(input) {
         const stats = await outcomeIntelligenceService.aggregateByIssue(input.issueLabel, 10);
         const recoveryByProtocol = new Map(stats.map((s) => [s.protocolLabel.toLowerCase(), s.recoveryPct]));
-        const defaults = input.baseProtocols?.length
+        let defaults = input.baseProtocols?.length
             ? input.baseProtocols
             : [
                 { label: 'Standard protocol', costInr: 4200 },
                 { label: 'Balanced protocol', costInr: 2800 },
                 { label: 'Economy protocol', costInr: 1400 },
             ];
+        if (input.district?.trim()) {
+            const ranked = await regionalLearningService.rankTemplates(input.cropType, input.district, input.issueLabel);
+            if (ranked.length) {
+                defaults = ranked.slice(0, 3).map((r, i) => ({
+                    label: r.protocolKey,
+                    costInr: [4200, 2800, 1400][i] ?? 2000,
+                }));
+            }
+        }
         const segment = input.farmerSegment ?? 'roi_focused';
         return defaults.map((p, i) => {
             const recovery = recoveryByProtocol.get(p.label.toLowerCase()) ??

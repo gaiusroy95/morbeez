@@ -38,6 +38,8 @@ export default function FarmersScreen() {
   const router = useRouter();
   const { locale } = useLocale();
   const [query, setQuery] = useState('');
+  const [cropFilter, setCropFilter] = useState('');
+  const [villageFilter, setVillageFilter] = useState('');
   const [filter, setFilter] = useState<FilterId>('all');
   const [farmers, setFarmers] = useState<AgronomistFarmerSearchRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +56,8 @@ export default function FarmersScreen() {
     try {
       const rows = await agronomistClient.listFarmers({
         q: query.trim() || undefined,
+        crop: cropFilter.trim() || undefined,
+        village: villageFilter.trim() || undefined,
         filter: filter === 'all' ? undefined : filter,
         limit: 50,
       });
@@ -64,7 +68,7 @@ export default function FarmersScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [query, filter, locale]);
+  }, [query, cropFilter, villageFilter, filter, locale]);
 
   useEffect(() => {
     void load();
@@ -98,6 +102,22 @@ export default function FarmersScreen() {
               onChangeText={setQuery}
               onSubmitEditing={() => void load()}
               returnKeyType="search"
+            />
+            <TextInput
+              style={styles.search}
+              placeholder="Crop filter (e.g. ginger)"
+              placeholderTextColor={tokens.textMuted}
+              value={cropFilter}
+              onChangeText={setCropFilter}
+              onSubmitEditing={() => void load()}
+            />
+            <TextInput
+              style={styles.search}
+              placeholder="Village filter"
+              placeholderTextColor={tokens.textMuted}
+              value={villageFilter}
+              onChangeText={setVillageFilter}
+              onSubmitEditing={() => void load()}
             />
             <View style={styles.chips}>
               {filters.map((f) => (

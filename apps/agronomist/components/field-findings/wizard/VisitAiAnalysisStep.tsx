@@ -13,6 +13,7 @@ import {
   type VisitAiHypothesis,
 } from '@morbeez/shared';
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
+import { VisitCopilotPanel } from '@/components/VisitCopilotPanel';
 import type { IssueDraft } from '../IssueCard';
 import type { VisitPhotoDraft } from './types';
 import { ensureVisitPhotoBase64 } from '@/lib/prefillVisitPhotos';
@@ -239,6 +240,13 @@ export function VisitAiAnalysisStep({
       <Pressable onPress={() => void runAnalysis()}>
         <Text style={styles.retry}>Retry analysis</Text>
       </Pressable>
+      <VisitCopilotPanel
+        farmerId={farmerId}
+        blockId={blockId}
+        cropType={cropType}
+        issueName={issues[0]?.finalDiagnosis ?? issues[0]?.issueName}
+        aiCaseId={issues[0]?.aiCaseId}
+      />
     </View>
   );
 }

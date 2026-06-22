@@ -32,6 +32,16 @@ export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
             <span className="vw-row-label">Category</span>
             <span className="vw-row-value">{issue.category.replace(/_/g, ' ')}</span>
           </div>
+          {issue.rootCause ? (
+            <div className="vw-root-cause-chain" style={{ marginTop: 12 }}>
+              <span className="vw-field-label">Root cause chain</span>
+              <div className="vw-hint" style={{ color: '#0f172a' }}>
+                {(issue.rootCause.symptoms ?? []).join(', ')}
+                {issue.rootCause.immediateCause ? ` → ${issue.rootCause.immediateCause}` : ''}
+                {issue.rootCause.rootCause ? ` → ${issue.rootCause.rootCause}` : ''}
+              </div>
+            </div>
+          ) : null}
           <Field label="Final diagnosis">
             <textarea
               className={textareaClass}

@@ -17,6 +17,8 @@ import { RecommendationApprovalsWorkspace } from '../components/approvals/Recomm
 import '../styles/approvals-workspace.css';
 import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIntelligenceBar';
 import { OutcomeIntelligencePage } from './agronomist/OutcomeIntelligencePage';
+import { WeaknessDashboardPage } from './ai-ops/WeaknessDashboardPage';
+import { RetrainingOpsPage } from './ai-ops/RetrainingOpsPage';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
@@ -26,6 +28,8 @@ type AgronomistHubTab =
   | 'outcome_review'
   | 'outcome_intelligence'
   | 'training_export'
+  | 'weakness'
+  | 'retraining'
   | 'case_library'
   | 'queue'
   | 'approvals'
@@ -37,6 +41,8 @@ const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'outcome_review', label: 'Outcome review' },
   { id: 'outcome_intelligence', label: 'Outcome intelligence' },
   { id: 'training_export', label: 'Training export' },
+  { id: 'weakness', label: 'Weakness' },
+  { id: 'retraining', label: 'Retraining' },
   { id: 'case_library', label: 'Case library' },
   { id: 'queue', label: 'Field findings' },
   { id: 'farmer_feedback', label: 'Farmer feedback' },
@@ -283,6 +289,8 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
       {tab === 'outcome_review' ? <OutcomeReviewPanel canWrite={canWrite} /> : null}
       {tab === 'outcome_intelligence' ? <OutcomeIntelligencePage /> : null}
       {tab === 'training_export' ? <TrainingExportPanel canWrite={canWrite} /> : null}
+      {tab === 'weakness' ? <WeaknessDashboardPage /> : null}
+      {tab === 'retraining' ? <RetrainingOpsPage /> : null}
       {tab === 'case_library' ? <CaseLibraryPanel canWrite={canWrite} /> : null}
 
       {tab === 'queue' && !loading ? (

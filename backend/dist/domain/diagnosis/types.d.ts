@@ -23,4 +23,9 @@ export type DiagnosisEnvelope = {
 };
 export declare const INSUFFICIENT_EVIDENCE_LABEL = "Insufficient evidence for AI diagnosis";
 export declare function isValidDiagnosisSource(source: DiagnosisSource): boolean;
+export type VisitAiRootCause = {
+    symptoms?: string[];
+    immediateCause?: string;
+    rootCause?: string;
+};
 //# sourceMappingURL=types.d.ts.map

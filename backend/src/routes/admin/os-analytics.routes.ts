@@ -84,4 +84,11 @@ export async function osAnalyticsRoutes(app: FastifyInstance): Promise<void> {
     const maios = await osAnalyticsService.getMaiosKpis(days);
     return reply.send({ ok: true, maios });
   });
+
+  app.get(`${api}/maios/trends`, async (request, reply) => {
+    await assertModuleAccess(request, 'analytics', 'read');
+    const days = parseDays(request.query as { days?: string });
+    const trends = await osAnalyticsService.getMaiosTrends(days);
+    return reply.send({ ok: true, trends });
+  });
 }

@@ -18,10 +18,6 @@ export declare const diagnosisOrchestratorService: {
     };
     triagePreview(input: VisitAnalyzeVisitRequest): Promise<TriagePreviewResult>;
     analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string): Promise<{
-        issues: never[];
-        diagnosisDegraded: boolean;
-        envelope: DiagnosisEnvelope;
-    } | {
         issues: ({
             diagnosisSource: DiagnosisSource;
             diagnosisEnvelope: DiagnosisEnvelope;
@@ -107,7 +103,6 @@ export declare const diagnosisOrchestratorService: {
         triage: TriagePreviewResult;
         diagnosisDegraded: boolean;
         insufficientEvidence: boolean;
-        envelope?: undefined;
     } | {
         issues: ({
             diagnosisSource: DiagnosisSource;
@@ -194,7 +189,10 @@ export declare const diagnosisOrchestratorService: {
         triage: TriagePreviewResult;
         diagnosisDegraded: boolean;
         insufficientEvidence?: undefined;
-        envelope?: undefined;
+    } | {
+        issues: never[];
+        diagnosisDegraded: boolean;
+        envelope: DiagnosisEnvelope;
     }>;
     resolveSourceFromImage(hasModel: boolean, imageSource?: "plant_id" | "vision" | "fusion" | null): DiagnosisSource;
 };

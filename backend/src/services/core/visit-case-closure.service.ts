@@ -285,6 +285,13 @@ export const visitCaseClosureService = {
       })
       .eq('id', input.fieldFindingId);
 
+    const { experimentDefinitionService } = await import(
+      '../intelligence/enterprise-ops.service.js'
+    );
+    await experimentDefinitionService.assignOnVisitClose(input.fieldFindingId).catch(() => {});
+
+    await this.recordApplicationHistory(input.fieldFindingId, farmerId, blockId).catch(() => {});
+
     return {
       fieldFindingId: input.fieldFindingId,
       closedAt: now,
@@ -294,5 +301,35 @@ export const visitCaseClosureService = {
       issuesUpdated: bundle.issues.length,
       learningConsent,
     };
+  },
+
+  async recordApplicationHistory(fieldFindingId: string, farmerId: string, blockId: string | null) {
+    const { recommendationGroupService } = await import('./recommendation-group.service.js');
+    const { applicationHistoryService } = await import('../intelligence/enterprise-ops.service.js');
+
+    const groups = await recommendationGroupService.listByFieldFinding(fieldFindingId);
+    const methodMap: Record<string, 'spray' | 'drench' | 'fertigation' | 'soil'> = {
+      foliar_spray: 'spray',
+      soil_drench: 'drench',
+      fertigation: 'fertigation',
+      granular: 'soil',
+      seed_treatment: 'soil',
+      other: 'spray',
+    };
+
+    for (const group of groups) {
+      for (const mat of group.materials) {
+        if (!mat.technicalName.trim()) continue;
+        await applicationHistoryService.record({
+          farmerId,
+          blockId: blockId ?? undefined,
+          productName: mat.technicalName,
+          dose: mat.dose ?? undefined,
+          method: methodMap[group.applicationType] ?? 'spray',
+          source: 'visit',
+          sourceId: fieldFindingId,
+        });
+      }
+    }
   },
 };

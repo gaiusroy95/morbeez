@@ -16,6 +16,7 @@ import {
 } from '@morbeez/shared';
 import { Alert, Field, Input, Loading } from '../../ui';
 import { Panel } from '../../ui';
+import { VisitCopilotPanel } from '../VisitCopilotPanel';
 import type { VisitIssueDraft, VisitPhotoDraft } from './types';
 
 type Props = {
@@ -259,6 +260,13 @@ export function VisitAiAnalysisStep({
       <button type="button" className="vw-retry-link" onClick={() => void runAnalysis()}>
         Retry analysis
       </button>
+      <VisitCopilotPanel
+        farmerId={farmerId}
+        blockId={blockId}
+        cropType={cropType}
+        issueName={issues[0]?.finalDiagnosis ?? issues[0]?.issueName}
+        aiCaseId={issues[0]?.aiCaseId}
+      />
     </div>
   );
 }
