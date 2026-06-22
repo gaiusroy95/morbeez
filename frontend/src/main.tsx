@@ -18,6 +18,9 @@ import './styles/company-settings.css';
 import './styles/product-wizard.css';
 import './styles/dynamic-master-picker.css';
 import App from './App.tsx';
+import { initSharedApiConfig } from './lib/init-shared-api';
+
+initSharedApiConfig();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

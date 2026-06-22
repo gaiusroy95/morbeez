@@ -53,9 +53,10 @@ export async function clearStaffToken(): Promise<void> {
 
 export async function staffApi<T = unknown>(path: string, options: RequestInit = {}): Promise<T> {
   const origin = getApiOrigin();
-  if (!origin) {
+  const isBrowser = typeof window !== 'undefined';
+  if (!origin && !isBrowser) {
     throw new Error(
-      'API URL is not configured. Set EXPO_PUBLIC_API_BASE_URL in apps/warehouse/.env (local) or eas.json (builds).'
+      'API URL is not configured. Set EXPO_PUBLIC_API_BASE_URL in the app .env (local) or eas.json (builds).'
     );
   }
   const token = await getStoredToken();
