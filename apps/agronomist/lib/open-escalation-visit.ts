@@ -1,10 +1,10 @@
-import type { Router } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { agronomistClient } from '@morbeez/shared';
 
 type OpenCtx = {
   farmerName?: string;
   leadId?: string | null;
-  router: Pick<Router, 'push'>;
+  router: Pick<ReturnType<typeof useRouter>, 'push'>;
 };
 
 export async function openEscalationVisit(escalationId: string, ctx: OpenCtx): Promise<void> {

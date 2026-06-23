@@ -88,6 +88,21 @@ export {
 
 export type { VisitAnalyzeSeedInput } from './ai-first';
 
+export {
+  buildAnalyzeVisitBody,
+  issuesNeedInitialScreening,
+  withTimeout,
+} from './visit-screening';
+export { expandSeparateNutrientIssues, shouldSplitNutrientIssue } from './visit-issue-split';
+export {
+  defaultComplianceQuestion,
+  resolveComplianceQuestion,
+  stripComplianceReplyHint,
+  type WhatsappComplianceNoAction,
+} from './whatsapp-compliance';
+
+export type { VisitScreeningParams, VisitScreeningPhoto } from './visit-screening';
+
 import {
   shouldRunFollowUp,
   derivePhotoRequestsFromFollowUp,
@@ -207,11 +222,11 @@ export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> =
 
   { id: 'aiTriage', label: 'Triage' },
 
-  { id: 'aiAnalysis', label: 'AI' },
+  { id: 'followUp', label: 'Q&A' },
+
+  { id: 'aiAnalysis', label: 'AI Dx' },
 
   { id: 'agronomistReview', label: 'Review' },
-
-  { id: 'followUp', label: 'Q&A' },
 
   { id: 'additionalPhotos', label: 'More photos' },
 
@@ -321,7 +336,13 @@ export type WhatsappPreviewMessage = {
 
   message: string;
 
+  /** @deprecated Use complianceQuestion */
   compliancePrompt?: string;
+
+  complianceQuestion?: string;
+
+  /** When farmer taps No on WhatsApp — escalate to agronomist or telecaller review */
+  complianceNoAction?: import('./whatsapp-compliance.js').WhatsappComplianceNoAction;
 
 };
 
@@ -405,6 +426,21 @@ export type VisitEnvironmentSoilMetric = {
 
 
 
+export type VisitWeatherDaily = {
+  date: string;
+  temperatureC: number | null;
+  humidityPct: number | null;
+  rainfallMm: number | null;
+};
+
+export type VisitWeatherPressures = {
+  heatStress: boolean;
+  waterlogging: boolean;
+  fungalPressure: boolean;
+  pestPressure: boolean;
+  irrigationTrend: string;
+};
+
 export type VisitEnvironmentPayload = {
 
   soilReport: {
@@ -424,6 +460,20 @@ export type VisitEnvironmentPayload = {
     current: Record<string, unknown> | null;
 
     forecast: Record<string, unknown> | null;
+
+    last7Days?: VisitWeatherDaily[];
+
+    totals7d?: {
+
+      rainfallMm: number;
+
+      avgTempC: number;
+
+      avgHumidityPct: number;
+
+    } | null;
+
+    pressures?: VisitWeatherPressures | null;
 
   };
 
@@ -750,31 +800,10 @@ export function validateVisitWizardStep(
     if (!ctx.triage) return 'Run triage preview before continuing.';
   }
 
-  if (step === 'aiAnalysis') {
-
-    if (!ctx.issues.length) return 'Wait for AI analysis to complete.';
-
-    for (const issue of ctx.issues) {
-
-      if (!issue.aiCaseId) return 'Wait for AI analysis to complete.';
-
-      if (!issue.finalDiagnosis?.trim()) {
-
-        return 'Select a primary hypothesis or enter a manual diagnosis.';
-
-      }
-
-    }
-
-  }
-
-  if (step === 'agronomistReview') {
-
-    return validateAgronomistReview(ctx.issues, ctx.triage);
-
-  }
-
   if (step === 'followUp') {
+    if (!ctx.issues.length || !ctx.issues.some((i) => i.aiCaseId)) {
+      return 'Wait for initial AI screening to finish before Q&A.';
+    }
 
     for (const issue of ctx.issues) {
 
@@ -789,6 +818,30 @@ export function validateVisitWizardStep(
       }
 
     }
+
+  }
+
+  if (step === 'aiAnalysis') {
+
+    if (!ctx.issues.length) return 'Complete Q&A screening before refined diagnosis.';
+
+    for (const issue of ctx.issues) {
+
+      if (!issue.aiCaseId) return 'Wait for AI screening to complete.';
+
+      if (!issue.finalDiagnosis?.trim()) {
+
+        return 'Select a primary hypothesis or enter a manual diagnosis.';
+
+      }
+
+    }
+
+  }
+
+  if (step === 'agronomistReview') {
+
+    return validateAgronomistReview(ctx.issues, ctx.triage);
 
   }
 

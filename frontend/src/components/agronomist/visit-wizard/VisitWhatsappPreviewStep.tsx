@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { agronomistClient, type RecommendationGroupDraft, type WhatsappPreviewMessage } from '@morbeez/shared';
+import {
+  agronomistClient,
+  resolveComplianceQuestion,
+  type RecommendationGroupDraft,
+  type WhatsappComplianceNoAction,
+  type WhatsappPreviewMessage,
+} from '@morbeez/shared';
 import { Alert, Btn, Loading } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
@@ -122,6 +128,8 @@ export function VisitWhatsappPreviewStep({
     if (!original) return;
     updateMessage(issueIndex, {
       message: original.message,
+      complianceQuestion: original.complianceQuestion,
+      complianceNoAction: original.complianceNoAction,
       compliancePrompt: original.compliancePrompt,
     });
   }
@@ -132,8 +140,8 @@ export function VisitWhatsappPreviewStep({
     <div className="vw-stack">
       {error ? <Alert tone="error">{error}</Alert> : null}
       <p className="vw-hint">
-        Edit each message before confirming. The text you save here is what the farmer receives on
-        WhatsApp after submit.
+        Edit each message before confirming. Farmers receive <strong>Yes</strong> / <strong>No</strong>{' '}
+        buttons on the follow-up question.
       </p>
       {staleHint ? (
         <div className="vw-banner vw-banner--warn">
@@ -143,40 +151,66 @@ export function VisitWhatsappPreviewStep({
           </button>
         </div>
       ) : null}
-      {messages.map((msg) => (
-        <div key={`${msg.issueIndex}-${msg.issueLabel}`} className="vw-issue-card">
-          <div className="vw-issue-title">{msg.issueLabel}</div>
-          {issues[msg.issueIndex] ? (
-            <ExplainSnippet issue={issues[msg.issueIndex]!} />
-          ) : null}
-          <span className="vw-field-label">WhatsApp message</span>
-          <textarea
-            className="vw-textarea"
-            rows={10}
-            value={msg.message}
-            onChange={(e) => updateMessage(msg.issueIndex, { message: e.target.value })}
-          />
-          {msg.compliancePrompt != null ? (
-            <>
-              <span className="vw-field-label">Follow-up prompt (optional)</span>
-              <textarea
-                className="vw-textarea"
-                rows={2}
-                value={msg.compliancePrompt}
-                onChange={(e) => updateMessage(msg.issueIndex, { compliancePrompt: e.target.value })}
-              />
-            </>
-          ) : null}
-          <button
-            type="button"
-            className="vw-qa-remove"
-            onClick={() => resetMessage(msg.issueIndex)}
-            disabled={loading}
-          >
-            Reset to generated text
-          </button>
-        </div>
-      ))}
+      {messages.map((msg) => {
+        const question = resolveComplianceQuestion(msg);
+        const noAction = msg.complianceNoAction ?? 'escalate';
+        return (
+          <div key={`${msg.issueIndex}-${msg.issueLabel}`} className="vw-issue-card">
+            <div className="vw-issue-title">{msg.issueLabel}</div>
+            {issues[msg.issueIndex] ? (
+              <ExplainSnippet issue={issues[msg.issueIndex]!} />
+            ) : null}
+            <span className="vw-field-label">WhatsApp message</span>
+            <textarea
+              className="vw-textarea"
+              rows={10}
+              value={msg.message}
+              onChange={(e) => updateMessage(msg.issueIndex, { message: e.target.value })}
+            />
+            <span className="vw-field-label">Follow-up question</span>
+            <textarea
+              className="vw-textarea"
+              rows={2}
+              value={question}
+              onChange={(e) =>
+                updateMessage(msg.issueIndex, {
+                  complianceQuestion: e.target.value,
+                  compliancePrompt: `${e.target.value} Reply Yes or No.`,
+                })
+              }
+            />
+            <span className="vw-field-label">Farmer reply buttons</span>
+            <div className="vw-chip-row">
+              <span className="vw-chip vw-chip--captured">Yes</span>
+              <span className="vw-chip vw-chip--warn">No</span>
+            </div>
+            <p className="vw-hint">
+              If farmer taps <strong>No</strong> →{' '}
+              {noAction === 'review' ? 'telecaller review task' : 'agronomist escalation'}
+            </p>
+            <div className="vw-chip-row">
+              {(['escalate', 'review'] as WhatsappComplianceNoAction[]).map((action) => (
+                <button
+                  key={action}
+                  type="button"
+                  className={['vw-chip', noAction === action ? 'vw-chip--active' : ''].filter(Boolean).join(' ')}
+                  onClick={() => updateMessage(msg.issueIndex, { complianceNoAction: action })}
+                >
+                  {action === 'escalate' ? 'Escalate on No' : 'Review on No'}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              className="vw-qa-remove"
+              onClick={() => resetMessage(msg.issueIndex)}
+              disabled={loading}
+            >
+              Reset to generated text
+            </button>
+          </div>
+        );
+      })}
       <Btn
         variant={confirmed ? 'primary' : 'secondary'}
         onClick={() => onConfirmedChange(!confirmed)}

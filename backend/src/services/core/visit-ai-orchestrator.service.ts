@@ -27,6 +27,7 @@ import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
 import { buildSymptomKey } from '../ai/question-reuse-keys.util.js';
 import { aiReuseService, buildDapBucket } from '../ai/ai-reuse.service.js';
 import { blockService } from './block.service.js';
+import { expandSeparateVisitIssues } from './visit-issue-split.util.js';
 
 type HypothesisRow = {
   label: string;
@@ -296,6 +297,120 @@ function buildEvidencePack(
   };
 }
 
+function screeningHypothesesFromDetection(
+  det: DetectedVisitIssue,
+  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>
+): HypothesisRow[] {
+  const rows: HypothesisRow[] = [
+    {
+      label: det.issueName,
+      confidence: det.confidence,
+      rationale: det.rootCause.conclusion || det.evidence.weatherSummary || undefined,
+      selected: true,
+    },
+  ];
+  if (
+    imageSignal &&
+    imageSignal.label.toLowerCase() !== det.issueName.toLowerCase() &&
+    !det.issueName.toLowerCase().includes(imageSignal.label.toLowerCase())
+  ) {
+    rows.push({
+      label: imageSignal.label,
+      confidence: clampConfidence(imageSignal.confidence * 0.88),
+      rationale: `Image analysis alternative (${imageSignal.source}).`,
+      imagePrediction: imageSignal.label,
+      imageConfidence: imageSignal.confidence,
+    });
+  }
+  return rows.sort((a, b) => b.confidence - a.confidence).slice(0, 4);
+}
+
+async function createScreeningCase(params: {
+  input: VisitAnalyzeVisitRequest;
+  agronomistEmail: string;
+  context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>;
+  imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
+  det: DetectedVisitIssue;
+  detectionSource: DiagnosisSource;
+}) {
+  const { input, agronomistEmail, context, imageSignal, det, detectionSource } = params;
+  const hypotheses = screeningHypothesesFromDetection(det, imageSignal);
+  const top = hypotheses[0]!;
+  const topConfidence = top.confidence;
+  const confidenceAction = resolveConfidenceAction(topConfidence);
+  const skipFollowUpOptional = topConfidence >= 0.9;
+  const similarCases = await loadSimilarCases(
+    input.farmerId,
+    context.cropType,
+    det.issueName,
+    det.observation
+  );
+
+  const { data: caseRow, error: caseErr } = await supabase
+    .from('visit_ai_cases')
+    .insert({
+      session_id: input.sessionId ?? null,
+      farmer_id: input.farmerId,
+      block_id: input.blockId,
+      category: normalizeIssueCategory(det.category),
+      issue_name: det.issueName,
+      status: 'analyzed',
+      selected_hypothesis_label: top.label,
+      final_confidence: topConfidence,
+      confidence_action: confidenceAction,
+      metadata: {
+        analyzedBy: agronomistEmail,
+        observation: det.observation ?? null,
+        cropType: context.cropType,
+        dap: context.dap,
+        screeningOnly: true,
+        contextSnapshot: visitAiContextService.snapshotFromPack(context, {
+          imageSignal: imageSignal
+            ? {
+                label: imageSignal.label,
+                confidence: imageSignal.confidence,
+                source: imageSignal.source,
+                photoCount: imageSignal.photoCount,
+              }
+            : null,
+          fieldVoiceNote: input.fieldVoiceNote ?? null,
+          analyzePhotoCount: input.analyzePhotos?.length ?? 0,
+        }),
+        imageSignal: imageSignal ?? null,
+        diagnosisSource: detectionSource,
+      },
+    })
+    .select('*')
+    .single();
+  throwIfSupabaseError(caseErr, 'Could not create visit AI case');
+
+  const aiCaseId = String(caseRow!.id);
+  for (let i = 0; i < hypotheses.length; i++) {
+    const h = hypotheses[i]!;
+    await supabase.from('visit_ai_hypotheses').insert({
+      visit_ai_case_id: aiCaseId,
+      label: h.label,
+      confidence: h.confidence,
+      rationale: h.rationale ?? null,
+      selected: h.label === top.label,
+      sort_order: i,
+      image_prediction: h.imagePrediction ?? null,
+      image_confidence: h.imageConfidence ?? null,
+    });
+  }
+
+  const followUpQuestions = await persistVisitFollowUpQuestions(caseRow!);
+  return {
+    aiCaseId,
+    hypotheses,
+    confidenceAction,
+    skipFollowUpOptional,
+    similarCases,
+    diagnosisSource: detectionSource,
+    followUpQuestions,
+  };
+}
+
 async function detectVisitIssues(params: {
   context: Awaited<ReturnType<typeof visitAiContextService.buildVisitAiContext>>;
   imageSignal: Awaited<ReturnType<typeof resolveVisitImagePredictions>>;
@@ -342,7 +457,7 @@ async function detectVisitIssues(params: {
     const prompt = `${promptBlock}
 
 Return JSON {"issues":[{"issueName":"...","confidence":0.0-1.0,"severity":"low|medium|high","symptoms":["..."],"photoSignals":["..."],"soilSignals":["..."],"weatherSignals":["..."],"conclusion":"...","observation":"..."}]}
-List 1-5 ranked field issues. Use soil test and DAP. confidence 0-1.`;
+List 1-5 ranked field issues — ONE issue per distinct problem. Never combine separate nutrient deficiencies (report "Nitrogen Deficiency" and "Potassium Deficiency" as separate issues, not "Nitrogen and Potassium"). Weigh last-7-day weather pattern (rainfall leaching, heat/K stress) with soil test and DAP. confidence 0-1.`;
 
     const result = await openaiJsonCompletion<{ issues: Array<Record<string, unknown>> }>(
       'Detect multiple crop issues from field visit data.',
@@ -399,7 +514,7 @@ List 1-5 ranked field issues. Use soil test and DAP. confidence 0-1.`;
         evidence,
       });
     }
-    return { issues: mapped.slice(0, 5), source: 'model' };
+    return { issues: expandSeparateVisitIssues(mapped), source: 'model' };
   } catch {
     if (params.imageSignal?.label) {
       const confidence = params.imageSignal.confidence;
@@ -1133,6 +1248,97 @@ export const visitAiOrchestratorService = {
       reviewDate: reviewDate.toISOString(),
       expectedImprovementDays,
     };
+  },
+
+  async screenVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string) {
+    const context = await visitAiContextService.buildVisitAiContext(input);
+    const analyzePhotos = input.analyzePhotos?.map((p) => ({
+      dataBase64: p.dataBase64,
+      mimeType: p.mimeType,
+    }));
+    const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
+      cropType: context.cropType,
+      dap: context.dap,
+      stage: context.stage,
+    });
+    const detectedResult = await detectVisitIssues({
+      context,
+      imageSignal,
+      fieldVoiceNote: input.fieldVoiceNote,
+    });
+    const detected = expandSeparateVisitIssues(detectedResult.issues);
+    const detectionSource = detectedResult.source;
+
+    if (!detected.length) {
+      return {
+        issues: [
+          {
+            localId: 'insufficient-evidence',
+            category: 'other',
+            issueName: INSUFFICIENT_EVIDENCE_LABEL,
+            confidence: 0,
+            aiConfidence: 0,
+            severity: 'high' as const,
+            observation: input.fieldVoiceNote ?? '',
+            escalationRequired: true,
+            diagnosisSource: 'insufficient_evidence' as DiagnosisSource,
+            evidence: buildEvidencePack(context, imageSignal),
+          },
+        ],
+        insufficientEvidence: true,
+      };
+    }
+
+    const screened = await Promise.all(
+      detected.map(async (det) => {
+        const row = await createScreeningCase({
+          input,
+          agronomistEmail,
+          context,
+          imageSignal,
+          det,
+          detectionSource,
+        });
+        const top = row.hypotheses.find((h) => h.label === det.issueName) ?? row.hypotheses[0]!;
+        return {
+          localId: `ai-${row.aiCaseId}`,
+          category: det.category,
+          issueName: det.issueName,
+          confidence: det.confidence,
+          aiConfidence: det.confidence,
+          severity: det.severity,
+          observation: det.observation ?? '',
+          aiCaseId: row.aiCaseId,
+          hypotheses: row.hypotheses.map((h) => ({
+            label: h.label,
+            confidence: h.confidence,
+            rationale: h.rationale,
+            selected: h.label === top?.label,
+            imagePrediction: h.imagePrediction,
+            imageConfidence: h.imageConfidence,
+          })),
+          selectedHypothesisLabel: top?.label,
+          finalDiagnosis: top?.label ?? det.issueName,
+          confidenceAction: row.confidenceAction,
+          skipFollowUpOptional: row.skipFollowUpOptional,
+          imageSignal: imageSignal ? { label: imageSignal.label, confidence: imageSignal.confidence } : undefined,
+          similarCases: row.similarCases,
+          diagnosisSource: row.diagnosisSource,
+          rootCause: det.rootCause,
+          evidence: det.evidence,
+          followUpQuestions: row.followUpQuestions,
+          initialRecommendation: top
+            ? {
+                text: `Preliminary screening for ${top.label}. Answer Q&A to refine diagnosis on the next step.`,
+                method: 'Pending Q&A',
+                category: det.category,
+              }
+            : undefined,
+        };
+      })
+    );
+
+    return { issues: screened };
   },
 
   async analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string) {

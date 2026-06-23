@@ -1,29 +1,33 @@
 import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { tokens } from '@morbeez/shared';
+import { tokens, type VisitPhotoInput } from '@morbeez/shared';
 import { Btn } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
+
+type IssuePhoto = VisitPhotoInput & { uri?: string };
 
 type Props = {
   issues: IssueDraft[];
   onChange: (issues: IssueDraft[]) => void;
 };
 
-async function capturePhoto(photoType: string): Promise<IssueDraft['photos']> {
+async function capturePhoto(photoType: string): Promise<IssuePhoto[]> {
   const result = await ImagePicker.launchCameraAsync({
     mediaTypes: ['images'],
     quality: 0.7,
     base64: true,
   });
-  if (result.canceled || !result.assets[0]?.base64) return [];
+  if (result.canceled) return [];
   const a = result.assets[0];
+  if (!a?.base64) return [];
   return [
     {
       filename: a.fileName ?? `extra-${Date.now()}.jpg`,
       mimeType: a.mimeType ?? 'image/jpeg',
       dataBase64: a.base64,
       photoType,
+      uri: a.uri,
     },
   ];
 }

@@ -87,7 +87,12 @@ export function hasPhotoRequests(issues: StepFlowIssue[]): boolean {
 
 export function canSkipStep(step: VisitWizardStep, ctx: StepFlowCtx): boolean {
   if (step === 'followUp') {
-    return !ctx.issues.some((i) => shouldRunFollowUp(i, ctx));
+    // Q&A hosts initial AI screening — do not skip until cases exist.
+    const hasScreenedCase = ctx.issues.some((i) => i.aiCaseId);
+    if (!hasScreenedCase) return false;
+    if (ctx.triage?.mandatoryFollowUp) return false;
+    if (ctx.issues.some((i) => shouldRunFollowUp(i, ctx))) return false;
+    return ctx.issues.every((i) => i.qaSkipped || i.skipFollowUpOptional || !i.aiCaseId);
   }
   if (step === 'additionalPhotos') {
     return !hasPhotoRequests(ctx.issues);
@@ -103,9 +108,9 @@ export function getVisibleWizardSteps(partnerMode?: boolean): VisitWizardStep[] 
       'photos',
       'fieldIntelligence',
       'aiTriage',
+      'followUp',
       'aiAnalysis',
       'agronomistReview',
-      'followUp',
       'additionalPhotos',
       'finalDiagnosis',
       'economicOptimizer',

@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
-import { fetchWeatherForecast, resolveCoords, } from '../whatsapp/pipeline/weather-fetch.service.js';
+import { fetchWeatherForecast, fetchWeatherBundle, fetchWeatherPastDays, resolveCoords, } from '../whatsapp/pipeline/weather-fetch.service.js';
 function forecastToSnapshotContext(forecast) {
     const alerts = [];
     if (forecast.heavyRainLikely)
@@ -59,6 +59,46 @@ async function resolveLocationForFarmer(farmerId) {
     });
 }
 export const weatherSnapshotService = {
+    async getVisitWeatherBundle(params) {
+        try {
+            let coords;
+            if (params.blockId) {
+                const loc = await resolveLocationForBlock(params.blockId);
+                coords = loc.coords;
+            }
+            else if (params.farmerId) {
+                coords = await resolveLocationForFarmer(params.farmerId);
+            }
+            else {
+                coords = resolveCoords({ district: 'wayanad' });
+            }
+            return fetchWeatherBundle(coords, params.days ?? 7);
+        }
+        catch (err) {
+            logger.warn({ err }, 'Weather bundle fetch failed');
+            return null;
+        }
+    },
+    async getDailyHistory(params) {
+        try {
+            let coords;
+            if (params.blockId) {
+                const loc = await resolveLocationForBlock(params.blockId);
+                coords = loc.coords;
+            }
+            else if (params.farmerId) {
+                coords = await resolveLocationForFarmer(params.farmerId);
+            }
+            else {
+                coords = resolveCoords({ district: 'wayanad' });
+            }
+            return fetchWeatherPastDays(coords, params.days ?? 7);
+        }
+        catch (err) {
+            logger.warn({ err }, 'Weather daily history fetch failed');
+            return [];
+        }
+    },
     /** Persist Open-Meteo forecast at event time for AI training correlation. */
     async capture(params) {
         try {

@@ -33,14 +33,39 @@ export function resolveCoords(params) {
     return { ...DEFAULT, label: params.district ?? DEFAULT.label };
 }
 export async function fetchWeatherForecast(coords) {
+    const bundle = await fetchWeatherBundle(coords);
+    const today = bundle.last7Days[bundle.last7Days.length - 1];
+    return {
+        lat: bundle.lat,
+        lon: bundle.lon,
+        locationLabel: bundle.locationLabel,
+        rainMmToday: today?.rainfallMm ?? 0,
+        rainMmTomorrow: bundle.forecastTomorrow.rainfallMm,
+        maxTempCToday: today?.maxTempC ?? 28,
+        avgHumidityPct: today?.avgHumidityPct ?? 70,
+        heavyRainLikely: bundle.heavyRainLikely,
+        highHeatLikely: bundle.highHeatLikely,
+        highHumidityLikely: bundle.highHumidityLikely,
+        weatherRiskScore: bundle.weatherRiskScore,
+    };
+}
+/** Single Open-Meteo request: past week + tomorrow forecast. */
+export async function fetchWeatherBundle(coords, days = 7) {
+    const fallbackToday = {
+        date: new Date().toISOString().slice(0, 10),
+        rainfallMm: 0,
+        maxTempC: 28,
+        avgHumidityPct: 70,
+    };
     const base = {
         lat: coords.lat,
         lon: coords.lon,
         locationLabel: coords.label,
-        rainMmToday: 0,
-        rainMmTomorrow: 0,
-        maxTempCToday: 28,
-        avgHumidityPct: 70,
+        last7Days: Array.from({ length: days }, (_, i) => ({
+            ...fallbackToday,
+            date: new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10),
+        })),
+        forecastTomorrow: { ...fallbackToday, rainfallMm: 0 },
         heavyRainLikely: false,
         highHeatLikely: false,
         highHumidityLikely: false,
@@ -51,31 +76,38 @@ export async function fetchWeatherForecast(coords) {
         url.searchParams.set('latitude', String(coords.lat));
         url.searchParams.set('longitude', String(coords.lon));
         url.searchParams.set('daily', 'precipitation_sum,temperature_2m_max,relative_humidity_2m_mean');
-        url.searchParams.set('forecast_days', '2');
+        url.searchParams.set('past_days', String(Math.max(0, days - 1)));
+        url.searchParams.set('forecast_days', '1');
         url.searchParams.set('timezone', 'Asia/Kolkata');
-        const res = await fetch(url.toString());
+        const res = await fetch(url.toString(), { signal: AbortSignal.timeout(12_000) });
         if (!res.ok)
             return base;
         const data = (await res.json());
-        const rain0 = Number(data.daily?.precipitation_sum?.[0] ?? 0);
-        const rain1 = Number(data.daily?.precipitation_sum?.[1] ?? 0);
-        const temp = Number(data.daily?.temperature_2m_max?.[0] ?? 28);
-        const humidity = Number(data.daily?.relative_humidity_2m_mean?.[0] ?? 70);
-        const heavyRainLikely = rain0 >= 10 || rain1 >= 15;
-        const highHeatLikely = temp >= 34;
-        const highHumidityLikely = humidity >= 82;
-        const weatherRiskScore = Math.min(100, Math.round(rain0 * 4 +
-            rain1 * 2 +
-            Math.max(0, humidity - 75) * 1.2 +
-            Math.max(0, temp - 30) * 6));
+        const daily = data.daily;
+        if (!daily?.time?.length)
+            return base;
+        const rows = daily.time.map((date, i) => ({
+            date,
+            rainfallMm: Number(daily.precipitation_sum?.[i] ?? 0),
+            maxTempC: Number(daily.temperature_2m_max?.[i] ?? 28),
+            avgHumidityPct: Number(daily.relative_humidity_2m_mean?.[i] ?? 70),
+        }));
+        const last7Days = rows.length > 1 ? rows.slice(0, -1) : rows;
+        const today = last7Days[last7Days.length - 1] ?? rows[0] ?? fallbackToday;
+        const tomorrow = rows[rows.length - 1] ?? today;
+        const heavyRainLikely = today.rainfallMm >= 10 || tomorrow.rainfallMm >= 15;
+        const highHeatLikely = today.maxTempC >= 34;
+        const highHumidityLikely = today.avgHumidityPct >= 82;
+        const weatherRiskScore = Math.min(100, Math.round(today.rainfallMm * 4 +
+            tomorrow.rainfallMm * 2 +
+            Math.max(0, today.avgHumidityPct - 75) * 1.2 +
+            Math.max(0, today.maxTempC - 30) * 6));
         return {
             lat: coords.lat,
             lon: coords.lon,
             locationLabel: coords.label,
-            rainMmToday: rain0,
-            rainMmTomorrow: rain1,
-            maxTempCToday: temp,
-            avgHumidityPct: humidity,
+            last7Days,
+            forecastTomorrow: tomorrow,
             heavyRainLikely,
             highHeatLikely,
             highHumidityLikely,
@@ -85,5 +117,42 @@ export async function fetchWeatherForecast(coords) {
     catch {
         return base;
     }
+}
+/** Past N days of daily weather (Open-Meteo `past_days`, ending today). */
+export async function fetchWeatherPastDays(coords, days = 7) {
+    const bundle = await fetchWeatherBundle(coords, days);
+    return bundle.last7Days;
+}
+export function deriveWeatherPressures(days) {
+    if (!days.length) {
+        return {
+            heatStress: false,
+            waterlogging: false,
+            fungalPressure: false,
+            pestPressure: false,
+            irrigationTrend: 'Weather history unavailable',
+        };
+    }
+    const totalRain = days.reduce((sum, d) => sum + d.rainfallMm, 0);
+    const avgTemp = days.reduce((sum, d) => sum + d.maxTempC, 0) / days.length;
+    const avgHumidity = days.reduce((sum, d) => sum + d.avgHumidityPct, 0) / days.length;
+    const hotDays = days.filter((d) => d.maxTempC >= 34).length;
+    const heavyRainDays = days.filter((d) => d.rainfallMm >= 10).length;
+    const humidDays = days.filter((d) => d.avgHumidityPct >= 82).length;
+    const recentRain = days.slice(-3).reduce((sum, d) => sum + d.rainfallMm, 0);
+    let irrigationTrend = 'Moderate rainfall — normal irrigation pattern';
+    if (recentRain < 5 && totalRain < 15) {
+        irrigationTrend = 'Dry trend — irrigation demand likely elevated';
+    }
+    else if (recentRain >= 20 || totalRain >= 50) {
+        irrigationTrend = 'Wet trend — irrigation reduced; check drainage';
+    }
+    return {
+        heatStress: hotDays >= 2 || avgTemp >= 33,
+        waterlogging: heavyRainDays >= 2 || totalRain >= 45,
+        fungalPressure: humidDays >= 3 || (avgHumidity >= 80 && totalRain >= 20),
+        pestPressure: avgHumidity >= 75 && avgTemp >= 26 && avgTemp <= 32,
+        irrigationTrend,
+    };
 }
 //# sourceMappingURL=weather-fetch.service.js.map

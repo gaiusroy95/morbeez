@@ -530,6 +530,18 @@ export const whatsappScenarioRouter = {
             recId,
             'need_clarification'
           );
+        } else if (text === 'rec.compliance_yes') {
+          reply = await recommendationFollowUpService.handleComplianceReply(
+            captured.farmerId,
+            recId,
+            'yes'
+          );
+        } else if (text === 'rec.compliance_no') {
+          reply = await recommendationFollowUpService.handleComplianceReply(
+            captured.farmerId,
+            recId,
+            'no'
+          );
         } else {
           const kpiLevel = improvementLevelFromButton(text);
           if (kpiLevel) {
@@ -588,6 +600,28 @@ export const whatsappScenarioRouter = {
       );
       if (interpreted) {
         await send.text(msg.phone, interpreted);
+        return { handled: true };
+      }
+    }
+
+    if (text && pendingRecId && ctxEarly.pendingRecommendationFollowUp === 'compliance') {
+      const normalized = text.trim().toLowerCase();
+      if (/^(yes|y|applied|done|completed)$/i.test(normalized)) {
+        const reply = await recommendationFollowUpService.handleComplianceReply(
+          captured.farmerId,
+          pendingRecId,
+          'yes'
+        );
+        await send.text(msg.phone, reply);
+        return { handled: true };
+      }
+      if (/^(no|n|not yet|pending)$/i.test(normalized)) {
+        const reply = await recommendationFollowUpService.handleComplianceReply(
+          captured.farmerId,
+          pendingRecId,
+          'no'
+        );
+        await send.text(msg.phone, reply);
         return { handled: true };
       }
     }

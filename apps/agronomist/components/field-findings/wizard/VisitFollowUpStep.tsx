@@ -2,11 +2,19 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
+  expandSeparateNutrientIssues,
+  buildAnalyzeVisitBody,
   derivePhotoRequestsFromFollowUp,
+  issuesNeedInitialScreening,
+  partnerClient,
   shouldRunFollowUp,
   tokens,
+  withTimeout,
+  type TriagePreview,
   type VisitAiClient,
+  type VisitAiAnswerType,
   type VisitAiQuestion,
+  type VisitScreeningParams,
 } from '@morbeez/shared';
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
@@ -30,11 +38,46 @@ type Props = {
   issues: IssueDraft[];
   onChange: (issues: IssueDraft[]) => void;
   visitAiClient?: VisitAiClient;
+  triage?: TriagePreview | null;
+  screening?: VisitScreeningParams;
 };
 
-export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
+const SCREENING_TIMEOUT_MS = 120_000;
+
+function mapDetectedIssues(
+  detected: Awaited<ReturnType<typeof agronomistClient.analyzeVisit>>['issues']
+): IssueDraft[] {
+  const mapped = detected.map((row, idx) => ({
+    localId: row.localId ?? `ai-${idx}`,
+    category: row.category,
+    issueName: row.issueName,
+    severity: row.severity ?? row.aiSeverity ?? 'medium',
+    status: 'open',
+    observation: row.observation ?? '',
+    photos: [],
+    photosPreview: [],
+    aiCaseId: row.aiCaseId,
+    hypotheses: row.hypotheses,
+    selectedHypothesisLabel: row.selectedHypothesisLabel,
+    finalDiagnosis: row.finalDiagnosis,
+    finalRecommendation: row.finalRecommendation,
+    confidenceAction: row.confidenceAction,
+    skipFollowUpOptional: row.skipFollowUpOptional,
+    imageSignal: row.imageSignal,
+    similarCases: row.similarCases,
+    rootCause: row.rootCause,
+    evidence: row.evidence,
+    initialRecommendation: row.initialRecommendation,
+    aiConfidence: row.aiConfidence,
+    followUpQuestions: row.followUpQuestions,
+  })) as IssueDraft[];
+  return expandSeparateNutrientIssues(mapped);
+}
+
+export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, screening }: Props) {
   const client = visitAiClient ?? agronomistClient;
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [screeningRunning, setScreeningRunning] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [skipping, setSkipping] = useState(false);
@@ -45,17 +88,51 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function runInitialScreening(): Promise<IssueDraft[]> {
+    if (!screening) {
+      throw new Error('Screening context is missing for this visit.');
+    }
+    setScreeningRunning(true);
+    try {
+      const screeningClient = visitAiClient === partnerClient ? partnerClient : agronomistClient;
+      const { issues: detected } = await withTimeout(
+        screeningClient.analyzeVisit(buildAnalyzeVisitBody(screening)),
+        SCREENING_TIMEOUT_MS,
+        'Initial AI screening timed out — tap Retry.'
+      );
+      const mapped = mapDetectedIssues(
+        detected as Awaited<ReturnType<typeof agronomistClient.analyzeVisit>>['issues']
+      );
+      onChange(mapped);
+      return mapped;
+    } finally {
+      setScreeningRunning(false);
+    }
+  }
+
+  async function attachQuestions(working: IssueDraft[]): Promise<IssueDraft[]> {
+    const next = [...working];
+    const flowCtx = { issues: next, triage, partnerMode: false };
+    await Promise.all(
+      next.map(async (issue, i) => {
+        if (issue.followUpQuestions?.length) return;
+        if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped) return;
+        const questions = await client.getVisitAiQuestions(issue.aiCaseId);
+        next[i] = { ...issue, followUpQuestions: questions };
+      })
+    );
+    return next;
+  }
+
   async function loadQuestions() {
     setLoading(true);
     setError('');
     try {
-      const next = [...issues];
-      for (let i = 0; i < next.length; i++) {
-        const issue = next[i]!;
-        if (!shouldRunFollowUp(issue) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
-        const questions = await client.getVisitAiQuestions(issue.aiCaseId);
-        next[i] = { ...issue, followUpQuestions: questions };
+      let working = [...issues];
+      if (issuesNeedInitialScreening(working)) {
+        working = await runInitialScreening();
       }
+      const next = await attachQuestions(working);
       onChange(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load questions');
@@ -152,7 +229,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
             id: isPersistedQuestionId(q.id) ? q.id : undefined,
             questionText: q.questionText.trim(),
             answer: q.answer?.trim(),
-            answerType: q.answerType,
+            answerType: q.answerType as VisitAiAnswerType,
           }))
           .filter((q) => q.questionText.length > 0);
 
@@ -212,32 +289,61 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={tokens.green700} />
-        <Text style={styles.loadingText}>Loading follow-up questions…</Text>
+        <Text style={styles.loadingText}>
+          {screeningRunning ? 'Running initial AI screening…' : 'Loading follow-up questions…'}
+        </Text>
+        {screeningRunning ? (
+          <Text style={styles.loadingHint}>
+            Analyzing photos, soil, and 7-day weather — usually 30–90 seconds.
+          </Text>
+        ) : null}
       </View>
     );
   }
 
   return (
     <View style={styles.root}>
-      {error ? <AlertBox>{error}</AlertBox> : null}
+      <Text style={styles.intro}>
+        Answer AI questions to eliminate unlikely causes. Save answers to refine the diagnosis on the next step.
+      </Text>
+      {error ? (
+        <View style={styles.errorBlock}>
+          <AlertBox>{error}</AlertBox>
+          <Pressable style={styles.retryBtn} onPress={() => void loadQuestions()}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {issues.map((issue, issueIndex) => {
         const canSkip = issue.skipFollowUpOptional && !issue.qaSkipped;
         const regenerating = regeneratingIndex === issueIndex;
+        const showQa = shouldRunFollowUp(issue, { issues, triage, partnerMode: false }) && !issue.qaSkipped;
         return (
           <Panel key={issue.localId} title={issue.finalDiagnosis ?? issue.issueName}>
-            {issue.confidenceAction === 'escalate' ? (
+            {(issue.hypotheses ?? []).length ? (
+              <Text style={styles.hypothesisHint}>
+                Initial hypotheses: {(issue.hypotheses ?? [])
+                  .slice(0, 3)
+                  .map((h) => `${h.label} (${Math.round(h.confidence * 100)}%)`)
+                  .join(' · ')}
+              </Text>
+            ) : null}
+            {!showQa && !issue.qaSkipped ? (
+              <Text style={styles.skippedNote}>Follow-up Q&A not required — continue to refined diagnosis.</Text>
+            ) : null}
+            {showQa && issue.confidenceAction === 'escalate' ? (
               <Text style={styles.escalationHint}>
                 Low AI confidence — edit questions to match what you see in the field, then save answers to
                 refine the diagnosis.
               </Text>
             ) : null}
-            {!issue.qaSkipped ? (
+            {showQa && !issue.qaSkipped ? (
               <Text style={styles.editHint}>
                 Questions are AI-generated from photos and context. Edit wording, add your own, or regenerate
                 if they do not match this case.
               </Text>
             ) : null}
-            {canSkip ? (
+            {showQa && canSkip ? (
               <Pressable
                 style={styles.skipChip}
                 onPress={() => void skipQa(issueIndex)}
@@ -246,10 +352,11 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
                 <Text style={styles.skipChipText}>{skipping ? 'Skipping…' : 'Skip Q&A (high confidence)'}</Text>
               </Pressable>
             ) : null}
-            {issue.qaSkipped ? (
+            {showQa && issue.qaSkipped ? (
               <Text style={styles.skippedNote}>Follow-up Q&A skipped — high confidence case.</Text>
             ) : null}
-            {(issue.followUpQuestions ?? []).map((q, qIndex) => (
+            {showQa
+              ? (issue.followUpQuestions ?? []).map((q, qIndex) => (
               <View key={q.id} style={styles.questionBlock}>
                 <Text style={styles.questionLabel}>Question {qIndex + 1}</Text>
                 <TextField
@@ -298,8 +405,9 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
                   <Text style={styles.removeBtnText}>Remove question</Text>
                 </Pressable>
               </View>
-            ))}
-            {!issue.qaSkipped ? (
+            ))
+              : null}
+            {showQa && !issue.qaSkipped ? (
               <View style={styles.qaActions}>
                 <Pressable style={styles.secondaryBtn} onPress={() => addQuestion(issueIndex)}>
                   <Text style={styles.secondaryBtnText}>+ Add question</Text>
@@ -317,7 +425,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
                 ) : null}
               </View>
             ) : null}
-            {!issue.qaSkipped && !issue.followUpQuestions?.length ? (
+            {showQa && !issue.qaSkipped && !issue.followUpQuestions?.length ? (
               <Text style={styles.muted}>No follow-up questions yet. Add one or regenerate from photos.</Text>
             ) : null}
           </Panel>
@@ -332,8 +440,21 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient }: Props) {
 
 const styles = StyleSheet.create({
   root: { gap: 12 },
+  intro: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
   center: { alignItems: 'center', paddingVertical: 32, gap: 12 },
-  loadingText: { color: tokens.textMuted },
+  loadingText: { fontSize: 14, color: tokens.textMuted },
+  loadingHint: { fontSize: 12, color: tokens.textMuted, textAlign: 'center', paddingHorizontal: 16 },
+  errorBlock: { gap: 8 },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.green700,
+  },
+  retryText: { fontSize: 14, fontWeight: '600', color: tokens.green700 },
+  hypothesisHint: { fontSize: 12, color: tokens.green800, marginBottom: 8, lineHeight: 17 },
   escalationHint: {
     fontSize: 13,
     color: '#a94442',

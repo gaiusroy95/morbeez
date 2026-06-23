@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { VISIT_WIZARD_STEPS, getVisibleWizardSteps, type VisitWizardStep } from '@morbeez/shared';
+import { VISIT_WIZARD_STEPS, getVisibleWizardSteps, normalizeVisitWizardStep, type VisitWizardStep } from '@morbeez/shared';
 import { tokens } from '@morbeez/shared';
 
 export type { VisitWizardStep };
@@ -14,7 +14,8 @@ type Props = {
 export function VisitStepper({ current, hiddenSteps = [], partnerMode }: Props) {
   const steps = getVisibleWizardSteps(partnerMode).filter((id) => !hiddenSteps.includes(id));
   const labels = VISIT_WIZARD_STEPS;
-  const currentIndex = steps.indexOf(current);
+  const normalizedCurrent = normalizeVisitWizardStep(current);
+  const currentIndex = steps.indexOf(normalizedCurrent);
 
   return (
     <View style={styles.root}>

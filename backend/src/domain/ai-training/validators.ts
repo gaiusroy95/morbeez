@@ -231,6 +231,8 @@ export const structuredFieldVisitSchema = z.object({
         issueIndex: z.number().int().min(0).max(11),
         message: z.string().min(1).max(4000),
         compliancePrompt: z.string().max(500).optional(),
+        complianceQuestion: z.string().max(300).optional(),
+        complianceNoAction: z.enum(['escalate', 'review']).optional(),
       })
     )
     .max(12)
@@ -349,6 +351,7 @@ export type VisitAnalyzeRequest = z.infer<typeof visitAnalyzeRequestSchema>;
 
 export const visitAnalyzeVisitRequestSchema = visitAiContextRequestSchema.extend({
   fieldVoiceNote: z.string().max(4000).optional(),
+  purpose: z.enum(['screening', 'full']).optional(),
   analyzePhotos: z
     .array(
       z.object({

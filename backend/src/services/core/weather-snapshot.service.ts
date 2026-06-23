@@ -2,7 +2,11 @@ import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import {
   fetchWeatherForecast,
+  fetchWeatherBundle,
+  fetchWeatherPastDays,
   resolveCoords,
+  type WeatherBundle,
+  type WeatherDailyRow,
   type WeatherForecast,
 } from '../whatsapp/pipeline/weather-fetch.service.js';
 import type { TrainingEventSource } from '../../domain/ai-training/enums.js';
@@ -107,6 +111,50 @@ async function resolveLocationForFarmer(farmerId: string): Promise<ReturnType<ty
 }
 
 export const weatherSnapshotService = {
+  async getVisitWeatherBundle(params: {
+    farmerId?: string | null;
+    blockId?: string | null;
+    days?: number;
+  }): Promise<WeatherBundle | null> {
+    try {
+      let coords;
+      if (params.blockId) {
+        const loc = await resolveLocationForBlock(params.blockId);
+        coords = loc.coords;
+      } else if (params.farmerId) {
+        coords = await resolveLocationForFarmer(params.farmerId);
+      } else {
+        coords = resolveCoords({ district: 'wayanad' });
+      }
+      return fetchWeatherBundle(coords, params.days ?? 7);
+    } catch (err) {
+      logger.warn({ err }, 'Weather bundle fetch failed');
+      return null;
+    }
+  },
+
+  async getDailyHistory(params: {
+    farmerId?: string | null;
+    blockId?: string | null;
+    days?: number;
+  }): Promise<WeatherDailyRow[]> {
+    try {
+      let coords;
+      if (params.blockId) {
+        const loc = await resolveLocationForBlock(params.blockId);
+        coords = loc.coords;
+      } else if (params.farmerId) {
+        coords = await resolveLocationForFarmer(params.farmerId);
+      } else {
+        coords = resolveCoords({ district: 'wayanad' });
+      }
+      return fetchWeatherPastDays(coords, params.days ?? 7);
+    } catch (err) {
+      logger.warn({ err }, 'Weather daily history fetch failed');
+      return [];
+    }
+  },
+
   /** Persist Open-Meteo forecast at event time for AI training correlation. */
   async capture(params: {
     farmerId?: string | null;

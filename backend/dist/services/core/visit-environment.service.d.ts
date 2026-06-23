@@ -14,6 +14,24 @@ export type VisitEnvironmentPayload = {
     weather: {
         current: Record<string, unknown> | null;
         forecast: Record<string, unknown> | null;
+        last7Days: Array<{
+            date: string;
+            temperatureC: number | null;
+            humidityPct: number | null;
+            rainfallMm: number | null;
+        }>;
+        totals7d: {
+            rainfallMm: number;
+            avgTempC: number;
+            avgHumidityPct: number;
+        } | null;
+        pressures: {
+            heatStress: boolean;
+            waterlogging: boolean;
+            fungalPressure: boolean;
+            pestPressure: boolean;
+            irrigationTrend: string;
+        } | null;
     };
 };
 export declare const visitEnvironmentService: {

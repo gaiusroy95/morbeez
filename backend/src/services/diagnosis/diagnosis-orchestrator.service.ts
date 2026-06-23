@@ -4,9 +4,7 @@ import type { VisitAnalyzeVisitRequest } from '../../domain/ai-training/validato
 import type { DiagnosisEnvelope, DiagnosisSource } from '../../domain/diagnosis/types.js';
 import type { MaiosTriageLevel } from '../../domain/case/types.js';
 import { moduleFusionService } from '../case/module-fusion.service.js';
-import { visitAiContextService } from '../core/visit-ai-context.service.js';
 import { visitAiOrchestratorService } from '../core/visit-ai-orchestrator.service.js';
-import { resolveVisitImagePredictions } from '../core/visit-ai-image.service.js';
 import {
   buildInsufficientEvidenceEnvelope,
   isDiagnosisInferenceAvailable,
@@ -26,12 +24,6 @@ function triageRoute(level: MaiosTriageLevel): TriagePreviewResult['route'] {
   if (level === 'L2') return 'standard';
   if (level === 'L3') return 'complex';
   return 'critical';
-}
-
-function inferSeverityFromConfidence(confidence: number): 'mild' | 'moderate' | 'severe' {
-  if (confidence < 0.55) return 'severe';
-  if (confidence < 0.75) return 'moderate';
-  return 'mild';
 }
 
 export const diagnosisOrchestratorService = {
@@ -60,22 +52,35 @@ export const diagnosisOrchestratorService = {
       },
       'Diagnosis triage preview started'
     );
-    const context = await visitAiContextService.buildVisitAiContext(input);
-    const analyzePhotos = input.analyzePhotos?.map((p) => ({
-      dataBase64: p.dataBase64,
-      mimeType: p.mimeType,
-    }));
-    const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
-      cropType: context.cropType,
-      dap: context.dap,
-      stage: context.stage,
-    });
-    const fusedConfidence = imageSignal?.confidence ?? 0.55;
+
+    // Fast path: route from field assessment + measurements only (no vision API — that runs on AI analysis).
+    const measurementCount = input.measurements?.length ?? 0;
+    const assessment = input.blockAssessment;
+    let fusedConfidence = 0.72;
+    let severity: 'mild' | 'moderate' | 'severe' = 'mild';
+
+    if (assessment?.blockHealth === 'need_assistance') {
+      severity = 'moderate';
+      fusedConfidence = 0.58;
+    }
+    if (assessment?.cropPerformance === 'below_expectation') {
+      severity = severity === 'mild' ? 'moderate' : severity;
+      fusedConfidence = Math.min(fusedConfidence, 0.65);
+    }
+    if (assessment?.soilMoisture === 'waterlogged') {
+      severity = 'moderate';
+      fusedConfidence = Math.min(fusedConfidence, 0.6);
+    } else if (assessment?.soilMoisture === 'dry') {
+      fusedConfidence = Math.min(fusedConfidence, 0.68);
+    }
+
+    const riskTagCount =
+      measurementCount >= 3 ? 2 : assessment?.blockHealth === 'need_assistance' ? 1 : 0;
+
     const triage = moduleFusionService.triageLevel({
-      severity: inferSeverityFromConfidence(fusedConfidence),
+      severity,
       fusedConfidence,
-      riskTagCount: context.measurements.length >= 3 ? 2 : 0,
-      probableIssue: imageSignal?.label,
+      riskTagCount,
     });
     const level = triage.level;
     const result = {
@@ -116,6 +121,32 @@ export const diagnosisOrchestratorService = {
         envelope: buildInsufficientEvidenceEnvelope(
           'AI diagnosis unavailable — configure OPENAI_API_KEY or PLANT_ID_API_KEY'
         ),
+      };
+    }
+
+    if (input.purpose === 'screening') {
+      logger.info(
+        {
+          event: 'diagnosis.screen_visit.start',
+          farmerId: input.farmerId,
+          blockId: input.blockId,
+          agronomistEmail,
+        },
+        'Diagnosis screening visit started'
+      );
+      const result = await visitAiOrchestratorService.screenVisit(input, agronomistEmail);
+      logger.info(
+        {
+          event: 'diagnosis.screen_visit.complete',
+          farmerId: input.farmerId,
+          blockId: input.blockId,
+          issueCount: result.issues?.length ?? 0,
+        },
+        'Diagnosis screening visit complete'
+      );
+      return {
+        ...result,
+        diagnosisDegraded: !env.OPENAI_API_KEY?.trim(),
       };
     }
 

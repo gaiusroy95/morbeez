@@ -108,7 +108,12 @@ function RootStack() {
         name="soil/add"
         options={{ headerTitle: () => <BrandedHeaderTitle title="Add soil test" /> }}
       />
-      <Stack.Screen name="map" options={{ headerTitle: () => <BrandedHeaderTitle title={t('farmerMap', locale)} /> }} />
+      <Stack.Screen
+        name="visit-command"
+        options={{ headerTitle: () => <BrandedHeaderTitle title="Command center" /> }}
+      />
+      <Stack.Screen
+        name="map" options={{ headerTitle: () => <BrandedHeaderTitle title={t('farmerMap', locale)} /> }} />
     </Stack>
   );
 }

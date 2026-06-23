@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { tokens } from '@morbeez/shared';
+import { expandSeparateNutrientIssues, tokens } from '@morbeez/shared';
 import { Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 
@@ -9,6 +10,15 @@ type Props = {
 };
 
 export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
+  useEffect(() => {
+    const expanded = expandSeparateNutrientIssues(issues);
+    const changed =
+      expanded.length !== issues.length ||
+      expanded.some((row, i) => row.issueName !== issues[i]?.issueName);
+    if (changed) onChange(expanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function patchIssue(index: number, patch: Partial<IssueDraft>) {
     const next = [...issues];
     next[index] = { ...next[index]!, ...patch };

@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from './block.service.js';
 import { weatherSnapshotService } from './weather-snapshot.service.js';
+import { deriveWeatherPressures } from '../whatsapp/pipeline/weather-fetch.service.js';
 import type {
   BlockHealthLevel,
   CropPerformanceLevel,
@@ -108,7 +109,7 @@ export const visitAiContextService = {
     const block = await blockService.getById(input.blockId, input.farmerId);
     if (!block) throw new NotFoundError('Block not found');
 
-    const [{ data: soilRows }, weatherSnapshot] = await Promise.all([
+    const [{ data: soilRows }, weatherBundle] = await Promise.all([
       supabase
         .from('crm_soil_reports')
         .select('metrics, reported_at, lab_name')
@@ -117,12 +118,7 @@ export const visitAiContextService = {
         .order('reported_at', { ascending: false })
         .limit(1),
       weatherSnapshotService
-        .capture({
-          farmerId: input.farmerId,
-          blockId: input.blockId,
-          eventType: 'field_finding',
-          eventId: input.sessionId ?? null,
-        })
+        .getVisitWeatherBundle({ farmerId: input.farmerId, blockId: input.blockId, days: 7 })
         .catch(() => null),
     ]);
 
@@ -137,7 +133,33 @@ export const visitAiContextService = {
 
     const lat = input.latitude ?? (block.latitude != null ? Number(block.latitude) : null);
     const lon = input.longitude ?? (block.longitude != null ? Number(block.longitude) : null);
-    const weatherCtx = weatherSnapshot?.context ?? null;
+    const last7Raw = weatherBundle?.last7Days ?? [];
+    const today = last7Raw[last7Raw.length - 1];
+    const alerts: string[] = [];
+    if (weatherBundle?.heavyRainLikely) alerts.push('heavy_rain_likely');
+    if (weatherBundle?.highHeatLikely) alerts.push('high_heat_likely');
+    if (weatherBundle?.highHumidityLikely) alerts.push('high_humidity_likely');
+
+    const last7Days = last7Raw.map((d) => ({
+      date: d.date,
+      rainfallMm: d.rainfallMm,
+      temperatureC: d.maxTempC,
+      humidityPct: d.avgHumidityPct,
+    }));
+    const totals7d =
+      last7Days.length > 0
+        ? {
+            rainfallMm: Math.round(last7Days.reduce((s, d) => s + (d.rainfallMm ?? 0), 0) * 10) / 10,
+            avgTempC:
+              Math.round((last7Days.reduce((s, d) => s + (d.temperatureC ?? 0), 0) / last7Days.length) * 10) /
+              10,
+            avgHumidityPct:
+              Math.round(
+                (last7Days.reduce((s, d) => s + (d.humidityPct ?? 0), 0) / last7Days.length) * 10
+              ) / 10,
+          }
+        : null;
+    const pressures = last7Raw.length ? deriveWeatherPressures(last7Raw) : null;
 
     return {
       farmerId: input.farmerId,
@@ -149,16 +171,20 @@ export const visitAiContextService = {
       blockAssessment: input.blockAssessment,
       measurements: input.measurements ?? [],
       soilTestSummary,
-      weatherSnapshot: weatherCtx
-        ? {
-            rainfallMm: weatherCtx.rainfall_mm ?? null,
-            humidityPct: weatherCtx.humidity_pct ?? null,
-            temperatureC: weatherCtx.temperature_c ?? null,
-            weatherRiskScore: weatherCtx.weather_risk_score ?? null,
-            diseaseAlerts: weatherCtx.disease_alerts ?? [],
-            locationLabel: weatherCtx.location_label ?? null,
-          }
-        : null,
+      weatherSnapshot:
+        today || last7Days.length
+          ? {
+              rainfallMm: today?.rainfallMm ?? 0,
+              humidityPct: today?.avgHumidityPct ?? 70,
+              temperatureC: today?.maxTempC ?? 28,
+              weatherRiskScore: weatherBundle?.weatherRiskScore ?? null,
+              diseaseAlerts: alerts,
+              locationLabel: weatherBundle?.locationLabel ?? null,
+              last7Days,
+              totals7d,
+              pressures,
+            }
+          : null,
       gps: lat != null && lon != null ? { latitude: lat, longitude: lon } : null,
     };
   },

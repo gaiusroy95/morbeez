@@ -87,8 +87,8 @@ export async function resolveVisitImagePredictions(
   if (!batch.length) return null;
 
   const signals: VisitImageSignal[] = [];
-  for (const photo of batch.slice(0, 4)) {
-    const signal = await analyzeOnePhoto(photo, ctx);
+  const results = await Promise.all(batch.slice(0, 4).map((photo) => analyzeOnePhoto(photo, ctx)));
+  for (const signal of results) {
     if (signal) signals.push(signal);
   }
   if (!signals.length) return null;

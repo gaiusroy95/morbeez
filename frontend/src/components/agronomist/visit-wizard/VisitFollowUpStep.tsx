@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
   agronomistClient,
+  buildAnalyzeVisitBody,
   derivePhotoRequestsFromFollowUp,
+  expandSeparateNutrientIssues,
   issueTopConfidence,
+  issuesNeedInitialScreening,
   shouldRunFollowUp,
+  type TriagePreview,
   type VisitAiQuestion,
+  type VisitScreeningParams,
 } from '@morbeez/shared';
 import { Alert, Loading, Panel } from '../../ui';
 import type { VisitIssueDraft } from './types';
@@ -27,10 +32,13 @@ function newLocalQuestion(): VisitAiQuestion {
 type Props = {
   issues: VisitIssueDraft[];
   onChange: (issues: VisitIssueDraft[]) => void;
+  triage?: TriagePreview | null;
+  screening?: VisitScreeningParams;
 };
 
-export function VisitFollowUpStep({ issues, onChange }: Props) {
-  const [loading, setLoading] = useState(false);
+export function VisitFollowUpStep({ issues, onChange, triage, screening }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [screeningRunning, setScreeningRunning] = useState(false);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [skipping, setSkipping] = useState(false);
@@ -41,14 +49,54 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function runInitialScreening(): Promise<VisitIssueDraft[]> {
+    if (!screening) throw new Error('Screening context is missing for this visit.');
+    setScreeningRunning(true);
+    try {
+      const { issues: detected } = await agronomistClient.analyzeVisit(buildAnalyzeVisitBody(screening));
+      const mapped = detected.map((row, idx) => ({
+        localId: row.localId ?? `ai-${idx}`,
+        category: row.category,
+        issueName: row.issueName,
+        severity: row.severity ?? row.aiSeverity ?? 'medium',
+        observation: row.observation ?? '',
+        aiCaseId: row.aiCaseId,
+        hypotheses: row.hypotheses,
+        selectedHypothesisLabel: row.selectedHypothesisLabel,
+        finalDiagnosis: row.finalDiagnosis,
+        finalRecommendation: row.finalRecommendation,
+        confidenceAction: row.confidenceAction,
+        skipFollowUpOptional: row.skipFollowUpOptional,
+        imageSignal: row.imageSignal,
+        similarCases: row.similarCases,
+        rootCause: row.rootCause,
+        evidence: row.evidence,
+        initialRecommendation: row.initialRecommendation,
+        aiConfidence: row.aiConfidence,
+      })) as VisitIssueDraft[];
+      const expanded = expandSeparateNutrientIssues(mapped);
+      onChange(expanded);
+      return expanded;
+    } finally {
+      setScreeningRunning(false);
+    }
+  }
+
   async function loadQuestions() {
     setLoading(true);
     setError('');
     try {
-      const next = [...issues];
+      let working = [...issues];
+      if (issuesNeedInitialScreening(working)) {
+        working = await runInitialScreening();
+      }
+      const next = [...working];
+      const flowCtx = { issues: next, triage, partnerMode: false };
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
-        if (!shouldRunFollowUp(issue) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) continue;
+        if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) {
+          continue;
+        }
         const questions = await agronomistClient.getVisitAiQuestions(issue.aiCaseId);
         next[i] = { ...issue, followUpQuestions: questions };
       }
@@ -207,7 +255,7 @@ export function VisitFollowUpStep({ issues, onChange }: Props) {
   if (loading) {
     return (
       <div className="vw-loading-center">
-        <Loading label="Loading follow-up questions…" />
+        <Loading label={screeningRunning ? 'Running initial AI screening…' : 'Loading follow-up questions…'} />
       </div>
     );
   }

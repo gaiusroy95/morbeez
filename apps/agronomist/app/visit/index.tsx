@@ -8,6 +8,7 @@ import {
   getNextWizardStep,
   getPrevWizardStep,
   getVisibleWizardSteps,
+  normalizeVisitWizardStep,
   suggestNextCapturePhotoType,
   validateVisitWizardStep,
   mapRecommendationGroupsForSubmit,
@@ -294,7 +295,12 @@ export default function VisitScreen() {
   }
 
   function validateStep(current: VisitWizardStep): string | null {
-    return validateVisitWizardStep(current, validationContext());
+    const normalized = normalizeVisitWizardStep(current);
+    return validateVisitWizardStep(normalized, validationContext());
+  }
+
+  function activeStep(): VisitWizardStep {
+    return normalizeVisitWizardStep(step);
   }
 
   async function createIssueType(input: {
@@ -314,13 +320,13 @@ export default function VisitScreen() {
       return;
     }
     setError('');
-    const next = getNextWizardStep(step, validationContext());
+    const next = getNextWizardStep(activeStep(), validationContext());
     if (next) setStep(next);
   }
 
   function goBack() {
     setError('');
-    const prev = getPrevWizardStep(step, validationContext());
+    const prev = getPrevWizardStep(activeStep(), validationContext());
     if (prev) setStep(prev);
   }
 
@@ -420,7 +426,8 @@ export default function VisitScreen() {
           ? whatsappMessages.map((m) => ({
               issueIndex: m.issueIndex,
               message: m.message.trim(),
-              compliancePrompt: m.compliancePrompt?.trim() || undefined,
+              complianceQuestion: m.complianceQuestion?.trim() || undefined,
+              complianceNoAction: m.complianceNoAction ?? 'escalate',
             }))
           : undefined,
         followUps: followUps
@@ -470,7 +477,7 @@ export default function VisitScreen() {
 
   return (
     <View style={styles.root}>
-      <VisitStepper current={step} />
+      <VisitStepper current={activeStep()} />
       <KeyboardAwareScrollScreen contentContainerStyle={[styles.content, { paddingBottom: footerPad }]}>
         {error ? <AlertBox>{error}</AlertBox> : null}
 
@@ -515,7 +522,7 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'fieldIntelligence' ? (
+        {activeStep() === 'fieldIntelligence' ? (
           <VisitFieldIntelligenceStep
             cropType={cropType}
             farmerId={farmerId}
@@ -545,12 +552,32 @@ export default function VisitScreen() {
             blockId={blockId}
             blockAssessment={{ blockHealth, cropPerformance, soilMoisture }}
             measurements={measurements}
-            analyzePhotos={visitPhotos
-              .filter((p) => p.dataBase64?.length > 100)
-              .slice(0, 4)
-              .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType }))}
             triage={triage}
             onTriage={setTriage}
+          />
+        ) : null}
+
+        {step === 'followUp' && blockHealth && cropPerformance && soilMoisture ? (
+          <VisitFollowUpStep
+            issues={issues}
+            onChange={setIssues}
+            triage={triage}
+            screening={{
+              farmerId,
+              blockId,
+              sessionId: sessionRef.current,
+              fieldVoiceNote,
+              blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+              measurements,
+              templates,
+              gpsLat,
+              gpsLon,
+              visitPhotos: visitPhotos.map((p) => ({
+                dataBase64: p.dataBase64,
+                mimeType: p.mimeType,
+                photoType: p.photoType,
+              })),
+            }}
           />
         ) : null}
 
@@ -583,10 +610,6 @@ export default function VisitScreen() {
             onSuggestQuestions={() => Promise.resolve([])}
             onCreateIssueType={createIssueType}
           />
-        ) : null}
-
-        {step === 'followUp' ? (
-          <VisitFollowUpStep issues={issues} onChange={setIssues} />
         ) : null}
 
         {step === 'additionalPhotos' ? (

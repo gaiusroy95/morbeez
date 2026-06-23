@@ -48,7 +48,51 @@ function formatSoilBlock(soilTestSummary: VisitAiContextPack['soilTestSummary'])
 function formatWeatherBlock(weather: VisitAiContextPack['weatherSnapshot']): string {
   if (!weather) return 'Weather unavailable';
   const w = weather as Record<string, unknown>;
-  return `Temp ${w.temperatureC ?? '?'}°C, humidity ${w.humidityPct ?? '?'}%, rain ${w.rainfallMm ?? '?'}mm, risk ${w.weatherRiskScore ?? '?'}`;
+  const lines: string[] = [
+    `Today: temp ${w.temperatureC ?? '?'}°C, humidity ${w.humidityPct ?? '?'}%, rain ${w.rainfallMm ?? '?'}mm, risk ${w.weatherRiskScore ?? '?'}`,
+  ];
+
+  const last7 = w.last7Days as
+    | Array<{ date: string; rainfallMm: number; temperatureC: number; humidityPct: number }>
+    | undefined;
+  const totals = w.totals7d as
+    | { rainfallMm: number; avgTempC: number; avgHumidityPct: number }
+    | undefined;
+  if (last7?.length) {
+    lines.push(
+      `Last 7 days: total rain ${totals?.rainfallMm ?? '?'}mm, avg temp ${totals?.avgTempC ?? '?'}°C, avg humidity ${totals?.avgHumidityPct ?? '?'}%`
+    );
+    lines.push(
+      `Daily pattern: ${last7
+        .map(
+          (d) =>
+            `${String(d.date).slice(5)} ${d.rainfallMm}mm rain / ${d.temperatureC}°C / ${d.humidityPct}% RH`
+        )
+        .join('; ')}`
+    );
+  }
+
+  const pressures = w.pressures as
+    | {
+        heatStress?: boolean;
+        waterlogging?: boolean;
+        fungalPressure?: boolean;
+        pestPressure?: boolean;
+        irrigationTrend?: string;
+      }
+    | undefined;
+  if (pressures?.irrigationTrend) {
+    lines.push(`Irrigation trend: ${pressures.irrigationTrend}`);
+  }
+  const flags = [
+    pressures?.heatStress && 'heat stress',
+    pressures?.waterlogging && 'waterlogging risk',
+    pressures?.fungalPressure && 'fungal pressure',
+    pressures?.pestPressure && 'pest pressure',
+  ].filter(Boolean);
+  if (flags.length) lines.push(`7-day pressure flags: ${flags.join(', ')}`);
+
+  return lines.join('\n');
 }
 
 function parseMeasurementValue(measurements: VisitAiContextPack['measurements'], pattern: RegExp): number | null {
@@ -86,6 +130,29 @@ export function computeEvidenceSignals(
     context.blockAssessment?.cropPerformance === 'below_expectation'
   ) {
     hints.push({ signal: 'Poor block/crop assessment', reason: 'Agronomist flagged block stress' });
+  }
+  const weather = context.weatherSnapshot as Record<string, unknown> | null;
+  const totals = weather?.totals7d as { rainfallMm?: number; avgTempC?: number } | undefined;
+  const pressures = weather?.pressures as
+    | { heatStress?: boolean; waterlogging?: boolean; irrigationTrend?: string }
+    | undefined;
+  if (/nutrient|deficien/.test(issueCategory) && totals?.rainfallMm != null && totals.rainfallMm >= 35) {
+    hints.push({
+      signal: 'Heavy 7-day rainfall',
+      reason: `${totals.rainfallMm}mm may leach mobile nutrients (N, K)`,
+    });
+  }
+  if (/nutrient|deficien/.test(issueCategory) && pressures?.heatStress) {
+    hints.push({
+      signal: 'Heat stress (7-day pattern)',
+      reason: 'Elevated K demand and transpiration stress',
+    });
+  }
+  if (/nutrient|deficien/.test(issueCategory) && pressures?.waterlogging) {
+    hints.push({
+      signal: 'Wet 7-day pattern',
+      reason: 'Root oxygen stress; impaired K uptake likely',
+    });
   }
   if (imageSignal && context.soilTestSummary && Number.isFinite(n) && n < 200) {
     const imgHay = imageSignal.label.toLowerCase();

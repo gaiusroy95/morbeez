@@ -1,6 +1,7 @@
 import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from './block.service.js';
 import { weatherSnapshotService } from './weather-snapshot.service.js';
+import { deriveWeatherPressures } from '../whatsapp/pipeline/weather-fetch.service.js';
 import { ALL_SOIL_FIELDS, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
 import { crmFarmerService } from '../admin/crm-farmer.service.js';
 export const visitEnvironmentService = {
@@ -8,16 +9,9 @@ export const visitEnvironmentService = {
         const block = await blockService.getById(blockId, farmerId);
         if (!block)
             throw new NotFoundError('Block not found');
-        const [soilRows, weatherSnapshot] = await Promise.all([
+        const [soilRows, weatherBundle] = await Promise.all([
             crmFarmerService.listSoilReports(farmerId, blockId).catch(() => []),
-            weatherSnapshotService
-                .capture({
-                farmerId,
-                blockId,
-                eventType: 'field_finding',
-                eventId: null,
-            })
-                .catch(() => null),
+            weatherSnapshotService.getVisitWeatherBundle({ farmerId, blockId, days: 7 }).catch(() => null),
         ]);
         const latestSoil = soilRows[0];
         const normalized = latestSoil?.metrics ? normalizeSoilMetrics(latestSoil.metrics) : null;
@@ -39,26 +33,51 @@ export const visitEnvironmentService = {
                 }),
             }
             : null;
-        const ctx = weatherSnapshot?.context ?? null;
+        const last7DaysRaw = weatherBundle?.last7Days ?? [];
+        const today = last7DaysRaw[last7DaysRaw.length - 1];
+        const alerts = [];
+        if (weatherBundle?.heavyRainLikely)
+            alerts.push('heavy_rain_likely');
+        if (weatherBundle?.highHeatLikely)
+            alerts.push('high_heat_likely');
+        if (weatherBundle?.highHumidityLikely)
+            alerts.push('high_humidity_likely');
+        const last7Days = last7DaysRaw.map((d) => ({
+            date: d.date,
+            temperatureC: d.maxTempC,
+            humidityPct: d.avgHumidityPct,
+            rainfallMm: d.rainfallMm,
+        }));
+        const totals7d = last7Days.length > 0
+            ? {
+                rainfallMm: Math.round(last7Days.reduce((s, d) => s + (d.rainfallMm ?? 0), 0) * 10) / 10,
+                avgTempC: Math.round((last7Days.reduce((s, d) => s + (d.temperatureC ?? 0), 0) / last7Days.length) * 10) / 10,
+                avgHumidityPct: Math.round((last7Days.reduce((s, d) => s + (d.humidityPct ?? 0), 0) / last7Days.length) * 10) / 10,
+            }
+            : null;
+        const pressures = last7DaysRaw.length ? deriveWeatherPressures(last7DaysRaw) : null;
         const weather = {
-            current: ctx
+            current: today
                 ? {
-                    temperatureC: ctx.temperature_c ?? null,
-                    humidityPct: ctx.humidity_pct ?? null,
-                    rainfallMm: ctx.rainfall_mm ?? null,
-                    weatherRiskScore: ctx.weather_risk_score ?? null,
-                    diseaseAlerts: ctx.disease_alerts ?? [],
-                    locationLabel: ctx.location_label ?? null,
+                    temperatureC: today.maxTempC,
+                    humidityPct: today.avgHumidityPct,
+                    rainfallMm: today.rainfallMm,
+                    weatherRiskScore: weatherBundle?.weatherRiskScore ?? null,
+                    diseaseAlerts: alerts,
+                    locationLabel: weatherBundle?.locationLabel ?? null,
                 }
                 : null,
-            forecast: ctx
+            forecast: weatherBundle
                 ? {
-                    rainfallMmForecast: ctx.rainfall_mm_forecast ?? null,
-                    heavyRainLikely: Boolean(ctx.disease_alerts?.includes('heavy_rain_likely')),
-                    highHeatLikely: Boolean(ctx.disease_alerts?.includes('high_heat_likely')),
-                    highHumidityLikely: Boolean(ctx.disease_alerts?.includes('high_humidity_likely')),
+                    rainfallMmForecast: weatherBundle.forecastTomorrow.rainfallMm,
+                    heavyRainLikely: weatherBundle.heavyRainLikely,
+                    highHeatLikely: weatherBundle.highHeatLikely,
+                    highHumidityLikely: weatherBundle.highHumidityLikely,
                 }
                 : null,
+            last7Days,
+            totals7d,
+            pressures,
         };
         return { soilReport, weather };
     },

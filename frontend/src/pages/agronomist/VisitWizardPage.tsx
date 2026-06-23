@@ -358,7 +358,8 @@ export function VisitWizardPage({ canWrite }: Props) {
           ? whatsappMessages.map((m) => ({
               issueIndex: m.issueIndex,
               message: m.message.trim(),
-              compliancePrompt: m.compliancePrompt?.trim() || undefined,
+              complianceQuestion: m.complianceQuestion?.trim() || undefined,
+              complianceNoAction: m.complianceNoAction ?? 'escalate',
             }))
           : undefined,
         followUps: followUps
@@ -488,12 +489,32 @@ export function VisitWizardPage({ canWrite }: Props) {
           blockId={blockId}
           blockAssessment={{ blockHealth, cropPerformance, soilMoisture }}
           measurements={measurements}
-          analyzePhotos={visitPhotos
-            .filter((p) => p.dataBase64?.length > 100)
-            .slice(0, 4)
-            .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType }))}
           triage={triage}
           onTriage={setTriage}
+        />
+      ) : null}
+
+      {step === 'followUp' && blockHealth && cropPerformance && soilMoisture ? (
+        <VisitFollowUpStep
+          issues={issues}
+          onChange={setIssues}
+          triage={triage}
+          screening={{
+            farmerId,
+            blockId,
+            sessionId: sessionRef.current,
+            fieldVoiceNote,
+            blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+            measurements,
+            templates,
+            gpsLat,
+            gpsLon,
+            visitPhotos: visitPhotos.map((p) => ({
+              dataBase64: p.dataBase64,
+              mimeType: p.mimeType,
+              photoType: p.photoType,
+            })),
+          }}
         />
       ) : null}
 
@@ -525,8 +546,6 @@ export function VisitWizardPage({ canWrite }: Props) {
           onChange={setIssues}
         />
       ) : null}
-
-      {step === 'followUp' ? <VisitFollowUpStep issues={issues} onChange={setIssues} /> : null}
 
       {step === 'additionalPhotos' ? (
         <VisitAdditionalPhotosStep issues={issues} onChange={setIssues} />

@@ -611,6 +611,7 @@ export const agronomistClient = {
     longitude?: number;
     fieldVoiceNote?: string;
     analyzePhotos?: Array<{ dataBase64: string; mimeType?: string; photoType?: string }>;
+    purpose?: 'screening' | 'full';
   }) {
     const r = await staffApi<{
       ok: boolean;

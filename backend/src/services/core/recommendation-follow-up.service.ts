@@ -125,6 +125,95 @@ export const recommendationFollowUpService = {
     } as RecRow;
   },
 
+  async onCompliancePromptSent(
+    recommendationRecordId: string,
+    question: string,
+    noAction: 'escalate' | 'review'
+  ): Promise<void> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec) return;
+
+    await supabase.from('recommendation_follow_ups').insert({
+      recommendation_record_id: recommendationRecordId,
+      farmer_id: rec.farmer_id,
+      block_id: rec.block_id,
+      phase: 'compliance_check',
+      status: 'sent',
+      scheduled_at: new Date().toISOString(),
+      sent_at: new Date().toISOString(),
+      metadata: { question, noAction },
+    });
+
+    await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'compliance');
+  },
+
+  async handleComplianceReply(
+    farmerId: string,
+    recommendationRecordId: string,
+    reply: 'yes' | 'no'
+  ): Promise<string> {
+    const rec = await this.loadRecord(recommendationRecordId);
+    if (!rec || rec.farmer_id !== farmerId) {
+      return 'Could not find your recommendation. Type menu for help.';
+    }
+
+    const lang = (rec.language || 'en') as AdvisoryLanguage;
+    const copy = followUpCopy(lang);
+    const now = new Date().toISOString();
+    const meta = (rec.metadata as Record<string, unknown>) ?? {};
+    const followMeta = meta.complianceFollowUp as { noAction?: 'escalate' | 'review' } | undefined;
+    const noAction = followMeta?.noAction ?? 'escalate';
+
+    await supabase
+      .from('recommendation_follow_ups')
+      .update({
+        status: 'responded',
+        farmer_response: reply === 'yes' ? 'compliance_yes' : 'compliance_no',
+        responded_at: now,
+        updated_at: now,
+      })
+      .eq('recommendation_record_id', recommendationRecordId)
+      .eq('phase', 'compliance_check')
+      .in('status', ['sent', 'scheduled']);
+
+    if (reply === 'yes') {
+      await supabase
+        .from('recommendation_records')
+        .update({
+          application_status: 'applied',
+          updated_at: now,
+        })
+        .eq('id', recommendationRecordId);
+      await this.upsertLearningSample(rec, { applicationConfirmed: true });
+      await clearConversationPending(farmerId);
+      return copy.appliedThanks;
+    }
+
+    if (noAction === 'review') {
+      await createTelecallerTask({
+        farmerId,
+        title: 'Agronomist review — treatment not completed',
+        notes: `Farmer answered No to compliance check. Rec ${recommendationRecordId.slice(0, 8)}. Issue: ${rec.issue_detected ?? 'n/a'}`,
+        priority: 'high',
+      });
+      await supabase
+        .from('recommendation_records')
+        .update({
+          application_status: 'need_clarification',
+          updated_at: now,
+        })
+        .eq('id', recommendationRecordId);
+    } else {
+      await this.escalateNoApplicationConfirmation(farmerId, recommendationRecordId, rec);
+    }
+
+    await this.upsertLearningSample(rec, { applicationConfirmed: false, escalated: true });
+    await clearConversationPending(farmerId);
+    return lang === 'ml'
+      ? 'നിങ്ങളുടെ മറുപടി രേഖപ്പെടുത്തി. ഞങ്ങളുടെ അഗ്രോണമി ടീം ഉടൻ ബന്ധപ്പെടും.'
+      : 'Thank you. Our agronomy team will follow up with you shortly.';
+  },
+
   /** Stage 1 — recommendation communicated; schedule Day-1 application check. */
   async onRecommendationCommunicated(recommendationRecordId: string): Promise<void> {
     if (!env.ENABLE_ADVISORY_FOLLOW_UPS) return;
@@ -1335,7 +1424,7 @@ function mapApplicationMethod(
 async function conversationPatchPending(
   farmerId: string,
   recommendationRecordId: string,
-  phase: 'application' | 'outcome'
+  phase: 'application' | 'outcome' | 'compliance'
 ): Promise<void> {
   const { data } = await supabase
     .from('conversation_sessions')

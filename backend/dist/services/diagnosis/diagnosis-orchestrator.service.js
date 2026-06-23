@@ -1,9 +1,7 @@
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { moduleFusionService } from '../case/module-fusion.service.js';
-import { visitAiContextService } from '../core/visit-ai-context.service.js';
 import { visitAiOrchestratorService } from '../core/visit-ai-orchestrator.service.js';
-import { resolveVisitImagePredictions } from '../core/visit-ai-image.service.js';
 import { buildInsufficientEvidenceEnvelope, isDiagnosisInferenceAvailable, mapImageSourceToDiagnosisSource, } from './diagnosis-integrity.util.js';
 function triageRoute(level) {
     if (level === 'L1')
@@ -13,13 +11,6 @@ function triageRoute(level) {
     if (level === 'L3')
         return 'complex';
     return 'critical';
-}
-function inferSeverityFromConfidence(confidence) {
-    if (confidence < 0.55)
-        return 'severe';
-    if (confidence < 0.75)
-        return 'moderate';
-    return 'mild';
 }
 export const diagnosisOrchestratorService = {
     isCapable() {
@@ -42,22 +33,31 @@ export const diagnosisOrchestratorService = {
             blockId: input.blockId,
             photoCount: input.analyzePhotos?.length ?? 0,
         }, 'Diagnosis triage preview started');
-        const context = await visitAiContextService.buildVisitAiContext(input);
-        const analyzePhotos = input.analyzePhotos?.map((p) => ({
-            dataBase64: p.dataBase64,
-            mimeType: p.mimeType,
-        }));
-        const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
-            cropType: context.cropType,
-            dap: context.dap,
-            stage: context.stage,
-        });
-        const fusedConfidence = imageSignal?.confidence ?? 0.55;
+        // Fast path: route from field assessment + measurements only (no vision API — that runs on AI analysis).
+        const measurementCount = input.measurements?.length ?? 0;
+        const assessment = input.blockAssessment;
+        let fusedConfidence = 0.72;
+        let severity = 'mild';
+        if (assessment?.blockHealth === 'need_assistance') {
+            severity = 'moderate';
+            fusedConfidence = 0.58;
+        }
+        if (assessment?.cropPerformance === 'below_expectation') {
+            severity = severity === 'mild' ? 'moderate' : severity;
+            fusedConfidence = Math.min(fusedConfidence, 0.65);
+        }
+        if (assessment?.soilMoisture === 'waterlogged') {
+            severity = 'moderate';
+            fusedConfidence = Math.min(fusedConfidence, 0.6);
+        }
+        else if (assessment?.soilMoisture === 'dry') {
+            fusedConfidence = Math.min(fusedConfidence, 0.68);
+        }
+        const riskTagCount = measurementCount >= 3 ? 2 : assessment?.blockHealth === 'need_assistance' ? 1 : 0;
         const triage = moduleFusionService.triageLevel({
-            severity: inferSeverityFromConfidence(fusedConfidence),
+            severity,
             fusedConfidence,
-            riskTagCount: context.measurements.length >= 3 ? 2 : 0,
-            probableIssue: imageSignal?.label,
+            riskTagCount,
         });
         const level = triage.level;
         const result = {

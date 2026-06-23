@@ -12,11 +12,8 @@ import {
   type IssueMasterRow,
   type IssueStatus,
   type RecordSeverity,
-  type StructuredVisitIssueInput,
-  type VisitAiHypothesis,
-  type VisitAiQuestion,
-  type VisitReviewSubStep,
-  type VisitAiCaseStatus,
+  type VisitPhotoInput,
+  type VisitIssueDraft,
   type RecommendationPriority,
 } from '@morbeez/shared';
 import { Btn, DynamicSelect, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
@@ -46,22 +43,12 @@ const STATUS_LABELS: Record<IssueStatus, string> = {
 
 type PhotoPreview = { uri: string; filename: string; mimeType: string; dataBase64: string };
 
-export type IssueDraft = StructuredVisitIssueInput & {
-  localId: string;
+export type IssueDraft = Omit<VisitIssueDraft, 'photos'> & {
   categoryLabel?: string;
   photosPreview?: PhotoPreview[];
-  hypotheses?: VisitAiHypothesis[];
-  selectedHypothesisLabel?: string;
-  followUpQuestions?: VisitAiQuestion[];
+  photos?: (VisitPhotoInput & { uri?: string })[];
   aiDosage?: string;
   aiPriority?: RecommendationPriority;
-  similarCases?: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;
-  confidenceAction?: string;
-  skipFollowUpOptional?: boolean;
-  qaSkipped?: boolean;
-  imageSignal?: { label: string; confidence: number };
-  reviewSubStep?: VisitReviewSubStep;
-  visitAiCaseStatus?: VisitAiCaseStatus | string;
 };
 
 type Props = {

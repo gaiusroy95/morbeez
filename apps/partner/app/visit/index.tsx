@@ -10,6 +10,7 @@ import {
   validateVisitWizardStep,
   mapRecommendationGroupsForSubmit,
   buildPriorRecommendationFollowUps,
+  suggestNextCapturePhotoType,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueCategory,
@@ -41,11 +42,15 @@ import { VisitSoilWeatherStep } from '@agronomist/components/field-findings/wiza
 import { VisitFinalDiagnosisStep } from '@agronomist/components/field-findings/wizard/VisitFinalDiagnosisStep';
 import { VisitRecPlanningStep } from '@agronomist/components/field-findings/wizard/VisitRecPlanningStep';
 import { VisitSummaryStep } from '@agronomist/components/field-findings/wizard/VisitSummaryStep';
-import { type VisitPhotoDraft, getDefaultSelectedPhotoTypes } from '@agronomist/components/field-findings/wizard/types';
+import { type VisitPhotoDraft, getVisitPhotoTypesForCrop } from '@agronomist/components/field-findings/wizard/types';
 import { usePartnerAuth } from '@/context/PartnerAuth';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
 
 const PARTNER_HIDDEN_STEPS: VisitWizardStep[] = ['recApproval'];
+
+function initialCapturePhotoType(crop: string): string {
+  return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
+}
 
 function validationCtx(
   state: {
@@ -114,7 +119,7 @@ export default function VisitScreen() {
   const [issues, setIssues] = useState<IssueDraft[]>([]);
   const [visitPhotos, setVisitPhotos] = useState<VisitPhotoDraft[]>([]);
   const [fieldVoiceNote, setFieldVoiceNote] = useState('');
-  const [photoTypes, setPhotoTypes] = useState<string[]>(() => getDefaultSelectedPhotoTypes(cropType));
+  const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -218,7 +223,7 @@ export default function VisitScreen() {
   }, [cropType, farmerId, blockId]);
 
   useEffect(() => {
-    setPhotoTypes(getDefaultSelectedPhotoTypes(cropType));
+    setCapturePhotoType(initialCapturePhotoType(cropType));
   }, [cropType]);
 
   useEffect(() => {
@@ -480,10 +485,10 @@ export default function VisitScreen() {
           <VisitPhotosStep
             cropType={cropType}
             photos={visitPhotos}
-            selectedTypes={photoTypes}
+            captureType={capturePhotoType}
+            onCaptureTypeChange={setCapturePhotoType}
             voiceNote={fieldVoiceNote}
             onPhotosChange={setVisitPhotos}
-            onTypesChange={setPhotoTypes}
             onVoiceNoteChange={setFieldVoiceNote}
             validatePhoto={partnerClient.validateVisitPhoto}
           />
@@ -504,6 +509,30 @@ export default function VisitScreen() {
             blockId={blockId}
             hideScores
             fetchEnvironment={partnerClient.getVisitEnvironment}
+          />
+        ) : null}
+
+        {step === 'followUp' && blockHealth && cropPerformance && soilMoisture ? (
+          <VisitFollowUpStep
+            issues={issues}
+            onChange={setIssues}
+            visitAiClient={partnerClient}
+            screening={{
+              farmerId,
+              blockId,
+              sessionId: sessionRef.current,
+              fieldVoiceNote,
+              blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+              measurements,
+              templates,
+              gpsLat,
+              gpsLon,
+              visitPhotos: visitPhotos.map((p) => ({
+                dataBase64: p.dataBase64,
+                mimeType: p.mimeType,
+                photoType: p.photoType,
+              })),
+            }}
           />
         ) : null}
 
@@ -537,10 +566,6 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'followUp' ? (
-          <VisitFollowUpStep issues={issues} onChange={setIssues} visitAiClient={partnerClient} />
-        ) : null}
-
         {step === 'additionalPhotos' ? (
           <VisitAdditionalPhotosStep issues={issues} onChange={setIssues} />
         ) : null}
@@ -553,6 +578,7 @@ export default function VisitScreen() {
           <>
             <VisitRecommendationStep issues={issues} onChange={setIssues} visitAiClient={partnerClient} />
             <VisitRecPlanningStep
+              cropType={cropType}
               issues={issues}
               groups={recommendationGroups}
               onChange={setRecommendationGroups}
@@ -580,7 +606,7 @@ export default function VisitScreen() {
         {step === 'summary' ? (
           <VisitSummaryStep
             photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
-            photoTypeCount={photoTypes.length}
+            photoTypeCount={visitPhotos.length}
             templates={templates}
             measurements={measurements}
             issues={issues}

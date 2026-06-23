@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
+  resolveComplianceQuestion,
   tokens,
   type RecommendationGroupDraft,
+  type WhatsappComplianceNoAction,
   type WhatsappPreviewMessage,
 } from '@morbeez/shared';
 import { AlertBox, Btn, TextField } from '@morbeez/ui-native';
@@ -104,6 +106,8 @@ export function VisitWhatsappPreviewStep({
     if (!original) return;
     updateMessage(issueIndex, {
       message: original.message,
+      complianceQuestion: original.complianceQuestion,
+      complianceNoAction: original.complianceNoAction,
       compliancePrompt: original.compliancePrompt,
     });
   }
@@ -120,8 +124,7 @@ export function VisitWhatsappPreviewStep({
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
       <Text style={styles.hint}>
-        Edit each message before confirming. The text you save here is what the farmer receives on
-        WhatsApp after submit.
+        Edit each message before confirming. Farmers receive Yes/No buttons on the follow-up question.
       </Text>
       {staleHint ? (
         <View style={styles.staleBanner}>
@@ -133,30 +136,64 @@ export function VisitWhatsappPreviewStep({
           </Pressable>
         </View>
       ) : null}
-      {messages.map((msg) => (
-        <View key={`${msg.issueIndex}-${msg.issueLabel}`} style={styles.card}>
-          <Text style={styles.title}>{msg.issueLabel}</Text>
-          <TextField
-            label="WhatsApp message"
-            value={msg.message}
-            onChangeText={(text) => updateMessage(msg.issueIndex, { message: text })}
-            placeholder="Edit message text"
-            multiline
-          />
-          {msg.compliancePrompt ? (
+      {messages.map((msg) => {
+        const question = resolveComplianceQuestion(msg);
+        const noAction = msg.complianceNoAction ?? 'escalate';
+        return (
+          <View key={`${msg.issueIndex}-${msg.issueLabel}`} style={styles.card}>
+            <Text style={styles.title}>{msg.issueLabel}</Text>
             <TextField
-              label="Follow-up prompt (optional)"
-              value={msg.compliancePrompt ?? ''}
-              onChangeText={(text) => updateMessage(msg.issueIndex, { compliancePrompt: text })}
-              placeholder="Compliance follow-up"
+              label="WhatsApp message"
+              value={msg.message}
+              onChangeText={(text) => updateMessage(msg.issueIndex, { message: text })}
+              placeholder="Edit message text"
               multiline
             />
-          ) : null}
-          <Pressable style={styles.resetBtn} onPress={() => resetMessage(msg.issueIndex)} disabled={loading}>
-            <Text style={styles.resetBtnText}>Reset to generated text</Text>
-          </Pressable>
-        </View>
-      ))}
+            <TextField
+              label="Follow-up question"
+              value={question}
+              onChangeText={(text) =>
+                updateMessage(msg.issueIndex, {
+                  complianceQuestion: text,
+                  compliancePrompt: `${text} Reply Yes or No.`,
+                })
+              }
+              placeholder="Treatment completed?"
+            />
+            <Text style={styles.subLabel}>Farmer reply buttons</Text>
+            <View style={styles.chipRow}>
+              <View style={[styles.chip, styles.chipYes]}>
+                <Text style={styles.chipYesText}>Yes</Text>
+              </View>
+              <View style={[styles.chip, styles.chipNo]}>
+                <Text style={styles.chipNoText}>No</Text>
+              </View>
+            </View>
+            <Text style={styles.noActionHint}>
+              If farmer taps <Text style={styles.bold}>No</Text> →{' '}
+              {noAction === 'review' ? 'telecaller review task' : 'agronomist escalation'}
+            </Text>
+            <View style={styles.chipRow}>
+              {(['escalate', 'review'] as WhatsappComplianceNoAction[]).map((action) => (
+                <Pressable
+                  key={action}
+                  style={[styles.actionChip, noAction === action && styles.actionChipActive]}
+                  onPress={() => updateMessage(msg.issueIndex, { complianceNoAction: action })}
+                >
+                  <Text
+                    style={[styles.actionChipText, noAction === action && styles.actionChipTextActive]}
+                  >
+                    {action === 'escalate' ? 'Escalate' : 'Review'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Pressable style={styles.resetBtn} onPress={() => resetMessage(msg.issueIndex)} disabled={loading}>
+              <Text style={styles.resetBtnText}>Reset to generated text</Text>
+            </Pressable>
+          </View>
+        );
+      })}
       <Btn
         label={confirmed ? 'WhatsApp confirmed' : 'Confirm WhatsApp messages'}
         variant={confirmed ? 'primary' : 'secondary'}
@@ -190,6 +227,40 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   title: { fontSize: 15, fontWeight: '700', color: tokens.text },
+  subLabel: { fontSize: 12, fontWeight: '600', color: tokens.textMuted, marginTop: 4 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  chipYes: {
+    backgroundColor: '#e8f5e9',
+    borderColor: tokens.green700,
+  },
+  chipYesText: { fontSize: 14, fontWeight: '700', color: tokens.green800 },
+  chipNo: {
+    backgroundColor: '#fff5f5',
+    borderColor: '#e57373',
+  },
+  chipNoText: { fontSize: 14, fontWeight: '700', color: '#c62828' },
+  noActionHint: { fontSize: 12, color: tokens.textMuted, lineHeight: 16 },
+  bold: { fontWeight: '700', color: tokens.text },
+  actionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    backgroundColor: tokens.card,
+  },
+  actionChipActive: {
+    borderColor: tokens.green700,
+    backgroundColor: '#e8f5e9',
+  },
+  actionChipText: { fontSize: 13, fontWeight: '600', color: tokens.textMuted },
+  actionChipTextActive: { color: tokens.green800 },
   resetBtn: { alignSelf: 'flex-start', paddingVertical: 4 },
   resetBtnText: { fontSize: 12, fontWeight: '600', color: tokens.green800 },
 });

@@ -34,7 +34,7 @@ export interface SessionContext {
   onboardingComplete?: boolean;
   /** Auto recommendation follow-up engine */
   pendingRecommendationRecordId?: string;
-  pendingRecommendationFollowUp?: 'application' | 'outcome';
+  pendingRecommendationFollowUp?: 'application' | 'outcome' | 'compliance';
   /** Assessment playbook router (insect / weed / compatibility, etc.) */
   lastPlaybookCategory?: string;
   /** ROI tracker (farmers add only; telecaller edits in CRM) */

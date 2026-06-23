@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radiusSm,
     borderWidth: 1,
     borderColor: tokens.border,
-    backgroundColor: tokens.surface,
+    backgroundColor: tokens.card,
   },
   name: { fontSize: 16, fontWeight: '600', color: tokens.text },
   meta: { fontSize: 13, color: tokens.textMuted, marginTop: 4 },

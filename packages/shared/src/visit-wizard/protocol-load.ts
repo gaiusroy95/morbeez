@@ -11,7 +11,7 @@ export function protocolToRecommendationGroups(
 ): RecommendationGroupDraft[] {
   const stages = (protocol.stages as Array<Record<string, unknown>>) ?? [];
   const products = (protocol.products as Array<Record<string, unknown>>) ?? [];
-  const source =
+  const source: Array<Record<string, unknown>> =
     stages.length > 0
       ? stages
       : products.map((p) => ({
@@ -30,6 +30,7 @@ export function protocolToRecommendationGroups(
       materials: materialsRaw.map((m) => ({
         localId: newLocalId('mat'),
         issueLocalId,
+        category: String(m.category ?? m.product_category ?? 'fungicide'),
         technicalName: String(m.technicalName ?? m.name ?? m.product_name ?? ''),
         doseQuantity: String(m.doseQuantity ?? m.dose ?? ''),
         doseBasis: (m.doseBasis as RecommendationGroupDraft['materials'][number]['doseBasis']) ?? undefined,

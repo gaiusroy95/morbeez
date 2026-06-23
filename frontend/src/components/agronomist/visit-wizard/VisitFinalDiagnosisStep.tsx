@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { expandSeparateNutrientIssues } from '@morbeez/shared';
 import { Field, Input, Panel, textareaClass } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
@@ -7,6 +9,15 @@ type Props = {
 };
 
 export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
+  useEffect(() => {
+    const expanded = expandSeparateNutrientIssues(issues);
+    const changed =
+      expanded.length !== issues.length ||
+      expanded.some((row, i) => row.issueName !== issues[i]?.issueName);
+    if (changed) onChange(expanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function patchIssue(index: number, patch: Partial<VisitIssueDraft>) {
     const next = [...issues];
     next[index] = { ...next[index]!, ...patch };

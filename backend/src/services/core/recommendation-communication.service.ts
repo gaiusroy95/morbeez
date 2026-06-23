@@ -128,7 +128,12 @@ export function buildApprovedRecommendationMessage(
 export const recommendationCommunicationService = {
   async sendApprovedRecommendation(
     recommendationId: string,
-    options?: { force?: boolean; customMessage?: string }
+    options?: {
+      force?: boolean;
+      customMessage?: string;
+      complianceQuestion?: string;
+      complianceNoAction?: 'escalate' | 'review';
+    }
   ): Promise<{ sent: boolean; message?: string; reason?: string }> {
     const { data, error } = await supabase
       .from('recommendation_records')
@@ -181,6 +186,26 @@ export const recommendationCommunicationService = {
       });
     await whatsappService.sendText(phone, text.slice(0, 4000));
 
+    const complianceQuestion = options?.complianceQuestion?.trim();
+    const complianceNoAction = options?.complianceNoAction ?? 'escalate';
+    if (complianceQuestion) {
+      try {
+        await whatsappService.sendButtons({
+          to: phone,
+          body: complianceQuestion.slice(0, 1024),
+          buttons: [
+            { id: 'rec.compliance_yes', title: 'Yes' },
+            { id: 'rec.compliance_no', title: 'No' },
+          ],
+        });
+      } catch {
+        await whatsappService.sendText(
+          phone,
+          `${complianceQuestion}\n\nReply *Yes* or *No*.`.slice(0, 4000)
+        );
+      }
+    }
+
     const now = new Date().toISOString();
     const { error: updErr } = await supabase
       .from('recommendation_records')
@@ -188,13 +213,32 @@ export const recommendationCommunicationService = {
         status: 'communicated',
         communicated_at: now,
         updated_at: now,
-        metadata: { ...(row.metadata ?? {}), whatsapp_sent_at: now },
+        metadata: {
+          ...(row.metadata ?? {}),
+          whatsapp_sent_at: now,
+          ...(complianceQuestion
+            ? {
+                complianceFollowUp: {
+                  question: complianceQuestion,
+                  noAction: complianceNoAction,
+                  sentAt: now,
+                },
+              }
+            : {}),
+        },
       })
       .eq('id', recommendationId);
 
     throwIfSupabaseError(updErr, 'Could not mark recommendation communicated');
 
     await recommendationFollowUpService.onRecommendationCommunicated(recommendationId);
+    if (complianceQuestion) {
+      await recommendationFollowUpService.onCompliancePromptSent(
+        recommendationId,
+        complianceQuestion,
+        complianceNoAction
+      );
+    }
 
     const { farmerEventCaptureService } = await import(
       '../intelligence/farmer-event-capture.service.js'
@@ -415,15 +459,17 @@ export const recommendationCommunicationService = {
           monitoringInterval: input.monitoringInterval,
         }
       );
-      const compliancePrompt =
+      const complianceQuestion =
         lang === 'ml'
-          ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ? Yes അല്ലെങ്കിൽ No എന്ന് മറുപടി നൽകുക.`
-          : `Have you completed ${diagnosis} treatment? Reply Yes or No.`;
+          ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ?`
+          : `Have you completed ${diagnosis} treatment?`;
       return {
         issueIndex,
         issueLabel: diagnosis,
         message,
-        compliancePrompt,
+        compliancePrompt: `${complianceQuestion} Reply Yes or No.`,
+        complianceQuestion,
+        complianceNoAction: 'escalate' as const,
       };
     });
   },

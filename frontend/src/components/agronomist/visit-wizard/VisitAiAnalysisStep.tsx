@@ -41,10 +41,10 @@ type Props = {
 
 function confidenceBanner(action?: string): { text: string; tone: 'ok' | 'warn' | 'danger' } | null {
   if (action === 'auto_send') {
-    return { text: 'High confidence — you may skip follow-up Q&A if field signs match.', tone: 'ok' };
+    return { text: 'High confidence — field signs align with refined diagnosis.', tone: 'ok' };
   }
   if (action === 'employee_review') {
-    return { text: 'Moderate confidence — complete follow-up Q&A before finalizing.', tone: 'warn' };
+    return { text: 'Moderate confidence — confirm refined diagnosis matches field signs.', tone: 'warn' };
   }
   if (action === 'escalate') {
     return { text: 'Low confidence — expert review recommended; complete Q&A if possible.', tone: 'danger' };

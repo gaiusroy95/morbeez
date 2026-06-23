@@ -45,7 +45,7 @@ export const visitAiContextService = {
         const block = await blockService.getById(input.blockId, input.farmerId);
         if (!block)
             throw new NotFoundError('Block not found');
-        const [{ data: soilRows }, weatherSnapshot] = await Promise.all([
+        const [{ data: soilRows }, weatherBundle] = await Promise.all([
             supabase
                 .from('crm_soil_reports')
                 .select('metrics, reported_at, lab_name')
@@ -54,12 +54,7 @@ export const visitAiContextService = {
                 .order('reported_at', { ascending: false })
                 .limit(1),
             weatherSnapshotService
-                .capture({
-                farmerId: input.farmerId,
-                blockId: input.blockId,
-                eventType: 'field_finding',
-                eventId: input.sessionId ?? null,
-            })
+                .getVisitWeatherBundle({ farmerId: input.farmerId, blockId: input.blockId, days: 7 })
                 .catch(() => null),
         ]);
         const soil = soilRows?.[0];
@@ -72,7 +67,14 @@ export const visitAiContextService = {
             : null;
         const lat = input.latitude ?? (block.latitude != null ? Number(block.latitude) : null);
         const lon = input.longitude ?? (block.longitude != null ? Number(block.longitude) : null);
-        const weatherCtx = weatherSnapshot?.context ?? null;
+        const today = weatherBundle?.last7Days[weatherBundle.last7Days.length - 1];
+        const alerts = [];
+        if (weatherBundle?.heavyRainLikely)
+            alerts.push('heavy_rain_likely');
+        if (weatherBundle?.highHeatLikely)
+            alerts.push('high_heat_likely');
+        if (weatherBundle?.highHumidityLikely)
+            alerts.push('high_humidity_likely');
         return {
             farmerId: input.farmerId,
             blockId: input.blockId,
@@ -83,14 +85,14 @@ export const visitAiContextService = {
             blockAssessment: input.blockAssessment,
             measurements: input.measurements ?? [],
             soilTestSummary,
-            weatherSnapshot: weatherCtx
+            weatherSnapshot: today
                 ? {
-                    rainfallMm: weatherCtx.rainfall_mm ?? null,
-                    humidityPct: weatherCtx.humidity_pct ?? null,
-                    temperatureC: weatherCtx.temperature_c ?? null,
-                    weatherRiskScore: weatherCtx.weather_risk_score ?? null,
-                    diseaseAlerts: weatherCtx.disease_alerts ?? [],
-                    locationLabel: weatherCtx.location_label ?? null,
+                    rainfallMm: today.rainfallMm,
+                    humidityPct: today.avgHumidityPct,
+                    temperatureC: today.maxTempC,
+                    weatherRiskScore: weatherBundle?.weatherRiskScore ?? null,
+                    diseaseAlerts: alerts,
+                    locationLabel: weatherBundle?.locationLabel ?? null,
                 }
                 : null,
             gps: lat != null && lon != null ? { latitude: lat, longitude: lon } : null,

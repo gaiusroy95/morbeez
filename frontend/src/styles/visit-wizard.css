@@ -208,6 +208,13 @@
   background: #f0fdf4;
 }
 
+.vw-chip--warn {
+  border-color: #f59e0b;
+  background: #fff7ed;
+  color: #b45309;
+  cursor: default;
+}
+
 .vw-photo-quality-strip {
   display: flex;
   flex-wrap: wrap;

@@ -1,18 +1,19 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens, type TriagePreview } from '@morbeez/shared';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  agronomistClient,
+  tokens,
+  withTimeout,
+  type StructuredFieldVisitPayload,
+  type TriagePreview,
+} from '@morbeez/shared';
 import { AlertBox, Panel } from '@morbeez/ui-native';
 
 type Props = {
   farmerId: string;
   blockId: string;
-  blockAssessment?: {
-    blockHealth: string;
-    cropPerformance: string;
-    soilMoisture: string;
-  };
+  blockAssessment?: StructuredFieldVisitPayload['blockAssessment'];
   measurements: Record<string, string>;
-  analyzePhotos?: Array<{ dataBase64: string; mimeType?: string }>;
   triage: TriagePreview | null;
   onTriage: (triage: TriagePreview | null) => void;
 };
@@ -24,38 +25,36 @@ const LEVEL_LABEL: Record<string, string> = {
   L4: 'Critical',
 };
 
+const TRIAGE_TIMEOUT_MS = 25_000;
+
 export function VisitAiTriageStep({
   farmerId,
   blockId,
   blockAssessment,
   measurements,
-  analyzePhotos,
   triage,
   onTriage,
 }: Props) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(() => !triage);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (triage) return;
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const measurementRows = Object.entries(measurements)
         .filter(([, v]) => v?.trim())
         .map(([key, value]) => ({ key, value }));
-      const { triage: t, capability } = await agronomistClient.triagePreview({
-        farmerId,
-        blockId,
-        blockAssessment: blockAssessment as Props['blockAssessment'],
-        measurements: measurementRows,
-        analyzePhotos,
-      });
+      const { triage: t, capability } = await withTimeout(
+        agronomistClient.triagePreview({
+          farmerId,
+          blockId,
+          blockAssessment,
+          measurements: measurementRows,
+        }),
+        TRIAGE_TIMEOUT_MS,
+        'Triage timed out — check network and tap Retry.'
+      );
       onTriage(t);
       if (!capability.capable) {
         setError('AI diagnosis degraded — escalation may be required.');
@@ -65,12 +64,29 @@ export function VisitAiTriageStep({
     } finally {
       setLoading(false);
     }
-  }
+  }, [blockAssessment, blockId, farmerId, measurements, onTriage]);
+
+  useEffect(() => {
+    if (triage) return;
+    void load();
+  }, [triage, load]);
 
   return (
     <View style={styles.root}>
-      {loading ? <ActivityIndicator color={tokens.colors.primary} /> : null}
-      {error ? <AlertBox>{error}</AlertBox> : null}
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color={tokens.green700} />
+          <Text style={styles.loadingText}>Running case triage…</Text>
+        </View>
+      ) : null}
+      {error ? (
+        <View style={styles.errorBlock}>
+          <AlertBox>{error}</AlertBox>
+          <Pressable style={styles.retryBtn} onPress={() => void load()}>
+            <Text style={styles.retryText}>Retry triage</Text>
+          </Pressable>
+        </View>
+      ) : null}
       {triage ? (
         <Panel title="Case triage">
           <Text style={styles.level}>
@@ -94,9 +110,21 @@ export function VisitAiTriageStep({
 
 const styles = StyleSheet.create({
   root: { gap: 12 },
-  level: { fontSize: 18, fontWeight: '700', color: tokens.colors.text },
-  reason: { marginTop: 8, color: tokens.colors.textMuted },
-  meta: { marginTop: 4, color: tokens.colors.textMuted },
-  warn: { marginTop: 8, color: tokens.colors.warning },
-  ok: { marginTop: 8, color: tokens.colors.success },
+  center: { alignItems: 'center', gap: 10, paddingVertical: 24 },
+  loadingText: { fontSize: 14, color: tokens.textMuted },
+  errorBlock: { gap: 10 },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.green700,
+  },
+  retryText: { fontSize: 14, fontWeight: '600', color: tokens.green700 },
+  level: { fontSize: 18, fontWeight: '700', color: tokens.text },
+  reason: { marginTop: 8, color: tokens.textMuted },
+  meta: { marginTop: 4, color: tokens.textMuted },
+  warn: { marginTop: 8, color: tokens.warning },
+  ok: { marginTop: 8, color: tokens.green700 },
 });

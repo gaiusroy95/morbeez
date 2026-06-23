@@ -1,3 +1,4 @@
+import { type WeatherBundle, type WeatherDailyRow } from '../whatsapp/pipeline/weather-fetch.service.js';
 import type { TrainingEventSource } from '../../domain/ai-training/enums.js';
 export type WeatherEventType = 'field_finding' | 'ai_session' | 'recommendation' | 'field_activity' | 'manual';
 export type WeatherSnapshotRow = {
@@ -16,6 +17,16 @@ export type WeatherSnapshotRow = {
     locationLabel: string | null;
 };
 export declare const weatherSnapshotService: {
+    getVisitWeatherBundle(params: {
+        farmerId?: string | null;
+        blockId?: string | null;
+        days?: number;
+    }): Promise<WeatherBundle | null>;
+    getDailyHistory(params: {
+        farmerId?: string | null;
+        blockId?: string | null;
+        days?: number;
+    }): Promise<WeatherDailyRow[]>;
     /** Persist Open-Meteo forecast at event time for AI training correlation. */
     capture(params: {
         farmerId?: string | null;
