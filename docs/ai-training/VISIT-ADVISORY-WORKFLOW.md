@@ -1,109 +1,99 @@
-# Visit Advisory Workflow — Spec to Wizard Mapping
+# Visit Advisory Workflow — v12 Screen Flow
 
-This document maps the **Morbeez AI advisory spec** to the **visit wizard steps** implemented across agronomist mobile, partner mobile, and staff web console.
+This document maps the **Morbeez AI advisory spec** to the **12-screen visit wizard** implemented across agronomist mobile, partner mobile, and staff web console.
+
+**Wizard version:** `v12`  
+**Shared step flow:** `packages/shared/src/visit-wizard/step-flow.ts`
 
 ## Diagnosis envelope (integrity)
 
 All visit and WhatsApp diagnosis responses use a **DiagnosisEnvelope** contract:
 
 - `source`: `model` | `vision` | `verified_reuse` | `insufficient_evidence`
-- Ranked `hypotheses` only when source is inference or verified reuse
-- `escalationRequired` when evidence is insufficient (no synthetic fallback labels)
+- Ranked `hypotheses` with **Unknown** uncertainty bucket (weights sum to 100%)
+- `escalationRequired` when evidence is insufficient
 
 See [DIAGNOSIS-INTEGRITY-POLICY.md](./DIAGNOSIS-INTEGRITY-POLICY.md).
 
-## Wizard steps (UI)
+## Wizard screens (12)
 
-| # | UI step | Spec | Agronomist / Web | Partner |
-|---|---------|------|------------------|---------|
-| 1 | `overview` | Farm + crop + history + visit type | Full + plot intelligence summary | Read-only farm context |
-| 2 | `photos` | Photos + QC | Capture + validate/retake | Same |
-| 3 | `measurements` | Field measurements | Grouped by category | Same |
-| 4 | `soilWeather` | Soil & weather | Full soil panel + weather | Read-only |
-| 5 | `aiTriage` | AI triage L1–L4 | `POST /visits/triage-preview` — routes workflow | Same |
-| 6 | `aiAnalysis` | AI multi-issue | `POST /visits/analyze-visit` via diagnosis orchestrator | Sanitized analyze |
-| 7 | `agronomistReview` | Expert review | Approve blocked on L4 | Read-only + correction |
-| 8 | `followUp` | AI Q&A | Gated by triage + review action | Same |
-| 9 | `additionalPhotos` | More photos | Photo requests from Q&A | Same |
-| 10 | `finalDiagnosis` | Final diagnosis | Consolidated list | Same |
-| 11 | `economicOptimizer` | Cost vs recovery | `POST /visits/recommendation-options/preview` | Hidden |
-| 12 | `recPlanning` | Rec groups | Group editor + AI draft rec | Draft groups only |
-| 13 | `applicationSchedule` | Day plan | Timeline editor | Same |
-| 14 | `recApproval` | Compatibility | Approve/modify + compat panel | **Hidden** |
-| 15 | `monitoringPlan` | Monitoring | Preview API | Local fallback |
-| 16 | `whatsappPreview` | WhatsApp preview | Preview + confirm | Skipped |
-| 17 | `summary` | Final checks | GPS, follow-up outcomes | Same |
-| 18 | `caseClosure` | Learning manifest | Submit + variant tracking | Draft submit |
+| # | Step ID | Name | Purpose |
+|---|---------|------|---------|
+| 1 | `intakeTriage` | Intake + Triage | Farmer context, visit type, block assessment, L1–L4 triage |
+| 2 | `photos` | Photo collection | Field + symptom photos, voice note, QC |
+| 3 | `fieldIntelligence` | Field intelligence | Measurements, soil, weather, field activity (web + mobile) |
+| 4 | `dynamicQA` | Dynamic Q&A | Screening + adaptive questions; confidence 68%→85% |
+| 5 | `aiDiagnosis` | AI diagnosis | Ranked issues, evidence, root cause (read-only) |
+| 6 | `diagnosisFinalization` | Diagnosis finalization | Approve / modify / reject + final diagnosis text |
+| 7 | `recommendationBuilder` | Recommendation builder | Rec groups + optional economics panel (staff/agronomist) |
+| 8 | `scheduleCompatibility` | Schedule + compatibility | Day plan + tank-mix safety |
+| 9 | `farmerCommunication` | Farmer communication | WhatsApp preview + confirm |
+| 10 | `visitSummary` | Visit summary | Quality score, GPS, evidence counts |
+| 11 | `followUpPlanning` | Follow-up planning | Monitoring plan + prior rec outcomes |
+| 12 | `learningSubmit` | Learning + submit | Training manifest preview + submit |
 
-### Step flow (triage-gated)
+### Deprecated standalone steps (v11 and earlier)
 
-```
-soilWeather → aiTriage → aiAnalysis → agronomistReview
-  L1 + approve + high confidence → may skip followUp
-  L2/L3 → mandatory followUp
-  L4 → block auto-approve; escalate required
-  → finalDiagnosis → economicOptimizer? → recPlanning → … → caseClosure
-```
+| Legacy step | Replaced by |
+|-------------|-------------|
+| `overview`, `aiTriage` | `intakeTriage` |
+| `followUp` | `dynamicQA` |
+| `aiAnalysis` | `aiDiagnosis` |
+| `agronomistReview`, `finalDiagnosis` | `diagnosisFinalization` |
+| `additionalPhotos` | inline in `photos` / Q&A photo requests |
+| `economicOptimizer` | panel inside `recommendationBuilder` |
+| `recPlanning` | `recommendationBuilder` |
+| `applicationSchedule`, `recApproval` | `scheduleCompatibility` |
+| `whatsappPreview` | `farmerCommunication` |
+| `summary` (follow-ups) | split: `visitSummary` + `followUpPlanning` |
+| `monitoringPlan` | `followUpPlanning` |
+| `caseClosure` | `learningSubmit` |
+
+Legacy draft step IDs are mapped via `normalizeVisitWizardStep()` in `@morbeez/shared`.
+
+## Dynamic confidence engine
+
+- **Distribution:** hypotheses + Unknown bucket sum to 100%
+- **Target:** ≥85% top-hypothesis confidence before diagnosis
+- **Per-answer updates:** `POST /visits/ai-case/:id/answer`
+- **State:** `GET /visits/ai-case/:id/confidence-state`
+- **Screening init:** `POST /visits/ai-case/:id/screen`
+- **Fallback:** `POST /visits/ai-case/:id/reanalyze`
+
+## Server drafts
+
+- `PUT /visits/sessions/:sessionId/draft` — upsert wizard state
+- `GET /visits/sessions/:sessionId/draft` — load
+- `GET /visits/drafts` — list for Visit Command Center
+- `DELETE /visits/sessions/:sessionId/draft` — clear on submit
+
+Table: `visit_wizard_drafts` (migration `20260804000000_visit_wizard_drafts.sql`).
 
 ## Backend services
 
 | Spec | Service / route |
 |------|-----------------|
 | Diagnosis orchestrator | `diagnosis-orchestrator.service.ts` |
-| Triage preview | `POST /visits/triage-preview` |
-| Multi-issue AI | `POST /visits/analyze-visit` |
-| Plot digital twin | `GET /blocks/:blockId/plot-intelligence` |
-| Economic optimizer | `POST /visits/recommendation-options/preview` |
-| Outcome intelligence | `GET /os/agronomist/outcome-intelligence` |
-| Regional threat radar | `GET /os/field/regional-threat-radar` |
-| Agronomist copilot | `POST /os/agronomist/copilot/ask` |
-| Environment | `GET /visits/environment?farmerId&blockId` |
-| Rec groups | `recommendation_groups` + `recommendation-group.service.ts` |
-| Learning closure | `visit-case-closure.service.ts` + outcome-confirmed promotion |
+| Confidence engine | `visit-ai-confidence-engine.service.ts` |
+| Visit AI orchestrator | `visit-ai-orchestrator.service.ts` |
+| Draft persistence | `visit-wizard-draft.service.ts` |
+| Learning closure | `visit-case-closure.service.ts` |
 
 ## Partner restrictions
 
-- Draft recommendations only (`pending_expert_review`)
-- No `recApproval` or `economicOptimizer` steps
-- Confidence and BI scores stripped via `partner-response-sanitizer.ts`
+- Same 12-step flow; economics panel and full compatibility approval hidden
+- Confidence % stripped via `partner-response-sanitizer.ts`
+- Submits `pending_expert_review`
 
 ## E2E verification (ginger demo)
 
-Farmer **+916282873542** — three ginger blocks with soil samples (see [GINGER-ADVISORY-SAMPLES.md](./GINGER-ADVISORY-SAMPLES.md)).
+Farmer **+916282873542** — see [GINGER-ADVISORY-SAMPLES.md](./GINGER-ADVISORY-SAMPLES.md).
 
-1. Complete overview through `aiTriage`: expect L1–L4 level and routed path.
-2. `aiAnalysis`: issues must declare `diagnosisSource`; insufficient evidence shows escalation UI.
-3. `agronomistReview`: L4 cannot use Approve AI.
-4. Optional `economicOptimizer` before rec planning.
-5. Submit on `caseClosure`; verify WhatsApp + outcome loop.
-
-Apply migrations before intelligence layers:
+1. `intakeTriage`: L1–L4 + visit classification
+2. `dynamicQA`: confidence progress to ≥85%
+3. `diagnosisFinalization`: L4 blocks auto-approve
+4. Submit on `learningSubmit`; verify WhatsApp + outcome loop
 
 ```bash
 supabase db push
 ```
-
-## Staff console screen map (enterprise)
-
-| Area | Route |
-|------|-------|
-| Visit command center | `/agronomist/visit-command` |
-| Farmer 360 | `/farmers/:farmerId/360` |
-| Plot intelligence | `/plot-intelligence/:farmerId/:blockId` |
-| Weakness dashboard | `/ai-ops/weakness` |
-| Retraining ops | `/ai-ops/retraining` |
-| Protocol builder | `/intelligence?tab=protocols` |
-| Executive cockpit | `/executive` |
-| Escalation command | `/escalations` |
-| Similar cases | `/copilot/similar-cases` |
-| Knowledge explorer | `/copilot/knowledge` |
-
-Full inventory: [MORBEEZ-SCREEN-MAP.md](../MORBEEZ-SCREEN-MAP.md).
-
-## Explainability (Phase 1)
-
-- `POST /visits/explain-diagnosis` — dual farmer/agronomist text from orchestrator context
-- Root cause chain rendered on `finalDiagnosis` step and case review
-- Triage `level` + `route` badge on visit wizard header
-
-- `20260724000000_ai_os_intelligence_layers.sql`

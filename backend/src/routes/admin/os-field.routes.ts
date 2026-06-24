@@ -8,6 +8,8 @@ import { issueFollowUpQuestionsService } from '../../services/core/issue-follow-
 import { diagnosisOrchestratorService } from '../../services/diagnosis/diagnosis-orchestrator.service.js';
 import { diagnosisExplainService } from '../../services/diagnosis/diagnosis-explain.service.js';
 import { visitAiOrchestratorService } from '../../services/core/visit-ai-orchestrator.service.js';
+import { visitAiConfidenceEngineService } from '../../services/core/visit-ai-confidence-engine.service.js';
+import { visitWizardDraftService } from '../../services/agronomist/visit-wizard-draft.service.js';
 import { visitCaseClosureService } from '../../services/core/visit-case-closure.service.js';
 import { trainingExportService } from '../../services/core/training-export.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
@@ -19,6 +21,7 @@ import { visitEnvironmentService } from '../../services/core/visit-environment.s
 import { plotDigitalTwinService } from '../../services/intelligence/plot-digital-twin.service.js';
 import { recommendationOptimizerService } from '../../services/diagnosis/recommendation-optimizer.service.js';
 import { regionalThreatRadarService } from '../../services/intelligence/regional-threat-radar.service.js';
+import { supabase } from '../../lib/supabase.js';
 import {
   structuredFieldVisitSchema,
   issueCategorySchema,
@@ -150,6 +153,65 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
       agronomistEmail: admin.email,
     });
     return reply.status(201).send({ ok: true, session });
+  });
+
+  app.put(`${api}/visits/sessions/:sessionId/draft`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { sessionId } = request.params as { sessionId: string };
+    await visitWizardDraftService.assertSessionOwner(sessionId, admin.email);
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        blockId: z.string().uuid().optional(),
+        currentStep: z.string().min(1),
+        wizardVersion: z.string().optional(),
+        payload: z.record(z.unknown()).default({}),
+        photoRefs: z
+          .array(
+            z.object({
+              storagePath: z.string(),
+              photoType: z.string(),
+              mimeType: z.string(),
+              filename: z.string().optional(),
+            })
+          )
+          .optional(),
+      })
+      .parse(request.body);
+    const draft = await visitWizardDraftService.upsert({
+      sessionId,
+      farmerId: body.farmerId,
+      blockId: body.blockId,
+      agronomistEmail: admin.email,
+      currentStep: body.currentStep,
+      wizardVersion: body.wizardVersion,
+      payload: body.payload,
+      photoRefs: body.photoRefs,
+    });
+    return reply.send({ ok: true, draft });
+  });
+
+  app.get(`${api}/visits/sessions/:sessionId/draft`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const { sessionId } = request.params as { sessionId: string };
+    await visitWizardDraftService.assertSessionOwner(sessionId, admin.email);
+    const draft = await visitWizardDraftService.getBySessionId(sessionId);
+    return reply.send({ ok: true, draft });
+  });
+
+  app.delete(`${api}/visits/sessions/:sessionId/draft`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'write');
+    const { sessionId } = request.params as { sessionId: string };
+    await visitWizardDraftService.assertSessionOwner(sessionId, admin.email);
+    await visitWizardDraftService.deleteBySessionId(sessionId);
+    return reply.send({ ok: true });
+  });
+
+  app.get(`${api}/visits/drafts`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const q = z.object({ limit: z.coerce.number().optional() }).parse(request.query ?? {});
+    const drafts = await visitWizardDraftService.listByAgent(admin.email, q.limit ?? 20);
+    return reply.send({ ok: true, drafts });
   });
 
   app.patch(`${api}/visits/sessions/:sessionId/check-out`, async (request, reply) => {
@@ -428,6 +490,44 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const { aiCaseId } = request.params as { aiCaseId: string };
     const result = await visitAiOrchestratorService.reanalyze(aiCaseId);
     return reply.send({ ok: true, ...result });
+  });
+
+  app.get(`${api}/visits/ai-case/:aiCaseId/confidence-state`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const state = await visitAiConfidenceEngineService.getConfidenceState(aiCaseId);
+    return reply.send({ ok: true, ...state });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/answer`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const body = z
+      .object({
+        questionId: z.string().uuid(),
+        answer: z.string().min(1),
+      })
+      .parse(request.body);
+    const result = await visitAiConfidenceEngineService.applyAnswer(aiCaseId, body.questionId, body.answer);
+    return reply.send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/visits/ai-case/:aiCaseId/screen`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'write');
+    const { aiCaseId } = request.params as { aiCaseId: string };
+    const { data: hypothesisRows } = await supabase
+      .from('visit_ai_hypotheses')
+      .select('label, confidence')
+      .eq('visit_ai_case_id', aiCaseId)
+      .order('sort_order', { ascending: true });
+    const state = await visitAiConfidenceEngineService.initializeFromHypotheses(
+      aiCaseId,
+      (hypothesisRows ?? []).map((h) => ({
+        label: String(h.label),
+        confidence: Number(h.confidence),
+      }))
+    );
+    return reply.send({ ok: true, ...state });
   });
 
   app.post(`${api}/visits/ai-case/:aiCaseId/skip-qa`, async (request, reply) => {

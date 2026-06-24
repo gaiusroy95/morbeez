@@ -718,6 +718,100 @@ export const agronomistClient = {
     }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/reanalyze`, { method: 'POST' });
   },
 
+  async screenVisitAiCase(aiCaseId: string) {
+    return staffApi<{
+      ok: boolean;
+      distribution: {
+        hypotheses: Array<{ label: string; weight: number }>;
+        unknownWeight: number;
+        topConfidence: number;
+        targetConfidence: number;
+      };
+      thresholdReached: boolean;
+      topLabel: string | null;
+      confidenceAction: string;
+      nextQuestion: { id: string; questionText: string; answerType: string } | null;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/screen`, { method: 'POST' });
+  },
+
+  async applyVisitAiAnswer(aiCaseId: string, questionId: string, answer: string) {
+    return staffApi<{
+      ok: boolean;
+      distribution: {
+        hypotheses: Array<{ label: string; weight: number }>;
+        unknownWeight: number;
+        topConfidence: number;
+        targetConfidence: number;
+      };
+      thresholdReached: boolean;
+      topLabel: string | null;
+      confidenceAction: string;
+      nextQuestion: { id: string; questionText: string; answerType: string } | null;
+      deltas: Array<{ label: string; delta: number }>;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/answer`, {
+      method: 'POST',
+      body: JSON.stringify({ questionId, answer }),
+    });
+  },
+
+  async getVisitAiConfidenceState(aiCaseId: string) {
+    return staffApi<{
+      ok: boolean;
+      distribution: {
+        hypotheses: Array<{ label: string; weight: number }>;
+        unknownWeight: number;
+        topConfidence: number;
+        targetConfidence: number;
+      };
+      thresholdReached: boolean;
+      topLabel: string | null;
+      confidenceAction: string;
+      nextQuestion: { id: string; questionText: string; answerType: string } | null;
+    }>(`${FIELD}/visits/ai-case/${encodeURIComponent(aiCaseId)}/confidence-state`);
+  },
+
+  async upsertVisitDraft(
+    sessionId: string,
+    body: {
+      farmerId: string;
+      blockId?: string;
+      currentStep: string;
+      wizardVersion?: string;
+      payload: Record<string, unknown>;
+      photoRefs?: Array<{ storagePath: string; photoType: string; mimeType: string; filename?: string }>;
+    }
+  ) {
+    return staffApi<{ ok: boolean; draft: Record<string, unknown> }>(
+      `${FIELD}/visits/sessions/${encodeURIComponent(sessionId)}/draft`,
+      { method: 'PUT', body: JSON.stringify(body) }
+    );
+  },
+
+  async getVisitDraft(sessionId: string) {
+    return staffApi<{ ok: boolean; draft: Record<string, unknown> | null }>(
+      `${FIELD}/visits/sessions/${encodeURIComponent(sessionId)}/draft`
+    );
+  },
+
+  async listVisitDrafts(limit = 20) {
+    return staffApi<{ ok: boolean; drafts: Array<Record<string, unknown>> }>(
+      `${FIELD}/visits/drafts?limit=${limit}`
+    );
+  },
+
+  async getFarmerApplicationHistory(farmerId: string, blockId: string) {
+    return staffApi<{ ok: boolean; rows: Array<Record<string, unknown>> }>(
+      `/morbeez-staff/api/v1/os/farmers/${encodeURIComponent(farmerId)}/application-history?blockId=${encodeURIComponent(blockId)}`
+    );
+  },
+
+  async deleteVisitDraft(sessionId: string) {
+    return staffApi<{ ok: boolean }>(
+      `${FIELD}/visits/sessions/${encodeURIComponent(sessionId)}/draft`,
+      { method: 'DELETE' }
+    );
+  },
+
   async recommendVisitAiCase(aiCaseId: string, finalDiagnosis?: string) {
     return staffApi<{
       ok: boolean;

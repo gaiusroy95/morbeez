@@ -40,6 +40,7 @@ type CommandCenter = {
 
 export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
   const [center, setCenter] = useState<CommandCenter | null>(null);
+  const [drafts, setDrafts] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -47,10 +48,12 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
     setLoading(true);
     setError('');
     try {
-      const data = await api<{ ok: boolean; center: CommandCenter }>(
-        `${agroBase}/operations/visit-command-center`
-      );
+      const [data, draftRes] = await Promise.all([
+        api<{ ok: boolean; center: CommandCenter }>(`${agroBase}/operations/visit-command-center`),
+        agronomistClient.listVisitDrafts(10).catch(() => ({ ok: true, drafts: [] })),
+      ]);
       setCenter(data.center);
+      setDrafts(draftRes.drafts ?? []);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load visit command center');
     } finally {
@@ -143,6 +146,40 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
             </li>
           ))}
           {!center?.todaysVisits?.length ? <li className="muted">No visits scheduled for today.</li> : null}
+        </ul>
+      </section>
+
+      <section className="agro-ops-panel mt-4">
+        <h3>Resume draft visits</h3>
+        <ul className="agro-ops-list">
+          {drafts.map((d) => {
+            const farmer = d.farmers as { name?: string } | null;
+            const block = d.farm_blocks as { name?: string; crop_type?: string } | null;
+            const farmerId = String(d.farmer_id ?? '');
+            const blockId = String(d.block_id ?? '');
+            return (
+              <li key={String(d.id)}>
+                <strong>{farmer?.name ?? 'Farmer'}</strong>
+                {block?.name ? ` · ${block.name}` : ''}
+                {block?.crop_type ? ` · ${block.crop_type}` : ''}
+                <div className="muted">
+                  Step: {String(d.current_step ?? 'intakeTriage')} · Updated{' '}
+                  {String(d.updated_at ?? '').slice(0, 16).replace('T', ' ')}
+                </div>
+                {canWrite && farmerId && blockId ? (
+                  <Link
+                    className="link-btn text-sm"
+                    to={toPath(
+                      `${paths.agronomistVisit}?farmerId=${farmerId}&blockId=${blockId}&blockName=${encodeURIComponent(block?.name ?? '')}&cropType=${encodeURIComponent(block?.crop_type ?? '')}&farmerName=${encodeURIComponent(farmer?.name ?? '')}`
+                    )}
+                  >
+                    Resume draft
+                  </Link>
+                ) : null}
+              </li>
+            );
+          })}
+          {!drafts.length ? <li className="muted">No in-progress visit drafts.</li> : null}
         </ul>
       </section>
 

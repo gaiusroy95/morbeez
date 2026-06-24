@@ -54,7 +54,10 @@ jobs:
             tests/compatibility-analytics.test.ts \
             tests/adaptive-protocol.test.ts \
             tests/satellite-provider.test.ts \
-            tests/product-gap-alternatives.test.ts
+            tests/product-gap-alternatives.test.ts \
+            tests/visit-confidence-engine.test.ts \
+            tests/visit-wizard-draft.test.ts \
+            tests/visit-wizard-step-flow.test.ts
 
   frontend-build:
     runs-on: ubuntu-latest

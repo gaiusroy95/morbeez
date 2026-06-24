@@ -4,6 +4,7 @@ import { logger } from '../../lib/logger.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { resolveConfidenceAction } from '../../domain/ai-training/confidence-routing.js';
+import { buildHypothesisDistribution } from '../../domain/visit-ai/confidence-distribution.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
 import type {
   VisitAiRejectBody,
@@ -1125,24 +1126,32 @@ export const visitAiOrchestratorService = {
     const topConfidence = hypotheses[0]?.confidence ?? 0.5;
     const finalDiagnosis = hypotheses[0]?.label ?? String(caseRow.issue_name);
     const confidenceAction = resolveConfidenceAction(topConfidence);
+    const distribution = buildHypothesisDistribution(hypotheses);
 
     await supabase
       .from('visit_ai_cases')
       .update({
         selected_hypothesis_label: finalDiagnosis,
         final_diagnosis: finalDiagnosis,
-        final_confidence: topConfidence,
+        final_confidence: distribution.topConfidence,
         confidence_action: confidenceAction,
         status: 'qa_complete',
+        metadata: {
+          ...meta,
+          confidenceDistribution: distribution,
+          unknownWeight: distribution.unknownWeight,
+          targetConfidence: distribution.targetConfidence,
+        },
         updated_at: new Date().toISOString(),
       })
       .eq('id', aiCaseId);
 
     return {
       finalDiagnosis,
-      finalConfidence: topConfidence,
+      finalConfidence: distribution.topConfidence,
       confidenceAction,
       hypotheses,
+      distribution,
     };
   },
 

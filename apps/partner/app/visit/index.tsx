@@ -4,9 +4,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
   partnerClient,
+  buildDraftPayload,
   getNextWizardStep,
   getPrevWizardStep,
   getVisibleWizardSteps,
+  normalizeVisitWizardStep,
+  scheduleServerDraftSync,
   validateVisitWizardStep,
   mapRecommendationGroupsForSubmit,
   buildPriorRecommendationFollowUps,
@@ -24,11 +27,10 @@ import {
   type VisitWizardStep,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
-import { type FollowUpDraft } from '@agronomist/components/field-findings/FollowUpSection';
+import { FollowUpSection, type FollowUpDraft } from '@agronomist/components/field-findings/FollowUpSection';
 import { type IssueDraft } from '@agronomist/components/field-findings/IssueCard';
 import { VisitStepper } from '@agronomist/components/field-findings/VisitStepper';
 import { VisitAgronomistReviewStep } from '@agronomist/components/field-findings/wizard/VisitAgronomistReviewStep';
-import { VisitAdditionalPhotosStep } from '@agronomist/components/field-findings/wizard/VisitAdditionalPhotosStep';
 import { VisitApplicationScheduleStep } from '@agronomist/components/field-findings/wizard/VisitApplicationScheduleStep';
 import { VisitMonitoringPlanStep } from '@agronomist/components/field-findings/wizard/VisitMonitoringPlanStep';
 import { VisitCaseClosureStep } from '@agronomist/components/field-findings/wizard/VisitCaseClosureStep';
@@ -45,8 +47,6 @@ import { VisitSummaryStep } from '@agronomist/components/field-findings/wizard/V
 import { type VisitPhotoDraft, getVisitPhotoTypesForCrop } from '@agronomist/components/field-findings/wizard/types';
 import { usePartnerAuth } from '@/context/PartnerAuth';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
-
-const PARTNER_HIDDEN_STEPS: VisitWizardStep[] = ['recApproval'];
 
 function initialCapturePhotoType(crop: string): string {
   return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
@@ -107,7 +107,7 @@ export default function VisitScreen() {
   const farmerName = String(params.farmerName ?? '');
 
   const sessionRef = useRef<string | null>(null);
-  const [step, setStep] = useState<VisitWizardStep>('overview');
+  const [step, setStep] = useState<VisitWizardStep>('intakeTriage');
   const [blockDap, setBlockDap] = useState<number | null>(null);
   const [blockStage, setBlockStage] = useState<string | null>(null);
   const [latestSoilTest, setLatestSoilTest] = useState<PortalSoilReport | null>(null);
@@ -135,19 +135,42 @@ export default function VisitScreen() {
 
   const persistDraft = useCallback(async () => {
     if (!blockId || !farmerId) return;
-    await saveVisitDraft(blockId, {
+    const payload = buildDraftPayload({
       farmerId,
       blockId,
       sessionId: sessionRef.current ?? undefined,
+      currentStep: step,
       blockHealth: blockHealth ?? undefined,
       cropPerformance: cropPerformance ?? undefined,
       soilMoisture: soilMoisture ?? undefined,
       selectedCategories: issues.map((i) => i.category),
       issues: issues.map(({ localId, photosPreview, ...rest }) => rest),
       measurements,
-      savedAt: new Date().toISOString(),
+      recommendationGroups: recommendationGroups.length ? recommendationGroups : undefined,
+      monitoringPlan: monitoringPlan.length ? monitoringPlan : undefined,
+      fieldVoiceNote: fieldVoiceNote || undefined,
     });
-  }, [blockId, farmerId, blockHealth, cropPerformance, soilMoisture, issues, measurements]);
+    await saveVisitDraft(blockId, payload);
+    if (sessionRef.current && 'upsertVisitDraft' in partnerClient) {
+      scheduleServerDraftSync(
+        sessionRef.current,
+        partnerClient as { upsertVisitDraft: (sessionId: string, body: Record<string, unknown>) => Promise<unknown> },
+        payload
+      );
+    }
+  }, [
+    blockId,
+    farmerId,
+    step,
+    blockHealth,
+    cropPerformance,
+    soilMoisture,
+    issues,
+    measurements,
+    recommendationGroups,
+    monitoringPlan,
+    fieldVoiceNote,
+  ]);
 
   useEffect(() => {
     if (!cropType || !farmerId || !blockId) {
@@ -233,6 +256,10 @@ export default function VisitScreen() {
     return () => clearTimeout(t);
   }, [persistDraft]);
 
+  function activeStep(): VisitWizardStep {
+    return normalizeVisitWizardStep(step);
+  }
+
   function missingAssessments(): string | null {
     if (!blockHealth || !cropPerformance || !soilMoisture) {
       return 'Select block health, crop performance, and soil moisture on the Overview step before submitting.';
@@ -242,7 +269,7 @@ export default function VisitScreen() {
 
   function validateStep(current: VisitWizardStep): string | null {
     return validateVisitWizardStep(
-      current,
+      normalizeVisitWizardStep(current),
       validationCtx({
         templates,
         measurements,
@@ -286,7 +313,7 @@ export default function VisitScreen() {
     }
     setError('');
     const next = getNextWizardStep(
-      step,
+      activeStep(),
       validationCtx({
         templates,
         measurements,
@@ -305,7 +332,7 @@ export default function VisitScreen() {
   function goBack() {
     setError('');
     const prev = getPrevWizardStep(
-      step,
+      activeStep(),
       validationCtx({
         templates,
         measurements,
@@ -351,10 +378,10 @@ export default function VisitScreen() {
     const assessmentMsg = missingAssessments();
     if (assessmentMsg) {
       setError(assessmentMsg);
-      setStep('overview');
+      setStep('intakeTriage');
       return;
     }
-    const msg = validateStep('agronomistReview');
+    const msg = validateStep('diagnosisFinalization');
     if (msg) {
       setError(msg);
       return;
@@ -362,7 +389,7 @@ export default function VisitScreen() {
     for (const tpl of templates) {
       if (tpl.required && !measurements[tpl.measurementKey]?.trim()) {
         setError(`Required measurement: ${tpl.labelEn}`);
-        setStep('measurements');
+        setStep('fieldIntelligence');
         return;
       }
     }
@@ -372,7 +399,7 @@ export default function VisitScreen() {
       );
       if (pending.length) {
         setError('Record follow-up outcomes for open recommendations on this block.');
-        setStep('summary');
+        setStep('followUpPlanning');
         return;
       }
     }
@@ -454,15 +481,15 @@ export default function VisitScreen() {
 
   if (loading) return <Loading label="Starting visit session…" />;
 
-  const stepIndex = getVisibleWizardSteps(true).indexOf(step);
+  const stepIndex = getVisibleWizardSteps(true).indexOf(activeStep());
 
   return (
     <View style={styles.root}>
-      <VisitStepper current={step} hiddenSteps={PARTNER_HIDDEN_STEPS} partnerMode />
+      <VisitStepper current={activeStep()} partnerMode />
       <KeyboardAwareScrollScreen contentContainerStyle={[styles.content, { paddingBottom: footerPad }]}>
         {error ? <AlertBox>{error}</AlertBox> : null}
 
-        {step === 'overview' ? (
+        {step === 'intakeTriage' ? (
           <VisitOverviewStep
             farmerName={farmerName}
             blockName={blockName}
@@ -494,25 +521,24 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'measurements' ? (
-          <VisitMeasurementsStep
-            cropType={cropType}
-            templates={templates}
-            values={measurements}
-            onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
-          />
+        {activeStep() === 'fieldIntelligence' ? (
+          <>
+            <VisitMeasurementsStep
+              cropType={cropType}
+              templates={templates}
+              values={measurements}
+              onChange={(key, value) => setMeasurements((prev) => ({ ...prev, [key]: value }))}
+            />
+            <VisitSoilWeatherStep
+              farmerId={farmerId}
+              blockId={blockId}
+              hideScores
+              fetchEnvironment={partnerClient.getVisitEnvironment}
+            />
+          </>
         ) : null}
 
-        {step === 'soilWeather' ? (
-          <VisitSoilWeatherStep
-            farmerId={farmerId}
-            blockId={blockId}
-            hideScores
-            fetchEnvironment={partnerClient.getVisitEnvironment}
-          />
-        ) : null}
-
-        {step === 'followUp' && blockHealth && cropPerformance && soilMoisture ? (
+        {step === 'dynamicQA' && blockHealth && cropPerformance && soilMoisture ? (
           <VisitFollowUpStep
             issues={issues}
             onChange={setIssues}
@@ -536,7 +562,7 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'aiAnalysis' && blockHealth && cropPerformance && soilMoisture ? (
+        {step === 'aiDiagnosis' && blockHealth && cropPerformance && soilMoisture ? (
           <PartnerVisitAiAnalysisStep
             farmerId={farmerId}
             blockId={blockId}
@@ -554,27 +580,22 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'agronomistReview' ? (
-          <VisitAgronomistReviewStep
-            issues={issues}
-            issueMaster={issueMaster}
-            cropType={cropType}
-            blockDap={blockDap}
-            onChange={setIssues}
-            onSuggestQuestions={() => Promise.resolve([])}
-            onCreateIssueType={createIssueType}
-          />
+        {step === 'diagnosisFinalization' ? (
+          <>
+            <VisitAgronomistReviewStep
+              issues={issues}
+              issueMaster={issueMaster}
+              cropType={cropType}
+              blockDap={blockDap}
+              onChange={setIssues}
+              onSuggestQuestions={() => Promise.resolve([])}
+              onCreateIssueType={createIssueType}
+            />
+            <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} />
+          </>
         ) : null}
 
-        {step === 'additionalPhotos' ? (
-          <VisitAdditionalPhotosStep issues={issues} onChange={setIssues} />
-        ) : null}
-
-        {step === 'finalDiagnosis' ? (
-          <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} />
-        ) : null}
-
-        {step === 'recPlanning' ? (
+        {step === 'recommendationBuilder' ? (
           <>
             <VisitRecommendationStep issues={issues} onChange={setIssues} visitAiClient={partnerClient} />
             <VisitRecPlanningStep
@@ -586,32 +607,38 @@ export default function VisitScreen() {
           </>
         ) : null}
 
-        {step === 'applicationSchedule' ? (
+        {step === 'scheduleCompatibility' ? (
           <VisitApplicationScheduleStep groups={recommendationGroups} onChange={setRecommendationGroups} />
         ) : null}
 
-        {step === 'monitoringPlan' ? (
-          <VisitMonitoringPlanStep
-            issues={issues}
-            recommendationGroups={recommendationGroups}
-            monitoringPlan={monitoringPlan}
-            onChange={setMonitoringPlan}
-          />
+        {step === 'followUpPlanning' ? (
+          <>
+            <VisitMonitoringPlanStep
+              issues={issues}
+              recommendationGroups={recommendationGroups}
+              monitoringPlan={monitoringPlan}
+              onChange={setMonitoringPlan}
+            />
+            <FollowUpSection
+              items={followUps}
+              onChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
+            />
+          </>
         ) : null}
 
-        {step === 'whatsappPreview' ? (
+        {step === 'farmerCommunication' ? (
           <Text style={{ fontSize: 13, color: '#666' }}>WhatsApp messages are sent after expert review.</Text>
         ) : null}
 
-        {step === 'summary' ? (
+        {step === 'visitSummary' ? (
           <VisitSummaryStep
             photoCount={visitPhotos.length + issues.reduce((n, i) => n + (i.photos?.length ?? 0), 0)}
             photoTypeCount={visitPhotos.length}
             templates={templates}
             measurements={measurements}
             issues={issues}
-            followUps={followUps}
-            onFollowUpChange={(index, next) => setFollowUps((prev) => prev.map((f, i) => (i === index ? next : f)))}
+            followUps={[]}
+            onFollowUpChange={() => {}}
             blockHealth={blockHealth}
             cropPerformance={cropPerformance}
             soilMoisture={soilMoisture}
@@ -622,7 +649,7 @@ export default function VisitScreen() {
           />
         ) : null}
 
-        {step === 'caseClosure' ? (
+        {step === 'learningSubmit' ? (
           <VisitCaseClosureStep issues={issues} recommendationGroups={recommendationGroups} />
         ) : null}
       </KeyboardAwareScrollScreen>
@@ -635,7 +662,7 @@ export default function VisitScreen() {
             </View>
           ) : null}
           <View style={styles.footerBtn}>
-            {step === 'caseClosure' ? (
+            {step === 'learningSubmit' ? (
               <Btn label={saving ? 'Submitting…' : 'Submit visit'} onPress={() => void submit()} disabled={saving} />
             ) : (
               <Btn label="Continue" onPress={goNext} />

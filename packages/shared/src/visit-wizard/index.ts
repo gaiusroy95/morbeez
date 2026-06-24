@@ -103,6 +103,7 @@ export {
 
 export type { VisitScreeningParams, VisitScreeningPhoto } from './visit-screening';
 
+import { mapLegacyStepToV12 } from './step-map';
 import {
   shouldRunFollowUp,
   derivePhotoRequestsFromFollowUp,
@@ -129,6 +130,25 @@ export {
   blockAutoApprove,
 } from './step-flow';
 export type { TriagePreview, MaiosTriageLevel } from './step-flow';
+
+export {
+  VISIT_WIZARD_VERSION,
+  V12_WIZARD_STEPS,
+  LEGACY_STEP_TO_V12,
+  mapLegacyStepToV12,
+} from './step-map';
+export type { VisitWizardStepV12 } from './step-map';
+
+export {
+  formatConfidenceProgress,
+  confidenceThresholdMessage,
+  distributionForDisplay,
+  CONFIDENCE_TARGET_PERCENT,
+} from './confidence-ui';
+export type { ConfidenceDistributionView } from './confidence-ui';
+
+export { buildDraftPayload, scheduleServerDraftSync, flushServerDraftSync } from './draft-sync';
+export type { DraftSyncClient } from './draft-sync';
 
 export {
   isFieldLevelPhotoType,
@@ -167,87 +187,32 @@ export type {
 
 
 export type VisitWizardStep =
-
-  | 'overview'
-
+  | 'intakeTriage'
   | 'photos'
-
   | 'fieldIntelligence'
-
-  | 'measurements'
-
-  | 'soilWeather'
-
-  | 'aiTriage'
-
-  | 'aiAnalysis'
-
-  | 'agronomistReview'
-
-  | 'followUp'
-
-  | 'additionalPhotos'
-
-  | 'finalDiagnosis'
-
-  | 'economicOptimizer'
-
-  | 'recPlanning'
-
-  | 'applicationSchedule'
-
-  | 'recApproval'
-
-  | 'monitoringPlan'
-
-  | 'whatsappPreview'
-
-  | 'summary'
-
-  | 'caseClosure';
-
-
+  | 'dynamicQA'
+  | 'aiDiagnosis'
+  | 'diagnosisFinalization'
+  | 'recommendationBuilder'
+  | 'scheduleCompatibility'
+  | 'farmerCommunication'
+  | 'visitSummary'
+  | 'followUpPlanning'
+  | 'learningSubmit';
 
 export const VISIT_WIZARD_STEPS: Array<{ id: VisitWizardStep; label: string }> = [
-
-  { id: 'overview', label: 'Overview' },
-
+  { id: 'intakeTriage', label: 'Intake' },
   { id: 'photos', label: 'Photos' },
-
   { id: 'fieldIntelligence', label: 'Field intel' },
-
-  { id: 'measurements', label: 'Measures' },
-
-  { id: 'soilWeather', label: 'Soil' },
-
-  { id: 'aiTriage', label: 'Triage' },
-
-  { id: 'followUp', label: 'Q&A' },
-
-  { id: 'aiAnalysis', label: 'AI Dx' },
-
-  { id: 'agronomistReview', label: 'Review' },
-
-  { id: 'additionalPhotos', label: 'More photos' },
-
-  { id: 'finalDiagnosis', label: 'Diagnosis' },
-
-  { id: 'economicOptimizer', label: 'Economics' },
-
-  { id: 'recPlanning', label: 'Rec plan' },
-
-  { id: 'applicationSchedule', label: 'Day plan' },
-
-  { id: 'recApproval', label: 'Rec OK' },
-
-  { id: 'monitoringPlan', label: 'Monitor' },
-
-  { id: 'whatsappPreview', label: 'WhatsApp' },
-
-  { id: 'summary', label: 'Summary' },
-
-  { id: 'caseClosure', label: 'Learning' },
-
+  { id: 'dynamicQA', label: 'Q&A' },
+  { id: 'aiDiagnosis', label: 'AI Dx' },
+  { id: 'diagnosisFinalization', label: 'Validate' },
+  { id: 'recommendationBuilder', label: 'Rec plan' },
+  { id: 'scheduleCompatibility', label: 'Schedule' },
+  { id: 'farmerCommunication', label: 'WhatsApp' },
+  { id: 'visitSummary', label: 'Summary' },
+  { id: 'followUpPlanning', label: 'Follow-up' },
+  { id: 'learningSubmit', label: 'Submit' },
 ];
 
 
@@ -746,14 +711,11 @@ export function validateVisitWizardStep(
 
 ): string | null {
 
-  if (step === 'overview') {
-
+  if (step === 'intakeTriage') {
     if (!ctx.blockHealth || !ctx.cropPerformance || !ctx.soilMoisture) {
-
-      return 'Select block health, crop performance, and soil moisture on the Overview step.';
-
+      return 'Select block health, crop performance, and soil moisture on the Intake step.';
     }
-
+    if (!ctx.triage) return 'Run triage preview before continuing.';
   }
 
   if (step === 'photos') {
@@ -782,100 +744,43 @@ export function validateVisitWizardStep(
 
   }
 
-  if (step === 'measurements' || step === 'fieldIntelligence') {
-
+  if (step === 'fieldIntelligence') {
     for (const tpl of ctx.templates) {
-
       if (tpl.required && !ctx.measurements[tpl.measurementKey]?.trim()) {
-
         return `Required measurement: ${tpl.labelEn}`;
-
       }
-
     }
-
   }
 
-  if (step === 'aiTriage') {
-    if (!ctx.triage) return 'Run triage preview before continuing.';
-  }
-
-  if (step === 'followUp') {
+  if (step === 'dynamicQA') {
     if (!ctx.issues.length || !ctx.issues.some((i) => i.aiCaseId)) {
       return 'Wait for initial AI screening to finish before Q&A.';
     }
-
     for (const issue of ctx.issues) {
-
       if (!shouldRunFollowUp(issue, { issues: ctx.issues, triage: ctx.triage, partnerMode: ctx.partnerMode })) continue;
-
       const qs = issue.followUpQuestions ?? [];
-
       if (qs.length && qs.some((q) => !q.answer?.trim())) {
-
-        return 'Answer all follow-up questions, skip Q&A, or save answers and update diagnosis.';
-
+        return 'Answer follow-up questions, skip Q&A, or finalize when confidence threshold is reached.';
       }
-
     }
-
   }
 
-  if (step === 'aiAnalysis') {
-
-    if (!ctx.issues.length) return 'Complete Q&A screening before refined diagnosis.';
-
+  if (step === 'aiDiagnosis') {
+    if (!ctx.issues.length) return 'Complete Q&A screening before AI diagnosis.';
     for (const issue of ctx.issues) {
-
       if (!issue.aiCaseId) return 'Wait for AI screening to complete.';
-
-      if (!issue.finalDiagnosis?.trim()) {
-
-        return 'Select a primary hypothesis or enter a manual diagnosis.';
-
-      }
-
+      if (!issue.finalDiagnosis?.trim()) return 'AI diagnosis is required before validation.';
     }
-
   }
 
-  if (step === 'agronomistReview') {
-
-    return validateAgronomistReview(ctx.issues, ctx.triage);
-
-  }
-
-  if (step === 'additionalPhotos') {
-
+  if (step === 'diagnosisFinalization') {
     for (const issue of ctx.issues) {
-
-      for (const req of issue.photoRequests ?? []) {
-
-        const has = (issue.photos ?? []).some((p) => p.photoType === req.photoType);
-
-        if (!has) return `Capture requested photo: ${req.label}`;
-
-      }
-
-    }
-
-  }
-
-  if (step === 'finalDiagnosis') {
-
-    for (const issue of ctx.issues) {
-
       if (!issue.finalDiagnosis?.trim()) return 'Each issue needs a final diagnosis before continuing.';
-
     }
-
+    return validateAgronomistReview(ctx.issues, ctx.triage);
   }
 
-  if (step === 'economicOptimizer') {
-    // Optional step — no hard block
-  }
-
-  if (step === 'recPlanning') {
+  if (step === 'recommendationBuilder') {
 
     const groups = ctx.recommendationGroups ?? [];
 
@@ -905,39 +810,21 @@ export function validateVisitWizardStep(
 
   }
 
-  if (step === 'applicationSchedule') {
-
+  if (step === 'scheduleCompatibility') {
     const groups = ctx.recommendationGroups ?? [];
-
     if (!groups.length) return 'Complete recommendation planning first.';
-
-  }
-
-  if (step === 'recApproval') {
-
-    if (ctx.partnerMode) return null;
-
-    if (!ctx.recApproved) return 'Approve recommendations on the Rec OK step before continuing.';
-
-    if (!(ctx.recommendationGroups ?? []).length) {
-
-      return 'Complete recommendation planning before approval.';
-
+    if (!ctx.partnerMode && !ctx.recApproved) {
+      return 'Approve recommendations and confirm compatibility before continuing.';
     }
-
   }
 
-  if (step === 'monitoringPlan') {
-
+  if (step === 'followUpPlanning') {
     if (!(ctx.monitoringPlan?.length ?? 0) && !(ctx.recommendationGroups ?? []).length) {
-
-      return 'Generate a monitoring plan before continuing.';
-
+      return 'Set a follow-up or monitoring plan before continuing.';
     }
-
   }
 
-  if (step === 'whatsappPreview') {
+  if (step === 'farmerCommunication') {
 
     if (!ctx.whatsappConfirmed && !ctx.partnerMode) {
 
@@ -955,12 +842,9 @@ export function validateVisitWizardStep(
 
   }
 
-  if (step === 'caseClosure') {
-
+  if (step === 'learningSubmit') {
     const err = validateAgronomistReview(ctx.issues);
-
     if (err) return err;
-
   }
 
   return null;
@@ -969,52 +853,34 @@ export function validateVisitWizardStep(
 
 
 
-/** Map legacy draft step ids to current wizard steps. */
-
+/** Map legacy draft step ids to v12 wizard steps. */
 export function normalizeVisitWizardStep(step: string): VisitWizardStep {
-
-  if (step === 'recommendation') return 'recPlanning';
-
-  if (step === 'issues') return 'agronomistReview';
-
-  if (step === 'review') return 'agronomistReview';
-
-  if (step === 'measurements' || step === 'soilWeather') return 'fieldIntelligence';
-
-  const known = VISIT_WIZARD_STEPS.find((s) => s.id === step);
-
-  return known?.id ?? 'overview';
-
+  const mapped = mapLegacyStepToV12(step);
+  if (mapped) return mapped;
+  return 'intakeTriage';
 }
 
 
 
 export type VisitDraftPayload = {
-
   farmerId: string;
-
   blockId: string;
-
   sessionId?: string;
-
+  currentStep?: VisitWizardStep;
+  wizardVersion?: string;
   blockHealth?: BlockHealthLevel;
-
   cropPerformance?: CropPerformanceLevel;
-
   soilMoisture?: SoilMoistureLevel;
-
+  visitClassification?: string;
   selectedCategories?: IssueCategory[];
-
   issues?: StructuredVisitIssueInput[];
-
   measurements?: Record<string, string>;
-
+  fieldVoiceNote?: string;
   recommendationGroups?: RecommendationGroupDraft[];
-
   monitoringPlan?: MonitoringPlanPreviewItem[];
-
+  triage?: import('./step-flow.js').TriagePreview | null;
+  confidenceThresholdReached?: boolean;
   savedAt: string;
-
 };
 
 

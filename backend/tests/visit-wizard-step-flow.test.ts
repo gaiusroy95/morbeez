@@ -2,37 +2,28 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { getNextWizardStep } from '../../packages/shared/src/visit-wizard/step-flow.js';
 
-describe('visit wizard step flow', () => {
-  it('does not skip Q&A after triage before initial screening', () => {
-    const next = getNextWizardStep('aiTriage', {
+describe('visit wizard v12 step flow', () => {
+  it('advances intake to photos', () => {
+    const next = getNextWizardStep('intakeTriage', { issues: [], triage: null });
+    assert.equal(next, 'photos');
+  });
+
+  it('does not skip dynamicQA before screening', () => {
+    const next = getNextWizardStep('fieldIntelligence', {
       issues: [],
       triage: {
         level: 'L2',
-        reason: 'Moderate symptoms',
+        reason: 'Moderate',
         route: 'standard',
         mandatoryFollowUp: true,
         blockAutoApprove: false,
       },
     });
-    assert.equal(next, 'followUp');
+    assert.equal(next, 'dynamicQA');
   });
 
-  it('does not skip Q&A when issues lack aiCaseId', () => {
-    const next = getNextWizardStep('aiTriage', {
-      issues: [{ issueName: 'Yellow leaves', category: 'nutrient_deficiency' } as never],
-      triage: {
-        level: 'L2',
-        reason: 'Moderate symptoms',
-        route: 'standard',
-        mandatoryFollowUp: true,
-        blockAutoApprove: false,
-      },
-    });
-    assert.equal(next, 'followUp');
-  });
-
-  it('advances from Q&A to AI analysis after screening', () => {
-    const next = getNextWizardStep('followUp', {
+  it('skips dynamicQA when confidence threshold met', () => {
+    const next = getNextWizardStep('fieldIntelligence', {
       issues: [
         {
           aiCaseId: 'case-1',
@@ -50,6 +41,12 @@ describe('visit wizard step flow', () => {
         blockAutoApprove: false,
       },
     });
-    assert.equal(next, 'aiAnalysis');
+    assert.equal(next, 'aiDiagnosis');
+  });
+
+  it('legacy step normalize maps followUp to dynamicQA', async () => {
+    const { normalizeVisitWizardStep } = await import('../../packages/shared/src/visit-wizard/index.js');
+    assert.equal(normalizeVisitWizardStep('followUp'), 'dynamicQA');
+    assert.equal(normalizeVisitWizardStep('overview'), 'intakeTriage');
   });
 });

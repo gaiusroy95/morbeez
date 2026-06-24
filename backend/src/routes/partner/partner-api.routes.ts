@@ -565,6 +565,39 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
     });
 
+    partnerApp.get(`${api}/visits/ai-case/:aiCaseId/confidence-state`, async (request, reply) => {
+      await requirePartner(request);
+      const { aiCaseId } = request.params as { aiCaseId: string };
+      const { visitAiConfidenceEngineService } = await import(
+        '../../services/core/visit-ai-confidence-engine.service.js'
+      );
+      const { sanitizeVisitAiForPartner } = await import(
+        '../../services/partner/partner-response-sanitizer.js'
+      );
+      const state = await visitAiConfidenceEngineService.getConfidenceState(aiCaseId);
+      return reply.send(sanitizeVisitAiForPartner({ ok: true, ...state }));
+    });
+
+    partnerApp.post(`${api}/visits/ai-case/:aiCaseId/answer`, async (request, reply) => {
+      await requirePartner(request);
+      const { aiCaseId } = request.params as { aiCaseId: string };
+      const body = z
+        .object({ questionId: z.string().uuid(), answer: z.string().min(1) })
+        .parse(request.body);
+      const { visitAiConfidenceEngineService } = await import(
+        '../../services/core/visit-ai-confidence-engine.service.js'
+      );
+      const { sanitizeVisitAiForPartner } = await import(
+        '../../services/partner/partner-response-sanitizer.js'
+      );
+      const result = await visitAiConfidenceEngineService.applyAnswer(
+        aiCaseId,
+        body.questionId,
+        body.answer
+      );
+      return reply.send(sanitizeVisitAiForPartner({ ok: true, ...result }));
+    });
+
     partnerApp.post(`${api}/visits/ai-case/:aiCaseId/skip-qa`, async (request, reply) => {
       await requirePartner(request);
       const { aiCaseId } = request.params as { aiCaseId: string };

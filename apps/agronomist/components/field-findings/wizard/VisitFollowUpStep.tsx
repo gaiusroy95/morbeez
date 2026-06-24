@@ -10,11 +10,14 @@ import {
   shouldRunFollowUp,
   tokens,
   withTimeout,
+  formatConfidenceProgress,
+  confidenceThresholdMessage,
   type TriagePreview,
   type VisitAiClient,
   type VisitAiAnswerType,
   type VisitAiQuestion,
   type VisitScreeningParams,
+  type ConfidenceDistributionView,
 } from '@morbeez/shared';
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
@@ -82,6 +85,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
   const [regeneratingIndex, setRegeneratingIndex] = useState<number | null>(null);
   const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState('');
+  const [confidenceByCase, setConfidenceByCase] = useState<Record<string, ConfidenceDistributionView>>({});
 
   useEffect(() => {
     void loadQuestions();
@@ -134,6 +138,18 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
       }
       const next = await attachQuestions(working);
       onChange(next);
+      for (const issue of next) {
+        if (issue.aiCaseId) {
+          try {
+            const state = await client.screenVisitAiCase?.(issue.aiCaseId);
+            if (state?.distribution) {
+              setConfidenceByCase((prev) => ({ ...prev, [issue.aiCaseId!]: state.distribution }));
+            }
+          } catch {
+            // optional
+          }
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load questions');
     } finally {
@@ -167,6 +183,26 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
         q.id === questionId ? { ...q, answer } : q
       ),
     });
+    if (issue.aiCaseId && ANSWER_CHIPS.includes(answer as (typeof ANSWER_CHIPS)[number])) {
+      void (async () => {
+        try {
+          const result = await agronomistClient.applyVisitAiAnswer(issue.aiCaseId!, questionId, answer);
+          if (result.distribution) {
+            setConfidenceByCase((prev) => ({ ...prev, [issue.aiCaseId!]: result.distribution }));
+          }
+          if (result.thresholdReached && result.topLabel) {
+            patchIssue(issueIndex, {
+              finalDiagnosis: result.topLabel,
+              selectedHypothesisLabel: result.topLabel,
+              thresholdReached: true,
+              confidenceAction: result.confidenceAction,
+            });
+          }
+        } catch {
+          // keep local answer
+        }
+      })();
+    }
   }
 
   function addQuestion(issueIndex: number) {
@@ -304,7 +340,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
-        Answer AI questions to eliminate unlikely causes. Save answers to refine the diagnosis on the next step.
+        Answer AI questions to improve diagnosis confidence. Target is ≥85% before proceeding.
       </Text>
       {error ? (
         <View style={styles.errorBlock}>
@@ -320,13 +356,16 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
         const showQa = shouldRunFollowUp(issue, { issues, triage, partnerMode: false }) && !issue.qaSkipped;
         return (
           <Panel key={issue.localId} title={issue.finalDiagnosis ?? issue.issueName}>
-            {(issue.hypotheses ?? []).length ? (
-              <Text style={styles.hypothesisHint}>
-                Initial hypotheses: {(issue.hypotheses ?? [])
-                  .slice(0, 3)
-                  .map((h) => `${h.label} (${Math.round(h.confidence * 100)}%)`)
-                  .join(' · ')}
-              </Text>
+            {issue.aiCaseId && confidenceByCase[issue.aiCaseId] ? (
+              <View style={styles.confidenceBlock}>
+                <Text style={styles.confidenceLabel}>
+                  {formatConfidenceProgress(confidenceByCase[issue.aiCaseId]!).label}
+                </Text>
+                <Text style={styles.confidenceHint}>
+                  {confidenceThresholdMessage(confidenceByCase[issue.aiCaseId]!) ??
+                    `Unknown / uncertainty: ${confidenceByCase[issue.aiCaseId]!.unknownWeight}%`}
+                </Text>
+              </View>
             ) : null}
             {!showQa && !issue.qaSkipped ? (
               <Text style={styles.skippedNote}>Follow-up Q&A not required — continue to refined diagnosis.</Text>
@@ -454,6 +493,16 @@ const styles = StyleSheet.create({
     borderColor: tokens.green700,
   },
   retryText: { fontSize: 14, fontWeight: '600', color: tokens.green700 },
+  confidenceBlock: {
+    marginBottom: 10,
+    padding: 10,
+    borderRadius: tokens.radiusSm,
+    backgroundColor: tokens.card,
+    borderWidth: 1,
+    borderColor: tokens.green500,
+  },
+  confidenceLabel: { fontSize: 14, fontWeight: '700', color: tokens.green800 },
+  confidenceHint: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
   hypothesisHint: { fontSize: 12, color: tokens.green800, marginBottom: 8, lineHeight: 17 },
   escalationHint: {
     fontSize: 13,

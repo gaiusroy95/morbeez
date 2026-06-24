@@ -24,6 +24,35 @@ export type VisitAiClient = {
     confidenceAction?: string;
     hypotheses?: Array<{ label: string; confidence?: number; rationale?: string }>;
   }>;
+  screenVisitAiCase?(aiCaseId: string): Promise<{
+    distribution: {
+      hypotheses: Array<{ label: string; weight: number }>;
+      unknownWeight: number;
+      topConfidence: number;
+      targetConfidence: number;
+    };
+    thresholdReached: boolean;
+    topLabel: string | null;
+    confidenceAction: string;
+    nextQuestion: { id: string; questionText: string; answerType: string } | null;
+  }>;
+  applyVisitAiAnswer?(
+    aiCaseId: string,
+    questionId: string,
+    answer: string
+  ): Promise<{
+    distribution: {
+      hypotheses: Array<{ label: string; weight: number }>;
+      unknownWeight: number;
+      topConfidence: number;
+      targetConfidence: number;
+    };
+    thresholdReached: boolean;
+    topLabel: string | null;
+    confidenceAction: string;
+    nextQuestion: { id: string; questionText: string; answerType: string } | null;
+    deltas: Array<{ label: string; delta: number }>;
+  }>;
   recommendVisitAiCase(
     aiCaseId: string,
     finalDiagnosis?: string
