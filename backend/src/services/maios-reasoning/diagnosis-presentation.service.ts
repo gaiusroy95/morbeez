@@ -1,5 +1,11 @@
 import type { StructuredAdvisory } from '../ai/types.js';
-import type { MaiosReasoningSnapshot, PosteriorEntry } from '../../domain/maios-reasoning/types.js';
+import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
+import {
+  buildFusedCandidates,
+  diagnosisLabelsMatch,
+  pickFusedPrimary,
+  type FusedCandidate,
+} from './diagnosis-fusion.service.js';
 
 export type DiagnosisRankRole = 'primary' | 'contributing' | 'disease_watch' | 'alternative';
 
@@ -22,9 +28,33 @@ export type DiagnosisPresentation = {
 
 const PRIMARY_CONFIDENCE_FLOOR = 0.5;
 const DISEASE_WATCH_MIN = 0.15;
+
 const NUTRIENT_LABEL_RE = /nutrient|deficien|uptake|potassium|nitrogen|magnesium/i;
-const FUNGAL_LABEL_RE = /blast|anthracnose|fungal|leaf spot|rot|phytophthora/i;
-const PEST_LABEL_RE = /thrip|mite|borer|weevil|insect/i;
+const FUNGAL_LABEL_RE = /blast|anthracnose|fungal|leaf spot|blight|rot|phytophthora/i;
+const PEST_LABEL_RE = /thrip|mite|borer|weevil|insect|pest/i;
+
+const NUTRIENT_CONTEXT_KEYS = new Set([
+  'context:k_demand_stage',
+  'context:fertilizer_gap_21d',
+  'context:prolonged_wet',
+  'soil:low_n',
+  'symptom:margin_scorch',
+]);
+
+const DISEASE_VISION_KEYS = new Set([
+  'symptom:spindle_lesion',
+  'symptom:grey_center',
+  'symptom:black_dots',
+  'symptom:silver_streak',
+  'symptom:concentric_rings',
+  'symptom:water_soaked',
+  'symptom:soft_rot',
+  'vision:blast',
+  'vision:rot',
+  'vision:thrips',
+  'vision:sigatoka',
+  'farmer:black_dots_yes',
+]);
 
 export type TreatmentFocus = 'nutrient' | 'fungicide' | 'pest' | 'cultural' | 'mixed' | 'unknown';
 
@@ -53,7 +83,7 @@ export function inferTreatmentFocus(advisory: StructuredAdvisory): TreatmentFocu
   const fungicide = /fungicide|mancozeb|azox|triflox|strobilurin|triazole|copper|carbendazim|propiconazole/.test(
     text
   );
-  const pest = /insecticide|spinosad|emamectin|neem|thrips|imidacloprid/.test(text);
+  const pest = /insecticide|spinosad|emamectin|neem|imidacloprid/.test(text);
   const cultural = /drainage|irrigation|mulch|weed|canopy/.test(text);
 
   const hits = [nutrient, fungicide, pest, cultural].filter(Boolean).length;
@@ -65,6 +95,16 @@ export function inferTreatmentFocus(advisory: StructuredAdvisory): TreatmentFocu
   return 'unknown';
 }
 
+function hasNutrientContextEvidence(reasoning: MaiosReasoningSnapshot): boolean {
+  const keys = reasoning.evidence?.map((e) => e.key) ?? [];
+  return keys.some((k) => NUTRIENT_CONTEXT_KEYS.has(k));
+}
+
+function hasStrongDiseaseVisionEvidence(reasoning: MaiosReasoningSnapshot): boolean {
+  const keys = reasoning.evidence?.map((e) => e.key) ?? [];
+  return keys.some((k) => DISEASE_VISION_KEYS.has(k));
+}
+
 function probabilityToStars(p: number): number {
   if (p >= 0.75) return 5;
   if (p >= 0.55) return 4;
@@ -73,67 +113,54 @@ function probabilityToStars(p: number): number {
   return 1;
 }
 
-function pickActionablePrimary(params: {
-  posterior: PosteriorEntry[];
-  llmIssue?: string;
+function maybeDemoteToNutrient(params: {
+  primary: { label: string; confidence: number };
+  candidates: FusedCandidate[];
   treatmentFocus: TreatmentFocus;
+  reasoning: MaiosReasoningSnapshot;
 }): { label: string; confidence: number } {
-  const ranked = params.posterior.filter((p) => p.label !== 'Unknown');
-  const top = ranked[0];
-  if (!top) {
-    return { label: params.llmIssue?.trim() || 'Field issue', confidence: 0.4 };
-  }
+  const topCat = labelCategory(params.primary.label);
+  if (topCat !== 'disease' && topCat !== 'pest') return params.primary;
+  if (params.primary.confidence >= PRIMARY_CONFIDENCE_FLOOR) return params.primary;
+  if (params.treatmentFocus !== 'nutrient') return params.primary;
+  if (!hasNutrientContextEvidence(params.reasoning)) return params.primary;
+  if (hasStrongDiseaseVisionEvidence(params.reasoning)) return params.primary;
 
-  const topCat = labelCategory(top.label);
-  const treatment = params.treatmentFocus;
+  const nutrientRow = params.candidates.find((c) => labelCategory(c.label) === 'nutrient');
+  if (!nutrientRow) return params.primary;
+  const primaryRow = params.candidates.find((c) => diagnosisLabelsMatch(c.label, params.primary.label));
+  const primaryScore = primaryRow?.fusedScore ?? params.primary.confidence;
+  if (nutrientRow.fusedScore < primaryScore - 0.05) return params.primary;
 
-  const nutrientRow = ranked.find((p) => labelCategory(p.label) === 'nutrient');
-  const llmNutrient =
-    params.llmIssue && labelCategory(params.llmIssue) === 'nutrient' ? params.llmIssue : null;
-
-  const treatmentWantsNutrient = treatment === 'nutrient' || treatment === 'cultural' || treatment === 'mixed';
-  const topIsWeak = top.probability < PRIMARY_CONFIDENCE_FLOOR;
-  const topIsDisease = topCat === 'disease' || topCat === 'pest';
-
-  if (topIsWeak && topIsDisease && treatmentWantsNutrient) {
-    if (nutrientRow && nutrientRow.probability >= DISEASE_WATCH_MIN) {
-      return { label: nutrientRow.label, confidence: nutrientRow.probability };
-    }
-    if (llmNutrient) {
-      return {
-        label: llmNutrient,
-        confidence: Math.max(nutrientRow?.probability ?? 0.45, top.probability),
-      };
-    }
-  }
-
-  if (topIsWeak && nutrientRow && nutrientRow.probability >= top.probability - 0.08) {
-    return { label: nutrientRow.label, confidence: nutrientRow.probability };
-  }
-
-  return { label: top.label, confidence: top.probability };
+  return {
+    label: nutrientRow.label,
+    confidence: Math.max(
+      nutrientRow.posterior ?? 0,
+      nutrientRow.llmProbability ?? 0,
+      nutrientRow.fusedScore
+    ),
+  };
 }
 
 function buildDiseaseWatch(params: {
-  posterior: PosteriorEntry[];
+  candidates: FusedCandidate[];
   primaryLabel: string;
 }): DiagnosisPresentation['diseaseWatch'] | undefined {
   const primary = params.primaryLabel.toLowerCase();
-  const candidate = params.posterior.find(
-    (p) =>
-      p.label !== 'Unknown' &&
-      p.label.toLowerCase() !== primary &&
-      labelCategory(p.label) === 'disease' &&
-      p.probability >= DISEASE_WATCH_MIN &&
-      p.probability < PRIMARY_CONFIDENCE_FLOOR
+  const candidate = params.candidates.find(
+    (c) =>
+      !diagnosisLabelsMatch(c.label, primary) &&
+      (labelCategory(c.label) === 'disease' || labelCategory(c.label) === 'pest') &&
+      (c.posterior ?? c.fusedScore) >= DISEASE_WATCH_MIN &&
+      (c.posterior ?? c.fusedScore) < PRIMARY_CONFIDENCE_FLOOR
   );
   if (!candidate) return undefined;
 
   return {
     label: candidate.label,
-    probability: candidate.probability,
+    probability: candidate.posterior ?? candidate.fusedScore,
     note:
-      'Humidity and weather can favour this disease. Photos do not confirm it yet — monitor for new lesions rather than treating as confirmed.',
+      'Weather or field context can favour this — photos do not confirm it yet. Monitor for new symptoms before treating as confirmed.',
   };
 }
 
@@ -141,7 +168,6 @@ function buildHeadline(params: {
   primaryLabel: string;
   primaryConfidence: number;
   diseaseWatch?: DiagnosisPresentation['diseaseWatch'];
-  alignmentNote?: string;
 }): string {
   const pct = Math.round(params.primaryConfidence * 100);
   let headline = params.primaryLabel;
@@ -151,77 +177,56 @@ function buildHeadline(params: {
     headline = `${params.primaryLabel} (${pct}% confidence)`;
   }
   if (params.diseaseWatch) {
-    headline += `. Watch for ${params.diseaseWatch.label.toLowerCase()} in current weather.`;
-  }
-  if (params.alignmentNote) {
-    headline += ` ${params.alignmentNote}`;
+    headline += `. Monitor for ${params.diseaseWatch.label.toLowerCase()} if symptoms change.`;
   }
   return headline.trim();
 }
 
+function displayProbability(c: FusedCandidate): number {
+  return Math.round(Math.max(c.posterior ?? 0, c.llmProbability ?? 0, c.fusedScore) * 1000) / 1000;
+}
+
 function buildRankedList(params: {
-  posterior: PosteriorEntry[];
+  candidates: FusedCandidate[];
   primaryLabel: string;
   diseaseWatchLabel?: string;
 }): DiagnosisRankItem[] {
   const primaryKey = params.primaryLabel.toLowerCase();
   const watchKey = params.diseaseWatchLabel?.toLowerCase();
 
-  return params.posterior
-    .filter((p) => p.label !== 'Unknown' && p.probability >= 0.08)
-    .slice(0, 5)
-    .map((p) => {
-      const key = p.label.toLowerCase();
+  const rows = params.candidates
+    .filter((c) => c.fusedScore >= 0.08)
+    .slice(0, 6)
+    .map((c) => {
+      const key = c.label.toLowerCase();
+      const prob = displayProbability(c);
       let role: DiagnosisRankRole = 'alternative';
-      if (key === primaryKey) role = 'primary';
-      else if (watchKey && key === watchKey) role = 'disease_watch';
-      else if (p.probability >= 0.25) role = 'contributing';
+      if (diagnosisLabelsMatch(c.label, params.primaryLabel) || key === primaryKey) {
+        role = 'primary';
+      } else if (watchKey && diagnosisLabelsMatch(c.label, params.diseaseWatchLabel ?? '')) {
+        role = 'disease_watch';
+      } else if (prob >= 0.25 || c.fusedScore >= 0.28) {
+        role = 'contributing';
+      }
       return {
-        label: p.label,
-        probability: Math.round(p.probability * 1000) / 1000,
+        label: c.label,
+        probability: prob,
         role,
-        stars: probabilityToStars(p.probability),
+        stars: probabilityToStars(prob),
+        _sort: diagnosisLabelsMatch(c.label, params.primaryLabel) ? 1 : 0,
+        fusedScore: c.fusedScore,
       };
     });
+
+  return rows
+    .sort((a, b) => {
+      if (a._sort !== b._sort) return b._sort - a._sort;
+      return b.fusedScore - a.fusedScore;
+    })
+    .map(({ _sort, fusedScore, ...row }) => row);
 }
 
-function detectAlignmentNote(params: {
-  primaryLabel: string;
-  topPosteriorLabel: string;
-  topPosteriorConfidence: number;
-  treatmentFocus: TreatmentFocus;
-}): string | undefined {
-  const primaryCat = labelCategory(params.primaryLabel);
-  const topCat = labelCategory(params.topPosteriorLabel);
-  const treatment = params.treatmentFocus;
-
-  if (
-    topCat === 'disease' &&
-    params.topPosteriorConfidence < PRIMARY_CONFIDENCE_FLOOR &&
-    primaryCat === 'nutrient' &&
-    (treatment === 'nutrient' || treatment === 'cultural')
-  ) {
-    return 'Treatment focuses on nutrition and field conditions; fungal disease is a secondary weather risk, not the main visible pattern.';
-  }
-
-  if (params.topPosteriorLabel.toLowerCase() !== params.primaryLabel.toLowerCase() && treatment !== 'unknown') {
-    const treatmentCat =
-      treatment === 'nutrient' || treatment === 'cultural'
-        ? 'nutrient'
-        : treatment === 'fungicide'
-          ? 'disease'
-          : treatment === 'pest'
-            ? 'pest'
-            : 'other';
-    if (primaryCat === treatmentCat && topCat !== treatmentCat) {
-      return 'Recommendations match the most actionable field issue, not the highest weak disease prior.';
-    }
-  }
-
-  return undefined;
-}
-
-/** Harmonize Bayesian posterior, LLM treatments, and farmer-facing labels. */
+/** Harmonize LLM vision ranking, Bayesian posterior, and farmer-facing labels. */
 export const diagnosisPresentationService = {
   build(params: {
     advisory: StructuredAdvisory;
@@ -229,47 +234,60 @@ export const diagnosisPresentationService = {
     shadowMode: boolean;
   }): DiagnosisPresentation {
     const posterior = params.reasoning.posterior.filter((p) => p.label !== 'Unknown');
-    const topPosterior = posterior[0];
     const treatmentFocus = inferTreatmentFocus(params.advisory);
-    const llmIssue = params.advisory.probableIssue;
 
-    const actionable = params.shadowMode
-      ? { label: llmIssue?.trim() || topPosterior?.label || 'Field issue', confidence: params.advisory.confidence }
-      : pickActionablePrimary({ posterior, llmIssue, treatmentFocus });
-
-    const diseaseWatch = buildDiseaseWatch({
+    const candidates = buildFusedCandidates({
       posterior,
-      primaryLabel: actionable.label,
+      advisory: params.advisory,
+      bayesianLocked: params.reasoning.decision.action === 'LOCK',
+      topPosteriorLabel: posterior[0]?.label,
     });
 
-    const alignmentNote = detectAlignmentNote({
-      primaryLabel: actionable.label,
-      topPosteriorLabel: topPosterior?.label ?? actionable.label,
-      topPosteriorConfidence: topPosterior?.probability ?? actionable.confidence,
-      treatmentFocus,
+    let primary = params.shadowMode
+      ? {
+          label: params.advisory.probableIssue?.trim() || posterior[0]?.label || 'Field issue',
+          confidence: params.advisory.confidence,
+        }
+      : pickFusedPrimary({
+          candidates,
+          reasoning: params.reasoning,
+          advisory: params.advisory,
+        });
+
+    if (!params.shadowMode) {
+      primary = maybeDemoteToNutrient({
+        primary,
+        candidates,
+        treatmentFocus,
+        reasoning: params.reasoning,
+      });
+    }
+
+    const diseaseWatch = buildDiseaseWatch({
+      candidates,
+      primaryLabel: primary.label,
     });
 
     const ranked = buildRankedList({
-      posterior,
-      primaryLabel: actionable.label,
+      candidates,
+      primaryLabel: primary.label,
       diseaseWatchLabel: diseaseWatch?.label,
     });
 
     const headline = buildHeadline({
-      primaryLabel: actionable.label,
-      primaryConfidence: actionable.confidence,
+      primaryLabel: primary.label,
+      primaryConfidence: primary.confidence,
       diseaseWatch,
-      alignmentNote,
     });
 
     return {
       headline,
-      primaryLabel: actionable.label,
-      primaryConfidence: actionable.confidence,
+      primaryLabel: primary.label,
+      primaryConfidence: primary.confidence,
       ranked,
       diseaseWatch,
-      alignmentNote,
-      showLowConfidencePrimary: actionable.confidence < PRIMARY_CONFIDENCE_FLOOR,
+      alignmentNote: undefined,
+      showLowConfidencePrimary: primary.confidence < PRIMARY_CONFIDENCE_FLOOR,
     };
   },
 
@@ -278,13 +296,18 @@ export const diagnosisPresentationService = {
     presentation: DiagnosisPresentation,
     reasoning: MaiosReasoningSnapshot
   ): StructuredAdvisory {
-    const differentialFromRanked = presentation.ranked.map((r) => ({
+    const alternatives = presentation.ranked.filter((r) => r.role !== 'primary');
+
+    const differentialFromRanked = [
+      ...presentation.ranked.filter((r) => r.role === 'primary'),
+      ...alternatives,
+    ].map((r) => ({
       label: r.label,
       reason:
         r.role === 'primary'
           ? 'Leading combined assessment'
           : r.role === 'disease_watch'
-            ? 'Elevated weather risk — monitor'
+            ? 'Elevated context risk — monitor'
             : r.role === 'contributing'
               ? 'Contributing factor'
               : 'Alternative hypothesis',
@@ -293,7 +316,7 @@ export const diagnosisPresentationService = {
 
     const rejected = reasoning.explanation.rejected.length
       ? reasoning.explanation.rejected
-      : presentation.ranked
+      : alternatives
           .filter((r) => r.role === 'alternative' && r.probability < 0.15)
           .map((r) => r.label);
 

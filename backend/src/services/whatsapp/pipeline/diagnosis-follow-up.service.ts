@@ -483,20 +483,15 @@ export const diagnosisFollowUpService = {
         }));
       if (reasoning) {
         intake.reasoningSnapshot = reasoning;
-        const evsi = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
-          reasoning,
-          priorAnswers: intake.answers as Record<string, string>,
-          questionsAsked,
-          maxQuestions,
-        });
-        if (evsi) {
-          return {
-            intakeComplete: false,
-            question: maiosEvsiWhatsappBridgeService.toFollowUpQuestion(evsi, investigation.language),
-          };
-        }
       }
     }
+
+    const evsiHint =
+      intake.reasoningSnapshot &&
+      maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(
+        intake.reasoningSnapshot,
+        intake.answers as Record<string, string>
+      );
 
     const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
       ctx: investigation,
@@ -506,6 +501,7 @@ export const diagnosisFollowUpService = {
       maxQuestions,
       learnedPatterns: investigation.learnedPatterns,
       evidenceGaps,
+      evsiHint,
     });
 
     if (result.intakeComplete || !result.question) {
@@ -548,20 +544,15 @@ export const diagnosisFollowUpService = {
         }));
       if (reasoning) {
         intake.reasoningSnapshot = reasoning;
-        const evsi = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
-          reasoning,
-          priorAnswers: intake.answers,
-          questionsAsked,
-          maxQuestions,
-        });
-        if (evsi) {
-          return {
-            intakeComplete: false,
-            question: maiosEvsiWhatsappBridgeService.toFollowUpQuestion(evsi, investigation.language),
-          };
-        }
       }
     }
+
+    const evsiHint =
+      intake.reasoningSnapshot &&
+      maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(
+        intake.reasoningSnapshot,
+        intake.answers
+      );
 
     const result = await diagnosisFollowUpQuestionGenerator.planPostDiagnosisQuestion({
       ctx: investigation,
@@ -571,6 +562,7 @@ export const diagnosisFollowUpService = {
       questionsAsked,
       maxQuestions,
       learnedPatterns: investigation.learnedPatterns,
+      evsiHint,
     });
 
     if (result.intakeComplete || !result.question) {
@@ -685,7 +677,7 @@ export const diagnosisFollowUpService = {
             cropType: params.cropType,
             district,
             symptomsText: params.symptomsText,
-            issueLabelHint: ctx.bestIssueLabel,
+            issueLabelHint: params.hasPhoto ? undefined : ctx.bestIssueLabel,
             language: params.language,
             max: MAX_QUESTIONS(),
           });
@@ -717,15 +709,7 @@ export const diagnosisFollowUpService = {
       return { started: false };
     }
 
-    const pendingSavedQuestions: FollowUpQuestion[] = savedLibrary.map((s) => ({
-      id: s.id,
-      kind: s.kind,
-      text: expertFollowUpLearningService.localize(s, params.language),
-      choices: s.choices,
-      purpose: s.purpose,
-      libraryId: s.libraryId,
-      fromExpertLibrary: true,
-    }));
+    const pendingSavedQuestions: FollowUpQuestion[] = [];
 
     const draftIntake: IntakeContext = {
       initialSymptoms: params.symptomsText,

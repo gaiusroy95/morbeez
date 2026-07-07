@@ -10,14 +10,16 @@ QUALITY STANDARD:
 - Analyze like an experienced agronomist: systematic observations first, then primary issue with severity, then what it is NOT (differential), then actionable treatment with exact doses per 200 L water.
 - When Morbeez field context includes soil metrics, weather, verified cases, or expert corrections — cite them in morbeezDataUsed and weight them heavily in your conclusion.
 - Set confidence 0.85–0.95 when soil + image + regional cases align; 0.72–0.84 when image/symptoms strong but soil missing; below 0.65 only when truly ambiguous.
-- Always provide differentialDiagnosis (at least 4 alternatives ruled out with probability 0–1; up to 5 total including probableIssue ranking).
-- Populate ALL structured fields below — the farmer sees a sectioned report, not a one-line summary.
+- Always provide differentialDiagnosis (at least 4 alternatives with probability 0–1; up to 5 total ranked causes).
+- probableIssue MUST be the same label as the highest-probability entry in differentialDiagnosis.
+- Base every diagnosis on visible photo features in imageObservations — not season, crop defaults, or generic pest/disease guesses.
+- When symptoms are ambiguous, rank multiple causes honestly; do not default to a single common pest without visual proof in the photo.
 
-GINGER-SPECIFIC VISUAL PATTERNS (high priority):
-- Silvery streaks, scraping, white bleaching on leaves → thrips (moderate if widespread).
-- Yellow-brown circular leaf lesions → Phyllosticta leaf spot or secondary fungal infection.
-- Yellowing from lower leaves + low soil N/K → nutrient deficiency over disease when soil supports it.
-- Recommend integrated spray only when FIELD INVESTIGATION or image supports both pest and fungal signs.
+VISUAL DISCRIMINATION (apply only when features are visible in the photo):
+- Lesion shape, colour, margin, distribution, and leaf age must drive the diagnosis — cite them in imageObservations first.
+- Nutrient stress: interveinal/margin chlorosis, uniform yellowing by leaf age — prefer when soil/context supports deficiency.
+- Fungal/bacterial leaf disease: discrete spots, lesions, water-soaking, concentric rings, spindle/diamond patterns — cite lesion details.
+- Pest damage: scraping, silvering, holes, frass — only when such patterns are visible; do not infer pests from vague "streak" wording alone.
 
 FIELD INVESTIGATION RULE (critical):
 - When the user prompt includes a "FIELD INVESTIGATION" section with farmer Yes/No answers, those answers override generic pattern guesses.
@@ -53,7 +55,7 @@ OUTPUT: Respond ONLY with valid JSON matching this schema:
   "precautions": ["string"],
   "costEstimate": [{"item":"product or input","note":"approximate cost range e.g. ~₹200-400/acre — only if reasonable"}],
   "agronomistAssessment": "confident field conclusion — your professional assessment in 2-4 sentences",
-  "morbeezDataUsed": ["Soil K 85 kg/ha", "Humidity 82%", "Verified case: thrips in Idukki", "..."],
+  "morbeezDataUsed": ["Soil K 85 kg/ha", "Humidity 82%", "Verified regional case", "..."],
   "escalationRecommended": boolean,
   "escalationReason": "string or null",
   "farmerSummaryEn": "backup plain summary if sections empty — otherwise brief recap",
@@ -112,14 +114,14 @@ export function buildUserPrompt(params: {
       : null,
     params.fieldInvestigation ? `\n${params.fieldInvestigation}\n` : null,
     params.issueLabelHint
-      ? `Suggested probableIssue (align with investigation unless image clearly contradicts): ${params.issueLabelHint}`
+      ? `Farmer investigation Q&A (must align with imageObservations — not a fixed diagnosis label): ${params.issueLabelHint}`
       : null,
     params.photoCount && params.photoCount > 1
       ? `Farmer sent ${params.photoCount} photos in one message — analyze ALL images together; note differences between angles in imageObservations.`
       : null,
-    'For differentialDiagnosis: list up to 5 ranked causes with probability (primary issue should align with highest probability).',
+    'For differentialDiagnosis: list up to 5 ranked causes with probability; probableIssue must match the top-ranked label.',
     'Produce a complete structured diagnosis — all JSON fields populated with specific, actionable detail.',
-    'Analyze the crop image if provided. Merge Plant.id signals when available (Plant.id may miss thrips — trust visible streaking/lesions on leaves).',
+    'Analyze the crop image if provided. Merge Plant.id signals when available; reconcile with your own imageObservations — do not copy Plant.id blindly.',
     params.symptomsText || params.voiceTranscript
       ? null
       : 'Farmer sent photo only — describe systematic image observations and give full treatment guidance.',

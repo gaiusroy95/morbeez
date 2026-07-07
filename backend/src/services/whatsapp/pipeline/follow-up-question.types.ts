@@ -75,7 +75,7 @@ export function normalizeChoiceOptions(
   }
 
   if (out.length >= 2) return out;
-  return SPRAY_TIMING_CHOICES;
+  return [];
 }
 
 export function formatChoiceAnswerLabel(

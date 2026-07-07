@@ -1,5 +1,6 @@
 import type { MaiosHypothesis } from '../../domain/case/types.js';
 import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
+import type { EvsiPlannerHint } from './evsi-planner-hint.types.js';
 import type { AdvisoryLanguage, StructuredAdvisory } from '../ai/types.js';
 import type { InvestigationContext } from '../whatsapp/pipeline/diagnosis-follow-up-reasoning.engine.js';
 import type {
@@ -42,16 +43,7 @@ function hypothesesFromAdvisory(advisory: PostDiagnosisAdvisorySnapshot): MaiosH
   ];
 }
 
-function hypothesesFromInvestigation(investigation: InvestigationContext): MaiosHypothesis[] {
-  if (investigation.bestIssueLabel?.trim()) {
-    return [
-      {
-        label: investigation.bestIssueLabel.trim(),
-        probability: Math.round((investigation.matchConfidence ?? 0.5) * 100),
-        source: 'M5' as const,
-      },
-    ];
-  }
+function hypothesesFromInvestigation(_investigation: InvestigationContext): MaiosHypothesis[] {
   return [{ label: 'Unknown', probability: 40, source: 'M5' as const }];
 }
 
@@ -81,43 +73,44 @@ export const maiosEvsiWhatsappBridgeService = {
     return maiosReasoningPipelineService.isEnabled();
   },
 
-  buildFollowUpFromReasoning(params: {
+  /** Metadata only — farmer-facing wording comes from the LLM planner. */
+  plannerHintFromReasoning(
+    reasoning: MaiosReasoningSnapshot | null | undefined,
+    priorAnswers: Record<string, string>
+  ): EvsiPlannerHint | null {
+    if (!reasoning?.nextEvidence || reasoning.decision.action === 'LOCK') return null;
+    const next = reasoning.nextEvidence;
+
+    if (next.kind === 'photo_slot') {
+      const id = `photo:${next.id}`;
+      if (priorAnswers[id] !== undefined) return null;
+      return {
+        questionId: id,
+        kind: 'photo',
+        evidenceSlot: next.id,
+        informationGain: next.expectedInformationGain,
+      };
+    }
+
+    if (next.kind === 'question') {
+      if (priorAnswers[next.id] !== undefined) return null;
+      return {
+        questionId: next.id,
+        kind: 'yes_no',
+        evidenceSlot: next.id,
+        informationGain: next.expectedInformationGain,
+      };
+    }
+
+    return null;
+  },
+
+  buildFollowUpFromReasoning(_params: {
     reasoning: MaiosReasoningSnapshot | null | undefined;
     priorAnswers: Record<string, string>;
     questionsAsked: number;
     maxQuestions: number;
   }): GeneratedFollowUpQuestion | null {
-    if (!this.isEnabled() || !params.reasoning?.nextEvidence) return null;
-    if (params.reasoning.decision.action === 'LOCK') return null;
-    if (params.questionsAsked >= params.maxQuestions) return null;
-
-    const next = params.reasoning.nextEvidence;
-    if (next.kind === 'question') {
-      if (params.priorAnswers[next.id] !== undefined) return null;
-      return {
-        id: next.id,
-        kind: 'yes_no',
-        text: next.label,
-        choices: [],
-        purpose: `EVSI information gain ${next.expectedInformationGain}`,
-      };
-    }
-
-    if (next.kind === 'photo_slot') {
-      const id = `photo:${next.id}`;
-      if (params.priorAnswers[id] !== undefined) return null;
-      return {
-        id,
-        kind: 'photo',
-        text:
-          params.reasoning.shadowMode === false
-            ? `Please send a close photo of the ${next.id.replace(/_/g, ' ')}.`
-            : `Can you send a clearer photo showing the ${next.id.replace(/_/g, ' ')}?`,
-        choices: [],
-        purpose: `EVSI photo slot — gain ${next.expectedInformationGain}`,
-      };
-    }
-
     return null;
   },
 
@@ -159,8 +152,8 @@ export const maiosEvsiWhatsappBridgeService = {
       hypotheses: hypothesesFromAdvisory(params.advisory),
       photos,
       eqs: params.investigation.hasPhoto ? 58 : 42,
-      visionLabel: params.advisory.probableIssue,
-      visionConfidence: params.advisory.confidence,
+      visionLabel: undefined,
+      visionConfidence: undefined,
       visionObservations,
       farmerAnswers,
       answeredQuestionIds: answeredIdsFromIntake(params.priorAnswers),
@@ -179,8 +172,8 @@ export const maiosEvsiWhatsappBridgeService = {
     const visionObservations = (params.investigation.imageObservations ?? []).length
       ? buildWhatsAppVisionObservations({
           advisory: {
-            probableIssue: params.investigation.bestIssueLabel ?? 'Field issue',
-            confidence: params.investigation.matchConfidence ?? 0.5,
+            probableIssue: 'Field issue',
+            confidence: 0.5,
             uncertain: true,
             nutrientDeficiency: [],
             stressAnalysis: [],
@@ -216,8 +209,8 @@ export const maiosEvsiWhatsappBridgeService = {
           }))
         : [],
       eqs: params.investigation.hasPhoto ? 52 : 38,
-      visionLabel: params.investigation.bestIssueLabel ?? null,
-      visionConfidence: params.investigation.matchConfidence ?? 0.5,
+      visionLabel: undefined,
+      visionConfidence: undefined,
       visionObservations,
       farmerAnswers,
       answeredQuestionIds: answeredIdsFromIntake(params.priorAnswers),

@@ -56,8 +56,15 @@ export const maiosBayesianEngineService = {
     for (const item of evidence) {
       const rules = maiosKnowledgeService.listLikelihoodRatios(pkg, item.key);
       for (const rule of rules) {
-        if (!odds.has(rule.diseaseLabel)) continue;
-        const effectiveLr = Math.pow(rule.lr, item.reliability);
+      if (!odds.has(rule.diseaseLabel)) continue;
+      if (item.key === 'regional:prior' && item.value) {
+        const target = String(item.value).toLowerCase();
+        const disease = rule.diseaseLabel.toLowerCase();
+        if (!disease.includes(target.slice(0, 8)) && !target.includes(disease.slice(0, 8))) {
+          continue;
+        }
+      }
+      const effectiveLr = Math.pow(rule.lr, item.reliability);
         odds.set(rule.diseaseLabel, (odds.get(rule.diseaseLabel) ?? 1) * effectiveLr);
       }
     }

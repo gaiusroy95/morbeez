@@ -3,6 +3,7 @@ import { logger } from '../../../lib/logger.js';
 import { openaiJsonCompletion } from '../../ai/providers/openai.provider.js';
 import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { InvestigationContext } from './diagnosis-follow-up-reasoning.engine.js';
+import type { EvsiPlannerHint } from '../../maios-reasoning/evsi-planner-hint.types.js';
 import {
   normalizeChoiceOptions,
   normalizeFollowUpKind,
@@ -35,6 +36,8 @@ export type PlanNextQuestionInput = {
   learnedPatterns: LearnedInvestigationPattern[];
   /** MAIOS v12 — missing evidence slots from case (photo/module gaps) */
   evidenceGaps?: string[];
+  /** Bayesian EVSI slot — LLM writes farmer-facing wording from photo context */
+  evsiHint?: EvsiPlannerHint | null;
 };
 
 export type PostDiagnosisAdvisorySnapshot = {
@@ -55,6 +58,7 @@ export type PlanPostDiagnosisQuestionInput = {
   questionsAsked: number;
   maxQuestions: number;
   learnedPatterns: LearnedInvestigationPattern[];
+  evsiHint?: EvsiPlannerHint | null;
 };
 
 export type PlanNextQuestionResult = {
@@ -70,7 +74,7 @@ Your job: decide the SINGLE best next follow-up question OR mark intake complete
 RULES:
 - ONLY structured response types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
 - NEVER use open text / free typing questions.
-- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume thrips, fungal spots, blast lesions, etc. unless the farmer stated them OR imageObservations list them.
+- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume specific pests or diseases unless the farmer stated them OR imageObservations list them.
 - When imageObservations are provided, they are AUTHORITATIVE for what the photo shows. NEVER ask the farmer to confirm a sign that observations say is absent (e.g. "no spots", "no lesions", "yellowing only" → do not ask about leaf spots).
 - Prefer questions about field context NOT visible in photos: irrigation timing, soil moisture, symptom spread, recent spray/fertilizer, pests on leaf undersides.
 - Do NOT repeat what the farmer already stated in initial symptoms or prior answers.
@@ -207,6 +211,9 @@ function buildUserPrompt(input: PlanNextQuestionInput): string {
     input.evidenceGaps?.length
       ? `MAIOS evidence gaps (prioritize closing these): ${input.evidenceGaps.join(', ')}`
       : null,
+    input.evsiHint
+      ? `\nEvidence priority (write your own farmer-friendly question from imageObservations — do NOT copy a fixed script): close slot "${input.evsiHint.evidenceSlot}" (use questionId "${input.evsiHint.questionId}", kind ${input.evsiHint.kind}).`
+      : null,
     '',
     questionsAsked >= maxQuestions
       ? 'Question budget exhausted — set intakeComplete true.'
@@ -267,6 +274,9 @@ function buildPostDiagnosisUserPrompt(input: PlanPostDiagnosisQuestionInput): st
     questionsAsked >= maxQuestions
       ? 'Question budget exhausted — set intakeComplete true.'
       : 'Plan the next single structured question using imageObservations + differentials — field facts not visible in the photo.',
+    input.evsiHint
+      ? `\nEvidence priority (write your own farmer-friendly question from imageObservations — do NOT copy a fixed script): close slot "${input.evsiHint.evidenceSlot}" (use questionId "${input.evsiHint.questionId}", kind ${input.evsiHint.kind}).`
+      : null,
   ]
     .filter(Boolean)
     .join('\n');
@@ -308,6 +318,9 @@ async function planStructuredQuestion(
 
     const kind = normalizeFollowUpKind(q.kind);
     const choices = normalizeChoiceOptions(q.choices, kind);
+    if (kind === 'multiple_choice' && choices.length < 2) {
+      return { intakeComplete: true, rationale: 'invalid_multiple_choice_options' };
+    }
 
     const text = localizeQuestion(
       { textEn: String(q.textEn ?? ''), textMl: String(q.textMl ?? '') },

@@ -1,5 +1,6 @@
 import type { VisionObservation } from '../../domain/maios-reasoning/vision-observation.types.js';
 import type { PlantIdHealthResult } from '../ai/types.js';
+import { hasPestSilverStreakEvidence } from './symptom-evidence-patterns.js';
 
 function clampConfidence(n: number): number {
   return Math.max(0.5, Math.min(0.98, n));
@@ -32,7 +33,7 @@ function inferGingerFromText(t: string, conf: number): VisionObservation[] {
     if (/black|dot|speck|pycnid/.test(t)) pushFeature(out, 'black_dots', conf * 0.9);
   }
   if (/rot|pythium|rhizome|waterlog|foul/.test(t)) pushFeature(out, 'soft_rot', conf);
-  if (/thrip|silver|scraping|streak/.test(t)) pushFeature(out, 'silver_streak', conf);
+  if (hasPestSilverStreakEvidence(t, 'ginger')) pushFeature(out, 'silver_streak', conf);
   return out;
 }
 
@@ -213,12 +214,6 @@ export const plantIdVisionFeaturesService = {
 
     if (params.structured) {
       groups.push(parseStructuredJson(params.structured));
-    }
-
-    if (params.label?.trim()) {
-      groups.push(
-        this.inferFromLabel(params.label, params.confidence ?? 0.75, params.cropType)
-      );
     }
 
     return this.merge(...groups);

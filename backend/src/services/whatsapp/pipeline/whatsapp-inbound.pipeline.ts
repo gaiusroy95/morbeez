@@ -355,28 +355,6 @@ async function tryAssessmentPlaybook(params: {
   return true;
 }
 
-function validationQuestion(issue: string, language: AdvisoryLanguage): string {
-  const lower = issue.toLowerCase();
-  if (/thrip|silver|streak|scrap/.test(lower)) {
-    return language === 'ml'
-      ? 'സ്ഥിരീകരിക്കാൻ: ഇലയുടെ അടിയിൽ ചെറിയ കീടങ്ങളോ കറുത്ത മലമുണ്ടോ?'
-      : 'To confirm: do you see tiny insects or black dots under the leaves?';
-  }
-  if (/root|rot|nematode|rhizome/.test(lower)) {
-    return language === 'ml'
-      ? 'സ്ഥിരീകരിക്കാൻ: വേരുകൾ മൃദുവായിട്ടുണ്ടോ, ദുർഗന്ധമുണ്ടോ?'
-      : 'To confirm: are roots soft and is there any foul smell?';
-  }
-  if (/yellow|chlorosis|deficien/.test(lower)) {
-    return language === 'ml'
-      ? 'സ്ഥിരീകരിക്കാൻ: ഇലമഞ്ഞപ്പ് താഴെ നിന്ന് മുകളിലേക്ക് പടരുന്നുണ്ടോ?'
-      : 'To confirm: is yellowing spreading from lower leaves upward?';
-  }
-  return language === 'ml'
-    ? 'സ്ഥിരീകരിക്കാൻ: പ്രശ്നം എത്ര വേഗത്തിൽ പടരുന്നു?'
-    : 'To confirm: how fast is this issue spreading in the field?';
-}
-
 function languageSelectCopy(): {
   body: string;
   buttonText: string;
@@ -1802,9 +1780,7 @@ export const whatsappInboundPipeline = {
       );
       if (productBlock) body += `\n\n${productBlock}`;
 
-      const validationQ = assessment.needsValidationQuestion
-        ? validationQuestion(result.advisory.probableIssue, params.language)
-        : responseComposerService.extractValidationQuestion(body);
+      const validationQ = responseComposerService.extractValidationQuestion(body);
 
       const reply = buildDiagnosisReply({
         advisory: result.advisory,

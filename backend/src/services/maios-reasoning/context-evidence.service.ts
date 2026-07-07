@@ -1,6 +1,9 @@
 import { diseaseWeatherRulesService } from '../whatsapp/pipeline/disease-weather-rules.service.js';
 import type { ReasoningEvidenceItem } from '../../domain/maios-reasoning/types.js';
-
+import {
+  hasPestSilverStreakEvidence,
+  hasYellowStreakEvidence,
+} from './symptom-evidence-patterns.js';
 export type ContextEvidenceInput = {
   cropType: string;
   symptomsText?: string;
@@ -45,10 +48,10 @@ function symptomEvidence(text: string): ReasoningEvidenceItem[] {
       reliability: 0.85,
     });
   }
-  if (/silver|streak|thrip/.test(t)) {
+  if (hasPestSilverStreakEvidence(t)) {
     out.push({
       key: 'symptom:silver_streak',
-      label: 'Silver streaks / thrips signs',
+      label: 'Silver streaks / scraping damage reported',
       source: 'farmer',
       reliability: 0.84,
     });
@@ -77,7 +80,7 @@ function symptomEvidence(text: string): ReasoningEvidenceItem[] {
       reliability: 0.84,
     });
   }
-  if (/sigatoka|yellow streak|parallel streak|leaf streak/.test(t)) {
+  if (/sigatoka|yellow streak|parallel streak|leaf streak/.test(t) || hasYellowStreakEvidence(t)) {
     out.push({
       key: 'symptom:yellow_streak',
       label: 'Yellow streaks on leaves reported',

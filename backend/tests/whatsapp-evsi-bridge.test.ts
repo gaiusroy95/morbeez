@@ -12,7 +12,7 @@ function baseSnapshot(overrides: Partial<MaiosReasoningSnapshot> = {}): MaiosRea
     posterior: [],
     decision: {
       action: 'CONTINUE',
-      topLabel: 'Pyricularia leaf blast',
+      topLabel: 'Hypothesis A',
       topConfidence: 0.62,
       threshold: 0.85,
       evidenceCount: 2,
@@ -20,7 +20,7 @@ function baseSnapshot(overrides: Partial<MaiosReasoningSnapshot> = {}): MaiosRea
       reason: 'Continue',
     },
     explanation: {
-      diagnosis: 'Pyricularia leaf blast',
+      diagnosis: 'Hypothesis A',
       confidence: 0.62,
       supporting: [],
       rejected: [],
@@ -28,8 +28,8 @@ function baseSnapshot(overrides: Partial<MaiosReasoningSnapshot> = {}): MaiosRea
     },
     nextEvidence: {
       kind: 'question',
-      id: 'black_dots_in_lesion',
-      label: 'Are black dots visible inside the lesions?',
+      id: 'lesion_detail_check',
+      label: 'Pack template text — must not be sent to farmers',
       expectedInformationGain: 14.2,
     },
     management: null,
@@ -41,32 +41,34 @@ function baseSnapshot(overrides: Partial<MaiosReasoningSnapshot> = {}): MaiosRea
 }
 
 describe('MAIOS EVSI WhatsApp bridge', () => {
-  it('builds yes_no follow-up from reasoning nextEvidence', () => {
+  it('exposes planner hint metadata without pack question text', () => {
+    const hint = maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(baseSnapshot(), {});
+    assert.ok(hint);
+    assert.equal(hint!.questionId, 'lesion_detail_check');
+    assert.equal(hint!.kind, 'yes_no');
+    assert.equal(hint!.evidenceSlot, 'lesion_detail_check');
+  });
+
+  it('does not build verbatim farmer questions from reasoning', () => {
     const q = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
       reasoning: baseSnapshot(),
       priorAnswers: {},
       questionsAsked: 0,
       maxQuestions: 3,
     });
-    assert.ok(q);
-    assert.equal(q!.id, 'black_dots_in_lesion');
-    assert.equal(q!.kind, 'yes_no');
-    assert.match(q!.text, /black dots/i);
-  });
-
-  it('skips already-answered EVSI question ids', () => {
-    const q = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
-      reasoning: baseSnapshot(),
-      priorAnswers: { black_dots_in_lesion: 'yes' },
-      questionsAsked: 1,
-      maxQuestions: 3,
-    });
     assert.equal(q, null);
   });
 
-  it('builds photo_slot follow-up when EVSI ranks missing photo', () => {
-    const q = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
-      reasoning: baseSnapshot({
+  it('skips already-answered EVSI question ids in planner hint', () => {
+    const hint = maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(baseSnapshot(), {
+      lesion_detail_check: 'yes',
+    });
+    assert.equal(hint, null);
+  });
+
+  it('builds photo slot planner hint when EVSI ranks missing photo', () => {
+    const hint = maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(
+      baseSnapshot({
         nextEvidence: {
           kind: 'photo_slot',
           id: 'leaf_closeup',
@@ -74,12 +76,10 @@ describe('MAIOS EVSI WhatsApp bridge', () => {
           expectedInformationGain: 9.5,
         },
       }),
-      priorAnswers: {},
-      questionsAsked: 0,
-      maxQuestions: 3,
-    });
-    assert.ok(q);
-    assert.equal(q!.kind, 'photo');
-    assert.equal(q!.id, 'photo:leaf_closeup');
+      {}
+    );
+    assert.ok(hint);
+    assert.equal(hint!.kind, 'photo');
+    assert.equal(hint!.questionId, 'photo:leaf_closeup');
   });
 });

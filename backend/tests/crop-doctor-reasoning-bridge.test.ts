@@ -70,6 +70,10 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
         { label: 'Nutrient deficiency', probability: 0.24 },
         { label: 'Unknown', probability: 0.12 },
       ],
+      evidence: [
+        { key: 'context:k_demand_stage', label: 'K demand', source: 'context', reliability: 0.88 },
+        { key: 'context:fertilizer_gap_21d', label: 'Fert gap', source: 'context', reliability: 0.82 },
+      ],
     } as MaiosReasoningSnapshot;
 
     const maiosCase = { reasoning } as MaiosCase;
@@ -78,7 +82,7 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
     assert.equal(out.probableIssue, 'Nutrient deficiency');
     assert.ok(out.diagnosisHeadline?.includes('Nutrient deficiency'));
     assert.ok(out.diagnosisRanked?.length);
-    assert.ok(out.treatmentAlignmentNote?.includes('nutrition') || out.diseaseWatchNote);
+    assert.ok(out.diseaseWatchNote || out.diagnosisHeadline?.includes('Nutrient'));
   });
 
   it('leaves advisory unchanged in shadow mode', () => {

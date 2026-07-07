@@ -9,23 +9,6 @@ import { whatsappDiagnosisRendererService } from '../pipeline/whatsapp-diagnosis
 import { pickLocalizedFarmerSummary } from '../pipeline/crop-message-intent.service.js';
 import type { SessionContext } from './session-context.types.js';
 
-function validationQuestion(issue: string, language: AdvisoryLanguage): string {
-  const lower = issue.toLowerCase();
-  if (/thrip|silver|streak|scrap/.test(lower)) {
-    return language === 'ml'
-      ? 'സ്ഥിരീകരിക്കാൻ: ഇലയുടെ അടിയിൽ ചെറിയ കീടങ്ങളോ കറുത്ത മലമുണ്ടോ?'
-      : 'To confirm: do you see tiny insects or black dots under the leaves?';
-  }
-  if (/yellow|chlorosis|deficien|nutrient|nitrogen|potassium/.test(lower)) {
-    return language === 'ml'
-      ? 'സ്ഥിരീകരിക്കാൻ: മഞ്ഞപ്പം താഴെ നിന്ന് മുകളിലേക്ക് പടരുന്നുണ്ടോ?'
-      : 'To confirm: is yellowing spreading from lower leaves upward?';
-  }
-  return language === 'ml'
-    ? 'സ്ഥിരീകരിക്കാൻ: പ്രശ്നം എത്ര വേഗത്തിൽ പടരുന്നു?'
-    : 'To confirm: how fast is this issue spreading in the field?';
-}
-
 const NUTRIENT_PATTERN =
   /nutrient|deficien|nitrogen|potassium|phosphorus|npk|chlorosis|yellowing|മണ്ണ്|പോഷക|ஊட்டச்சத்து|पोषक|ನೈಟ್ರೋಜನ್/i;
 
@@ -76,13 +59,13 @@ function buildDeliverReply(
   if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
     return responseComposerService.composeDiagnosis({
       body,
-      validationQuestion: validationQuestion(advisory.probableIssue, language),
+      validationQuestion: null,
       footer,
     });
   }
   return responseComposerService.compose({
     body,
-    validationQuestion: validationQuestion(advisory.probableIssue, language),
+    validationQuestion: null,
     footer,
   });
 }

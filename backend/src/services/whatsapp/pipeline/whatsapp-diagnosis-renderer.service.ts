@@ -1,4 +1,5 @@
 import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
+import { diagnosisLabelsMatch } from '../../maios-reasoning/diagnosis-fusion.service.js';
 import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
 
 type SectionLabels = {
@@ -182,18 +183,50 @@ export const whatsappDiagnosisRendererService = {
     }
 
     if (advisory.diagnosisRanked?.length) {
-      sections.push('', t.rankedCauses);
-      for (const r of advisory.diagnosisRanked) {
-        const pct = Math.round(r.probability * 100);
-        const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
-        sections.push(`${r.label} — ${pct}% ${stars}`);
+      const primaryRows = advisory.diagnosisRanked.filter((r) => r.role === 'primary');
+      const otherRows = advisory.diagnosisRanked.filter((r) => r.role !== 'primary');
+
+      if (primaryRows.length) {
+        sections.push('', t.rankedCauses);
+        for (const r of primaryRows) {
+          const pct = Math.round(r.probability * 100);
+          const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+          sections.push(`${r.label} — ${pct}% ${stars}`);
+        }
+      }
+
+      const lessLikelyRows = otherRows.filter(
+        (r) => r.role === 'alternative' || r.role === 'disease_watch'
+      );
+      const contributingRows = otherRows.filter((r) => r.role === 'contributing');
+
+      if (contributingRows.length) {
+        if (!primaryRows.length) sections.push('', t.rankedCauses);
+        for (const r of contributingRows) {
+          const pct = Math.round(r.probability * 100);
+          sections.push(`• ${r.label} — ${pct}% (contributing)`);
+        }
+      }
+
+      if (lessLikelyRows.length) {
+        sections.push('', t.lessLikely);
+        for (const r of lessLikelyRows) {
+          const pct = Math.round(r.probability * 100);
+          sections.push(`• ${r.label} — ${pct}%`);
+        }
       }
     } else if (advisory.differentialDiagnosis?.length) {
-      sections.push('', t.lessLikely);
-      for (const d of advisory.differentialDiagnosis.slice(0, 4)) {
-        const pct =
-          d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
-        sections.push(`• ${d.label}${pct} — ${d.reason}`);
+      const alternatives = advisory.differentialDiagnosis
+        .filter((d) => !diagnosisLabelsMatch(d.label, advisory.probableIssue))
+        .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0))
+        .slice(0, 4);
+      if (alternatives.length) {
+        sections.push('', t.lessLikely);
+        for (const d of alternatives) {
+          const pct =
+            d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
+          sections.push(`• ${d.label}${pct} — ${d.reason}`);
+        }
       }
     }
 

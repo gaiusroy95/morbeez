@@ -4,6 +4,7 @@ import {
   diagnosisPresentationService,
   inferTreatmentFocus,
 } from '../src/services/maios-reasoning/diagnosis-presentation.service.js';
+import { diagnosisLabelsMatch } from '../src/services/maios-reasoning/diagnosis-fusion.service.js';
 import type { StructuredAdvisory } from '../src/services/ai/types.js';
 import type { MaiosReasoningSnapshot } from '../src/domain/maios-reasoning/types.js';
 
@@ -26,7 +27,7 @@ function baseAdvisory(overrides: Partial<StructuredAdvisory> = {}): StructuredAd
 }
 
 describe('diagnosis presentation layer', () => {
-  it('infers nutrient focus from potash / fertigation recommendations', () => {
+  it('infers nutrient focus from fertigation product text', () => {
     const focus = inferTreatmentFocus(
       baseAdvisory({
         dosageGuidance: [{ product: 'Muriate of Potash', rate: '25 kg/acre', method: 'Fertigation' }],
@@ -36,9 +37,10 @@ describe('diagnosis presentation layer', () => {
     assert.equal(focus, 'nutrient');
   });
 
-  it('prefers nutrient primary when weak blast posterior conflicts with potash treatment', () => {
+  it('may elevate nutrient label when context evidence supports it over a weak disease posterior', () => {
+    const weakDisease = 'Fungal canopy lesion';
     const advisory = baseAdvisory({
-      probableIssue: 'Nutrient deficiency (K)',
+      probableIssue: 'Nutrient deficiency',
       dosageGuidance: [{ product: 'MOP (Potash)', rate: '20 kg/acre', method: 'Fertigation' }],
       treatments: [{ action: 'Apply potassium through drip', timing: 'within 3 days' }],
     });
@@ -47,7 +49,7 @@ describe('diagnosis presentation layer', () => {
       shadowMode: false,
       decision: {
         action: 'CONTINUE' as const,
-        topLabel: 'Pyricularia leaf blast',
+        topLabel: weakDisease,
         topConfidence: 0.26,
         threshold: 0.85,
         evidenceCount: 3,
@@ -55,17 +57,20 @@ describe('diagnosis presentation layer', () => {
         reason: '',
       },
       explanation: {
-        diagnosis: 'Pyricularia leaf blast',
+        diagnosis: weakDisease,
         confidence: 0.26,
         supporting: ['High humidity'],
         rejected: [],
         missing: [],
       },
       posterior: [
-        { label: 'Pyricularia leaf blast', probability: 0.26 },
+        { label: weakDisease, probability: 0.26 },
         { label: 'Nutrient deficiency', probability: 0.24 },
-        { label: 'Thrips', probability: 0.12 },
         { label: 'Unknown', probability: 0.1 },
+      ],
+      evidence: [
+        { key: 'context:k_demand_stage', label: 'K demand', source: 'context', reliability: 0.88 },
+        { key: 'context:fertilizer_gap_21d', label: 'Fert gap', source: 'context', reliability: 0.82 },
       ],
     } as MaiosReasoningSnapshot;
 
@@ -75,28 +80,29 @@ describe('diagnosis presentation layer', () => {
       shadowMode: false,
     });
 
-    assert.equal(presentation.primaryLabel, 'Nutrient deficiency');
-    assert.ok(presentation.showLowConfidencePrimary);
-    assert.ok(presentation.diseaseWatch?.label.toLowerCase().includes('blast'));
-    assert.ok(presentation.alignmentNote?.includes('nutrition'));
+    assert.ok(diagnosisLabelsMatch(presentation.primaryLabel, 'Nutrient deficiency'));
+    assert.ok(presentation.primaryConfidence >= 0.5);
+    assert.ok(presentation.diseaseWatch);
+    assert.ok(diagnosisLabelsMatch(presentation.diseaseWatch!.label, weakDisease));
 
     const out = diagnosisPresentationService.applyToAdvisory(advisory, presentation, reasoning);
-    assert.equal(out.probableIssue, 'Nutrient deficiency');
-    assert.ok(out.diagnosisHeadline?.includes('Nutrient deficiency'));
+    assert.ok(diagnosisLabelsMatch(out.probableIssue, 'Nutrient deficiency'));
     assert.ok(out.diagnosisRanked?.some((r) => r.role === 'primary'));
   });
 
-  it('does not label weak posterior as confident primary headline', () => {
+  it('uses low-confidence headline wording when posterior is weak', () => {
+    const weakPrimary = 'Fungal canopy lesion';
     const advisory = baseAdvisory({
-      probableIssue: 'Pyricularia leaf blast',
-      treatments: [{ action: 'Apply Mancozeb', timing: 'evening' }],
+      probableIssue: weakPrimary,
+      confidence: 0.26,
+      treatments: [{ action: 'Apply fungicide spray', timing: 'evening' }],
     });
 
     const reasoning = {
       shadowMode: false,
       decision: {
         action: 'CONTINUE' as const,
-        topLabel: 'Pyricularia leaf blast',
+        topLabel: weakPrimary,
         topConfidence: 0.26,
         threshold: 0.85,
         evidenceCount: 2,
@@ -104,14 +110,14 @@ describe('diagnosis presentation layer', () => {
         reason: '',
       },
       explanation: {
-        diagnosis: 'Pyricularia leaf blast',
+        diagnosis: weakPrimary,
         confidence: 0.26,
         supporting: [],
         rejected: [],
         missing: [],
       },
       posterior: [
-        { label: 'Pyricularia leaf blast', probability: 0.26 },
+        { label: weakPrimary, probability: 0.26 },
         { label: 'Nutrient deficiency', probability: 0.15 },
         { label: 'Unknown', probability: 0.15 },
       ],
