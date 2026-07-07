@@ -33,7 +33,6 @@ import { getReviewThreshold } from '../../../domain/ai-training/confidence-routi
 import {
   localizeChoice,
   resolveFollowUpChoices,
-  YES_NO_CHOICES,
   type FollowUpChoiceOption,
 } from './follow-up-question.types.js';
 
@@ -1224,7 +1223,7 @@ export const diagnosisFollowUpService = {
       }
 
       // #region agent log
-      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'diagnosis-follow-up.service.ts:handlePostDiagnosisMessage',message:'post-diagnosis answer validation',data:{questionId:current.id,kind:current.kind,fromEvsi:current.fromEvsi??false,rawChoiceCount:current.choices?.length??0,storedChoiceCount:intake.questionChoices?.[current.id]?.length??-1,resolvedChoiceCount:choices.length,choiceIds:[...choiceIds],parsedAnswer:answer??null,textPreview:params.text?.slice(0,32)??'',rejected:!answer||!choiceIds.has(answer??'')},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'diagnosis-follow-up.service.ts:handlePostDiagnosisMessage',message:'post-diagnosis answer validation',data:{questionId:current.id,kind:current.kind,purpose:current.purpose??null,rawChoiceCount:current.choices?.length??0,storedChoiceCount:intake.questionChoices?.[current.id]?.length??-1,resolvedChoiceCount:choices.length,choiceIds:[...choiceIds],parsedAnswer:answer??null,textPreview:params.text?.slice(0,32)??'',rejected:!answer||!choiceIds.has(answer??'')},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
       // #endregion
 
       if (!answer || !choiceIds.has(answer)) {
