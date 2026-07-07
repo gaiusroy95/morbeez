@@ -54,6 +54,9 @@ function visionFeatureToEvidence(obs: {
     beetle_damage: { key: 'symptom:beetle_damage', label: 'Vision: beetle bore damage' },
     bud_rot: { key: 'symptom:bud_rot', label: 'Vision: bud or crown rot' },
     yellowing: { key: 'symptom:yellowing', label: 'Vision: leaf yellowing' },
+    margin_scorch: { key: 'symptom:margin_scorch', label: 'Vision: margin/tip scorch' },
+    margin_yellowing: { key: 'symptom:margin_scorch', label: 'Vision: margin yellowing' },
+    tip_burn: { key: 'symptom:margin_scorch', label: 'Vision: tip burn' },
   };
 
   const hit = map[f];
@@ -147,6 +150,14 @@ export const maiosEvidenceRepositoryService = {
           label: 'Farmer confirmed black dots in lesions',
           source: 'farmer',
           reliability: 0.85,
+        });
+      }
+      if (/black dot/.test(q) && answerIsNo(ans.answer)) {
+        push({
+          key: 'farmer:black_dots_no',
+          label: 'Farmer denied black dots in lesions',
+          source: 'farmer',
+          reliability: 0.8,
         });
       }
       if (/rain|waterlog/.test(q) && yes) {
@@ -252,6 +263,29 @@ export const maiosEvidenceRepositoryService = {
         label: input.labSummary,
         source: 'lab',
         reliability: 0.9,
+      });
+    }
+
+    const blastPositiveKeys = new Set([
+      'symptom:spindle_lesion',
+      'symptom:grey_center',
+      'symptom:black_dots',
+      'vision:blast',
+      'farmer:black_dots_yes',
+    ]);
+    const hasBlastPositive = repo.some((e) => blastPositiveKeys.has(e.key));
+    const hasVisionOrFarmer = repo.some((e) => e.source === 'vision' || e.source === 'farmer');
+    const farmerDeniedBlast = repo.some((e) => e.key === 'farmer:black_dots_no');
+    if (
+      hasVisionOrFarmer &&
+      !seen.has('symptom:no_blast_lesions') &&
+      (!hasBlastPositive || farmerDeniedBlast)
+    ) {
+      push({
+        key: 'symptom:no_blast_lesions',
+        label: 'No spindle lesions, grey centres, or black dots confirmed',
+        source: 'vision',
+        reliability: farmerDeniedBlast ? 0.86 : 0.76,
       });
     }
 

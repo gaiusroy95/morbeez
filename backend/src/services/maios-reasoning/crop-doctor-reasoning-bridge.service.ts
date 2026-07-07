@@ -2,6 +2,7 @@ import type { MaiosCase } from '../../domain/case/types.js';
 import type { VisionObservation } from '../../domain/maios-reasoning/vision-observation.types.js';
 import type { PlantIdHealthResult, StructuredAdvisory } from '../ai/types.js';
 import { plantIdVisionFeaturesService } from './plant-id-vision-features.service.js';
+import { diagnosisPresentationService } from './diagnosis-presentation.service.js';
 
 /** Build structured vision features for v17 evidence from WhatsApp advisory + Plant.id. */
 export function buildWhatsAppVisionObservations(params: {
@@ -19,15 +20,24 @@ export function buildWhatsAppVisionObservations(params: {
 }
 
 /**
- * When shadow mode is off, Bayesian engine owns probableIssue + confidence.
- * LLM advisory text (summaries, treatments) is preserved for language only.
+ * When shadow mode is off, Bayesian posterior + presentation layer own probableIssue.
+ * LLM advisory text (summaries, treatments) is preserved; labels are harmonized with treatments.
  */
 export function applyBayesianDiagnosisToAdvisory(
   advisory: StructuredAdvisory,
   maiosCase: MaiosCase
 ): StructuredAdvisory {
   const reasoning = maiosCase.reasoning;
-  if (!reasoning || reasoning.shadowMode) return advisory;
+  if (!reasoning) return advisory;
+
+  if (reasoning.shadowMode) {
+    const presentation = diagnosisPresentationService.build({
+      advisory,
+      reasoning,
+      shadowMode: true,
+    });
+    return diagnosisPresentationService.applyToAdvisory(advisory, presentation, reasoning);
+  }
 
   const top =
     reasoning.decision.topLabel ??
@@ -37,36 +47,30 @@ export function applyBayesianDiagnosisToAdvisory(
   if (!top || top === 'Unknown') return advisory;
 
   const llmIssue = advisory.probableIssue;
-  const confidence =
-    reasoning.explanation.confidence > 0
-      ? reasoning.explanation.confidence
-      : reasoning.decision.topConfidence;
-
-  const differentialFromPosterior = reasoning.posterior
-    .filter((p) => p.label !== 'Unknown')
-    .slice(0, 5)
-    .map((p) => ({
-      label: p.label,
-      reason:
-        p.label === top
-          ? 'Leading Bayesian posterior'
-          : 'Alternative supported by evidence',
-      probability: Math.round(p.probability * 1000) / 1000,
-    }));
-
   const supporting = reasoning.explanation.supporting;
   const bayesianNote = supporting.length
     ? `Bayesian evidence: ${supporting.slice(0, 3).join('; ')}`
     : null;
 
-  return {
+  let merged: StructuredAdvisory = {
     ...advisory,
     probableIssue: top,
-    confidence,
+    confidence:
+      reasoning.explanation.confidence > 0
+        ? reasoning.explanation.confidence
+        : reasoning.decision.topConfidence,
     uncertain: reasoning.decision.action !== 'LOCK',
-    differentialDiagnosis: differentialFromPosterior.length
-      ? differentialFromPosterior
-      : advisory.differentialDiagnosis,
+    differentialDiagnosis: reasoning.posterior
+      .filter((p) => p.label !== 'Unknown')
+      .slice(0, 5)
+      .map((p) => ({
+        label: p.label,
+        reason:
+          p.label === top
+            ? 'Leading Bayesian posterior'
+            : 'Alternative supported by evidence',
+        probability: Math.round(p.probability * 1000) / 1000,
+      })),
     rejectedHypotheses: [
       ...(advisory.rejectedHypotheses ?? []),
       ...(llmIssue && llmIssue.toLowerCase() !== top.toLowerCase()
@@ -76,6 +80,15 @@ export function applyBayesianDiagnosisToAdvisory(
     ],
     explanation: [advisory.explanation, bayesianNote].filter(Boolean).join('\n\n') || advisory.explanation,
   };
+
+  const presentation = diagnosisPresentationService.build({
+    advisory: merged,
+    reasoning,
+    shadowMode: false,
+  });
+
+  merged = diagnosisPresentationService.applyToAdvisory(merged, presentation, reasoning);
+  return merged;
 }
 
 /** Bridge — vision observations in, Bayesian diagnosis overlay out. */

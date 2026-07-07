@@ -70,4 +70,24 @@ describe('whatsapp diagnosis renderer', () => {
     const text = whatsappDiagnosisRendererService.render({ advisory: thin, language: 'en' });
     assert.match(text, /Iron deficiency likely/);
   });
+
+  it('renders ranked presentation when diagnosisRanked is set', () => {
+    const text = whatsappDiagnosisRendererService.render({
+      advisory: {
+        ...richAdvisory,
+        diagnosisHeadline: 'Nutrient deficiency (most likely among several factors — 24% confidence)',
+        diagnosisRanked: [
+          { label: 'Nutrient deficiency', probability: 0.24, role: 'primary', stars: 2 },
+          { label: 'Pyricularia leaf blast', probability: 0.26, role: 'disease_watch', stars: 2 },
+        ],
+        diseaseWatchNote: 'Humidity can favour blast — monitor for new lesions.',
+        treatmentAlignmentNote: 'Treatment focuses on nutrition and field conditions.',
+      },
+      language: 'en',
+    });
+    assert.match(text, /Most likely cause/);
+    assert.match(text, /Ranked possibilities/);
+    assert.match(text, /Nutrient deficiency — 24%/);
+    assert.match(text, /Disease watch/);
+  });
 });

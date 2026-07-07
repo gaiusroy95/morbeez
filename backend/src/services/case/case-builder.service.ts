@@ -19,6 +19,7 @@ import { groundIntelligenceService } from '../ground-intelligence/ground-intelli
 import { knowledgeGraphService } from '../knowledge-graph/knowledge-graph.service.js';
 import { supplyIntelligenceService } from '../supply-intelligence/supply-intelligence.service.js';
 import { cultivationContextService } from './cultivation-context.service.js';
+import { inputHistoryService } from './input-history.service.js';
 import { maiosReasoningPipelineService } from '../maios-reasoning/maios-reasoning-pipeline.service.js';
 import type { MaiosBuildInput, MaiosCase, MaiosHypothesis } from '../../domain/case/types.js';
 import { MAIOS_VERSION as MAIOS_VER } from '../../domain/case/types.js';
@@ -350,7 +351,12 @@ export const caseBuilderService = {
       cropType: identity.cropType,
       pack,
       symptomsText: input.symptomsText,
-      contextPack: input.contextPack,
+      contextPack: {
+        ...input.contextPack,
+        dap: identity.dap ?? input.contextPack?.dap ?? null,
+        daysSinceLastFertilizer: inputHistoryService.daysSinceLastFertilizer(inputHistory),
+        cropType: identity.cropType,
+      },
       regionalPriors,
       photos,
       hypotheses,
@@ -361,7 +367,7 @@ export const caseBuilderService = {
       visionConfidence: input.advisory?.confidence,
       farmerAnswers: input.farmerAnswers,
       visionObservations: input.visionObservations,
-      dap: input.contextPack?.dap,
+      dap: identity.dap ?? input.contextPack?.dap ?? null,
     });
 
     if (reasoning && !reasoning.shadowMode) {

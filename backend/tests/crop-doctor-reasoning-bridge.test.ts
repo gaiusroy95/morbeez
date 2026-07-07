@@ -30,15 +30,15 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
     assert.ok(obs.some((o) => o.feature === 'grey_center'));
   });
 
-  it('demotes LLM probableIssue when shadow mode is off', () => {
+  it('demotes LLM probableIssue when shadow mode is off and treatment aligns with weak blast', () => {
     const advisory = {
       probableIssue: 'Nutrient deficiency',
       confidence: 0.82,
       uncertain: false,
       nutrientDeficiency: [],
       stressAnalysis: [],
-      treatments: [{ action: 'Spray foliar N' }],
-      dosageGuidance: [],
+      treatments: [{ action: 'Apply potash through fertigation' }],
+      dosageGuidance: [{ product: 'MOP', rate: '20 kg/acre', method: 'Fertigation' }],
       precautions: [],
       escalationRecommended: false,
       farmerSummaryEn: 'Your leaves look yellow.',
@@ -52,7 +52,7 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
       decision: {
         action: 'CONTINUE' as const,
         topLabel: 'Pyricularia leaf blast',
-        topConfidence: 0.58,
+        topConfidence: 0.26,
         threshold: 0.85,
         evidenceCount: 4,
         reviewRequired: false,
@@ -60,14 +60,14 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
       },
       explanation: {
         diagnosis: 'Pyricularia leaf blast',
-        confidence: 0.58,
-        supporting: ['Spindle lesions', 'High humidity'],
+        confidence: 0.26,
+        supporting: ['High humidity'],
         rejected: ['Nutrient deficiency'],
         missing: ['Rhizome photo'],
       },
       posterior: [
-        { label: 'Pyricularia leaf blast', probability: 0.58 },
-        { label: 'Nutrient deficiency', probability: 0.15 },
+        { label: 'Pyricularia leaf blast', probability: 0.26 },
+        { label: 'Nutrient deficiency', probability: 0.24 },
         { label: 'Unknown', probability: 0.12 },
       ],
     } as MaiosReasoningSnapshot;
@@ -75,10 +75,10 @@ describe('WhatsApp crop-doctor reasoning bridge', () => {
     const maiosCase = { reasoning } as MaiosCase;
     const out = applyBayesianDiagnosisToAdvisory(advisory, maiosCase);
 
-    assert.equal(out.probableIssue, 'Pyricularia leaf blast');
-    assert.equal(out.confidence, 0.58);
-    assert.ok(out.rejectedHypotheses?.some((r) => /LLM-ranked issue demoted/i.test(r)));
-    assert.equal(out.differentialDiagnosis?.[0]?.label, 'Pyricularia leaf blast');
+    assert.equal(out.probableIssue, 'Nutrient deficiency');
+    assert.ok(out.diagnosisHeadline?.includes('Nutrient deficiency'));
+    assert.ok(out.diagnosisRanked?.length);
+    assert.ok(out.treatmentAlignmentNote?.includes('nutrition') || out.diseaseWatchNote);
   });
 
   it('leaves advisory unchanged in shadow mode', () => {

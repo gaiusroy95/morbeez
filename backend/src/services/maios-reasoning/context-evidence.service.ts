@@ -11,6 +11,9 @@ export type ContextEvidenceInput = {
     highHumidityLikely?: boolean;
     soilPh?: number;
     soilEc?: number;
+    dap?: number | null;
+    daysSinceLastFertilizer?: number | null;
+    cropType?: string;
   };
   regionalPriors?: Array<{ issueLabel: string; caseCount: number }>;
 };
@@ -64,6 +67,14 @@ function symptomEvidence(text: string): ReasoningEvidenceItem[] {
       label: 'Yellowing / deficiency signs',
       source: 'farmer',
       reliability: 0.8,
+    });
+  }
+  if (/margin|tip burn|scorch|necrotic margin|edge yellow|chlorosis.*margin|tip.*yellow/.test(t)) {
+    out.push({
+      key: 'symptom:margin_scorch',
+      label: 'Leaf margin / tip scorch or yellowing',
+      source: 'farmer',
+      reliability: 0.84,
     });
   }
   if (/sigatoka|yellow streak|parallel streak|leaf streak/.test(t)) {
@@ -193,6 +204,38 @@ export const maiosContextEvidenceService = {
 
     if (input.symptomsText?.trim()) {
       items.push(...symptomEvidence(input.symptomsText));
+    }
+
+    const dap = ctx?.dap;
+    const crop = (input.cropType ?? ctx?.cropType ?? '').toLowerCase();
+    if (dap != null && dap >= 60) {
+      if (crop === 'ginger' && dap >= 90 && dap <= 200) {
+        items.push({
+          key: 'context:k_demand_stage',
+          label: `Ginger at ${dap} DAP — peak potassium demand stage`,
+          source: 'context',
+          reliability: 0.88,
+        });
+      }
+    }
+
+    const daysSinceFert = ctx?.daysSinceLastFertilizer;
+    if (daysSinceFert != null && daysSinceFert >= 21) {
+      items.push({
+        key: 'context:fertilizer_gap_21d',
+        label: `No fertilizer/fertigation recorded in ${daysSinceFert}+ days`,
+        source: 'context',
+        reliability: 0.82,
+      });
+    }
+
+    if (ctx?.heavyRainLikely && ctx?.highHumidityLikely) {
+      items.push({
+        key: 'context:prolonged_wet',
+        label: 'Prolonged wet conditions — uptake stress risk',
+        source: 'weather',
+        reliability: 0.86,
+      });
     }
 
     return items;

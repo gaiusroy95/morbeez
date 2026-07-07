@@ -4,6 +4,9 @@ import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
 type SectionLabels = {
   whatISee: string;
   primaryIssue: string;
+  mostLikely: string;
+  rankedCauses: string;
+  diseaseWatch: string;
   lessLikely: string;
   immediateAction: string;
   tableHeader: string;
@@ -19,6 +22,9 @@ const LABELS: Record<AdvisoryLanguage, SectionLabels> = {
   en: {
     whatISee: '🔍 What I see',
     primaryIssue: '🎯 Primary issue',
+    mostLikely: '🎯 Most likely cause',
+    rankedCauses: '📊 Ranked possibilities',
+    diseaseWatch: '⚠️ Disease watch',
     lessLikely: '❌ Less likely',
     immediateAction: '💊 Immediate action',
     tableHeader: 'Item · Dose · Method',
@@ -32,6 +38,9 @@ const LABELS: Record<AdvisoryLanguage, SectionLabels> = {
   ml: {
     whatISee: '🔍 എന്താണ് കാണുന്നത്',
     primaryIssue: '🎯 പ്രധാന പ്രശ്നം',
+    mostLikely: '🎯 ഏറ്റവും സാധ്യതയുള്ള കാരണം',
+    rankedCauses: '📊 സാധ്യതാ ക്രമം',
+    diseaseWatch: '⚠️ രോഗ നിരീക്ഷണം',
     lessLikely: '❌ കുറവ് സാധ്യത',
     immediateAction: '💊 ഉടനടി നടപടി',
     tableHeader: 'ഉൽപ്പന്നം · ഡോസ് · രീതി',
@@ -45,6 +54,9 @@ const LABELS: Record<AdvisoryLanguage, SectionLabels> = {
   ta: {
     whatISee: '🔍 நான் காண்பது',
     primaryIssue: '🎯 முதன்மை பிரச்சனை',
+    mostLikely: '🎯 மிகவும் சாத்தியமான காரணம்',
+    rankedCauses: '📊 வாய்ப்பு வரிசை',
+    diseaseWatch: '⚠️ நோய் கண்காணிப்பு',
     lessLikely: '❌ குறைந்த சாத்தியம்',
     immediateAction: '💊 உடனடி நடவடிக்கை',
     tableHeader: 'பொருள் · அளவு · முறை',
@@ -58,6 +70,9 @@ const LABELS: Record<AdvisoryLanguage, SectionLabels> = {
   kn: {
     whatISee: '🔍 ನಾನು ನೋಡುವುದು',
     primaryIssue: '🎯 ಪ್ರಮುಖ ಸಮಸ್ಯೆ',
+    mostLikely: '🎯 ಅತ್ಯಂತ ಸಾಧ್ಯ ಕಾರಣ',
+    rankedCauses: '📊 ಸಾಧ್ಯತೆ ಕ್ರಮ',
+    diseaseWatch: '⚠️ ರೋಗ ವೀಕ್ಷಣೆ',
     lessLikely: '❌ ಕಡಿಮೆ ಸಾಧ್ಯತೆ',
     immediateAction: '💊 ತಕ್ಷಣ ಕ್ರಮ',
     tableHeader: 'ವಸ್ತು · ಡೋಸ್ · ವಿಧಾನ',
@@ -71,6 +86,9 @@ const LABELS: Record<AdvisoryLanguage, SectionLabels> = {
   hi: {
     whatISee: '🔍 मैं क्या देख रहा हूँ',
     primaryIssue: '🎯 मुख्य समस्या',
+    mostLikely: '🎯 सबसे संभावित कारण',
+    rankedCauses: '📊 संभावना क्रम',
+    diseaseWatch: '⚠️ रोग निगरानी',
     lessLikely: '❌ कम संभावना',
     immediateAction: '💊 तुरंत कार्रवाई',
     tableHeader: 'वस्तु · मात्रा · तरीका',
@@ -151,16 +169,40 @@ export const whatsappDiagnosisRendererService = {
     }
 
     const confPct = Math.round(advisory.confidence * 100);
-    sections.push(
-      '',
-      `${t.primaryIssue}: ${advisory.probableIssue} — ${severityLabel(advisory.severity, language)} (${confPct}%)`
-    );
+    const usePresentation = Boolean(advisory.diagnosisHeadline || advisory.diagnosisRanked?.length);
 
-    if (advisory.differentialDiagnosis?.length) {
+    if (usePresentation && advisory.diagnosisHeadline?.trim()) {
+      sections.push('', `${t.mostLikely}: ${advisory.diagnosisHeadline.trim()}`);
+    } else {
+      const primaryLine =
+        confPct < 50
+          ? `${t.mostLikely}: ${advisory.probableIssue} (${confPct}% — several factors possible)`
+          : `${t.primaryIssue}: ${advisory.probableIssue} — ${severityLabel(advisory.severity, language)} (${confPct}%)`;
+      sections.push('', primaryLine);
+    }
+
+    if (advisory.diagnosisRanked?.length) {
+      sections.push('', t.rankedCauses);
+      for (const r of advisory.diagnosisRanked) {
+        const pct = Math.round(r.probability * 100);
+        const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+        sections.push(`${r.label} — ${pct}% ${stars}`);
+      }
+    } else if (advisory.differentialDiagnosis?.length) {
       sections.push('', t.lessLikely);
       for (const d of advisory.differentialDiagnosis.slice(0, 4)) {
-        sections.push(`• ${d.label} — ${d.reason}`);
+        const pct =
+          d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
+        sections.push(`• ${d.label}${pct} — ${d.reason}`);
       }
+    }
+
+    if (advisory.diseaseWatchNote?.trim()) {
+      sections.push('', t.diseaseWatch, advisory.diseaseWatchNote.trim());
+    }
+
+    if (advisory.treatmentAlignmentNote?.trim()) {
+      sections.push('', `ℹ️ ${advisory.treatmentAlignmentNote.trim()}`);
     }
 
     if (advisory.dosageGuidance?.length) {

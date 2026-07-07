@@ -24,6 +24,9 @@ export type MaiosReasoningPipelineInput = {
     highHumidityLikely?: boolean;
     soilPh?: number;
     soilEc?: number;
+    dap?: number | null;
+    daysSinceLastFertilizer?: number | null;
+    cropType?: string;
   };
   regionalPriors?: Array<{ issueLabel: string; caseCount: number }>;
   photos: MaiosPhotoEvidence[];

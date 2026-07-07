@@ -30,6 +30,15 @@ export interface DifferentialDiagnosisItem {
   probability?: number;
 }
 
+export type DiagnosisRankRole = 'primary' | 'contributing' | 'disease_watch' | 'alternative';
+
+export interface DiagnosisRankItem {
+  label: string;
+  probability: number;
+  role: DiagnosisRankRole;
+  stars: number;
+}
+
 export interface CostEstimateItem {
   item: string;
   note: string;
@@ -61,6 +70,11 @@ export interface StructuredAdvisory {
   agronomistAssessment?: string;
   morbeezDataUsed?: string[];
   costEstimate?: CostEstimateItem[];
+  /** Farmer-facing headline after Bayesian + treatment alignment (v17 presentation). */
+  diagnosisHeadline?: string;
+  diagnosisRanked?: DiagnosisRankItem[];
+  diseaseWatchNote?: string;
+  treatmentAlignmentNote?: string;
 }
 
 export interface PlantIdHealthResult {

@@ -121,6 +121,14 @@ export const GINGER_KNOWLEDGE_V1: CropKnowledgePackage = {
     { evidenceKey: 'farmer:rain_worse_yes', diseaseLabel: 'Rhizome rot / Pythium', lr: 2.3 },
     { evidenceKey: 'soil:low_n', diseaseLabel: 'Nutrient deficiency', lr: 2.4 },
     { evidenceKey: 'regional:prior', diseaseLabel: 'Pyricularia leaf blast', lr: 1.4 },
+    { evidenceKey: 'context:k_demand_stage', diseaseLabel: 'Nutrient deficiency', lr: 2.8 },
+    { evidenceKey: 'context:fertilizer_gap_21d', diseaseLabel: 'Nutrient deficiency', lr: 2.3 },
+    { evidenceKey: 'context:prolonged_wet', diseaseLabel: 'Nutrient deficiency', lr: 1.8 },
+    { evidenceKey: 'context:prolonged_wet', diseaseLabel: 'Rhizome rot / Pythium', lr: 1.6 },
+    { evidenceKey: 'symptom:margin_scorch', diseaseLabel: 'Nutrient deficiency', lr: 2.7 },
+    { evidenceKey: 'symptom:margin_scorch', diseaseLabel: 'Pyricularia leaf blast', lr: 0.72 },
+    { evidenceKey: 'symptom:no_blast_lesions', diseaseLabel: 'Pyricularia leaf blast', lr: 0.32 },
+    { evidenceKey: 'farmer:black_dots_no', diseaseLabel: 'Pyricularia leaf blast', lr: 0.38 },
   ],
   questions: [
     {
