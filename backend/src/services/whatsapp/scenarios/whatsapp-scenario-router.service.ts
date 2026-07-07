@@ -1334,17 +1334,36 @@ export const whatsappScenarioRouter = {
         const { shouldRunDiagnosis } = await diagnosisFlowService.recordImageReceived(captured.farmerId);
         if (shouldRunDiagnosis) {
           const sessCtx = await conversationSessionService.getContext(captured.farmerId);
+          const continuingEvidence =
+            session.state === 'diagnosis_awaiting_photos' && Boolean(sessCtx.maiosCase);
           const batchInFlight =
             whatsappImageBatchPendingCount(captured.farmerId) > 0 ||
             (sessCtx.pendingDiagnosisImageBatch?.length ?? 0) > 0 ||
             Boolean(sessCtx.pendingDiagnosisImagePath);
           let welcome: string | null | undefined;
-          if (!batchInFlight) {
+          if (continuingEvidence && !batchInFlight) {
+            await send.text(
+              msg.phone,
+              lang === 'ml'
+                ? 'ഫോട്ടോ ലഭിച്ചു — നിങ്ങളുടെ രോഗനിർണയം അപ്ഡേറ്റ് ചെയ്യുന്നു…'
+                : 'Photo received — updating your diagnosis…'
+            );
+          } else if (!batchInFlight && !continuingEvidence) {
             welcome = await farmerWelcomeService.buildWelcomeLine(captured.farmerId, lang);
             await send.text(msg.phone, diagnosisFlowService.analyzingPrompt(lang));
           }
           // #region agent log
-          fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-scenario-router.service.ts:imageDiagnosis',message:'per-image diagnosis ack',data:{batchInFlight,pendingBatchCount:sessCtx.pendingDiagnosisImageBatch?.length??0,inMemoryBatch:whatsappImageBatchPendingCount(captured.farmerId),sentAnalyzing:!batchInFlight,sentWelcome:Boolean(welcome)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+          logger.info(
+            {
+              farmerId: captured.farmerId,
+              continuingEvidence,
+              batchInFlight,
+              sentAnalyzing: !batchInFlight && !continuingEvidence,
+              sentWelcome: Boolean(welcome),
+            },
+            'WhatsApp per-image diagnosis ack'
+          );
+          fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-scenario-router.service.ts:imageDiagnosis',message:'per-image diagnosis ack',data:{continuingEvidence,batchInFlight,pendingBatchCount:sessCtx.pendingDiagnosisImageBatch?.length??0,inMemoryBatch:whatsappImageBatchPendingCount(captured.farmerId),sentAnalyzing:!batchInFlight&&!continuingEvidence,sentWelcome:Boolean(welcome)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
           // #endregion
           return { handled: true, runDiagnosis: true, welcomePrefix: welcome ?? undefined };
         }

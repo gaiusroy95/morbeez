@@ -1448,6 +1448,9 @@ export const whatsappInboundPipeline = {
   }): Promise<void> {
     try {
       const sessCtx = await conversationSessionService.getContext(params.farmerId);
+      const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
+      const continuingEvidence =
+        session.state === 'diagnosis_awaiting_photos' && Boolean(sessCtx.maiosCase);
       const symptomsText =
         params.symptomsText?.trim() ||
         sessCtx.pendingSymptomsText ||
@@ -1503,7 +1506,51 @@ export const whatsappInboundPipeline = {
         ...(params.diagnosisImages?.map((i) => i.imageStoragePath).filter(Boolean) as string[]),
         ...(imageStoragePath && !params.diagnosisImages?.length ? [imageStoragePath] : []),
       ];
-      const photoCount = params.diagnosisImages?.length ?? (imageBase64 ? 1 : 0);
+      let photoCount = params.diagnosisImages?.length ?? (imageBase64 ? 1 : 0);
+      let diagnosisImages = params.diagnosisImages;
+
+      if (continuingEvidence && sessCtx.maiosCase) {
+        const priorPaths = sessCtx.maiosCase.evidence.photos
+          .filter((p) => p.status === 'captured' && p.storagePath)
+          .map((p) => p.storagePath as string);
+        const incoming = photoPaths.filter(Boolean);
+        const newPaths = incoming.filter((p) => !priorPaths.includes(p));
+        const mergedPaths = newPaths.length > 0 ? [...priorPaths, ...newPaths] : priorPaths;
+        if (mergedPaths.length > 0) {
+          photoCount = mergedPaths.length;
+          diagnosisImages = await Promise.all(
+            mergedPaths.map(async (path) => {
+              const downloaded = await downloadAdvisoryImageBase64(path);
+              return {
+                imageBase64: downloaded?.base64,
+                imageMimeType: downloaded?.mimeType ?? 'image/jpeg',
+                imageStoragePath: path,
+              };
+            })
+          );
+          const primary = diagnosisImages[diagnosisImages.length - 1];
+          if (primary?.imageBase64) {
+            imageBase64 = primary.imageBase64;
+            imageMimeType = primary.imageMimeType;
+            imageStoragePath = primary.imageStoragePath;
+          }
+        }
+      }
+
+      // #region agent log
+      logger.info(
+        {
+          farmerId: params.farmerId,
+          continuingEvidence,
+          photoCount,
+          mergedPathCount: diagnosisImages?.length ?? photoCount,
+          sessionState: session.state,
+        },
+        'WhatsApp runDiagnosis evidence merge'
+      );
+      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-inbound.pipeline.ts:runDiagnosis',message:'evidence merge',data:{continuingEvidence,photoCount,mergedPathCount:diagnosisImages?.length??photoCount,sessionState:session.state},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
+
       const hasSoilReport = await soilFlowService.hasSoilReport(params.farmerId);
 
       const result = await cropDoctorService.diagnose({
@@ -1516,10 +1563,10 @@ export const whatsappInboundPipeline = {
         imageBase64,
         imageMimeType,
         imageStoragePath,
-        diagnosisImages: params.diagnosisImages,
+        diagnosisImages,
         fieldInvestigation: params.fieldInvestigation,
         issueLabelHint: params.issueLabelHint,
-        skipReuseCache: params.skipReuseCache,
+        skipReuseCache: params.skipReuseCache ?? continuingEvidence,
         investigationPattern: params.investigationPattern,
         channel: params.channel ?? 'whatsapp',
         compactHistory: farmerMemoryService.formatCompactHistory(memory),
@@ -1528,13 +1575,15 @@ export const whatsappInboundPipeline = {
         morbeezFieldContext: morbeezFieldContext ?? undefined,
         activePlotId: memory.activePlotId,
         maiosPhotoCount: photoCount,
-        maiosPhotoPaths: photoPaths,
+        maiosPhotoPaths: diagnosisImages
+          ?.map((i) => i.imageStoragePath)
+          .filter(Boolean) as string[] | undefined,
         maiosIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
         maiosHasSoilReport: hasSoilReport,
       });
       const maiosCase = result.maiosCase;
       const hasImage = Boolean(
-        imageBase64 || imageStoragePath || (params.diagnosisImages?.length ?? 0) > 0
+        imageBase64 || imageStoragePath || (diagnosisImages?.length ?? 0) > 0
       );
 
       if (hasImage && result.reused) {
@@ -1605,7 +1654,8 @@ export const whatsappInboundPipeline = {
       if (
         maiosCase &&
         maiosCase.evidence.completenessPct < 30 &&
-        maiosCase.evidence.tier === 'T0'
+        maiosCase.evidence.tier === 'T0' &&
+        !continuingEvidence
       ) {
         const capturedSlots = maiosCase.evidence.photos
           .filter((p) => p.status === 'captured')
