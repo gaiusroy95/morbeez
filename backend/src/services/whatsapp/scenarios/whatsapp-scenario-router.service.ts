@@ -55,6 +55,7 @@ import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
+import { whatsappImageBatchPendingCount } from '../pipeline/whatsapp-image-batch.service.js';
 import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
 import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
 import { recoveryValidationService } from '../../case/recovery-validation.service.js';
@@ -1332,8 +1333,19 @@ export const whatsappScenarioRouter = {
       if (diagnosisStates.has(session.state) || session.state === 'main_menu') {
         const { shouldRunDiagnosis } = await diagnosisFlowService.recordImageReceived(captured.farmerId);
         if (shouldRunDiagnosis) {
-          const welcome = await farmerWelcomeService.buildWelcomeLine(captured.farmerId, lang);
-          await send.text(msg.phone, diagnosisFlowService.analyzingPrompt(lang));
+          const sessCtx = await conversationSessionService.getContext(captured.farmerId);
+          const batchInFlight =
+            whatsappImageBatchPendingCount(captured.farmerId) > 0 ||
+            (sessCtx.pendingDiagnosisImageBatch?.length ?? 0) > 0 ||
+            Boolean(sessCtx.pendingDiagnosisImagePath);
+          let welcome: string | null | undefined;
+          if (!batchInFlight) {
+            welcome = await farmerWelcomeService.buildWelcomeLine(captured.farmerId, lang);
+            await send.text(msg.phone, diagnosisFlowService.analyzingPrompt(lang));
+          }
+          // #region agent log
+          fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-scenario-router.service.ts:imageDiagnosis',message:'per-image diagnosis ack',data:{batchInFlight,pendingBatchCount:sessCtx.pendingDiagnosisImageBatch?.length??0,inMemoryBatch:whatsappImageBatchPendingCount(captured.farmerId),sentAnalyzing:!batchInFlight,sentWelcome:Boolean(welcome)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+          // #endregion
           return { handled: true, runDiagnosis: true, welcomePrefix: welcome ?? undefined };
         }
       }

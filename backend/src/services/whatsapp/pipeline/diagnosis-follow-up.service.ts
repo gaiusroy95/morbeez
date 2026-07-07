@@ -32,6 +32,7 @@ import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { getReviewThreshold } from '../../../domain/ai-training/confidence-routing.js';
 import {
   localizeChoice,
+  resolveFollowUpChoices,
   YES_NO_CHOICES,
   type FollowUpChoiceOption,
 } from './follow-up-question.types.js';
@@ -798,11 +799,10 @@ export const diagnosisFollowUpService = {
       return;
     }
 
-    const choices = q.choices?.length
-      ? q.choices
-      : intake.questionChoices?.[q.id]?.length
-        ? intake.questionChoices[q.id]
-        : YES_NO_CHOICES;
+    const choices = resolveFollowUpChoices({
+      question: q,
+      storedChoices: intake.questionChoices?.[q.id],
+    });
 
     try {
       await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
@@ -927,10 +927,10 @@ export const diagnosisFollowUpService = {
         attachQuestionToIntake(intake, next.question);
       }
     } else {
-      const choices =
-        current.choices?.length
-          ? current.choices
-          : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+      const choices = resolveFollowUpChoices({
+        question: current,
+        storedChoices: intake.questionChoices?.[current.id],
+      });
       const choiceIds = new Set(choices.map((c) => c.id));
 
       const btn = this.parseButtonReply(params.text);
@@ -941,6 +941,10 @@ export const diagnosisFollowUpService = {
         if (typed && choiceIds.has(typed)) answer = typed;
         else if (typed === 'yes' || typed === 'no') answer = typed;
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'diagnosis-follow-up.service.ts:handleIntakeMessage',message:'intake answer validation',data:{questionId:current.id,choiceCount:choices.length,choiceIds:[...choiceIds],parsedAnswer:answer??null,textLen:params.text?.length??0,rejected:!answer||!choiceIds.has(answer??'')},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       if (!answer || !choiceIds.has(answer)) {
         if (farmerSentCropEvidence(params)) {
@@ -1153,11 +1157,10 @@ export const diagnosisFollowUpService = {
       return;
     }
 
-    const choices = q.choices?.length
-      ? q.choices
-      : intake.questionChoices?.[q.id]?.length
-        ? intake.questionChoices[q.id]
-        : YES_NO_CHOICES;
+    const choices = resolveFollowUpChoices({
+      question: q,
+      storedChoices: intake.questionChoices?.[q.id],
+    });
 
     try {
       await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
@@ -1205,10 +1208,10 @@ export const diagnosisFollowUpService = {
       intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
       intake.currentIndex += 1;
     } else {
-      const choices =
-        current.choices?.length
-          ? current.choices
-          : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+      const choices = resolveFollowUpChoices({
+        question: current,
+        storedChoices: intake.questionChoices?.[current.id],
+      });
       const choiceIds = new Set(choices.map((c) => c.id));
 
       const btn = this.parseButtonReply(params.text);
@@ -1219,6 +1222,10 @@ export const diagnosisFollowUpService = {
         if (typed && choiceIds.has(typed)) answer = typed;
         else if (typed === 'yes' || typed === 'no') answer = typed;
       }
+
+      // #region agent log
+      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'diagnosis-follow-up.service.ts:handlePostDiagnosisMessage',message:'post-diagnosis answer validation',data:{questionId:current.id,kind:current.kind,fromEvsi:current.fromEvsi??false,rawChoiceCount:current.choices?.length??0,storedChoiceCount:intake.questionChoices?.[current.id]?.length??-1,resolvedChoiceCount:choices.length,choiceIds:[...choiceIds],parsedAnswer:answer??null,textPreview:params.text?.slice(0,32)??'',rejected:!answer||!choiceIds.has(answer??'')},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
 
       if (!answer || !choiceIds.has(answer)) {
         await this.sendPostDiagnosisQuestion(

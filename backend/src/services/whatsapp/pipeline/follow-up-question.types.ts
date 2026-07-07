@@ -32,6 +32,17 @@ export function defaultChoicesForKind(kind: FollowUpQuestionKind): FollowUpChoic
   return [];
 }
 
+/** EVSI questions often carry `choices: []`; treat empty stored arrays as missing. */
+export function resolveFollowUpChoices(params: {
+  question: { id: string; kind?: FollowUpQuestionKind; choices?: FollowUpChoiceOption[] };
+  storedChoices?: FollowUpChoiceOption[] | null;
+}): FollowUpChoiceOption[] {
+  if (params.question.choices?.length) return params.question.choices;
+  if (params.storedChoices?.length) return params.storedChoices;
+  if (!params.question.kind || params.question.kind === 'yes_no') return YES_NO_CHOICES;
+  return defaultChoicesForKind(params.question.kind);
+}
+
 export function localizeChoice(option: FollowUpChoiceOption, lang: AdvisoryLanguage): string {
   if (lang === 'ml' && option.labelMl.trim()) return option.labelMl.trim();
   return option.labelEn.trim() || option.labelMl.trim();

@@ -1013,6 +1013,10 @@ export const whatsappInboundPipeline = {
   async flushBatchedDiagnosisImages(batch: ImageBatchFlushPayload): Promise<void> {
     if (!batch.images.length) return;
 
+    // #region agent log
+    fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-inbound.pipeline.ts:flushBatchedDiagnosisImages',message:'batch flush starting',data:{imageCount:batch.images.length,hasCaption:Boolean(batch.caption?.trim())},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
+
     const primary = batch.images[0]!;
     const caption = batch.caption;
 
