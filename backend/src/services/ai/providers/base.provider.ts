@@ -5,6 +5,8 @@ export interface VisionInput {
   mimeType: string;
   userPrompt: string;
   systemPrompt: string;
+  /** Lower values improve repeatability for diagnosis (default: provider default). */
+  temperature?: number;
   /** Additional photos from the same farmer message burst (analyzed together). */
   additionalImages?: Array<{ imageBase64: string; mimeType: string }>;
 }

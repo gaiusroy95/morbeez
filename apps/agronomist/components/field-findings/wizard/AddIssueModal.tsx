@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { tokens, type IssueMasterRow } from '@morbeez/shared';
 import { Btn } from '@morbeez/ui-native';
 import { IssueCard, type IssueDraft } from '../IssueCard';
@@ -48,6 +48,25 @@ export function AddIssueModal({
     setAiSuggestions([]);
   }
 
+  function confirmRemove() {
+    if (!onRemove) return;
+    Alert.alert(
+      'Remove issue?',
+      'This issue will be removed from the visit. You can add it again later if needed.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () => {
+            onRemove();
+            onClose();
+          },
+        },
+      ]
+    );
+  }
+
   async function loadAiSuggestions() {
     setAiLoading(true);
     try {
@@ -80,7 +99,6 @@ export function AddIssueModal({
             issueMaster={issueMaster}
             cropType={cropType}
             onChange={setDraft}
-            onRemove={onRemove ?? (() => {})}
             onSuggestQuestions={() => onSuggestQuestions(active)}
             onCreateIssueType={onCreateIssueType}
           />
@@ -118,7 +136,7 @@ export function AddIssueModal({
           ) : null}
         </ScrollView>
         <View style={styles.footer}>
-          {onRemove ? <Btn label="Remove issue" variant="secondary" onPress={onRemove} /> : null}
+          {onRemove ? <Btn label="Remove issue" variant="secondary" onPress={confirmRemove} /> : null}
           <Btn
             label="Save issue"
             onPress={() => {

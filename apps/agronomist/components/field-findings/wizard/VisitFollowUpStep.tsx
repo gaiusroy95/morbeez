@@ -2,8 +2,6 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
-  expandSeparateNutrientIssues,
-  buildAnalyzeVisitBody,
   derivePhotoRequestsFromFollowUp,
   issuesNeedInitialScreening,
   partnerClient,
@@ -21,9 +19,12 @@ import {
 } from '@morbeez/shared';
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
+import { runVisitScreening } from '@/lib/visitScreening';
 
 const ANSWER_CHIPS = ['yes', 'no', 'unknown'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SCREENING_TIMEOUT_MS = 180_000;
+const QUESTION_FETCH_TIMEOUT_MS = 25_000;
 
 function isPersistedQuestionId(id: string): boolean {
   return UUID_RE.test(id);
@@ -43,41 +44,17 @@ type Props = {
   visitAiClient?: VisitAiClient;
   triage?: TriagePreview | null;
   screening?: VisitScreeningParams;
+  screeningPrefetch?: Promise<IssueDraft[]> | null;
 };
 
-const SCREENING_TIMEOUT_MS = 120_000;
-
-function mapDetectedIssues(
-  detected: Awaited<ReturnType<typeof agronomistClient.analyzeVisit>>['issues']
-): IssueDraft[] {
-  const mapped = detected.map((row, idx) => ({
-    localId: row.localId ?? `ai-${idx}`,
-    category: row.category,
-    issueName: row.issueName,
-    severity: row.severity ?? row.aiSeverity ?? 'medium',
-    status: 'open',
-    observation: row.observation ?? '',
-    photos: [],
-    photosPreview: [],
-    aiCaseId: row.aiCaseId,
-    hypotheses: row.hypotheses,
-    selectedHypothesisLabel: row.selectedHypothesisLabel,
-    finalDiagnosis: row.finalDiagnosis,
-    finalRecommendation: row.finalRecommendation,
-    confidenceAction: row.confidenceAction,
-    skipFollowUpOptional: row.skipFollowUpOptional,
-    imageSignal: row.imageSignal,
-    similarCases: row.similarCases,
-    rootCause: row.rootCause,
-    evidence: row.evidence,
-    initialRecommendation: row.initialRecommendation,
-    aiConfidence: row.aiConfidence,
-    followUpQuestions: row.followUpQuestions,
-  })) as IssueDraft[];
-  return expandSeparateNutrientIssues(mapped);
-}
-
-export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, screening }: Props) {
+export function VisitFollowUpStep({
+  issues,
+  onChange,
+  visitAiClient,
+  triage,
+  screening,
+  screeningPrefetch,
+}: Props) {
   const client = visitAiClient ?? agronomistClient;
   const [loading, setLoading] = useState(true);
   const [screeningRunning, setScreeningRunning] = useState(false);
@@ -92,23 +69,46 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function runInitialScreening(): Promise<IssueDraft[]> {
+  async function resolveInitialScreening(): Promise<IssueDraft[]> {
+    if (!screening) {
+      throw new Error('Screening context is missing for this visit.');
+    }
+
+    if (screeningPrefetch) {
+      try {
+        return await withTimeout(
+          screeningPrefetch,
+          SCREENING_TIMEOUT_MS,
+          'Initial AI screening timed out — tap Retry.'
+        );
+      } catch {
+        // Prefetch failed or timed out — run a fresh screening attempt below.
+      }
+    }
+
+    return runInitialScreeningWithRetry();
+  }
+
+  async function runInitialScreeningWithRetry(): Promise<IssueDraft[]> {
     if (!screening) {
       throw new Error('Screening context is missing for this visit.');
     }
     setScreeningRunning(true);
     try {
-      const screeningClient = visitAiClient === partnerClient ? partnerClient : agronomistClient;
-      const { issues: detected } = await withTimeout(
-        screeningClient.analyzeVisit(buildAnalyzeVisitBody(screening)),
-        SCREENING_TIMEOUT_MS,
-        'Initial AI screening timed out — tap Retry.'
-      );
-      const mapped = mapDetectedIssues(
-        detected as Awaited<ReturnType<typeof agronomistClient.analyzeVisit>>['issues']
-      );
-      onChange(mapped);
-      return mapped;
+      const screeningClient = (visitAiClient === partnerClient ? partnerClient : agronomistClient) as typeof agronomistClient;
+      try {
+        return await withTimeout(
+          runVisitScreening(screening, screeningClient),
+          SCREENING_TIMEOUT_MS,
+          'Initial AI screening timed out — tap Retry.'
+        );
+      } catch (firstErr) {
+        return await withTimeout(
+          runVisitScreening(screening, screeningClient),
+          SCREENING_TIMEOUT_MS,
+          firstErr instanceof Error ? firstErr.message : 'Initial AI screening timed out — tap Retry.'
+        );
+      }
     } finally {
       setScreeningRunning(false);
     }
@@ -121,11 +121,39 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
       next.map(async (issue, i) => {
         if (issue.followUpQuestions?.length) return;
         if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped) return;
-        const questions = await client.getVisitAiQuestions(issue.aiCaseId);
-        next[i] = { ...issue, followUpQuestions: questions };
+        try {
+          const questions = await withTimeout(
+            client.getVisitAiQuestions(issue.aiCaseId),
+            QUESTION_FETCH_TIMEOUT_MS,
+            'Question fetch timed out'
+          );
+          if (questions.length) {
+            next[i] = { ...issue, followUpQuestions: questions };
+          }
+        } catch {
+          // Questions may already be attached from screening; continue without blocking.
+        }
       })
     );
     return next;
+  }
+
+  async function refreshConfidence(next: IssueDraft[]) {
+    for (const issue of next) {
+      if (!issue.aiCaseId || !client.screenVisitAiCase) continue;
+      try {
+        const state = await withTimeout(
+          client.screenVisitAiCase(issue.aiCaseId),
+          QUESTION_FETCH_TIMEOUT_MS,
+          'Confidence fetch timed out'
+        );
+        if (state?.distribution) {
+          setConfidenceByCase((prev) => ({ ...prev, [issue.aiCaseId!]: state.distribution }));
+        }
+      } catch {
+        // optional enrichment
+      }
+    }
   }
 
   async function loadQuestions() {
@@ -134,25 +162,15 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
     try {
       let working = [...issues];
       if (issuesNeedInitialScreening(working)) {
-        working = await runInitialScreening();
+        working = await resolveInitialScreening();
+        onChange(working);
       }
       const next = await attachQuestions(working);
       onChange(next);
-      for (const issue of next) {
-        if (issue.aiCaseId) {
-          try {
-            const state = await client.screenVisitAiCase?.(issue.aiCaseId);
-            if (state?.distribution) {
-              setConfidenceByCase((prev) => ({ ...prev, [issue.aiCaseId!]: state.distribution }));
-            }
-          } catch {
-            // optional
-          }
-        }
-      }
+      setLoading(false);
+      void refreshConfidence(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load questions');
-    } finally {
       setLoading(false);
     }
   }
@@ -194,7 +212,6 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
             patchIssue(issueIndex, {
               finalDiagnosis: result.topLabel,
               selectedHypothesisLabel: result.topLabel,
-              thresholdReached: true,
               confidenceAction: result.confidenceAction,
             });
           }
@@ -330,7 +347,7 @@ export function VisitFollowUpStep({ issues, onChange, visitAiClient, triage, scr
         </Text>
         {screeningRunning ? (
           <Text style={styles.loadingHint}>
-            Analyzing photos, soil, and 7-day weather — usually 30–90 seconds.
+            Analyzing photos, soil, and 7-day weather — this may take up to 2 minutes on first load.
           </Text>
         ) : null}
       </View>
@@ -503,7 +520,6 @@ const styles = StyleSheet.create({
   },
   confidenceLabel: { fontSize: 14, fontWeight: '700', color: tokens.green800 },
   confidenceHint: { fontSize: 12, color: tokens.textMuted, marginTop: 4 },
-  hypothesisHint: { fontSize: 12, color: tokens.green800, marginBottom: 8, lineHeight: 17 },
   escalationHint: {
     fontSize: 13,
     color: '#a94442',

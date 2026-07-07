@@ -1,32 +1,18 @@
 import type { VisitPhotoDraft } from '@/components/field-findings/wizard/types';
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as number[]);
-  }
-  const btoaFn = (globalThis as { btoa?: (s: string) => string }).btoa;
-  if (typeof btoaFn === 'function') return btoaFn(binary);
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  for (let i = 0; i < bytes.length; i += 3) {
-    const a = bytes[i] ?? 0;
-    const b = bytes[i + 1] ?? 0;
-    const c = bytes[i + 2] ?? 0;
-    result += chars[a >> 2];
-    result += chars[((a & 3) << 4) | (b >> 4)];
-    result += i + 1 < bytes.length ? chars[((b & 15) << 2) | (c >> 6)] : '=';
-    result += i + 2 < bytes.length ? chars[c & 63] : '=';
-  }
-  return result;
-}
+import { localUriToBase64 } from '@/lib/visitPhotoEncoding';
 
 async function blobToBase64(blob: Blob): Promise<string | null> {
   try {
     const buffer = await blob.arrayBuffer();
-    return arrayBufferToBase64(buffer);
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    const chunk = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunk) {
+      binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)) as number[]);
+    }
+    const btoaFn = (globalThis as { btoa?: (s: string) => string }).btoa;
+    if (typeof btoaFn === 'function') return btoaFn(binary);
+    return null;
   } catch {
     if (typeof FileReader === 'undefined') return null;
     return new Promise((resolve) => {
@@ -79,9 +65,12 @@ export async function ensureVisitPhotoBase64(photos: VisitPhotoDraft[]): Promise
   return Promise.all(
     photos.map(async (photo) => {
       if (photo.dataBase64?.length) return photo;
-      if (!photo.uri.startsWith('http')) return photo;
-      const filled = await remoteImageToVisitPhotoDraft(photo.uri, photo.photoType);
-      return filled ?? photo;
+      if (photo.uri.startsWith('http')) {
+        const filled = await remoteImageToVisitPhotoDraft(photo.uri, photo.photoType);
+        return filled ?? photo;
+      }
+      const dataBase64 = (await localUriToBase64(photo.uri)) ?? '';
+      return dataBase64 ? { ...photo, dataBase64 } : photo;
     })
   );
 }

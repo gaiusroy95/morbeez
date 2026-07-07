@@ -255,12 +255,13 @@ export const visitAiConfidenceEngineService = {
       answer,
       dist.hypotheses
     );
-    const deltas = ruleDeltas ?? [{ label: dist.hypotheses[0]?.label ?? 'Unknown', delta: 2 }, { label: 'Unknown', delta: -2 }];
+    const deltas = ruleDeltas ?? [
+      { label: dist.hypotheses[0]?.label ?? 'Unknown', delta: 2 },
+      { label: 'Unknown', delta: -2 },
+    ];
 
-    if (ruleDeltas) {
-      dist = applyEvidenceDeltas(dist, ruleDeltas);
-      await persistDistribution(aiCaseId, dist, meta);
-    }
+    dist = applyEvidenceDeltas(dist, deltas);
+    await persistDistribution(aiCaseId, dist, meta);
 
     const questions = await loadQuestions(aiCaseId);
     const state = buildConfidenceState(dist, questions);

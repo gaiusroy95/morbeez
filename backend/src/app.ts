@@ -20,6 +20,7 @@ import { farmersRoutes } from './routes/api/farmers.routes.js';
 import { leadsRoutes } from './routes/api/leads.routes.js';
 import { shopifyProxyRoutes } from './routes/proxy/shopify-proxy.routes.js';
 import { advisoryRoutes } from './routes/api/advisory.routes.js';
+import { diagnosisRoutes } from './routes/api/diagnosis.routes.js';
 import { authRoutes } from './routes/api/auth.routes.js';
 import { farmerPortalRoutes } from './routes/api/farmer-portal.routes.js';
 import { i18nRoutes } from './routes/api/i18n.routes.js';
@@ -168,6 +169,7 @@ export async function buildApp() {
   await app.register(farmersRoutes);
   await app.register(leadsRoutes);
   await app.register(advisoryRoutes);
+  await app.register(diagnosisRoutes);
   await app.register(shopifyProxyRoutes);
 
   app.setNotFoundHandler(async (request, reply) => {

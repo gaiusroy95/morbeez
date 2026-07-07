@@ -15,6 +15,8 @@ import {
   validateVisitWizardStep,
   mapRecommendationGroupsForSubmit,
   buildPriorRecommendationFollowUps,
+  issuesNeedInitialScreening,
+  type VisitScreeningParams,
   type BlockHealthLevel,
   type CropPerformanceLevel,
   type IssueCategory,
@@ -55,9 +57,14 @@ import { useStaffAuth } from '@/context/StaffAuth';
 import { applyVisitPrefillContext } from '@/lib/applyVisitPrefill';
 import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
 import { ensureVisitPhotoBase64 } from '@/lib/prefillVisitPhotos';
+import { buildScreeningPrefetchKey, runVisitScreening } from '@/lib/visitScreening';
 
 function initialCapturePhotoType(crop: string): string {
   return suggestNextCapturePhotoType([], getVisitPhotoTypesForCrop(crop).map((t) => t.value));
+}
+
+function isAiScreenedIssues(issues: IssueDraft[]): boolean {
+  return issues.length > 0 && issues.every((i) => Boolean(i.aiCaseId));
 }
 
 function mergeVisitPhotosIntoIssues(issues: IssueDraft[], visitPhotos: VisitPhotoDraft[]) {
@@ -137,6 +144,40 @@ export default function VisitScreen() {
     rectificationMode ? 'rectification' : 'first'
   );
   const [plotIntelSummary, setPlotIntelSummary] = useState<string | null>(null);
+  const screeningPrefetchKeyRef = useRef<string | null>(null);
+  const [screeningPrefetch, setScreeningPrefetch] = useState<Promise<IssueDraft[]> | null>(null);
+
+  const buildScreeningParams = useCallback((): VisitScreeningParams | null => {
+    if (!blockHealth || !cropPerformance || !soilMoisture || !visitPhotos.length) return null;
+    return {
+      farmerId,
+      blockId,
+      sessionId: sessionRef.current,
+      fieldVoiceNote,
+      blockAssessment: { blockHealth, cropPerformance, soilMoisture },
+      measurements,
+      templates,
+      gpsLat,
+      gpsLon,
+      visitPhotos: visitPhotos.map((p) => ({
+        dataBase64: p.dataBase64,
+        mimeType: p.mimeType,
+        photoType: p.photoType,
+      })),
+    };
+  }, [
+    farmerId,
+    blockId,
+    fieldVoiceNote,
+    blockHealth,
+    cropPerformance,
+    soilMoisture,
+    measurements,
+    templates,
+    gpsLat,
+    gpsLon,
+    visitPhotos,
+  ]);
 
   const persistDraft = useCallback(async () => {
     if (!blockId || !farmerId) return;
@@ -291,6 +332,48 @@ export default function VisitScreen() {
     }, 800);
     return () => clearTimeout(t);
   }, [persistDraft]);
+
+  useEffect(() => {
+    const screeningParams = buildScreeningParams();
+    if (!screeningParams) return;
+
+    const normalized = normalizeVisitWizardStep(step);
+    if (normalized !== 'photos' && normalized !== 'fieldIntelligence') return;
+
+    const key = buildScreeningPrefetchKey(screeningParams);
+
+    if (!issuesNeedInitialScreening(issues)) {
+      if (screeningPrefetchKeyRef.current === key) return;
+      if (isAiScreenedIssues(issues)) {
+        setIssues([]);
+        screeningPrefetchKeyRef.current = null;
+        setScreeningPrefetch(null);
+      }
+      return;
+    }
+
+    if (screeningPrefetchKeyRef.current === key) return;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      screeningPrefetchKeyRef.current = key;
+      const promise = runVisitScreening(screeningParams)
+        .then((mapped) => {
+          if (!cancelled) setIssues(mapped);
+          return mapped;
+        })
+        .catch((err) => {
+          screeningPrefetchKeyRef.current = null;
+          throw err;
+        });
+      setScreeningPrefetch(promise);
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, buildScreeningParams, issues, visitPhotos, measurements, fieldVoiceNote]);
 
   function missingAssessments(): string | null {
     if (!blockHealth || !cropPerformance || !soilMoisture) {
@@ -574,6 +657,7 @@ export default function VisitScreen() {
             issues={issues}
             onChange={setIssues}
             triage={triage}
+            screeningPrefetch={screeningPrefetch}
             screening={{
               farmerId,
               blockId,

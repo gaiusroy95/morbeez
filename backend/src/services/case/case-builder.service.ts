@@ -14,10 +14,12 @@ import { labIntelligenceService } from '../lab-intelligence/lab-intelligence.ser
 import { resistanceDetectionService } from './resistance-detection.service.js';
 import { predictiveRiskService } from '../predictive-risk/predictive-risk.service.js';
 import { regionalLearningService } from '../regional-learning/regional-learning.service.js';
+import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
 import { groundIntelligenceService } from '../ground-intelligence/ground-intelligence.service.js';
 import { knowledgeGraphService } from '../knowledge-graph/knowledge-graph.service.js';
 import { supplyIntelligenceService } from '../supply-intelligence/supply-intelligence.service.js';
 import { cultivationContextService } from './cultivation-context.service.js';
+import { maiosReasoningPipelineService } from '../maios-reasoning/maios-reasoning-pipeline.service.js';
 import type { MaiosBuildInput, MaiosCase, MaiosHypothesis } from '../../domain/case/types.js';
 import { MAIOS_VERSION as MAIOS_VER } from '../../domain/case/types.js';
 
@@ -344,6 +346,38 @@ export const caseBuilderService = {
       }
     }
 
+    let reasoning = await maiosReasoningPipelineService.run({
+      cropType: identity.cropType,
+      pack,
+      symptomsText: input.symptomsText,
+      contextPack: input.contextPack,
+      regionalPriors,
+      photos,
+      hypotheses,
+      eqs,
+      maiosRoute: route,
+      escalationRecommended: input.advisory?.escalationRecommended,
+      visionLabel: input.advisory?.probableIssue,
+      visionConfidence: input.advisory?.confidence,
+      farmerAnswers: input.farmerAnswers,
+      visionObservations: input.visionObservations,
+      dap: input.contextPack?.dap,
+    });
+
+    if (reasoning && !reasoning.shadowMode) {
+      hypotheses = maiosReasoningPipelineService.enrichHypotheses(hypotheses, reasoning);
+    }
+
+    if (reasoning?.decision.action === 'LOCK') {
+      void maiosLearningFacadeService.recordFromReasoningSnapshot({
+        farmerId: input.farmerId,
+        cropType: identity.cropType,
+        sessionId: input.sessionId,
+        channel: input.channel === 'field_visit' ? 'visit' : input.channel === 'api' ? 'api' : 'whatsapp',
+        snapshot: reasoning,
+      });
+    }
+
     return {
       maiosVersion: MAIOS_VER,
       sopVersion: pack.version,
@@ -382,6 +416,7 @@ export const caseBuilderService = {
       predictiveRisk,
       supplySignals,
       regionalClusterId: regionalCluster?.clusterKey ?? null,
+      reasoning: reasoning ?? undefined,
     };
   },
 

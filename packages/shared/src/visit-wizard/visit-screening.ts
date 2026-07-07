@@ -6,6 +6,21 @@ export type VisitScreeningPhoto = {
   photoType?: string;
 };
 
+const SYMPTOM_PHOTO_RE =
+  /^(leaf|rhizome|disease|pest|symptom|close|affected|damage|spot|wilt|blight)/i;
+
+function visitPhotoTypePriority(photoType?: string): number {
+  if (!photoType?.trim()) return 1;
+  if (SYMPTOM_PHOTO_RE.test(photoType.trim())) return 0;
+  return 2;
+}
+
+export function sortVisitScreeningPhotos(photos: VisitScreeningPhoto[]): VisitScreeningPhoto[] {
+  return [...photos].sort(
+    (a, b) => visitPhotoTypePriority(a.photoType) - visitPhotoTypePriority(b.photoType)
+  );
+}
+
 export type VisitScreeningParams = {
   farmerId: string;
   blockId: string;
@@ -28,7 +43,7 @@ export function buildAnalyzeVisitBody(params: VisitScreeningParams) {
     }))
     .filter((m) => m.value);
 
-  const analyzePhotos = params.visitPhotos
+  const analyzePhotos = sortVisitScreeningPhotos(params.visitPhotos)
     .filter((p) => p.dataBase64?.length > 100)
     .slice(0, 4)
     .map((p) => ({ dataBase64: p.dataBase64, mimeType: p.mimeType, photoType: p.photoType }));

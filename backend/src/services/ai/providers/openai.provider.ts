@@ -31,7 +31,10 @@ function parseStructuredJson(content: string): StructuredAdvisory {
   if (!jsonMatch) {
     throw new AppError('Invalid AI response format', 502, 'AI_PARSE_ERROR');
   }
-  const parsed = JSON.parse(jsonMatch[0]) as StructuredAdvisory;
+  const parsed = JSON.parse(jsonMatch[0]) as StructuredAdvisory & { label?: string };
+  if (!parsed.probableIssue?.trim() && parsed.label?.trim()) {
+    parsed.probableIssue = parsed.label.trim();
+  }
   return normalizeStructuredAdvisory(parsed);
 }
 
@@ -57,6 +60,7 @@ export const openaiVisionProvider: VisionProvider = {
     const body = {
       model,
       ...openaiTokenLimitBody(model, 3000),
+      ...(input.temperature != null ? { temperature: input.temperature } : {}),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: input.systemPrompt },
@@ -165,7 +169,8 @@ function extractJsonObject(content: string): Record<string, unknown> {
 export async function openaiJsonCompletion<T extends Record<string, unknown>>(
   systemPrompt: string,
   userPrompt: string,
-  maxTokens = 1024
+  maxTokens = 1024,
+  options?: { temperature?: number }
 ): Promise<T> {
   const model = env.OPENAI_TEXT_MODEL;
   const res = await openaiFetch('/chat/completions', {
@@ -174,6 +179,7 @@ export async function openaiJsonCompletion<T extends Record<string, unknown>>(
     body: JSON.stringify({
       model,
       ...openaiTokenLimitBody(model, maxTokens),
+      ...(options?.temperature != null ? { temperature: options.temperature } : {}),
       response_format: { type: 'json_object' },
       messages: [
         { role: 'system', content: systemPrompt },

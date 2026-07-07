@@ -1700,6 +1700,7 @@ export const whatsappInboundPipeline = {
           reused: Boolean(result.reused),
           plotLabel: sessCtx.activePlotLabel ?? undefined,
           symptomsText,
+          maiosCase: maiosCase ?? null,
         });
         if (clarificationStarted) return;
       }

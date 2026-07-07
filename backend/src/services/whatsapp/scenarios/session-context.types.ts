@@ -104,6 +104,7 @@ export interface SessionContext {
     confidenceBand?: 'high' | 'medium' | 'low';
     pendingPhoto?: boolean;
     evidenceMode?: boolean;
+    reasoningSnapshot?: import('../../../domain/maios-reasoning/types.js').MaiosReasoningSnapshot;
   };
   /** After Crop Doctor when confidence is below review threshold — AI-planned clarification before final reply. */
   postDiagnosisIntake?: {
@@ -132,6 +133,7 @@ export interface SessionContext {
     questionChoices: Record<string, Array<{ id: string; labelEn: string; labelMl: string }>>;
     questionsAsked: number;
     maxQuestions: number;
+    reasoningSnapshot?: import('../../../domain/maios-reasoning/types.js').MaiosReasoningSnapshot;
   };
   /** Stored until post-diagnosis Q&A completes (then farmer gets full advisory). */
   pendingDiagnosisDelivery?: {

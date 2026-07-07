@@ -223,6 +223,8 @@ export type MaiosCase = {
   predictiveRisk?: MaiosPredictiveRisk;
   supplySignals?: MaiosSupplySignals;
   regionalClusterId?: string | null;
+  /** v17 Bayesian reasoning layer — additive; does not replace v12 diagnostics when shadowMode is on. */
+  reasoning?: import('../maios-reasoning/types.js').MaiosReasoningSnapshot;
 };
 
 export type MaiosBuildInput = {
@@ -267,4 +269,6 @@ export type MaiosBuildInput = {
   inputHistory?: MaiosInputHistorySummary;
   labReports?: MaiosLabReport[];
   visitFindingId?: string | null;
+  farmerAnswers?: Array<{ questionId?: string; questionText: string; answer: string }>;
+  visionObservations?: Array<{ feature: string; value: string; confidence: number }>;
 };

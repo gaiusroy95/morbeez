@@ -26,6 +26,7 @@ import {
 } from './diagnosis-follow-up-question.generator.js';
 import { expertFollowUpLearningService } from '../../core/expert-follow-up-learning.service.js';
 import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
+import { maiosEvsiWhatsappBridgeService } from '../../maios-reasoning/maios-evsi-whatsapp-bridge.service.js';
 import type { MaiosCase } from '../../../domain/case/types.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { getReviewThreshold } from '../../../domain/ai-training/confidence-routing.js';
@@ -59,6 +60,7 @@ export type FollowUpQuestion = {
   purpose?: string;
   libraryId?: string;
   fromExpertLibrary?: boolean;
+  fromEvsi?: boolean;
 };
 
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
@@ -471,6 +473,31 @@ export const diagnosisFollowUpService = {
       opts?.evidenceGaps ??
       (opts?.farmerId ? await this.deriveEvidenceGaps(opts.farmerId) : []);
 
+    if (maiosEvsiWhatsappBridgeService.isEnabled()) {
+      const reasoning =
+        intake.reasoningSnapshot ??
+        (await maiosEvsiWhatsappBridgeService.refreshReasoningForPreDiagnosis({
+          investigation,
+          priorAnswers: intake.answers as Record<string, string>,
+          questionTexts: intake.questionTexts ?? {},
+        }));
+      if (reasoning) {
+        intake.reasoningSnapshot = reasoning;
+        const evsi = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
+          reasoning,
+          priorAnswers: intake.answers as Record<string, string>,
+          questionsAsked,
+          maxQuestions,
+        });
+        if (evsi) {
+          return {
+            intakeComplete: false,
+            question: maiosEvsiWhatsappBridgeService.toFollowUpQuestion(evsi, investigation.language),
+          };
+        }
+      }
+    }
+
     const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
       ctx: investigation,
       priorAnswers: intake.answers as Record<string, string>,
@@ -507,6 +534,33 @@ export const diagnosisFollowUpService = {
 
     if (questionsAsked >= maxQuestions) {
       return { intakeComplete: true };
+    }
+
+    if (maiosEvsiWhatsappBridgeService.isEnabled()) {
+      const reasoning =
+        intake.reasoningSnapshot ??
+        (await maiosEvsiWhatsappBridgeService.refreshReasoningForPostDiagnosis({
+          investigation,
+          advisory: intake.advisorySnapshot,
+          priorAnswers: intake.answers,
+          questionTexts: intake.questionTexts ?? {},
+          photoCount: investigation.hasPhoto ? 1 : 0,
+        }));
+      if (reasoning) {
+        intake.reasoningSnapshot = reasoning;
+        const evsi = maiosEvsiWhatsappBridgeService.buildFollowUpFromReasoning({
+          reasoning,
+          priorAnswers: intake.answers,
+          questionsAsked,
+          maxQuestions,
+        });
+        if (evsi) {
+          return {
+            intakeComplete: false,
+            question: maiosEvsiWhatsappBridgeService.toFollowUpQuestion(evsi, investigation.language),
+          };
+        }
+      }
     }
 
     const result = await diagnosisFollowUpQuestionGenerator.planPostDiagnosisQuestion({
@@ -982,6 +1036,7 @@ export const diagnosisFollowUpService = {
     reused: boolean;
     plotLabel?: string;
     symptomsText?: string;
+    maiosCase?: MaiosCase | null;
   }): Promise<boolean> {
     if (!this.enabled()) return false;
     if (!this.shouldDeferDiagnosisDelivery(params.advisory.confidence)) return false;
@@ -1012,7 +1067,12 @@ export const diagnosisFollowUpService = {
       questionChoices: {},
       questionsAsked: 0,
       maxQuestions: MAX_POST_DIAGNOSIS_QUESTIONS(),
+      reasoningSnapshot: params.maiosCase?.reasoning ?? undefined,
     };
+
+    if (params.maiosCase) {
+      await conversationSessionService.patchContext(params.farmerId, { maiosCase: params.maiosCase });
+    }
 
     const planned = await this.planNextPostDiagnosisQuestion(investigation, draftIntake);
     if (planned.intakeComplete || !planned.question) return false;

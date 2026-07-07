@@ -7,7 +7,7 @@ import { recommendationCommunicationService } from '../../services/core/recommen
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { recommendationFollowUpService } from '../../services/core/recommendation-follow-up.service.js';
-import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
+import { crmFarmerService, type MasterType } from '../../services/admin/crm-farmer.service.js';
 import { farmerExperienceLearningService } from '../../services/core/farmer-experience-learning.service.js';
 import { agronomistCaseReviewService } from '../../services/admin/agronomist-case-review.service.js';
 import { agronomistTierService } from '../../services/admin/agronomist-tier.service.js';
@@ -720,6 +720,14 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const result = await agronomistMobileService.logFarmerCall(farmerId, admin.email, body);
     return reply.status(201).send({ ok: true, result });
+  });
+
+  app.get(`${api}/crm-masters`, async (request, reply) => {
+    await assertModuleAccess(request, 'agronomist', 'read');
+    const q = request.query as { type?: string; parentId?: string; search?: string };
+    const type = z.string().min(1).parse(q.type ?? 'interaction_outcome') as MasterType;
+    const items = await crmFarmerService.listMasters(type, q.parentId || null, q.search);
+    return reply.send({ ok: true, items });
   });
 
   app.post(`${api}/farmers/:farmerId/reminders`, async (request, reply) => {

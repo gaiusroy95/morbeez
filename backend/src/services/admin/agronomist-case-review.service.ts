@@ -25,7 +25,13 @@ import { fieldContextService } from '../case/field-context.service.js';
 import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
 import { economicGateService } from '../case/economic-gate.service.js';
 import { goldLearningQueueService } from '../ml/retraining-pipeline.service.js';
+import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
+import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
+
+function isAgronomistVerifyAction(action: ReviewAction): boolean {
+  return action === 'approve_ai' || action === 'correct_ai' || action === 'partial_match';
+}
 
 function formatDt(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -973,12 +979,31 @@ export const agronomistCaseReviewService = {
       });
     }
 
+    let learningFacadeRecorded = false;
+    if (isAgronomistVerifyAction(body.action) && issue.trim()) {
+      const maiosCase = detail.maiosCase as { reasoning?: MaiosReasoningSnapshot } | null;
+      try {
+        await maiosLearningFacadeService.recordAgronomistVerifiedOutcome({
+          farmerId: esc.farmerId,
+          cropType: String(detail.block?.cropType ?? 'ginger').toLowerCase(),
+          verifiedIssueLabel: issue.trim(),
+          sessionId: esc.sessionId ?? undefined,
+          reasoning: maiosCase?.reasoning ?? null,
+          reviewAction: body.action,
+        });
+        learningFacadeRecorded = true;
+      } catch (err) {
+        logger.warn({ err, escalationId }, 'MAIOS learning facade case review record failed');
+      }
+    }
+
     return {
       escalationId,
       recommendationId,
       submittedForApproval: Boolean(body.submitForApproval),
       selfApproved,
       verifiedAnswerIndexed: selfApproved,
+      learningFacadeRecorded,
       message: body.submitForApproval
         ? selfApproved
           ? 'Approved and sent to the farmer. Similar questions will reuse this answer.'

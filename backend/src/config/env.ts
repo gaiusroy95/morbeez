@@ -181,6 +181,21 @@ const envSchema = z.object({
     .string()
     .transform((v) => v !== 'false')
     .default('true'),
+  /** MAIOS v17 reasoning layer (Bayesian + EVSI) — composes v12 case builder output. */
+  ENABLE_MAIOS_REASONING: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  /** When true, reasoning runs in parallel but does not replace fused hypotheses. */
+  MAIOS_REASONING_SHADOW: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  /** Structured vision features (spindle, grey center) for v17 evidence repository. */
+  ENABLE_STRUCTURED_VISION: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
   ENABLE_OUTBOX_WORKER: z
     .string()
     .transform((v) => v !== 'false')

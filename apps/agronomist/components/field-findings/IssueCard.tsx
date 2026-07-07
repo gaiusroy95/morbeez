@@ -56,7 +56,7 @@ type Props = {
   issueMaster: IssueMasterRow[];
   cropType: string;
   onChange: (next: IssueDraft) => void;
-  onRemove: () => void;
+  onRemove?: () => void;
   onSuggestQuestions?: () => Promise<string[]>;
   onCreateIssueType?: (input: {
     category: IssueCategory;
@@ -296,7 +296,7 @@ export function IssueCard({
           </Pressable>
         ) : null}
       </View>
-      <Btn label="Remove issue" variant="secondary" onPress={onRemove} />
+      {onRemove ? <Btn label="Remove issue" variant="secondary" onPress={onRemove} /> : null}
       <InlineRecommendations issue={issue} onChange={onChange} />
     </Panel>
   );

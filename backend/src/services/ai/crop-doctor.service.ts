@@ -28,7 +28,23 @@ import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-d
 import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 import { caseBuilderService } from '../case/case-builder.service.js';
 import { casePersistService } from '../case/case-persist.service.js';
+import { cropDoctorReasoningBridgeService } from '../maios-reasoning/crop-doctor-reasoning-bridge.service.js';
+import type { MaiosChannel } from '../../domain/case/types.js';
 import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
+
+function whatsappFarmerAnswers(input: DiagnoseInput) {
+  const answers: Array<{ questionId?: string; questionText: string; answer: string }> = [];
+  for (const qa of input.investigationPattern?.qa ?? []) {
+    answers.push({ questionText: qa.question, answer: qa.answer });
+  }
+  if (input.fieldInvestigation?.trim()) {
+    answers.push({
+      questionText: 'Field investigation notes',
+      answer: input.fieldInvestigation.trim(),
+    });
+  }
+  return answers.length ? answers : undefined;
+}
 
 async function getFarmerHistory(farmerId: string): Promise<string> {
   const { data } = await supabase
@@ -343,47 +359,64 @@ export const cropDoctorService = {
     const photoPaths = input.maiosPhotoPaths ?? input.gingerSopPhotoPaths;
     const intakeConf = input.maiosIntakeConfidence ?? input.gingerSopIntakeConfidence;
     const hasSoil = input.maiosHasSoilReport ?? input.gingerSopHasSoilReport;
+    const visionObservations = cropDoctorReasoningBridgeService.buildVisionObservations({
+      advisory,
+      plantIdResult,
+      cropType: input.cropType,
+    });
+    const plantIdTopConfidence = plantIdResult?.diseases?.[0]?.probability;
+
+    const sharedCaseInput = {
+      farmerId: input.farmerId,
+      blockId: input.activePlotId,
+      channel: (input.channel === 'telecaller' ? 'telecaller' : input.channel) as MaiosChannel,
+      sessionId,
+      symptomsText: input.symptomsText,
+      photoCount,
+      photoStoragePaths: photoPaths,
+      hasSoilReport: hasSoil,
+      hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+      intakeMatchConfidence: intakeConf,
+      contextPack: ctxPack
+        ? {
+            soilPh: ctxPack.soilPh,
+            soilEc: ctxPack.soilEc,
+            weatherRiskScore: ctxPack.weatherRiskScore,
+            heavyRainLikely: ctxPack.heavyRainLikely,
+            highHeatLikely: ctxPack.highHeatLikely,
+            highHumidityLikely: ctxPack.highHumidityLikely,
+            drainageRisk: ctxPack.drainageRisk,
+            dap: ctxPack.dap,
+          }
+        : undefined,
+      advisory: {
+        probableIssue: advisory.probableIssue,
+        confidence: advisory.confidence,
+        severity: advisory.severity,
+        uncertain: advisory.uncertain,
+        escalationRecommended: advisory.escalationRecommended,
+        differentialDiagnosis: advisory.differentialDiagnosis,
+        causalChain: advisory.causalChain,
+        explanation: advisory.explanation,
+        rejectedHypotheses: advisory.rejectedHypotheses,
+        recommendedProductTags: advisory.recommendedProductTags,
+      },
+      farmerAnswers: whatsappFarmerAnswers(input),
+      visionObservations,
+      plantIdConfidence: plantIdTopConfidence,
+    };
 
     if (env.ENABLE_MAIOS_V12 !== false) {
       maiosCase = await caseBuilderService.buildCase({
-        farmerId: input.farmerId,
-        blockId: input.activePlotId,
+        ...sharedCaseInput,
         cropType: input.cropType,
-        channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
-        sessionId,
-        symptomsText: input.symptomsText,
-        photoCount,
-        photoStoragePaths: photoPaths,
-        hasSoilReport: hasSoil,
-        hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
-        intakeMatchConfidence: intakeConf,
-        contextPack: ctxPack
-          ? {
-              soilPh: ctxPack.soilPh,
-              soilEc: ctxPack.soilEc,
-              weatherRiskScore: ctxPack.weatherRiskScore,
-              heavyRainLikely: ctxPack.heavyRainLikely,
-              highHeatLikely: ctxPack.highHeatLikely,
-              highHumidityLikely: ctxPack.highHumidityLikely,
-              drainageRisk: ctxPack.drainageRisk,
-              dap: ctxPack.dap,
-            }
-          : undefined,
-        advisory: {
-          probableIssue: advisory.probableIssue,
-          confidence: advisory.confidence,
-          severity: advisory.severity,
-          uncertain: advisory.uncertain,
-          escalationRecommended: advisory.escalationRecommended,
-          differentialDiagnosis: advisory.differentialDiagnosis,
-          causalChain: advisory.causalChain,
-          explanation: advisory.explanation,
-          rejectedHypotheses: advisory.rejectedHypotheses,
-          recommendedProductTags: advisory.recommendedProductTags,
-        },
       });
       if (maiosCase) {
-        advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+        if (maiosCase.reasoning && !maiosCase.reasoning.shadowMode) {
+          advisory = cropDoctorReasoningBridgeService.applyBayesianDiagnosis(advisory, maiosCase);
+        } else {
+          advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+        }
         if (
           maiosCase.route === 'field_visit' ||
           maiosCase.route === 'emergency_callback'
@@ -396,44 +429,15 @@ export const cropDoctorService = {
       }
     } else {
       maiosCase = await caseBuilderService.buildCase({
-        farmerId: input.farmerId,
-        blockId: input.activePlotId,
+        ...sharedCaseInput,
         cropType: input.cropType || '_default',
-        channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
-        sessionId,
-        symptomsText: input.symptomsText,
-        photoCount,
-        photoStoragePaths: photoPaths,
-        hasSoilReport: hasSoil,
-        hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
-        intakeMatchConfidence: intakeConf,
-        contextPack: ctxPack
-          ? {
-              soilPh: ctxPack.soilPh,
-              soilEc: ctxPack.soilEc,
-              weatherRiskScore: ctxPack.weatherRiskScore,
-              heavyRainLikely: ctxPack.heavyRainLikely,
-              highHeatLikely: ctxPack.highHeatLikely,
-              highHumidityLikely: ctxPack.highHumidityLikely,
-              drainageRisk: ctxPack.drainageRisk,
-              dap: ctxPack.dap,
-            }
-          : undefined,
-        advisory: {
-          probableIssue: advisory.probableIssue,
-          confidence: advisory.confidence,
-          severity: advisory.severity,
-          uncertain: advisory.uncertain,
-          escalationRecommended: advisory.escalationRecommended,
-          differentialDiagnosis: advisory.differentialDiagnosis,
-          causalChain: advisory.causalChain,
-          explanation: advisory.explanation,
-          rejectedHypotheses: advisory.rejectedHypotheses,
-          recommendedProductTags: advisory.recommendedProductTags,
-        },
       });
       if (maiosCase) {
-        advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+        if (maiosCase.reasoning && !maiosCase.reasoning.shadowMode) {
+          advisory = cropDoctorReasoningBridgeService.applyBayesianDiagnosis(advisory, maiosCase);
+        } else {
+          advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+        }
       }
     }
 

@@ -57,8 +57,6 @@ export function VisitIssuesStep({
 
   function removeIssue(localId: string) {
     onChange(issues.filter((i) => i.localId !== localId));
-    setModalVisible(false);
-    setEditing(null);
   }
 
   return (

@@ -17,6 +17,7 @@ import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
+import { anchorPrimaryIssueToImageSignal } from './visit-ai-image-anchor.js';
 import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
 import type { DiagnosisSource } from '../../domain/diagnosis/types.js';
 import { INSUFFICIENT_EVIDENCE_LABEL } from '../../domain/diagnosis/types.js';
@@ -29,6 +30,10 @@ import { buildSymptomKey } from '../ai/question-reuse-keys.util.js';
 import { aiReuseService, buildDapBucket } from '../ai/ai-reuse.service.js';
 import { blockService } from './block.service.js';
 import { expandSeparateVisitIssues } from './visit-issue-split.util.js';
+import { maiosReasoningAdapterService, applyBayesianToVisitHypotheses } from '../maios-reasoning/maios-reasoning-adapter.service.js';
+import { maiosEvsiVisitBridgeService } from '../maios-reasoning/maios-evsi-visit-bridge.service.js';
+import type { EvsiVisitQuestionDraft } from '../maios-reasoning/maios-evsi-visit-bridge.service.js';
+import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 
 type HypothesisRow = {
   label: string;
@@ -197,7 +202,8 @@ Use soil test, measurements, weather, image signal, Q&A, and expert corrections.
       const result = await openaiJsonCompletion<{ hypotheses: HypothesisRow[] }>(
         'Rank agronomic diagnoses by likelihood using all field signals. confidence is 0-1.',
         prompt,
-        1200
+        1200,
+        { temperature: 0 }
       );
       if (Array.isArray(result.hypotheses) && result.hypotheses.length) {
         const ranked = result.hypotheses
@@ -463,7 +469,8 @@ List 1-5 ranked field issues — ONE issue per distinct problem. Never combine s
     const result = await openaiJsonCompletion<{ issues: Array<Record<string, unknown>> }>(
       'Detect multiple crop issues from field visit data.',
       prompt,
-      1200
+      1200,
+      { temperature: 0 }
     );
     const rows = Array.isArray(result.issues) ? result.issues : [];
     if (!rows.length) {
@@ -515,7 +522,13 @@ List 1-5 ranked field issues — ONE issue per distinct problem. Never combine s
         evidence,
       });
     }
-    return { issues: expandSeparateVisitIssues(mapped), source: 'model' };
+    return {
+      issues: anchorPrimaryIssueToImageSignal(
+        expandSeparateVisitIssues(mapped),
+        params.imageSignal
+      ),
+      source: 'model',
+    };
   } catch {
     if (params.imageSignal?.label) {
       const confidence = params.imageSignal.confidence;
@@ -701,6 +714,9 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
     },
   });
 
+  const reasoningSnapshot = meta.reasoningSnapshot as MaiosReasoningSnapshot | null | undefined;
+  const mergedDrafts = maiosEvsiVisitBridgeService.prependEvsiDrafts(drafts, reasoningSnapshot);
+
   const rows: Array<{
     id: string;
     questionText: string;
@@ -708,11 +724,20 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
     answer?: string;
   }> = [];
 
-  for (let i = 0; i < drafts.length; i++) {
-    const draft = drafts[i]!;
+  for (let i = 0; i < mergedDrafts.length; i++) {
+    const draft = mergedDrafts[i]! as EvsiVisitQuestionDraft;
     if (draft.sourceLibraryId) {
       void expertFollowUpLearningService.recordHit(draft.sourceLibraryId).catch(() => {});
     }
+    const evsiMeta = draft.evsiQuestionId
+      ? {
+          source: 'evsi_v17' as const,
+          evsiQuestionId: draft.evsiQuestionId,
+          expectedInformationGain: draft.expectedInformationGain ?? null,
+        }
+      : draft.kind
+        ? { source: 'ai_planner' as const, kind: draft.kind }
+        : { source: 'ai_planner' as const };
     const { data: qRow, error } = await supabase
       .from('visit_ai_questions')
       .insert({
@@ -721,7 +746,7 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
         answer_type: draft.answerType,
         sort_order: i,
         source_library_id: draft.sourceLibraryId ?? null,
-        metadata: draft.kind ? { kind: draft.kind, source: 'ai_planner' } : { source: 'ai_planner' },
+        metadata: evsiMeta,
       })
       .select('id, question_text, answer_type')
       .single();
@@ -772,6 +797,23 @@ export const visitAiOrchestratorService = {
         `${INSUFFICIENT_EVIDENCE_LABEL} — enable OPENAI_API_KEY or capture clearer field photos`
       );
     }
+
+    const reasoning = await maiosReasoningAdapterService.fromVisit({
+      context,
+      issueName: input.issueName,
+      observation: input.observation,
+      hypotheses,
+      imageSignal: imageSignal
+        ? {
+            label: imageSignal.label,
+            confidence: imageSignal.confidence,
+            observations: imageSignal.observations,
+          }
+        : null,
+      analyzePhotoCount: input.analyzePhotos?.length ?? 0,
+    });
+
+    hypotheses = applyBayesianToVisitHypotheses(hypotheses, reasoning);
 
     const topConfidence = hypotheses[0]?.confidence ?? 0.5;
     const confidenceAction = resolveConfidenceAction(topConfidence);
@@ -833,6 +875,7 @@ export const visitAiOrchestratorService = {
           imageAiEnabled: true,
           voiceNotesEnabled: Boolean(input.fieldVoiceNote),
           outcomePredictionEnabled: true,
+          reasoningSnapshot: reasoning ?? null,
         },
       })
       .select('id')
@@ -869,6 +912,7 @@ export const visitAiOrchestratorService = {
       imageSignal: imageSignal ? { label: imageSignal.label, confidence: imageSignal.confidence } : null,
       similarCases,
       diagnosisSource,
+      reasoning: reasoning ?? undefined,
     };
   },
 
@@ -1013,7 +1057,6 @@ export const visitAiOrchestratorService = {
             answer: q.answer?.trim() ? q.answer.trim() : null,
             sort_order: i,
             metadata: { editedByAgronomist: true },
-            updated_at: new Date().toISOString(),
           })
           .eq('id', q.id)
           .eq('visit_ai_case_id', aiCaseId);
@@ -1076,7 +1119,7 @@ export const visitAiOrchestratorService = {
     const caseRow = await getCaseOrThrow(aiCaseId);
     const { data: answers } = await supabase
       .from('visit_ai_questions')
-      .select('question_text, answer')
+      .select('question_text, answer, metadata')
       .eq('visit_ai_case_id', aiCaseId)
       .not('answer', 'is', null);
 
@@ -1093,7 +1136,7 @@ export const visitAiOrchestratorService = {
       String(caseRow.issue_name),
       answerSummary
     );
-    const { hypotheses } = await buildHypotheses({
+    let { hypotheses } = await buildHypotheses({
       context,
       issueCategory: String(caseRow.category),
       issueName: String(caseRow.selected_hypothesis_label ?? caseRow.issue_name),
@@ -1109,6 +1152,37 @@ export const visitAiOrchestratorService = {
     if (!hypotheses.length) {
       throw new Error(`${INSUFFICIENT_EVIDENCE_LABEL} — reanalysis could not produce hypotheses`);
     }
+
+    const answeredQuestionIds: string[] = [];
+    const farmerAnswers = (answers ?? []).map((a) => {
+      const qMeta = (a.metadata as Record<string, unknown> | null) ?? {};
+      const evsiId = typeof qMeta.evsiQuestionId === 'string' ? qMeta.evsiQuestionId : undefined;
+      if (evsiId && !evsiId.startsWith('photo:')) answeredQuestionIds.push(evsiId);
+      return {
+        questionId: evsiId,
+        questionText: String(a.question_text),
+        answer: String(a.answer),
+      };
+    });
+
+    const reasoning = await maiosReasoningAdapterService.fromVisit({
+      context,
+      issueName: String(caseRow.selected_hypothesis_label ?? caseRow.issue_name),
+      observation: [String(meta.observation ?? ''), answerSummary].filter(Boolean).join('; '),
+      hypotheses,
+      imageSignal: imageSignal
+        ? {
+            label: imageSignal.label,
+            confidence: imageSignal.confidence,
+            observations: imageSignal.observations,
+          }
+        : null,
+      analyzePhotoCount: imageSignal?.photoCount ?? 0,
+      farmerAnswers,
+      answeredQuestionIds,
+    });
+
+    hypotheses = applyBayesianToVisitHypotheses(hypotheses, reasoning);
 
     await supabase.from('visit_ai_hypotheses').delete().eq('visit_ai_case_id', aiCaseId);
     for (let i = 0; i < hypotheses.length; i++) {
@@ -1141,6 +1215,7 @@ export const visitAiOrchestratorService = {
           confidenceDistribution: distribution,
           unknownWeight: distribution.unknownWeight,
           targetConfidence: distribution.targetConfidence,
+          reasoningSnapshot: reasoning ?? null,
         },
         updated_at: new Date().toISOString(),
       })
@@ -1152,6 +1227,7 @@ export const visitAiOrchestratorService = {
       confidenceAction,
       hypotheses,
       distribution,
+      reasoning: reasoning ?? undefined,
     };
   },
 
@@ -1264,6 +1340,7 @@ export const visitAiOrchestratorService = {
     const analyzePhotos = input.analyzePhotos?.map((p) => ({
       dataBase64: p.dataBase64,
       mimeType: p.mimeType,
+      photoType: 'photoType' in p ? p.photoType : undefined,
     }));
     const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
       cropType: context.cropType,
@@ -1355,6 +1432,7 @@ export const visitAiOrchestratorService = {
     const analyzePhotos = input.analyzePhotos?.map((p) => ({
       dataBase64: p.dataBase64,
       mimeType: p.mimeType,
+      photoType: 'photoType' in p ? p.photoType : undefined,
     }));
     const imageSignal = await resolveVisitImagePredictions(analyzePhotos, {
       cropType: context.cropType,

@@ -144,6 +144,20 @@ export const agronomistClient = {
     return staffApi(`${AGRO}/farmers/${farmerId}/calls`, { method: 'POST', body: JSON.stringify(body) });
   },
 
+  async listCrmMasters(
+    type: string,
+    opts?: { parentId?: string | null; search?: string }
+  ): Promise<Array<{ id: string; name: string; master_type: string; sort_order?: number }>> {
+    const params = new URLSearchParams({ type });
+    if (opts?.parentId) params.set('parentId', opts.parentId);
+    if (opts?.search?.trim()) params.set('search', opts.search.trim());
+    const r = await staffApi<{
+      ok: boolean;
+      items: Array<{ id: string; name: string; master_type: string; sort_order?: number }>;
+    }>(`${AGRO}/crm-masters?${params}`);
+    return r.items ?? [];
+  },
+
   async createFarmerReminder(
     farmerId: string,
     body: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'telecaller' }
