@@ -15,6 +15,7 @@ type Props = {
   plantingDate?: string | null;
   activityTypes: FieldActivityType[];
   form: FieldActivityForm;
+  mode?: 'add' | 'edit';
   onFormChange: (
     value:
       | FieldActivityForm
@@ -50,7 +51,7 @@ export function AddFieldActivityModal(props: Props) {
       <div className="fa-modal">
         <header className="fa-modal-header">
           <h2 id="fa-modal-title" className="fa-modal-title">
-            Add Field Activity
+            {props.mode === 'edit' ? 'Edit Field Activity' : 'Add Field Activity'}
           </h2>
           <button
             type="button"

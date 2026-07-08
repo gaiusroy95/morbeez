@@ -463,6 +463,193 @@ export const whatsappOsAdminService = {
     return data;
   },
 
+  async assertFieldActivityBelongsToFarmer(activityId: string, farmerId: string): Promise<{
+    id: string;
+    farm_block_id: string | null;
+    farmer_id: string;
+  }> {
+    const { data, error } = await supabase
+      .from('cultivation_activities')
+      .select('id, farm_block_id, farmer_id')
+      .eq('id', activityId)
+      .eq('farmer_id', farmerId)
+      .maybeSingle();
+    throwIfSupabaseError(error, 'Could not verify field activity');
+    if (!data?.id) throw new Error('Field activity not found for this farmer');
+    return {
+      id: String(data.id),
+      farm_block_id: data.farm_block_id ? String(data.farm_block_id) : null,
+      farmer_id: String(data.farmer_id),
+    };
+  },
+
+  async updateFieldActivity(
+    activityId: string,
+    params: {
+      activityTypeId?: string;
+      activityType: 'spray_applied' | 'fertigation' | 'drench' | 'scouting' | 'other';
+      activityLabel?: string;
+      activityDate: string;
+      dap?: number;
+      notes?: string;
+      costInr?: number;
+      costBreakdown?: {
+        labourCostInr?: number;
+        sprayCostInr?: number;
+        fertilizerCostInr?: number;
+        machineryCostInr?: number;
+      };
+      followUpRequired?: boolean;
+      followUpDate?: string;
+      status?: 'completed' | 'pending' | 'cancelled';
+    }
+  ) {
+    const { data: existing, error: findErr } = await supabase
+      .from('cultivation_activities')
+      .select('id, farmer_id, farm_block_id')
+      .eq('id', activityId)
+      .maybeSingle();
+    throwIfSupabaseError(findErr, 'Could not load field activity');
+    if (!existing?.id || !existing.farm_block_id) throw new Error('Field activity not found');
+
+    const { data: block, error: bErr } = await supabase
+      .from('farm_blocks')
+      .select('id, farmer_id, crop_type, stage, planting_date')
+      .eq('id', existing.farm_block_id)
+      .is('archived_at', null)
+      .maybeSingle();
+    throwIfSupabaseError(bErr, 'Could not validate farm block');
+    if (!block?.id) throw new Error('Farm block not found');
+
+    const activityTypeId = params.activityTypeId ?? null;
+    let resolvedActivityType = params.activityType;
+    let resolvedActivityLabel = params.activityLabel?.trim() || null;
+    let followUpDate = params.followUpRequired ? params.followUpDate ?? null : null;
+
+    if (activityTypeId) {
+      const { data: typeRow, error: tErr } = await supabase
+        .from('field_activity_types')
+        .select('id, activity_name, category, followup_default_days')
+        .eq('id', activityTypeId)
+        .eq('active_status', true)
+        .maybeSingle();
+      throwIfSupabaseError(tErr, 'Could not validate field activity type');
+      if (typeRow?.id) {
+        resolvedActivityLabel = resolvedActivityLabel || String(typeRow.activity_name);
+        const category = String(typeRow.category ?? '').toLowerCase();
+        if (category.includes('nutrition')) resolvedActivityType = 'fertigation';
+        else if (category.includes('protection')) resolvedActivityType = 'spray_applied';
+        else if (category.includes('observation')) resolvedActivityType = 'scouting';
+        else if (category.includes('operations') || category.includes('labour')) resolvedActivityType = 'other';
+        if (params.followUpRequired && !followUpDate && typeRow.followup_default_days != null) {
+          const due = new Date(`${params.activityDate}T00:00:00.000Z`);
+          due.setUTCDate(due.getUTCDate() + Number(typeRow.followup_default_days));
+          followUpDate = due.toISOString().slice(0, 10);
+        }
+      }
+    }
+
+    const autoDap = block.planting_date
+      ? Math.max(
+          0,
+          Math.floor(
+            (new Date(`${params.activityDate}T00:00:00.000Z`).getTime() -
+              new Date(`${block.planting_date}T00:00:00.000Z`).getTime()) /
+              (24 * 60 * 60 * 1000)
+          )
+        )
+      : null;
+    const finalDap = params.dap ?? autoDap;
+    const totalCost = computeTotalCost(params.costInr, params.costBreakdown);
+
+    const { data, error } = await supabase
+      .from('cultivation_activities')
+      .update({
+        activity_type: resolvedActivityType,
+        activity_label: resolvedActivityLabel,
+        activity_type_id: activityTypeId,
+        applied_at: params.activityDate,
+        dap: finalDap,
+        crop_type: block.crop_type ?? null,
+        crop_stage: block.stage ?? null,
+        notes: params.notes?.trim() || null,
+        cost_inr: totalCost > 0 ? totalCost : null,
+        labour_cost_inr: normalizeExpense(params.costBreakdown?.labourCostInr),
+        spray_cost_inr: normalizeExpense(params.costBreakdown?.sprayCostInr),
+        fertilizer_cost_inr: normalizeExpense(params.costBreakdown?.fertilizerCostInr),
+        machinery_cost_inr: normalizeExpense(params.costBreakdown?.machineryCostInr),
+        follow_up_required: params.followUpRequired ?? false,
+        follow_up_date: followUpDate,
+        activity_status: params.status ?? 'completed',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', activityId)
+      .select(
+        '*, field_activity_types(id, activity_name, category, icon, color_tag, followup_default_days), roi_activity_costs(roi_entry_id, cost_type, amount_inr, link_status)'
+      )
+      .single();
+    throwIfSupabaseError(error, 'Could not update field activity');
+
+    if (params.followUpRequired) {
+      const dueDate = data.follow_up_date ?? params.activityDate;
+      const { data: pending } = await supabase
+        .from('pending_tasks')
+        .select('id')
+        .eq('source_activity_id', activityId)
+        .neq('status', 'cancelled')
+        .maybeSingle();
+      if (pending?.id) {
+        await supabase
+          .from('pending_tasks')
+          .update({
+            due_date: dueDate,
+            title: resolvedActivityLabel ? `Follow-up: ${resolvedActivityLabel}` : 'Field activity follow-up',
+            notes: params.notes?.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', pending.id);
+      } else {
+        await supabase.from('pending_tasks').insert({
+          task_type: 'activity_follow_up',
+          farmer_id: block.farmer_id,
+          crop_block_id: block.id,
+          source_activity_id: activityId,
+          due_date: dueDate,
+          status: 'pending',
+          title: resolvedActivityLabel ? `Follow-up: ${resolvedActivityLabel}` : 'Field activity follow-up',
+          notes: params.notes?.trim() || null,
+        });
+      }
+    } else {
+      await supabase
+        .from('pending_tasks')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('source_activity_id', activityId)
+        .neq('status', 'done');
+    }
+
+    return data;
+  },
+
+  async deleteFieldActivity(activityId: string): Promise<void> {
+    const { data: existing, error: findErr } = await supabase
+      .from('cultivation_activities')
+      .select('id')
+      .eq('id', activityId)
+      .maybeSingle();
+    throwIfSupabaseError(findErr, 'Could not load field activity');
+    if (!existing?.id) throw new Error('Field activity not found');
+
+    await supabase
+      .from('pending_tasks')
+      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .eq('source_activity_id', activityId)
+      .neq('status', 'done');
+
+    const { error } = await supabase.from('cultivation_activities').delete().eq('id', activityId);
+    throwIfSupabaseError(error, 'Could not delete field activity');
+  },
+
   async syncFieldActivityToRoi(params: {
     farmerId: string;
     blockId: string;

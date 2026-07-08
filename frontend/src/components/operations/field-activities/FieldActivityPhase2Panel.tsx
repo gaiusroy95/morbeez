@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { StaticSelect } from '../../ui';
 import { AddFieldActivityModal } from './AddFieldActivityModal';
+import { useStaffPasswordConfirm } from '../../../hooks/useStaffPasswordConfirm';
 import {
   colorClassForTag,
   computeDapFromDates,
@@ -23,12 +24,18 @@ type Props = {
   activities: FieldActivity[];
   activityTypes: FieldActivityType[];
   form: FieldActivityForm;
+  editingActivity?: FieldActivity | null;
+  editModalOpen?: boolean;
   onFormChange: (
     value: FieldActivityForm | ((prev: FieldActivityForm) => FieldActivityForm)
   ) => void;
   onActivityTypesChange: (types: FieldActivityType[]) => void;
   onSave: (e: FormEvent) => Promise<boolean>;
+  onEditSave?: (e: FormEvent) => Promise<boolean>;
+  onCloseEditModal?: () => void;
   onBlockChange: (blockId: string) => void;
+  onEditActivity?: (row: FieldActivity) => void;
+  onDeleteActivity?: (row: FieldActivity, confirmPassword: string) => Promise<void>;
 };
 
 function dateBadgeParts(iso: string): { day: string; month: string; year: string } {
@@ -60,8 +67,19 @@ function followUpSlaBadge(row: FieldActivity): { label: string; className: strin
   return { label: `Due in ${diffDays}d`, className: 'fa-sla--upcoming' };
 }
 
+function activityTitle(row: FieldActivity): string {
+  return (
+    row.activity_label?.trim() ||
+    row.field_activity_types?.activity_name ||
+    row.activity_type.replace(/_/g, ' ')
+  );
+}
+
 export function FieldActivityPhase2Panel(props: Props) {
   const [addModalOpen, setAddModalOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const { canConfirm, requestConfirm, confirmModal } = useStaffPasswordConfirm(props.canWrite);
 
   const selectedBlock = props.blocks.find((b) => b.id === props.selectedBlockId) ?? null;
   const autoDap = computeDapFromDates(selectedBlock?.planting_date, props.form.activityDate);
@@ -76,8 +94,18 @@ export function FieldActivityPhase2Panel(props: Props) {
     return String(b.created_at).localeCompare(String(a.created_at));
   });
 
+  useEffect(() => {
+    if (!openMenuId) return;
+    function onPointerDown(e: MouseEvent) {
+      if (!menuRef.current?.contains(e.target as Node)) setOpenMenuId(null);
+    }
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, [openMenuId]);
+
   return (
     <div className="fa-page">
+      {confirmModal}
       <div className="fa-page-toolbar">
         <p className="fa-page-breadcrumb">
           {props.breadcrumbLabel ?? 'Operations / Field Activities'}
@@ -165,14 +193,12 @@ export function FieldActivityPhase2Panel(props: Props) {
         <div className="fa-timeline-list">
           {timelineRows.map((row) => {
             const inferredDap = computeDapFromDates(selectedBlock?.planting_date, row.applied_at);
-            const title =
-              row.activity_label?.trim() ||
-              row.field_activity_types?.activity_name ||
-              row.activity_type.replace(/_/g, ' ');
+            const title = activityTitle(row);
             const icon = iconForActivityType(row.field_activity_types?.icon);
             const cardTone = colorClassForTag(row.field_activity_types?.color_tag);
             const badge = dateBadgeParts(row.applied_at);
             const sla = followUpSlaBadge(row);
+            const menuOpen = openMenuId === row.id;
 
             return (
               <article key={row.id} className="fa-timeline-row">
@@ -198,9 +224,50 @@ export function FieldActivityPhase2Panel(props: Props) {
                             ? 'Pending'
                             : 'Cancelled'}
                       </span>
-                      <button type="button" className="fa-menu-btn" aria-label="Activity actions">
-                        ⋮
-                      </button>
+                      {canConfirm ? (
+                        <div
+                          className="fa-row-menu-wrap"
+                          ref={menuOpen ? menuRef : undefined}
+                        >
+                          <button
+                            type="button"
+                            className="fa-menu-btn"
+                            aria-label="Activity actions"
+                            aria-expanded={menuOpen}
+                            onClick={() => setOpenMenuId(menuOpen ? null : row.id)}
+                          >
+                            ⋮
+                          </button>
+                          {menuOpen ? (
+                            <div className="fa-row-menu" role="menu">
+                              <button
+                                type="button"
+                                className="fa-row-menu-item"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  props.onEditActivity?.(row);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="fa-row-menu-item fa-row-menu-item--danger"
+                                role="menuitem"
+                                onClick={() => {
+                                  setOpenMenuId(null);
+                                  requestConfirm('delete', title, async (confirmPassword) => {
+                                    await props.onDeleteActivity?.(row, confirmPassword);
+                                  });
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   {row.notes ? <p className="fa-timeline-notes">{row.notes}</p> : null}
@@ -257,6 +324,21 @@ export function FieldActivityPhase2Panel(props: Props) {
         onActivityTypesChange={props.onActivityTypesChange}
         onClose={() => setAddModalOpen(false)}
         onSave={props.onSave}
+      />
+
+      <AddFieldActivityModal
+        open={Boolean(props.editModalOpen && props.editingActivity)}
+        mode="edit"
+        canWrite={props.canWrite}
+        apiBase={props.apiBase}
+        cropType={selectedBlock?.crop_type}
+        plantingDate={selectedBlock?.planting_date}
+        activityTypes={props.activityTypes}
+        form={props.form}
+        onFormChange={props.onFormChange}
+        onActivityTypesChange={props.onActivityTypesChange}
+        onClose={() => props.onCloseEditModal?.()}
+        onSave={props.onEditSave ?? (async () => false)}
       />
     </div>
   );

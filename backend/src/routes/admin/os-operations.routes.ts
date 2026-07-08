@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import {
+  assertAdminPasswordConfirm,
   assertSuperAdminPasswordConfirm,
   confirmPasswordSchema,
 } from '../../lib/super-admin-password.js';
@@ -423,6 +424,47 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const activity = await whatsappOsAdminService.createFieldActivity(body);
     return reply.status(201).send({ ok: true, activity });
+  });
+
+  const fieldActivityPatchBody = z.object({
+    activityTypeId: z.string().uuid().optional(),
+    activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+    activityLabel: z.string().max(120).optional(),
+    activityDate: z.string().min(8).max(20),
+    dap: z.number().int().min(0).max(5000).optional(),
+    notes: z.string().max(1000).optional(),
+    costInr: z.number().min(0).max(10000000).optional(),
+    costBreakdown: z
+      .object({
+        labourCostInr: z.number().min(0).max(10000000).optional(),
+        sprayCostInr: z.number().min(0).max(10000000).optional(),
+        fertilizerCostInr: z.number().min(0).max(10000000).optional(),
+        machineryCostInr: z.number().min(0).max(10000000).optional(),
+      })
+      .optional(),
+    followUpRequired: z.boolean().optional(),
+    followUpDate: z.string().min(8).max(20).optional(),
+    status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+    confirmPassword: confirmPasswordSchema,
+  });
+
+  app.patch(`${api}/field-activities/:activityId`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'operations', 'write');
+    const { activityId } = request.params as { activityId: string };
+    const body = fieldActivityPatchBody.parse(request.body);
+    const { confirmPassword, ...patch } = body;
+    await assertAdminPasswordConfirm(actor, confirmPassword);
+    const activity = await whatsappOsAdminService.updateFieldActivity(activityId, patch);
+    return reply.send({ ok: true, activity });
+  });
+
+  app.delete(`${api}/field-activities/:activityId`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'operations', 'write');
+    const { activityId } = request.params as { activityId: string };
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertAdminPasswordConfirm(actor, body.confirmPassword);
+    await whatsappOsAdminService.deleteFieldActivity(activityId);
+    return reply.send({ ok: true });
   });
 
   app.get(`${api}/masters`, async (request, reply) => {

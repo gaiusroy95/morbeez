@@ -122,6 +122,21 @@ export function fieldActivityAddedFromLabel(row: FieldActivity): string {
   return 'Direct Entry';
 }
 
+export function formFromFieldActivity(row: FieldActivity): FieldActivityForm {
+  return {
+    activityTypeId: row.activity_type_id ?? row.field_activity_types?.id ?? '',
+    activityType: row.activity_type,
+    activityLabel: row.activity_label?.trim() || row.field_activity_types?.activity_name || '',
+    activityDate: String(row.applied_at).slice(0, 10),
+    dap: row.dap != null ? String(row.dap) : '',
+    notes: row.notes ?? '',
+    costInr: row.cost_inr != null ? String(row.cost_inr) : '',
+    followUpRequired: Boolean(row.follow_up_required),
+    followUpDate: row.follow_up_date ? String(row.follow_up_date).slice(0, 10) : '',
+    status: row.activity_status,
+  };
+}
+
 export function followUpDefaultDate(activityDate: string, days: number): string {
   const due = new Date(`${activityDate}T00:00:00.000Z`);
   due.setUTCDate(due.getUTCDate() + days);

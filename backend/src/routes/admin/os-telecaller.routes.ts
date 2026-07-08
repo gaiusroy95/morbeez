@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import {
+  assertAdminPasswordConfirm,
   assertSuperAdminPasswordConfirm,
   confirmPasswordSchema,
 } from '../../lib/super-admin-password.js';
@@ -1950,5 +1951,56 @@ export async function osTelecallerRoutes(app: FastifyInstance): Promise<void> {
       assignedEmployee: body.assignedEmployee ?? admin.email,
     });
     return reply.status(201).send({ ok: true, activity });
+  });
+
+  const fieldActivityPatchBody = z.object({
+    activityTypeId: z.string().uuid().optional(),
+    activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+    activityLabel: z.string().max(120).optional(),
+    activityDate: z.string().min(8).max(20),
+    dap: z.number().int().min(0).max(5000).optional(),
+    notes: z.string().max(1000).optional(),
+    costInr: z.number().min(0).max(10000000).optional(),
+    costBreakdown: z
+      .object({
+        labourCostInr: z.number().min(0).max(10000000).optional(),
+        sprayCostInr: z.number().min(0).max(10000000).optional(),
+        fertilizerCostInr: z.number().min(0).max(10000000).optional(),
+        machineryCostInr: z.number().min(0).max(10000000).optional(),
+      })
+      .optional(),
+    followUpRequired: z.boolean().optional(),
+    followUpDate: z.string().min(8).max(20).optional(),
+    status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+    confirmPassword: confirmPasswordSchema,
+  });
+
+  app.patch(`${api}/leads/:id/field-activities/:activityId`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id, activityId } = request.params as { id: string; activityId: string };
+    const body = fieldActivityPatchBody.parse(request.body);
+    const { confirmPassword, ...patch } = body;
+    await assertAdminPasswordConfirm(actor, confirmPassword);
+    const detail = await telecallerAdminService.getLeadDetail(id);
+    await whatsappOsAdminService.assertFieldActivityBelongsToFarmer(
+      activityId,
+      String(detail.lead.farmerId)
+    );
+    const activity = await whatsappOsAdminService.updateFieldActivity(activityId, patch);
+    return reply.send({ ok: true, activity });
+  });
+
+  app.delete(`${api}/leads/:id/field-activities/:activityId`, async (request, reply) => {
+    const actor = await assertModuleAccess(request, 'telecaller_crm', 'write');
+    const { id, activityId } = request.params as { id: string; activityId: string };
+    const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+    await assertAdminPasswordConfirm(actor, body.confirmPassword);
+    const detail = await telecallerAdminService.getLeadDetail(id);
+    await whatsappOsAdminService.assertFieldActivityBelongsToFarmer(
+      activityId,
+      String(detail.lead.farmerId)
+    );
+    await whatsappOsAdminService.deleteFieldActivity(activityId);
+    return reply.send({ ok: true });
   });
 }

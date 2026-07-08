@@ -2,11 +2,13 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { api } from '../../lib/api';
 import { FieldActivityPhase2Panel } from '../operations/field-activities/FieldActivityPhase2Panel';
 import {
+  formFromFieldActivity,
   type FieldActivity,
   type FieldActivityBlock,
   type FieldActivityForm,
   type FieldActivityType,
 } from '../operations/field-activities/field-activity-utils';
+import { useStaffPasswordConfirm } from '../../hooks/useStaffPasswordConfirm';
 
 type Props = {
   leadId: string;
@@ -37,8 +39,10 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
   const [activities, setActivities] = useState<FieldActivity[]>([]);
   const [activityTypes, setActivityTypes] = useState<FieldActivityType[]>([]);
   const [form, setForm] = useState<FieldActivityForm>(defaultForm);
+  const [editingActivity, setEditingActivity] = useState<FieldActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { requestConfirm, confirmModal } = useStaffPasswordConfirm(canWrite);
 
   const loadActivitiesForBlock = useCallback(
     async (blockId: string, cropType: string) => {
@@ -120,6 +124,21 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
     }
   }
 
+  function activityPayload(formState: FieldActivityForm) {
+    return {
+      activityTypeId: formState.activityTypeId || undefined,
+      activityType: formState.activityType,
+      activityLabel: formState.activityLabel.trim() || undefined,
+      activityDate: formState.activityDate,
+      dap: formState.dap ? Number(formState.dap) : undefined,
+      notes: formState.notes.trim() || undefined,
+      costInr: formState.costInr ? Number(formState.costInr) : undefined,
+      followUpRequired: formState.followUpRequired,
+      followUpDate: formState.followUpRequired ? formState.followUpDate || undefined : undefined,
+      status: formState.status,
+    };
+  }
+
   async function onSave(e: FormEvent): Promise<boolean> {
     e.preventDefault();
     if (!canWrite || !selectedBlockId) return false;
@@ -129,16 +148,7 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
         method: 'POST',
         body: JSON.stringify({
           blockId: selectedBlockId,
-          activityTypeId: form.activityTypeId || undefined,
-          activityType: form.activityType,
-          activityLabel: form.activityLabel.trim() || undefined,
-          activityDate: form.activityDate,
-          dap: form.dap ? Number(form.dap) : undefined,
-          notes: form.notes.trim() || undefined,
-          costInr: form.costInr ? Number(form.costInr) : undefined,
-          followUpRequired: form.followUpRequired,
-          followUpDate: form.followUpRequired ? form.followUpDate || undefined : undefined,
-          status: form.status,
+          ...activityPayload(form),
         }),
       });
       setForm((f) => ({
@@ -158,12 +168,61 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
     }
   }
 
+  function openEdit(row: FieldActivity) {
+    setEditingActivity(row);
+    setForm(formFromFieldActivity(row));
+  }
+
+  function closeEdit() {
+    setEditingActivity(null);
+    setForm(defaultForm());
+  }
+
+  async function onEditSave(e: FormEvent): Promise<boolean> {
+    e.preventDefault();
+    if (!canWrite || !editingActivity) return false;
+    const row = editingActivity;
+    const title =
+      row.activity_label?.trim() ||
+      row.field_activity_types?.activity_name ||
+      row.activity_type;
+    requestConfirm('edit', title, async (confirmPassword) => {
+      setError('');
+      await api(`${apiBase}/field-activities/${row.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          ...activityPayload(form),
+          confirmPassword,
+        }),
+      });
+      closeEdit();
+      await load();
+    });
+    return false;
+  }
+
+  async function onDeleteActivity(row: FieldActivity, confirmPassword: string) {
+    setError('');
+    try {
+      await api(`${apiBase}/field-activities/${row.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ confirmPassword }),
+      });
+      if (editingActivity?.id === row.id) closeEdit();
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not delete field activity');
+      throw err;
+    }
+  }
+
   if (loading && blocks.length === 0) {
     return <p className="tc-muted">Loading field activities…</p>;
   }
 
   return (
     <div className="tc-field-activities-tab">
+      {confirmModal}
       {error ? <p className="tc-error-banner">{error}</p> : null}
       <FieldActivityPhase2Panel
         canWrite={canWrite}
@@ -174,10 +233,16 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
         activities={activities}
         activityTypes={activityTypes}
         form={form}
+        editingActivity={editingActivity}
+        editModalOpen={Boolean(editingActivity)}
         onFormChange={setForm}
         onActivityTypesChange={setActivityTypes}
         onSave={onSave}
+        onEditSave={onEditSave}
+        onCloseEditModal={closeEdit}
         onBlockChange={onBlockChange}
+        onEditActivity={openEdit}
+        onDeleteActivity={onDeleteActivity}
       />
     </div>
   );
