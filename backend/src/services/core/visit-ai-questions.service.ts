@@ -1,8 +1,8 @@
 import { env } from '../../config/env.js';
-import { supabase } from '../../lib/supabase.js';
-import { expertFollowUpLearningService } from './expert-follow-up-learning.service.js';
-import { issueFollowUpQuestionsService } from './issue-follow-up-questions.service.js';
+import { maxQuestionsForConfidence } from '../../domain/visit-ai/question-count.js';
 import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
+import { VISIT_AI_QUESTION_GENERATOR_SYSTEM } from '../ai/prompts/visit-ai-question-generator.prompt.js';
+import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
 import type { VisitAiContextPack } from './visit-ai-context.service.js';
 import type { VisitImageSignal } from './visit-ai-image.service.js';
 import type { FollowUpQuestionKind } from '../whatsapp/pipeline/follow-up-question.types.js';
@@ -27,26 +27,10 @@ export type VisitEvidenceHint = {
   weatherSummary?: string;
 };
 
-const VISIT_GROUNDED_QA_SYSTEM = `You are Morbeez field-visit follow-up planner for agronomists visiting Indian farms.
+const GENERIC_QUESTION_RE =
+  /what measures|samples? (been )?collected|additional observations?|any other (issues|problems)|describe the symptoms|what specific symptoms|general condition|overall health/i;
 
-Generate 3-5 short follow-up questions to help confirm or rule out the preliminary diagnosis using field facts NOT visible in photos.
-
-RULES:
-- Base every question ONLY on the preliminary diagnosis, differential hypotheses, photo/image evidence, measurements, and agronomist observation.
-- imageSignal and photoSummary describe what the visit photos show — NEVER ask the agronomist to confirm signs that evidence ruled out.
-- Do NOT use a generic question bank (avoid unrelated soil-test / micronutrient history unless it directly discriminates between listed hypotheses).
-- Prefer: irrigation timing, symptom spread/progression, recent spray or fertilizer, pest on leaf undersides, weather impact, farmer actions since last visit.
-- Each question must be specific to THIS case — not template filler.
-- answerType: yes_no_unknown for most; text when a short free answer is better; number for counts or days.
-- Keep questions concise (under 140 characters when possible).
-
-Output JSON only:
-{"questions":[{"text":"...","answerType":"yes_no_unknown|text|number","purpose":"which gap this closes"}]}`;
-
-function kindToAnswerType(kind: FollowUpQuestionKind): VisitFollowUpQuestionDraft['answerType'] {
-  if (kind === 'multiple_choice') return 'yes_no_unknown';
-  return 'yes_no_unknown';
-}
+const OPEN_ENDED_RE = /^(what|which|how|describe|list|explain)\b/i;
 
 function normalizeAnswerType(raw: string | undefined): VisitFollowUpQuestionDraft['answerType'] {
   if (raw === 'number') return 'number';
@@ -54,66 +38,95 @@ function normalizeAnswerType(raw: string | undefined): VisitFollowUpQuestionDraf
   return 'yes_no_unknown';
 }
 
-async function getFarmerDistrict(farmerId: string): Promise<string | null> {
-  const { data } = await supabase.from('farmers').select('district').eq('id', farmerId).maybeSingle();
-  return data?.district ? String(data.district).trim().toLowerCase() : null;
+function wordCount(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
-async function planVisitGroundedQuestions(params: {
+function isHighValueQuestion(
+  text: string,
+  answerType: VisitFollowUpQuestionDraft['answerType']
+): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length < 8) return false;
+  if (GENERIC_QUESTION_RE.test(trimmed)) return false;
+  if (answerType === 'yes_no_unknown' && OPEN_ENDED_RE.test(trimmed)) return false;
+  if (wordCount(trimmed) > 24) return false;
+  return true;
+}
+
+async function planDynamicQuestions(params: {
   cropType: string;
   issueCategory: string;
   selectedHypothesis: string;
   observation?: string;
   context: VisitAiContextPack;
-  imageSignal?: Pick<VisitImageSignal, 'label' | 'confidence'> | null;
+  imageSignal?: Pick<VisitImageSignal, 'label' | 'confidence' | 'observations'> | null;
   photoCount?: number;
   hypotheses?: VisitHypothesisHint[];
-  evidence?: VisitEvidenceHint;
+  topConfidence: number;
   max: number;
 }): Promise<VisitFollowUpQuestionDraft[]> {
-  if (!env.OPENAI_API_KEY) return [];
+  if (!env.OPENAI_API_KEY || params.max <= 0) return [];
+
+  const contextBlock = await visitAiPromptContextService.buildPromptBlock({
+    context: params.context,
+    issueCategory: params.issueCategory,
+    issueName: params.selectedHypothesis,
+    observation: params.observation,
+    imageSignal: params.imageSignal
+      ? {
+          label: params.imageSignal.label,
+          confidence: params.imageSignal.confidence,
+          source: 'vision' as const,
+          photoCount: params.photoCount ?? 0,
+          observations: params.imageSignal.observations,
+        }
+      : null,
+  });
 
   const diffLines = (params.hypotheses ?? []).slice(0, 5).map((h, i) => {
     const pct = Math.round(h.confidence * 100);
-    const rationale = h.rationale ? ` — ${h.rationale.slice(0, 120)}` : '';
+    const rationale = h.rationale ? ` — ${h.rationale.slice(0, 100)}` : '';
     return `${i + 1}. ${h.label} (${pct}%)${rationale}`;
   });
 
+  const confidencePct = Math.round(params.topConfidence * 100);
+
   const userPrompt = [
-    `Crop: ${params.cropType}`,
-    `DAP: ${params.context.dap ?? 'unknown'}`,
-    `Issue category: ${params.issueCategory}`,
-    `Preliminary diagnosis: ${params.selectedHypothesis}`,
-    `Observation: ${params.observation ?? 'none'}`,
-    params.imageSignal
-      ? `Image signal: ${params.imageSignal.label} (${Math.round(params.imageSignal.confidence * 100)}% confidence)`
-      : null,
+    contextBlock,
+    '',
+    `=== DIAGNOSTIC STATE ===`,
+    `Primary hypothesis: ${params.selectedHypothesis}`,
+    `Top confidence: ${confidencePct}%`,
+    diffLines.length ? `Differential hypotheses:\n${diffLines.join('\n')}` : null,
     params.photoCount ? `Visit photos attached: ${params.photoCount}` : null,
-    params.evidence?.photoSummary ? `Photo evidence: ${params.evidence.photoSummary}` : null,
-    params.evidence?.measurementSummary ? `Measurements: ${params.evidence.measurementSummary}` : null,
-    params.evidence?.soilSummary ? `Soil: ${params.evidence.soilSummary}` : null,
-    params.evidence?.weatherSummary ? `Weather: ${params.evidence.weatherSummary}` : null,
-    diffLines.length ? `\nDifferential hypotheses:\n${diffLines.join('\n')}` : null,
-    `\nGenerate up to ${params.max} case-specific follow-up questions.`,
+    '',
+    `Generate at most ${params.max} high-value question(s).`,
+    params.max === 0
+      ? 'Confidence is already ≥95% — return an empty questions array.'
+      : 'If no question would materially change diagnosis or treatment, return an empty questions array.',
   ]
     .filter(Boolean)
     .join('\n');
 
   try {
     const result = await openaiJsonCompletion<{
-      questions: Array<{ text: string; answerType?: string }>;
-    }>(VISIT_GROUNDED_QA_SYSTEM, userPrompt, 768);
+      questions: Array<{ text: string; answerType?: string; purpose?: string }>;
+    }>(VISIT_AI_QUESTION_GENERATOR_SYSTEM, userPrompt, 768, { temperature: 0 });
 
     const drafts: VisitFollowUpQuestionDraft[] = [];
     const seen = new Set<string>();
     for (const q of result.questions ?? []) {
       const text = String(q.text ?? '').trim();
-      if (!text || seen.has(text.toLowerCase())) continue;
-      seen.add(text.toLowerCase());
+      const answerType = normalizeAnswerType(q.answerType);
+      if (!isHighValueQuestion(text, answerType)) continue;
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
       drafts.push({
         questionText: text,
-        answerType: normalizeAnswerType(q.answerType),
-        kind: 'yes_no',
+        answerType,
+        kind: answerType === 'yes_no_unknown' ? 'yes_no' : undefined,
       });
       if (drafts.length >= params.max) break;
     }
@@ -124,6 +137,8 @@ async function planVisitGroundedQuestions(params: {
 }
 
 export const visitAiQuestionsService = {
+  maxQuestionsForConfidence,
+
   async buildVisitFollowUpQuestions(params: {
     farmerId: string;
     cropType: string;
@@ -131,104 +146,28 @@ export const visitAiQuestionsService = {
     selectedHypothesis: string;
     observation?: string;
     context: VisitAiContextPack;
-    imageSignal?: Pick<VisitImageSignal, 'label' | 'confidence'> | null;
+    imageSignal?: Pick<VisitImageSignal, 'label' | 'confidence' | 'observations'> | null;
     photoCount?: number;
     hypotheses?: VisitHypothesisHint[];
     evidence?: VisitEvidenceHint;
+    topConfidence?: number;
     max?: number;
   }): Promise<VisitFollowUpQuestionDraft[]> {
-    const max = params.max ?? 5;
-    const hasPhotoContext = Boolean(params.imageSignal || (params.photoCount ?? 0) > 0);
-    const seen = new Set<string>();
-    const drafts: VisitFollowUpQuestionDraft[] = [];
+    const topConfidence = params.topConfidence ?? params.hypotheses?.[0]?.confidence ?? 0.75;
+    const max = params.max ?? maxQuestionsForConfidence(topConfidence);
+    if (max <= 0) return [];
 
-    if (hasPhotoContext) {
-      const grounded = await planVisitGroundedQuestions({ ...params, max });
-      for (const d of grounded) {
-        const key = d.questionText.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        drafts.push(d);
-      }
-    }
-
-    if (drafts.length >= max) return drafts.slice(0, max);
-
-    const symptoms = [params.selectedHypothesis, params.observation ?? ''].filter(Boolean).join(' ');
-    const district = await getFarmerDistrict(params.farmerId);
-
-    if (!hasPhotoContext) {
-      const library = await expertFollowUpLearningService.findForFarmer({
-        cropType: params.cropType,
-        district,
-        symptomsText: symptoms,
-        issueLabelHint: params.selectedHypothesis,
-        language: 'en',
-        max,
-      });
-
-      for (const q of library) {
-        const key = q.textEn.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        drafts.push({
-          questionText: q.textEn,
-          answerType: kindToAnswerType(q.kind),
-          sourceLibraryId: q.libraryId,
-          kind: q.kind,
-        });
-        if (drafts.length >= max) break;
-      }
-    }
-
-    if (drafts.length < max) {
-      const fallbackTexts = await issueFollowUpQuestionsService.suggest({
-        issueCategory: params.issueCategory,
-        issueName: params.selectedHypothesis,
-        cropType: params.cropType,
-        dap: params.context.dap,
-        observation: params.observation,
-        photoCount: params.photoCount ?? 0,
-        selectedHypothesis: params.selectedHypothesis,
-        contextPack: {
-          imageSignal: params.imageSignal ?? null,
-          hypotheses: params.hypotheses ?? [],
-          evidence: params.evidence ?? null,
-        },
-      });
-
-      for (const text of fallbackTexts) {
-        const t = text.trim();
-        if (!t || seen.has(t.toLowerCase())) continue;
-        seen.add(t.toLowerCase());
-        drafts.push({ questionText: t, answerType: 'yes_no_unknown', kind: 'yes_no' });
-        if (drafts.length >= max) break;
-      }
-    }
-
-    if (drafts.length < 3 && env.OPENAI_API_KEY && !hasPhotoContext) {
-      try {
-        const extra = await openaiJsonCompletion<{ questions: Array<{ text: string; answerType?: string }> }>(
-          'Return JSON {"questions":[{"text":"...","answerType":"yes_no_unknown|number|text"}]} with 2-3 short agronomy follow-up questions grounded in the case context.',
-          `Crop: ${params.cropType}, DAP: ${params.context.dap}, Diagnosis: ${params.selectedHypothesis}, Observation: ${params.observation ?? 'none'}`,
-          512
-        );
-        for (const q of extra.questions ?? []) {
-          const t = String(q.text ?? '').trim();
-          if (!t || seen.has(t.toLowerCase())) continue;
-          seen.add(t.toLowerCase());
-          drafts.push({
-            questionText: t,
-            answerType: normalizeAnswerType(q.answerType),
-            kind: 'yes_no',
-          });
-          if (drafts.length >= max) break;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    return drafts.slice(0, max);
+    return planDynamicQuestions({
+      cropType: params.cropType,
+      issueCategory: params.issueCategory,
+      selectedHypothesis: params.selectedHypothesis,
+      observation: params.observation,
+      context: params.context,
+      imageSignal: params.imageSignal,
+      photoCount: params.photoCount,
+      hypotheses: params.hypotheses,
+      topConfidence,
+      max,
+    });
   },
 };

@@ -357,7 +357,8 @@ export function VisitFollowUpStep({
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
-        Answer AI questions to improve diagnosis confidence. Target is ≥85% before proceeding.
+        Answer targeted diagnostic questions only — the AI asks the minimum needed to reach ≥85%
+        confidence. Fewer, sharper questions beat long questionnaires.
       </Text>
       {error ? (
         <View style={styles.errorBlock}>
@@ -395,8 +396,8 @@ export function VisitFollowUpStep({
             ) : null}
             {showQa && !issue.qaSkipped ? (
               <Text style={styles.editHint}>
-                Questions are AI-generated from photos and context. Edit wording, add your own, or regenerate
-                if they do not match this case.
+                Questions are chosen to confirm or rule out this diagnosis — not generic surveys. Edit
+                wording, add your own, or regenerate if they do not match what you see.
               </Text>
             ) : null}
             {showQa && canSkip ? (

@@ -45,13 +45,17 @@ export const maiosEvsiVisitBridgeService = {
 
   prependEvsiDrafts(
     drafts: VisitFollowUpQuestionDraft[],
-    reasoning: MaiosReasoningSnapshot | null | undefined
+    reasoning: MaiosReasoningSnapshot | null | undefined,
+    maxQuestions?: number
   ): EvsiVisitQuestionDraft[] {
+    const cap = maxQuestions ?? drafts.length + 1;
+    if (cap <= 0) return [];
+
     const evsi = this.buildDraftFromReasoning(reasoning);
-    if (!evsi) return drafts;
+    if (!evsi) return drafts.slice(0, cap);
 
     const key = evsi.questionText.toLowerCase();
     const deduped = drafts.filter((d) => d.questionText.toLowerCase() !== key);
-    return [evsi, ...deduped];
+    return [evsi, ...deduped].slice(0, cap);
   },
 };

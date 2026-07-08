@@ -71,6 +71,33 @@ describe('crop doctor farmer report', () => {
     assert.match(report, /Rainfall \(Last 7 Days\): 61.4 mm/);
     assert.match(report, /Previous Disease: Potassium deficiency/);
     assert.doesNotMatch(report, /Bayesian/);
+    assert.match(report, /🎯 Primary Treatment/);
+    assert.match(report, /Fe EDTA\t2 g\/L\tFoliar spray/);
+  });
+
+  it('renders connected prevention and tank mix when present', () => {
+    const advisory: StructuredAdvisory = {
+      ...richAdvisory,
+      connectedPrevention: [
+        {
+          connectedRisk: 'Anthracnose in humid weather',
+          preventiveProduct: 'Copper oxychloride',
+          dose: '2.5 g/L',
+          method: 'Foliar spray',
+          reason: 'High humidity after rain favours leaf spot spread in the next week.',
+          riskLevel: 'high',
+        },
+      ],
+      tankMixRecommendation:
+        '✅ Recommended Tank Mix: Combine Fe EDTA and copper oxychloride in one foliar spray after a jar test.',
+    };
+    const report = cropDoctorFarmerReportService.buildFarmerReport(advisory, {
+      cropType: 'Ginger',
+      location: 'Wayanad',
+    });
+    assert.match(report, /Connected Prevention \(Optimized Tank Mix\)/);
+    assert.match(report, /Anthracnose in humid weather/);
+    assert.match(report, /Recommended Tank Mix/);
   });
 });
 

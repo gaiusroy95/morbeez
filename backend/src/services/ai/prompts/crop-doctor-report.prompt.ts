@@ -91,15 +91,25 @@ Maximum 4 points.
 
 💊 What To Do Now
 
-Maximum 3 actions.
+🎯 Primary Treatment
 
-Include
+Product	Dose	Method
 
-Product
-Dose
-Method
+(Maximum 3 primary actions for the current diagnosis.)
 
 If recommendation depends on local regulations or previous sprays, clearly state that.
+
+🔗 Connected Prevention (Optimized Tank Mix)
+
+(Include only when connected risk is Moderate or High — omit this entire subsection if not justified.)
+
+Connected Risk	Preventive Product	Dose	Method	Reason
+
+If compatible foliar products can be combined:
+> ✅ Recommended Tank Mix: Combine the above compatible foliar products into a single spray to reduce labour and application cost.
+
+If a separate operation is required:
+> 🚜 Separate Operation: Soil drench/fertigation required because this preventive treatment cannot be safely or effectively combined with the foliar spray.
 
 ----------------------------------------
 

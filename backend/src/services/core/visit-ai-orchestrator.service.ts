@@ -16,6 +16,7 @@ import type {
 import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
+import { maxQuestionsForConfidence } from '../../domain/visit-ai/question-count.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
 import { anchorPrimaryIssueToImageSignal } from './visit-ai-image-anchor.js';
 import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
@@ -345,7 +346,7 @@ async function createScreeningCase(params: {
   const top = hypotheses[0]!;
   const topConfidence = top.confidence;
   const confidenceAction = resolveConfidenceAction(topConfidence);
-  const skipFollowUpOptional = topConfidence >= 0.9;
+  const skipFollowUpOptional = topConfidence >= 0.95;
   const similarCases = await loadSimilarCases(
     input.farmerId,
     context.cropType,
@@ -679,7 +680,7 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
   const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
   const context = await visitAiContextService.buildContextForCase(caseRow);
 
-  const { data: hypothesisRows } = await supabase
+  const { data: hypothesisRowsRaw } = await supabase
     .from('visit_ai_hypotheses')
     .select('label, confidence, rationale')
     .eq('visit_ai_case_id', aiCaseId)
@@ -693,6 +694,17 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
   const contextSnap = (meta.contextSnapshot as Record<string, unknown> | undefined) ?? {};
   const photoCount = Number(contextSnap.analyzePhotoCount ?? meta.analyzePhotoCount ?? 0);
 
+  const hypothesisRows = (hypothesisRowsRaw ?? []).map((h) => ({
+    label: String(h.label),
+    confidence: Number(h.confidence),
+    rationale: h.rationale ? String(h.rationale) : undefined,
+  }));
+  const topConfidence =
+    caseRow.final_confidence != null
+      ? Number(caseRow.final_confidence)
+      : hypothesisRows[0]?.confidence ?? 0.75;
+  const questionCap = maxQuestionsForConfidence(topConfidence);
+
   const drafts = await visitAiQuestionsService.buildVisitFollowUpQuestions({
     farmerId: String(caseRow.farmer_id),
     cropType: context.cropType,
@@ -702,11 +714,9 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
     context,
     imageSignal,
     photoCount: Number.isFinite(photoCount) ? photoCount : 0,
-    hypotheses: (hypothesisRows ?? []).map((h) => ({
-      label: String(h.label),
-      confidence: Number(h.confidence),
-      rationale: h.rationale ? String(h.rationale) : undefined,
-    })),
+    hypotheses: hypothesisRows,
+    topConfidence,
+    max: questionCap,
     evidence: {
       photoSummary: imageSignal ? `Image signal: ${imageSignal.label}` : undefined,
       measurementSummary:
@@ -715,7 +725,11 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
   });
 
   const reasoningSnapshot = meta.reasoningSnapshot as MaiosReasoningSnapshot | null | undefined;
-  const mergedDrafts = maiosEvsiVisitBridgeService.prependEvsiDrafts(drafts, reasoningSnapshot);
+  const mergedDrafts = maiosEvsiVisitBridgeService.prependEvsiDrafts(
+    drafts,
+    reasoningSnapshot,
+    questionCap
+  );
 
   const rows: Array<{
     id: string;
@@ -817,7 +831,7 @@ export const visitAiOrchestratorService = {
 
     const topConfidence = hypotheses[0]?.confidence ?? 0.5;
     const confidenceAction = resolveConfidenceAction(topConfidence);
-    const skipFollowUpOptional = topConfidence >= 0.9;
+    const skipFollowUpOptional = topConfidence >= 0.95;
 
     const { data: aiSession, error: sessionErr } = await supabase
       .from('ai_advisory_sessions')

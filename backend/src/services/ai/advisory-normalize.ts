@@ -44,6 +44,13 @@ export function normalizeStructuredAdvisory(raw: StructuredAdvisory): Structured
   advisory.stressAnalysis = advisory.stressAnalysis ?? [];
   advisory.treatments = advisory.treatments ?? [];
   advisory.dosageGuidance = advisory.dosageGuidance ?? [];
+  advisory.connectedPrevention = (advisory.connectedPrevention ?? []).map((item) => ({
+    ...item,
+    riskLevel:
+      item.riskLevel === 'high' || item.riskLevel === 'moderate' ? item.riskLevel : undefined,
+  }));
+  advisory.tankMixRecommendation = advisory.tankMixRecommendation ?? '';
+  advisory.separateOperationNote = advisory.separateOperationNote ?? '';
   advisory.precautions = advisory.precautions ?? [];
   advisory.recommendedProductTags = advisory.recommendedProductTags ?? [];
   advisory.farmerSummaryEn = advisory.farmerSummaryEn ?? '';

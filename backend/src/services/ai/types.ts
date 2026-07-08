@@ -21,6 +21,15 @@ export interface DosageItem {
   frequency?: string;
 }
 
+export interface ConnectedPreventionItem {
+  connectedRisk: string;
+  preventiveProduct: string;
+  dose: string;
+  method: string;
+  reason: string;
+  riskLevel?: 'moderate' | 'high';
+}
+
 export type AdvisorySeverity = 'mild' | 'moderate' | 'severe';
 
 export interface DifferentialDiagnosisItem {
@@ -52,6 +61,9 @@ export interface StructuredAdvisory {
   stressAnalysis: string[];
   treatments: TreatmentItem[];
   dosageGuidance: DosageItem[];
+  connectedPrevention?: ConnectedPreventionItem[];
+  tankMixRecommendation?: string;
+  separateOperationNote?: string;
   precautions: string[];
   escalationRecommended: boolean;
   escalationReason?: string;

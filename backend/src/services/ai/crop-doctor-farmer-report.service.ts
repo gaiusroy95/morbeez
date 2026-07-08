@@ -147,6 +147,58 @@ function whyWeThink(advisory: StructuredAdvisory): string[] {
   return lines.slice(0, 4).map((l) => `• ${l.replace(/^•\s*/, '')}`);
 }
 
+function buildTreatmentSection(advisory: StructuredAdvisory): string[] {
+  const lines: string[] = ['💊 What To Do Now', '', '🎯 Primary Treatment', ''];
+  const primary = advisory.dosageGuidance?.slice(0, 3) ?? [];
+  if (primary.length) {
+    lines.push('Product\tDose\tMethod');
+    for (const item of primary) {
+      lines.push(`${item.product}\t${item.rate}\t${item.method}`);
+    }
+  } else if (advisory.treatments?.length) {
+    for (const tr of advisory.treatments.slice(0, 3)) {
+      lines.push(`• ${tr.action}${tr.timing ? ` (${tr.timing})` : ''}`);
+    }
+  } else {
+    lines.push('No product action recommended yet — more field evidence may be needed.');
+  }
+
+  const prevention = (advisory.connectedPrevention ?? []).filter(
+    (item) =>
+      item.connectedRisk?.trim() &&
+      item.preventiveProduct?.trim() &&
+      (item.riskLevel === 'moderate' || item.riskLevel === 'high' || !item.riskLevel)
+  );
+  if (prevention.length) {
+    lines.push('', '🔗 Connected Prevention (Optimized Tank Mix)', '');
+    lines.push('Connected Risk\tPreventive Product\tDose\tMethod\tReason');
+    for (const item of prevention.slice(0, 4)) {
+      lines.push(
+        `${item.connectedRisk}\t${item.preventiveProduct}\t${item.dose}\t${item.method}\t${item.reason}`
+      );
+    }
+  }
+
+  if (advisory.tankMixRecommendation?.trim()) {
+    lines.push('', `> ${advisory.tankMixRecommendation.trim()}`);
+  } else if (prevention.some((p) => /foliar|spray/i.test(p.method))) {
+    lines.push(
+      '',
+      '> ✅ Recommended Tank Mix: Combine compatible foliar products into a single spray to reduce labour and application cost.'
+    );
+  }
+
+  if (advisory.separateOperationNote?.trim()) {
+    lines.push('', `> ${advisory.separateOperationNote.trim()}`);
+  }
+
+  if (advisory.sprayTiming?.trim()) {
+    lines.push('', advisory.sprayTiming.trim());
+  }
+
+  return lines;
+}
+
 function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportContext): string {
   const weather = weatherLines(ctx);
   const location =
@@ -187,14 +239,6 @@ function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportCo
     advisory.lastDrenchDaysAgo,
     'No recent drench recorded'
   );
-
-  const actions = advisory.dosageGuidance?.length
-    ? advisory.dosageGuidance.slice(0, 3)
-    : advisory.treatments?.slice(0, 3).map((t) => ({
-        product: t.action,
-        rate: t.productType ?? '-',
-        method: t.timing ?? 'Field application',
-      })) ?? [];
 
   const monitor =
     advisory.monitorAdvice?.trim() ||
@@ -276,24 +320,7 @@ function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportCo
     '',
     '---',
     '',
-    '💊 What To Do Now',
-    ''
-  );
-
-  if (actions.length) {
-    sections.push('Product\tDose\tMethod');
-    for (const a of actions) {
-      sections.push(`${a.product}\t${a.rate}\t${a.method}`);
-    }
-  } else {
-    sections.push('No product action recommended yet — more field evidence may be needed.');
-  }
-
-  if (advisory.sprayTiming?.trim()) {
-    sections.push('', advisory.sprayTiming.trim());
-  }
-
-  sections.push(
+    ...buildTreatmentSection(advisory),
     '',
     '---',
     '',
