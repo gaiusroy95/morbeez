@@ -13,6 +13,7 @@ export type FarmBlockRow = {
   crop_category: string | null;
   crop_subtype: string | null;
   plot_label: string | null;
+  variety_name: string | null;
   planting_date: string | null;
   stage: string | null;
   acreage_decimal: number | null;
@@ -38,6 +39,7 @@ function mapBlock(row: Record<string, unknown>): FarmBlockRow {
     crop_category: row.crop_category ? String(row.crop_category) : null,
     crop_subtype: row.crop_subtype ? String(row.crop_subtype) : null,
     plot_label: row.plot_label ? String(row.plot_label) : null,
+    variety_name: row.variety_name ? String(row.variety_name) : null,
     planting_date: row.planting_date ? String(row.planting_date).slice(0, 10) : null,
     stage: row.stage ? String(row.stage) : null,
     acreage_decimal: row.acreage_decimal != null ? Number(row.acreage_decimal) : null,

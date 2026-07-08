@@ -1,17 +1,11 @@
 import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
-import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
+import type {
+  CropDoctorReportContext,
+  FieldActivitySnapshot,
+} from './crop-doctor-report-context.service.js';
 import type { StructuredAdvisory } from './types.js';
 
-export type CropDoctorReportContext = {
-  cropType?: string;
-  cropStage?: string;
-  variety?: string;
-  dap?: number;
-  location?: string;
-  plotLabel?: string;
-  contextPack?: ContextPack;
-  reasoning?: MaiosReasoningSnapshot | null;
-};
+export type { CropDoctorReportContext };
 
 function na(value: string | undefined | null): string {
   const v = value?.trim();
@@ -58,13 +52,23 @@ function recoveryBlock(advisory: StructuredAdvisory): { emoji: string; label: st
   return { emoji: '🟡', label: 'Moderate', reason: 'Recovery is likely with the recommended field actions.' };
 }
 
-function weatherLines(pack?: ContextPack): {
+function weatherLines(ctx: CropDoctorReportContext): {
   temperature?: string;
   humidity?: string;
   rainfall?: string;
   weather?: string;
   soilMoisture?: string;
 } {
+  if (ctx.weather) {
+    return {
+      temperature: ctx.weather.temperature,
+      humidity: ctx.weather.humidity,
+      rainfall: ctx.weather.rainfall7d,
+      weather: ctx.weather.weather,
+      soilMoisture: ctx.weather.soilMoisture,
+    };
+  }
+  const pack = ctx.contextPack;
   if (!pack) return {};
   const humidity =
     pack.avgHumidityPct != null ? `${Math.round(pack.avgHumidityPct)}%` : undefined;
@@ -91,6 +95,30 @@ function weatherLines(pack?: ContextPack): {
     weather: weatherParts.join('; ') || undefined,
     soilMoisture,
   };
+}
+
+function pickActivity(
+  fromDb?: FieldActivitySnapshot,
+  advisoryLabel?: string,
+  advisoryDate?: string,
+  advisoryDays?: string,
+  emptyLabel?: string
+): { label: string; date?: string; daysAgo?: string } {
+  if (fromDb?.label?.trim()) {
+    return {
+      label: fromDb.label.trim(),
+      date: fromDb.date,
+      daysAgo: fromDb.daysAgo,
+    };
+  }
+  if (advisoryLabel?.trim()) {
+    return {
+      label: advisoryLabel.trim(),
+      date: advisoryDate?.trim() || undefined,
+      daysAgo: advisoryDays?.trim() || undefined,
+    };
+  }
+  return { label: emptyLabel ?? 'Not recorded' };
 }
 
 function whyWeThink(advisory: StructuredAdvisory): string[] {
@@ -120,7 +148,7 @@ function whyWeThink(advisory: StructuredAdvisory): string[] {
 }
 
 function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportContext): string {
-  const weather = weatherLines(ctx.contextPack);
+  const weather = weatherLines(ctx);
   const location =
     ctx.location?.trim() ||
     [ctx.contextPack?.village, ctx.contextPack?.district].filter(Boolean).join(', ') ||
@@ -137,6 +165,28 @@ function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportCo
     advisory.imageObservations?.length
       ? advisory.imageObservations.slice(0, 5)
       : advisory.stressAnalysis?.slice(0, 4) ?? [];
+
+  const fertilizer = pickActivity(
+    ctx.lastFertilizer,
+    advisory.lastFertilizer,
+    advisory.lastFertilizerDate,
+    advisory.lastFertilizerDaysAgo,
+    'No recent fertilizer recorded'
+  );
+  const foliar = pickActivity(
+    ctx.lastFoliarSpray,
+    advisory.lastFoliarSpray,
+    advisory.lastFoliarSprayDate,
+    advisory.lastFoliarSprayDaysAgo,
+    'No recent foliar spray recorded'
+  );
+  const drench = pickActivity(
+    ctx.lastDrench,
+    advisory.lastDrench,
+    advisory.lastDrenchDate,
+    advisory.lastDrenchDaysAgo,
+    'No recent drench recorded'
+  );
 
   const actions = advisory.dosageGuidance?.length
     ? advisory.dosageGuidance.slice(0, 3)
@@ -171,23 +221,23 @@ function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportCo
     '',
     '🚜 Last Field Activity',
     '',
-    `Last Fertilizer: ${na(advisory.lastFertilizer)}`,
-    `Date: ${na(advisory.lastFertilizerDate)}`,
-    `Days Ago: ${na(advisory.lastFertilizerDaysAgo)}`,
+    `Last Fertilizer: ${fertilizer.label}`,
+    `Date: ${na(fertilizer.date)}`,
+    `Days Ago: ${na(fertilizer.daysAgo)}`,
     '',
-    `Last Foliar Spray: ${na(advisory.lastFoliarSpray)}`,
-    `Date: ${na(advisory.lastFoliarSprayDate)}`,
-    `Days Ago: ${na(advisory.lastFoliarSprayDaysAgo)}`,
+    `Last Foliar Spray: ${foliar.label}`,
+    `Date: ${na(foliar.date)}`,
+    `Days Ago: ${na(foliar.daysAgo)}`,
     '',
-    `Last Drench: ${na(advisory.lastDrench)}`,
-    `Date: ${na(advisory.lastDrenchDate)}`,
-    `Days Ago: ${na(advisory.lastDrenchDaysAgo)}`,
+    `Last Drench: ${drench.label}`,
+    `Date: ${na(drench.date)}`,
+    `Days Ago: ${na(drench.daysAgo)}`,
     '',
     '📋 Previous Diagnosis',
     '',
-    `Previous Disease: ${na(advisory.previousDisease)}`,
-    `Previous Recommendation: ${na(advisory.previousRecommendation)}`,
-    `Status: ${na(advisory.previousDiagnosisStatus)}`,
+    `Previous Disease: ${na(ctx.previousDisease ?? advisory.previousDisease)}`,
+    `Previous Recommendation: ${na(ctx.previousRecommendation ?? advisory.previousRecommendation)}`,
+    `Status: ${na(ctx.previousDiagnosisStatus ?? advisory.previousDiagnosisStatus)}`,
     '',
     '---',
     '',
@@ -356,10 +406,15 @@ export const cropDoctorFarmerReportService = {
   buildTechnicalReport,
 
   attachReports(advisory: StructuredAdvisory, ctx: CropDoctorReportContext): StructuredAdvisory {
+    const morbeezDataUsed = [...(advisory.morbeezDataUsed ?? [])];
+    if (ctx.soilSummary?.trim() && !morbeezDataUsed.includes(ctx.soilSummary.trim())) {
+      morbeezDataUsed.push(ctx.soilSummary.trim());
+    }
+    const enriched = morbeezDataUsed.length ? { ...advisory, morbeezDataUsed } : advisory;
     return {
-      ...advisory,
-      farmerReport: buildFarmerReport(advisory, ctx),
-      technicalReport: buildTechnicalReport(advisory, ctx.reasoning),
+      ...enriched,
+      farmerReport: buildFarmerReport(enriched, ctx),
+      technicalReport: buildTechnicalReport(enriched, ctx.reasoning),
     };
   },
 };

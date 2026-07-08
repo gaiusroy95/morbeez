@@ -32,6 +32,7 @@ import { cropDoctorReasoningBridgeService } from '../maios-reasoning/crop-doctor
 import type { MaiosChannel } from '../../domain/case/types.js';
 import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
 import { cropDoctorFarmerReportService } from './crop-doctor-farmer-report.service.js';
+import { cropDoctorReportContextService } from './crop-doctor-report-context.service.js';
 
 function whatsappFarmerAnswers(input: DiagnoseInput) {
   const answers: Array<{ questionId?: string; questionText: string; answer: string }> = [];
@@ -445,12 +446,17 @@ export const cropDoctorService = {
     const reportLocation = ctxPack
       ? [ctxPack.village, ctxPack.district].filter(Boolean).join(', ')
       : undefined;
-    advisory = cropDoctorFarmerReportService.attachReports(advisory, {
+    const reportContext = await cropDoctorReportContextService.build({
+      farmerId: input.farmerId,
+      blockId: input.activePlotId,
       cropType: input.cropType,
       cropStage: input.cropStage,
-      dap: ctxPack?.dap,
-      location: reportLocation,
       contextPack: ctxPack,
+      currentIssue: advisory.probableIssue,
+    });
+    advisory = cropDoctorFarmerReportService.attachReports(advisory, {
+      ...reportContext,
+      location: reportContext.location ?? reportLocation,
       reasoning: maiosCase?.reasoning ?? null,
     });
 

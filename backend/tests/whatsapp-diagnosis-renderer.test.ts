@@ -32,31 +32,40 @@ const richAdvisory: StructuredAdvisory = {
 };
 
 describe('crop doctor farmer report', () => {
-  it('builds MORBEEZ CROP DOCTOR formatted farmer report', () => {
+  it('builds MORBEEZ CROP DOCTOR formatted farmer report with field context', () => {
     const report = cropDoctorFarmerReportService.buildFarmerReport(richAdvisory, {
       cropType: 'Ginger',
       variety: 'Rio de Janeiro',
       dap: 125,
       location: 'Wayanad, Kerala',
+      lastFertilizer: { label: 'NPK fertilizer', date: '2026-06-08', daysAgo: '30 days ago' },
+      lastFoliarSpray: { label: 'No recent foliar spray recorded' },
+      weather: {
+        temperature: '24°C',
+        humidity: '93%',
+        rainfall7d: '61.4 mm',
+        weather: 'Cloudy with intermittent rain',
+        soilMoisture: 'Wet, risk of temporary waterlogging',
+      },
+      previousDisease: 'Potassium deficiency',
       contextPack: {
         seasonPhase: 'monsoon',
         weatherRiskScore: 50,
         heavyRainLikely: true,
         highHeatLikely: false,
         highHumidityLikely: true,
-        avgHumidityPct: 93,
-        maxTempCToday: 24,
-        rainMmToday: 61.4,
         drainageRisk: 'high',
         diseasePriors: [],
       },
     });
     assert.match(report, /MORBEEZ CROP DOCTOR/);
-    assert.match(report, /What We Found/);
-    assert.match(report, /Most Likely Problem/);
-    assert.match(report, /What To Do Now/);
-    assert.match(report, /Fe EDTA/);
-    assert.match(report, /Agronomist Review/);
+    assert.match(report, /Variety: Rio de Janeiro/);
+    assert.match(report, /DAP: 125 Days/);
+    assert.match(report, /Location: Wayanad, Kerala/);
+    assert.match(report, /Last Fertilizer: NPK fertilizer/);
+    assert.match(report, /Days Ago: 30 days ago/);
+    assert.match(report, /Rainfall \(Last 7 Days\): 61.4 mm/);
+    assert.match(report, /Previous Disease: Potassium deficiency/);
     assert.doesNotMatch(report, /Bayesian/);
   });
 });
