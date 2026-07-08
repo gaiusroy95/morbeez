@@ -2,6 +2,7 @@ import type { MaiosHypothesis, MaiosPhotoEvidence } from '../../domain/case/type
 import type { MaiosRoute } from '../../domain/case/types.js';
 import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 import type { VisitAiContextPack } from '../core/visit-ai-context.service.js';
+import { soilMetricsToFlatRecord } from '../soil/soil-lab-metrics.js';
 import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
 import {
   maiosReasoningPipelineService,
@@ -18,12 +19,10 @@ function weatherContextFromVisit(context: VisitAiContextPack): MaiosReasoningPip
     heavyRainLikely: alerts.includes('heavy_rain_likely'),
     highHeatLikely: alerts.includes('high_heat_likely'),
     highHumidityLikely: alerts.includes('high_humidity_likely'),
-    soilPh:
-      typeof context.soilTestSummary?.metrics === 'object' &&
-      context.soilTestSummary?.metrics != null &&
-      typeof (context.soilTestSummary.metrics as Record<string, unknown>).ph === 'number'
-        ? Number((context.soilTestSummary.metrics as Record<string, unknown>).ph)
-        : undefined,
+    soilPh: (() => {
+      const flat = soilMetricsToFlatRecord(context.soilTestSummary?.metrics);
+      return flat.ph;
+    })(),
   };
 }
 

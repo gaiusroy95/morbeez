@@ -1,5 +1,4 @@
-import { supabase } from '../../../lib/supabase.js';
-import { visitAiContextService } from '../../core/visit-ai-context.service.js';
+import { soilReportLoaderService } from '../../soil/soil-report-loader.service.js';import { visitAiContextService } from '../../core/visit-ai-context.service.js';
 import { visitAiPromptContextService } from '../../core/visit-ai-prompt-context.service.js';
 import { visitAiRetrievalService } from '../../core/visit-ai-retrieval.service.js';
 
@@ -55,21 +54,8 @@ export const whatsappDiagnosisContextService = {
     farmerId: string,
     blockId?: string | null
   ): Promise<string | null> {
-    if (!blockId) return null;
-    const { data: soilRows } = await supabase
-      .from('crm_soil_reports')
-      .select('metrics, reported_at, lab_name')
-      .eq('farmer_id', farmerId)
-      .or(`block_id.eq.${blockId},block_id.is.null`)
-      .order('reported_at', { ascending: false })
-      .limit(1);
-    const soil = soilRows?.[0];
-    if (!soil?.metrics) return null;
-    return visitAiPromptContextService.formatSoilBlock({
-      reportedAt: soil.reported_at ? String(soil.reported_at) : null,
-      labName: soil.lab_name ? String(soil.lab_name) : null,
-      metrics: (soil.metrics as Record<string, unknown>) ?? {},
-    });
+    const loaded = await soilReportLoaderService.loadLatestForBlock(farmerId, blockId);
+    return loaded?.summaryLine ?? null;
   },
 };
 

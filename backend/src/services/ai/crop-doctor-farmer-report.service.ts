@@ -219,6 +219,14 @@ function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportCo
     `Weather: ${na(weather.weather)}`,
     `Soil Moisture: ${na(weather.soilMoisture)}`,
     '',
+    '🧪 Latest Soil Test',
+    '',
+    ...(ctx.soilReportLines?.length
+      ? ctx.soilReportLines.map((line) => line)
+      : ctx.soilSummary?.trim()
+        ? [ctx.soilSummary.trim()]
+        : ['Not recorded']),
+    '',
     '🚜 Last Field Activity',
     '',
     `Last Fertilizer: ${fertilizer.label}`,

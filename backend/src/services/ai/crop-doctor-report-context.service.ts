@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { blockService } from '../core/block.service.js';
 import { plotLocationService } from '../core/plot-location.service.js';
+import { soilReportLoaderService } from '../soil/soil-report-loader.service.js';
 import { visitAiContextService } from '../core/visit-ai-context.service.js';
 import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
@@ -34,6 +35,8 @@ export type CropDoctorReportContext = {
   previousRecommendation?: string;
   previousDiagnosisStatus?: string;
   soilSummary?: string;
+  soilReportLines?: string[];
+  soilReportDate?: string;
 };
 
 function formatDateShort(iso: string): string {
@@ -327,21 +330,28 @@ export const cropDoctorReportContextService = {
     currentIssue?: string;
   }): Promise<CropDoctorReportContext> {
     const blockId = params.blockId?.trim() || null;
+    const block = blockId
+      ? await blockService.getById(blockId, params.farmerId)
+      : await blockService.getPrimaryBlock(params.farmerId);
+    const resolvedBlockId = blockId ?? block?.id ?? null;
 
-    const [{ data: farmer }, block, activities, previous, visitContext, weatherCoords] = await Promise.all([
-      supabase
-        .from('farmers')
-        .select('district, village, pincode_id, pincode_master(pincode, district, village)')
-        .eq('id', params.farmerId)
-        .maybeSingle(),
-      blockId ? blockService.getById(blockId, params.farmerId) : blockService.getPrimaryBlock(params.farmerId),
-      loadFieldActivities(params.farmerId, blockId ?? undefined),
-      loadPreviousDiagnosis(params.farmerId, blockId ?? undefined, params.currentIssue),
-      blockId
-        ? visitAiContextService.buildVisitAiContext({ farmerId: params.farmerId, blockId }).catch(() => null)
-        : Promise.resolve(null),
-      plotLocationService.resolveWeatherCoords(params.farmerId, blockId).catch(() => null),
-    ]);
+    const [{ data: farmer }, activities, previous, visitContext, weatherCoords, soilReport] =
+      await Promise.all([
+        supabase
+          .from('farmers')
+          .select('district, village, pincode_id, pincode_master(pincode, district, village)')
+          .eq('id', params.farmerId)
+          .maybeSingle(),
+        loadFieldActivities(params.farmerId, resolvedBlockId ?? undefined),
+        loadPreviousDiagnosis(params.farmerId, resolvedBlockId ?? undefined, params.currentIssue),
+        resolvedBlockId
+          ? visitAiContextService
+              .buildVisitAiContext({ farmerId: params.farmerId, blockId: resolvedBlockId })
+              .catch(() => null)
+          : Promise.resolve(null),
+        plotLocationService.resolveWeatherCoords(params.farmerId, resolvedBlockId).catch(() => null),
+        soilReportLoaderService.loadLatestForBlock(params.farmerId, resolvedBlockId),
+      ]);
 
     const pm = farmer?.pincode_master as { pincode?: string; district?: string; village?: string } | null;
     const village = farmer?.village ? String(farmer.village) : pm?.village ?? params.contextPack?.village;
@@ -357,10 +367,10 @@ export const cropDoctorReportContextService = {
         weatherLabel: weatherSnapshot?.locationLabel ? String(weatherSnapshot.locationLabel) : null,
       }) ?? weatherCoords?.label;
 
-    const soilSummary = params.contextPack?.soilLabSummary
-      ?? (visitContext?.soilTestSummary
-        ? formatSoilOneLiner(visitContext.soilTestSummary as Record<string, unknown>)
-        : undefined);
+    const soilSummary =
+      soilReport?.summaryLine ??
+      params.contextPack?.soilLabSummary ??
+      undefined;
 
     const visitWeather = weatherFromVisitContext(weatherSnapshot);
     const packWeather = weatherFromContextPack(params.contextPack);
@@ -381,6 +391,8 @@ export const cropDoctorReportContextService = {
       previousRecommendation: previous.previousRecommendation,
       previousDiagnosisStatus: previous.previousDiagnosisStatus,
       soilSummary,
+      soilReportLines: soilReport?.reportLines,
+      soilReportDate: soilReport?.reportedAt ? String(soilReport.reportedAt).slice(0, 10) : undefined,
       weather,
     };
   },
@@ -398,17 +410,4 @@ function mergeWeather(
     weather: primary?.weather ?? fallback?.weather,
     soilMoisture: primary?.soilMoisture ?? fallback?.soilMoisture,
   };
-}
-
-function formatSoilOneLiner(summary: Record<string, unknown>): string | undefined {
-  const metrics = (summary.metrics ?? summary) as Record<string, unknown>;
-  if (!metrics || typeof metrics !== 'object') return undefined;
-  const parts: string[] = [];
-  for (const key of ['nitrogen', 'N', 'phosphorus', 'P', 'potassium', 'K', 'ph', 'pH']) {
-    const val = metrics[key];
-    if (val != null && val !== '') parts.push(`${key}: ${String(val)}`);
-  }
-  if (!parts.length) return undefined;
-  const reported = summary.reportedAt ? ` (${String(summary.reportedAt).slice(0, 10)})` : '';
-  return `Soil lab${reported}: ${parts.slice(0, 5).join(', ')}`;
 }

@@ -48,6 +48,8 @@ describe('crop doctor farmer report', () => {
         soilMoisture: 'Wet, risk of temporary waterlogging',
       },
       previousDisease: 'Potassium deficiency',
+      soilReportLines: ['Date: 2026-07-08', 'pH: 6.8', 'EC: 0.7 dS/m'],
+      soilSummary: 'Report date: 2026-07-08; pH: 6.8; EC: 0.7 dS/m',
       contextPack: {
         seasonPhase: 'monsoon',
         weatherRiskScore: 50,
@@ -63,6 +65,8 @@ describe('crop doctor farmer report', () => {
     assert.match(report, /DAP: 125 Days/);
     assert.match(report, /Location: Wayanad, Kerala/);
     assert.match(report, /Last Fertilizer: NPK fertilizer/);
+    assert.match(report, /Latest Soil Test/);
+    assert.match(report, /pH: 6\.8/);
     assert.match(report, /Days Ago: 30 days ago/);
     assert.match(report, /Rainfall \(Last 7 Days\): 61.4 mm/);
     assert.match(report, /Previous Disease: Potassium deficiency/);

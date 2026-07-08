@@ -1,4 +1,9 @@
 import { supabase } from '../../lib/supabase.js';
+import {
+  formatSoilMetricsForAi,
+  soilDeficiencyFlags,
+  soilMetricsToFlatRecord,
+} from '../soil/soil-lab-metrics.js';
 import { plotDigitalTwinService } from '../intelligence/plot-digital-twin.service.js';
 import { regionalThreatRadarService } from '../intelligence/regional-threat-radar.service.js';
 import type { VisitAiContextPack } from './visit-ai-context.service.js';
@@ -30,19 +35,15 @@ export type VisitPromptFusionHint = VisitPromptEvidenceSignal & { boost?: number
 
 function formatSoilBlock(soilTestSummary: VisitAiContextPack['soilTestSummary']): string {
   if (!soilTestSummary?.metrics) return 'No soil report on file';
-  const metrics = soilTestSummary.metrics as Record<string, unknown>;
-  const lines = Object.entries(metrics).map(([k, v]) => `${k}: ${String(v)}`);
-  const deficiencies: string[] = [];
-  const n = Number(metrics.nitrogen ?? metrics.N ?? metrics.n);
-  const p = Number(metrics.phosphorus ?? metrics.P ?? metrics.p);
-  const k = Number(metrics.potassium ?? metrics.K ?? metrics.k);
-  const ph = Number(metrics.ph ?? metrics.pH);
-  if (Number.isFinite(n) && n < 200) deficiencies.push('low nitrogen');
-  if (Number.isFinite(p) && p < 15) deficiencies.push('low phosphorus');
-  if (Number.isFinite(k) && k < 100) deficiencies.push('low potassium');
-  if (Number.isFinite(ph) && (ph < 5.5 || ph > 7.5)) deficiencies.push('suboptimal pH');
+  const formatted = formatSoilMetricsForAi(soilTestSummary.metrics, {
+    reportedAt: soilTestSummary.reportedAt ? String(soilTestSummary.reportedAt) : null,
+    labName: soilTestSummary.labName ? String(soilTestSummary.labName) : null,
+    maxLines: 10,
+  });
+  if (!formatted) return 'No soil report on file';
+  const deficiencies = soilDeficiencyFlags(soilTestSummary.metrics);
   const defLine = deficiencies.length ? `Deficiency flags: ${deficiencies.join(', ')}` : '';
-  return [lines.join('; '), defLine].filter(Boolean).join('\n');
+  return [formatted, defLine].filter(Boolean).join('\n');
 }
 
 function formatWeatherBlock(weather: VisitAiContextPack['weatherSnapshot']): string {
@@ -108,8 +109,8 @@ export function computeEvidenceSignals(
   imageSignal: VisitImageSignal | null | undefined
 ): VisitPromptEvidenceSignal[] {
   const hints: VisitPromptEvidenceSignal[] = [];
-  const metrics = (context.soilTestSummary?.metrics ?? {}) as Record<string, unknown>;
-  const n = Number(metrics.nitrogen ?? metrics.N ?? metrics.n);
+  const flat = soilMetricsToFlatRecord(context.soilTestSummary?.metrics);
+  const n = flat.nitrogen ?? flat.N;
   const incidence = parseMeasurementValue(context.measurements, /incidence/i);
   const severity = parseMeasurementValue(context.measurements, /severity|damage/i);
 

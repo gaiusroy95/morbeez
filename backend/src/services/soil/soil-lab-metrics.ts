@@ -242,3 +242,87 @@ export function hasAnyMetricValue(metrics: SoilLabMetrics): boolean {
   if (metrics.soilType?.trim()) return true;
   return [...Object.values(metrics.macro), ...Object.values(metrics.micro)].some((m) => m.value?.trim());
 }
+
+/** Flat numeric map for AI rules (N/P/K aliases included). */
+export function soilMetricsToFlatRecord(raw: unknown): Record<string, number> {
+  const metrics = normalizeSoilMetrics(raw);
+  const out: Record<string, number> = {};
+  for (const field of ALL_SOIL_FIELDS) {
+    const group = field.group === 'macro' ? metrics.macro : metrics.micro;
+    const rawValue = group[field.key]?.value?.trim();
+    if (!rawValue) continue;
+    const n = parseFloat(rawValue);
+    if (!Number.isFinite(n)) continue;
+    out[field.key] = n;
+    if (field.key === 'nitrogen') out.N = n;
+    if (field.key === 'phosphorus') out.P = n;
+    if (field.key === 'potassium') out.K = n;
+    if (field.key === 'ph') out.pH = n;
+  }
+  return out;
+}
+
+export function soilDeficiencyFlags(raw: unknown): string[] {
+  const flat = soilMetricsToFlatRecord(raw);
+  const flags: string[] = [];
+  const n = flat.nitrogen ?? flat.N;
+  const p = flat.phosphorus ?? flat.P;
+  const k = flat.potassium ?? flat.K;
+  const ph = flat.ph;
+  if (Number.isFinite(n) && n < 200) flags.push('low nitrogen');
+  if (Number.isFinite(p) && p < 15) flags.push('low phosphorus');
+  if (Number.isFinite(k) && k < 100) flags.push('low potassium');
+  if (Number.isFinite(ph) && (ph < 5.5 || ph > 7.5)) flags.push('suboptimal pH');
+  return flags;
+}
+
+/** Farmer / AI facing soil summary — supports v2 macro/micro and legacy flat metrics. */
+export function formatSoilMetricsForAi(
+  raw: unknown,
+  meta?: { reportedAt?: string | null; labName?: string | null; maxLines?: number }
+): string | null {
+  const metrics = normalizeSoilMetrics(raw);
+  if (!hasAnyMetricValue(metrics)) return null;
+  const lines: string[] = [];
+  if (meta?.reportedAt) {
+    const date = String(meta.reportedAt).slice(0, 10);
+    const lab = meta.labName?.trim();
+    lines.push(lab ? `Report date: ${date} (${lab})` : `Report date: ${date}`);
+  }
+  if (metrics.soilType?.trim()) lines.push(`Soil type: ${metrics.soilType.trim()}`);
+  for (const field of ALL_SOIL_FIELDS) {
+    const group = field.group === 'macro' ? metrics.macro : metrics.micro;
+    const value = group[field.key];
+    if (!value?.value?.trim()) continue;
+    lines.push(`${field.label}: ${formatMetricLine(field, value)}`);
+    if (lines.length >= (meta?.maxLines ?? 10)) break;
+  }
+  const deficiencies = soilDeficiencyFlags(metrics);
+  if (deficiencies.length) {
+    lines.push(`Nutrient flags: ${deficiencies.join(', ')}`);
+  }
+  return lines.join('; ');
+}
+
+export function formatSoilMetricsMultiline(
+  raw: unknown,
+  meta?: { reportedAt?: string | null; labName?: string | null; maxLines?: number }
+): string[] {
+  const metrics = normalizeSoilMetrics(raw);
+  if (!hasAnyMetricValue(metrics)) return [];
+  const lines: string[] = [];
+  if (meta?.reportedAt) {
+    lines.push(`Date: ${String(meta.reportedAt).slice(0, 10)}`);
+  }
+  for (const field of SOIL_MACRO_FIELDS) {
+    const value = metrics.macro[field.key];
+    if (!value?.value?.trim()) continue;
+    lines.push(`${field.label}: ${formatMetricLine(field, value)}`);
+    if (lines.length >= (meta?.maxLines ?? 8)) break;
+  }
+  const deficiencies = soilDeficiencyFlags(metrics);
+  if (deficiencies.length) {
+    lines.push(`Flags: ${deficiencies.join(', ')}`);
+  }
+  return lines;
+}
