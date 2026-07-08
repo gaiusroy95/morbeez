@@ -61,6 +61,8 @@ export function normalizeStructuredAdvisory(raw: StructuredAdvisory): Structured
   advisory.rejectedHypotheses = advisory.rejectedHypotheses ?? [];
   advisory.morbeezDataUsed = advisory.morbeezDataUsed ?? [];
   advisory.costEstimate = advisory.costEstimate ?? [];
+  advisory.farmerReport = advisory.farmerReport ?? '';
+  advisory.technicalReport = advisory.technicalReport ?? '';
   if (!advisory.severity) {
     advisory.severity =
       advisory.confidence >= 0.85 ? 'moderate' : advisory.confidence >= 0.7 ? 'moderate' : 'mild';

@@ -119,7 +119,8 @@ function hasImageEvidence(advisory: StructuredAdvisory): boolean {
 
 function hasRichSections(advisory: StructuredAdvisory): boolean {
   return Boolean(
-    advisory.imageObservations?.length ||
+    advisory.farmerReport?.trim() ||
+      advisory.imageObservations?.length ||
       advisory.differentialDiagnosis?.length ||
       advisory.dosageGuidance?.length ||
       advisory.agronomistAssessment?.trim() ||
@@ -152,6 +153,18 @@ export const whatsappDiagnosisRendererService = {
     }
     if (!hasRichSections(advisory)) {
       return legacyFallback(input);
+    }
+
+    if (advisory.farmerReport?.trim()) {
+      const sections: string[] = [];
+      if (input.plotLabel?.trim() && !advisory.farmerReport.includes(input.plotLabel.trim())) {
+        sections.push(`📍 ${input.plotLabel.trim()}`);
+      }
+      sections.push(advisory.farmerReport.trim());
+      if (input.reuseNote) sections.push('', input.reuseNote);
+      if (input.safetyNote) sections.push('', input.safetyNote);
+      if (input.escalateNote) sections.push('', input.escalateNote);
+      return sections.join('\n').replace(/\n{3,}/g, '\n\n').trim();
     }
 
     const t = LABELS[language] ?? LABELS.en;

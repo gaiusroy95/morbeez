@@ -31,6 +31,7 @@ import { casePersistService } from '../case/case-persist.service.js';
 import { cropDoctorReasoningBridgeService } from '../maios-reasoning/crop-doctor-reasoning-bridge.service.js';
 import type { MaiosChannel } from '../../domain/case/types.js';
 import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
+import { cropDoctorFarmerReportService } from './crop-doctor-farmer-report.service.js';
 
 function whatsappFarmerAnswers(input: DiagnoseInput) {
   const answers: Array<{ questionId?: string; questionText: string; answer: string }> = [];
@@ -440,6 +441,18 @@ export const cropDoctorService = {
         }
       }
     }
+
+    const reportLocation = ctxPack
+      ? [ctxPack.village, ctxPack.district].filter(Boolean).join(', ')
+      : undefined;
+    advisory = cropDoctorFarmerReportService.attachReports(advisory, {
+      cropType: input.cropType,
+      cropStage: input.cropStage,
+      dap: ctxPack?.dap,
+      location: reportLocation,
+      contextPack: ctxPack,
+      reasoning: maiosCase?.reasoning ?? null,
+    });
 
     await persistOutput(sessionId, advisory, 'openai', input.language);
     const productRecommendations = recommendationService.recommend(input.cropType, advisory);

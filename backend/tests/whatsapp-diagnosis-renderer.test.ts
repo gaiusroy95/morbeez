@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { cropDoctorFarmerReportService } from '../src/services/ai/crop-doctor-farmer-report.service.js';
 import { whatsappDiagnosisRendererService } from '../src/services/whatsapp/pipeline/whatsapp-diagnosis-renderer.service.js';
 import type { StructuredAdvisory } from '../src/services/ai/types.js';
 
@@ -30,8 +31,53 @@ const richAdvisory: StructuredAdvisory = {
   costEstimate: [{ item: 'Fe EDTA spray', note: '~₹150–250 per acre' }],
 };
 
+describe('crop doctor farmer report', () => {
+  it('builds MORBEEZ CROP DOCTOR formatted farmer report', () => {
+    const report = cropDoctorFarmerReportService.buildFarmerReport(richAdvisory, {
+      cropType: 'Ginger',
+      variety: 'Rio de Janeiro',
+      dap: 125,
+      location: 'Wayanad, Kerala',
+      contextPack: {
+        seasonPhase: 'monsoon',
+        weatherRiskScore: 50,
+        heavyRainLikely: true,
+        highHeatLikely: false,
+        highHumidityLikely: true,
+        avgHumidityPct: 93,
+        maxTempCToday: 24,
+        rainMmToday: 61.4,
+        drainageRisk: 'high',
+        diseasePriors: [],
+      },
+    });
+    assert.match(report, /MORBEEZ CROP DOCTOR/);
+    assert.match(report, /What We Found/);
+    assert.match(report, /Most Likely Problem/);
+    assert.match(report, /What To Do Now/);
+    assert.match(report, /Fe EDTA/);
+    assert.match(report, /Agronomist Review/);
+    assert.doesNotMatch(report, /Bayesian/);
+  });
+});
+
 describe('whatsapp diagnosis renderer', () => {
-  it('renders sectioned English diagnosis with dosage table', () => {
+  it('renders farmerReport when present', () => {
+    const farmerReport = cropDoctorFarmerReportService.buildFarmerReport(richAdvisory, {
+      cropType: 'Ginger',
+      location: 'Wayanad',
+    });
+    const text = whatsappDiagnosisRendererService.render({
+      advisory: { ...richAdvisory, farmerReport },
+      language: 'en',
+      plotLabel: 'Ginger Block A',
+    });
+    assert.match(text, /MORBEEZ CROP DOCTOR/);
+    assert.match(text, /What We Found/);
+    assert.doesNotMatch(text, /Primary issue:/);
+  });
+
+  it('renders sectioned English diagnosis with dosage table when no farmerReport', () => {
     const text = whatsappDiagnosisRendererService.render({
       advisory: richAdvisory,
       language: 'en',
@@ -59,6 +105,7 @@ describe('whatsapp diagnosis renderer', () => {
   it('falls back to farmerSummary when no rich sections and no image evidence required', () => {
     const thin: StructuredAdvisory = {
       ...richAdvisory,
+      farmerReport: '',
       imageObservations: [],
       differentialDiagnosis: [],
       dosageGuidance: [],
@@ -75,6 +122,7 @@ describe('whatsapp diagnosis renderer', () => {
     const text = whatsappDiagnosisRendererService.render({
       advisory: {
         ...richAdvisory,
+        farmerReport: '',
         diagnosisHeadline: 'Nutrient deficiency (most likely among several factors — 24% confidence)',
         diagnosisRanked: [
           { label: 'Nutrient deficiency', probability: 0.24, role: 'primary', stars: 2 },

@@ -75,6 +75,26 @@ export interface StructuredAdvisory {
   diagnosisRanked?: DiagnosisRankItem[];
   diseaseWatchNote?: string;
   treatmentAlignmentNote?: string;
+  contributingFactor?: string;
+  recoveryOutlook?: 'excellent' | 'good' | 'moderate' | 'poor';
+  recoveryReason?: string;
+  monitorAdvice?: string;
+  lastFertilizer?: string;
+  lastFertilizerDate?: string;
+  lastFertilizerDaysAgo?: string;
+  lastFoliarSpray?: string;
+  lastFoliarSprayDate?: string;
+  lastFoliarSprayDaysAgo?: string;
+  lastDrench?: string;
+  lastDrenchDate?: string;
+  lastDrenchDaysAgo?: string;
+  previousDisease?: string;
+  previousRecommendation?: string;
+  previousDiagnosisStatus?: string;
+  /** Full MORBEEZ CROP DOCTOR farmer report (WhatsApp / farmer surfaces). */
+  farmerReport?: string;
+  /** Agronomist-only technical appendix (Bayesian scores, etc.). */
+  technicalReport?: string;
 }
 
 export interface PlantIdHealthResult {
