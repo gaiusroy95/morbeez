@@ -4,6 +4,7 @@ import type {
   FieldActivitySnapshot,
 } from './crop-doctor-report-context.service.js';
 import type { StructuredAdvisory } from './types.js';
+import { buildTreatmentSection } from './treatment-report-formatter.js';
 
 export type { CropDoctorReportContext };
 
@@ -145,58 +146,6 @@ function whyWeThink(advisory: StructuredAdvisory): string[] {
     lines.push(advisory.agronomistAssessment.trim());
   }
   return lines.slice(0, 4).map((l) => `• ${l.replace(/^•\s*/, '')}`);
-}
-
-function buildTreatmentSection(advisory: StructuredAdvisory): string[] {
-  const lines: string[] = ['💊 What To Do Now', '', '🎯 Primary Treatment', ''];
-  const primary = advisory.dosageGuidance?.slice(0, 3) ?? [];
-  if (primary.length) {
-    lines.push('Product\tDose\tMethod');
-    for (const item of primary) {
-      lines.push(`${item.product}\t${item.rate}\t${item.method}`);
-    }
-  } else if (advisory.treatments?.length) {
-    for (const tr of advisory.treatments.slice(0, 3)) {
-      lines.push(`• ${tr.action}${tr.timing ? ` (${tr.timing})` : ''}`);
-    }
-  } else {
-    lines.push('No product action recommended yet — more field evidence may be needed.');
-  }
-
-  const prevention = (advisory.connectedPrevention ?? []).filter(
-    (item) =>
-      item.connectedRisk?.trim() &&
-      item.preventiveProduct?.trim() &&
-      (item.riskLevel === 'moderate' || item.riskLevel === 'high' || !item.riskLevel)
-  );
-  if (prevention.length) {
-    lines.push('', '🔗 Connected Prevention (Optimized Tank Mix)', '');
-    lines.push('Connected Risk\tPreventive Product\tDose\tMethod\tReason');
-    for (const item of prevention.slice(0, 4)) {
-      lines.push(
-        `${item.connectedRisk}\t${item.preventiveProduct}\t${item.dose}\t${item.method}\t${item.reason}`
-      );
-    }
-  }
-
-  if (advisory.tankMixRecommendation?.trim()) {
-    lines.push('', `> ${advisory.tankMixRecommendation.trim()}`);
-  } else if (prevention.some((p) => /foliar|spray/i.test(p.method))) {
-    lines.push(
-      '',
-      '> ✅ Recommended Tank Mix: Combine compatible foliar products into a single spray to reduce labour and application cost.'
-    );
-  }
-
-  if (advisory.separateOperationNote?.trim()) {
-    lines.push('', `> ${advisory.separateOperationNote.trim()}`);
-  }
-
-  if (advisory.sprayTiming?.trim()) {
-    lines.push('', advisory.sprayTiming.trim());
-  }
-
-  return lines;
 }
 
 function buildFarmerReport(advisory: StructuredAdvisory, ctx: CropDoctorReportContext): string {
@@ -445,7 +394,21 @@ export const cropDoctorFarmerReportService = {
     if (ctx.soilSummary?.trim() && !morbeezDataUsed.includes(ctx.soilSummary.trim())) {
       morbeezDataUsed.push(ctx.soilSummary.trim());
     }
-    const enriched = morbeezDataUsed.length ? { ...advisory, morbeezDataUsed } : advisory;
+    const enriched: StructuredAdvisory = {
+      ...(morbeezDataUsed.length ? { ...advisory, morbeezDataUsed } : advisory),
+      previousDisease: ctx.previousDisease?.trim() || advisory.previousDisease,
+      previousRecommendation: ctx.previousRecommendation?.trim() || advisory.previousRecommendation,
+      previousDiagnosisStatus: ctx.previousDiagnosisStatus?.trim() || advisory.previousDiagnosisStatus,
+      lastFertilizer: ctx.lastFertilizer?.label ?? advisory.lastFertilizer,
+      lastFertilizerDate: ctx.lastFertilizer?.date ?? advisory.lastFertilizerDate,
+      lastFertilizerDaysAgo: ctx.lastFertilizer?.daysAgo ?? advisory.lastFertilizerDaysAgo,
+      lastFoliarSpray: ctx.lastFoliarSpray?.label ?? advisory.lastFoliarSpray,
+      lastFoliarSprayDate: ctx.lastFoliarSpray?.date ?? advisory.lastFoliarSprayDate,
+      lastFoliarSprayDaysAgo: ctx.lastFoliarSpray?.daysAgo ?? advisory.lastFoliarSprayDaysAgo,
+      lastDrench: ctx.lastDrench?.label ?? advisory.lastDrench,
+      lastDrenchDate: ctx.lastDrench?.date ?? advisory.lastDrenchDate,
+      lastDrenchDaysAgo: ctx.lastDrench?.daysAgo ?? advisory.lastDrenchDaysAgo,
+    };
     return {
       ...enriched,
       farmerReport: buildFarmerReport(enriched, ctx),

@@ -62,6 +62,7 @@ export interface StructuredAdvisory {
   treatments: TreatmentItem[];
   dosageGuidance: DosageItem[];
   connectedPrevention?: ConnectedPreventionItem[];
+  connectedPreventionNoneNote?: string;
   tankMixRecommendation?: string;
   separateOperationNote?: string;
   precautions: string[];

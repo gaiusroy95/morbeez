@@ -49,6 +49,7 @@ export function normalizeStructuredAdvisory(raw: StructuredAdvisory): Structured
     riskLevel:
       item.riskLevel === 'high' || item.riskLevel === 'moderate' ? item.riskLevel : undefined,
   }));
+  advisory.connectedPreventionNoneNote = advisory.connectedPreventionNoneNote ?? '';
   advisory.tankMixRecommendation = advisory.tankMixRecommendation ?? '';
   advisory.separateOperationNote = advisory.separateOperationNote ?? '';
   advisory.precautions = advisory.precautions ?? [];

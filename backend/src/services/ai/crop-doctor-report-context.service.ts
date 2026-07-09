@@ -217,41 +217,55 @@ async function loadPreviousDiagnosis(
   previousRecommendation?: string;
   previousDiagnosisStatus?: string;
 }> {
-  const [{ data: history }, { data: recs }] = await Promise.all([
-    supabase
-      .from('disease_history')
-      .select('issue_label, recorded_at, severity')
-      .eq('farmer_id', farmerId)
-      .order('recorded_at', { ascending: false })
-      .limit(5),
-    blockId
-      ? supabase
-          .from('recommendation_records')
-          .select('issue_detected, recommendation_text, outcome, created_at')
-          .eq('farmer_id', farmerId)
-          .eq('block_id', blockId)
-          .order('created_at', { ascending: false })
-          .limit(3)
-      : Promise.resolve({ data: null }),
-  ]);
+  const { data: recs } = blockId
+    ? await supabase
+        .from('recommendation_records')
+        .select('issue_detected, recommendation_text, outcome, created_at')
+        .eq('farmer_id', farmerId)
+        .eq('block_id', blockId)
+        .order('created_at', { ascending: false })
+        .limit(5)
+    : { data: null };
+
+  const priorRec =
+    (recs ?? []).find(
+      (r) =>
+        r.issue_detected &&
+        (!currentIssue || !labelsSimilar(String(r.issue_detected), currentIssue))
+    ) ?? recs?.[0];
+
+  if (priorRec) {
+    const outcome = priorRec.outcome ? String(priorRec.outcome).toLowerCase() : '';
+    let status: string | undefined;
+    if (/recover|resolved|better/.test(outcome)) status = 'Recovered';
+    else if (/improv|partial/.test(outcome)) status = 'Improving';
+    else if (/same|unchanged/.test(outcome)) status = 'Same';
+    else if (/worse|spread/.test(outcome)) status = 'Worse';
+    else status = 'Unknown';
+
+    return {
+      previousDisease: priorRec.issue_detected ? String(priorRec.issue_detected) : undefined,
+      previousRecommendation: priorRec.recommendation_text
+        ? String(priorRec.recommendation_text).slice(0, 300)
+        : undefined,
+      previousDiagnosisStatus: status,
+    };
+  }
+
+  const { data: history } = await supabase
+    .from('disease_history')
+    .select('issue_label, recorded_at, severity')
+    .eq('farmer_id', farmerId)
+    .order('recorded_at', { ascending: false })
+    .limit(5);
 
   const priorIssue = (history ?? []).find(
     (h) => h.issue_label && (!currentIssue || !labelsSimilar(String(h.issue_label), currentIssue))
   );
-  const priorRec = recs?.[0];
-
-  let status: string | undefined;
-  const outcome = priorRec?.outcome ? String(priorRec.outcome).toLowerCase() : '';
-  if (/recover|resolved|better/.test(outcome)) status = 'Recovered';
-  else if (/improv|partial/.test(outcome)) status = 'Improving';
-  else if (/same|unchanged/.test(outcome)) status = 'Same';
-  else if (/worse|spread/.test(outcome)) status = 'Worse';
-  else if (priorIssue || priorRec) status = 'Unknown';
 
   return {
-    previousDisease: priorIssue?.issue_label ? String(priorIssue.issue_label) : priorRec?.issue_detected ? String(priorRec.issue_detected) : undefined,
-    previousRecommendation: priorRec?.recommendation_text ? String(priorRec.recommendation_text).slice(0, 200) : undefined,
-    previousDiagnosisStatus: status,
+    previousDisease: priorIssue?.issue_label ? String(priorIssue.issue_label) : undefined,
+    previousDiagnosisStatus: priorIssue ? 'Unknown' : undefined,
   };
 }
 

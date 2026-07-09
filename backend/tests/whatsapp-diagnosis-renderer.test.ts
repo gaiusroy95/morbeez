@@ -73,6 +73,15 @@ describe('crop doctor farmer report', () => {
     assert.doesNotMatch(report, /Bayesian/);
     assert.match(report, /🎯 Primary Treatment/);
     assert.match(report, /Fe EDTA\t2 g\/L\tFoliar spray/);
+    assert.match(report, /Connected Prevention/);
+  });
+
+  it('shows mandatory none message when no connected prevention items', () => {
+    const report = cropDoctorFarmerReportService.buildFarmerReport(richAdvisory, {
+      cropType: 'Ginger',
+      location: 'Wayanad',
+    });
+    assert.match(report, /No connected preventive measures are currently recommended/);
   });
 
   it('renders connected prevention and tank mix when present', () => {

@@ -20,6 +20,16 @@ Rainfall (Last 7 Days) :
 Weather :
 Soil Moisture :
 
+🧪 Latest Soil Test
+
+(Always include when latest soil test is in context — pH, EC, N, P, K, and key micronutrients.)
+Date :
+pH :
+EC :
+Key nutrients :
+Deficiency flags :
+(Use "Not recorded" only when no soil test exists in the system.)
+
 🚜 Last Field Activity
 
 Last Fertilizer :
@@ -81,9 +91,9 @@ Explain using field evidence.
 Example
 
 • Leaf spots match blast symptoms.
-• Humidity is high.
-• Rainfall favours disease spread.
-• Previous nutrient stress may have weakened the crop.
+• Heavy rainfall and wet soil favour disease spread.
+• High humidity supports fungal infection under wet canopy conditions.
+• Previous nutrient stress or recent fertilizer timing may affect uptake — cite soil test when available.
 
 Maximum 4 points.
 
@@ -101,9 +111,15 @@ If recommendation depends on local regulations or previous sprays, clearly state
 
 🔗 Connected Prevention (Optimized Tank Mix)
 
-(Include only when connected risk is Moderate or High — omit this entire subsection if not justified.)
+(MANDATORY — never omit this subsection.)
+
+If Moderate/High connected risks exist, list preventive actions:
 
 Connected Risk	Preventive Product	Dose	Method	Reason
+
+If no Moderate/High connected risks exist, display:
+
+> No connected preventive measures are currently recommended because no moderate or high secondary risks were identified.
 
 If compatible foliar products can be combined:
 > ✅ Recommended Tank Mix: Combine the above compatible foliar products into a single spray to reduce labour and application cost.
@@ -122,7 +138,7 @@ Choose only one
 🟡 Moderate
 🔴 Poor
 
-Add one sentence explaining why.
+Add one sentence explaining why — include a realistic timeline when possible (e.g. "new leaves should regain colour within 7–10 days after soil drains").
 
 ----------------------------------------
 
@@ -182,4 +198,7 @@ Important Rules
 8. Use positive, reassuring language.
 9. Never contradict yourself.
 10. The recommendation must always match the diagnosis.
+11. Always reason across field timeline — recent fertilizer/spray dates, rainfall, and soil test before recommending repeat products.
+12. Never attribute nutrient deficiency to humidity alone — use rainfall, wet soil, or waterlogging when explaining uptake problems.
+13. previousDisease and previousRecommendation must describe the same prior event.
 `.trim();

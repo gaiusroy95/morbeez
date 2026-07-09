@@ -27,6 +27,11 @@ import { visitAiRetrievalService } from './visit-ai-retrieval.service.js';
 import { expertFollowUpLearningService } from './expert-follow-up-learning.service.js';
 import { nearbyCasesService } from '../whatsapp/pipeline/nearby-cases.service.js';
 import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
+import { VISIT_AI_RECOMMENDATION_SYSTEM } from '../ai/prompts/visit-ai-recommendation.prompt.js';
+import { formatVisitRecommendationText } from '../ai/treatment-report-formatter.js';
+import { normalizeStructuredAdvisory } from '../ai/advisory-normalize.js';
+import type { StructuredAdvisory } from '../ai/types.js';
+import { cropDoctorReportContextService } from '../ai/crop-doctor-report-context.service.js';
 import { buildSymptomKey } from '../ai/question-reuse-keys.util.js';
 import { aiReuseService, buildDapBucket } from '../ai/ai-reuse.service.js';
 import { blockService } from './block.service.js';
@@ -1277,11 +1282,19 @@ export const visitAiOrchestratorService = {
       try {
         const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
         const imageSignal = meta.imageSignal as Awaited<ReturnType<typeof resolveVisitImagePredictions>> | null;
-        const { data: qaRows } = await supabase
-          .from('visit_ai_questions')
-          .select('question_text, answer')
-          .eq('visit_ai_case_id', aiCaseId)
-          .not('answer', 'is', null);
+        const [{ data: qaRows }, reportCtx] = await Promise.all([
+          supabase
+            .from('visit_ai_questions')
+            .select('question_text, answer')
+            .eq('visit_ai_case_id', aiCaseId)
+            .not('answer', 'is', null),
+          cropDoctorReportContextService.build({
+            farmerId: String(caseRow.farmer_id),
+            blockId: String(caseRow.block_id),
+            cropType: context.cropType,
+            currentIssue: diagnosis,
+          }),
+        ]);
         const promptBlock = await visitAiPromptContextService.buildPromptBlock({
           context,
           issueCategory: String(caseRow.category),
@@ -1293,18 +1306,76 @@ export const visitAiOrchestratorService = {
             answer: String(q.answer),
           })),
         });
-        const result = await openaiJsonCompletion<{
-          text: string;
-          dosage?: string;
-          priority?: string;
-          reviewAfterDays?: number;
-        }>(
-          'Return JSON with field-specific recommendation using soil, weather, measurements, and diagnosis.',
-          `${promptBlock}\n\nDiagnosis: ${diagnosis}\nReturn JSON {text, dosage, priority, reviewAfterDays}.`,
-          800
+        const fieldHistoryBlock = [
+          '=== LAST FIELD ACTIVITIES ===',
+          reportCtx.lastFertilizer
+            ? `Last fertilizer: ${reportCtx.lastFertilizer.label} (${reportCtx.lastFertilizer.daysAgo ?? reportCtx.lastFertilizer.date ?? 'date unknown'})`
+            : 'Last fertilizer: not recorded',
+          reportCtx.lastFoliarSpray
+            ? `Last foliar spray: ${reportCtx.lastFoliarSpray.label} (${reportCtx.lastFoliarSpray.daysAgo ?? reportCtx.lastFoliarSpray.date ?? 'date unknown'})`
+            : 'Last foliar spray: not recorded',
+          reportCtx.lastDrench
+            ? `Last drench: ${reportCtx.lastDrench.label} (${reportCtx.lastDrench.daysAgo ?? reportCtx.lastDrench.date ?? 'date unknown'})`
+            : 'Last drench: not recorded',
+          '=== PREVIOUS DIAGNOSIS (same record) ===',
+          `Previous disease: ${reportCtx.previousDisease ?? 'not recorded'}`,
+          `Previous recommendation: ${reportCtx.previousRecommendation ?? 'not recorded'}`,
+          `Status: ${reportCtx.previousDiagnosisStatus ?? 'Unknown'}`,
+          '=== LATEST SOIL TEST ===',
+          ...(reportCtx.soilReportLines?.length
+            ? reportCtx.soilReportLines
+            : [reportCtx.soilSummary ?? 'Not recorded']),
+        ].join('\n');
+
+        const result = await openaiJsonCompletion<
+          Pick<
+            StructuredAdvisory,
+            | 'dosageGuidance'
+            | 'connectedPrevention'
+            | 'connectedPreventionNoneNote'
+            | 'tankMixRecommendation'
+            | 'separateOperationNote'
+            | 'sprayTiming'
+            | 'rootCorrection'
+            | 'recoveryReason'
+            | 'monitorAdvice'
+          > & {
+            dosage?: string;
+            priority?: string;
+            reviewAfterDays?: number;
+          }
+        >(
+          VISIT_AI_RECOMMENDATION_SYSTEM,
+          `${promptBlock}\n\n${fieldHistoryBlock}\n\nConfirmed diagnosis: ${diagnosis}\nReturn full JSON per schema including Mandatory Connected Prevention Evaluation.`,
+          1400,
+          { temperature: 0 }
         );
-        if (result.text?.trim()) aiText = result.text.trim();
-        dosage = result.dosage?.trim() ?? null;
+
+        const structured = normalizeStructuredAdvisory({
+          probableIssue: diagnosis,
+          confidence: caseRow.final_confidence != null ? Number(caseRow.final_confidence) : 0.75,
+          uncertain: false,
+          nutrientDeficiency: [],
+          stressAnalysis: [],
+          treatments: [],
+          dosageGuidance: result.dosageGuidance ?? [],
+          connectedPrevention: result.connectedPrevention ?? [],
+          connectedPreventionNoneNote: result.connectedPreventionNoneNote,
+          tankMixRecommendation: result.tankMixRecommendation,
+          separateOperationNote: result.separateOperationNote,
+          sprayTiming: result.sprayTiming,
+          rootCorrection: result.rootCorrection,
+          recoveryReason: result.recoveryReason,
+          monitorAdvice: result.monitorAdvice,
+          precautions: [],
+          escalationRecommended: false,
+          farmerSummaryEn: '',
+          farmerSummaryMl: '',
+          recommendedProductTags: [],
+        });
+
+        aiText = formatVisitRecommendationText(structured);
+        dosage = result.dosage?.trim() ?? structured.dosageGuidance?.[0]?.rate ?? null;
         if (result.priority === 'high' || result.priority === 'critical') priority = result.priority;
         if (result.reviewAfterDays) reviewAfterDays = result.reviewAfterDays;
       } catch {
