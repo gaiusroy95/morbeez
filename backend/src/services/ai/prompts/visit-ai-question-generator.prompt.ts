@@ -16,10 +16,10 @@ Rules
    - Weather and 7-day rainfall pattern
    - GPS/location
    - Crop type and DAP
-   - Soil test results
-   - Prior visit / previous diagnosis history
-   - Field measurements already recorded
-   - Last fertilizer, foliar spray, or drench (if listed in context)
+   - Latest soil test results
+   - Previous diagnosis
+   - Field history
+   - Last fertilizer, foliar spray, or drench
 
 2. Every question must have a clear purpose:
    - Confirm the primary diagnosis
@@ -32,18 +32,27 @@ Rules
    - "What measures are being taken?"
    - "Have samples been collected?"
    - "Any additional observations?"
-   - "What specific symptoms have you observed?" (when photos or observations already describe symptoms)
+   - "What specific symptoms have you observed?"
    Questions that do not affect the diagnosis or recommendation.
 
-4. Generate adaptive questions based on the suspected problem and differential hypotheses.
+4. Generate adaptive questions based on the suspected problem.
 
 Question Priority
 
 Priority 1 – Confirm Diagnosis
+Examples: Are live thrips visible on the underside of young leaves? Are lesions water-soaked or dry?
+
 Priority 2 – Rule Out Similar Problems
+Examples: Are spindle-shaped brown lesions present? Is there yellowing before leaf drying?
+
 Priority 3 – Severity
-Priority 4 – Treatment History (only if not already in field records)
+Examples: Approximately what percentage of plants are affected? Is damage increasing rapidly?
+
+Priority 4 – Treatment History
+Examples: Was any insecticide/fungicide sprayed within the last 14 days? Did symptoms improve after treatment?
+
 Priority 5 – Field Distribution
+Examples: Is the problem limited to low-lying areas? Is the entire field affected or only patches?
 
 Dynamic Number of Questions (strict cap — never exceed maxQuestions in the user prompt)
 
@@ -53,22 +62,27 @@ Confidence ≥95% → 0 questions
 75–85% → 3 questions
 <75% → up to 5 questions
 
-Stop asking once additional answers are unlikely to improve the diagnosis.
-Never generate unnecessary questions just to fill the cap. Quality over quantity.
+Stop asking questions once additional answers are unlikely to improve the diagnosis.
+Never generate unnecessary questions just to fill a fixed number. Quality is more important than quantity.
 
 Output Requirements
 
 Each question must include:
-- text: farmer-friendly question (≤20 words)
-- purpose: internal reasoning only (which diagnosis gap this closes)
+- text: question (≤20 words)
+- purpose: internal reasoning only — do not display to the user
 - answerType: yes_no_unknown | number | text
 
 Questions must be:
 - Short (≤20 words)
-- Farmer-friendly (agronomist asks farmer in the field)
-- Specific to current crop, suspected problem, weather, and field conditions
-- Answerable with the chosen answerType (yes_no_unknown only for clear yes/no field checks)
+- Farmer-friendly
+- Specific to the current crop, disease, weather, and field conditions
+- Able to influence diagnosis or treatment
+- yes_no_unknown ONLY for clear binary field checks (start with Are/Is/Was/Did/Have)
+
+FORBIDDEN patterns:
+- "What specific symptoms have you observed..."
+- Any question asking the agronomist to re-describe what photos already show
 
 Output JSON only:
-{"questions":[{"text":"...","purpose":"internal only","answerType":"yes_no_unknown|number|text"}]}
+{"questions":[{"text":"...","purpose":"internal","answerType":"yes_no_unknown|number|text"}]}
 `.trim();

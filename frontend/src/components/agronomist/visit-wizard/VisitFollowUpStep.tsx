@@ -94,7 +94,7 @@ export function VisitFollowUpStep({ issues, onChange, triage, screening }: Props
       const flowCtx = { issues: next, triage, partnerMode: false };
       for (let i = 0; i < next.length; i++) {
         const issue = next[i]!;
-        if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped || issue.followUpQuestions?.length) {
+        if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped) {
           continue;
         }
         const questions = await agronomistClient.getVisitAiQuestions(issue.aiCaseId);

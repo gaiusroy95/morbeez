@@ -119,7 +119,6 @@ export function VisitFollowUpStep({
     const flowCtx = { issues: next, triage, partnerMode: false };
     await Promise.all(
       next.map(async (issue, i) => {
-        if (issue.followUpQuestions?.length) return;
         if (!shouldRunFollowUp(issue, flowCtx) || !issue.aiCaseId || issue.qaSkipped) return;
         try {
           const questions = await withTimeout(
@@ -127,11 +126,9 @@ export function VisitFollowUpStep({
             QUESTION_FETCH_TIMEOUT_MS,
             'Question fetch timed out'
           );
-          if (questions.length) {
-            next[i] = { ...issue, followUpQuestions: questions };
-          }
+          next[i] = { ...issue, followUpQuestions: questions };
         } catch {
-          // Questions may already be attached from screening; continue without blocking.
+          // Keep any screening-attached questions only if refresh fails.
         }
       })
     );

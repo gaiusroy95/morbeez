@@ -30,7 +30,7 @@ export function mapAnalyzeVisitIssues(detected: VisitIssueDraft[]): IssueDraft[]
     evidence: row.evidence,
     initialRecommendation: row.initialRecommendation,
     aiConfidence: row.aiConfidence,
-    followUpQuestions: row.followUpQuestions,
+    followUpQuestions: undefined,
   })) as IssueDraft[];
   return expandSeparateNutrientIssues(mapped);
 }

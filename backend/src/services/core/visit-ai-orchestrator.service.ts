@@ -17,6 +17,7 @@ import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { maxQuestionsForConfidence } from '../../domain/visit-ai/question-count.js';
+import { visitQuestionsNeedRegeneration } from '../../domain/visit-ai/question-quality.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
 import { anchorPrimaryIssueToImageSignal } from './visit-ai-image-anchor.js';
 import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
@@ -412,7 +413,11 @@ async function createScreeningCase(params: {
     });
   }
 
-  const followUpQuestions = await persistVisitFollowUpQuestions(caseRow!);
+  const followUpQuestions: Array<{
+    id: string;
+    questionText: string;
+    answerType: 'yes_no_unknown' | 'text' | 'number';
+  }> = [];
   return {
     aiCaseId,
     hypotheses,
@@ -730,11 +735,12 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
   });
 
   const reasoningSnapshot = meta.reasoningSnapshot as MaiosReasoningSnapshot | null | undefined;
-  const mergedDrafts = maiosEvsiVisitBridgeService.prependEvsiDrafts(
-    drafts,
-    reasoningSnapshot,
-    questionCap
-  );
+  const mergedDrafts = maiosEvsiVisitBridgeService
+    .prependEvsiDrafts(drafts, reasoningSnapshot, questionCap)
+    .filter((draft) =>
+      visitAiQuestionsService.isHighValueVisitQuestion(draft.questionText, draft.answerType)
+    )
+    .slice(0, questionCap);
 
   const rows: Array<{
     id: string;
@@ -1019,26 +1025,48 @@ export const visitAiOrchestratorService = {
 
   async getQuestions(aiCaseId: string) {
     const caseRow = await getCaseOrThrow(aiCaseId);
-    const { data: existing } = await supabase
-      .from('visit_ai_questions')
-      .select('*')
-      .eq('visit_ai_case_id', aiCaseId)
-      .order('sort_order', { ascending: true });
-
-    if (existing?.length) {
-      return existing.map((q) => ({
-        id: String(q.id),
-        questionText: String(q.question_text),
-        answerType: String(q.answer_type) as 'yes_no_unknown' | 'text' | 'number',
-        answer: q.answer ? String(q.answer) : undefined,
-      }));
-    }
-
     const meta = (caseRow.metadata as Record<string, unknown>) ?? {};
     if (meta.qaSkipped) {
       return [];
     }
 
+    const { data: existing } = await supabase
+      .from('visit_ai_questions')
+      .select('id, question_text, answer_type, answer')
+      .eq('visit_ai_case_id', aiCaseId)
+      .order('sort_order', { ascending: true });
+
+    const { data: hypothesisRowsRaw } = await supabase
+      .from('visit_ai_hypotheses')
+      .select('confidence')
+      .eq('visit_ai_case_id', aiCaseId)
+      .order('sort_order', { ascending: true })
+      .limit(1);
+
+    const topConfidence =
+      caseRow.final_confidence != null
+        ? Number(caseRow.final_confidence)
+        : hypothesisRowsRaw?.[0]?.confidence != null
+          ? Number(hypothesisRowsRaw[0].confidence)
+          : 0.75;
+    const questionCap = maxQuestionsForConfidence(topConfidence);
+
+    const mapped = (existing ?? []).map((q) => ({
+      id: String(q.id),
+      questionText: String(q.question_text),
+      answerType: String(q.answer_type) as 'yes_no_unknown' | 'text' | 'number',
+      answer: q.answer ? String(q.answer) : undefined,
+    }));
+
+    const hasAnswered = mapped.some((q) => q.answer?.trim());
+    if (mapped.length && !visitQuestionsNeedRegeneration(mapped, questionCap)) {
+      return mapped;
+    }
+    if (hasAnswered) {
+      return mapped;
+    }
+
+    await supabase.from('visit_ai_questions').delete().eq('visit_ai_case_id', aiCaseId);
     return persistVisitFollowUpQuestions(caseRow);
   },
 
