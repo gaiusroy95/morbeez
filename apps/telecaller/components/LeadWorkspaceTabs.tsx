@@ -30,37 +30,45 @@ export function LeadWorkspaceTabs({ summary }: Props) {
   const bottomInset = useDeviceBottomInset();
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 + bottomInset }]}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View style={styles.root}>
       <View style={styles.headerWrap}>
         <LeadWorkspaceHeader summary={summary} />
       </View>
 
-      <ScrollableUnderlineTabs tabs={TABS} active={tab} onChange={setTab} />
-
-      <View style={styles.panelWrap}>
-        {tab === 'overview' ? (
-          <LeadOverviewPanel leadId={summary.leadId} summary={summary} onNavigate={setTab} />
-        ) : null}
-        {tab === 'team' ? <LeadTeamPanel leadId={summary.leadId} /> : null}
-        {tab === 'interactions' ? (
-          <LeadInteractionsPanel leadId={summary.leadId} farmerId={summary.farmerId} />
-        ) : null}
-        {tab === 'blocks' ? <LeadBlocksPanel leadId={summary.leadId} /> : null}
-        {tab === 'recommendations' ? <LeadRecommendationsPanel leadId={summary.leadId} /> : null}
-        {tab === 'orders' ? <LeadOrdersPanel leadId={summary.leadId} /> : null}
-        {tab === 'notes' ? <LeadNotesPanel leadId={summary.leadId} /> : null}
+      {/* Keep tabs outside the vertical ScrollView — nested horizontal tabs
+          were collapsing to a thin green underline on some Android layouts. */}
+      <View style={styles.tabsWrap}>
+        <ScrollableUnderlineTabs tabs={TABS} active={tab} onChange={setTab} />
       </View>
-    </ScrollView>
+
+      <ScrollView
+        style={styles.panelScroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 + bottomInset }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.panelWrap}>
+          {tab === 'overview' ? (
+            <LeadOverviewPanel leadId={summary.leadId} summary={summary} onNavigate={setTab} />
+          ) : null}
+          {tab === 'team' ? <LeadTeamPanel leadId={summary.leadId} /> : null}
+          {tab === 'interactions' ? (
+            <LeadInteractionsPanel leadId={summary.leadId} farmerId={summary.farmerId} />
+          ) : null}
+          {tab === 'blocks' ? <LeadBlocksPanel leadId={summary.leadId} /> : null}
+          {tab === 'recommendations' ? <LeadRecommendationsPanel leadId={summary.leadId} /> : null}
+          {tab === 'orders' ? <LeadOrdersPanel leadId={summary.leadId} /> : null}
+          {tab === 'notes' ? <LeadNotesPanel leadId={summary.leadId} /> : null}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: tokens.bg },
-  scrollContent: { flexGrow: 1 },
   headerWrap: { paddingHorizontal: 16, paddingTop: 16 },
+  tabsWrap: { paddingHorizontal: 8, paddingTop: 4 },
+  panelScroll: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
   panelWrap: { paddingHorizontal: 16, paddingTop: 8 },
 });

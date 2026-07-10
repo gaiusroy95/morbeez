@@ -62,19 +62,35 @@ export function ScrollableUnderlineTabs<T extends string>({
   onChange: (id: T) => void;
 }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
-      <View style={styles.tabRow}>
+    // Explicit minHeight: nested horizontal ScrollViews inside vertical ScrollViews
+    // can collapse to ~0 height on Android (labels clip; only the underline remains).
+    <View style={styles.tabBar}>
+      <ScrollView
+        horizontal
+        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabScroll}
+        contentContainerStyle={styles.tabRow}
+      >
         {tabs.map((tab) => {
           const on = active === tab.id;
           return (
-            <Pressable key={tab.id} style={styles.tabItem} onPress={() => onChange(tab.id)}>
+            <Pressable
+              key={tab.id}
+              style={styles.tabItem}
+              onPress={() => onChange(tab.id)}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={tab.label}
+            >
               <Text style={[styles.tabLabel, on && styles.tabLabelActive]}>{tab.label}</Text>
               {on ? <View style={styles.tabUnderline} /> : null}
             </Pressable>
           );
         })}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -349,12 +365,34 @@ export function BlockRecommendationsPanel({
 }
 
 const styles = StyleSheet.create({
-  tabScroll: { marginBottom: 12, flexGrow: 0 },
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: tokens.border },
-  tabItem: { paddingHorizontal: 12, paddingVertical: 10, alignItems: 'center', minWidth: 92 },
+  tabBar: {
+    marginBottom: 12,
+    minHeight: 44,
+    borderBottomWidth: 1,
+    borderBottomColor: tokens.border,
+  },
+  tabScroll: { flexGrow: 0, minHeight: 44 },
+  tabRow: { flexDirection: 'row', alignItems: 'stretch', minHeight: 44 },
+  tabItem: {
+    position: 'relative',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 92,
+    minHeight: 44,
+  },
   tabLabel: { fontSize: 13, fontWeight: '600', color: tokens.textMuted },
   tabLabelActive: { color: tokens.green800 },
-  tabUnderline: { position: 'absolute', bottom: 0, left: 8, right: 8, height: 3, backgroundColor: tokens.green700, borderRadius: 2 },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: 8,
+    right: 8,
+    height: 3,
+    backgroundColor: tokens.green700,
+    borderRadius: 2,
+  },
   summaryCard: {
     backgroundColor: tokens.card,
     borderRadius: 12,

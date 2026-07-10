@@ -212,6 +212,40 @@ export const telecallerClient = {
     return { interactions: r.interactions ?? [] };
   },
 
+  async createLeadInteraction(
+    leadId: string,
+    input: {
+      interactionType: string;
+      blockId?: string;
+      summary: string;
+      notes?: string;
+      interactionAt?: string;
+      outcome?: string;
+      nextAction?: string;
+      nextActionAt?: string;
+      workflowStatus?: 'Active' | 'Closed' | 'Escalated';
+      addFieldFinding?: boolean;
+      findingType?: string;
+      severity?: string;
+      affectedAreaPct?: number;
+      finalConfirmedIssue?: string;
+      fieldActivityLabel?: string;
+      fieldActivityTypeId?: string;
+      fieldActivityDate?: string;
+      addFieldActivity?: boolean;
+      recommendationSummary?: string;
+      recommendationCompleted?: boolean;
+      escalate?: boolean;
+      status?: string;
+    }
+  ): Promise<Record<string, unknown>> {
+    const r = await staffApi<{ ok: boolean; interaction: Record<string, unknown> }>(
+      `${TEL}/leads/${leadId}/interactions`,
+      { method: 'POST', body: JSON.stringify(input) }
+    );
+    return r.interaction ?? {};
+  },
+
   async getLeadInteractionDetail(
     leadId: string,
     interactionId: string
@@ -220,6 +254,58 @@ export const telecallerClient = {
       `${TEL}/leads/${leadId}/interactions/${interactionId}`
     );
     return r.interaction ?? {};
+  },
+
+  async listMasters(
+    type: string,
+    opts?: { parentId?: string | null; search?: string }
+  ): Promise<Array<{ id: string; name: string; master_type?: string; sort_order?: number }>> {
+    const params = new URLSearchParams({ type });
+    if (opts?.parentId) params.set('parentId', opts.parentId);
+    if (opts?.search?.trim()) params.set('search', opts.search.trim());
+    const r = await staffApi<{
+      ok: boolean;
+      items: Array<{ id: string; name: string; master_type?: string; sort_order?: number }>;
+    }>(`${TEL}/masters?${params}`);
+    return r.items ?? [];
+  },
+
+  async createMaster(input: {
+    masterType: string;
+    name: string;
+    parentId?: string | null;
+  }): Promise<{ id: string; name: string }> {
+    const r = await staffApi<{ ok: boolean; item: { id: string; name: string } }>(`${TEL}/masters`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    });
+    return r.item;
+  },
+
+  async listFieldActivityTypes(
+    leadId: string,
+    opts?: { cropType?: string; activeOnly?: boolean }
+  ): Promise<Array<{ id: string; activity_name: string; crop?: string | null }>> {
+    const params = new URLSearchParams();
+    if (opts?.cropType) params.set('cropType', opts.cropType);
+    if (opts?.activeOnly != null) params.set('activeOnly', String(opts.activeOnly));
+    const q = params.toString();
+    const r = await staffApi<{
+      ok: boolean;
+      types: Array<{ id: string; activity_name: string; crop?: string | null }>;
+    }>(`${TEL}/leads/${leadId}/field-activity-types${q ? `?${q}` : ''}`);
+    return r.types ?? [];
+  },
+
+  async createFieldActivityType(
+    leadId: string,
+    input: { activityName: string; crop?: string | null; category?: string }
+  ): Promise<{ id: string; activity_name: string }> {
+    const r = await staffApi<{ ok: boolean; type: { id: string; activity_name: string } }>(
+      `${TEL}/leads/${leadId}/field-activity-types`,
+      { method: 'POST', body: JSON.stringify(input) }
+    );
+    return r.type;
   },
 
   async listLeadBlocks(leadId: string): Promise<Record<string, unknown>[]> {

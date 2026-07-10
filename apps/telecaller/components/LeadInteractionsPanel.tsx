@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { formatDate, telecallerClient, tokens, type TelecallerTimelineItem } from '@morbeez/shared';
 import { AlertBox, Btn, ListCard, Loading, Panel } from '@morbeez/ui-native';
+import { AddInteractionModal } from '@/components/AddInteractionModal';
 
 type Props = {
   leadId: string;
@@ -35,6 +36,7 @@ export function LeadInteractionsPanel({ leadId, farmerId }: Props) {
   const [whatsapp, setWhatsapp] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -86,6 +88,10 @@ export function LeadInteractionsPanel({ leadId, farmerId }: Props) {
   return (
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
+      <View style={styles.actions}>
+        <Btn label="Add interaction" onPress={() => setShowAdd(true)} />
+        <Btn label="Refresh" variant="secondary" onPress={() => void load()} />
+      </View>
       <Panel title="Unified timeline">
         <Text style={styles.hint}>AI summaries are read-only. Tap a call to view transcript and QC.</Text>
       </Panel>
@@ -105,13 +111,20 @@ export function LeadInteractionsPanel({ leadId, farmerId }: Props) {
         </Pressable>
       ))}
       {!rows.length ? <Text style={styles.empty}>No interactions yet.</Text> : null}
-      <Btn label="Refresh" variant="secondary" onPress={() => void load()} />
+
+      <AddInteractionModal
+        visible={showAdd}
+        leadId={leadId}
+        onClose={() => setShowAdd(false)}
+        onSaved={() => void load()}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { gap: 8, paddingBottom: 24 },
+  actions: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   hint: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
   empty: { textAlign: 'center', color: tokens.textMuted, padding: 24 },
 });
