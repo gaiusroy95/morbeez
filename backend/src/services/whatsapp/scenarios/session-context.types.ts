@@ -35,6 +35,8 @@ export interface SessionContext {
   /** Auto recommendation follow-up engine */
   pendingRecommendationRecordId?: string;
   pendingRecommendationFollowUp?: 'application' | 'outcome' | 'compliance';
+  /** ISO timestamp while a batched photo diagnosis is running (dedupe concurrent flushes). */
+  diagnosisInFlightAt?: string;
   /** Assessment playbook router (insect / weed / compatibility, etc.) */
   lastPlaybookCategory?: string;
   /** ROI tracker (farmers add only; telecaller edits in CRM) */

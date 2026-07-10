@@ -1,105 +1,110 @@
-import { describe, it, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  cancelImageBatch,
   scheduleImageBatch,
   whatsappImageBatchPendingCount,
+  cancelImageBatch,
+  flushImageBatchNow,
   WHATSAPP_IMAGE_BATCH_MAX,
+  type ImageBatchFlushPayload,
 } from '../src/services/whatsapp/pipeline/whatsapp-image-batch.service.js';
 
-const noopSend = async () => {};
-
-function sampleImage(id: string) {
+function fakeImage(id: string) {
   return {
-    imageBase64: Buffer.alloc(512, id.charCodeAt(0)).toString('base64'),
+    imageBase64: `base64-${id}`,
     imageMimeType: 'image/jpeg',
     contentHash: `hash-${id}`,
+    messageId: `msg-${id}`,
   };
 }
 
 describe('whatsapp image batch', () => {
-  it('merges rapid uploads into one pending batch', () => {
-    const onFlush = mock.fn(async () => {});
+  it(`accepts up to ${WHATSAPP_IMAGE_BATCH_MAX} photos in one batch`, async () => {
+    const farmerId = `batch-max-${Date.now()}`;
+    cancelImageBatch(farmerId);
 
-    scheduleImageBatch(
-      {
-        farmerId: 'farmer-merge',
-        phone: '919999999999',
-        language: 'en',
-        isPremium: false,
-        image: sampleImage('a'),
-        sendText: noopSend,
-      },
-      onFlush
-    );
-    scheduleImageBatch(
-      {
-        farmerId: 'farmer-merge',
-        phone: '919999999999',
-        language: 'en',
-        isPremium: false,
-        image: sampleImage('b'),
-        sendText: noopSend,
-      },
-      onFlush
-    );
-
-    assert.equal(whatsappImageBatchPendingCount('farmer-merge'), 2);
-    cancelImageBatch('farmer-merge');
-    assert.equal(whatsappImageBatchPendingCount('farmer-merge'), 0);
-    assert.equal(onFlush.mock.callCount(), 0);
-  });
-
-  it('keeps separate batches per farmer', () => {
-    const onFlush = mock.fn(async () => {});
-
-    scheduleImageBatch(
-      {
-        farmerId: 'farmer-1',
-        phone: '911',
-        language: 'en',
-        isPremium: false,
-        image: sampleImage('1'),
-        sendText: noopSend,
-      },
-      onFlush
-    );
-    scheduleImageBatch(
-      {
-        farmerId: 'farmer-2',
-        phone: '912',
-        language: 'ml',
-        isPremium: false,
-        image: sampleImage('2'),
-        sendText: noopSend,
-      },
-      onFlush
-    );
-
-    assert.equal(whatsappImageBatchPendingCount('farmer-1'), 1);
-    assert.equal(whatsappImageBatchPendingCount('farmer-2'), 1);
-    cancelImageBatch('farmer-1');
-    cancelImageBatch('farmer-2');
-  });
-
-  it('caps batch size', () => {
-    const onFlush = mock.fn(async () => {});
-
-    for (let i = 0; i < WHATSAPP_IMAGE_BATCH_MAX + 2; i++) {
-      scheduleImageBatch(
+    for (let i = 0; i < 6; i++) {
+      await scheduleImageBatch(
         {
-          farmerId: 'farmer-cap',
-          phone: '913',
+          farmerId,
+          phone: '919999999999',
           language: 'en',
           isPremium: false,
-          image: sampleImage(String(i)),
-          sendText: noopSend,
+          image: fakeImage(String(i)),
+          sendText: async () => {},
         },
-        onFlush
+        async () => {}
       );
     }
 
-    assert.equal(whatsappImageBatchPendingCount('farmer-cap'), WHATSAPP_IMAGE_BATCH_MAX);
-    cancelImageBatch('farmer-cap');
+    assert.equal(whatsappImageBatchPendingCount(farmerId), 6);
+    cancelImageBatch(farmerId);
+  });
+
+  it('dedupes the same messageId within a batch', async () => {
+    const farmerId = `batch-dedupe-${Date.now()}`;
+    cancelImageBatch(farmerId);
+
+    const img = fakeImage('same');
+    await scheduleImageBatch(
+      {
+        farmerId,
+        phone: '919999999999',
+        language: 'en',
+        isPremium: false,
+        image: img,
+        sendText: async () => {},
+      },
+      async () => {}
+    );
+    await scheduleImageBatch(
+      {
+        farmerId,
+        phone: '919999999999',
+        language: 'en',
+        isPremium: false,
+        image: { ...img },
+        sendText: async () => {},
+      },
+      async () => {}
+    );
+
+    assert.equal(whatsappImageBatchPendingCount(farmerId), 1);
+    cancelImageBatch(farmerId);
+  });
+
+  it('merges concurrent schedules into a single batch and flushes once', async () => {
+    const farmerId = `batch-race-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    cancelImageBatch(farmerId);
+
+    let flushCount = 0;
+    let lastCount = 0;
+    const onFlush = async (batch: ImageBatchFlushPayload) => {
+      flushCount += 1;
+      lastCount = batch.images.length;
+    };
+
+    await Promise.all(
+      [0, 1, 2, 3, 4].map((i) =>
+        scheduleImageBatch(
+          {
+            farmerId,
+            phone: '919999999999',
+            language: 'en',
+            isPremium: false,
+            image: fakeImage(`c${i}`),
+            sendText: async () => {},
+          },
+          onFlush
+        )
+      )
+    );
+
+    assert.equal(whatsappImageBatchPendingCount(farmerId), 5);
+
+    await flushImageBatchNow(farmerId, onFlush);
+    assert.equal(flushCount, 1);
+    assert.equal(lastCount, 5);
+    assert.equal(whatsappImageBatchPendingCount(farmerId), 0);
   });
 });

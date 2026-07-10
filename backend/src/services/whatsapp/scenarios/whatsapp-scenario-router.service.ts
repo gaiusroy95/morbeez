@@ -27,7 +27,6 @@ import {
 import { callbackFlowService } from './callback-flow.service.js';
 import { terminologyService } from './terminology.service.js';
 import { diagnosisFlowService } from './diagnosis-flow.service.js';
-import { farmerWelcomeService } from './farmer-welcome.service.js';
 import { multiPlotService } from './multi-plot.service.js';
 import { orderWhatsappService } from '../orders/order-whatsapp.service.js';
 import { cultivationLoggingService } from '../cultivation/cultivation-logging.service.js';
@@ -55,7 +54,6 @@ import { tryAgronomyReply } from '../pipeline/agronomy-reply.service.js';
 import { regionalTerminologyProcessor } from '../../regional-terminology/regional-terminology.processor.js';
 import type { TerminologyDetectionResult } from '../../regional-terminology/types.js';
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
-import { whatsappImageBatchPendingCount } from '../pipeline/whatsapp-image-batch.service.js';
 import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
 import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
 import { recoveryValidationService } from '../../case/recovery-validation.service.js';
@@ -1331,42 +1329,10 @@ export const whatsappScenarioRouter = {
         'plot_select',
       ]);
       if (diagnosisStates.has(session.state) || session.state === 'main_menu') {
-        const { shouldRunDiagnosis } = await diagnosisFlowService.recordImageReceived(captured.farmerId);
-        if (shouldRunDiagnosis) {
-          const sessCtx = await conversationSessionService.getContext(captured.farmerId);
-          const continuingEvidence =
-            session.state === 'diagnosis_awaiting_photos' && Boolean(sessCtx.maiosCase);
-          const batchInFlight =
-            whatsappImageBatchPendingCount(captured.farmerId) > 0 ||
-            (sessCtx.pendingDiagnosisImageBatch?.length ?? 0) > 0 ||
-            Boolean(sessCtx.pendingDiagnosisImagePath);
-          let welcome: string | null | undefined;
-          if (continuingEvidence && !batchInFlight) {
-            await send.text(
-              msg.phone,
-              lang === 'ml'
-                ? 'ഫോട്ടോ ലഭിച്ചു — നിങ്ങളുടെ രോഗനിർണയം അപ്ഡേറ്റ് ചെയ്യുന്നു…'
-                : 'Photo received — updating your diagnosis…'
-            );
-          } else if (!batchInFlight && !continuingEvidence) {
-            welcome = await farmerWelcomeService.buildWelcomeLine(captured.farmerId, lang);
-            await send.text(msg.phone, diagnosisFlowService.analyzingPrompt(lang));
-          }
-          // #region agent log
-          logger.info(
-            {
-              farmerId: captured.farmerId,
-              continuingEvidence,
-              batchInFlight,
-              sentAnalyzing: !batchInFlight && !continuingEvidence,
-              sentWelcome: Boolean(welcome),
-            },
-            'WhatsApp per-image diagnosis ack'
-          );
-          fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-scenario-router.service.ts:imageDiagnosis',message:'per-image diagnosis ack',data:{continuingEvidence,batchInFlight,pendingBatchCount:sessCtx.pendingDiagnosisImageBatch?.length??0,inMemoryBatch:whatsappImageBatchPendingCount(captured.farmerId),sentAnalyzing:!batchInFlight&&!continuingEvidence,sentWelcome:Boolean(welcome)},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-          // #endregion
-          return { handled: true, runDiagnosis: true, welcomePrefix: welcome ?? undefined };
-        }
+        // Do NOT return runDiagnosis here — that raced concurrent album uploads into
+        // multiple diagnoses. Images always go through processImage → scheduleImageBatch.
+        await diagnosisFlowService.recordImageReceived(captured.farmerId);
+        return { handled: false };
       }
     }
 

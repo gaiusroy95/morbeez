@@ -8,6 +8,7 @@ import { whatsappDiagnosisRendererService } from '../src/services/whatsapp/pipel
 import {
   mergeImageBatchCaption,
   scheduleImageBatch,
+  cancelImageBatch,
   whatsappImageBatchPendingCount,
 } from '../src/services/whatsapp/pipeline/whatsapp-image-batch.service.js';
 import type { StructuredAdvisory } from '../src/services/ai/types.js';
@@ -133,7 +134,8 @@ describe('whatsapp diagnosis renderer — image evidence guard', () => {
 describe('mergeImageBatchCaption', () => {
   it('merges caption into pending batch', async () => {
     const farmerId = '00000000-0000-0000-0000-000000000002';
-    scheduleImageBatch(
+    cancelImageBatch(farmerId);
+    await scheduleImageBatch(
       {
         farmerId,
         phone: '+910000000000',
@@ -150,5 +152,6 @@ describe('mergeImageBatchCaption', () => {
     );
     assert.equal(whatsappImageBatchPendingCount(farmerId), 1);
     assert.equal(mergeImageBatchCaption(farmerId, 'yellow spots on leaves'), true);
+    cancelImageBatch(farmerId);
   });
 });

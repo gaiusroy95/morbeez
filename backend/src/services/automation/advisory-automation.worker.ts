@@ -152,13 +152,22 @@ async function poll(): Promise<void> {
     .select('id, farmer_id, job_type, payload, attempts')
     .eq('status', 'pending')
     .lte('scheduled_at', now)
+    .order('scheduled_at', { ascending: true })
     .limit(10);
 
   for (const job of jobs ?? []) {
-    await supabase
+    // Atomic claim — only one worker may process a given pending job.
+    const { data: claimed, error: claimErr } = await supabase
       .from('advisory_automation_jobs')
-      .update({ status: 'processing', attempts: job.attempts + 1 })
-      .eq('id', job.id);
+      .update({ status: 'processing', attempts: (job.attempts ?? 0) + 1 })
+      .eq('id', job.id)
+      .eq('status', 'pending')
+      .select('id')
+      .maybeSingle();
+
+    if (claimErr || !claimed?.id) {
+      continue;
+    }
 
     try {
       await processJob(job);
@@ -167,7 +176,7 @@ async function poll(): Promise<void> {
       await supabase
         .from('advisory_automation_jobs')
         .update({
-          status: job.attempts >= 3 ? 'failed' : 'pending',
+          status: (job.attempts ?? 0) >= 3 ? 'failed' : 'pending',
           last_error: String(err),
         })
         .eq('id', job.id);

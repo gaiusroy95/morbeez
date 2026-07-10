@@ -39,18 +39,46 @@ export type ImageBatchFlushPayload = {
 
 type PendingBatch = ImageBatchFlushPayload & {
   timer: ReturnType<typeof setTimeout>;
+  flushStarted: boolean;
 };
 
 const pendingByFarmer = new Map<string, PendingBatch>();
+/** Serialize schedule/flush per farmer so concurrent webhooks cannot create multiple batches. */
+const farmerChain = new Map<string, Promise<void>>();
 
-export const WHATSAPP_IMAGE_BATCH_MAX = 4;
+export const WHATSAPP_IMAGE_BATCH_MAX = 8;
 
 function batchWindowMs(): number {
-  return Math.max(500, env.WHATSAPP_IMAGE_BATCH_MS);
+  return Math.max(800, env.WHATSAPP_IMAGE_BATCH_MS);
+}
+
+async function withFarmerLock(farmerId: string, fn: () => void | Promise<void>): Promise<void> {
+  const prev = farmerChain.get(farmerId) ?? Promise.resolve();
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = prev.then(() => gate);
+  farmerChain.set(farmerId, next);
+  await prev;
+  try {
+    await fn();
+  } finally {
+    release();
+    if (farmerChain.get(farmerId) === next) {
+      farmerChain.delete(farmerId);
+    }
+  }
 }
 
 export function whatsappImageBatchPendingCount(farmerId: string): number {
   return pendingByFarmer.get(farmerId)?.images.length ?? 0;
+}
+
+/** True while a batch is open or a flush is in progress for this farmer. */
+export function isImageBatchActive(farmerId: string): boolean {
+  const pending = pendingByFarmer.get(farmerId);
+  return Boolean(pending && (pending.images.length > 0 || pending.flushStarted));
 }
 
 /** Merge symptom/caption text into a pending image batch (split message delivery). */
@@ -58,7 +86,7 @@ export function mergeImageBatchCaption(farmerId: string, caption: string): boole
   const trimmed = caption.trim();
   if (!trimmed) return false;
   const pending = pendingByFarmer.get(farmerId);
-  if (!pending) return false;
+  if (!pending || pending.flushStarted) return false;
   if (!pending.caption?.trim()) {
     pending.caption = trimmed;
   } else if (!pending.caption.includes(trimmed)) {
@@ -74,6 +102,15 @@ export function cancelImageBatch(farmerId: string): void {
   pendingByFarmer.delete(farmerId);
 }
 
+function resetTimer(farmerId: string, onFlush: (batch: ImageBatchFlushPayload) => Promise<void>): void {
+  const pending = pendingByFarmer.get(farmerId);
+  if (!pending || pending.flushStarted) return;
+  clearTimeout(pending.timer);
+  pending.timer = setTimeout(() => {
+    void flushBatch(farmerId, onFlush);
+  }, batchWindowMs());
+}
+
 export function scheduleImageBatch(
   params: {
     farmerId: string;
@@ -86,58 +123,89 @@ export function scheduleImageBatch(
     send?: BatchSenders;
   },
   onFlush: (batch: ImageBatchFlushPayload) => Promise<void>
-): void {
-  const existing = pendingByFarmer.get(params.farmerId);
+): Promise<void> {
+  return withFarmerLock(params.farmerId, () => {
+    const existing = pendingByFarmer.get(params.farmerId);
 
-  if (existing) {
-    clearTimeout(existing.timer);
-    if (existing.images.length < WHATSAPP_IMAGE_BATCH_MAX) {
-      existing.images.push(params.image);
-    } else {
+    if (existing && !existing.flushStarted) {
+      const duplicate = existing.images.some(
+        (img) =>
+          (params.image.contentHash && img.contentHash === params.image.contentHash) ||
+          (params.image.messageId && img.messageId === params.image.messageId)
+      );
+      if (duplicate) {
+        resetTimer(params.farmerId, onFlush);
+        return;
+      }
+      if (existing.images.length < WHATSAPP_IMAGE_BATCH_MAX) {
+        existing.images.push(params.image);
+      } else {
+        logger.warn(
+          { farmerId: params.farmerId, max: WHATSAPP_IMAGE_BATCH_MAX },
+          'WhatsApp image batch full — dropping extra photo'
+        );
+      }
+      if (params.caption?.trim() && !existing.caption?.trim()) {
+        existing.caption = params.caption.trim();
+      }
+      resetTimer(params.farmerId, onFlush);
+      return;
+    }
+
+    if (existing?.flushStarted) {
       logger.warn(
-        { farmerId: params.farmerId, max: WHATSAPP_IMAGE_BATCH_MAX },
-        'WhatsApp image batch full — dropping extra photo'
+        { farmerId: params.farmerId },
+        'Image arrived during diagnosis flush — starting a new batch after current run'
       );
     }
-    if (params.caption?.trim() && !existing.caption?.trim()) {
-      existing.caption = params.caption.trim();
-    }
-    existing.timer = setTimeout(() => {
-      void flushBatch(params.farmerId, onFlush);
-    }, batchWindowMs());
-    return;
-  }
 
-  const batch: PendingBatch = {
-    farmerId: params.farmerId,
-    phone: params.phone,
-    language: params.language,
-    isPremium: params.isPremium,
-    images: [params.image],
-    caption: params.caption?.trim() || undefined,
-    sendText: params.sendText,
-    send: params.send,
-    timer: setTimeout(() => {
-      void flushBatch(params.farmerId, onFlush);
-    }, batchWindowMs()),
-  };
-  pendingByFarmer.set(params.farmerId, batch);
+    const batch: PendingBatch = {
+      farmerId: params.farmerId,
+      phone: params.phone,
+      language: params.language,
+      isPremium: params.isPremium,
+      images: [params.image],
+      caption: params.caption?.trim() || undefined,
+      sendText: params.sendText,
+      send: params.send,
+      flushStarted: false,
+      timer: setTimeout(() => {
+        void flushBatch(params.farmerId, onFlush);
+      }, batchWindowMs()),
+    };
+    pendingByFarmer.set(params.farmerId, batch);
+  });
+}
+
+/** Test/helper: flush a pending batch immediately (clears the debounce timer). */
+export async function flushImageBatchNow(
+  farmerId: string,
+  onFlush: (batch: ImageBatchFlushPayload) => Promise<void>
+): Promise<void> {
+  await flushBatch(farmerId, onFlush);
 }
 
 async function flushBatch(
   farmerId: string,
   onFlush: (batch: ImageBatchFlushPayload) => Promise<void>
 ): Promise<void> {
-  const pending = pendingByFarmer.get(farmerId);
-  if (!pending) return;
-  pendingByFarmer.delete(farmerId);
+  await withFarmerLock(farmerId, async () => {
+    const pending = pendingByFarmer.get(farmerId);
+    if (!pending || pending.flushStarted) return;
+    clearTimeout(pending.timer);
+    pending.flushStarted = true;
+    pendingByFarmer.delete(farmerId);
 
-  const { timer: _timer, ...payload } = pending;
-  if (!payload.images.length) return;
+    const { timer: _timer, flushStarted: _flushStarted, ...payload } = pending;
+    if (!payload.images.length) return;
 
-  try {
-    await onFlush(payload);
-  } catch (err) {
-    logger.error({ err, farmerId, imageCount: payload.images.length }, 'WhatsApp image batch flush failed');
-  }
+    try {
+      await onFlush(payload);
+    } catch (err) {
+      logger.error(
+        { err, farmerId, imageCount: payload.images.length },
+        'WhatsApp image batch flush failed'
+      );
+    }
+  });
 }

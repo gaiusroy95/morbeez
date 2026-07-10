@@ -81,10 +81,12 @@ import { assessmentPlaybookService } from '../scenarios/assessment-playbook.serv
 import { roiFlowService } from '../roi/roi-flow.service.js';
 import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
 import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
+import { recommendationFollowUpService } from '../../core/recommendation-follow-up.service.js';
 import {
   scheduleImageBatch,
   mergeImageBatchCaption,
   whatsappImageBatchPendingCount,
+  WHATSAPP_IMAGE_BATCH_MAX,
   type ImageBatchFlushPayload,
 } from './whatsapp-image-batch.service.js';
 import { evidenceQualityService } from '../../case/evidence-quality.service.js';
@@ -935,6 +937,10 @@ export const whatsappInboundPipeline = {
 
     await recordImageHash(captured.farmerId, quality.contentHash);
 
+    // Push overdue "Have you applied…" jobs out so album uploads are not flooded
+    // with old recommendation follow-ups while photos are being analyzed.
+    void recommendationFollowUpService.deferPendingFollowUpJobs(captured.farmerId).catch(() => {});
+
     const earlyStored = await advisoryImageStorageService.uploadFromBase64(
       captured.farmerId,
       media.imageBase64,
@@ -956,7 +962,7 @@ export const whatsappInboundPipeline = {
       await conversationSessionService.patchContext(captured.farmerId, {
         pendingDiagnosisImagePath: existingBatch[0]?.path ?? batchEntry.path,
         pendingDiagnosisImageMime: existingBatch[0]?.mime ?? batchEntry.mime,
-        pendingDiagnosisImageBatch: [...existingBatch, batchEntry].slice(-4),
+        pendingDiagnosisImageBatch: [...existingBatch, batchEntry].slice(-WHATSAPP_IMAGE_BATCH_MAX),
       });
       if (msg.messageId) {
         void attachImageToInboundLog({
@@ -967,7 +973,7 @@ export const whatsappInboundPipeline = {
       }
     }
 
-    scheduleImageBatch(
+    await scheduleImageBatch(
       {
         farmerId: captured.farmerId,
         phone: captured.phone,
@@ -991,10 +997,26 @@ export const whatsappInboundPipeline = {
   async flushBatchedDiagnosisImages(batch: ImageBatchFlushPayload): Promise<void> {
     if (!batch.images.length) return;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-inbound.pipeline.ts:flushBatchedDiagnosisImages',message:'batch flush starting',data:{imageCount:batch.images.length,hasCaption:Boolean(batch.caption?.trim())},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
+    // Prevent overlapping diagnoses for the same farmer (multi-instance / late photos).
+    const sessBefore = await conversationSessionService.getContext(batch.farmerId);
+    if (sessBefore.diagnosisInFlightAt) {
+      const started = Date.parse(String(sessBefore.diagnosisInFlightAt));
+      if (Number.isFinite(started) && Date.now() - started < 3 * 60 * 1000) {
+        logger.warn(
+          { farmerId: batch.farmerId, imageCount: batch.images.length },
+          'Skipping image batch flush — diagnosis already in flight'
+        );
+        return;
+      }
+    }
+    await conversationSessionService.patchContext(batch.farmerId, {
+      diagnosisInFlightAt: new Date().toISOString(),
+    });
 
+    // Await defer so overdue "Have you applied…" jobs cannot race the analysis ack.
+    await recommendationFollowUpService.deferPendingFollowUpJobs(batch.farmerId).catch(() => {});
+
+    try {
     const primary = batch.images[0]!;
     const caption = batch.caption;
 
@@ -1124,6 +1146,11 @@ export const whatsappInboundPipeline = {
       pendingDiagnosisImageMime: undefined,
       pendingDiagnosisImageBatch: undefined,
     });
+    } finally {
+      await conversationSessionService.patchContext(batch.farmerId, {
+        diagnosisInFlightAt: undefined,
+      });
+    }
   },
 
   async processText(
@@ -1515,7 +1542,6 @@ export const whatsappInboundPipeline = {
         }
       }
 
-      // #region agent log
       logger.info(
         {
           farmerId: params.farmerId,
@@ -1526,8 +1552,6 @@ export const whatsappInboundPipeline = {
         },
         'WhatsApp runDiagnosis evidence merge'
       );
-      fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'353716'},body:JSON.stringify({sessionId:'353716',location:'whatsapp-inbound.pipeline.ts:runDiagnosis',message:'evidence merge',data:{continuingEvidence,photoCount,mergedPathCount:diagnosisImages?.length??photoCount,sessionState:session.state},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
 
       const hasSoilReport = await soilFlowService.hasSoilReport(params.farmerId);
 
