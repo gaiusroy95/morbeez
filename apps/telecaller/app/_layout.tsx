@@ -1,3 +1,4 @@
+import '@/lib/api-config';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';

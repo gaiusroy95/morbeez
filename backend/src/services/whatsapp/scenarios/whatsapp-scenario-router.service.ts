@@ -42,6 +42,7 @@ import {
   parsePincodeInput,
   pincodePrompt,
   pincodeSavedReply,
+  pincodePendingVerifyReply,
   plantingDatePrompt,
 } from './onboarding-flow.service.js';
 import { pincodeService } from '../../core/pincode.service.js';
@@ -715,15 +716,28 @@ export const whatsappScenarioRouter = {
           await send.text(msg.phone, invalidPincodeReply(lang));
           return { handled: true };
         }
-        const row = await pincodeService.assignFarmerPincode(captured.farmerId, pc);
-        if (!row) {
+        const assigned = await pincodeService.assignFarmerPincodeDetailed(captured.farmerId, pc);
+        if (!assigned) {
           await send.text(msg.phone, invalidPincodeReply(lang));
           return { handled: true };
         }
         await conversationSessionService.patchContext(captured.farmerId, {
           onboardingStep: 'acreage',
         });
-        await send.text(msg.phone, pincodeSavedReply(lang, row.district, row.state));
+        if (assigned.source === 'provisional') {
+          await send.text(msg.phone, pincodePendingVerifyReply(lang, assigned.row.pincode));
+          void createTelecallerTask({
+            farmerId: captured.farmerId,
+            title: `Verify pincode ${assigned.row.pincode}`,
+            notes: `Farmer sent PIN ${assigned.row.pincode} during WhatsApp onboarding; not found in master/India Post. Confirm district/taluk.`,
+            priority: 'normal',
+          }).catch(() => {});
+        } else {
+          await send.text(
+            msg.phone,
+            pincodeSavedReply(lang, assigned.row.district, assigned.row.state)
+          );
+        }
         await this.sendAcreageOnboardingStep(msg.phone, lang, send);
         return { handled: true };
       }

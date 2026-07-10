@@ -12,15 +12,12 @@ function readExpoApiBaseUrl(): string {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Constants = require('expo-constants').default as {
       expoConfig?: { extra?: { apiBaseUrl?: string } };
-      manifest2?: { extra?: { expoClient?: { extra?: { apiBaseUrl?: string } } } };
-      manifest?: { extra?: { apiBaseUrl?: string } };
     };
-    return String(
-      Constants.expoConfig?.extra?.apiBaseUrl ??
-        Constants.manifest2?.extra?.expoClient?.extra?.apiBaseUrl ??
-        Constants.manifest?.extra?.apiBaseUrl ??
-        ''
-    );
+    // Use expoConfig only. Do NOT read Constants.manifest / manifest2 —
+    // on Expo Go Android those getters hit ExpoGoUpdatesModule before
+    // `launcher` is initialized and crash with:
+    // HostObject::get for prop 'manifest' / lateinit property launcher.
+    return String(Constants.expoConfig?.extra?.apiBaseUrl ?? '');
   } catch {
     return '';
   }
