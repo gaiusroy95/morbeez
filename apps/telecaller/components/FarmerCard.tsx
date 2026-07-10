@@ -1,7 +1,13 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { tokens, type TelecallerOperationalLeadRow } from '@morbeez/shared';
+import {
+  formatPhoneDisplay,
+  telHref,
+  tokens,
+  whatsAppHref,
+  type TelecallerOperationalLeadRow,
+} from '@morbeez/shared';
 
 type Props = {
   lead: TelecallerOperationalLeadRow;
@@ -9,13 +15,13 @@ type Props = {
 };
 
 function dialPhone(phone: string | null | undefined) {
-  const digits = String(phone ?? '').replace(/\D/g, '');
-  if (digits) void Linking.openURL(`tel:${digits}`);
+  const href = telHref(phone);
+  if (href) void Linking.openURL(href);
 }
 
 function openWhatsApp(phone: string | null | undefined) {
-  const digits = String(phone ?? '').replace(/\D/g, '');
-  if (digits) void Linking.openURL(`https://wa.me/${digits}`);
+  const href = whatsAppHref(phone);
+  if (href) void Linking.openURL(href);
 }
 
 function openMaps(lead: TelecallerOperationalLeadRow) {
@@ -26,6 +32,7 @@ function openMaps(lead: TelecallerOperationalLeadRow) {
 export function FarmerCard({ lead, onOpenWorkspace }: Props) {
   const router = useRouter();
   const openWorkspace = onOpenWorkspace ?? (() => router.push(`/lead/${lead.id}`));
+  const phoneLabel = lead.phone ? formatPhoneDisplay(lead.phone) : null;
 
   return (
     <View style={styles.card}>
@@ -34,7 +41,7 @@ export function FarmerCard({ lead, onOpenWorkspace }: Props) {
         <Text style={styles.sub}>
           {[lead.village, lead.district, lead.primaryCrop].filter(Boolean).join(' · ')}
         </Text>
-        {lead.phone ? <Text style={styles.phone}>{lead.phone}</Text> : null}
+        {phoneLabel ? <Text style={styles.phone}>{phoneLabel}</Text> : null}
         <View style={styles.metaRow}>
           {lead.stageLabel ? <Text style={styles.badge}>{lead.stageLabel}</Text> : null}
           {lead.healthStatus ? <Text style={styles.badgeMuted}>{lead.healthStatus}</Text> : null}

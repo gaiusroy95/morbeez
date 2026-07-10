@@ -18,6 +18,7 @@ import {
   type ViewPresetId,
 } from './lead-queue-config';
 import type { OperationalLead, PriorityMeta, QueueSummary } from './lead-queue-types';
+import { formatPhoneDisplay } from '@morbeez/shared';
 import {
   buildLeadQueueSearchParams,
   downloadLeadQueueCsv,
@@ -689,7 +690,7 @@ export function LeadOperationsTable({
           <span className={`tc-stage ${STAGE_CLASS[lead.stage] ?? 'stage-new'}`}>{lead.stageLabel}</span>
         );
       case 'phone':
-        return <span>{lead.phone ?? '—'}</span>;
+        return <span>{formatPhoneDisplay(lead.phone)}</span>;
       case 'district':
         return <span>{lead.district ?? '—'}</span>;
       case 'pincode':

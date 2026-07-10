@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { fieldPwaService } from '../admin/field-pwa.service.js';
 import { crmFarmerService } from '../admin/crm-farmer.service.js';
 import { cropHealthFromTone } from '../../lib/block-health.js';
@@ -93,7 +94,7 @@ type FarmerJoinRow = {
 function mapFarmerFromJoin(farmerId: string, f: FarmerJoinRow | null) {
   return {
     id: farmerId,
-    phone: f?.phone ? String(f.phone) : null,
+    phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
     name:
       [f?.first_name, f?.last_name].filter(Boolean).join(' ') ||
       String(f?.name ?? '').trim() ||
@@ -433,7 +434,7 @@ export const agronomistMobileService = {
       farmer: {
         id: farmerId,
         name,
-        phone: farmer.phone ? String(farmer.phone) : null,
+        phone: formatPhoneE164(farmer.phone != null ? String(farmer.phone) : null),
         district: farmer.district ? String(farmer.district) : null,
         acreage,
       },
@@ -642,7 +643,7 @@ export const agronomistMobileService = {
         id: String(r.id),
         farmerId: String(r.farmer_id),
         farmerName: f?.name ?? null,
-        phone: f?.phone ?? null,
+        phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
         reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
         status: String(r.status),
         requestedAt: String(r.created_at),

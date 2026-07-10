@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import type { PartnerFarmerHeader as HeaderType, PartnerFarmerWorkspace } from '@morbeez/shared';
-import { addFarmerToTodayRoute, partnerClient, tokens } from '@morbeez/shared';
+import { addFarmerToTodayRoute, formatPhoneDisplay, partnerClient, telHref, tokens, whatsAppHref } from '@morbeez/shared';
 import { Btn, KeyValueRow, Panel } from '@morbeez/ui-native';
 import { openDirections } from '@/lib/farmer-workspace-routing';
 
@@ -13,7 +13,8 @@ type Props = {
 
 export function PartnerFarmerHeader({ farmerId, workspace, onStartVisit }: Props) {
   const header = workspace.header ?? workspace.farmer;
-  const phone = String(header.phone ?? '').replace(/\D/g, '');
+  const callHref = telHref(header.phone);
+  const waHref = whatsAppHref(header.phone);
   const [routeBusy, setRouteBusy] = useState(false);
   const [supportBusy, setSupportBusy] = useState(false);
 
@@ -58,7 +59,7 @@ export function PartnerFarmerHeader({ farmerId, workspace, onStartVisit }: Props
 
   return (
     <Panel title={header.name}>
-      <KeyValueRow label="Phone" value={header.phone ?? '—'} />
+      <KeyValueRow label="Phone" value={formatPhoneDisplay(header.phone)} />
       <KeyValueRow label="Village" value={header.village ?? '—'} />
       <KeyValueRow label="Primary crop" value={header.primaryCrop ?? '—'} />
       <KeyValueRow
@@ -68,12 +69,12 @@ export function PartnerFarmerHeader({ farmerId, workspace, onStartVisit }: Props
       <KeyValueRow label="Customer owner" value={header.customerOwnerType ?? '—'} />
       <KeyValueRow label="Telecaller" value={header.assignedTelecallerEmail ?? '—'} />
       <View style={styles.actions}>
-        <Btn label="Call" onPress={() => phone && Linking.openURL(`tel:${phone}`)} disabled={!phone} />
+        <Btn label="Call" onPress={() => callHref && Linking.openURL(callHref)} disabled={!callHref} />
         <Btn
           label="WhatsApp"
           variant="secondary"
-          onPress={() => phone && Linking.openURL(`https://wa.me/${phone}`)}
-          disabled={!phone}
+          onPress={() => waHref && Linking.openURL(waHref)}
+          disabled={!waHref}
         />
         <Btn
           label="Directions"

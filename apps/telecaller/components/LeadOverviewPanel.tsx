@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { formatDate, telecallerClient, tokens, type LeadWorkspaceTab, type TelecallerWorkspaceSummary } from '@morbeez/shared';
+import { formatDate, formatPhoneDisplay, telecallerClient, tokens, type LeadWorkspaceTab, type TelecallerWorkspaceSummary } from '@morbeez/shared';
 import { AlertBox, KeyValueRow, Loading, Panel } from '@morbeez/ui-native';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -66,7 +66,7 @@ export function LeadOverviewPanel({ leadId, summary, onNavigate }: Props) {
 
       <Panel title="Personal information">
         <KeyValueRow label="Name" value={summary.farmer.name} />
-        <KeyValueRow label="Phone" value={summary.farmer.phone ?? '—'} />
+        <KeyValueRow label="Phone" value={summary.farmer.phone ? formatPhoneDisplay(summary.farmer.phone) : '—'} />
         <KeyValueRow label="Language" value={summary.farmer.language ?? '—'} />
         <KeyValueRow label="Location" value={[summary.farmer.village, summary.farmer.district].filter(Boolean).join(', ') || '—'} />
       </Panel>

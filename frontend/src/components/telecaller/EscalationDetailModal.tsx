@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatPhoneDisplay } from '@morbeez/shared';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
 import { StaticSelect } from '../ui';
@@ -174,7 +175,7 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
             <p className="text-sm text-slate-600">
               <strong className="text-slate-900">{detail.farmer.name}</strong>
               {' · '}
-              {detail.farmer.phone}
+              {formatPhoneDisplay(detail.farmer.phone)}
               {detail.farmer.district ? ` · ${detail.farmer.district}` : ''}
             </p>
           ) : null}

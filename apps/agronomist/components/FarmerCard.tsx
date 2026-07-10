@@ -1,7 +1,13 @@
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { tokens, type AgronomistFarmerSearchRow } from '@morbeez/shared';
+import {
+  formatPhoneDisplay,
+  telHref,
+  tokens,
+  whatsAppHref,
+  type AgronomistFarmerSearchRow,
+} from '@morbeez/shared';
 
 type Props = {
   farmer: AgronomistFarmerSearchRow;
@@ -9,13 +15,13 @@ type Props = {
 };
 
 function dialPhone(phone: string | null | undefined) {
-  const digits = String(phone ?? '').replace(/\D/g, '');
-  if (digits) void Linking.openURL(`tel:${digits}`);
+  const href = telHref(phone);
+  if (href) void Linking.openURL(href);
 }
 
 function openWhatsApp(phone: string | null | undefined) {
-  const digits = String(phone ?? '').replace(/\D/g, '');
-  if (digits) void Linking.openURL(`https://wa.me/${digits}`);
+  const href = whatsAppHref(phone);
+  if (href) void Linking.openURL(href);
 }
 
 function openMaps(farmer: AgronomistFarmerSearchRow) {
@@ -27,6 +33,7 @@ function openMaps(farmer: AgronomistFarmerSearchRow) {
 export function FarmerCard({ farmer, onOpenWorkspace }: Props) {
   const router = useRouter();
   const openWorkspace = onOpenWorkspace ?? (() => router.push(`/farmer/${farmer.id}`));
+  const phoneLabel = farmer.phone ? formatPhoneDisplay(farmer.phone) : null;
 
   return (
     <View style={styles.card}>
@@ -35,7 +42,7 @@ export function FarmerCard({ farmer, onOpenWorkspace }: Props) {
         <Text style={styles.sub}>
           {[farmer.village, farmer.district, farmer.primaryCrop].filter(Boolean).join(' · ')}
         </Text>
-        {farmer.phone ? <Text style={styles.phone}>{farmer.phone}</Text> : null}
+        {phoneLabel ? <Text style={styles.phone}>{phoneLabel}</Text> : null}
         <View style={styles.metaRow}>
           {farmer.healthStatus ? <Text style={styles.badge}>{farmer.healthStatus}</Text> : null}
           {farmer.openTaskCount ? (

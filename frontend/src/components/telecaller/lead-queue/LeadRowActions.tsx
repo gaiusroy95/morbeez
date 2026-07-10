@@ -1,9 +1,11 @@
 import type { OperationalLead } from './lead-queue-types';
 
-function phoneDigits(phone: string | null) {
-  if (!phone) return '';
-  const d = phone.replace(/\D/g, '');
-  return d.length >= 10 ? d.slice(-10) : d;
+function formatPhoneE164(phone: string | null) {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
 }
 
 type Props = {
@@ -15,7 +17,8 @@ type Props = {
 };
 
 export function LeadRowActions({ lead, canWrite, menuOpen, onMoreClick, onOpen }: Props) {
-  const digits = phoneDigits(lead.phone);
+  const e164 = formatPhoneE164(lead.phone);
+  const waDigits = e164?.replace(/\D/g, '') ?? '';
 
   return (
     <div className="tc-lq-row-actions" onClick={(e) => e.stopPropagation()}>
@@ -27,14 +30,14 @@ export function LeadRowActions({ lead, canWrite, menuOpen, onMoreClick, onOpen }
       >
         Open
       </button>
-      {digits ? (
+      {e164 ? (
         <>
-          <a className="tc-lq-icon-btn" href={`tel:+91${digits}`} title="Call farmer">
+          <a className="tc-lq-icon-btn" href={`tel:${e164}`} title="Call farmer">
             Call
           </a>
           <a
             className="tc-lq-icon-btn tc-lq-icon-btn--wa"
-            href={`https://wa.me/91${digits}`}
+            href={`https://wa.me/${waDigits}`}
             target="_blank"
             rel="noopener noreferrer"
             title="WhatsApp"

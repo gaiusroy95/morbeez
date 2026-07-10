@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { telecallerClient, tokens, type TelecallerLeadRow } from '@morbeez/shared';
+import { telecallerClient, tokens, type TelecallerLeadRow, formatPhoneDisplay, telHref } from '@morbeez/shared';
 import { AlertBox, Loading } from '@morbeez/ui-native';
 
 export default function LeadsScreen() {
@@ -54,10 +54,13 @@ export default function LeadsScreen() {
           </Text>
           {lead.phone ? (
             <Pressable
-              onPress={() => void Linking.openURL(`tel:${lead.phone}`)}
+              onPress={() => {
+                const href = telHref(lead.phone);
+                if (href) void Linking.openURL(href);
+              }}
               style={styles.callLink}
             >
-              <Text style={styles.callText}>Call {lead.phone}</Text>
+              <Text style={styles.callText}>Call {formatPhoneDisplay(lead.phone)}</Text>
             </Pressable>
           ) : null}
         </Pressable>

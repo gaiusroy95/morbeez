@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { fieldPwaService } from '../admin/field-pwa.service.js';
 import { crmFarmerService } from '../admin/crm-farmer.service.js';
 import { farmerTeamTimelineService } from '../crm/farmer-team-timeline.service.js';
@@ -168,7 +169,7 @@ export const partnerFarmerWorkspaceService = {
         return {
           id: farmerId,
           name: String(f.name ?? 'Farmer'),
-          phone: f.phone ? String(f.phone) : null,
+          phone: formatPhoneE164(f.phone != null ? String(f.phone) : null),
           village: f.village ? String(f.village) : null,
           district: f.district ? String(f.district) : null,
           primaryCrop: primaryCropFromBlocks(blocks as Array<Record<string, unknown>>),
@@ -308,7 +309,7 @@ export const partnerFarmerWorkspaceService = {
     const header: PartnerFarmerHeader = {
       id: String(farmerRow!.id),
       name: String(farmerRow!.name ?? 'Farmer'),
-      phone: farmerRow!.phone ? String(farmerRow!.phone) : null,
+      phone: formatPhoneE164(farmerRow!.phone != null ? String(farmerRow!.phone) : null),
       village: farmerRow!.village ? String(farmerRow!.village) : null,
       district: farmerRow!.district ? String(farmerRow!.district) : null,
       primaryCrop: farmSnapshot.primaryCrop,

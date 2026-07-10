@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { formatPhoneDisplay, telHref, whatsAppPhone } from '@morbeez/shared';
 import { api } from '../../lib/api';
 import { CrmModals, type CrmModalType } from './CrmModals';
 import { BlocksTab } from './BlocksTab';
@@ -462,7 +463,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                   </span>
                 </div>
                 <p className="tc-detail-subline">
-                  {l.phone ?? '—'}
+                  {formatPhoneDisplay(l.phone)}
                   <span className="tc-detail-dot">•</span>
                   {f.territory}
                   {l.pincode ? (
@@ -498,7 +499,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
             <div className="tc-detail-header-actions">
               <a
                 className="tc-call-btn"
-                href={l.phone ? `tel:${String(l.phone).replace(/\s+/g, '')}` : undefined}
+                href={telHref(l.phone) ?? undefined}
               >
                 📞 Call
               </a>
@@ -600,7 +601,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                       <a
                         className="tc-header-dropdown-link"
                         role="menuitem"
-                        href={`https://wa.me/${String(l.phone).replace(/\D/g, '')}`}
+                        href={`https://wa.me/${whatsAppPhone(l.phone)}`}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => setOverflowMenuOpen(false)}

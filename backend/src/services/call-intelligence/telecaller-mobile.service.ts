@@ -1,5 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { telecallerAdminService } from '../admin/telecaller-admin.service.js';
 import { telecallerLeadQueueService } from '../admin/telecaller-lead-queue.service.js';
 import { telecallerFarmerProfileService } from '../admin/telecaller-farmer-profile.service.js';
@@ -82,7 +83,7 @@ function mapOperationalLead(row: Awaited<ReturnType<typeof telecallerLeadQueueSe
     id: String(row.id),
     farmerId: String(row.farmerId),
     farmerName: String(row.farmerName ?? 'Farmer'),
-    phone: row.phone ? String(row.phone) : null,
+    phone: formatPhoneE164(row.phone != null ? String(row.phone) : null),
     district: row.district ? String(row.district) : null,
     village: (row as { village?: string | null }).village
       ? String((row as { village?: string | null }).village)
@@ -449,7 +450,7 @@ export const telecallerMobileService = {
       farmer: {
         id: farmerId,
         name,
-        phone: farmerRow.phone ? String(farmerRow.phone) : null,
+        phone: formatPhoneE164(farmerRow.phone != null ? String(farmerRow.phone) : null),
         district: farmerRow.district ? String(farmerRow.district) : null,
         village: farmerRow.village ? String(farmerRow.village) : null,
         language: farmerRow.preferred_language ? String(farmerRow.preferred_language) : null,
@@ -516,7 +517,8 @@ export const telecallerMobileService = {
         .limit(30),
       supabase
         .from('agronomist_escalations')
-        .select('id, title, created_at, farmer_id, farmers(name, first_name, last_name)')
+        .select('id, reason, priority, created_at, farmer_id, farmers(name, first_name, last_name)')
+        .is('dismissed_at', null)
         .in('status', ['pending', 'assigned', 'in_review'])
         .order('created_at', { ascending: false })
         .limit(15),
@@ -568,11 +570,15 @@ export const telecallerMobileService = {
     }
 
     for (const e of escalationsRes.data ?? []) {
+      const farmerRaw = e.farmers as Record<string, unknown> | Record<string, unknown>[] | null;
+      const farmerRow = (Array.isArray(farmerRaw) ? farmerRaw[0] : farmerRaw) ?? null;
+      const farmerName = farmerRow ? displayFarmerName(farmerRow) : 'Farmer';
+      const reason = String(e.reason ?? 'Escalation').trim() || 'Escalation';
       notifications.push({
         id: `escalation-${e.id}`,
         category: 'escalation',
-        title: String(e.title ?? 'Escalation'),
-        detail: 'Needs review',
+        title: `${farmerName}: ${reason.slice(0, 80)}`,
+        detail: e.priority ? `Priority: ${String(e.priority)}` : 'Needs review',
         at: String(e.created_at ?? new Date().toISOString()),
       });
     }

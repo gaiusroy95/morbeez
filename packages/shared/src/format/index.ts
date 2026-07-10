@@ -46,3 +46,12 @@ export function formatDate(iso: string | null | undefined): string {
     return '—';
   }
 }
+
+export {
+  phoneDigits,
+  formatPhoneE164,
+  formatPhoneDisplay,
+  telHref,
+  whatsAppPhone,
+  whatsAppHref,
+} from './phone';

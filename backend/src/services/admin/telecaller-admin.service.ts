@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { crmFarmerService } from './crm-farmer.service.js';
@@ -201,7 +202,7 @@ function mapLeadRow(row: Record<string, unknown>) {
     })(),
     farmerName: name,
     farmerInitials: initials(name),
-    phone: farmer?.phone ?? null,
+    phone: formatPhoneE164(farmer?.phone != null ? String(farmer.phone) : null),
     district: farmer?.district ?? null,
     state: farmer?.state ?? null,
     farmerStatus: row.status === 'won' ? 'customer' : 'active',
@@ -511,7 +512,9 @@ export const telecallerAdminService = {
         crop: primaryCrop,
         acreage: totalAcre,
         whatsappSame: farmer?.whatsapp_same_as_phone !== false,
-        whatsappPhone: farmer?.whatsapp_phone ? String(farmer.whatsapp_phone) : null,
+        whatsappPhone: formatPhoneE164(
+          farmer?.whatsapp_phone ? String(farmer.whatsapp_phone) : null
+        ),
         shippingAddress: farmer?.shipping_address ? String(farmer.shipping_address) : null,
         deliveryPincode: farmer?.delivery_pincode ? String(farmer.delivery_pincode) : null,
         roiEnabled: Boolean(farmer?.roi_enabled),

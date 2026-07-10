@@ -1,6 +1,7 @@
 import { useTelecallerHeaderOptional } from '../../context/TelecallerHeaderContext';
 import { WorkspaceHeader } from '../WorkspaceHeader';
 import { NavIcon } from '../NavIcon';
+import { formatPhoneDisplay, telHref, whatsAppPhone } from '@morbeez/shared';
 
 function WhatsAppIcon({ className = '' }: { className?: string }) {
   return (
@@ -29,12 +30,6 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
   const unread = header?.unreadNotifications ?? 0;
   const pendingEscalations = header?.pendingEscalations ?? 0;
   const bellCount = unread + pendingEscalations;
-
-  function normalizePhone(phone: string) {
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length === 10) return `91${digits}`;
-    return digits;
-  }
 
   return (
     <WorkspaceHeader
@@ -66,7 +61,8 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
             disabled={!selectedPhone}
             onClick={() => {
               if (!selectedPhone) return;
-              window.open(`https://wa.me/${normalizePhone(selectedPhone)}`, '_blank', 'noopener,noreferrer');
+              const wa = whatsAppPhone(selectedPhone);
+              if (wa) window.open(`https://wa.me/${wa}`, '_blank', 'noopener,noreferrer');
             }}
           >
             <WhatsAppIcon />
@@ -75,11 +71,12 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
             type="button"
             className="tool-btn"
             aria-label="Call farmer"
-            title={selectedPhone ? `Call ${selectedPhone}` : 'Select a lead first'}
+            title={selectedPhone ? `Call ${formatPhoneDisplay(selectedPhone)}` : 'Select a lead first'}
             disabled={!selectedPhone}
             onClick={() => {
               if (!selectedPhone) return;
-              window.location.href = `tel:${selectedPhone}`;
+              const href = telHref(selectedPhone);
+              if (href) window.location.href = href;
             }}
           >
             <NavIcon name="phone" className="icon-tool" />

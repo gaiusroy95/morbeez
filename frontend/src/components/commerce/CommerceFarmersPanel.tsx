@@ -43,9 +43,9 @@ function formatLastOrder(iso: string | null): string {
 function formatPhone(phone: string | null): string {
   if (!phone) return '—';
   const digits = phone.replace(/\D/g, '');
-  if (digits.length === 10) return digits;
-  if (digits.length > 10) return digits.slice(-10);
-  return phone;
+  if (!digits) return '—';
+  if (digits.length === 10) return `+91${digits}`;
+  return `+${digits}`;
 }
 
 function locationLabel(row: FarmerRow): string {

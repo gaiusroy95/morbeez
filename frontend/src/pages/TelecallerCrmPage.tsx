@@ -22,6 +22,7 @@ import {
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
 import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner, StaticSelect } from '../components/ui';
 import { getRealtimeClient } from '../lib/realtime';
+import { formatPhoneDisplay, telHref, whatsAppPhone } from '@morbeez/shared';
 const STAGE_CLASS: Record<string, string> = {
   new_lead: 'stage-new',
   interested: 'stage-interested',
@@ -560,7 +561,9 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                 {focusLead || selectedLead ? (
                   <span className="tc-workspace-focus-title">
                     {(focusLead ?? selectedLead)!.farmerName}{' '}
-                    {(focusLead ?? selectedLead)!.phone ? `· ${(focusLead ?? selectedLead)!.phone}` : ''}
+                    {(focusLead ?? selectedLead)!.phone
+                      ? `· ${formatPhoneDisplay((focusLead ?? selectedLead)!.phone)}`
+                      : ''}
                   </span>
                 ) : null}
               </div>
