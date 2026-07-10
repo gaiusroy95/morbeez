@@ -33,6 +33,11 @@ import type { MaiosChannel } from '../../domain/case/types.js';
 import type { ContextPack } from '../whatsapp/pipeline/context-pack.service.js';
 import { cropDoctorFarmerReportService } from './crop-doctor-farmer-report.service.js';
 import { cropDoctorReportContextService } from './crop-doctor-report-context.service.js';
+import {
+  analyzeAndFuseDiagnosisImages,
+  collectDiagnosisImages,
+} from './multi-image-diagnosis.service.js';
+import { logger } from '../../lib/logger.js';
 
 function whatsappFarmerAnswers(input: DiagnoseInput) {
   const answers: Array<{ questionId?: string; questionText: string; answer: string }> = [];
@@ -201,7 +206,56 @@ export const cropDoctorService = {
     const farmerHistory =
       input.compactHistory ?? (await getFarmerHistory(input.farmerId));
 
-    if (input.imageBase64 && env.PLANT_ID_API_KEY) {
+    const allImages = collectDiagnosisImages(input);
+    const multiFusion =
+      allImages.length > 1
+        ? await analyzeAndFuseDiagnosisImages(allImages, {
+            cropType: input.cropType,
+            cropStage: input.cropStage,
+            dap: (input.contextPack as ContextPack | undefined)?.dap ?? null,
+          }).catch((err) => {
+            logger.warn({ err, farmerId: input.farmerId }, 'Multi-image per-photo analysis failed');
+            return null;
+          })
+        : null;
+
+    if (multiFusion) {
+      const priorMeta =
+        session.metadata && typeof session.metadata === 'object'
+          ? (session.metadata as Record<string, unknown>)
+          : {};
+      if (multiFusion.primaryPlantIdResult) {
+        plantIdResult = multiFusion.primaryPlantIdResult;
+        await aiLogService.logRequest({
+          sessionId,
+          provider: 'plantid',
+          endpoint: 'health_assessment_multi',
+          latencyMs: 0,
+          success: true,
+        });
+      }
+      await supabase
+        .from('ai_advisory_sessions')
+        .update({
+          ...(plantIdResult ? { plant_id_result: plantIdResult.raw } : {}),
+          metadata: {
+            ...priorMeta,
+            multiImageFusion: {
+              analyzedCount: multiFusion.analyzedCount,
+              totalCount: multiFusion.totalCount,
+              fusedLabel: multiFusion.fusedLabel,
+              fusedConfidence: multiFusion.fusedConfidence,
+              perImage: multiFusion.perImage.map((s) => ({
+                index: s.index,
+                label: s.label,
+                confidence: s.confidence,
+                source: s.source,
+              })),
+            },
+          },
+        })
+        .eq('id', sessionId);
+    } else if (input.imageBase64 && env.PLANT_ID_API_KEY) {
       const started = Date.now();
       try {
         plantIdResult = await plantIdProvider.assessHealth({ imageBase64: input.imageBase64 });
@@ -228,7 +282,11 @@ export const cropDoctorService = {
       }
     }
 
-    const plantIdSummary = plantIdResult ? formatPlantIdSummary(plantIdResult) : undefined;
+    const plantIdSummary = multiFusion?.plantIdSummary
+      ? multiFusion.plantIdSummary
+      : plantIdResult
+        ? formatPlantIdSummary(plantIdResult)
+        : undefined;
     const verifiedRegionalHints = await farmerExperienceLearningService
       .getVerifiedRegionalHints(input.farmerId, input.cropType)
       .catch(() => null);
@@ -243,6 +301,11 @@ export const cropDoctorService = {
         observation: input.symptomsText ?? input.voiceTranscript,
       }));
 
+    const photoCountForPrompt =
+      input.diagnosisImages?.length ??
+      allImages.length ??
+      (input.imageBase64 ? 1 : 0);
+
     const fullUserPrompt = buildUserPrompt({
       cropType: input.cropType,
       cropStage: input.cropStage,
@@ -255,9 +318,14 @@ export const cropDoctorService = {
       environmentalContext: input.environmentalContext,
       morbeezFieldContext: morbeezFieldContext ?? undefined,
       fieldInvestigation: input.fieldInvestigation,
-      issueLabelHint: input.issueLabelHint,
+      issueLabelHint: multiFusion?.fusedLabel
+        ? [input.issueLabelHint, `Multi-image fused signal: ${multiFusion.fusedLabel}`]
+            .filter(Boolean)
+            .join(' | ')
+        : input.issueLabelHint,
       language: input.language,
-      photoCount: input.diagnosisImages?.length ?? (input.imageBase64 ? 1 : 0),
+      photoCount: photoCountForPrompt,
+      multiImageEvidence: multiFusion?.evidenceBlock,
     });
 
     let advisory: StructuredAdvisory | undefined;
@@ -265,11 +333,10 @@ export const cropDoctorService = {
 
     try {
       if (input.imageBase64 && input.imageMimeType) {
-        const additionalImages = (input.diagnosisImages ?? [])
+        const additionalImages = allImages
           .slice(1)
-          .filter((img) => img.imageBase64)
           .map((img) => ({
-            imageBase64: img.imageBase64!,
+            imageBase64: img.imageBase64,
             mimeType: img.imageMimeType,
           }));
         advisory = await openaiVisionProvider.analyzeVision({
@@ -284,7 +351,7 @@ export const cropDoctorService = {
           !whatsappDiagnosisRendererService.hasImageEvidence(advisory) &&
           !whatsappDiagnosisRendererService.hasRichSections(advisory)
         ) {
-          const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from the attached photo (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
+          const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from ALL attached photos (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
           advisory = await openaiVisionProvider.analyzeVision({
             imageBase64: input.imageBase64,
             mimeType: input.imageMimeType,
@@ -292,6 +359,41 @@ export const cropDoctorService = {
             userPrompt: retryPrompt,
             additionalImages: additionalImages.length ? additionalImages : undefined,
           });
+        }
+
+        // Merge per-photo observations into the final advisory when the model under-reports.
+        if (multiFusion?.perImage.length) {
+          const existing = new Set(
+            (advisory.imageObservations ?? []).map((o) => o.trim().toLowerCase())
+          );
+          const extras: string[] = [];
+          for (const s of multiFusion.perImage) {
+            const header = `Photo ${s.index + 1}: ${s.label}`;
+            if (!existing.has(header.toLowerCase())) extras.push(header);
+            for (const obs of s.observations) {
+              const key = obs.trim().toLowerCase();
+              if (key && !existing.has(key)) {
+                existing.add(key);
+                extras.push(`Photo ${s.index + 1}: ${obs}`);
+              }
+            }
+          }
+          if (extras.length) {
+            advisory.imageObservations = [...(advisory.imageObservations ?? []), ...extras].slice(
+              0,
+              12
+            );
+          }
+          if (
+            multiFusion.fusedLabel &&
+            (!advisory.probableIssue?.trim() || advisory.confidence < multiFusion.fusedConfidence - 0.15)
+          ) {
+            // Keep model label if present; only fill when empty
+            if (!advisory.probableIssue?.trim()) {
+              advisory.probableIssue = multiFusion.fusedLabel;
+              advisory.confidence = multiFusion.fusedConfidence;
+            }
+          }
         }
       } else {
         advisory = await openaiTextAdvisory(CROP_DOCTOR_SYSTEM_PROMPT, fullUserPrompt);
@@ -357,6 +459,8 @@ export const cropDoctorService = {
     const photoCount =
       input.maiosPhotoCount ??
       input.gingerSopPhotoCount ??
+      input.diagnosisImages?.length ??
+      allImages.length ??
       (input.imageBase64 ? 1 : 0);
     const photoPaths = input.maiosPhotoPaths ?? input.gingerSopPhotoPaths;
     const intakeConf = input.maiosIntakeConfidence ?? input.gingerSopIntakeConfidence;

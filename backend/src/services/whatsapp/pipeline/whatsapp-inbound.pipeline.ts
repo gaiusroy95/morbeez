@@ -1095,8 +1095,8 @@ export const whatsappInboundPipeline = {
       await batch.sendText(
         batch.phone,
         batch.language === 'ml'
-          ? `${batch.images.length} ഫോട്ടോകൾ ലഭിച്ചു — ഒരുമിച്ച് വിശകലനം ചെയ്യുന്നു…`
-          : `Received ${batch.images.length} photos — analyzing together…`
+          ? `${batch.images.length} ഫോട്ടോകൾ ലഭിച്ചു — ഓരോന്നും വിശകലനം ചെയ്ത് ഒരു രോഗനിർണയം തയ്യാറാക്കുന്നു…`
+          : `Received ${batch.images.length} photos — analyzing each one, then combining into one diagnosis…`
       );
     }
 

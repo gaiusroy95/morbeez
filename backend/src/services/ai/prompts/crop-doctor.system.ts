@@ -154,6 +154,8 @@ export function buildUserPrompt(params: {
   language: string;
   /** When farmer sent multiple photos in one burst. */
   photoCount?: number;
+  /** Per-photo analysis fused into one evidence block (multi-image albums). */
+  multiImageEvidence?: string;
 }): string {
   return [
     `Crop: ${params.cropType} (already known from farmer profile — do not ask farmer to name crop again unless message clearly refers to a different crop).`,
@@ -182,8 +184,9 @@ export function buildUserPrompt(params: {
     params.issueLabelHint
       ? `Farmer investigation Q&A (must align with imageObservations — not a fixed diagnosis label): ${params.issueLabelHint}`
       : null,
+    params.multiImageEvidence ? `\n${params.multiImageEvidence}\n` : null,
     params.photoCount && params.photoCount > 1
-      ? `Farmer sent ${params.photoCount} photos in one message — analyze ALL images together; note differences between angles in imageObservations.`
+      ? `Farmer sent ${params.photoCount} photos — all images are attached. Synthesize ONE comprehensive diagnosis from every photo; do not diagnose from the first image alone.`
       : null,
     'For differentialDiagnosis: list up to 5 ranked causes with probability; probableIssue must match the top-ranked label.',
     'Populate farmerReport with all crop/weather/activity/soil-test fields from context above; use "Not recorded" when missing.',
