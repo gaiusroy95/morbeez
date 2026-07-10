@@ -69,6 +69,18 @@ function normalizeJoinRow(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
+/** Telecaller "mine" = assigned to agent OR unassigned (WhatsApp / inbound pool). */
+function applyTelecallerLeadScope<T extends { or: (f: string) => T; eq: (c: string, v: string) => T }>(
+  builder: T,
+  scope: 'mine' | 'all' | undefined,
+  agentEmail: string
+): T {
+  if (scope === 'mine') {
+    return builder.or(`assigned_to.eq.${agentEmail},assigned_to.is.null`);
+  }
+  return builder;
+}
+
 function initials(name: string): string {
   return (
     name
@@ -297,20 +309,18 @@ export const telecallerAdminService = {
 
   async listLeads(query: TelecallerListQuery, agentEmail: string) {
     const page = Math.max(1, query.page ?? 1);
-    const limit = Math.min(50, Math.max(1, query.limit ?? 20));
+    const limit = Math.min(200, Math.max(1, query.limit ?? 20));
     const from = (page - 1) * limit;
     const to = from + limit - 1;
 
     let builder = supabase
       .from('leads')
-      .select('*, farmers(phone, name, first_name, last_name, district, state, preferred_language)', {
+      .select('*, farmers(phone, name, first_name, last_name, district, state, preferred_language, village)', {
         count: 'exact',
       })
       .order('updated_at', { ascending: false });
 
-    if (query.scope === 'mine') {
-      builder = builder.eq('assigned_to', agentEmail);
-    }
+    builder = applyTelecallerLeadScope(builder, query.scope, agentEmail);
 
     if (query.stage && query.stage !== 'all') {
       builder = builder.eq('stage', query.stage);
@@ -333,7 +343,7 @@ export const telecallerAdminService = {
       supabase
         .from('leads')
         .select('id', { count: 'exact', head: true })
-        .eq('assigned_to', agentEmail),
+        .or(`assigned_to.eq.${agentEmail},assigned_to.is.null`),
       supabase.from('leads').select('id', { count: 'exact', head: true }),
     ]);
 

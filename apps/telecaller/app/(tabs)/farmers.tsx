@@ -7,7 +7,7 @@ import { FarmerCard } from '@/components/FarmerCard';
 import { useLocale } from '@/context/LocaleContext';
 
 const FILTER_IDS = [
-  { id: 'all', smartFilter: 'all', label: 'All', sort: undefined as string | undefined },
+  { id: 'all', smartFilter: undefined, label: 'All', sort: undefined as string | undefined },
   { id: 'active', smartFilter: 'pending', label: 'Active', sort: undefined },
   { id: 'follow_up', smartFilter: 'overdue', label: 'Need Follow-up', sort: undefined },
   { id: 'due_today', smartFilter: 'due_today', label: 'Due Today', sort: undefined },
@@ -41,8 +41,8 @@ export default function FarmersScreen() {
         scope: 'mine',
         search: query.trim() || undefined,
         smartFilter: activeFilter.smartFilter,
-        sort: activeFilter.sort ?? 'priority',
-        limit: 50,
+        sort: activeFilter.sort ?? 'recent_interaction',
+        limit: 100,
       });
       setFarmers(rows);
     } catch (e) {
