@@ -20,6 +20,7 @@ import {
   VISIT_FOLLOWUP_OUTCOMES,
   RECORD_SEVERITIES,
   VISIT_AI_REJECT_REASONS,
+  VISIT_AI_ANSWER_TYPES,
 } from './enums.js';
 
 export const findingTypeSchema = z.enum(FINDING_TYPES);
@@ -286,7 +287,10 @@ export const visitAiQuestionDraftSchema = z.object({
   id: z.string().uuid().optional(),
   questionText: z.string().min(1).max(500),
   answer: z.string().max(500).optional(),
-  answerType: z.enum(['yes_no_unknown', 'text', 'number']).optional(),
+  answerType: z.enum(VISIT_AI_ANSWER_TYPES).optional(),
+  options: z.array(z.string().max(120)).max(12).optional(),
+  priority: z.number().int().min(1).max(8).optional(),
+  imageTarget: z.string().max(80).optional(),
 });
 
 export const visitAiSyncQuestionsBodySchema = z.object({

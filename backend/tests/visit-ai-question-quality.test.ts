@@ -14,16 +14,23 @@ describe('visit question quality', () => {
   });
 
   it('accepts targeted yes/no diagnostic questions', () => {
-    assert.equal(isHighValueVisitQuestion('Are lesions water-soaked or dry?', 'yes_no_unknown'), true);
+    assert.equal(isHighValueVisitQuestion('Are lesions water-soaked or dry?', 'yes_no'), true);
     assert.equal(
       isHighValueVisitQuestion('Was any fungicide sprayed within the last 14 days?', 'yes_no_unknown'),
       true
     );
   });
 
-  it('accepts severity number questions', () => {
+  it('accepts severity percentage questions', () => {
     assert.equal(
-      isHighValueVisitQuestion('Approximately what percentage of plants are affected?', 'number'),
+      isHighValueVisitQuestion('About what share of plants are affected?', 'percentage'),
+      true
+    );
+  });
+
+  it('accepts single-choice distribution questions', () => {
+    assert.equal(
+      isHighValueVisitQuestion('Where is the damage most common?', 'single_choice'),
       true
     );
   });

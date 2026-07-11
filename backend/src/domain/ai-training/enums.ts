@@ -136,8 +136,17 @@ export const ISSUE_CATEGORIES = [
 ] as const;
 export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
 
-/** Visit AI question answer types */
-export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'] as const;
+/** Visit AI question answer types (v12 diagnostic engine) */
+export const VISIT_AI_ANSWER_TYPES = [
+  'yes_no_unknown',
+  'yes_no',
+  'single_choice',
+  'multiple_choice',
+  'percentage',
+  'number',
+  'text',
+  'image_upload',
+] as const;
 export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
 
 /** Visit AI case lifecycle */

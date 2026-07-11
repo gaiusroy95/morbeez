@@ -362,6 +362,9 @@ export const partnerClient = {
       questionText: string;
       answer?: string;
       answerType?: import('../types/field-findings.js').VisitAiAnswerType;
+      options?: string[];
+      priority?: number;
+      imageTarget?: string;
     }>
   ): Promise<VisitAiQuestion[]> {
     const r = await partnerApi<{ ok: boolean; questions: VisitAiQuestion[] }>(

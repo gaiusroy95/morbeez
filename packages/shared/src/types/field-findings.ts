@@ -129,8 +129,46 @@ export const VISIT_AI_EVIDENCE_PHOTO_LABELS: Record<(typeof VISIT_AI_EVIDENCE_PH
   field_view: 'Field View',
 };
 
-export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'] as const;
+export const VISIT_AI_ANSWER_TYPES = [
+  'yes_no_unknown',
+  'yes_no',
+  'single_choice',
+  'multiple_choice',
+  'percentage',
+  'number',
+  'text',
+  'image_upload',
+] as const;
 export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
+
+export const DEFAULT_VISIT_PERCENTAGE_OPTIONS = [
+  '<5%',
+  '5–10%',
+  '10–25%',
+  '25–50%',
+  '50–75%',
+  '>75%',
+] as const;
+
+export const VISIT_IMAGE_UPLOAD_TARGETS = [
+  'whole_plant',
+  'leaf_top',
+  'leaf_underside',
+  'stem_base',
+  'rhizome',
+  'root_system',
+  'entire_field',
+] as const;
+
+export const VISIT_IMAGE_UPLOAD_TARGET_LABELS: Record<(typeof VISIT_IMAGE_UPLOAD_TARGETS)[number], string> = {
+  whole_plant: 'Whole plant',
+  leaf_top: 'Leaf top',
+  leaf_underside: 'Leaf underside',
+  stem_base: 'Stem base',
+  rhizome: 'Rhizome',
+  root_system: 'Root system',
+  entire_field: 'Entire field',
+};
 
 export type MeasurementTemplate = {
   id: string;
@@ -168,6 +206,10 @@ export type VisitAiQuestion = {
   questionText: string;
   answerType: VisitAiAnswerType;
   answer?: string;
+  /** Choice / percentage / image-target options from the diagnostic engine. */
+  options?: string[];
+  priority?: number;
+  imageTarget?: string;
 };
 
 export type VisitAgronomistReview = {

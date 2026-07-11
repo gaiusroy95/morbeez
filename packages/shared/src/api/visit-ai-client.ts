@@ -15,6 +15,9 @@ export type VisitAiClient = {
       questionText: string;
       answer?: string;
       answerType?: VisitAiAnswerType;
+      options?: string[];
+      priority?: number;
+      imageTarget?: string;
     }>
   ): Promise<VisitAiQuestion[]>;
   regenerateVisitAiQuestions(aiCaseId: string): Promise<VisitAiQuestion[]>;

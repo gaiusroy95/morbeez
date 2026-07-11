@@ -18,5 +18,6 @@ CREATE INDEX IF NOT EXISTS idx_visit_image_diagnosis_cache_lookup
 
 ALTER TABLE visit_image_diagnosis_cache ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS visit_image_diagnosis_cache_service ON visit_image_diagnosis_cache;
 CREATE POLICY visit_image_diagnosis_cache_service
   ON visit_image_diagnosis_cache FOR ALL USING (true) WITH CHECK (true);

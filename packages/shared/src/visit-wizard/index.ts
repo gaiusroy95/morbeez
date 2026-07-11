@@ -537,15 +537,13 @@ export type VisitIssueDraft = StructuredVisitIssueInput & {
   }>;
 
   followUpQuestions?: Array<{
-
     id: string;
-
     questionText: string;
-
     answerType: string;
-
     answer?: string;
-
+    options?: string[];
+    priority?: number;
+    imageTarget?: string;
   }>;
 
   similarCases?: Array<{ issueLabel: string; score: number; confidence: number; outcome?: string | null }>;

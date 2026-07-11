@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   agronomistClient,
   buildAnalyzeVisitBody,
+  DEFAULT_VISIT_PERCENTAGE_OPTIONS,
   derivePhotoRequestsFromFollowUp,
   expandSeparateNutrientIssues,
   issueTopConfidence,
@@ -14,7 +15,8 @@ import {
 import { Alert, Loading, Panel } from '../../ui';
 import type { VisitIssueDraft } from './types';
 
-const ANSWER_CHIPS = ['yes', 'no', 'unknown'] as const;
+const YES_NO_CHIPS = ['yes', 'no'] as const;
+const YES_NO_UNKNOWN_CHIPS = ['yes', 'no', 'unknown'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isPersistedQuestionId(id: string): boolean {
@@ -25,8 +27,82 @@ function newLocalQuestion(): VisitAiQuestion {
   return {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     questionText: '',
-    answerType: 'yes_no_unknown',
+    answerType: 'yes_no',
   };
+}
+
+function parseMulti(answer?: string): string[] {
+  return (answer ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function toggleMulti(answer: string | undefined, option: string): string {
+  const set = new Set(parseMulti(answer));
+  if (set.has(option)) set.delete(option);
+  else set.add(option);
+  return [...set].join(', ');
+}
+
+function WebAnswerControls({
+  q,
+  onAnswer,
+}: {
+  q: VisitAiQuestion;
+  onAnswer: (answer: string) => void;
+}) {
+  if (q.answerType === 'text' || q.answerType === 'number') {
+    return (
+      <input
+        className="vw-qa-input"
+        type={q.answerType === 'number' ? 'number' : 'text'}
+        value={q.answer ?? ''}
+        onChange={(e) => onAnswer(e.target.value)}
+        placeholder={q.answerType === 'number' ? 'e.g. 7' : 'Your answer'}
+      />
+    );
+  }
+
+  const options =
+    q.answerType === 'percentage'
+      ? q.options?.length
+        ? q.options
+        : [...DEFAULT_VISIT_PERCENTAGE_OPTIONS]
+      : q.answerType === 'image_upload'
+        ? ['Captured', 'Not available', 'Need later']
+        : q.answerType === 'yes_no'
+          ? [...YES_NO_CHIPS]
+          : q.answerType === 'single_choice' || q.answerType === 'multiple_choice'
+            ? q.options ?? []
+            : [...YES_NO_UNKNOWN_CHIPS];
+
+  const multi = q.answerType === 'multiple_choice';
+
+  return (
+    <>
+      <span className="vw-field-label" style={{ marginTop: 8 }}>
+        {q.answerType === 'image_upload'
+          ? `Required photo: ${q.imageTarget ?? 'whole_plant'}`
+          : 'Answer'}
+      </span>
+      <div className="vw-chip-row">
+        {options.map((chip) => {
+          const active = multi ? parseMulti(q.answer).includes(chip) : q.answer === chip;
+          return (
+            <button
+              key={chip}
+              type="button"
+              className={['vw-chip', active ? 'vw-chip--active' : ''].filter(Boolean).join(' ')}
+              onClick={() => onAnswer(multi ? toggleMulti(q.answer, chip) : chip)}
+            >
+              {chip.charAt(0).toUpperCase() + chip.slice(1)}
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
 }
 
 type Props = {
@@ -321,7 +397,11 @@ export function VisitFollowUpStep({ issues, onChange, triage, screening }: Props
             ) : null}
             {(issue.followUpQuestions ?? []).map((q, qIndex) => (
               <div key={q.id} className="vw-qa-block">
-                <span className="vw-qa-label">Question {qIndex + 1}</span>
+                <span className="vw-qa-label">
+                  Question {qIndex + 1}
+                  {q.priority != null ? ` · P${q.priority}` : ''}
+                </span>
+                <p style={{ margin: '4px 0 8px', fontWeight: 600 }}>{q.questionText || '—'}</p>
                 <textarea
                   className="vw-textarea"
                   rows={2}
@@ -329,47 +409,7 @@ export function VisitFollowUpStep({ issues, onChange, triage, screening }: Props
                   onChange={(e) => setQuestionText(issueIndex, q.id, e.target.value)}
                   placeholder="Enter a field-specific follow-up question"
                 />
-                {q.answerType === 'text' || q.answerType === 'number' ? (
-                  <input
-                    className="vw-qa-input"
-                    type={q.answerType === 'number' ? 'number' : 'text'}
-                    value={q.answer ?? ''}
-                    onChange={(e) => setAnswer(issueIndex, q.id, e.target.value)}
-                    placeholder={q.answerType === 'number' ? 'e.g. 7' : 'Your answer'}
-                  />
-                ) : (
-                  <>
-                    <span className="vw-field-label" style={{ marginTop: 8 }}>
-                      Answer
-                    </span>
-                    <div className="vw-chip-row">
-                      {ANSWER_CHIPS.map((chip) => {
-                        const active = q.answer === chip;
-                        return (
-                          <button
-                            key={chip}
-                            type="button"
-                            className={['vw-chip', active ? 'vw-chip--active' : ''].filter(Boolean).join(' ')}
-                            onClick={() => setAnswer(issueIndex, q.id, chip)}
-                          >
-                            {chip.charAt(0).toUpperCase() + chip.slice(1)}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    <input
-                      className="vw-qa-input"
-                      type="text"
-                      value={
-                        q.answer && !ANSWER_CHIPS.includes(q.answer as (typeof ANSWER_CHIPS)[number])
-                          ? q.answer
-                          : ''
-                      }
-                      onChange={(e) => setAnswer(issueIndex, q.id, e.target.value)}
-                      placeholder="Or type a custom answer"
-                    />
-                  </>
-                )}
+                <WebAnswerControls q={q as VisitAiQuestion} onAnswer={(a) => setAnswer(issueIndex, q.id, a)} />
                 <button
                   type="button"
                   className="vw-qa-remove"

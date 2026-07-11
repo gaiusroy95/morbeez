@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
+  DEFAULT_VISIT_PERCENTAGE_OPTIONS,
   derivePhotoRequestsFromFollowUp,
   issuesNeedInitialScreening,
   partnerClient,
@@ -10,6 +11,7 @@ import {
   withTimeout,
   formatConfidenceProgress,
   confidenceThresholdMessage,
+  VISIT_IMAGE_UPLOAD_TARGET_LABELS,
   type TriagePreview,
   type VisitAiClient,
   type VisitAiAnswerType,
@@ -21,7 +23,8 @@ import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
 import { runVisitScreening } from '@/lib/visitScreening';
 
-const ANSWER_CHIPS = ['yes', 'no', 'unknown'] as const;
+const YES_NO_CHIPS = ['yes', 'no'] as const;
+const YES_NO_UNKNOWN_CHIPS = ['yes', 'no', 'unknown'] as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SCREENING_TIMEOUT_MS = 180_000;
 const QUESTION_FETCH_TIMEOUT_MS = 25_000;
@@ -34,8 +37,162 @@ function newLocalQuestion(): VisitAiQuestion {
   return {
     id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     questionText: '',
-    answerType: 'yes_no_unknown',
+    answerType: 'yes_no',
   };
+}
+
+function parseMultiAnswers(answer?: string): string[] {
+  if (!answer?.trim()) return [];
+  return answer
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function toggleMultiAnswer(current: string | undefined, option: string): string {
+  const set = new Set(parseMultiAnswers(current));
+  if (set.has(option)) set.delete(option);
+  else set.add(option);
+  return [...set].join(', ');
+}
+
+function optionLabel(option: string): string {
+  const key = option as keyof typeof VISIT_IMAGE_UPLOAD_TARGET_LABELS;
+  return VISIT_IMAGE_UPLOAD_TARGET_LABELS[key] ?? option;
+}
+
+function AnswerChips({
+  options,
+  value,
+  onSelect,
+  multi,
+}: {
+  options: string[];
+  value?: string;
+  onSelect: (next: string) => void;
+  multi?: boolean;
+}) {
+  const selected = multi ? new Set(parseMultiAnswers(value)) : null;
+  return (
+    <View style={styles.chipRow}>
+      {options.map((option) => {
+        const active = multi ? selected!.has(option) : value === option;
+        return (
+          <Pressable
+            key={option}
+            style={[styles.chip, active && styles.chipActive]}
+            onPress={() =>
+              onSelect(multi ? toggleMultiAnswer(value, option) : option)
+            }
+          >
+            <Text style={[styles.chipText, active && styles.chipTextActive]}>
+              {optionLabel(option)}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function DiagnosticAnswerInput({
+  question,
+  onChange,
+}: {
+  question: VisitAiQuestion;
+  onChange: (answer: string) => void;
+}) {
+  const type = question.answerType;
+  const percentageOptions = question.options?.length
+    ? question.options
+    : [...DEFAULT_VISIT_PERCENTAGE_OPTIONS];
+
+  if (type === 'number') {
+    return (
+      <TextField
+        label="Answer (number)"
+        value={question.answer ?? ''}
+        onChangeText={onChange}
+        placeholder="e.g. 6.5"
+        keyboardType="decimal-pad"
+      />
+    );
+  }
+
+  if (type === 'text') {
+    return (
+      <TextField
+        label="Answer"
+        value={question.answer ?? ''}
+        onChangeText={onChange}
+        placeholder="Your answer"
+      />
+    );
+  }
+
+  if (type === 'percentage') {
+    return (
+      <>
+        <Text style={styles.answerLabel}>Affected area</Text>
+        <AnswerChips options={percentageOptions} value={question.answer} onSelect={onChange} />
+      </>
+    );
+  }
+
+  if (type === 'single_choice' && question.options?.length) {
+    return (
+      <>
+        <Text style={styles.answerLabel}>Select one</Text>
+        <AnswerChips options={question.options} value={question.answer} onSelect={onChange} />
+      </>
+    );
+  }
+
+  if (type === 'multiple_choice' && question.options?.length) {
+    return (
+      <>
+        <Text style={styles.answerLabel}>Select all that apply</Text>
+        <AnswerChips
+          options={question.options}
+          value={question.answer}
+          onSelect={onChange}
+          multi
+        />
+      </>
+    );
+  }
+
+  if (type === 'image_upload') {
+    const targets = question.options?.length
+      ? question.options
+      : question.imageTarget
+        ? [question.imageTarget]
+        : ['whole_plant'];
+    return (
+      <>
+        <Text style={styles.answerLabel}>
+          Required photo: {optionLabel(question.imageTarget ?? targets[0] ?? 'whole_plant')}
+        </Text>
+        <AnswerChips
+          options={['Captured', 'Not available', 'Need later']}
+          value={question.answer}
+          onSelect={onChange}
+        />
+      </>
+    );
+  }
+
+  const chips = type === 'yes_no' ? YES_NO_CHIPS : YES_NO_UNKNOWN_CHIPS;
+  return (
+    <>
+      <Text style={styles.answerLabel}>Answer</Text>
+      <AnswerChips
+        options={[...chips]}
+        value={question.answer}
+        onSelect={onChange}
+      />
+    </>
+  );
 }
 
 type Props = {
@@ -198,10 +355,23 @@ export function VisitFollowUpStep({
         q.id === questionId ? { ...q, answer } : q
       ),
     });
-    if (issue.aiCaseId && ANSWER_CHIPS.includes(answer as (typeof ANSWER_CHIPS)[number])) {
+    const q = issue.followUpQuestions?.find((item) => item.id === questionId);
+    const chipAnswer =
+      answer === 'yes' || answer === 'no' || answer === 'unknown' ? answer : null;
+    if (
+      issue.aiCaseId &&
+      chipAnswer &&
+      (q?.answerType === 'yes_no' ||
+        q?.answerType === 'yes_no_unknown' ||
+        !q?.answerType)
+    ) {
       void (async () => {
         try {
-          const result = await agronomistClient.applyVisitAiAnswer(issue.aiCaseId!, questionId, answer);
+          const result = await agronomistClient.applyVisitAiAnswer(
+            issue.aiCaseId!,
+            questionId,
+            chipAnswer
+          );
           if (result.distribution) {
             setConfidenceByCase((prev) => ({ ...prev, [issue.aiCaseId!]: result.distribution }));
           }
@@ -280,6 +450,9 @@ export function VisitFollowUpStep({
             questionText: q.questionText.trim(),
             answer: q.answer?.trim(),
             answerType: q.answerType as VisitAiAnswerType,
+            options: q.options,
+            priority: q.priority,
+            imageTarget: q.imageTarget,
           }))
           .filter((q) => q.questionText.length > 0);
 
@@ -354,8 +527,8 @@ export function VisitFollowUpStep({
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
-        Answer targeted diagnostic questions only — the AI asks the minimum needed to reach ≥85%
-        confidence. Fewer, sharper questions beat long questionnaires.
+        Dynamic diagnostic Q&A — the engine asks only high-value questions that can change diagnosis,
+        severity, or treatment. Prefer short structured answers.
       </Text>
       {error ? (
         <View style={styles.errorBlock}>
@@ -412,49 +585,28 @@ export function VisitFollowUpStep({
             {showQa
               ? (issue.followUpQuestions ?? []).map((q, qIndex) => (
               <View key={q.id} style={styles.questionBlock}>
-                <Text style={styles.questionLabel}>Question {qIndex + 1}</Text>
+                <Text style={styles.questionLabel}>
+                  Question {qIndex + 1}
+                  {q.priority != null ? ` · P${q.priority}` : ''}
+                  {q.answerType && q.answerType !== 'yes_no_unknown'
+                    ? ` · ${q.answerType.replace(/_/g, ' ')}`
+                    : ''}
+                </Text>
+                <Text style={styles.questionText}>{q.questionText || '—'}</Text>
                 <TextField
-                  label="Question text"
+                  label="Edit question (optional)"
                   value={q.questionText}
                   onChangeText={(text) => setQuestionText(issueIndex, q.id, text)}
                   placeholder="Enter a field-specific follow-up question"
                   multiline
                 />
-                {q.answerType === 'text' || q.answerType === 'number' ? (
-                  <TextField
-                    label={q.answerType === 'number' ? 'Answer (number)' : 'Answer'}
-                    value={q.answer ?? ''}
-                    onChangeText={(text) => setAnswer(issueIndex, q.id, text)}
-                    placeholder={q.answerType === 'number' ? 'e.g. 7' : 'Your answer'}
-                    keyboardType={q.answerType === 'number' ? 'numeric' : 'default'}
-                  />
-                ) : (
-                  <>
-                    <Text style={styles.answerLabel}>Answer</Text>
-                    <View style={styles.chipRow}>
-                      {ANSWER_CHIPS.map((chip) => {
-                        const active = q.answer === chip;
-                        return (
-                          <Pressable
-                            key={chip}
-                            style={[styles.chip, active && styles.chipActive]}
-                            onPress={() => setAnswer(issueIndex, q.id, chip)}
-                          >
-                            <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                              {chip.charAt(0).toUpperCase() + chip.slice(1)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
-                    <TextField
-                      label="Or type answer"
-                      value={q.answer && !ANSWER_CHIPS.includes(q.answer as (typeof ANSWER_CHIPS)[number]) ? q.answer : ''}
-                      onChangeText={(text) => setAnswer(issueIndex, q.id, text)}
-                      placeholder="Custom answer (optional)"
-                    />
-                  </>
-                )}
+                <DiagnosticAnswerInput
+                  question={{
+                    ...q,
+                    answerType: q.answerType as VisitAiAnswerType,
+                  }}
+                  onChange={(answer) => setAnswer(issueIndex, q.id, answer)}
+                />
                 <Pressable style={styles.removeBtn} onPress={() => removeQuestion(issueIndex, q.id)}>
                   <Text style={styles.removeBtnText}>Remove question</Text>
                 </Pressable>
@@ -546,6 +698,7 @@ const styles = StyleSheet.create({
   skippedNote: { fontSize: 13, color: tokens.textMuted, fontStyle: 'italic', marginBottom: 8 },
   questionBlock: { marginBottom: 16, gap: 8 },
   questionLabel: { fontSize: 12, fontWeight: '700', color: tokens.textMuted, textTransform: 'uppercase' },
+  questionText: { fontSize: 15, fontWeight: '600', color: tokens.text, lineHeight: 21 },
   answerLabel: { fontSize: 13, fontWeight: '600', color: tokens.text },
   chipRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   chip: {

@@ -41,22 +41,39 @@ export function issueTopConfidence(issue: StepFlowIssue): number {
 }
 
 export function derivePhotoRequestsFromFollowUp(
-  questions: Array<{ questionText: string; answer?: string }>
+  questions: Array<{
+    questionText: string;
+    answer?: string;
+    answerType?: string;
+    imageTarget?: string;
+  }>
 ): Array<{ photoType: string; label: string; reason?: string }> {
   const requests: Array<{ photoType: string; label: string; reason?: string }> = [];
   const seen = new Set<string>();
   for (const q of questions) {
+    const isImageType = q.answerType === 'image_upload';
     const needsPhoto =
-      /photo|image|picture|close.?up|leaf sample|send.*(pic|shot)/i.test(q.questionText) &&
-      (!q.answer?.trim() || q.answer === 'unknown' || q.answer === 'no');
+      (isImageType || /photo|image|picture|close.?up|leaf sample|send.*(pic|shot)/i.test(q.questionText)) &&
+      (!q.answer?.trim() ||
+        q.answer === 'unknown' ||
+        q.answer === 'no' ||
+        q.answer === 'Not available' ||
+        q.answer === 'Need later');
     if (!needsPhoto) continue;
-    const photoType = /leaf/i.test(q.questionText)
+    const target = String(q.imageTarget ?? '').toLowerCase();
+    const photoType = target.includes('leaf')
       ? 'leaf'
-      : /stem|stalk/i.test(q.questionText)
+      : target.includes('stem')
         ? 'stem'
-        : /root|rhizome/i.test(q.questionText)
+        : target.includes('root') || target.includes('rhizome')
           ? 'rhizome'
-          : 'disease';
+          : /leaf/i.test(q.questionText)
+            ? 'leaf'
+            : /stem|stalk/i.test(q.questionText)
+              ? 'stem'
+              : /root|rhizome/i.test(q.questionText)
+                ? 'rhizome'
+                : 'disease';
     const key = `${photoType}:${q.questionText.slice(0, 40)}`;
     if (seen.has(key)) continue;
     seen.add(key);

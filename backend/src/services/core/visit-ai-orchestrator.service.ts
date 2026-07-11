@@ -17,7 +17,10 @@ import type { VisitAiRejectReason } from '../../domain/ai-training/enums.js';
 import { visitAiContextService } from './visit-ai-context.service.js';
 import { visitAiQuestionsService } from './visit-ai-questions.service.js';
 import { maxQuestionsForConfidence } from '../../domain/visit-ai/question-count.js';
-import { visitQuestionsNeedRegeneration } from '../../domain/visit-ai/question-quality.js';
+import {
+  visitQuestionsNeedRegeneration,
+  type VisitQuestionAnswerType,
+} from '../../domain/visit-ai/question-quality.js';
 import { resolveVisitImagePredictions } from './visit-ai-image.service.js';
 import { anchorPrimaryIssueToImageSignal } from './visit-ai-image-anchor.js';
 import { visitAiPromptContextService } from './visit-ai-prompt-context.service.js';
@@ -416,7 +419,10 @@ async function createScreeningCase(params: {
   const followUpQuestions: Array<{
     id: string;
     questionText: string;
-    answerType: 'yes_no_unknown' | 'text' | 'number';
+    answerType: VisitQuestionAnswerType;
+    options?: string[];
+    priority?: number;
+    imageTarget?: string;
   }> = [];
   return {
     aiCaseId,
@@ -683,6 +689,42 @@ function normalizeIssueCategory(category: string): VisitAnalyzeRequest['issueCat
   return (allowed.has(category) ? category : 'other') as VisitAnalyzeRequest['issueCategory'];
 }
 
+function mapQuestionRow(
+  q: {
+    id: unknown;
+    question_text: unknown;
+    answer_type: unknown;
+    answer?: unknown;
+    metadata?: unknown;
+  },
+  fallbackType?: VisitQuestionAnswerType,
+  draft?: { options?: string[]; priority?: number; imageTarget?: string }
+) {
+  const meta =
+    q.metadata && typeof q.metadata === 'object' ? (q.metadata as Record<string, unknown>) : {};
+  const optionsFromMeta = Array.isArray(meta.options)
+    ? meta.options.map((o) => String(o)).filter(Boolean)
+    : undefined;
+  return {
+    id: String(q.id),
+    questionText: String(q.question_text),
+    answerType: String(q.answer_type ?? fallbackType ?? 'yes_no') as VisitQuestionAnswerType,
+    answer: q.answer ? String(q.answer) : undefined,
+    options: optionsFromMeta ?? draft?.options,
+    priority:
+      meta.priority != null
+        ? Number(meta.priority)
+        : draft?.priority != null
+          ? draft.priority
+          : undefined,
+    imageTarget: meta.imageTarget
+      ? String(meta.imageTarget)
+      : draft?.imageTarget
+        ? draft.imageTarget
+        : undefined,
+  };
+}
+
 async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof getCaseOrThrow>>) {
   const aiCaseId = String(caseRow.id);
   const diagnosis =
@@ -745,8 +787,11 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
   const rows: Array<{
     id: string;
     questionText: string;
-    answerType: 'yes_no_unknown' | 'text' | 'number';
+    answerType: VisitQuestionAnswerType;
     answer?: string;
+    options?: string[];
+    priority?: number;
+    imageTarget?: string;
   }> = [];
 
   for (let i = 0; i < mergedDrafts.length; i++) {
@@ -754,7 +799,7 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
     if (draft.sourceLibraryId) {
       void expertFollowUpLearningService.recordHit(draft.sourceLibraryId).catch(() => {});
     }
-    const evsiMeta = draft.evsiQuestionId
+    const evsiMeta: Record<string, unknown> = draft.evsiQuestionId
       ? {
           source: 'evsi_v17' as const,
           evsiQuestionId: draft.evsiQuestionId,
@@ -763,6 +808,11 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
       : draft.kind
         ? { source: 'ai_planner' as const, kind: draft.kind }
         : { source: 'ai_planner' as const };
+    if (draft.options?.length) evsiMeta.options = draft.options;
+    if (draft.priority != null) evsiMeta.priority = draft.priority;
+    if (draft.imageTarget) evsiMeta.imageTarget = draft.imageTarget;
+    if (draft.purpose) evsiMeta.purpose = draft.purpose;
+
     const { data: qRow, error } = await supabase
       .from('visit_ai_questions')
       .insert({
@@ -773,14 +823,10 @@ async function persistVisitFollowUpQuestions(caseRow: Awaited<ReturnType<typeof 
         source_library_id: draft.sourceLibraryId ?? null,
         metadata: evsiMeta,
       })
-      .select('id, question_text, answer_type')
+      .select('id, question_text, answer_type, metadata')
       .single();
     throwIfSupabaseError(error, 'Could not save follow-up question');
-    rows.push({
-      id: String(qRow!.id),
-      questionText: String(qRow!.question_text),
-      answerType: draft.answerType,
-    });
+    rows.push(mapQuestionRow(qRow!, draft.answerType, draft));
   }
 
   await supabase
@@ -970,7 +1016,7 @@ export const visitAiOrchestratorService = {
         .order('sort_order', { ascending: true }),
       supabase
         .from('visit_ai_questions')
-        .select('id, question_text, answer_type, answer')
+        .select('id, question_text, answer_type, answer, metadata')
         .eq('visit_ai_case_id', aiCaseId)
         .order('sort_order', { ascending: true }),
       supabase
@@ -1008,12 +1054,7 @@ export const visitAiOrchestratorService = {
         imagePrediction: h.image_prediction ? String(h.image_prediction) : undefined,
         imageConfidence: h.image_confidence != null ? Number(h.image_confidence) : undefined,
       })),
-      questions: (questions ?? []).map((q) => ({
-        id: String(q.id),
-        questionText: String(q.question_text),
-        answerType: String(q.answer_type) as 'yes_no_unknown' | 'text' | 'number',
-        answer: q.answer ? String(q.answer) : undefined,
-      })),
+      questions: (questions ?? []).map((q) => mapQuestionRow(q)),
       recommendations: (recommendations ?? []).map((r) => ({
         aiText: String(r.ai_text ?? ''),
         humanText: r.human_text ? String(r.human_text) : null,
@@ -1032,7 +1073,7 @@ export const visitAiOrchestratorService = {
 
     const { data: existing } = await supabase
       .from('visit_ai_questions')
-      .select('id, question_text, answer_type, answer')
+      .select('id, question_text, answer_type, answer, metadata')
       .eq('visit_ai_case_id', aiCaseId)
       .order('sort_order', { ascending: true });
 
@@ -1051,12 +1092,7 @@ export const visitAiOrchestratorService = {
           : 0.75;
     const questionCap = maxQuestionsForConfidence(topConfidence);
 
-    const mapped = (existing ?? []).map((q) => ({
-      id: String(q.id),
-      questionText: String(q.question_text),
-      answerType: String(q.answer_type) as 'yes_no_unknown' | 'text' | 'number',
-      answer: q.answer ? String(q.answer) : undefined,
-    }));
+    const mapped = (existing ?? []).map((q) => mapQuestionRow(q));
 
     const hasAnswered = mapped.some((q) => q.answer?.trim());
     if (mapped.length && !visitQuestionsNeedRegeneration(mapped, questionCap)) {
@@ -1088,14 +1124,30 @@ export const visitAiOrchestratorService = {
     const rows: Array<{
       id: string;
       questionText: string;
-      answerType: 'yes_no_unknown' | 'text' | 'number';
+      answerType: VisitQuestionAnswerType;
       answer?: string;
+      options?: string[];
+      priority?: number;
+      imageTarget?: string;
     }> = [];
 
     for (let i = 0; i < body.questions.length; i++) {
       const q = body.questions[i]!;
-      const answerType = q.answerType ?? 'yes_no_unknown';
+      const answerType = (q.answerType ?? 'yes_no') as VisitQuestionAnswerType;
+      const metaPatch: Record<string, unknown> = { editedByAgronomist: true };
+      if (q.options?.length) metaPatch.options = q.options;
+      if (q.priority != null) metaPatch.priority = q.priority;
+      if (q.imageTarget) metaPatch.imageTarget = q.imageTarget;
       if (q.id && existingIds.has(q.id)) {
+        const { data: prior } = await supabase
+          .from('visit_ai_questions')
+          .select('metadata')
+          .eq('id', q.id)
+          .maybeSingle();
+        const priorMeta =
+          prior?.metadata && typeof prior.metadata === 'object'
+            ? (prior.metadata as Record<string, unknown>)
+            : {};
         const { error } = await supabase
           .from('visit_ai_questions')
           .update({
@@ -1103,7 +1155,7 @@ export const visitAiOrchestratorService = {
             answer_type: answerType,
             answer: q.answer?.trim() ? q.answer.trim() : null,
             sort_order: i,
-            metadata: { editedByAgronomist: true },
+            metadata: { ...priorMeta, ...metaPatch },
           })
           .eq('id', q.id)
           .eq('visit_ai_case_id', aiCaseId);
@@ -1113,6 +1165,9 @@ export const visitAiOrchestratorService = {
           questionText: q.questionText,
           answerType,
           answer: q.answer?.trim() ? q.answer.trim() : undefined,
+          options: q.options ?? (Array.isArray(priorMeta.options) ? priorMeta.options.map(String) : undefined),
+          priority: q.priority ?? (priorMeta.priority != null ? Number(priorMeta.priority) : undefined),
+          imageTarget: q.imageTarget ?? (priorMeta.imageTarget ? String(priorMeta.imageTarget) : undefined),
         });
       } else {
         const { data: qRow, error } = await supabase
@@ -1123,17 +1178,17 @@ export const visitAiOrchestratorService = {
             answer_type: answerType,
             answer: q.answer?.trim() ? q.answer.trim() : null,
             sort_order: i,
-            metadata: { source: 'agronomist_custom' },
+            metadata: {
+              source: 'agronomist_custom',
+              ...(q.options?.length ? { options: q.options } : {}),
+              ...(q.priority != null ? { priority: q.priority } : {}),
+              ...(q.imageTarget ? { imageTarget: q.imageTarget } : {}),
+            },
           })
-          .select('id, question_text, answer_type, answer')
+          .select('id, question_text, answer_type, answer, metadata')
           .single();
         throwIfSupabaseError(error, 'Could not add follow-up question');
-        rows.push({
-          id: String(qRow!.id),
-          questionText: String(qRow!.question_text),
-          answerType: answerType,
-          answer: qRow!.answer ? String(qRow!.answer) : undefined,
-        });
+        rows.push(mapQuestionRow(qRow!, answerType));
       }
     }
 
