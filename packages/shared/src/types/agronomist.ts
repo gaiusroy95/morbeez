@@ -241,6 +241,8 @@ export type RecommendationVisitContext = {
   issueDetected: string | null;
   aiDiagnosis: string | null;
   aiConfidence: number | null;
+  /** Farmer-suggested correction from dispute flow (validated by agronomist). */
+  farmerSuggestedDiagnosis?: string | null;
   recommendationText: string;
   symptomsText: string | null;
   images: Array<{ url: string; caption: string | null; suggestedPhotoType?: string | null }>;

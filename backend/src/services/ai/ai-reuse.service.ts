@@ -107,11 +107,21 @@ export const aiReuseService = {
         .order('hit_count', { ascending: false })
         .order('confidence_score', { ascending: false })
         .limit(5);
-      const hit = (rows ?? []).sort((a, b) => {
-        const aDist = a.district === (district ?? '') ? 2 : a.district === '' ? 1 : 0;
-        const bDist = b.district === (district ?? '') ? 2 : b.district === '' ? 1 : 0;
-        return bDist - aDist;
-      })[0];
+      const hit = (rows ?? [])
+        .filter((r) => {
+          const snap = r.advisory_snapshot as { staffVerified?: boolean } | null;
+          // Prefer staff-verified; allow legacy outcome_ok rows without explicit false.
+          return snap?.staffVerified !== false;
+        })
+        .sort((a, b) => {
+          const aSnap = a.advisory_snapshot as { staffVerified?: boolean } | null;
+          const bSnap = b.advisory_snapshot as { staffVerified?: boolean } | null;
+          const aStaff = aSnap?.staffVerified === true ? 4 : 0;
+          const bStaff = bSnap?.staffVerified === true ? 4 : 0;
+          const aDist = a.district === (district ?? '') ? 2 : a.district === '' ? 1 : 0;
+          const bDist = b.district === (district ?? '') ? 2 : b.district === '' ? 1 : 0;
+          return bStaff + bDist - (aStaff + aDist);
+        })[0];
 
       if (!hit) continue;
 

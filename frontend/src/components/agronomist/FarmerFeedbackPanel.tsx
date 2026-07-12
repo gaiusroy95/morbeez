@@ -293,6 +293,41 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
 
             {canWrite ? (
               <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
+                <div>
+                  <span className="text-sm text-slate-600">Farmer suggestion chips</span>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {[
+                      'Iron (Fe) deficiency',
+                      'Zinc (Zn) deficiency',
+                      'Magnesium (Mg) deficiency',
+                      'Nitrogen (N) deficiency',
+                    ].map((label) => (
+                      <button
+                        key={label}
+                        type="button"
+                        className={`rounded-full border px-3 py-1 text-xs font-medium ${
+                          finalDx === label
+                            ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
+                            : 'border-slate-200 bg-white text-slate-700'
+                        }`}
+                        onClick={() => setFinalDx(label)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    {detail.feedback.farmer_suggested_diagnosis ? (
+                      <button
+                        type="button"
+                        className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900"
+                        onClick={() =>
+                          setFinalDx(detail.feedback.farmer_suggested_diagnosis ?? '')
+                        }
+                      >
+                        Use farmer suggestion
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <label className="block text-sm">
                   <span className="text-slate-600">Final diagnosis (agronomist)</span>
                   <input

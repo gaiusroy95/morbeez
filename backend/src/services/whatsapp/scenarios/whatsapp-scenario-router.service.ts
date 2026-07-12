@@ -443,7 +443,9 @@ export const whatsappScenarioRouter = {
 
     if (
       text &&
-      (text === 'feedback.disagree' || farmerFeedbackFlowService.isDisagreementIntent(text))
+      (text === 'feedback.disagree' ||
+        /^feedback\.suggest\./i.test(text) ||
+        farmerFeedbackFlowService.isDisagreementIntent(text))
     ) {
       const canStart = await farmerFeedbackFlowService.canStartDisagreement(captured.farmerId);
       if (canStart?.sessionId) {
@@ -452,7 +454,8 @@ export const whatsappScenarioRouter = {
           phone: msg.phone,
           lang,
           send,
-          initialText: text === 'feedback.disagree' ? undefined : text,
+          initialText:
+            text === 'feedback.disagree' || /^feedback\.suggest\./i.test(text) ? text : text,
         });
         return { handled: true };
       }

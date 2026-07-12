@@ -1,11 +1,13 @@
 /** Detect farmer disagreement / correction intent (multilingual keywords). */
 
+import { mapFarmerSuggestionInput } from '../../domain/learning/farmer-nutrient-suggestions.js';
+
 const DISAGREEMENT_PATTERNS: RegExp[] = [
   /\b(ai\s+)?(is\s+)?wrong\b/i,
   /\bnot\s+(correct|right|fungus|disease|accurate)\b/i,
   /\bincorrect\b/i,
   /\bthis\s+is\s+(not|no)\b/i,
-  /\b(this\s+is|its|it's)\s+\w+/i, // "this is thrips" — handled with pest/disease nouns below
+  /\b(this\s+is|its|it's)\s+\w+/i,
   /\balready\s+had\b/i,
   /\blast\s+(year|time|season)\b/i,
   /\bhappened\s+before\b/i,
@@ -32,14 +34,19 @@ const PRIOR_TREATMENT_PATTERNS: RegExp[] = [
 export function isFarmerDisagreementIntent(text: string): boolean {
   const t = text.trim();
   if (t.length < 4) return false;
+  if (/^feedback\.(disagree|suggest\.)/i.test(t)) return true;
   if (DISAGREEMENT_PATTERNS.some((p) => p.test(t))) return true;
   if (CORRECTION_ISSUE_PATTERNS.some((p) => p.test(t))) return true;
-  if (/\bfeedback\.disagree\b/i.test(t)) return true;
+  if (mapFarmerSuggestionInput(t) !== undefined) return true;
   return false;
 }
 
 export function extractSuggestedDiagnosis(text: string): string | null {
   const t = text.trim();
+  const nutrient = mapFarmerSuggestionInput(t);
+  if (typeof nutrient === 'string') return nutrient;
+  if (nutrient === null) return null;
+
   const m = t.match(/\b(?:this\s+is|its|it's|ഇത്)\s+([a-zA-Z\u0D00-\u0D7F\u0B80-\u0BFF\s-]{2,60})/i);
   if (m?.[1]) return m[1].trim().slice(0, 200);
   const pest = t.match(

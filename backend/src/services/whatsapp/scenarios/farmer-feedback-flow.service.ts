@@ -9,6 +9,11 @@ import {
 import { farmerExperienceLearningService } from '../../core/farmer-experience-learning.service.js';
 import { supabase } from '../../../lib/supabase.js';
 import type { ScenarioSenders } from './whatsapp-scenario-router.service.js';
+import {
+  FARMER_NUTRIENT_SUGGESTIONS,
+  FARMER_SUGGEST_OTHER_BUTTON_ID,
+  mapFarmerSuggestionInput,
+} from '../../../domain/learning/farmer-nutrient-suggestions.js';
 
 export type FarmerFeedbackCaptureStep =
   | 'diagnosis'
@@ -19,18 +24,51 @@ export type FarmerFeedbackCaptureStep =
 
 function ackDisagreement(lang: AdvisoryLanguage): string {
   if (lang === 'ml') {
-    return 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം എന്താണ്?';
+    return 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം തിരഞ്ഞെടുക്കുക (അല്ലെങ്കിൽ Other).';
   }
-  if (lang === 'ta') {
-    return 'புரிந்தது 👍\n\nஉங்கள் கருத்துப்படி பிரச்சனை என்ன?';
+  return 'Understood 👍\n\nWhat do you think the issue is? Pick one below, or Other.';
+}
+
+async function sendSuggestionPicker(
+  phone: string,
+  lang: AdvisoryLanguage,
+  send: ScenarioSenders
+): Promise<void> {
+  const body = ackDisagreement(lang);
+  if (send.list) {
+    await send.list({
+      phone,
+      body,
+      buttonText: lang === 'ml' ? 'തിരഞ്ഞെടുക്കുക' : 'Select',
+      sections: [
+        {
+          title: lang === 'ml' ? 'കർഷക നിർദ്ദേശം' : 'Farmer suggestion',
+          rows: [
+            ...FARMER_NUTRIENT_SUGGESTIONS.map((s) => ({
+              id: s.buttonId,
+              title: s.label.slice(0, 24),
+              description: s.diagnosis,
+            })),
+            {
+              id: FARMER_SUGGEST_OTHER_BUTTON_ID,
+              title: lang === 'ml' ? 'മറ്റുള്ളത്' : 'Other / type mine',
+              description: lang === 'ml' ? 'സ്വന്തം ഉത്തരം ടൈപ്പ് ചെയ്യുക' : 'Type your own answer next',
+            },
+          ],
+        },
+      ],
+    });
+    return;
   }
-  if (lang === 'kn') {
-    return 'ಅರ್ಥವಾಯಿತು 👍\n\nನೀವು ಯಾವ ಸಮಸ್ಯೆ ಎಂದು ಭಾವಿಸುತ್ತೀರಿ?';
-  }
-  if (lang === 'hi') {
-    return 'समझ गया 👍\n\nआपको क्या समस्या लगती है?';
-  }
-  return 'Understood 👍\n\nWhat do you think the issue is?';
+  await send.text(
+    phone,
+    `${body}\n\n1) Iron (Fe)\n2) Zinc (Zn)\n3) Magnesium (Mg)\n4) Nitrogen (N)\n5) Other — type your answer`
+  );
+}
+
+function askOtherDiagnosis(lang: AdvisoryLanguage): string {
+  if (lang === 'ml') return 'ദയവായി നിങ്ങൾ കരുതുന്ന പ്രശ്നം ടൈപ്പ് ചെയ്യുക.';
+  return 'Please type what you think the issue is.';
 }
 
 function askExperienceYears(lang: AdvisoryLanguage): string {
@@ -65,9 +103,9 @@ function askOutcome(lang: AdvisoryLanguage): string {
 
 function submittedReply(lang: AdvisoryLanguage): string {
   if (lang === 'ml') {
-    return 'നന്ദി! നിങ്ങളുടെ അനുഭവം ഞങ്ങളുടെ വിദഗ്ധർ പരിശോധിക്കും. സ്ഥിരീകരിച്ചാൽ ഭാവിയിൽ മെച്ചപ്പെട്ട ഉപദേശം ലഭിക്കും.';
+    return 'നന്ദി! നിങ്ങളുടെ അനുഭവം ഞങ്ങളുടെ വിദഗ്ധർ പരിശോധിക്കും. സ്ഥിരീകരിച്ചാൽ മാത്രമേ അറിവ് ശേഖരത്തിലേക്ക് ചേർക്കൂ.';
   }
-  return 'Thank you! Our agronomist team will review your experience. Verified learnings help future advice for farmers in your area.';
+  return 'Thank you! Our agronomist team will review your experience. Only agronomist-approved cases enter the knowledge base used for future advice.';
 }
 
 async function farmerHasExperienceYears(farmerId: string): Promise<boolean> {
@@ -141,7 +179,13 @@ export const farmerFeedbackFlowService = {
     initialText?: string;
   }): Promise<void> {
     const meta = await this.canStartDisagreement(params.farmerId);
-    const initialDx = params.initialText ? extractSuggestedDiagnosis(params.initialText) : null;
+    const mapped = params.initialText ? mapFarmerSuggestionInput(params.initialText) : undefined;
+    const initialDx =
+      typeof mapped === 'string'
+        ? mapped
+        : params.initialText
+          ? extractSuggestedDiagnosis(params.initialText)
+          : null;
     const priorProduct = params.initialText ? extractPriorProduct(params.initialText) : null;
 
     const fb = await farmerExperienceLearningService.createFromDisagreement({
@@ -170,7 +214,7 @@ export const farmerFeedbackFlowService = {
     await conversationSessionService.setState(params.farmerId, 'farmer_feedback_capture');
 
     if (step === 'diagnosis') {
-      await params.send.text(params.phone, ackDisagreement(params.lang));
+      await sendSuggestionPicker(params.phone, params.lang, params.send);
     } else if (step === 'experience_years') {
       await params.send.text(params.phone, askExperienceYears(params.lang));
     } else if (step === 'experience') {
@@ -196,7 +240,13 @@ export const farmerFeedbackFlowService = {
     if (!text || text.startsWith('menu.')) return false;
 
     if (step === 'diagnosis') {
-      const dx = extractSuggestedDiagnosis(text) || text.slice(0, 200);
+      const mapped = mapFarmerSuggestionInput(text);
+      if (mapped === null || text === FARMER_SUGGEST_OTHER_BUTTON_ID) {
+        await params.send.text(params.phone, askOtherDiagnosis(params.lang));
+        return true;
+      }
+      const dx =
+        typeof mapped === 'string' ? mapped : extractSuggestedDiagnosis(text) || text.slice(0, 200);
       await farmerExperienceLearningService.updateCapture(feedbackId, {
         farmer_suggested_diagnosis: dx,
       });

@@ -21,17 +21,17 @@ const MAP: Record<AdvisoryLanguage, Partial<Copy>> = {
     notYetReminder:
       'Please apply the recommendation when possible and update us here.',
     outcomeCheck:
-      'Morbeez follow-up — did the crop improve after our recommendation?\n\nTap one option below (or reply 1–4).\n\nOptional: send a latest leaf photo after this.',
+      'Morbeez follow-up (7–14 day outcome check) — how is the crop after treatment?\n\nTap one option below (or reply 1–4).\n\nOptional: send a latest leaf photo after this.',
     outcomeReminder:
       'Quick reminder — how is the crop after the spray?\n\nTap one option or reply 1–4.',
     outcomePhotoPrompt: 'Thank you! Photo received — we recorded it with your follow-up.',
     appliedThanks:
-      'Thank you! We recorded that you applied the recommendation. We will check back in a few days.',
-    improvedThanks: 'Glad to hear there is improvement. Keep monitoring the crop.',
+      'Thank you! We recorded that you applied the recommendation. We will check outcome in about 7 days (and again around day 14).',
+    improvedThanks: 'Great — crop recovered. This helps us improve future advice.',
     slightImprovementThanks:
-      'Good — slight improvement is a positive sign. Keep watching for 3–4 more days.',
+      'Noted — partially improved. Keep following the plan; we may check again around day 14.',
     noImprovementReply:
-      'Thank you for the update. Our team will review your case and contact you soon.',
+      'Thank you for the update. Our agronomist team will review your case and contact you soon.',
     worsenedReply: 'Our agronomist team will call you within 4 hours.',
     clarificationAck:
       'Thank you. A Morbeez team member will call you to clarify the recommendation.',

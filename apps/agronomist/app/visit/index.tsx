@@ -126,6 +126,7 @@ export default function VisitScreen() {
   const [fieldVoiceNote, setFieldVoiceNote] = useState('');
   const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
   const [prefillDiagnosis, setPrefillDiagnosis] = useState<string | null>(null);
+  const [farmerSuggestedDiagnosis, setFarmerSuggestedDiagnosis] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -306,6 +307,9 @@ export default function VisitScreen() {
           }
           const diagnosis = prefillSource.aiDiagnosis ?? prefillSource.issueDetected;
           if (diagnosis) setPrefillDiagnosis(diagnosis);
+          if (prefillSource.farmerSuggestedDiagnosis) {
+            setFarmerSuggestedDiagnosis(prefillSource.farmerSuggestedDiagnosis);
+          }
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Could not start visit');
@@ -622,10 +626,14 @@ export default function VisitScreen() {
           </>
         ) : null}
 
-        {rectificationMode && prefillDiagnosis ? (
+        {rectificationMode && (prefillDiagnosis || farmerSuggestedDiagnosis) ? (
           <AlertBox>
-            Rectification visit — verify or correct AI diagnosis: {prefillDiagnosis}. Use review steps to reject and
-            record the correct diagnosis.
+            Rectification visit — verify or correct AI diagnosis
+            {prefillDiagnosis ? `: ${prefillDiagnosis}` : ''}.
+            {farmerSuggestedDiagnosis
+              ? ` Farmer suggestion: ${farmerSuggestedDiagnosis}.`
+              : ''}{' '}
+            Confirm the final diagnosis in review — only agronomist-approved cases enter the knowledge base.
           </AlertBox>
         ) : null}
 

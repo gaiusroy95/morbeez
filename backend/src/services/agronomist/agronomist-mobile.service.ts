@@ -1485,6 +1485,21 @@ export const agronomistMobileService = {
     let recommendationId: string | null = null;
     let recommendationText = '';
     let issueDetected: string | null = aiDiagnosis;
+    let farmerSuggestedDiagnosis: string | null = null;
+
+    if (aiSessionId) {
+      const { data: fb } = await supabase
+        .from('farmer_advisory_feedback')
+        .select('farmer_suggested_diagnosis')
+        .eq('session_id', aiSessionId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (fb?.farmer_suggested_diagnosis) {
+        farmerSuggestedDiagnosis = String(fb.farmer_suggested_diagnosis);
+      }
+    }
+
     if (aiSessionId) {
       const { data: rec } = await supabase
         .from('recommendation_records')
@@ -1518,6 +1533,7 @@ export const agronomistMobileService = {
       issueDetected,
       aiDiagnosis,
       aiConfidence,
+      farmerSuggestedDiagnosis,
       recommendationText,
       symptomsText,
       images,

@@ -25,7 +25,10 @@ import { issueFollowUpQuestionsService } from './issue-follow-up-questions.servi
 const APPLICATION_CHECK_DAYS = () =>
   Math.max(1, Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1) || 1);
 const OUTCOME_CHECK_DAYS = () =>
-  Math.max(1, Number(process.env.REC_FOLLOWUP_OUTCOME_DAYS ?? 5) || 5);
+  Math.max(1, Number(process.env.REC_FOLLOWUP_OUTCOME_DAYS ?? 7) || 7);
+/** Optional second outcome check (effectiveness learning). 0 disables. */
+const OUTCOME_SECOND_CHECK_DAYS = () =>
+  Math.max(0, Number(process.env.REC_FOLLOWUP_OUTCOME_SECOND_DAYS ?? 14) || 14);
 const MAX_APPLICATION_REMINDERS = () =>
   Number(process.env.REC_FOLLOWUP_MAX_REMINDERS ?? 3);
 /** Do not re-send the same application-check prompt within this window. */
@@ -603,9 +606,9 @@ export const recommendationFollowUpService = {
           to: rec.farmers.phone,
           body,
           buttons: [
-            { id: 'rec.outcome_full', title: 'Fully better' },
-            { id: 'rec.outcome_slight', title: 'Slight better' },
-            { id: 'rec.outcome_none', title: 'No change' },
+            { id: 'rec.outcome_full', title: 'Crop recovered' },
+            { id: 'rec.outcome_slight', title: 'Partial improve' },
+            { id: 'rec.outcome_none', title: 'No improvement' },
           ],
         });
         await whatsappService.sendText(
@@ -615,7 +618,7 @@ export const recommendationFollowUpService = {
       } catch {
         await whatsappService.sendText(
           rec.farmers.phone,
-          `${body}\n\n1 Fully improved\n2 Slightly improved\n3 No improvement\n4 Worse`
+          `${body}\n\n1 Crop recovered\n2 Partially improved\n3 No improvement\n4 Worse`
         );
       }
     }
@@ -668,10 +671,10 @@ export const recommendationFollowUpService = {
       ];
     }
     return [
-      { id: 'rec.outcome_full', title: '1 Fully improved' },
-      { id: 'rec.outcome_slight', title: '2 Slightly improved' },
-      { id: 'rec.outcome_none', title: '3 No improvement' },
-      { id: 'rec.outcome_worse', title: '4 Worse' },
+      { id: 'rec.outcome_full', title: '1 Crop recovered', description: 'Fully recovered' },
+      { id: 'rec.outcome_slight', title: '2 Partially improved', description: 'Some improvement' },
+      { id: 'rec.outcome_none', title: '3 No improvement', description: 'No change' },
+      { id: 'rec.outcome_worse', title: '4 Worse', description: 'Crop worsened' },
     ];
   },
 
@@ -1075,6 +1078,22 @@ export const recommendationFollowUpService = {
           payload: { language: rec.language, phase: 'outcome_check' },
           sessionId: rec.ai_session_id,
         });
+        const secondDays = OUTCOME_SECOND_CHECK_DAYS();
+        if (secondDays > OUTCOME_CHECK_DAYS()) {
+          await this.scheduleJob({
+            farmerId,
+            recommendationRecordId,
+            jobType: 'rec_outcome_check',
+            scheduledAt: new Date(Date.now() + secondDays * 24 * 60 * 60 * 1000).toISOString(),
+            payload: {
+              language: rec.language,
+              phase: 'outcome_check',
+              effectivenessCheck: true,
+              day: secondDays,
+            },
+            sessionId: rec.ai_session_id,
+          });
+        }
       }
 
       await this.upsertLearningSample(rec, { applicationConfirmed: true });

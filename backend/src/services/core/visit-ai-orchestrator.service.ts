@@ -29,7 +29,6 @@ import { INSUFFICIENT_EVIDENCE_LABEL } from '../../domain/diagnosis/types.js';
 import { mapImageSourceToDiagnosisSource } from '../diagnosis/diagnosis-integrity.util.js';
 import { visitAiRetrievalService } from './visit-ai-retrieval.service.js';
 import { expertFollowUpLearningService } from './expert-follow-up-learning.service.js';
-import { nearbyCasesService } from '../whatsapp/pipeline/nearby-cases.service.js';
 import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
 import { VISIT_AI_RECOMMENDATION_SYSTEM } from '../ai/prompts/visit-ai-recommendation.prompt.js';
 import { formatVisitRecommendationText } from '../ai/treatment-report-formatter.js';
@@ -80,32 +79,38 @@ async function loadSimilarCases(
     symptomKey,
   }).catch(() => null);
 
-  const [{ data: reuseRows }, { data: samples }, nearby] = await Promise.all([
+  const [{ data: reuseRows }, { data: samples }] = await Promise.all([
     supabase
       .from('advisory_reuse_cases')
-      .select('issue_label, confidence_score, hit_count, outcome_ok')
+      .select('issue_label, confidence_score, hit_count, outcome_ok, advisory_snapshot')
       .eq('crop_type', crop)
       .eq('outcome_ok', true)
       .order('hit_count', { ascending: false })
-      .limit(5),
+      .limit(8),
+    // Only expert-labeled samples with positive field outcomes feed the learning loop.
     supabase
       .from('ai_learning_samples')
-      .select('disease_label, outcome')
+      .select('disease_label, outcome, expert_label')
       .eq('crop_type', crop)
-      .not('outcome', 'is', null)
+      .not('expert_label', 'is', null)
+      .in('outcome', ['better', 'partial', 'improved'])
       .order('created_at', { ascending: false })
       .limit(20),
-    nearbyCasesService.summarize(farmerId, cropType),
   ]);
 
   const outcomeByLabel = new Map<string, string>();
   for (const s of samples ?? []) {
-    const label = String(s.disease_label ?? '').trim();
+    const label = String(s.expert_label ?? s.disease_label ?? '').trim();
     if (label && s.outcome) outcomeByLabel.set(label.toLowerCase(), String(s.outcome));
   }
 
   const fromReuse = (reuseRows ?? [])
-    .filter((r) => r.issue_label)
+    .filter((r) => {
+      if (!r.issue_label) return false;
+      const snap = r.advisory_snapshot as { staffVerified?: boolean } | null;
+      // Prefer staff-verified rows; allow outcome_ok rows without the flag for legacy data.
+      return snap?.staffVerified !== false;
+    })
     .map((r) => ({
       issueLabel: String(r.issue_label),
       score: Number(r.hit_count ?? 1) / 10,
@@ -122,15 +127,9 @@ async function loadSimilarCases(
     });
   }
 
-  const fromNearby = (nearby.recentIssues ?? []).slice(0, 3).map((r) => ({
-    issueLabel: r.issueLabel,
-    score: r.count / 10,
-    confidence: 0.6,
-    outcome: outcomeByLabel.get(r.issueLabel.toLowerCase()) ?? null,
-  }));
-
-  const combined = [...fromReuse, ...fromNearby];
-  return combined.slice(0, 6);
+  // Master knowledge base only: agronomist/staff verified reuse cases (+ effectiveness outcomes).
+  // Nearby unverified plot chatter is intentionally excluded from diagnosis retrieval.
+  return fromReuse.slice(0, 6);
 }
 
 function mergeImageIntoHypotheses(
