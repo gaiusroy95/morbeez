@@ -2,7 +2,6 @@ import type { AdvisoryLanguage } from '../../ai/types.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import {
   extractPriorProduct,
-  extractSuggestedDiagnosis,
   extractAllSuggestedDiagnoses,
   isFarmerDisagreementIntent,
   looksLikePriorExperience,

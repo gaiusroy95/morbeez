@@ -146,7 +146,7 @@ export const farmerExperienceLearningService = {
     options?: { storeFullTextAsExperience?: boolean }
   ): Promise<FarmerFeedbackRow> {
     const diagnoses = extractAllFarmerSuggestedDiagnoses(sourceText);
-    const primary = diagnoses[0] ?? sourceText.trim().slice(0, 200) || null;
+    const primary = diagnoses[0] ?? (sourceText.trim().slice(0, 200) || null);
     const existing = await this.getById(id);
 
     return this.updateCapture(id, {
