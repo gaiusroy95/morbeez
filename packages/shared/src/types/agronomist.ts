@@ -247,6 +247,14 @@ export type RecommendationVisitContext = {
   farmerSuggestedDiagnosis?: string | null;
   /** Each distinct issue the farmer named (not one combined string). */
   farmerSuggestedDiagnoses?: string[];
+  /** Ranked refine after descriptive WhatsApp correction (probabilities 0–1). */
+  farmerRefinedConditions?: Array<{
+    label: string;
+    probability: number;
+    role?: string;
+    reason?: string;
+  }>;
+  farmerRefineSequenceSummary?: string | null;
   /** Farmer-described prior field experience / treatment history. */
   farmerPriorExperience?: string | null;
   /** Products / sprays the farmer reported using. */

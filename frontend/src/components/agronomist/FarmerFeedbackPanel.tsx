@@ -205,22 +205,60 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
               <div>
                 <dt className="text-ink-muted">Farmer suggests</dt>
                 <dd className="font-medium">
-                  {Array.isArray(
-                    (detail.feedback.metadata as { farmer_suggested_diagnoses?: string[] })
-                      ?.farmer_suggested_diagnoses
-                  ) &&
-                  (detail.feedback.metadata as { farmer_suggested_diagnoses: string[] })
-                    .farmer_suggested_diagnoses.length > 1 ? (
-                    <ul className="mt-1 list-inside list-disc space-y-1">
-                      {(
-                        detail.feedback.metadata as { farmer_suggested_diagnoses: string[] }
-                      ).farmer_suggested_diagnoses.map((d) => (
-                        <li key={d}>{d}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    (detail.feedback.farmer_suggested_diagnosis ?? '—')
-                  )}
+                  {(() => {
+                    const refined = (
+                      detail.feedback.metadata as {
+                        farmer_refined_assessment?: {
+                          conditions?: Array<{
+                            label: string;
+                            probability?: number;
+                            role?: string;
+                          }>;
+                          sequenceSummary?: string;
+                        };
+                      }
+                    )?.farmer_refined_assessment;
+                    if (refined?.conditions?.length) {
+                      return (
+                        <div className="mt-1 space-y-2">
+                          <ul className="space-y-1.5">
+                            {refined.conditions.map((c) => (
+                              <li
+                                key={c.label}
+                                className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-surface-subtle px-2.5 py-1.5 text-sm"
+                              >
+                                <span>{c.label}</span>
+                                <span className="text-xs font-semibold text-brand-700">
+                                  {c.role ? `${c.role} · ` : ''}
+                                  {c.probability != null
+                                    ? `${Math.round(
+                                        c.probability > 1 ? c.probability : c.probability * 100
+                                      )}%`
+                                    : ''}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                          {refined.sequenceSummary ? (
+                            <p className="text-xs text-ink-secondary">{refined.sequenceSummary}</p>
+                          ) : null}
+                        </div>
+                      );
+                    }
+                    const multi = (
+                      detail.feedback.metadata as { farmer_suggested_diagnoses?: string[] }
+                    )?.farmer_suggested_diagnoses;
+                    if (Array.isArray(multi) && multi.length > 1) {
+                      return (
+                        <ul className="mt-1 list-inside list-disc space-y-1">
+                          {multi.map((d) => (
+                            <li key={d}>{d}</li>
+                          ))}
+                        </ul>
+                      );
+                    }
+                    return detail.feedback.farmer_suggested_diagnosis ?? '—';
+                  })()}
                 </dd>
               </div>
               <div>

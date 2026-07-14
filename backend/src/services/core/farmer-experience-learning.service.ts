@@ -139,13 +139,40 @@ export const farmerExperienceLearningService = {
   /**
    * Parse farmer free text into separate issues and persist (metadata.farmer_suggested_diagnoses).
    * farmer_suggested_diagnosis holds the primary (first) issue only — not a combined string.
+   * Optional refinedAssessment stores ranked probabilities for agronomist Validate.
    */
   async captureFarmerDiagnosesFromText(
     id: string,
     sourceText: string,
-    options?: { storeFullTextAsExperience?: boolean }
+    options?: {
+      storeFullTextAsExperience?: boolean;
+      /** Persist farmer free text as-is (no regex label dictionary). */
+      storeAsRawHypothesis?: boolean;
+      refinedAssessment?: {
+        conditions: Array<{
+          label: string;
+          probability: number;
+          role: string;
+          reason: string;
+        }>;
+        sequenceSummary?: string;
+        source?: string;
+      };
+    }
   ): Promise<FarmerFeedbackRow> {
-    const diagnoses = extractAllFarmerSuggestedDiagnoses(sourceText);
+    const refinedLabels =
+      options?.refinedAssessment?.conditions
+        ?.map((c) => c.label.trim())
+        .filter(Boolean)
+        .slice(0, 8) ?? [];
+    const diagnoses =
+      refinedLabels.length > 0
+        ? refinedLabels
+        : options?.storeAsRawHypothesis
+          ? sourceText.trim()
+            ? [sourceText.trim().slice(0, 200)]
+            : []
+          : extractAllFarmerSuggestedDiagnoses(sourceText);
     const primary = diagnoses[0] ?? (sourceText.trim().slice(0, 200) || null);
     const existing = await this.getById(id);
 
@@ -158,6 +185,14 @@ export const farmerExperienceLearningService = {
         ...existing.metadata,
         farmer_suggested_diagnoses: diagnoses,
         farmer_suggestion_source_text: sourceText.slice(0, 1000),
+        ...(options?.refinedAssessment
+          ? {
+              farmer_refined_assessment: {
+                ...options.refinedAssessment,
+                at: new Date().toISOString(),
+              },
+            }
+          : {}),
       },
     });
   },

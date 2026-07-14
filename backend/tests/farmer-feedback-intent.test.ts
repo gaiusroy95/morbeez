@@ -11,6 +11,7 @@ import {
   isFarmerSuggestionButtonId,
   extractAllFarmerSuggestedDiagnoses,
   getFarmerSuggestedDiagnosesFromStored,
+  looksLikeDescriptiveHypothesis,
 } from '../src/domain/learning/farmer-nutrient-suggestions.js';
 
 describe('farmer feedback intent', () => {
@@ -68,6 +69,48 @@ describe('farmer feedback intent', () => {
     });
     assert.equal(stored.length, 3);
     assert.equal(stored[1], 'Zinc (Zn) deficiency');
+  });
+
+  it('splits potash + anthracnose + calcium descriptive hypothesis into separate conditions', () => {
+    const msg =
+      'There is a potash deficiency connected to a fungal attack, probably anthracnose, and a calcium deficiency, leading to less leaf thickness.';
+    const all = extractAllFarmerSuggestedDiagnoses(msg);
+    assert.ok(all.includes('Potassium (K) deficiency'));
+    assert.ok(all.includes('Anthracnose (Colletotrichum)'));
+    assert.ok(all.includes('Calcium (Ca) deficiency'));
+    assert.ok(all.includes('Fungal infection') || all.some((d) => /fungal|anthracnose/i.test(d)));
+    assert.equal(all.includes(msg), false);
+  });
+
+  it('detects descriptive multi-factor hypotheses', () => {
+    assert.equal(looksLikeDescriptiveHypothesis('feedback.suggest.iron'), false);
+    assert.equal(
+      looksLikeDescriptiveHypothesis(
+        'There is a potash deficiency connected to a fungal attack, probably anthracnose, and a calcium deficiency.'
+      ),
+      true
+    );
+  });
+
+  it('prefers refined assessment labels when reading stored feedback', () => {
+    const stored = getFarmerSuggestedDiagnosesFromStored({
+      farmer_suggested_diagnosis: 'Iron (Fe) deficiency',
+      metadata: {
+        farmer_suggested_diagnoses: ['Iron (Fe) deficiency'],
+        farmer_refined_assessment: {
+          conditions: [
+            { label: 'Potassium (K) deficiency', probability: 0.8 },
+            { label: 'Anthracnose (Colletotrichum)', probability: 0.35 },
+            { label: 'Calcium (Ca) deficiency', probability: 0.25 },
+          ],
+        },
+      },
+    });
+    assert.deepEqual(stored, [
+      'Potassium (K) deficiency',
+      'Anthracnose (Colletotrichum)',
+      'Calcium (Ca) deficiency',
+    ]);
   });
 
   it('extracts EDTA / sulfate products from farmer treatment history', () => {

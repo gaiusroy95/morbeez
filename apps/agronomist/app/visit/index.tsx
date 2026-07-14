@@ -127,6 +127,12 @@ export default function VisitScreen() {
   const [prefillDiagnosis, setPrefillDiagnosis] = useState<string | null>(null);
   const [farmerSuggestedDiagnosis, setFarmerSuggestedDiagnosis] = useState<string | null>(null);
   const [farmerSuggestedDiagnoses, setFarmerSuggestedDiagnoses] = useState<string[]>([]);
+  const [farmerRefinedConditions, setFarmerRefinedConditions] = useState<
+    Array<{ label: string; probability: number; role?: string; reason?: string }>
+  >([]);
+  const [farmerRefineSequenceSummary, setFarmerRefineSequenceSummary] = useState<string | null>(
+    null
+  );
   const [farmerPriorExperience, setFarmerPriorExperience] = useState<string | null>(null);
   const [farmerPriorProduct, setFarmerPriorProduct] = useState<string | null>(null);
   const [farmerPriorOutcome, setFarmerPriorOutcome] = useState<string | null>(null);
@@ -317,6 +323,12 @@ export default function VisitScreen() {
             setFarmerSuggestedDiagnoses(prefillSource.farmerSuggestedDiagnoses);
           } else if (prefillSource.farmerSuggestedDiagnosis) {
             setFarmerSuggestedDiagnoses([prefillSource.farmerSuggestedDiagnosis]);
+          }
+          if (prefillSource.farmerRefinedConditions?.length) {
+            setFarmerRefinedConditions(prefillSource.farmerRefinedConditions);
+          }
+          if (prefillSource.farmerRefineSequenceSummary) {
+            setFarmerRefineSequenceSummary(prefillSource.farmerRefineSequenceSummary);
           }
           if (prefillSource.farmerPriorExperience) {
             setFarmerPriorExperience(prefillSource.farmerPriorExperience);
@@ -647,13 +659,26 @@ export default function VisitScreen() {
           <AlertBox>
             Rectification visit — verify or correct AI diagnosis
             {prefillDiagnosis ? `: ${prefillDiagnosis}` : ''}.
-            {farmerSuggestedDiagnoses.length > 1
-              ? `\nFarmer recommendations:\n${farmerSuggestedDiagnoses.map((d) => `• ${d}`).join('\n')}`
-              : farmerSuggestedDiagnosis
-                ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
-                : farmerPriorExperience
-                  ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
-                  : ''}
+            {farmerRefinedConditions.length
+              ? `\nFarmer theory (refined):\n${farmerRefinedConditions
+                  .map((c) => {
+                    const pct = Math.round(
+                      c.probability > 1 ? c.probability : c.probability * 100
+                    );
+                    return `• ${c.label} (${pct}%${c.role ? ` · ${c.role}` : ''})`;
+                  })
+                  .join('\n')}${
+                  farmerRefineSequenceSummary
+                    ? `\nSequence: ${farmerRefineSequenceSummary}`
+                    : ''
+                }`
+              : farmerSuggestedDiagnoses.length > 1
+                ? `\nFarmer recommendations:\n${farmerSuggestedDiagnoses.map((d) => `• ${d}`).join('\n')}`
+                : farmerSuggestedDiagnosis
+                  ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
+                  : farmerPriorExperience
+                    ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
+                    : ''}
             {farmerPriorProduct ? `\nPrior products: ${farmerPriorProduct}` : ''}
             {'\n'}
             Confirm the final diagnosis in Validation — only agronomist-approved cases enter the knowledge base.
@@ -736,6 +761,8 @@ export default function VisitScreen() {
             farmerFeedback={{
               suggestedDiagnosis: farmerSuggestedDiagnosis,
               suggestedDiagnoses: farmerSuggestedDiagnoses,
+              refinedConditions: farmerRefinedConditions,
+              refineSequenceSummary: farmerRefineSequenceSummary,
               priorExperience: farmerPriorExperience,
               priorProduct: farmerPriorProduct,
               priorOutcome: farmerPriorOutcome,

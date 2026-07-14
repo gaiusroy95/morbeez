@@ -7,11 +7,13 @@ import {
   looksLikePriorExperience,
 } from '../../core/farmer-feedback-intent.service.js';
 import { farmerExperienceLearningService } from '../../core/farmer-experience-learning.service.js';
+import { farmerHypothesisRefineService } from '../../core/farmer-hypothesis-refine.service.js';
 import { supabase } from '../../../lib/supabase.js';
 import type { ScenarioSenders } from './whatsapp-scenario-router.service.js';
 import {
   FARMER_NUTRIENT_SUGGESTIONS,
   FARMER_SUGGEST_OTHER_BUTTON_ID,
+  looksLikeDescriptiveHypothesis,
   mapFarmerSuggestionInput,
 } from '../../../domain/learning/farmer-nutrient-suggestions.js';
 
@@ -124,6 +126,64 @@ function parseExperienceYears(text: string): number | null {
   return n;
 }
 
+async function captureDiagnosisAndMaybeRefine(params: {
+  feedbackId: string;
+  farmerId: string;
+  phone: string;
+  lang: AdvisoryLanguage;
+  text: string;
+  send: ScenarioSenders;
+  sessionId: string | null;
+  priorAiIssue: string | null;
+}): Promise<void> {
+  const descriptive = looksLikeDescriptiveHypothesis(params.text);
+
+  if (descriptive) {
+    try {
+      const refined = await farmerHypothesisRefineService.refine({
+        farmerText: params.text,
+        sessionId: params.sessionId,
+        lang: params.lang,
+        priorAiIssue: params.priorAiIssue,
+      });
+      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(
+        params.feedbackId,
+        params.text,
+        {
+          storeFullTextAsExperience: true,
+          refinedAssessment: {
+            conditions: refined.conditions,
+            sequenceSummary: refined.sequenceSummary,
+            source: refined.source,
+          },
+        }
+      );
+      await params.send.text(params.phone, refined.replyToFarmer);
+      return;
+    } catch {
+      // LLM refine unavailable — keep farmer free text for agronomist; no invented scores.
+      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(
+        params.feedbackId,
+        params.text,
+        { storeFullTextAsExperience: true, storeAsRawHypothesis: true }
+      );
+      await params.send.text(
+        params.phone,
+        params.lang === 'ml'
+          ? 'നന്ദി — നിങ്ങളുടെ വിവരണം രേഖപ്പെടുത്തി. അഗ്രോണമിസ്റ്റ് പരിശോധിക്കും. കുറച്ച് ചോദ്യങ്ങൾ കൂടി…'
+          : 'Thanks — your description is saved for agronomist review. A few quick follow-up questions…'
+      );
+      return;
+    }
+  }
+
+  await farmerExperienceLearningService.captureFarmerDiagnosesFromText(
+    params.feedbackId,
+    params.text,
+    { storeFullTextAsExperience: true }
+  );
+}
+
 async function nextStepAfterDiagnosis(
   farmerId: string,
   feedbackId: string
@@ -195,7 +255,26 @@ export const farmerFeedbackFlowService = {
     });
 
     if (params.initialText?.trim()) {
-      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(fb.id, params.initialText);
+      const t = params.initialText.trim();
+      const skipCapture =
+        mapped === null ||
+        t === FARMER_SUGGEST_OTHER_BUTTON_ID ||
+        t === 'feedback.disagree' ||
+        (isFarmerDisagreementIntent(t) &&
+          !looksLikeDescriptiveHypothesis(t) &&
+          initialDiagnoses.length === 0);
+      if (!skipCapture) {
+        await captureDiagnosisAndMaybeRefine({
+          feedbackId: fb.id,
+          farmerId: params.farmerId,
+          phone: params.phone,
+          lang: params.lang,
+          text: t,
+          send: params.send,
+          sessionId: meta?.sessionId ?? null,
+          priorAiIssue: meta?.aiIssue ?? null,
+        });
+      }
     }
 
     let step: FarmerFeedbackCaptureStep = initialDx ? await nextStepAfterDiagnosis(params.farmerId, fb.id) : 'diagnosis';
@@ -245,9 +324,19 @@ export const farmerFeedbackFlowService = {
         await params.send.text(params.phone, askOtherDiagnosis(params.lang));
         return true;
       }
-      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(feedbackId, text, {
-        storeFullTextAsExperience: true,
+
+      const meta = await farmerFeedbackFlowService.canStartDisagreement(params.farmerId);
+      await captureDiagnosisAndMaybeRefine({
+        feedbackId,
+        farmerId: params.farmerId,
+        phone: params.phone,
+        lang: params.lang,
+        text,
+        send: params.send,
+        sessionId: meta?.sessionId ?? null,
+        priorAiIssue: meta?.aiIssue ?? null,
       });
+
       const next = await nextStepAfterDiagnosis(params.farmerId, feedbackId);
       await conversationSessionService.patchContext(params.farmerId, {
         farmerFeedbackStep: next,

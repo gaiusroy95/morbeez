@@ -209,6 +209,13 @@ type FarmerFeedbackVisitPack = {
   farmerFeedbackId: string | null;
   farmerSuggestedDiagnosis: string | null;
   farmerSuggestedDiagnoses: string[];
+  farmerRefinedConditions: Array<{
+    label: string;
+    probability: number;
+    role?: string;
+    reason?: string;
+  }>;
+  farmerRefineSequenceSummary: string | null;
   farmerPriorExperience: string | null;
   farmerPriorProduct: string | null;
   farmerPriorOutcome: string | null;
@@ -223,6 +230,8 @@ async function loadFarmerFeedbackForVisit(params: {
     farmerFeedbackId: null,
     farmerSuggestedDiagnosis: null,
     farmerSuggestedDiagnoses: [],
+    farmerRefinedConditions: [],
+    farmerRefineSequenceSummary: null,
     farmerPriorExperience: null,
     farmerPriorProduct: null,
     farmerPriorOutcome: null,
@@ -236,18 +245,44 @@ async function loadFarmerFeedbackForVisit(params: {
     const experience = fb.farmer_prior_experience
       ? String(fb.farmer_prior_experience).trim()
       : '';
+    const metadata = (fb.metadata as Record<string, unknown>) ?? null;
     const diagnoses = getFarmerSuggestedDiagnosesFromStored({
       farmer_suggested_diagnosis: fb.farmer_suggested_diagnosis
         ? String(fb.farmer_suggested_diagnosis)
         : null,
       farmer_prior_experience: experience || null,
-      metadata: (fb.metadata as Record<string, unknown>) ?? null,
+      metadata,
     });
     const primary = diagnoses[0] ?? (fb.farmer_suggested_diagnosis ? String(fb.farmer_suggested_diagnosis) : null);
+    const refined = metadata?.farmer_refined_assessment as
+      | {
+          conditions?: Array<{
+            label?: string;
+            probability?: number;
+            role?: string;
+            reason?: string;
+          }>;
+          sequenceSummary?: string;
+        }
+      | undefined;
+    const farmerRefinedConditions = Array.isArray(refined?.conditions)
+      ? refined!.conditions!
+          .map((c) => ({
+            label: String(c.label ?? '').trim(),
+            probability: Number(c.probability ?? 0),
+            role: c.role ? String(c.role) : undefined,
+            reason: c.reason ? String(c.reason) : undefined,
+          }))
+          .filter((c) => c.label)
+      : [];
     return {
       farmerFeedbackId: fb.id ? String(fb.id) : null,
       farmerSuggestedDiagnosis: primary,
       farmerSuggestedDiagnoses: diagnoses,
+      farmerRefinedConditions,
+      farmerRefineSequenceSummary: refined?.sequenceSummary
+        ? String(refined.sequenceSummary)
+        : null,
       farmerPriorExperience: experience || null,
       farmerPriorProduct: fb.farmer_prior_product ? String(fb.farmer_prior_product) : null,
       farmerPriorOutcome: fb.farmer_prior_outcome ? String(fb.farmer_prior_outcome) : null,
@@ -1534,6 +1569,8 @@ export const agronomistMobileService = {
       farmerFeedbackId: farmerFeedback.farmerFeedbackId,
       farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
       farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
+      farmerRefinedConditions: farmerFeedback.farmerRefinedConditions,
+      farmerRefineSequenceSummary: farmerFeedback.farmerRefineSequenceSummary,
       farmerPriorExperience: farmerFeedback.farmerPriorExperience,
       farmerPriorProduct: farmerFeedback.farmerPriorProduct,
       farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
@@ -1629,6 +1666,8 @@ export const agronomistMobileService = {
       farmerFeedbackId: farmerFeedback.farmerFeedbackId,
       farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
       farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
+      farmerRefinedConditions: farmerFeedback.farmerRefinedConditions,
+      farmerRefineSequenceSummary: farmerFeedback.farmerRefineSequenceSummary,
       farmerPriorExperience: farmerFeedback.farmerPriorExperience,
       farmerPriorProduct: farmerFeedback.farmerPriorProduct,
       farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
