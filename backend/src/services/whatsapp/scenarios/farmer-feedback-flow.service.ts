@@ -8,6 +8,7 @@ import {
 } from '../../core/farmer-feedback-intent.service.js';
 import { farmerExperienceLearningService } from '../../core/farmer-experience-learning.service.js';
 import { farmerHypothesisRefineService } from '../../core/farmer-hypothesis-refine.service.js';
+import { diagnosisSessionEvidenceService } from '../pipeline/diagnosis-session-evidence.service.js';
 import { supabase } from '../../../lib/supabase.js';
 import type { ScenarioSenders } from './whatsapp-scenario-router.service.js';
 import {
@@ -143,6 +144,7 @@ async function captureDiagnosisAndMaybeRefine(params: {
       const refined = await farmerHypothesisRefineService.refine({
         farmerText: params.text,
         sessionId: params.sessionId,
+        farmerId: params.farmerId,
         lang: params.lang,
         priorAiIssue: params.priorAiIssue,
       });
@@ -157,6 +159,16 @@ async function captureDiagnosisAndMaybeRefine(params: {
             source: refined.source,
           },
         }
+      );
+      await diagnosisSessionEvidenceService.appendTranscript(
+        params.farmerId,
+        'farmer',
+        `Correction hypothesis: ${params.text.slice(0, 400)}`
+      );
+      await diagnosisSessionEvidenceService.appendTranscript(
+        params.farmerId,
+        'assistant',
+        refined.replyToFarmer.slice(0, 500)
       );
       await params.send.text(params.phone, refined.replyToFarmer);
       return;

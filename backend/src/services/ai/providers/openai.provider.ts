@@ -200,3 +200,70 @@ export async function openaiJsonCompletion<T extends Record<string, unknown>>(
   const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
   return extractJsonObject(data.choices?.[0]?.message?.content ?? '{}') as T;
 }
+
+/**
+ * Vision + JSON completion (photos + text → arbitrary JSON schema).
+ * Use for photo-calibrated refine / scoring — not crop-doctor StructuredAdvisory shape.
+ */
+export async function openaiJsonVisionCompletion<T extends Record<string, unknown>>(
+  systemPrompt: string,
+  userPrompt: string,
+  images: Array<{ imageBase64: string; mimeType: string }>,
+  maxTokens = 1600,
+  options?: { temperature?: number }
+): Promise<T> {
+  if (!images.length) {
+    return openaiJsonCompletion<T>(systemPrompt, userPrompt, maxTokens, options);
+  }
+
+  const model = env.OPENAI_VISION_MODEL;
+  const imageParts = images.slice(0, 4).map((img) => ({
+    type: 'image_url' as const,
+    image_url: {
+      url: `data:${img.mimeType};base64,${img.imageBase64}`,
+      detail: 'high' as const,
+    },
+  }));
+
+  const body = {
+    model,
+    ...openaiTokenLimitBody(model, maxTokens),
+    ...(options?.temperature != null ? { temperature: options.temperature } : {}),
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      {
+        role: 'user',
+        content: [{ type: 'text', text: userPrompt }, ...imageParts],
+      },
+    ],
+  };
+
+  const started = Date.now();
+  const res = await openaiFetch('/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    const quota = parseOpenAiHttpError(res.status, text);
+    if (quota.isQuotaIssue) {
+      logOpenAiQuotaInsufficient('openai-json-vision', quota);
+    } else {
+      logger.error({ status: res.status, text }, 'OpenAI JSON vision failed');
+    }
+    throw new AppError('OpenAI JSON vision failed', res.status, 'OPENAI_JSON_VISION_FAILED', text);
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    usage?: { total_tokens?: number };
+  };
+  logger.debug(
+    { latencyMs: Date.now() - started, tokens: data.usage?.total_tokens, images: images.length },
+    'OpenAI JSON vision ok'
+  );
+  return extractJsonObject(data.choices?.[0]?.message?.content ?? '{}') as T;
+}

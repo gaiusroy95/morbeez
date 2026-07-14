@@ -251,6 +251,9 @@ export type RecommendationVisitContext = {
   farmerRefinedConditions?: Array<{
     label: string;
     probability: number;
+    probabilityLow?: number;
+    probabilityHigh?: number;
+    likelihood?: string;
     role?: string;
     reason?: string;
   }>;

@@ -128,7 +128,15 @@ export default function VisitScreen() {
   const [farmerSuggestedDiagnosis, setFarmerSuggestedDiagnosis] = useState<string | null>(null);
   const [farmerSuggestedDiagnoses, setFarmerSuggestedDiagnoses] = useState<string[]>([]);
   const [farmerRefinedConditions, setFarmerRefinedConditions] = useState<
-    Array<{ label: string; probability: number; role?: string; reason?: string }>
+    Array<{
+      label: string;
+      probability: number;
+      probabilityLow?: number;
+      probabilityHigh?: number;
+      likelihood?: string;
+      role?: string;
+      reason?: string;
+    }>
   >([]);
   const [farmerRefineSequenceSummary, setFarmerRefineSequenceSummary] = useState<string | null>(
     null
@@ -662,10 +670,26 @@ export default function VisitScreen() {
             {farmerRefinedConditions.length
               ? `\nFarmer theory (refined):\n${farmerRefinedConditions
                   .map((c) => {
-                    const pct = Math.round(
-                      c.probability > 1 ? c.probability : c.probability * 100
-                    );
-                    return `• ${c.label} (${pct}%${c.role ? ` · ${c.role}` : ''})`;
+                    const lo =
+                      c.probabilityLow != null
+                        ? Math.round(
+                            c.probabilityLow > 1 ? c.probabilityLow : c.probabilityLow * 100
+                          )
+                        : null;
+                    const hi =
+                      c.probabilityHigh != null
+                        ? Math.round(
+                            c.probabilityHigh > 1 ? c.probabilityHigh : c.probabilityHigh * 100
+                          )
+                        : null;
+                    const pct =
+                      lo != null && hi != null
+                        ? `${lo}–${hi}%`
+                        : `${Math.round(c.probability > 1 ? c.probability : c.probability * 100)}%`;
+                    const like = c.likelihood ? ` · ${c.likelihood}` : '';
+                    const role = c.role ? ` · ${c.role}` : '';
+                    const reason = c.reason ? `\n  ${c.reason}` : '';
+                    return `• ${c.label} (${pct}${like}${role})${reason}`;
                   })
                   .join('\n')}${
                   farmerRefineSequenceSummary

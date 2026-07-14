@@ -1,6 +1,9 @@
 export type FarmerRefinedCondition = {
   label: string;
   probability: number;
+  probabilityLow?: number;
+  probabilityHigh?: number;
+  likelihood?: string;
   role?: string;
   reason?: string;
 };
@@ -16,9 +19,22 @@ export type FarmerVisitFeedback = {
 };
 
 function formatRefinedLine(c: FarmerRefinedCondition): string {
-  const pct = Math.round((c.probability > 1 ? c.probability : c.probability * 100));
+  const lo =
+    c.probabilityLow != null
+      ? Math.round(c.probabilityLow > 1 ? c.probabilityLow : c.probabilityLow * 100)
+      : null;
+  const hi =
+    c.probabilityHigh != null
+      ? Math.round(c.probabilityHigh > 1 ? c.probabilityHigh : c.probabilityHigh * 100)
+      : null;
+  const pct =
+    lo != null && hi != null
+      ? `${lo}–${hi}%`
+      : `${Math.round(c.probability > 1 ? c.probability : c.probability * 100)}%`;
+  const like = c.likelihood ? ` · ${c.likelihood}` : '';
   const role = c.role ? ` · ${c.role}` : '';
-  return `• ${c.label} (${pct}%${role})`;
+  const reason = c.reason?.trim() ? `\n  ${c.reason.trim()}` : '';
+  return `• ${c.label} (${pct}${like}${role})${reason}`;
 }
 
 export function buildFarmerObservationText(fb?: FarmerVisitFeedback | null): string {

@@ -13,6 +13,7 @@ import type { SessionContext } from '../scenarios/session-context.types.js';
 import { whatsappService } from '../whatsapp.service.js';
 import { contextPackService } from './context-pack.service.js';
 import { farmerMemoryService } from './farmer-memory.service.js';
+import { diagnosisSessionEvidenceService } from './diagnosis-session-evidence.service.js';
 import { nearbyCasesService } from './nearby-cases.service.js';
 import {
   diagnosisFollowUpReasoningEngine,
@@ -951,6 +952,15 @@ export const diagnosisFollowUpService = {
       intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
       intake.currentIndex += 1;
 
+      const qText = intake.questionTexts?.[current.id] ?? current.text;
+      const choiceLabel =
+        current.choices.find((c) => c.id === answer)?.labelEn ?? answer;
+      await diagnosisSessionEvidenceService.appendQaPair(
+        params.farmerId,
+        qText,
+        String(choiceLabel)
+      );
+
       const investigation = await this.buildInvestigationContext({
         farmerId: params.farmerId,
         language: params.language,
@@ -1223,6 +1233,14 @@ export const diagnosisFollowUpService = {
       intake.answers[current.id] = answer;
       intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
       intake.currentIndex += 1;
+      const qText = intake.questionTexts?.[current.id] ?? current.text;
+      const choiceLabel =
+        current.choices.find((c) => c.id === answer)?.labelEn ?? answer;
+      await diagnosisSessionEvidenceService.appendQaPair(
+        params.farmerId,
+        qText,
+        String(choiceLabel)
+      );
     }
 
     const investigation = await this.buildInvestigationContext({
@@ -1243,8 +1261,20 @@ export const diagnosisFollowUpService = {
     await conversationSessionService.patchContext(params.farmerId, { postDiagnosisIntake: intake });
 
     if (intake.currentIndex >= intake.questions.length) {
+      const clarification = diagnosisFollowUpReasoningEngine.formatFieldInvestigationSummary(
+        intake.answers,
+        intake.questionTexts ?? {},
+        intake.questionChoices ?? {},
+        investigation
+      );
+      const ctx = await conversationSessionService.getContext(params.farmerId);
       await conversationSessionService.patchContext(params.farmerId, {
         postDiagnosisIntake: undefined,
+        diagnosis: {
+          imageCount: ctx.diagnosis?.imageCount ?? 1,
+          ...ctx.diagnosis,
+          postClarificationSummary: clarification.slice(0, 2000),
+        },
       });
       await conversationSessionService.setState(params.farmerId, 'diagnosis');
       logger.info(

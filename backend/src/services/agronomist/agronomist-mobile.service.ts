@@ -212,6 +212,9 @@ type FarmerFeedbackVisitPack = {
   farmerRefinedConditions: Array<{
     label: string;
     probability: number;
+    probabilityLow?: number;
+    probabilityHigh?: number;
+    likelihood?: string;
     role?: string;
     reason?: string;
   }>;
@@ -259,6 +262,9 @@ async function loadFarmerFeedbackForVisit(params: {
           conditions?: Array<{
             label?: string;
             probability?: number;
+            probabilityLow?: number;
+            probabilityHigh?: number;
+            likelihood?: string;
             role?: string;
             reason?: string;
           }>;
@@ -270,6 +276,15 @@ async function loadFarmerFeedbackForVisit(params: {
           .map((c) => ({
             label: String(c.label ?? '').trim(),
             probability: Number(c.probability ?? 0),
+            probabilityLow:
+              c.probabilityLow != null && Number.isFinite(Number(c.probabilityLow))
+                ? Number(c.probabilityLow)
+                : undefined,
+            probabilityHigh:
+              c.probabilityHigh != null && Number.isFinite(Number(c.probabilityHigh))
+                ? Number(c.probabilityHigh)
+                : undefined,
+            likelihood: c.likelihood ? String(c.likelihood) : undefined,
             role: c.role ? String(c.role) : undefined,
             reason: c.reason ? String(c.reason) : undefined,
           }))

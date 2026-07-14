@@ -7,6 +7,16 @@ export interface DiagnosisPending {
   lastAdvisorySummary?: string;
   dosageItems?: DosageItem[];
   technicalOnly?: boolean;
+  /** Persisted advisory-image storage paths for this diagnosis thread (never drop after pending clear). */
+  photoPaths?: string[];
+  /** Farmer ↔ assistant turns scoped to this diagnosis (intake Q&A, corrections, refinements). */
+  transcript?: Array<{
+    role: 'farmer' | 'assistant' | 'system';
+    text: string;
+    at: string;
+  }>;
+  /** Farmer answers after Crop Doctor, kept until final delivery / re-diagnose. */
+  postClarificationSummary?: string;
 }
 
 export interface SessionContext {

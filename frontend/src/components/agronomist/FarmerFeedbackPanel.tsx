@@ -212,9 +212,14 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                           conditions?: Array<{
                             label: string;
                             probability?: number;
+                            probabilityLow?: number;
+                            probabilityHigh?: number;
+                            likelihood?: string;
                             role?: string;
+                            reason?: string;
                           }>;
                           sequenceSummary?: string;
+                          source?: string;
                         };
                       }
                     )?.farmer_refined_assessment;
@@ -222,22 +227,48 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                       return (
                         <div className="mt-1 space-y-2">
                           <ul className="space-y-1.5">
-                            {refined.conditions.map((c) => (
-                              <li
-                                key={c.label}
-                                className="flex flex-wrap items-baseline justify-between gap-2 rounded-lg border border-border bg-surface-subtle px-2.5 py-1.5 text-sm"
-                              >
-                                <span>{c.label}</span>
-                                <span className="text-xs font-semibold text-brand-700">
-                                  {c.role ? `${c.role} · ` : ''}
-                                  {c.probability != null
+                            {refined.conditions.map((c) => {
+                              const lo =
+                                c.probabilityLow != null
+                                  ? Math.round(
+                                      c.probabilityLow > 1
+                                        ? c.probabilityLow
+                                        : c.probabilityLow * 100
+                                    )
+                                  : null;
+                              const hi =
+                                c.probabilityHigh != null
+                                  ? Math.round(
+                                      c.probabilityHigh > 1
+                                        ? c.probabilityHigh
+                                        : c.probabilityHigh * 100
+                                    )
+                                  : null;
+                              const pct =
+                                lo != null && hi != null
+                                  ? `${lo}–${hi}%`
+                                  : c.probability != null
                                     ? `${Math.round(
                                         c.probability > 1 ? c.probability : c.probability * 100
                                       )}%`
-                                    : ''}
-                                </span>
-                              </li>
-                            ))}
+                                    : '';
+                              return (
+                                <li
+                                  key={c.label}
+                                  className="rounded-lg border border-border bg-surface-subtle px-2.5 py-1.5 text-sm"
+                                >
+                                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                    <span className="font-medium">{c.label}</span>
+                                    <span className="text-xs font-semibold text-brand-700">
+                                      {[c.likelihood, c.role, pct].filter(Boolean).join(' · ')}
+                                    </span>
+                                  </div>
+                                  {c.reason ? (
+                                    <p className="mt-1 text-xs text-ink-secondary">{c.reason}</p>
+                                  ) : null}
+                                </li>
+                              );
+                            })}
                           </ul>
                           {refined.sequenceSummary ? (
                             <p className="text-xs text-ink-secondary">{refined.sequenceSummary}</p>

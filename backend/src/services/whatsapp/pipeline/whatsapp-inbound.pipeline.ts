@@ -60,6 +60,7 @@ import { onboardingFlowService, pincodePrompt } from '../scenarios/onboarding-fl
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { isMainMenuGreeting } from '../scenarios/whatsapp-menu.service.js';
 import { diagnosisFlowService } from '../scenarios/diagnosis-flow.service.js';
+import { diagnosisSessionEvidenceService } from './diagnosis-session-evidence.service.js';
 import { multiPlotService } from '../scenarios/multi-plot.service.js';
 import { aiReuseService } from '../../ai/ai-reuse.service.js';
 import { cropDetectionService } from './crop-detection.service.js';
@@ -705,6 +706,10 @@ export const whatsappInboundPipeline = {
           sendText: send.text,
           send,
         });
+        await diagnosisSessionEvidenceService.rememberPhotoPaths(
+          captured.farmerId,
+          diagnosisSessionEvidenceService.collectPendingPhotoPaths(sessCtx)
+        );
         await conversationSessionService.patchContext(captured.farmerId, {
           pendingDiagnosisImagePath: undefined,
           pendingDiagnosisImageMime: undefined,
@@ -964,6 +969,23 @@ export const whatsappInboundPipeline = {
         pendingDiagnosisImageMime: existingBatch[0]?.mime ?? batchEntry.mime,
         pendingDiagnosisImageBatch: [...existingBatch, batchEntry].slice(-WHATSAPP_IMAGE_BATCH_MAX),
       });
+      await diagnosisSessionEvidenceService.rememberPhotoPaths(captured.farmerId, [
+        batchEntry.path,
+        ...existingBatch.map((b) => b.path),
+      ]);
+      if (msg.text?.trim()) {
+        await diagnosisSessionEvidenceService.appendTranscript(
+          captured.farmerId,
+          'farmer',
+          `Photo caption: ${msg.text.trim().slice(0, 400)}`
+        );
+      } else {
+        await diagnosisSessionEvidenceService.appendTranscript(
+          captured.farmerId,
+          'system',
+          'Farmer uploaded a crop photo for diagnosis'
+        );
+      }
       if (msg.messageId) {
         void attachImageToInboundLog({
           messageId: msg.messageId,
@@ -1140,6 +1162,11 @@ export const whatsappInboundPipeline = {
       sendText: batch.sendText,
       send: batch.send,
     });
+
+    await diagnosisSessionEvidenceService.rememberPhotoPaths(
+      batch.farmerId,
+      diagnosisImages.map((i) => i.imageStoragePath).filter(Boolean) as string[]
+    );
 
     await conversationSessionService.patchContext(batch.farmerId, {
       pendingDiagnosisImagePath: undefined,
@@ -1921,6 +1948,52 @@ export const whatsappInboundPipeline = {
     const sessCtx = await conversationSessionService.getContext(params.farmerId);
     const pending = sessCtx.pendingDiagnosisDelivery;
     if (!pending?.sessionId) return;
+
+    const clarification = sessCtx.diagnosis?.postClarificationSummary?.trim();
+    if (clarification) {
+      const images = await diagnosisSessionEvidenceService.loadImages({
+        farmerId: params.farmerId,
+        sessionId: pending.sessionId,
+      });
+      if (images.length) {
+        logger.info(
+          {
+            farmerId: params.farmerId,
+            sessionId: pending.sessionId,
+            photoCount: images.length,
+          },
+          'Re-diagnosing with original photos + post-clarification chat'
+        );
+        await conversationSessionService.patchContext(params.farmerId, {
+          pendingDiagnosisDelivery: undefined,
+          diagnosis: {
+            imageCount: sessCtx.diagnosis?.imageCount ?? images.length,
+            ...sessCtx.diagnosis,
+            postClarificationSummary: undefined,
+          },
+        });
+        await this.runDiagnosis({
+          farmerId: params.farmerId,
+          phone: params.phone,
+          language: params.language,
+          symptomsText: clarification,
+          fieldInvestigation: clarification,
+          skipReuseCache: true,
+          imageBase64: images[0]!.imageBase64,
+          imageMimeType: images[0]!.mimeType,
+          imageStoragePath: images[0]!.path,
+          diagnosisImages: images.map((i) => ({
+            imageBase64: i.imageBase64,
+            imageMimeType: i.mimeType,
+            imageStoragePath: i.path,
+          })),
+          channel: 'whatsapp',
+          sendText: params.sendText,
+          send: params.send,
+        });
+        return;
+      }
+    }
 
     const session = await cropDoctorService.getSession(pending.sessionId);
     const outputs = (session.ai_advisory_outputs as Array<{ raw_response?: StructuredAdvisory }> | null) ?? [];

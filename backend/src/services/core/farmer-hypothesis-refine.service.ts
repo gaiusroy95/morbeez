@@ -1,19 +1,28 @@
 /**
- * After "AI is wrong", refine the farmer's free-text hypothesis into ranked conditions.
- * Conditions and probabilities come from the LLM using session context — not hardcoded disease lists.
+ * After "AI is wrong", re-assess the farmer's free-text hypothesis against the crop photos.
+ * Conditions and probabilities come only from vision+LLM — never keyword/tables/fake stepped %.
  */
-import { openaiJsonCompletion } from '../ai/providers/openai.provider.js';
+import {
+  openaiJsonCompletion,
+  openaiJsonVisionCompletion,
+} from '../ai/providers/openai.provider.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import { isFarmerSuggestionButtonId } from '../../domain/learning/farmer-nutrient-suggestions.js';
 import { supabase } from '../../lib/supabase.js';
 import { AppError } from '../../lib/errors.js';
+import { logger } from '../../lib/logger.js';
+import { diagnosisSessionEvidenceService } from '../whatsapp/pipeline/diagnosis-session-evidence.service.js';
 
 export type RefinedConditionRole = 'primary' | 'contributing' | 'secondary' | 'possible';
 
 export type RefinedCondition = {
   label: string;
-  /** 0–1 */
+  /** 0–1 mid-point used for ranking / storage */
   probability: number;
+  /** Optional calibrated band ends from the model (preferred for display) */
+  probabilityLow?: number;
+  probabilityHigh?: number;
+  likelihood?: 'high' | 'moderate' | 'possible' | 'unlikely';
   role: RefinedConditionRole;
   reason: string;
 };
@@ -22,19 +31,23 @@ export type FarmerHypothesisRefineResult = {
   conditions: RefinedCondition[];
   sequenceSummary: string;
   replyToFarmer: string;
-  source: 'llm';
+  source: 'llm_vision' | 'llm_text';
+  usedPhoto: boolean;
 };
 
 type LlmRefineJson = {
+  verdict?: string;
+  photoFindings?: string[];
   conditions?: Array<{
     label?: string;
     probability?: number;
+    probabilityLow?: number;
+    probabilityHigh?: number;
+    likelihood?: string;
     role?: string;
     reason?: string;
   }>;
   sequenceSummary?: string;
-  farmerReplyEn?: string;
-  farmerReplyMl?: string;
 };
 
 /** Free-typed theory (not a WhatsApp chip / button id). */
@@ -42,7 +55,6 @@ export function looksLikeDescriptiveHypothesis(raw: string): boolean {
   const t = raw.trim();
   if (!t || isFarmerSuggestionButtonId(t)) return false;
   if (/^feedback\./i.test(t)) return false;
-  // Any open answer with real content — LLM decides what conditions exist.
   return t.length >= 12;
 }
 
@@ -57,36 +69,75 @@ function normalizeRole(raw: string | undefined, index: number): RefinedCondition
   if (r === 'primary' || r.includes('primary')) return 'primary';
   if (r === 'contributing' || r.includes('contribut')) return 'contributing';
   if (r === 'secondary' || r.includes('second')) return 'secondary';
-  if (r === 'possible' || r.includes('possible')) return 'possible';
+  if (r === 'possible' || r.includes('possible') || r.includes('unlikely')) return 'possible';
   if (index === 0) return 'primary';
   return 'possible';
 }
 
-function formatPct(p: number): string {
-  return `${Math.round(clampProb(p) * 100)}%`;
+function normalizeLikelihood(
+  raw: string | undefined,
+  p: number
+): RefinedCondition['likelihood'] {
+  const r = (raw ?? '').toLowerCase().trim();
+  if (r.includes('unlikely') || r.includes('low')) return 'unlikely';
+  if (r.includes('possible') || r.includes('less')) return 'possible';
+  if (r.includes('moderate') || r.includes('medium')) return 'moderate';
+  if (r.includes('high')) return 'high';
+  if (p >= 0.7) return 'high';
+  if (p >= 0.4) return 'moderate';
+  if (p >= 0.2) return 'possible';
+  return 'unlikely';
 }
 
+function formatPctBand(c: RefinedCondition): string {
+  const lo = c.probabilityLow != null ? clampProb(c.probabilityLow) : null;
+  const hi = c.probabilityHigh != null ? clampProb(c.probabilityHigh) : null;
+  if (lo != null && hi != null && hi >= lo) {
+    return `${Math.round(lo * 100)}–${Math.round(hi * 100)}%`;
+  }
+  return `≈${Math.round(clampProb(c.probability) * 100)}%`;
+}
+
+function likelihoodWord(c: RefinedCondition, lang: AdvisoryLanguage): string {
+  const l = c.likelihood ?? normalizeLikelihood(undefined, c.probability);
+  if (lang === 'ml') {
+    if (l === 'high') return 'ഉയർന്ന സാധ്യത';
+    if (l === 'moderate') return 'ഇടത്തരം';
+    if (l === 'unlikely') return 'സാധ്യത കുറവ്';
+    return 'സാധ്യം';
+  }
+  if (l === 'high') return 'High';
+  if (l === 'moderate') return 'Moderate';
+  if (l === 'unlikely') return 'Unlikely';
+  return 'Possible';
+}
+
+/** WhatsApp message built from structured LLM conditions (never trust free-form step-% replies). */
 function formatWhatsAppAssessment(
   lang: AdvisoryLanguage,
+  verdict: string,
   conditions: RefinedCondition[],
-  sequenceSummary: string
+  sequenceSummary: string,
+  usedPhoto: boolean
 ): string {
   const lines = conditions.slice(0, 6).map((c, i) => {
-    const role =
-      c.role === 'primary'
-        ? 'Primary'
-        : c.role === 'contributing'
-          ? 'Contributing'
-          : c.role === 'secondary'
-            ? 'Secondary'
-            : 'Possible';
-    return `${i + 1}) ${c.label} — ${role} (${formatPct(c.probability)})`;
+    const band = formatPctBand(c);
+    const like = likelihoodWord(c, lang);
+    const reason = c.reason.trim();
+    if (lang === 'ml') {
+      return `${i + 1}) ${c.label} — ${like} (${band})${reason ? `\n   ${reason}` : ''}`;
+    }
+    return `${i + 1}) ${c.label} — ${like} (${band})${reason ? `\n   Reason: ${reason}` : ''}`;
   });
 
   if (lang === 'ml') {
     return [
-      'നിങ്ങളുടെ അഭിപ്രായം പരിഗണിച്ചു. ഫോട്ടോകളും നിങ്ങളുടെ വിവരണവും അടിസ്ഥാനമാക്കി ഞങ്ങളുടെ വിലയിരുത്തൽ:',
+      verdict.trim() ||
+        (usedPhoto
+          ? 'നിങ്ങളുടെ അഭിപ്രായം സാധ്യമാണ്; ഫോട്ടോകൾ കണ്ട ശേഷം ഞങ്ങൾ ഇതിനെ ചെറുതായി ക്രമീകരിച്ചു.'
+          : 'നിങ്ങളുടെ അഭിപ്രായം രേഖപ്പെടുത്തി. ഫോട്ടോ ലഭ്യമല്ലാത്തതിനാൽ സ്കോർ കുറച്ച് ആത്മവിശ്വാസത്തോടെ നൽകുന്നു.'),
       '',
+      'ഞങ്ങളുടെ വിലയിരുത്തൽ:',
       ...lines,
       sequenceSummary ? `\nക്രമം: ${sequenceSummary}` : '',
       '',
@@ -97,8 +148,12 @@ function formatWhatsAppAssessment(
   }
 
   return [
-    'Thanks — your field theory is noted. Based on the photos and your description, here is our refined assessment:',
+    verdict.trim() ||
+      (usedPhoto
+        ? 'Your hypothesis is plausible, but based on these photos I would refine it slightly.'
+        : 'Your hypothesis is noted. No crop photo was available for this session, so confidence is limited.'),
     '',
+    'My assessment:',
     ...lines,
     sequenceSummary ? `\nLikely sequence: ${sequenceSummary}` : '',
     '',
@@ -106,6 +161,17 @@ function formatWhatsAppAssessment(
   ]
     .filter(Boolean)
     .join('\n');
+}
+
+/** Reject evenly stepped high-% lists that echo farmer text without photo discrimination. */
+function looksLikeSteppedEcho(probs: number[]): boolean {
+  if (probs.length < 3) return false;
+  const pcts = probs.map((p) => Math.round(clampProb(p) * 100));
+  const diffs: number[] = [];
+  for (let i = 1; i < pcts.length; i++) diffs.push(pcts[i - 1]! - pcts[i]!);
+  const allHigh = pcts.every((p) => p >= 55);
+  const sameStep = diffs.every((d) => d === diffs[0] && d >= 8 && d <= 15);
+  return allHigh && sameStep;
 }
 
 async function loadPriorAdvisory(sessionId: string | null): Promise<{
@@ -116,7 +182,6 @@ async function loadPriorAdvisory(sessionId: string | null): Promise<{
   cropStage: string | null;
   symptomsText: string | null;
   summaryEn: string | null;
-  imageStoragePath: string | null;
 }> {
   if (!sessionId) {
     return {
@@ -127,7 +192,6 @@ async function loadPriorAdvisory(sessionId: string | null): Promise<{
       cropStage: null,
       symptomsText: null,
       summaryEn: null,
-      imageStoragePath: null,
     };
   }
 
@@ -168,45 +232,105 @@ async function loadPriorAdvisory(sessionId: string | null): Promise<{
     cropStage: sess?.crop_stage ? String(sess.crop_stage) : null,
     symptomsText: sess?.symptoms_text ? String(sess.symptoms_text) : null,
     summaryEn: out?.farmer_summary_en ? String(out.farmer_summary_en) : null,
-    imageStoragePath: sess?.image_storage_path ? String(sess.image_storage_path) : null,
   };
 }
 
-function parseLlmResult(json: LlmRefineJson, lang: AdvisoryLanguage): FarmerHypothesisRefineResult {
-  const conditions = (json.conditions ?? [])
-    .map((c, i) => {
+function buildSystemPrompt(hasPhotos: boolean): string {
+  return [
+    'You are an expert field agronomist refining a farmer correction after they disagreed with a prior AI diagnosis.',
+    hasPhotos
+      ? 'PHOTOS ARE ATTACHED. Analyze the leaf/plant images first. Base every probability on what is visibly present (leaf age, lesion type, margins, distribution, chlorosis pattern).'
+      : 'NO PHOTOS AVAILABLE. Do not invent high confidence. Keep probabilities modest and say so in reasons.',
+    'The farmer hypothesis is a starting claim — not ground truth. Support, lower, or challenge each claim using photo evidence.',
+    'Classic discrimination rules (apply only from photos):',
+    '- Nutrient scorch on OLDER leaves → often K; Ca/B usually hit YOUNGEST emerging leaves first.',
+    '- Anthracnose needs discrete lesions / dark margins / spore masses — brown edge scorch alone is not enough.',
+    '- Damaged tissue may allow secondary fungal infection at moderate/low probability.',
+    '- Drought/water stress can contribute even if the farmer did not name it.',
+    'FORBIDDEN:',
+    '- Keyword recycling: do not list farmer conditions at 85%, 75%, 65%, 60% (or any evenly stepped descending ladder) without photo discrimination.',
+    '- Hardcoded disease dictionaries or default crop diagnoses.',
+    '- Copying the farmer list unchanged when photos contradict it.',
+    'OUTPUT JSON only:',
+    '{',
+    '  "verdict": "1 short sentence like ChatGPT: hypothesis plausible but refined from photos",',
+    '  "photoFindings": ["2-5 concrete visual bullets"],',
+    '  "conditions": [{',
+    '    "label": "condition name",',
+    '    "probability": 0.0-1.0 midpoint,',
+    '    "probabilityLow": 0.0-1.0,',
+    '    "probabilityHigh": 0.0-1.0,',
+    '    "likelihood": "high|moderate|possible|unlikely",',
+    '    "role": "primary|contributing|secondary|possible",',
+    '    "reason": "cite photo evidence (leaf age, lesion morphology, etc.)"',
+    '  }],',
+    '  "sequenceSummary": "optional short causal sequence"',
+    '}',
+    'Include every farmer-named condition with an honest score (including low/unlikely if photos contradict).',
+    'You may add photo-supported factors the farmer omitted (e.g. water stress).',
+    'Probabilities must differ based on evidence strength — not arithmetic ladders.',
+  ].join('\n');
+}
+
+function parseLlmResult(
+  json: LlmRefineJson,
+  lang: AdvisoryLanguage,
+  usedPhoto: boolean
+): FarmerHypothesisRefineResult {
+  const conditions: RefinedCondition[] = (json.conditions ?? [])
+    .map((c, i): RefinedCondition | null => {
       const label = String(c.label ?? '').trim();
       if (!label) return null;
+      const lo =
+        c.probabilityLow != null && Number.isFinite(Number(c.probabilityLow))
+          ? clampProb(Number(c.probabilityLow))
+          : undefined;
+      const hi =
+        c.probabilityHigh != null && Number.isFinite(Number(c.probabilityHigh))
+          ? clampProb(Number(c.probabilityHigh))
+          : undefined;
+      let probability = clampProb(Number(c.probability));
+      if ((!Number.isFinite(Number(c.probability)) || probability === 0) && lo != null && hi != null) {
+        probability = (lo + hi) / 2;
+      }
       return {
         label: label.slice(0, 160),
-        probability: clampProb(Number(c.probability)),
+        probability,
+        probabilityLow: lo,
+        probabilityHigh: hi,
+        likelihood: normalizeLikelihood(c.likelihood, probability),
         role: normalizeRole(c.role, i),
-        reason: String(c.reason ?? '').slice(0, 320),
-      } satisfies RefinedCondition;
+        reason: String(c.reason ?? '').slice(0, 400),
+      };
     })
-    .filter((c): c is RefinedCondition => Boolean(c))
+    .filter((c): c is RefinedCondition => c != null)
     .slice(0, 6);
 
   if (!conditions.length) {
     throw new AppError('Refine returned no conditions', 502, 'REFINE_EMPTY');
   }
 
-  // Keep LLM ordering; only force primary on the highest-probability item if roles missing.
+  if (looksLikeSteppedEcho(conditions.map((c) => c.probability))) {
+    logger.warn(
+      { probs: conditions.map((c) => c.probability) },
+      'Refine probs look like stepped echo — rejecting'
+    );
+    throw new AppError('Refine probabilities look uncalibrated', 502, 'REFINE_UNCALIBRATED');
+  }
+
   conditions.sort((a, b) => b.probability - a.probability);
   const hasPrimary = conditions.some((c) => c.role === 'primary');
   if (!hasPrimary && conditions[0]) conditions[0].role = 'primary';
 
   const sequenceSummary = String(json.sequenceSummary ?? '').trim().slice(0, 500);
-  const customReply =
-    lang === 'ml'
-      ? String(json.farmerReplyMl ?? '').trim()
-      : String(json.farmerReplyEn ?? '').trim();
+  const verdict = String(json.verdict ?? '').trim().slice(0, 280);
 
   return {
     conditions,
     sequenceSummary,
-    replyToFarmer: customReply || formatWhatsAppAssessment(lang, conditions, sequenceSummary),
-    source: 'llm',
+    replyToFarmer: formatWhatsAppAssessment(lang, verdict, conditions, sequenceSummary, usedPhoto),
+    source: usedPhoto ? 'llm_vision' : 'llm_text',
+    usedPhoto,
   };
 }
 
@@ -216,38 +340,40 @@ export const farmerHypothesisRefineService = {
   async refine(params: {
     farmerText: string;
     sessionId: string | null;
+    farmerId?: string | null;
     lang: AdvisoryLanguage;
     priorAiIssue?: string | null;
   }): Promise<FarmerHypothesisRefineResult> {
     const prior = await loadPriorAdvisory(params.sessionId);
     const priorIssue = params.priorAiIssue ?? prior.probableIssue;
-
-    const system = [
-      'You are an agronomy assistant refining a farmer correction after they disagreed with an AI crop diagnosis.',
-      'Use ONLY the session context + farmer text provided. Do not invent crop-specific stock answers.',
-      'Extract every distinct condition the farmer means (nutrient, disease, pest, stress, etc.).',
-      'Then score each against the photo/session evidence with calibrated probabilities from 0 to 1.',
-      'If photos contradict the farmer on a condition, lower its probability and explain in reason.',
-      'If photos support a condition the farmer did not name, you may add it with role contributing/possible.',
-      'Return JSON only with keys:',
-      'conditions: [{label, probability, role, reason}],',
-      'sequenceSummary: short causal sequence if useful,',
-      'farmerReplyEn, farmerReplyMl: WhatsApp-friendly ranked list with % (no markdown tables).',
-      'role must be one of: primary | contributing | secondary | possible.',
-    ].join(' ');
+    const loaded = await diagnosisSessionEvidenceService.loadImages({
+      farmerId: params.farmerId,
+      sessionId: params.sessionId,
+    });
+    const images = loaded.map((i) => ({ imageBase64: i.imageBase64, mimeType: i.mimeType }));
+    const usedPhoto = images.length > 0;
+    const chatEvidence = params.farmerId
+      ? await diagnosisSessionEvidenceService.formatEvidenceForPrompt({
+          farmerId: params.farmerId,
+          sessionId: params.sessionId,
+        })
+      : '';
 
     const user = [
       `Crop type: ${prior.cropType ?? 'unknown'}`,
       `Crop stage: ${prior.cropStage ?? 'unknown'}`,
-      `Session has image path: ${prior.imageStoragePath ? 'yes' : 'no'}`,
+      `Photos attached to this request: ${usedPhoto ? `YES (${images.length}) — analyze them as primary evidence` : 'NO'}`,
       `Prior AI probable issue: ${priorIssue ?? 'unknown'}`,
+      chatEvidence || null,
       prior.symptomsText ? `Original symptoms text: ${prior.symptomsText.slice(0, 500)}` : null,
       prior.summaryEn ? `Prior AI farmer summary: ${prior.summaryEn.slice(0, 800)}` : null,
       prior.imageObservations.length
-        ? `Photo observations from prior diagnosis:\n${prior.imageObservations.map((o) => `- ${o}`).join('\n')}`
-        : 'Photo observations: not separately stored — infer carefully from prior AI summary/differentials only.',
+        ? `Prior imageObservations (may be incomplete — re-check photos):\n${prior.imageObservations
+            .map((o) => `- ${o}`)
+            .join('\n')}`
+        : null,
       prior.differential.length
-        ? `Prior AI differentials:\n${prior.differential
+        ? `Prior AI differentials (for context only — re-score from photos + chat):\n${prior.differential
             .slice(0, 6)
             .map(
               (d) =>
@@ -257,15 +383,41 @@ export const farmerHypothesisRefineService = {
             )
             .join('\n')}`
         : null,
-      `Farmer hypothesis (free text):\n${params.farmerText.slice(0, 1500)}`,
-      'Output calibrated ranked conditions now.',
+      `Farmer hypothesis (free text — evaluate against photos + prior chat, do not blindly trust):\n${params.farmerText.slice(0, 1500)}`,
+      'Return photo-calibrated ranked conditions now.',
     ]
       .filter(Boolean)
       .join('\n\n');
 
-    const json = await openaiJsonCompletion<LlmRefineJson>(system, user, 1100, {
-      temperature: 0.15,
-    });
-    return parseLlmResult(json, params.lang);
+    const system = buildSystemPrompt(usedPhoto);
+    const callLlm = async (extraNudge?: string) => {
+      const prompt = extraNudge ? `${user}\n\n${extraNudge}` : user;
+      if (usedPhoto) {
+        return openaiJsonVisionCompletion<LlmRefineJson & Record<string, unknown>>(
+          system,
+          prompt,
+          images,
+          1800,
+          { temperature: 0.2 }
+        );
+      }
+      return openaiJsonCompletion<LlmRefineJson & Record<string, unknown>>(system, prompt, 1400, {
+        temperature: 0.2,
+      });
+    };
+
+    try {
+      const json = await callLlm();
+      return parseLlmResult(json, params.lang, usedPhoto);
+    } catch (err) {
+      const code = err instanceof AppError ? err.code : '';
+      if (code === 'REFINE_UNCALIBRATED' || code === 'REFINE_EMPTY') {
+        const json = await callLlm(
+          'RETRY: Your previous scores looked like an evenly spaced high-% ladder echoing the farmer text. Re-score using photo evidence + chat context only — use honest bands (e.g. high 75–85, moderate 30–40, possible 20–30) and lower claims the photos do not support.'
+        );
+        return parseLlmResult(json, params.lang, usedPhoto);
+      }
+      throw err;
+    }
   },
 };
