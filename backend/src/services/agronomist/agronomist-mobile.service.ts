@@ -204,6 +204,118 @@ async function loadAiSessionVisitImages(
   return { symptomsText, images, cropType, aiDiagnosis, aiConfidence };
 }
 
+type FarmerFeedbackVisitPack = {
+  farmerFeedbackId: string | null;
+  farmerSuggestedDiagnosis: string | null;
+  farmerPriorExperience: string | null;
+  farmerPriorProduct: string | null;
+  farmerPriorOutcome: string | null;
+};
+
+async function loadFarmerFeedbackForVisit(params: {
+  farmerId: string;
+  aiSessionId?: string | null;
+  escalationId?: string | null;
+}): Promise<FarmerFeedbackVisitPack> {
+  const empty: FarmerFeedbackVisitPack = {
+    farmerFeedbackId: null,
+    farmerSuggestedDiagnosis: null,
+    farmerPriorExperience: null,
+    farmerPriorProduct: null,
+    farmerPriorOutcome: null,
+  };
+
+  const select =
+    'id, farmer_suggested_diagnosis, farmer_prior_experience, farmer_prior_product, farmer_prior_outcome, session_id, escalation_id, created_at, status';
+
+  const mapRow = (fb: Record<string, unknown> | null | undefined): FarmerFeedbackVisitPack => {
+    if (!fb) return empty;
+    const suggested = fb.farmer_suggested_diagnosis
+      ? String(fb.farmer_suggested_diagnosis).trim()
+      : '';
+    const experience = fb.farmer_prior_experience
+      ? String(fb.farmer_prior_experience).trim()
+      : '';
+    // Rebuild multi-nutrient summary from all farmer free text (covers truncated/single-nutrient captures).
+    const combinedSource = [suggested, experience].filter(Boolean).join('\n');
+    let diagnosis = suggested;
+    try {
+      // Dynamic import avoided — inline nutrient detect for robustness on old rows.
+      const nutrientHits: string[] = [];
+      const checks: Array<[RegExp, string]> = [
+        [/\b(?:iron|ferrous|ferric|fe(?:\s*edta)?)\b/i, 'Iron (Fe)'],
+        [/\b(?:zinc|zn(?:\s*edta)?|edta\s*zinc)\b/i, 'Zinc (Zn)'],
+        [/\b(?:magnesium|magnesium\s*sul)/i, 'Magnesium (Mg)'],
+        [/\b(?:nitrogen|ammonium\s*sul)/i, 'Nitrogen (N)'],
+        [/\b(?:calcium|edta\s*calcium)\b/i, 'Calcium (Ca)'],
+      ];
+      for (const [re, label] of checks) {
+        if (re.test(combinedSource) && !nutrientHits.includes(label)) nutrientHits.push(label);
+      }
+      if (nutrientHits.length >= 2) {
+        const core = nutrientHits.filter((l) => !l.startsWith('Calcium'));
+        const hasCa = nutrientHits.some((l) => l.startsWith('Calcium'));
+        diagnosis = [
+          core.length ? `${core.join(', ')} deficiency` : null,
+          hasCa ? (core.length ? 'calcium supply needed' : 'Calcium (Ca) deficiency') : null,
+        ]
+          .filter(Boolean)
+          .join('; ');
+        if (suggested.length > diagnosis.length + 10) {
+          diagnosis = `${diagnosis} — ${suggested}`.slice(0, 500);
+        }
+      } else if (!diagnosis && experience && /deficien|ferrous|zinc|magnesium|nitrogen|calcium/i.test(experience)) {
+        diagnosis = experience.slice(0, 500);
+      }
+    } catch {
+      /* keep suggested */
+    }
+    return {
+      farmerFeedbackId: fb.id ? String(fb.id) : null,
+      farmerSuggestedDiagnosis: diagnosis || null,
+      farmerPriorExperience: experience || null,
+      farmerPriorProduct: fb.farmer_prior_product ? String(fb.farmer_prior_product) : null,
+      farmerPriorOutcome: fb.farmer_prior_outcome ? String(fb.farmer_prior_outcome) : null,
+    };
+  };
+
+  if (params.escalationId) {
+    const { data } = await supabase
+      .from('farmer_advisory_feedback')
+      .select(select)
+      .eq('escalation_id', params.escalationId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const mapped = mapRow(data as Record<string, unknown> | null);
+    if (mapped.farmerSuggestedDiagnosis || mapped.farmerPriorExperience) return mapped;
+  }
+
+  if (params.aiSessionId) {
+    const { data } = await supabase
+      .from('farmer_advisory_feedback')
+      .select(select)
+      .eq('session_id', params.aiSessionId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const mapped = mapRow(data as Record<string, unknown> | null);
+    if (mapped.farmerSuggestedDiagnosis || mapped.farmerPriorExperience) return mapped;
+  }
+
+  // Latest open/reviewed farmer correction for this farmer (rectification visits).
+  const { data: latest } = await supabase
+    .from('farmer_advisory_feedback')
+    .select(select)
+    .eq('farmer_id', params.farmerId)
+    .in('status', ['pending_capture', 'pending_review', 'approved', 'partial'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return mapRow(latest as Record<string, unknown> | null);
+}
+
 export const agronomistMobileService = {
   async getMobileDashboard(agentEmail: string) {
     const email = agentEmail.trim().toLowerCase();
@@ -1426,6 +1538,12 @@ export const agronomistMobileService = {
       aiConfidence = sessionPack.aiConfidence;
     }
 
+    const farmerFeedback = await loadFarmerFeedbackForVisit({
+      farmerId,
+      aiSessionId,
+      escalationId,
+    });
+
     return {
       recommendationId,
       farmerId,
@@ -1438,12 +1556,19 @@ export const agronomistMobileService = {
       issueDetected: row.issue_detected ? String(row.issue_detected) : null,
       aiDiagnosis,
       aiConfidence,
+      farmerFeedbackId: farmerFeedback.farmerFeedbackId,
+      farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+      farmerPriorExperience: farmerFeedback.farmerPriorExperience,
+      farmerPriorProduct: farmerFeedback.farmerPriorProduct,
+      farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
       recommendationText: String(row.recommendation_text ?? ''),
       symptomsText,
       images,
       source: row.source ? String(row.source) : null,
       status: row.status ? String(row.status) : null,
-      rectificationMode: Boolean(escalationId || row.status === 'draft'),
+      rectificationMode: Boolean(
+        escalationId || row.status === 'draft' || farmerFeedback.farmerSuggestedDiagnosis
+      ),
     };
   },
 
@@ -1485,20 +1610,6 @@ export const agronomistMobileService = {
     let recommendationId: string | null = null;
     let recommendationText = '';
     let issueDetected: string | null = aiDiagnosis;
-    let farmerSuggestedDiagnosis: string | null = null;
-
-    if (aiSessionId) {
-      const { data: fb } = await supabase
-        .from('farmer_advisory_feedback')
-        .select('farmer_suggested_diagnosis')
-        .eq('session_id', aiSessionId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (fb?.farmer_suggested_diagnosis) {
-        farmerSuggestedDiagnosis = String(fb.farmer_suggested_diagnosis);
-      }
-    }
 
     if (aiSessionId) {
       const { data: rec } = await supabase
@@ -1521,6 +1632,12 @@ export const agronomistMobileService = {
       }
     }
 
+    const farmerFeedback = await loadFarmerFeedbackForVisit({
+      farmerId,
+      aiSessionId,
+      escalationId: String(esc.id),
+    });
+
     return {
       recommendationId,
       farmerId,
@@ -1533,7 +1650,11 @@ export const agronomistMobileService = {
       issueDetected,
       aiDiagnosis,
       aiConfidence,
-      farmerSuggestedDiagnosis,
+      farmerFeedbackId: farmerFeedback.farmerFeedbackId,
+      farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+      farmerPriorExperience: farmerFeedback.farmerPriorExperience,
+      farmerPriorProduct: farmerFeedback.farmerPriorProduct,
+      farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
       recommendationText,
       symptomsText,
       images,

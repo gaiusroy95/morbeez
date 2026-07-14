@@ -241,8 +241,16 @@ export type RecommendationVisitContext = {
   issueDetected: string | null;
   aiDiagnosis: string | null;
   aiConfidence: number | null;
+  /** Farmer advisory feedback row id (WhatsApp dispute / experience capture). */
+  farmerFeedbackId?: string | null;
   /** Farmer-suggested correction from dispute flow (validated by agronomist). */
   farmerSuggestedDiagnosis?: string | null;
+  /** Farmer-described prior field experience / treatment history. */
+  farmerPriorExperience?: string | null;
+  /** Products / sprays the farmer reported using. */
+  farmerPriorProduct?: string | null;
+  /** Farmer-reported prior outcome (improved / partial / no_change). */
+  farmerPriorOutcome?: string | null;
   recommendationText: string;
   symptomsText: string | null;
   images: Array<{ url: string; caption: string | null; suggestedPhotoType?: string | null }>;

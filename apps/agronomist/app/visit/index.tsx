@@ -48,7 +48,6 @@ import { VisitAiTriageStep } from '@/components/field-findings/wizard/VisitAiTri
 import { VisitEconomicOptimizerStep } from '@/components/field-findings/wizard/VisitEconomicOptimizerStep';
 import { VisitFollowUpStep } from '@/components/field-findings/wizard/VisitFollowUpStep';
 import { VisitRecommendationStep } from '@/components/field-findings/wizard/VisitRecommendationStep';
-import { VisitFinalDiagnosisStep } from '@/components/field-findings/wizard/VisitFinalDiagnosisStep';
 import { VisitRecPlanningStep } from '@/components/field-findings/wizard/VisitRecPlanningStep';
 import { VisitRecApprovalStep } from '@/components/field-findings/wizard/VisitRecApprovalStep';
 import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummaryStep';
@@ -127,6 +126,9 @@ export default function VisitScreen() {
   const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
   const [prefillDiagnosis, setPrefillDiagnosis] = useState<string | null>(null);
   const [farmerSuggestedDiagnosis, setFarmerSuggestedDiagnosis] = useState<string | null>(null);
+  const [farmerPriorExperience, setFarmerPriorExperience] = useState<string | null>(null);
+  const [farmerPriorProduct, setFarmerPriorProduct] = useState<string | null>(null);
+  const [farmerPriorOutcome, setFarmerPriorOutcome] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [blockHealth, setBlockHealth] = useState<BlockHealthLevel | null>(null);
   const [cropPerformance, setCropPerformance] = useState<CropPerformanceLevel | null>(null);
@@ -309,6 +311,15 @@ export default function VisitScreen() {
           if (diagnosis) setPrefillDiagnosis(diagnosis);
           if (prefillSource.farmerSuggestedDiagnosis) {
             setFarmerSuggestedDiagnosis(prefillSource.farmerSuggestedDiagnosis);
+          }
+          if (prefillSource.farmerPriorExperience) {
+            setFarmerPriorExperience(prefillSource.farmerPriorExperience);
+          }
+          if (prefillSource.farmerPriorProduct) {
+            setFarmerPriorProduct(prefillSource.farmerPriorProduct);
+          }
+          if (prefillSource.farmerPriorOutcome) {
+            setFarmerPriorOutcome(prefillSource.farmerPriorOutcome);
           }
         }
       } catch (e) {
@@ -626,14 +637,18 @@ export default function VisitScreen() {
           </>
         ) : null}
 
-        {rectificationMode && (prefillDiagnosis || farmerSuggestedDiagnosis) ? (
+        {rectificationMode && (prefillDiagnosis || farmerSuggestedDiagnosis || farmerPriorExperience) ? (
           <AlertBox>
             Rectification visit — verify or correct AI diagnosis
             {prefillDiagnosis ? `: ${prefillDiagnosis}` : ''}.
             {farmerSuggestedDiagnosis
-              ? ` Farmer suggestion: ${farmerSuggestedDiagnosis}.`
-              : ''}{' '}
-            Confirm the final diagnosis in review — only agronomist-approved cases enter the knowledge base.
+              ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
+              : farmerPriorExperience
+                ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
+                : ''}
+            {farmerPriorProduct ? `\nPrior products: ${farmerPriorProduct}` : ''}
+            {'\n'}
+            Confirm the final diagnosis in Validation — only agronomist-approved cases enter the knowledge base.
           </AlertBox>
         ) : null}
 
@@ -704,19 +719,22 @@ export default function VisitScreen() {
         ) : null}
 
         {step === 'diagnosisFinalization' ? (
-          <>
-            <VisitAgronomistReviewStep
-              issues={issues}
-              issueMaster={issueMaster}
-              cropType={cropType}
-              blockDap={blockDap}
-              blockAutoApprove={blockAutoApprove({ triage, issues })}
-              onChange={setIssues}
-              onSuggestQuestions={() => Promise.resolve([])}
-              onCreateIssueType={createIssueType}
-            />
-            <VisitFinalDiagnosisStep issues={issues} onChange={setIssues} />
-          </>
+          <VisitAgronomistReviewStep
+            issues={issues}
+            issueMaster={issueMaster}
+            cropType={cropType}
+            blockDap={blockDap}
+            blockAutoApprove={blockAutoApprove({ triage, issues })}
+            farmerFeedback={{
+              suggestedDiagnosis: farmerSuggestedDiagnosis,
+              priorExperience: farmerPriorExperience,
+              priorProduct: farmerPriorProduct,
+              priorOutcome: farmerPriorOutcome,
+            }}
+            onChange={setIssues}
+            onSuggestQuestions={() => Promise.resolve([])}
+            onCreateIssueType={createIssueType}
+          />
         ) : null}
 
         {step === 'recommendationBuilder' ? (

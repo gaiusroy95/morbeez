@@ -1,6 +1,9 @@
 /** Detect farmer disagreement / correction intent (multilingual keywords). */
 
-import { mapFarmerSuggestionInput } from '../../domain/learning/farmer-nutrient-suggestions.js';
+import {
+  mapFarmerSuggestionInput,
+  summarizeFarmerNutrientSuggestion,
+} from '../../domain/learning/farmer-nutrient-suggestions.js';
 
 const DISAGREEMENT_PATTERNS: RegExp[] = [
   /\b(ai\s+)?(is\s+)?wrong\b/i,
@@ -27,7 +30,10 @@ const CORRECTION_ISSUE_PATTERNS: RegExp[] = [
 const PRIOR_TREATMENT_PATTERNS: RegExp[] = [
   /\b(last\s+time|previously|before)\b/i,
   /\bworked\b/i,
+  /\b(i\s+)?applied\b/i,
+  /\b(spray|soil\s+application)\b/i,
   /\b(spinetoram|fipronil|mancozeb|azoxystrobin|copper|neem)\b/i,
+  /\b(edta|sulfate|sulphate|ammonium)\b/i,
   /\bസ്പിനെടോറം\b/i,
 ];
 
@@ -41,14 +47,34 @@ export function isFarmerDisagreementIntent(text: string): boolean {
   return false;
 }
 
+/**
+ * Prefer multi-nutrient summary from free text; fall back to "this is X" / pest keywords.
+ * Never collapse Fe+Zn+Mg+N into a single nutrient.
+ */
 export function extractSuggestedDiagnosis(text: string): string | null {
   const t = text.trim();
-  const nutrient = mapFarmerSuggestionInput(t);
-  if (typeof nutrient === 'string') return nutrient;
-  if (nutrient === null) return null;
+  if (!t) return null;
 
-  const m = t.match(/\b(?:this\s+is|its|it's|ഇത്)\s+([a-zA-Z\u0D00-\u0D7F\u0B80-\u0BFF\s-]{2,60})/i);
-  if (m?.[1]) return m[1].trim().slice(0, 200);
+  if (/^feedback\.suggest\./i.test(t)) {
+    const mapped = mapFarmerSuggestionInput(t);
+    return typeof mapped === 'string' ? mapped : null;
+  }
+
+  const nutrientSummary = summarizeFarmerNutrientSuggestion(t);
+  if (nutrientSummary) {
+    // Keep a short farmer quote when the reply also explains connected issues.
+    if (t.length > nutrientSummary.length + 20 && t.length <= 500) {
+      return `${nutrientSummary} — ${t}`.slice(0, 500);
+    }
+    return nutrientSummary;
+  }
+
+  const mapped = mapFarmerSuggestionInput(t);
+  if (typeof mapped === 'string') return mapped;
+  if (mapped === null) return null;
+
+  const m = t.match(/\b(?:this\s+is|its|it's|ഇത്)\s+([a-zA-Z\u0D00-\u0D7F\u0B80-\u0BFF\s,-]{2,200})/i);
+  if (m?.[1]) return m[1].trim().slice(0, 500);
   const pest = t.match(
     /\b(thrips?|mites?|aphids?|whitefly|borer|nematode|fungal?\s+infection|leaf\s+spot|blight)\b/i
   );
@@ -57,7 +83,34 @@ export function extractSuggestedDiagnosis(text: string): string | null {
 }
 
 export function extractPriorProduct(text: string): string | null {
-  const m = text.match(
+  const t = text.trim();
+  if (!t) return null;
+
+  const products: string[] = [];
+  const patterns: Array<{ re: RegExp; label: string }> = [
+    { re: /\bedta\s*(?:zinc|zn)\b/i, label: 'EDTA zinc' },
+    { re: /\bedta\s*(?:ferrous|fe|iron)\b|\bferrous(?:\s*sul(?:ph|f)ate)?\b/i, label: 'EDTA ferrous' },
+    { re: /\bedta\s*calcium\b/i, label: 'EDTA calcium' },
+    { re: /\bmagnesium\s*sul(?:ph|f)ate\b/i, label: 'magnesium sulfate' },
+    { re: /\bammonium\s*sul(?:ph|f)ate\b/i, label: 'ammonium sulfate' },
+    { re: /\bzinc\s*sul(?:ph|f)ate\b/i, label: 'zinc sulfate' },
+    { re: /\bferrous\s*sul(?:ph|f)ate\b/i, label: 'ferrous sulfate' },
+    { re: /\bspinetoram\b/i, label: 'spinetoram' },
+    { re: /\bfipronil\b/i, label: 'fipronil' },
+    { re: /\bmancozeb\b/i, label: 'mancozeb' },
+    { re: /\bazoxystrobin\b/i, label: 'azoxystrobin' },
+    { re: /\btebuconazole\b/i, label: 'tebuconazole' },
+    { re: /\bcopper\s*oxychloride\b/i, label: 'copper oxychloride' },
+    { re: /\bneem\b/i, label: 'neem' },
+    { re: /\bprofenofos\b/i, label: 'profenofos' },
+    { re: /\bdimethoate\b/i, label: 'dimethoate' },
+  ];
+  for (const p of patterns) {
+    if (p.re.test(t) && !products.includes(p.label)) products.push(p.label);
+  }
+  if (products.length) return products.join(', ').slice(0, 400);
+
+  const m = t.match(
     /\b(spinetoram|fipronil|mancozeb|azoxystrobin|tebuconazole|copper\s+oxychloride|neem|profenofos|dimethoate)\b/i
   );
   return m?.[1] ? m[1].trim() : null;

@@ -4,6 +4,7 @@ import { tokens, type IssueMasterRow } from '@morbeez/shared';
 import { Btn } from '@morbeez/ui-native';
 import { IssueCard, type IssueDraft } from '../IssueCard';
 import { newIssueDraft, pickDefaultCategory } from './types';
+import { buildFarmerObservationText, type FarmerVisitFeedback } from './farmerVisitFeedback';
 
 type Props = {
   visible: boolean;
@@ -11,6 +12,7 @@ type Props = {
   issueMaster: IssueMasterRow[];
   cropType: string;
   blockDap?: number | null;
+  farmerFeedback?: FarmerVisitFeedback | null;
   onSave: (issue: IssueDraft) => void;
   onRemove?: () => void;
   onClose: () => void;
@@ -28,6 +30,7 @@ export function AddIssueModal({
   issueMaster,
   cropType,
   blockDap,
+  farmerFeedback,
   onSave,
   onRemove,
   onClose,
@@ -41,9 +44,20 @@ export function AddIssueModal({
 
   const active = draft ?? issue ?? newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
 
+  function buildFarmerObservation(): string {
+    return buildFarmerObservationText(farmerFeedback);
+  }
+
   function resetOnOpen() {
-    if (issue) setDraft({ ...issue });
-    else setDraft(newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`));
+    const base = issue
+      ? { ...issue }
+      : newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
+    const farmerText = buildFarmerObservation();
+    const obs = base.observation?.trim() ?? '';
+    if (farmerText && (!obs || /^Farmer feedback suggests/i.test(obs))) {
+      base.observation = farmerText;
+    }
+    setDraft(base);
     setAiOpen(false);
     setAiSuggestions([]);
   }
@@ -90,7 +104,7 @@ export function AddIssueModal({
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} onShow={resetOnOpen}>
       <View style={styles.root}>
         <View style={styles.header}>
-          <Text style={styles.title}>{issue ? 'Edit issue' : 'Add issue'}</Text>
+          <Text style={styles.title}>Issue details</Text>
           <Btn label="Close" variant="secondary" onPress={onClose} />
         </View>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -141,7 +155,12 @@ export function AddIssueModal({
             label="Save issue"
             onPress={() => {
               if (!active.issueName.trim()) return;
-              onSave(active);
+              const dx = active.finalDiagnosis?.trim() || active.issueName.trim();
+              onSave({
+                ...active,
+                finalDiagnosis: dx,
+                selectedHypothesisLabel: dx,
+              });
             }}
           />
         </View>

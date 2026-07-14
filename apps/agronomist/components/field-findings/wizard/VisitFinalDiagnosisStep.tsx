@@ -7,9 +7,10 @@ import type { IssueDraft } from '../IssueCard';
 type Props = {
   issues: IssueDraft[];
   onChange: (issues: IssueDraft[]) => void;
+  farmerSuggestedDiagnosis?: string | null;
 };
 
-export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
+export function VisitFinalDiagnosisStep({ issues, onChange, farmerSuggestedDiagnosis }: Props) {
   useEffect(() => {
     const expanded = expandSeparateNutrientIssues(issues);
     const changed =
@@ -31,6 +32,12 @@ export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
         Confirm or correct the diagnosis for each issue before recommendation planning. Update the issue name if the
         field problem was described incorrectly.
       </Text>
+      {farmerSuggestedDiagnosis?.trim() ? (
+        <View style={styles.farmerBox}>
+          <Text style={styles.farmerLabel}>Farmer recommendation</Text>
+          <Text style={styles.farmerText}>{farmerSuggestedDiagnosis.trim()}</Text>
+        </View>
+      ) : null}
       {issues.map((issue, index) => (
         <Panel key={issue.localId} title={`Issue ${index + 1}`}>
           <TextField
@@ -43,6 +50,9 @@ export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
             <Text style={styles.rowLabel}>Category</Text>
             <Text style={styles.rowValue}>{issue.category.replace(/_/g, ' ')}</Text>
           </View>
+          {farmerSuggestedDiagnosis?.trim() ? (
+            <Text style={styles.farmerInline}>Farmer: {farmerSuggestedDiagnosis.trim()}</Text>
+          ) : null}
           <TextField
             label="Final diagnosis"
             value={issue.finalDiagnosis ?? ''}
@@ -69,6 +79,17 @@ export function VisitFinalDiagnosisStep({ issues, onChange }: Props) {
 const styles = StyleSheet.create({
   root: { gap: 12 },
   intro: { fontSize: 13, color: tokens.textMuted, lineHeight: 18, paddingHorizontal: 4 },
+  farmerBox: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    borderRadius: tokens.radiusSm,
+    padding: 12,
+    gap: 4,
+  },
+  farmerLabel: { fontSize: 11, fontWeight: '800', color: '#9A3412', textTransform: 'uppercase' },
+  farmerText: { fontSize: 14, fontWeight: '700', color: '#7C2D12', lineHeight: 19 },
+  farmerInline: { fontSize: 12, fontWeight: '700', color: '#C2410C', marginBottom: 6 },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',

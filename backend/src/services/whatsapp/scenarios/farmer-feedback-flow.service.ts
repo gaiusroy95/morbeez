@@ -245,10 +245,14 @@ export const farmerFeedbackFlowService = {
         await params.send.text(params.phone, askOtherDiagnosis(params.lang));
         return true;
       }
+      // Prefer full farmer wording (multi-nutrient) so agronomist Validation can see it.
       const dx =
-        typeof mapped === 'string' ? mapped : extractSuggestedDiagnosis(text) || text.slice(0, 200);
+        extractSuggestedDiagnosis(text) ||
+        (typeof mapped === 'string' ? mapped : null) ||
+        text.slice(0, 500);
       await farmerExperienceLearningService.updateCapture(feedbackId, {
         farmer_suggested_diagnosis: dx,
+        farmer_prior_experience: text.length > 80 ? text.slice(0, 1000) : undefined,
       });
       const next = await nextStepAfterDiagnosis(params.farmerId, feedbackId);
       await conversationSessionService.patchContext(params.farmerId, {
@@ -286,12 +290,13 @@ export const farmerFeedbackFlowService = {
 
     if (step === 'experience') {
       const product = extractPriorProduct(text);
+      const productOrPractice = product || (looksLikePriorExperience(text) ? text.slice(0, 400) : null);
       await farmerExperienceLearningService.updateCapture(feedbackId, {
         farmer_prior_experience: text.slice(0, 1000),
-        farmer_prior_product: product ?? undefined,
-        capture_step: product ? 'outcome' : 'product',
+        farmer_prior_product: productOrPractice ?? undefined,
+        capture_step: productOrPractice ? 'outcome' : 'product',
       });
-      if (product || looksLikePriorExperience(text)) {
+      if (productOrPractice) {
         await conversationSessionService.patchContext(params.farmerId, {
           farmerFeedbackStep: 'outcome',
         });

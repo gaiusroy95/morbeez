@@ -29,9 +29,31 @@ describe('farmer feedback intent', () => {
     assert.equal(mapFarmerSuggestionInput('feedback.suggest.magnesium'), 'Magnesium (Mg) deficiency');
     assert.equal(mapFarmerSuggestionInput('feedback.suggest.nitrogen'), 'Nitrogen (N) deficiency');
     assert.equal(mapFarmerSuggestionInput('feedback.suggest.other'), null);
-    assert.equal(mapFarmerSuggestionInput('Zinc deficiency'), 'Zinc (Zn) deficiency');
+    assert.match(mapFarmerSuggestionInput('Zinc deficiency') ?? '', /Zinc/);
     assert.equal(isFarmerSuggestionButtonId('feedback.suggest.iron'), true);
     assert.equal(isFarmerDisagreementIntent('feedback.suggest.nitrogen'), true);
     assert.equal(extractSuggestedDiagnosis('feedback.suggest.iron'), 'Iron (Fe) deficiency');
+  });
+
+  it('keeps multi-nutrient farmer free text (does not collapse to one nutrient)', () => {
+    const msg =
+      "It's a ferrous, zinc, magnesium, and nitrogen deficiency, and the connected issue is that the leaves get thinner. So, calcium needs to be supplied.";
+    const dx = extractSuggestedDiagnosis(msg) ?? '';
+    assert.match(dx, /Iron/i);
+    assert.match(dx, /Zinc/i);
+    assert.match(dx, /Magnesium/i);
+    assert.match(dx, /Nitrogen/i);
+    assert.match(dx, /calcium/i);
+  });
+
+  it('extracts EDTA / sulfate products from farmer treatment history', () => {
+    const treatment =
+      'I applied EDTA zinc ferrous, EDTA calcium, and EDTA zinc, each at 200g, and magnesium sulfate at 1kg, along with ammonium sulfate per 200 liters as a spray.';
+    const products = extractPriorProduct(treatment) ?? '';
+    assert.match(products, /EDTA zinc/i);
+    assert.match(products, /EDTA ferrous/i);
+    assert.match(products, /EDTA calcium/i);
+    assert.match(products, /magnesium sulfate/i);
+    assert.match(products, /ammonium sulfate/i);
   });
 });

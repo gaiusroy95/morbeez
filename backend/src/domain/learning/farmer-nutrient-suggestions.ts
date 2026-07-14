@@ -31,28 +31,65 @@ export type FarmerNutrientSuggestionId = (typeof FARMER_NUTRIENT_SUGGESTIONS)[nu
 
 export const FARMER_SUGGEST_OTHER_BUTTON_ID = 'feedback.suggest.other';
 
-const NUTRIENT_TEXT_PATTERNS: Array<{ id: FarmerNutrientSuggestionId; re: RegExp; diagnosis: string }> = [
-  {
-    id: 'iron',
-    re: /\b(iron(\s+deficiency|\s+deficient)?|\bfe\b(\s*deficiency|\s*deficient)?)\b/i,
-    diagnosis: 'Iron (Fe) deficiency',
-  },
-  {
-    id: 'zinc',
-    re: /\b(zinc(\s+deficiency|\s+deficient)?|\bzn\b(\s*deficiency|\s*deficient)?)\b/i,
-    diagnosis: 'Zinc (Zn) deficiency',
-  },
-  {
-    id: 'magnesium',
-    re: /\b(magnesium(\s+deficiency|\s+deficient)?|\bmg\b(\s*deficiency|\s*deficient)?)\b/i,
-    diagnosis: 'Magnesium (Mg) deficiency',
-  },
-  {
-    id: 'nitrogen',
-    re: /\b(nitrogen(\s+deficiency|\s+deficient)?|\bn\b\s*(deficiency|deficient))\b/i,
-    diagnosis: 'Nitrogen (N) deficiency',
-  },
-];
+const NUTRIENT_DETECT: Array<{ id: FarmerNutrientSuggestionId | 'calcium'; label: string; re: RegExp }> =
+  [
+    {
+      id: 'iron',
+      label: 'Iron (Fe)',
+      re: /\b(?:iron|ferrous|ferric|fe(?:\s*edta)?|edta\s*(?:fe|ferrous|iron))\b/i,
+    },
+    {
+      id: 'zinc',
+      label: 'Zinc (Zn)',
+      re: /\b(?:zinc|zn(?:\s*edta)?|edta\s*(?:zn|zinc))\b/i,
+    },
+    {
+      id: 'magnesium',
+      label: 'Magnesium (Mg)',
+      re: /\b(?:magnesium|mgso4|magnesium\s*sul(?:ph|f)ate)\b/i,
+    },
+    {
+      id: 'nitrogen',
+      label: 'Nitrogen (N)',
+      re: /\b(?:nitrogen|ammonium\s*sul(?:ph|f)ate)\b/i,
+    },
+    {
+      id: 'calcium',
+      label: 'Calcium (Ca)',
+      re: /\b(?:calcium|ca(?:\s*edta)?|edta\s*calcium)\b/i,
+    },
+  ];
+
+/** All nutrient deficiency labels mentioned in free text (order preserved). */
+export function extractAllFarmerNutrientLabels(raw: string): string[] {
+  const t = raw.trim();
+  if (!t) return [];
+  const found: string[] = [];
+  for (const n of NUTRIENT_DETECT) {
+    if (n.re.test(t) && !found.includes(n.label)) found.push(n.label);
+  }
+  return found;
+}
+
+/**
+ * Compact diagnosis summary for multi-nutrient farmer replies.
+ * Example: "Iron (Fe), Zinc (Zn), Magnesium (Mg), Nitrogen (N) deficiency; calcium supply needed"
+ */
+export function summarizeFarmerNutrientSuggestion(raw: string): string | null {
+  const labels = extractAllFarmerNutrientLabels(raw);
+  if (!labels.length) return null;
+
+  const core = labels.filter((l) => !l.startsWith('Calcium'));
+  const hasCa = labels.some((l) => l.startsWith('Calcium'));
+  const parts: string[] = [];
+  if (core.length) {
+    parts.push(`${core.join(', ')} deficiency`);
+  }
+  if (hasCa) {
+    parts.push(core.length ? 'calcium supply needed' : 'Calcium (Ca) deficiency');
+  }
+  return parts.join('; ');
+}
 
 /** Returns diagnosis if nutrient match; null if "other"; undefined if not a suggestion input. */
 export function mapFarmerSuggestionInput(raw: string): string | null | undefined {
@@ -67,9 +104,8 @@ export function mapFarmerSuggestionInput(raw: string): string | null | undefined
     return null;
   }
 
-  for (const p of NUTRIENT_TEXT_PATTERNS) {
-    if (p.re.test(t)) return p.diagnosis;
-  }
+  const summary = summarizeFarmerNutrientSuggestion(t);
+  if (summary) return summary;
   return undefined;
 }
 

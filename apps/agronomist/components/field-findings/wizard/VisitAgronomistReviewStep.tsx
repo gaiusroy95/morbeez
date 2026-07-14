@@ -1,10 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { agronomistClient, tokens, type AgronomistReviewAction, type IssueCategory, type IssueMasterRow } from '@morbeez/shared';
-import { Btn, TextField } from '@morbeez/ui-native';
+import {
+  agronomistClient,
+  expandSeparateNutrientIssues,
+  tokens,
+  type AgronomistReviewAction,
+  type IssueCategory,
+  type IssueMasterRow,
+} from '@morbeez/shared';
+import { Btn } from '@morbeez/ui-native';
 import { type IssueDraft } from '../IssueCard';
 import { getIssueCategoryLabel } from './visitIssueTypes';
 import { AddIssueModal } from './AddIssueModal';
+import {
+  buildFarmerObservationText,
+  type FarmerVisitFeedback,
+  withFarmerObservation,
+} from './farmerVisitFeedback';
+import { newIssueDraft, pickDefaultCategory } from './types';
 
 const REVIEW_ACTIONS: Array<{ value: AgronomistReviewAction; label: string }> = [
   { value: 'approve_ai', label: 'Approve' },
@@ -13,12 +26,22 @@ const REVIEW_ACTIONS: Array<{ value: AgronomistReviewAction; label: string }> = 
   { value: 'reject_recommendation', label: 'Reject' },
 ];
 
+function normalizeSavedIssue(issue: IssueDraft): IssueDraft {
+  const dx = issue.finalDiagnosis?.trim() || issue.issueName.trim();
+  return {
+    ...issue,
+    finalDiagnosis: dx,
+    selectedHypothesisLabel: dx || issue.selectedHypothesisLabel,
+  };
+}
+
 type Props = {
   issues: IssueDraft[];
   issueMaster: IssueMasterRow[];
   cropType: string;
   blockDap?: number | null;
   blockAutoApprove?: boolean;
+  farmerFeedback?: FarmerVisitFeedback | null;
   onChange: (issues: IssueDraft[]) => void;
   onSuggestQuestions: (issue: IssueDraft) => Promise<string[]>;
   onCreateIssueType?: (input: {
@@ -34,6 +57,7 @@ export function VisitAgronomistReviewStep({
   cropType,
   blockDap,
   blockAutoApprove,
+  farmerFeedback,
   onChange,
   onSuggestQuestions,
   onCreateIssueType,
@@ -41,6 +65,15 @@ export function VisitAgronomistReviewStep({
   const [modalVisible, setModalVisible] = useState(false);
   const [editing, setEditing] = useState<IssueDraft | null>(null);
   const [explainText, setExplainText] = useState('');
+
+  useEffect(() => {
+    const expanded = expandSeparateNutrientIssues(issues);
+    const changed =
+      expanded.length !== issues.length ||
+      expanded.some((row, i) => row.issueName !== issues[i]?.issueName);
+    if (changed) onChange(expanded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function explainIssue(issue: IssueDraft) {
     try {
@@ -60,104 +93,140 @@ export function VisitAgronomistReviewStep({
     onChange(issues.map((i) => (i.localId === localId ? { ...i, ...patch } : i)));
   }
 
+  function openIssueDetails(issue: IssueDraft | null) {
+    const base = issue ?? newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
+    setEditing(withFarmerObservation(base, farmerFeedback));
+    setModalVisible(true);
+  }
+
   function setReviewAction(localId: string, action: AgronomistReviewAction) {
     const issue = issues.find((i) => i.localId === localId);
     if (!issue) return;
     const keepModifyFields = action === 'correct_ai' || action === 'partial_match';
-    patchIssue(localId, {
+    const farmerDx = farmerFeedback?.suggestedDiagnosis?.trim();
+    const updated = {
+      ...issue,
+      ...(keepModifyFields && farmerDx
+        ? {
+            finalDiagnosis: farmerDx,
+            observation: buildFarmerObservationText(farmerFeedback) || issue.observation,
+          }
+        : {}),
       agronomistReview: {
         action,
-        finalDiagnosis: issue.finalDiagnosis,
+        finalDiagnosis: keepModifyFields && farmerDx ? farmerDx : issue.finalDiagnosis,
         finalRecommendation: issue.finalRecommendation,
-        modificationReason: keepModifyFields ? issue.agronomistReview?.modificationReason : undefined,
+        modificationReason: keepModifyFields
+          ? issue.agronomistReview?.modificationReason ||
+            (farmerDx ? `Farmer suggestion: ${farmerDx}` : undefined)
+          : undefined,
       },
-    });
+    };
+    patchIssue(localId, updated);
+    if (keepModifyFields) {
+      openIssueDetails(updated);
+    }
   }
 
-  function patchReviewFields(
-    localId: string,
-    patch: { observation?: string; modificationReason?: string }
-  ) {
+  function applyFarmerSuggestion(localId: string) {
+    const farmerDx = farmerFeedback?.suggestedDiagnosis?.trim();
+    if (!farmerDx) return;
     const issue = issues.find((i) => i.localId === localId);
-    if (!issue?.agronomistReview?.action) return;
-    patchIssue(localId, {
-      ...(patch.observation !== undefined ? { observation: patch.observation } : {}),
+    if (!issue) return;
+    const updated: IssueDraft = {
+      ...issue,
+      finalDiagnosis: farmerDx,
+      issueName: issue.issueName || farmerDx,
+      observation: buildFarmerObservationText(farmerFeedback) || issue.observation,
       agronomistReview: {
-        ...issue.agronomistReview,
-        action: issue.agronomistReview.action,
-        finalDiagnosis: issue.finalDiagnosis,
+        action: 'correct_ai',
+        finalDiagnosis: farmerDx,
         finalRecommendation: issue.finalRecommendation,
-        ...(patch.modificationReason !== undefined
-          ? { modificationReason: patch.modificationReason }
-          : {}),
+        modificationReason: `Farmer suggestion: ${farmerDx}`,
       },
-    });
+    };
+    patchIssue(localId, updated);
+    openIssueDetails(updated);
   }
 
   function saveIssue(issue: IssueDraft) {
-    const exists = issues.some((i) => i.localId === issue.localId);
-    onChange(exists ? issues.map((i) => (i.localId === issue.localId ? issue : i)) : [...issues, issue]);
+    const normalized = normalizeSavedIssue(issue);
+    const exists = issues.some((i) => i.localId === normalized.localId);
+    onChange(
+      exists
+        ? issues.map((i) => (i.localId === normalized.localId ? normalized : i))
+        : [...issues, normalized]
+    );
     setModalVisible(false);
     setEditing(null);
   }
 
+  const farmerDx = farmerFeedback?.suggestedDiagnosis?.trim() || null;
+  const farmerExperience = farmerFeedback?.priorExperience?.trim() || null;
+  const farmerProduct = farmerFeedback?.priorProduct?.trim() || null;
+
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
-        Review each AI issue. Approve, modify (add observation), or reject before Q&A.
+        Review each AI issue. Approve, modify, or reject — then tap Edit issue details to confirm category, type, and
+        observation.
         {blockAutoApprove ? ' L4 critical — auto-approve is blocked; modify or escalate.' : ''}
       </Text>
-      <Btn label="+ Add issue" onPress={() => { setEditing(null); setModalVisible(true); }} />
+
+      {farmerDx || farmerExperience || farmerProduct ? (
+        <View style={styles.farmerBanner}>
+          <Text style={styles.farmerBannerTitle}>Farmer recommendation (WhatsApp)</Text>
+          {farmerDx ? <Text style={styles.farmerBannerDx}>{farmerDx}</Text> : null}
+          {farmerProduct ? (
+            <Text style={styles.farmerBannerMeta}>Prior products: {farmerProduct}</Text>
+          ) : null}
+          {farmerExperience ? (
+            <Text style={styles.farmerBannerMeta} numberOfLines={6}>
+              Field experience: {farmerExperience}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      <Btn label="+ Add issue" onPress={() => openIssueDetails(null)} />
 
       {issues.map((issue) => {
         const action = issue.agronomistReview?.action;
-        const needsModifyFields = action === 'correct_ai' || action === 'partial_match';
         return (
-        <View key={issue.localId} style={styles.card}>
-          <Pressable onPress={() => { setEditing(issue); setModalVisible(true); }}>
-            <Text style={styles.category}>{getIssueCategoryLabel(issue.category)}</Text>
-            <Text style={styles.title}>{issue.issueName}</Text>
-            {issue.finalDiagnosis ? <Text style={styles.dx}>AI: {issue.finalDiagnosis}</Text> : null}
-          </Pressable>
-          <View style={styles.actions}>
-            {REVIEW_ACTIONS.map((a) => {
-              const active = action === a.value;
-              const disabled = blockAutoApprove && a.value === 'approve_ai';
-              return (
-                <Pressable
-                  key={a.value}
-                  style={[styles.chip, active && styles.chipActive, disabled && styles.chipDisabled]}
-                  onPress={() => !disabled && setReviewAction(issue.localId, a.value)}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive, disabled && styles.chipTextDisabled]}>
-                    {a.label}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Btn label="Explain diagnosis" variant="secondary" onPress={() => void explainIssue(issue)} />
-          {needsModifyFields ? (
-            <View style={styles.modifyFields}>
-              <TextField
-                label="Your observation"
-                value={issue.observation ?? ''}
-                onChangeText={(observation) => patchReviewFields(issue.localId, { observation })}
-                multiline
-                placeholder="What you see in the field…"
-              />
-              <TextField
-                label="Reason for change"
-                value={issue.agronomistReview?.modificationReason ?? ''}
-                onChangeText={(modificationReason) =>
-                  patchReviewFields(issue.localId, { modificationReason })
-                }
-                multiline
-                placeholder="Why you are changing the AI diagnosis…"
-              />
+          <View key={issue.localId} style={styles.card}>
+            <Pressable onPress={() => openIssueDetails(issue)}>
+              <Text style={styles.category}>{getIssueCategoryLabel(issue.category)}</Text>
+              <Text style={styles.title}>{issue.issueName}</Text>
+              {issue.finalDiagnosis ? <Text style={styles.dx}>AI: {issue.finalDiagnosis}</Text> : null}
+              {farmerDx ? <Text style={styles.farmerDx}>Farmer: {farmerDx}</Text> : null}
+            </Pressable>
+            <View style={styles.actions}>
+              {REVIEW_ACTIONS.map((a) => {
+                const active = action === a.value;
+                const disabled = blockAutoApprove && a.value === 'approve_ai';
+                return (
+                  <Pressable
+                    key={a.value}
+                    style={[styles.chip, active && styles.chipActive, disabled && styles.chipDisabled]}
+                    onPress={() => !disabled && setReviewAction(issue.localId, a.value)}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive, disabled && styles.chipTextDisabled]}>
+                      {a.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ) : null}
-        </View>
+            <Btn label="Edit issue details" variant="secondary" onPress={() => openIssueDetails(issue)} />
+            {farmerDx ? (
+              <Btn
+                label="Use farmer suggestion"
+                variant="secondary"
+                onPress={() => applyFarmerSuggestion(issue.localId)}
+              />
+            ) : null}
+            <Btn label="Explain diagnosis" variant="secondary" onPress={() => void explainIssue(issue)} />
+          </View>
         );
       })}
 
@@ -173,9 +242,13 @@ export function VisitAgronomistReviewStep({
         issueMaster={issueMaster}
         cropType={cropType}
         blockDap={blockDap}
+        farmerFeedback={farmerFeedback}
         onSave={saveIssue}
         onRemove={editing ? () => onChange(issues.filter((i) => i.localId !== editing.localId)) : undefined}
-        onClose={() => { setModalVisible(false); setEditing(null); }}
+        onClose={() => {
+          setModalVisible(false);
+          setEditing(null);
+        }}
         onSuggestQuestions={onSuggestQuestions}
         onCreateIssueType={onCreateIssueType}
       />
@@ -186,6 +259,17 @@ export function VisitAgronomistReviewStep({
 const styles = StyleSheet.create({
   root: { gap: 12 },
   intro: { fontSize: 13, color: tokens.textMuted, lineHeight: 18 },
+  farmerBanner: {
+    backgroundColor: '#FFF7ED',
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: '#FDBA74',
+    padding: 12,
+    gap: 6,
+  },
+  farmerBannerTitle: { fontSize: 12, fontWeight: '800', color: '#9A3412', textTransform: 'uppercase' },
+  farmerBannerDx: { fontSize: 15, fontWeight: '700', color: '#7C2D12', lineHeight: 20 },
+  farmerBannerMeta: { fontSize: 12, color: '#9A3412', lineHeight: 17 },
   card: {
     backgroundColor: tokens.card,
     borderRadius: tokens.radiusSm,
@@ -197,6 +281,7 @@ const styles = StyleSheet.create({
   category: { fontSize: 12, fontWeight: '700', color: tokens.green800, textTransform: 'uppercase' },
   title: { fontSize: 16, fontWeight: '700', color: tokens.text },
   dx: { fontSize: 12, color: tokens.green800, marginTop: 4 },
+  farmerDx: { fontSize: 12, fontWeight: '700', color: '#C2410C', marginTop: 4 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   chip: {
     borderWidth: 1,
@@ -210,7 +295,6 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, color: tokens.textMuted },
   chipTextActive: { color: tokens.green800, fontWeight: '700' },
   chipTextDisabled: { color: tokens.textMuted },
-  modifyFields: { gap: 8, marginTop: 4 },
   explainBox: {
     backgroundColor: tokens.bg,
     borderRadius: tokens.radiusSm,
