@@ -21,11 +21,22 @@ export const advisoryImageStorageService = {
     }
 
     const ext =
-      mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+      mimeType === 'application/pdf' || mimeType.includes('pdf')
+        ? 'pdf'
+        : mimeType === 'image/png'
+          ? 'png'
+          : mimeType === 'image/webp'
+            ? 'webp'
+            : 'jpg';
     const path = `${farmerId}/${randomUUID()}.${ext}`;
 
     const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-      contentType: mimeType,
+      contentType:
+        ext === 'pdf'
+          ? 'application/pdf'
+          : mimeType.startsWith('image/')
+            ? mimeType
+            : 'image/jpeg',
       upsert: false,
     });
 
@@ -55,7 +66,13 @@ export async function downloadAdvisoryImageBase64(
 
   const ext = key.split('.').pop()?.toLowerCase();
   const mimeType =
-    ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    ext === 'png'
+      ? 'image/png'
+      : ext === 'webp'
+        ? 'image/webp'
+        : ext === 'pdf'
+          ? 'application/pdf'
+          : 'image/jpeg';
 
   return { base64: buffer.toString('base64'), mimeType };
 }

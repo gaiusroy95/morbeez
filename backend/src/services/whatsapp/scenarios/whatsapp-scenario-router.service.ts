@@ -860,7 +860,19 @@ export const whatsappScenarioRouter = {
 
     if (session.state === 'nutrient_soil_confirm' || SOIL_CONFIRM_IDS.has(text)) {
       if (CROP_MEDIA.has(msg.msgType) || msg.msgType === 'document') {
-        await nutrientSoilGateService.markSoilReportReceived(captured.farmerId);
+        const saved = await soilFlowService.saveUploadedReportFromWhatsApp({
+          farmerId: captured.farmerId,
+          msg,
+        });
+        logger.info(
+          {
+            farmerId: captured.farmerId,
+            reportId: saved.reportId,
+            blockId: saved.blockId,
+            hasFile: Boolean(saved.pdfUrl),
+          },
+          'WhatsApp soil report saved (nutrient confirm)'
+        );
         await send.text(msg.phone, soilFlowService.reportReceivedReply(lang));
         const delivered = await nutrientSoilGateService.deliverPending({
           farmerId: captured.farmerId,
@@ -1272,9 +1284,21 @@ export const whatsappScenarioRouter = {
       }
     }
 
-    // Soil report upload (PDF / photo) while in soil flow
+    // Soil report upload (PDF / photo) while in soil flow — persist to crm_soil_reports
     if ((msg.msgType === 'document' || CROP_MEDIA.has(msg.msgType)) && session.state === 'soil_flow') {
-      await nutrientSoilGateService.markSoilReportReceived(captured.farmerId);
+      const saved = await soilFlowService.saveUploadedReportFromWhatsApp({
+        farmerId: captured.farmerId,
+        msg,
+      });
+      logger.info(
+        {
+          farmerId: captured.farmerId,
+          reportId: saved.reportId,
+          blockId: saved.blockId,
+          hasFile: Boolean(saved.pdfUrl),
+        },
+        'WhatsApp soil report saved (soil_flow)'
+      );
       await send.text(msg.phone, soilFlowService.reportReceivedReply(lang));
       const delivered = await nutrientSoilGateService.deliverPending({
         farmerId: captured.farmerId,

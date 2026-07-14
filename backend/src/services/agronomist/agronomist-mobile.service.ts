@@ -1167,22 +1167,28 @@ export const agronomistMobileService = {
         })),
       },
       activities,
-      soilReports: (soilRows as Array<Record<string, unknown>>).map((s) => {
-        const metrics = normalizeSoilMetrics(s.metrics);
-        const metricCells = soilMetricCells(metrics);
-        return {
-          id: String(s.id),
-          blockId,
-          blockName: block.name,
-          dateLabel: s.reported_at ? fmt(String(s.reported_at)) : '—',
-          dapLabel: null,
-          health: 'good',
-          healthLabel: metricCells.length ? 'Lab values on file' : 'Report on file',
-          pdfUrl: s.pdf_url ? String(s.pdf_url) : null,
-          highlights: metricCells.map((m) => `${m.label}: ${m.value}`),
-          metrics: metricCells,
-        };
-      }),
+      soilReports: await Promise.all(
+        (soilRows as Array<Record<string, unknown>>).map(async (s) => {
+          const metrics = normalizeSoilMetrics(s.metrics);
+          const metricCells = soilMetricCells(metrics);
+          const rawPdf = s.pdf_url ? String(s.pdf_url) : null;
+          const pdfUrl = rawPdf
+            ? ((await resolveAdvisoryImageUrl(rawPdf)) ?? rawPdf)
+            : null;
+          return {
+            id: String(s.id),
+            blockId,
+            blockName: block.name,
+            dateLabel: s.reported_at ? fmt(String(s.reported_at)) : '—',
+            dapLabel: null,
+            health: 'good',
+            healthLabel: metricCells.length ? 'Lab values on file' : 'Report on file',
+            pdfUrl,
+            highlights: metricCells.map((m) => `${m.label}: ${m.value}`),
+            metrics: metricCells,
+          };
+        })
+      ),
       fieldFindings,
       blockRecommendations,
     };

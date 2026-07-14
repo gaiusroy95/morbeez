@@ -5,6 +5,7 @@ import { shopifyProductsService } from '../shopify/shopify.products.service.js';
 import { crmInternalNotesService } from './crm-internal-notes.service.js';
 import { recommendationFollowUpService } from '../core/recommendation-follow-up.service.js';
 import { emptySoilLabMetrics, normalizeSoilMetrics } from '../soil/soil-lab-metrics.js';
+import { resolveAdvisoryImageUrl } from '../core/advisory-image-storage.service.js';
 import { resolveNextActionDueAt } from './interaction-next-action.js';
 import type { FindingType, ReviewSeverity } from '../../domain/ai-training/enums.js';
 import { MANUAL_COURIER_OPTIONS } from '../../lib/manual-couriers.js';
@@ -452,14 +453,20 @@ export const crmFarmerService = {
     const latestVisit = findingsRes.data?.[0];
     const recommendations = recsRes.data ?? [];
 
-    return {
-      block,
-      soilReports: soilList.map((s) => ({
+    const soilReports = await Promise.all(
+      soilList.map(async (s) => ({
         id: s.id,
         reportedLabel: formatDateTime(s.reported_at as string),
         metrics: normalizeSoilMetrics(s.metrics),
-        pdfUrl: s.pdf_url,
-      })),
+        pdfUrl: s.pdf_url
+          ? ((await resolveAdvisoryImageUrl(String(s.pdf_url))) ?? String(s.pdf_url))
+          : null,
+      }))
+    );
+
+    return {
+      block,
+      soilReports,
       visits,
       blockRecommendations: blockRecs,
       followUps,
@@ -484,7 +491,10 @@ export const crmFarmerService = {
       soilReport: latestSoil
         ? {
             metrics: normalizeSoilMetrics(latestSoil.metrics),
-            pdfUrl: latestSoil.pdf_url,
+            pdfUrl: latestSoil.pdf_url
+              ? ((await resolveAdvisoryImageUrl(String(latestSoil.pdf_url))) ??
+                String(latestSoil.pdf_url))
+              : null,
             reportedLabel: formatDateTime(latestSoil.reported_at),
           }
         : { metrics: emptySoilLabMetrics(), pdfUrl: null, reportedLabel: null },
