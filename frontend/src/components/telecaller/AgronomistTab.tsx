@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { Alert } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
 
@@ -118,7 +119,7 @@ export function AgronomistTab({
   }
 
   if (error) {
-    return <p className="text-sm text-red-600">{error}</p>;
+    return <Alert tone="error">{error}</Alert>;
   }
 
   if (!agronomist) return null;

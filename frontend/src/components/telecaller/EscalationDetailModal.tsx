@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { formatPhoneDisplay } from '@morbeez/shared';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
-import { StaticSelect } from '../ui';
+import { Alert, Badge, Btn, Loading, StaticSelect } from '../ui';
 
 export type EscalationListRow = {
   id: string;
@@ -57,10 +57,10 @@ type Props = {
   onCleared?: () => void;
 };
 
-function statusBadgeClass(workflow: string): string {
-  if (workflow === 'completed') return 'bg-emerald-100 text-emerald-900';
-  if (workflow === 'agronomist_review') return 'bg-amber-100 text-amber-900';
-  return 'bg-slate-100 text-slate-800';
+function workflowBadgeTone(workflow: string): 'success' | 'warn' | 'neutral' {
+  if (workflow === 'completed') return 'success';
+  if (workflow === 'agronomist_review') return 'warn';
+  return 'neutral';
 }
 
 function roleLabel(role: string): string {
@@ -153,27 +153,19 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
 
   return (
     <Modal title="Escalation details" onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <Loading label="Loading escalation…" /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {detail && !loading ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(workflowStatus)}`}
-            >
-              {detail.statusLabel}
-            </span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs capitalize text-slate-700">
-              {detail.priority} priority
-            </span>
-            <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-              {detail.createdLabel}
-            </span>
+            <Badge tone={workflowBadgeTone(workflowStatus)}>{detail.statusLabel}</Badge>
+            <Badge tone="neutral">{detail.priority} priority</Badge>
+            <Badge tone="neutral">{detail.createdLabel}</Badge>
           </div>
 
           {detail.farmer ? (
-            <p className="text-sm text-slate-600">
-              <strong className="text-slate-900">{detail.farmer.name}</strong>
+            <p className="text-sm text-ink-secondary">
+              <strong className="text-ink">{detail.farmer.name}</strong>
               {' · '}
               {formatPhoneDisplay(detail.farmer.phone)}
               {detail.farmer.district ? ` · ${detail.farmer.district}` : ''}
@@ -181,21 +173,21 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
           ) : null}
 
           <section>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reason</h3>
-            <p className="mt-1 text-sm text-slate-800">{detail.reason}</p>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Reason</h3>
+            <p className="mt-1 text-sm text-ink">{detail.reason}</p>
           </section>
 
           {detail.session ? (
-            <dl className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50/80 p-4 text-sm sm:grid-cols-2">
+            <dl className="grid gap-2 rounded-xl border border-border bg-surface-subtle/80 p-4 text-sm sm:grid-cols-2">
               <div>
-                <dt className="text-slate-500">Crop</dt>
+                <dt className="text-ink-muted">Crop</dt>
                 <dd>
                   {detail.session.cropType ?? '—'}
                   {detail.session.cropStage ? ` (${detail.session.cropStage})` : ''}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">AI confidence</dt>
+                <dt className="text-ink-muted">AI confidence</dt>
                 <dd>
                   {detail.confidence != null
                     ? `${Math.round(Number(detail.confidence) * 100)}%`
@@ -204,13 +196,13 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
               </div>
               {detail.session.symptomsText ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">Symptoms</dt>
+                  <dt className="text-ink-muted">Symptoms</dt>
                   <dd>{detail.session.symptomsText}</dd>
                 </div>
               ) : null}
               {detail.session.probableIssue || detail.session.summaryEn ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-slate-500">AI summary</dt>
+                  <dt className="text-ink-muted">AI summary</dt>
                   <dd>
                     {detail.session.probableIssue ? (
                       <span className="font-medium">{detail.session.probableIssue}. </span>
@@ -224,10 +216,10 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
 
           {detail.productRecommendations.length > 0 ? (
             <section>
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 Products suggested
               </h3>
-              <ul className="mt-2 list-disc pl-5 text-sm text-slate-700">
+              <ul className="mt-2 list-disc pl-5 text-sm text-ink-secondary">
                 {detail.productRecommendations.map((p, i) => (
                   <li key={i}>{p.title}</li>
                 ))}
@@ -236,21 +228,21 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
           ) : null}
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
               Comments (telecaller & agronomist)
             </h3>
             {detail.comments.length === 0 ? (
-              <p className="text-sm text-slate-500">No comments yet.</p>
+              <p className="text-sm text-ink-muted">No comments yet.</p>
             ) : (
               <ul className="max-h-48 space-y-2 overflow-y-auto">
                 {detail.comments.map((c) => (
-                  <li key={c.id} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <div className="flex flex-wrap gap-2 text-xs text-slate-500">
-                      <span className="font-medium text-slate-700">{roleLabel(c.authorRole)}</span>
+                  <li key={c.id} className="rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm">
+                    <div className="flex flex-wrap gap-2 text-xs text-ink-muted">
+                      <span className="font-medium text-ink-secondary">{roleLabel(c.authorRole)}</span>
                       <span>{c.author}</span>
                       <span>{c.createdLabel}</span>
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-slate-800">{c.body}</p>
+                    <p className="mt-1 whitespace-pre-wrap text-ink">{c.body}</p>
                   </li>
                 ))}
               </ul>
@@ -271,7 +263,7 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
                   options={WORKFLOW_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
                 />
               </Field>
-              <p className="text-xs text-slate-600">
+              <p className="text-xs text-ink-secondary">
                 Set <strong>Needs agronomist review</strong> when the case should be reviewed by an
                 agronomist. Mark <strong>Completed</strong> once resolved.
               </p>
@@ -296,24 +288,18 @@ export function EscalationDetailModal({ row, canWrite, onClose, onSaved, onClear
                 </Field>
               ) : null}
               <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={saving}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                onClick={() => void save()}
-              >
-                {saving ? 'Saving…' : 'Save'}
-              </button>
-              {workflowStatus === 'completed' ? (
-                <button
-                  type="button"
-                  disabled={clearing || saving}
-                  className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
-                  onClick={() => void clearEscalation()}
-                >
-                  {clearing ? 'Clearing…' : 'Clear escalation'}
-                </button>
-              ) : null}
+                <Btn variant="primary" disabled={saving} onClick={() => void save()}>
+                  {saving ? 'Saving…' : 'Save'}
+                </Btn>
+                {workflowStatus === 'completed' ? (
+                  <Btn
+                    variant="secondary"
+                    disabled={clearing || saving}
+                    onClick={() => void clearEscalation()}
+                  >
+                    {clearing ? 'Clearing…' : 'Clear escalation'}
+                  </Btn>
+                ) : null}
               </div>
             </div>
           ) : (

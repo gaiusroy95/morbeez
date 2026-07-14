@@ -7,7 +7,6 @@ import './styles/console-overrides.css';
 import './styles/telecaller-crm.css';
 import './styles/commerce-products.css';
 import './styles/commerce-inventory.css';
-import './styles/commerce-farmers.css';
 import './styles/commerce-promotions.css';
 import './styles/warehouse-hub.css';
 import './styles/seo-hub.css';

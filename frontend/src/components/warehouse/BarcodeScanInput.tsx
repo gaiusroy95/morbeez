@@ -117,14 +117,14 @@ export function BarcodeScanInput({
       </div>
       {cameraError ? <p className="barcode-scan-error">{cameraError}</p> : null}
       {!detectorSupported ? (
-        <p className="barcode-scan-hint muted">
+        <p className="barcode-scan-hint text-sm text-ink-muted">
           Camera scan needs Chrome or Edge. Type or paste codes manually on this device.
         </p>
       ) : null}
       {cameraOn ? (
         <div className="barcode-scan-video-wrap">
           <video ref={videoRef} id={videoId} className="barcode-scan-video" playsInline muted />
-          <p className="muted">Point camera at barcode or QR code</p>
+          <p className="text-sm text-ink-muted">Point camera at barcode or QR code</p>
         </div>
       ) : null}
     </div>

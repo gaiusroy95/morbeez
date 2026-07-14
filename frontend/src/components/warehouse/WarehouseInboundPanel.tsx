@@ -6,7 +6,7 @@ import { GrnReceiveForm } from './GrnReceiveForm';
 export function WarehouseInboundPanel({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="warehouse-inbound">
-      <p className="commerce-hub-warehouse-bridge muted">
+      <p className="commerce-hub-warehouse-bridge text-sm text-ink-muted">
         Purchase orders and GRN are also available on{' '}
         <Link to={toPath(`${paths.commerce}?tab=inventory`)} className="commerce-warehouse-link">
           Commerce → Inventory

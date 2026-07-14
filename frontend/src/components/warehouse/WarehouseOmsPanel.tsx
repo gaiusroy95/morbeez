@@ -340,7 +340,7 @@ export function WarehouseOmsPanel({
             </DataTable>
           </TableWrap>
         ) : null}
-        <p className="warehouse-hint muted">
+        <p className="warehouse-hint text-sm text-ink-muted">
           Quotes in <strong>Checkout</strong> are waiting for customer payment. After Razorpay payment
           or COD confirmation, a pick list is created automatically.
         </p>
@@ -535,7 +535,7 @@ export function WarehouseOmsPanel({
                   <tr key={l.id}>
                     <td>
                       {l.product_title}
-                      {l.sku ? <span className="muted"> ({l.sku})</span> : null}
+                      {l.sku ? <span className="text-sm text-ink-muted"> ({l.sku})</span> : null}
                     </td>
                     <td>{l.batch_code ?? '—'}</td>
                     <td className="mono">{l.rack_location ?? '—'}</td>

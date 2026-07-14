@@ -8,7 +8,7 @@ import {
   View,
   type ViewProps,
 } from 'react-native';
-import { isNetworkFailureMessage, formatAppError, tokens, t, type AppLocale, APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
+import { isNetworkFailureMessage, formatAppError, tokens, shadow, t, type AppLocale, APP_LOCALES, LOCALE_LABELS } from '@morbeez/shared';
 import { useNetwork } from './NetworkProvider';
 import { HeaderMorbeezLogo } from './MorbeezLogo';
 import { androidPressHandlers } from './mobile-nav';
@@ -26,6 +26,7 @@ export {
   useMobileTabScreenOptions,
   useStickyFooterPadding,
   useStickyFooterScrollPadding,
+  MOBILE_STACK_HEADER_OPTIONS,
 } from './mobile-nav';
 export { KeyboardAwareScrollScreen } from './KeyboardAwareScrollScreen';
 import { KeyboardAwareScrollScreen } from './KeyboardAwareScrollScreen';
@@ -74,10 +75,11 @@ export {
 /** Green app bar with Morbeez logo on the left */
 export function appHeaderScreenOptions(title?: string) {
   return {
-    headerStyle: { backgroundColor: tokens.green800 },
-    headerTintColor: '#fff' as const,
+    headerStyle: { backgroundColor: tokens.green800, ...shadow.sm },
+    headerTintColor: tokens.textOnPrimary,
     headerTitle: title ?? '',
-    headerTitleStyle: { fontWeight: '600' as const },
+    headerTitleStyle: { fontWeight: '600' as const, fontSize: 17 },
+    headerShadowVisible: false,
     headerLeft: () => <HeaderMorbeezLogo style={{ marginLeft: 12 }} />,
   };
 }
@@ -384,7 +386,7 @@ export function PasswordField({
           accessibilityLabel={visible ? 'Hide password' : 'Show password'}
           {...androidPressHandlers(() => setVisible((v) => !v))}
         >
-          <Text style={styles.eyeText}>{visible ? '🙈' : '👁'}</Text>
+          <Text style={styles.eyeText}>{visible ? 'Hide' : 'Show'}</Text>
         </Pressable>
       </View>
     </View>
@@ -499,53 +501,63 @@ const styles = StyleSheet.create({
     borderColor: tokens.border,
     padding: tokens.spacing.md,
     marginBottom: tokens.spacing.md,
+    ...shadow.sm,
   },
   panelTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: tokens.fontSize.md,
+    fontWeight: tokens.fontWeight.semibold,
     color: tokens.text,
     marginBottom: tokens.spacing.sm,
+    letterSpacing: -0.2,
   },
   btn: {
-    backgroundColor: tokens.green700,
+    backgroundColor: tokens.primary,
     borderRadius: tokens.radiusSm,
     paddingVertical: 14,
     paddingHorizontal: 20,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: tokens.green500,
+    minHeight: 48,
+    ...shadow.sm,
   },
   btnSecondary: {
     backgroundColor: tokens.card,
-    borderWidth: 2,
-    borderColor: tokens.green700,
+    borderWidth: 1.5,
+    borderColor: tokens.borderStrong,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   btnDanger: {
     backgroundColor: tokens.danger,
+    borderColor: tokens.danger,
   },
   btnPressed: {
-    opacity: 0.85,
+    opacity: 0.92,
+    transform: [{ scale: 0.99 }],
   },
   btnDisabled: {
-    opacity: 0.5,
+    opacity: 0.45,
   },
   btnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
+    color: tokens.textOnPrimary,
+    fontSize: tokens.fontSize.base,
+    fontWeight: tokens.fontWeight.semibold,
+    letterSpacing: 0.1,
   },
   btnTextSecondary: {
-    color: tokens.green800,
+    color: tokens.primary,
   },
   alert: {
     backgroundColor: tokens.dangerBg,
     borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: '#fecaca',
     padding: tokens.spacing.md,
     marginBottom: tokens.spacing.md,
   },
   alertText: {
     color: tokens.danger,
-    fontSize: 14,
+    fontSize: tokens.fontSize.sm,
+    lineHeight: 20,
   },
   loading: {
     padding: tokens.spacing.lg,
@@ -573,16 +585,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: tokens.border,
     padding: tokens.spacing.md,
+    ...shadow.sm,
   },
   statLabel: {
-    fontSize: 12,
+    fontSize: tokens.fontSize.xs,
     color: tokens.textMuted,
     marginBottom: 4,
+    fontWeight: tokens.fontWeight.medium,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   statValue: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: tokens.fontSize.xl,
+    fontWeight: tokens.fontWeight.bold,
     color: tokens.green800,
+    letterSpacing: -0.5,
   },
   listCard: {
     flexDirection: 'row',
@@ -593,6 +610,7 @@ const styles = StyleSheet.create({
     borderColor: tokens.border,
     padding: tokens.spacing.md,
     marginBottom: tokens.spacing.sm,
+    ...shadow.sm,
   },
   listCardMain: {
     flex: 1,
@@ -630,23 +648,23 @@ const styles = StyleSheet.create({
   tab: {
     paddingVertical: 8,
     paddingHorizontal: 14,
-    borderRadius: 999,
-    backgroundColor: tokens.card,
+    borderRadius: tokens.radiusFull,
+    backgroundColor: tokens.cardMuted,
     borderWidth: 1,
     borderColor: tokens.border,
   },
   tabActive: {
-    backgroundColor: tokens.green100,
+    backgroundColor: tokens.primaryMuted,
     borderColor: tokens.green500,
   },
   tabText: {
-    fontSize: 13,
+    fontSize: tokens.fontSize.sm,
     color: tokens.textMuted,
-    fontWeight: '500',
+    fontWeight: tokens.fontWeight.medium,
   },
   tabTextActive: {
-    color: tokens.green800,
-    fontWeight: '600',
+    color: tokens.primary,
+    fontWeight: tokens.fontWeight.semibold,
   },
   kvRow: {
     flexDirection: 'row',
@@ -683,7 +701,7 @@ const styles = StyleSheet.create({
     borderRadius: tokens.radiusSm,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: tokens.fontSize.base,
     color: tokens.text,
   },
   inputMultiline: {
@@ -710,6 +728,8 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   eyeText: {
-    fontSize: 18,
+    fontSize: tokens.fontSize.sm,
+    fontWeight: tokens.fontWeight.semibold,
+    color: tokens.primary,
   },
 });

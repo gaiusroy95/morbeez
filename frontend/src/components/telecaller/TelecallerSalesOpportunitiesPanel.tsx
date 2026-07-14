@@ -55,10 +55,10 @@ export function TelecallerSalesOpportunitiesPanel({ canWrite, onOpenLead }: Prop
     <div className="tc-sales-opps">
       {error ? <Alert>{error}</Alert> : null}
       <div className="tc-followups-head">
-        <p className="muted">{items.length} opportunities</p>
+        <p className="text-ink-muted">{items.length} opportunities</p>
         <Btn label="Refresh" variant="secondary" size="sm" onClick={() => void load()} />
       </div>
-      {!items.length ? <p className="muted">No partner sales opportunities assigned to you.</p> : null}
+      {!items.length ? <p className="text-ink-muted">No partner sales opportunities assigned to you.</p> : null}
       <ul className="tc-followups-list">
         {items.map((opp) => {
           const id = String(opp.id);
@@ -72,7 +72,7 @@ export function TelecallerSalesOpportunitiesPanel({ canWrite, onOpenLead }: Prop
           return (
             <li key={id} className="tc-followups-card">
               <strong>{String(opp.product ?? 'Product')}</strong>
-              <div className="muted">
+              <div className="text-ink-muted">
                 {farmerName} · {String(opp.status ?? 'interested')}
               </div>
               {opp.notes ? <p>{String(opp.notes)}</p> : null}

@@ -295,7 +295,7 @@ export function WarehousePackagingPanel({ canWrite }: { canWrite: boolean }) {
       {confirmModal}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {success ? <Alert tone="success">{success}</Alert> : null}
-      <p className="muted warehouse-packaging-intro">
+      <p className="text-sm text-ink-muted warehouse-packaging-intro">
         Dynamic packaging intelligence — categories, box types, and weight rules drive the package
         engine. No code changes needed when operations evolve.
       </p>

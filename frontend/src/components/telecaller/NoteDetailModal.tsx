@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import { Alert, Badge, Btn, Loading } from '../ui';
 
 export type NoteListRow = {
   id: string;
@@ -80,30 +81,18 @@ export function NoteDetailModal({ leadId, row, canWrite, onClose, onSaved }: Pro
 
   return (
     <Modal title="Note details" onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <Loading label="Loading note…" /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {detail && !loading ? (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs text-blue-800">
-              {detail.author}
-            </span>
-            <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-              {detail.createdLabel}
-            </span>
-            {detail.isLegacy ? (
-              <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
-                Historical (read-only)
-              </span>
-            ) : null}
+            <Badge tone="info">{detail.author}</Badge>
+            <Badge tone="neutral">{detail.createdLabel}</Badge>
+            {detail.isLegacy ? <Badge tone="archived">Historical (read-only)</Badge> : null}
             {canWrite && detail.canEdit && !editing ? (
-              <button
-                type="button"
-                className="ml-auto text-xs font-medium text-emerald-700 hover:underline"
-                onClick={() => setEditing(true)}
-              >
+              <Btn size="sm" variant="ghost" className="ml-auto text-brand-700" onClick={() => setEditing(true)}>
                 Edit
-              </button>
+              </Btn>
             ) : null}
           </div>
 
@@ -118,28 +107,23 @@ export function NoteDetailModal({ leadId, row, canWrite, onClose, onSaved }: Pro
                 />
               </Field>
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={saving || !noteText.trim()}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                  onClick={() => void save()}
-                >
+                <Btn size="sm" variant="primary" disabled={saving || !noteText.trim()} onClick={() => void save()}>
                   {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600"
+                </Btn>
+                <Btn
+                  size="sm"
+                  variant="secondary"
                   onClick={() => {
                     setEditing(false);
                     setNoteText(detail.note);
                   }}
                 >
                   Cancel
-                </button>
+                </Btn>
               </div>
             </div>
           ) : (
-            <div className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 text-sm leading-relaxed text-slate-800">
+            <div className="whitespace-pre-wrap rounded-xl border border-border bg-surface-elevated p-4 text-sm leading-relaxed text-ink">
               {detail.note || '—'}
             </div>
           )}

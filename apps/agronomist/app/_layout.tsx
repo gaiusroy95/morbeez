@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { t, tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle, NetworkProvider } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MOBILE_STACK_HEADER_OPTIONS, NetworkProvider } from '@morbeez/ui-native';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { AgronomistDashboardProvider } from '@/context/AgronomistDashboardContext';
 import { AgronomistQueueProvider } from '@/context/AgronomistQueueContext';
@@ -43,8 +43,7 @@ function RootStack() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: tokens.green800 },
-        headerTintColor: '#fff',
+        ...MOBILE_STACK_HEADER_OPTIONS,
       }}
     >
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />

@@ -205,7 +205,7 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
           <div className="or-queue-list">
             {loading ? <Loading /> : null}
             {!loading && items.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-slate-500">No recommendations in this filter.</p>
+              <p className="px-3 py-4 text-sm text-ink-muted">No recommendations in this filter.</p>
             ) : null}
             {items.map((item) => (
               <button
@@ -267,7 +267,7 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
               <div className="or-rec-box">
                 <strong>Recommendation</strong>
                 <p className="mt-2">{rec.recommendationText}</p>
-                {rec.dosage ? <p className="mt-2 text-sm text-slate-600">Dosage: {rec.dosage}</p> : null}
+                {rec.dosage ? <p className="mt-2 text-sm text-ink-secondary">Dosage: {rec.dosage}</p> : null}
               </div>
 
               {rec.pendingFollowUp ? (
@@ -378,11 +378,11 @@ export function OutcomeReviewPanel({ canWrite }: { canWrite: boolean }) {
                   </button>
                 </>
               ) : filter === 'all' && rec.outcome ? (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-ink-secondary">
                   Recorded outcome: <strong>{rec.outcome}</strong>
                 </p>
               ) : (
-                <p className="text-sm text-slate-500">Read-only — agronomist write access required.</p>
+                <p className="text-sm text-ink-muted">Read-only — agronomist write access required.</p>
               )}
             </>
           ) : null}

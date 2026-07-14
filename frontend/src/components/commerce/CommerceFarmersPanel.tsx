@@ -1,8 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
-import { StaticSelect } from '../ui';
-import '../../styles/commerce-farmers.css';
+import {
+  Alert,
+  Badge,
+  Btn,
+  DataTable,
+  EmptyState,
+  Field,
+  FilterBar,
+  Input,
+  Loading,
+  Panel,
+  StaticSelect,
+  TableWrap,
+  TBody,
+  Td,
+  Th,
+  THead,
+} from '../ui';
 
 type FarmerRow = {
   id: string;
@@ -143,99 +159,101 @@ export function CommerceFarmersPanel() {
   const rangeEnd = Math.min(pagination.page * pagination.limit, pagination.total);
 
   return (
-    <div className="commerce-farmers">
-      {error ? (
-        <div className="commerce-farmers__error" role="alert">
-          {error}
-        </div>
-      ) : null}
+    <div className="space-y-4">
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
-      <div className="commerce-farmers__toolbar">
-        <div className="commerce-farmers__search-wrap">
-          <span className="commerce-farmers__search-icon" aria-hidden>
-            ⌕
-          </span>
-          <input
+      <FilterBar>
+        <div className="relative min-w-[240px] flex-1">
+          <Input
             type="search"
-            className="commerce-farmers__search"
-            placeholder="Search farmers..."
+            placeholder="Search farmers…"
             value={draftSearch}
             onChange={(e) => setDraftSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+            className="pl-9"
           />
+          <span
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+            aria-hidden
+          >
+            ⌕
+          </span>
         </div>
-        <button
-          type="button"
-          className="commerce-farmers__filter-btn"
-          onClick={() => setFiltersOpen((o) => !o)}
-          aria-expanded={filtersOpen}
-        >
-          <span aria-hidden>▾</span> Filters
-        </button>
-      </div>
+        <Btn variant="secondary" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen}>
+          Filters
+        </Btn>
+        <Btn variant="primary" onClick={applySearch}>
+          Search
+        </Btn>
+      </FilterBar>
 
       {filtersOpen ? (
-        <div className="commerce-farmers__filter-panel">
-          <StaticSelect
-            label="State"
-            value={stateFilter}
-            onChange={setStateFilter}
-            options={[
-              { value: '', label: 'All states' },
-              ...states.map((s) => ({ value: s, label: s })),
-            ]}
-          />
-          <StaticSelect
-            label="Status"
-            value={statusFilter}
-            onChange={(value) => setStatusFilter(value as StatusFilter)}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'active', label: 'Active' },
-              { value: 'inactive', label: 'Inactive' },
-            ]}
-          />
-          <button type="button" className="commerce-farmers__filter-btn" onClick={resetFilters}>
+        <Panel bodyClassName="flex flex-wrap items-end gap-3">
+          <Field label="State" className="min-w-[180px] flex-1">
+            <StaticSelect
+              value={stateFilter}
+              onChange={setStateFilter}
+              options={[
+                { value: '', label: 'All states' },
+                ...states.map((s) => ({ value: s, label: s })),
+              ]}
+            />
+          </Field>
+          <Field label="Status" className="min-w-[160px] flex-1">
+            <StaticSelect
+              value={statusFilter}
+              onChange={(value) => setStatusFilter(value as StatusFilter)}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'active', label: 'Active' },
+                { value: 'inactive', label: 'Inactive' },
+              ]}
+            />
+          </Field>
+          <Btn variant="ghost" onClick={resetFilters}>
             Reset
-          </button>
-          <button
-            type="button"
-            className="commerce-farmers__apply-btn"
+          </Btn>
+          <Btn
+            variant="secondary"
             onClick={() => {
               applySearch();
               setPage(1);
             }}
           >
             Apply
-          </button>
-        </div>
+          </Btn>
+        </Panel>
       ) : null}
 
-      <div className="commerce-farmers__table-card">
+      <Panel title="Farmers" description="Commerce farmer registry and order history">
         {loading ? (
-          <p className="commerce-farmers__loading">Loading farmers…</p>
+          <Loading label="Loading farmers…" />
         ) : (
           <>
-            <div className="commerce-farmers__table-wrap">
-              <table className="commerce-farmers__table">
-                <thead>
+            <TableWrap>
+              <DataTable>
+                <THead>
                   <tr>
-                    <th>Farmer Name</th>
-                    <th>Mobile Number</th>
-                    <th>Location</th>
-                    <th>Crops</th>
-                    <th>Last Order</th>
-                    <th>Total Orders</th>
+                    <Th>Farmer Name</Th>
+                    <Th>Mobile Number</Th>
+                    <Th>Location</Th>
+                    <Th>Crops</Th>
+                    <Th>Last Order</Th>
+                    <Th>Total Orders</Th>
                   </tr>
-                </thead>
-                <tbody>
+                </THead>
+                <TBody>
                   {farmers.length ? (
                     farmers.map((f) => (
-                      <tr key={f.id} onClick={() => setSelected(f)}>
-                        <td>
-                          <div className="commerce-farmers__name-cell">
+                      <tr
+                        key={f.id}
+                        className="cursor-pointer transition hover:bg-surface-subtle/60"
+                        onClick={() => setSelected(f)}
+                      >
+                        <Td>
+                          <div className="flex items-center gap-3">
                             <span
-                              className="commerce-farmers__avatar"
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                               style={{
                                 background: `linear-gradient(135deg, hsl(${f.avatarHue} 42% 45%), hsl(${f.avatarHue} 48% 32%))`,
                               }}
@@ -243,73 +261,73 @@ export function CommerceFarmersPanel() {
                             >
                               {f.initials}
                             </span>
-                            <span className="commerce-farmers__name">{f.displayName}</span>
+                            <span className="font-semibold text-ink">{f.displayName}</span>
                           </div>
-                        </td>
-                        <td className="commerce-farmers__phone">{formatPhone(f.phone)}</td>
-                        <td>{locationLabel(f)}</td>
-                        <td className="commerce-farmers__crops">{f.cropsLabel}</td>
-                        <td>{formatLastOrder(f.lastOrderAt)}</td>
-                        <td className="commerce-farmers__orders-count">
-                          {f.orderCount}
-                        </td>
+                        </Td>
+                        <Td className="text-ink-secondary">{formatPhone(f.phone)}</Td>
+                        <Td>{locationLabel(f)}</Td>
+                        <Td className="max-w-[200px] truncate text-ink-secondary">{f.cropsLabel}</Td>
+                        <Td>{formatLastOrder(f.lastOrderAt)}</Td>
+                        <Td className="font-semibold text-brand-700">{f.orderCount}</Td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td colSpan={6}>
-                        <p className="commerce-farmers__empty">No farmers match your search.</p>
+                        <EmptyState>No farmers match your search.</EmptyState>
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
-            </div>
+                </TBody>
+              </DataTable>
+            </TableWrap>
 
             {pagination.total > 0 ? (
-              <footer className="commerce-farmers__footer">
-                <span>
+              <footer className="mt-4 flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-sm text-ink-muted">
                   Showing {rangeStart} to {rangeEnd} of {pagination.total} farmers
                 </span>
                 {pagination.pages > 1 ? (
-                  <nav className="commerce-farmers__pagination" aria-label="Pagination">
-                    <button
-                      type="button"
-                      className="commerce-farmers__page-btn"
+                  <nav className="flex flex-wrap items-center gap-1" aria-label="Pagination">
+                    <Btn
+                      variant="secondary"
+                      size="sm"
                       disabled={pagination.page <= 1}
                       onClick={() => setPage((p) => Math.max(1, p - 1))}
                     >
                       ‹
-                    </button>
+                    </Btn>
                     {pages.map((p, i) =>
                       p === 'ellipsis' ? (
-                        <span key={`e-${i}`}>…</span>
+                        <span key={`e-${i}`} className="px-2 text-ink-muted">
+                          …
+                        </span>
                       ) : (
-                        <button
+                        <Btn
                           key={p}
-                          type="button"
-                          className={`commerce-farmers__page-btn ${pagination.page === p ? 'commerce-farmers__page-btn--active' : ''}`}
+                          variant={pagination.page === p ? 'primary' : 'secondary'}
+                          size="sm"
                           onClick={() => setPage(p)}
                         >
                           {p}
-                        </button>
+                        </Btn>
                       )
                     )}
-                    <button
-                      type="button"
-                      className="commerce-farmers__page-btn"
+                    <Btn
+                      variant="secondary"
+                      size="sm"
                       disabled={pagination.page >= pagination.pages}
                       onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
                     >
                       ›
-                    </button>
+                    </Btn>
                   </nav>
                 ) : null}
               </footer>
             ) : null}
           </>
         )}
-      </div>
+      </Panel>
 
       {selected ? (
         <Modal
@@ -318,28 +336,28 @@ export function CommerceFarmersPanel() {
           onSave={() => setSelected(null)}
           saveLabel="Close"
         >
-          <div className="space-y-2 text-sm text-slate-700">
+          <div className="space-y-3 text-sm text-ink-secondary">
             <p>
-              <strong>Mobile:</strong> {formatPhone(selected.phone)}
+              <strong className="text-ink">Mobile:</strong> {formatPhone(selected.phone)}
             </p>
             <p>
-              <strong>Location:</strong> {locationLabel(selected)}
-              {selected.district && selected.state
-                ? ` (${selected.district})`
-                : ''}
+              <strong className="text-ink">Location:</strong> {locationLabel(selected)}
+              {selected.district && selected.state ? ` (${selected.district})` : ''}
             </p>
             <p>
-              <strong>Crops:</strong> {selected.cropsLabel}
+              <strong className="text-ink">Crops:</strong> {selected.cropsLabel}
             </p>
             <p>
-              <strong>Last order:</strong> {formatLastOrder(selected.lastOrderAt)}
+              <strong className="text-ink">Last order:</strong> {formatLastOrder(selected.lastOrderAt)}
             </p>
             <p>
-              <strong>Total orders:</strong> {selected.orderCount}
+              <strong className="text-ink">Total orders:</strong> {selected.orderCount}
             </p>
-            <p>
-              <strong>Status:</strong>{' '}
-              {selected.status === 'active' ? 'Active' : 'Inactive'}
+            <p className="flex items-center gap-2">
+              <strong className="text-ink">Status:</strong>
+              <Badge tone={selected.status === 'active' ? 'active' : 'archived'}>
+                {selected.status === 'active' ? 'Active' : 'Inactive'}
+              </Badge>
             </p>
           </div>
         </Modal>

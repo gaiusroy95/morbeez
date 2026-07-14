@@ -671,18 +671,18 @@ export function LeadOperationsTable({
         );
       case 'pendingTasks':
         return (
-          <span className={lead.pendingTasksCount > 0 ? 'tc-lq-badge tc-lq-badge--warn' : 'muted'}>
+          <span className={lead.pendingTasksCount > 0 ? 'tc-lq-badge tc-lq-badge--warn' : 'text-ink-muted'}>
             {lead.pendingTasksCount}
           </span>
         );
       case 'escalations':
         return (
-          <span className={lead.escalationCount > 0 ? 'tc-lq-badge tc-lq-badge--danger' : 'muted'}>
+          <span className={lead.escalationCount > 0 ? 'tc-lq-badge tc-lq-badge--danger' : 'text-ink-muted'}>
             {lead.escalationCount}
           </span>
         );
       case 'lastInteraction':
-        return <span className="muted">{lead.lastInteractionLabel ?? '—'}</span>;
+        return <span className="text-ink-muted">{lead.lastInteractionLabel ?? '—'}</span>;
       case 'owner':
         return <span className="tc-lq-owner">{lead.owner ?? '—'}</span>;
       case 'stage':
@@ -710,7 +710,7 @@ export function LeadOperationsTable({
       case 'followUpDue':
         return <span>{lead.followUpLabel ?? '—'}</span>;
       case 'createdDate':
-        return <span className="muted">{lead.createdAtLabel}</span>;
+        return <span className="text-ink-muted">{lead.createdAtLabel}</span>;
       case 'actions':
         return (
           <LeadRowActions
@@ -1294,7 +1294,7 @@ export function LeadOperationsTable({
               placeholder="e.g. monsoon_campaign"
             />
           </Field>
-          <p className="muted text-sm" style={{ marginTop: 8 }}>
+          <p className="text-sm text-ink-muted" style={{ marginTop: 8 }}>
             Stored on farmer profile metadata for future broadcast targeting.
           </p>
         </Modal>

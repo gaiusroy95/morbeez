@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
-import { StaticSelect } from '../ui';
+import { Alert, StaticSelect } from '../ui';
 import {
   BulkMarginReviewBadge,
   type BulkMarginReviewStatus,
@@ -377,7 +377,7 @@ export function OrdersTab({
         </div>
       ) : null}
 
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
 
       <div className="tc-ord-table-wrap">
         {loading ? (
@@ -417,7 +417,7 @@ export function OrdersTab({
                         <>
                           {formatDate(row.expiresAt)}
                           {row.hoursLeft != null && row.status !== 'paid' ? (
-                            <small className="block text-slate-500">{row.hoursLeft}h left</small>
+                            <small className="block text-ink-muted">{row.hoursLeft}h left</small>
                           ) : null}
                         </>
                       ) : (
@@ -427,7 +427,7 @@ export function OrdersTab({
                     <td>
                       {row.kind === 'estimate' ? row.preparedByName ?? '—' : '—'}
                       {row.kind === 'estimate' && row.sentAt ? (
-                        <small className="block text-slate-500">Sent</small>
+                        <small className="block text-ink-muted">Sent</small>
                       ) : null}
                     </td>
                     <td>₹{Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>

@@ -126,6 +126,7 @@ export default function VisitScreen() {
   const [capturePhotoType, setCapturePhotoType] = useState(() => initialCapturePhotoType(cropType));
   const [prefillDiagnosis, setPrefillDiagnosis] = useState<string | null>(null);
   const [farmerSuggestedDiagnosis, setFarmerSuggestedDiagnosis] = useState<string | null>(null);
+  const [farmerSuggestedDiagnoses, setFarmerSuggestedDiagnoses] = useState<string[]>([]);
   const [farmerPriorExperience, setFarmerPriorExperience] = useState<string | null>(null);
   const [farmerPriorProduct, setFarmerPriorProduct] = useState<string | null>(null);
   const [farmerPriorOutcome, setFarmerPriorOutcome] = useState<string | null>(null);
@@ -311,6 +312,11 @@ export default function VisitScreen() {
           if (diagnosis) setPrefillDiagnosis(diagnosis);
           if (prefillSource.farmerSuggestedDiagnosis) {
             setFarmerSuggestedDiagnosis(prefillSource.farmerSuggestedDiagnosis);
+          }
+          if (prefillSource.farmerSuggestedDiagnoses?.length) {
+            setFarmerSuggestedDiagnoses(prefillSource.farmerSuggestedDiagnoses);
+          } else if (prefillSource.farmerSuggestedDiagnosis) {
+            setFarmerSuggestedDiagnoses([prefillSource.farmerSuggestedDiagnosis]);
           }
           if (prefillSource.farmerPriorExperience) {
             setFarmerPriorExperience(prefillSource.farmerPriorExperience);
@@ -641,11 +647,13 @@ export default function VisitScreen() {
           <AlertBox>
             Rectification visit — verify or correct AI diagnosis
             {prefillDiagnosis ? `: ${prefillDiagnosis}` : ''}.
-            {farmerSuggestedDiagnosis
-              ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
-              : farmerPriorExperience
-                ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
-                : ''}
+            {farmerSuggestedDiagnoses.length > 1
+              ? `\nFarmer recommendations:\n${farmerSuggestedDiagnoses.map((d) => `• ${d}`).join('\n')}`
+              : farmerSuggestedDiagnosis
+                ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
+                : farmerPriorExperience
+                  ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
+                  : ''}
             {farmerPriorProduct ? `\nPrior products: ${farmerPriorProduct}` : ''}
             {'\n'}
             Confirm the final diagnosis in Validation — only agronomist-approved cases enter the knowledge base.
@@ -727,6 +735,7 @@ export default function VisitScreen() {
             blockAutoApprove={blockAutoApprove({ triage, issues })}
             farmerFeedback={{
               suggestedDiagnosis: farmerSuggestedDiagnosis,
+              suggestedDiagnoses: farmerSuggestedDiagnoses,
               priorExperience: farmerPriorExperience,
               priorProduct: farmerPriorProduct,
               priorOutcome: farmerPriorOutcome,

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
-import { Btn } from '../ui';
+import { Alert, Btn } from '../ui';
 import {
   CropBlockFields,
   blockFromApi,
@@ -325,13 +325,13 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
   }
 
   if (loading) {
-    return <p className="text-sm text-slate-500">Loading block…</p>;
+    return <p className="text-sm text-ink-muted">Loading block…</p>;
   }
 
   const displayCrop = blockInfo?.crop ?? cropNameFromBlock(editBlock);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+    <div className="rounded-xl border border-border bg-surface-elevated p-4 text-sm shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium">Block workspace</h3>
         {farmerId ? (
@@ -353,7 +353,7 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
               Actions ▾
             </Btn>
             {menuOpen ? (
-              <div className="absolute right-0 z-20 mt-1 min-w-[10rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-20 mt-1 min-w-[10rem] rounded-lg border border-border bg-surface-elevated py-1 shadow-lg">
                 <MenuItem label="Edit" onClick={() => openMode('edit')} />
                 <MenuItem label="Add soil test" onClick={() => openMode('soil')} />
                 <MenuItem label="Notes" onClick={() => openMode('notes')} />
@@ -363,7 +363,7 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
         ) : null}
       </div>
 
-      {error ? <p className="mt-2 text-xs text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mt-2">{error}</Alert> : null}
 
       {panelMode === 'view' ? (
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -391,11 +391,11 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'view' && applicationTracking.length ? (
-        <div className="mt-4 rounded-lg border border-slate-200 p-3">
-          <p className="text-xs font-medium text-slate-700">Application tracking</p>
+        <div className="mt-4 rounded-lg border border-border p-3">
+          <p className="text-xs font-medium text-ink-secondary">Application tracking</p>
           <ul className="mt-2 space-y-2">
             {applicationTracking.slice(0, 6).map((row) => (
-              <li key={row.recommendationId} className="text-xs text-slate-600">
+              <li key={row.recommendationId} className="text-xs text-ink-secondary">
                 <strong>{row.issueDetected || 'Recommendation'}</strong>
                 {row.appliedTradeName || row.appliedTechnicalName
                   ? ` · Applied: ${row.appliedTradeName ?? row.appliedTechnicalName}`
@@ -410,12 +410,12 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'view' && canWrite ? (
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="text-xs font-medium text-slate-700">Plot GPS</p>
-          <p className="mt-1 text-xs text-slate-500">
+        <div className="mt-4 rounded-lg border border-border bg-surface-subtle p-3">
+          <p className="text-xs font-medium text-ink-secondary">Plot GPS</p>
+          <p className="mt-1 text-xs text-ink-muted">
             Capture at the field for accurate weather and crop advice. Uses your device location.
           </p>
-          {gpsStatus ? <p className="mt-2 text-xs text-slate-600">{gpsStatus}</p> : null}
+          {gpsStatus ? <p className="mt-2 text-xs text-ink-secondary">{gpsStatus}</p> : null}
           <Btn
             type="button"
             variant="secondary"
@@ -429,10 +429,10 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'edit' ? (
-        <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+        <section className="mt-4 rounded-lg border border-border bg-surface-subtle/50 p-3">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-medium text-slate-800">Edit block</h4>
-            <button type="button" className="text-xs text-slate-500 hover:underline" onClick={closePanel}>
+            <h4 className="text-sm font-medium text-ink">Edit block</h4>
+            <button type="button" className="text-xs text-ink-muted hover:underline" onClick={closePanel}>
               Cancel
             </button>
           </div>
@@ -451,8 +451,8 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       {panelMode === 'soil' ? (
         <section className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/30 p-3">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-medium text-slate-800">New soil test</h4>
-            <button type="button" className="text-xs text-slate-500 hover:underline" onClick={closePanel}>
+            <h4 className="text-sm font-medium text-ink">New soil test</h4>
+            <button type="button" className="text-xs text-ink-muted hover:underline" onClick={closePanel}>
               Cancel
             </button>
           </div>
@@ -477,29 +477,29 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'notes' ? (
-        <section className="mt-4 rounded-lg border border-slate-200 bg-slate-50/50 p-3">
+        <section className="mt-4 rounded-lg border border-border bg-surface-subtle/50 p-3">
           <div className="mb-3 flex items-center justify-between">
-            <h4 className="text-sm font-medium text-slate-800">Block notes — {blockLabel}</h4>
-            <button type="button" className="text-xs text-slate-500 hover:underline" onClick={closePanel}>
+            <h4 className="text-sm font-medium text-ink">Block notes — {blockLabel}</h4>
+            <button type="button" className="text-xs text-ink-muted hover:underline" onClick={closePanel}>
               Close
             </button>
           </div>
           <ul className="mb-3 max-h-40 space-y-2 overflow-y-auto">
             {blockNotes.map((n) => (
-              <li key={n.id} className="rounded border border-slate-100 bg-white px-2 py-1.5 text-xs">
-                <div className="text-slate-400">
+              <li key={n.id} className="rounded border border-border bg-surface-elevated px-2 py-1.5 text-xs">
+                <div className="text-ink-muted">
                   {formatNoteWhen(n.created_at)} · {noteAuthor(n)}
                 </div>
-                <div className="text-slate-800">{noteDisplayText(n, blockLabel)}</div>
+                <div className="text-ink">{noteDisplayText(n, blockLabel)}</div>
               </li>
             ))}
             {blockNotes.length === 0 ? (
-              <li className="text-xs text-slate-500">No notes for this block yet.</li>
+              <li className="text-xs text-ink-muted">No notes for this block yet.</li>
             ) : null}
           </ul>
           <form onSubmit={saveBlockNote}>
             <textarea
-              className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+              className="w-full rounded-lg border border-border px-2 py-1.5 text-sm"
               rows={3}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
@@ -518,9 +518,9 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'view' ? (
-        <section className="mt-4 border-t border-slate-100 pt-3">
+        <section className="mt-4 border-t border-border pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h4 className="text-xs font-semibold uppercase text-slate-500">Notes</h4>
+            <h4 className="text-xs font-semibold uppercase text-ink-muted">Notes</h4>
             {canWrite ? (
               <button
                 type="button"
@@ -532,15 +532,15 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
             ) : null}
           </div>
           {blockNotes.length === 0 ? (
-            <p className="mt-2 text-xs text-slate-500">No notes for this block yet.</p>
+            <p className="mt-2 text-xs text-ink-muted">No notes for this block yet.</p>
           ) : (
             <ul className="mt-2 space-y-2">
               {blockNotes.map((n) => (
-                <li key={n.id} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
-                  <div className="text-slate-400">
+                <li key={n.id} className="rounded border border-border bg-surface-subtle px-3 py-2 text-xs">
+                  <div className="text-ink-muted">
                     {formatNoteWhen(n.created_at)} · {noteAuthor(n)}
                   </div>
-                  <div className="mt-0.5 text-slate-800">{noteDisplayText(n, blockLabel)}</div>
+                  <div className="mt-0.5 text-ink">{noteDisplayText(n, blockLabel)}</div>
                 </li>
               ))}
             </ul>
@@ -549,18 +549,18 @@ export function BlockWorkspacePanel({ leadId, blockId, canWrite, onSaved }: Prop
       ) : null}
 
       {panelMode === 'view' ? (
-        <section className="mt-4 border-t border-slate-100 pt-3">
-          <h4 className="text-xs font-semibold uppercase text-slate-500">Soil tests</h4>
+        <section className="mt-4 border-t border-border pt-3">
+          <h4 className="text-xs font-semibold uppercase text-ink-muted">Soil tests</h4>
           {soilReports.length === 0 ? (
-            <p className="mt-2 text-xs text-slate-500">
+            <p className="mt-2 text-xs text-ink-muted">
               No soil tests yet — use Actions → Add soil test.
             </p>
           ) : (
             <ul className="mt-2 space-y-3">
               {soilReports.map((s) => (
-                <li key={s.id} className="rounded border border-slate-100 bg-slate-50 px-3 py-2">
+                <li key={s.id} className="rounded border border-border bg-surface-subtle px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="font-medium text-slate-800">{s.reportedLabel ?? 'Soil report'}</span>
+                    <span className="font-medium text-ink">{s.reportedLabel ?? 'Soil report'}</span>
                     {s.pdfUrl ? (
                       <a
                         className="text-emerald-700 hover:underline"
@@ -591,7 +591,7 @@ function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
-      className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+      className="block w-full px-3 py-2 text-left text-sm text-ink-secondary hover:bg-surface-subtle"
       onClick={onClick}
     >
       {label}
@@ -602,8 +602,8 @@ function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs text-slate-500">{label}</dt>
-      <dd className="font-medium text-slate-800">{value}</dd>
+      <dt className="text-xs text-ink-muted">{label}</dt>
+      <dd className="font-medium text-ink">{value}</dd>
     </div>
   );
 }

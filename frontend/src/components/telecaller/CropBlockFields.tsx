@@ -144,7 +144,7 @@ export function CropBlockFields({ blocks, onChange, showLabels = true }: Props) 
   return (
     <div className="space-y-3">
       {blocks.map((b, idx) => (
-        <div key={b.id ?? `new-${idx}`} className="rounded border border-slate-100 p-3">
+        <div key={b.id ?? `new-${idx}`} className="rounded border border-border p-3">
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <Field label={showLabels ? 'Block name' : undefined}>
               <input
@@ -213,7 +213,7 @@ export function CropBlockFields({ blocks, onChange, showLabels = true }: Props) 
           ) : null}
           <button
             type="button"
-            className="mt-2 ml-3 text-xs font-medium text-slate-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-400"
+            className="mt-2 ml-3 text-xs font-medium text-ink-secondary hover:underline disabled:cursor-not-allowed disabled:text-ink-muted"
             disabled={!hasValidGps(b)}
             onClick={() => updateAt(idx, normalizeGps(b))}
             title="Save custom latitude/longitude for this block"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
+import { MiniStatCard } from '../employees/employee-ui';
 import { Alert, Btn, DataTable, EmptyState, Loading, Panel, StaticSelect, TableWrap, inputClass } from '../ui';
 import { WMS_API } from './warehouse-api';
 
@@ -87,27 +88,11 @@ export function WarehouseFinancePanel({ canWrite }: { canWrite: boolean }) {
   return (
     <div className="warehouse-finance">
       {dashboard ? (
-        <div className="warehouse-kpi-grid">
-          <Panel title="Finance dashboard">
-            <ul className="warehouse-kpi-list">
-              <li>
-                <span>Daily sales</span>
-                <strong>{formatInr(dashboard.dailySales)}</strong>
-              </li>
-              <li>
-                <span>GST liability</span>
-                <strong>{formatInr(dashboard.gstLiability)}</strong>
-              </li>
-              <li>
-                <span>Pending COD</span>
-                <strong>{formatInr(dashboard.pendingCod)}</strong>
-              </li>
-              <li>
-                <span>Outstanding</span>
-                <strong>{formatInr(dashboard.outstandingPayments)}</strong>
-              </li>
-            </ul>
-          </Panel>
+        <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MiniStatCard label="Daily sales" value={formatInr(dashboard.dailySales)} />
+          <MiniStatCard label="GST liability" value={formatInr(dashboard.gstLiability)} />
+          <MiniStatCard label="Pending COD" value={formatInr(dashboard.pendingCod)} />
+          <MiniStatCard label="Outstanding" value={formatInr(dashboard.outstandingPayments)} />
         </div>
       ) : null}
 

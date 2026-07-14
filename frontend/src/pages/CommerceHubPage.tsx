@@ -107,7 +107,7 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   return (
     <div className="commerce-hub">
       {canSeo && tab === 'products' ? (
-        <p className="commerce-hub-warehouse-bridge muted">
+        <p className="commerce-hub-warehouse-bridge text-sm text-ink-muted">
           Product SEO, crop problem pages, and Google visibility live in{' '}
           <Link to={toPath(paths.seo)} className="commerce-warehouse-link">
             SEO Control Panel
@@ -116,7 +116,7 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
         </p>
       ) : null}
       {canWarehouse && (tab === 'orders' || tab === 'logistics') ? (
-        <p className="commerce-hub-warehouse-bridge muted">
+        <p className="commerce-hub-warehouse-bridge text-sm text-ink-muted">
           Fulfillment (pick, pack, GST invoice, COD) lives in{' '}
           <Link to={toPath(paths.warehouse)} className="commerce-warehouse-link">
             Warehouse & OMS

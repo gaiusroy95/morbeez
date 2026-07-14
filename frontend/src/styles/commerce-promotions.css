@@ -124,19 +124,22 @@
   align-items: center;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--brand-700, #1b5e20);
+  color: var(--green-700);
   text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
 }
 
 .commerce-warehouse-link:hover {
-  text-decoration: underline;
+  color: var(--green-800);
+  border-bottom-color: var(--green-400);
 }
 
 .commerce-warehouse-link--compact {
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
 }
 
 .commerce-warehouse-push-btn {

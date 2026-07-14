@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildWarehouseOrderUrl } from '../../lib/warehouse-links';
 import { Modal } from '../Modal';
+import { Alert, Btn, Loading } from '../ui';
 
 export type OrderListRow = {
   id: string;
@@ -99,8 +100,8 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
 
   return (
     <Modal title={detail?.orderId ?? row.orderId ?? 'Order details'} onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <Loading label="Loading order…" /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {detail && !loading ? (
         <div className="space-y-5">
           <div className="flex flex-wrap gap-2">
@@ -109,39 +110,39 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
               {detail.paymentLabel}
               {detail.paymentSubtext ? ` · ${detail.paymentSubtext}` : ''}
             </span>
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+            <span className="rounded-full bg-surface-subtle px-2.5 py-0.5 text-xs text-ink-secondary">
               {detail.dateLabel}
             </span>
           </div>
 
-          <dl className="grid gap-3 rounded-xl border border-slate-100 bg-slate-50/80 p-4 text-sm sm:grid-cols-2">
+          <dl className="grid gap-3 rounded-xl border border-border bg-surface-subtle/80 p-4 text-sm sm:grid-cols-2">
             <div>
-              <dt className="text-slate-500">Delivery date</dt>
+              <dt className="text-ink-muted">Delivery date</dt>
               <dd className="font-medium">{detail.deliveryDateLabel}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Delivery by</dt>
+              <dt className="text-ink-muted">Delivery by</dt>
               <dd className="font-medium">{detail.deliveryBy}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Block</dt>
+              <dt className="text-ink-muted">Block</dt>
               <dd className="font-medium">{detail.blockName ?? '—'}</dd>
             </div>
             <div>
-              <dt className="text-slate-500">Source</dt>
+              <dt className="text-ink-muted">Source</dt>
               <dd className="font-medium capitalize">{detail.source.replace('_', ' ')}</dd>
             </div>
             {detail.createdBy ? (
               <div>
-                <dt className="text-slate-500">Created by</dt>
+                <dt className="text-ink-muted">Created by</dt>
                 <dd className="font-medium">{detail.createdBy}</dd>
               </div>
             ) : null}
           </dl>
 
           {detail.source === 'crm_manual' ? (
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <section className="rounded-xl border border-border bg-surface-elevated p-4">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 Warehouse fulfillment
               </h3>
               {detail.commerceOrderId ? (
@@ -152,21 +153,16 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
                   Open in Warehouse Hub ↗
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60"
-                  disabled={pushing}
-                  onClick={() => void pushToWarehouse()}
-                >
+                <Btn variant="primary" disabled={pushing} onClick={() => void pushToWarehouse()}>
                   {pushing ? 'Sending…' : 'Push to warehouse'}
-                </button>
+                </Btn>
               )}
               {pushMsg ? <p className="mt-2 text-sm text-emerald-700">{pushMsg}</p> : null}
             </section>
           ) : null}
 
           {detail.commerceOrderId && detail.source === 'commerce' ? (
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
+            <section className="rounded-xl border border-border bg-surface-elevated p-4">
               <Link
                 to={buildWarehouseOrderUrl(detail.commerceOrderId)}
                 className="order-tracking-link text-sm font-semibold"
@@ -182,7 +178,7 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
                 Dispatch & tracking
               </h3>
               {detail.trackingAwb ? (
-                <p className="text-sm text-slate-700">
+                <p className="text-sm text-ink-secondary">
                   <strong>AWB:</strong> {detail.trackingAwb}
                   {detail.courier ? ` · ${detail.courier}` : ''}
                 </p>
@@ -201,14 +197,14 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
           ) : null}
 
           <section>
-            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
               Products
             </h3>
             <ul className="space-y-2">
               {detail.lineItems.map((item, i) => (
                 <li
                   key={i}
-                  className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3"
+                  className="flex items-center gap-3 rounded-lg border border-border bg-surface-elevated p-3"
                 >
                   <div className="tc-ord-product-thumb">
                     {item.imageUrl ? (
@@ -218,8 +214,8 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-medium text-slate-900">{item.title}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-medium text-ink">{item.title}</p>
+                    <p className="text-xs text-ink-muted">
                       Qty {item.quantity}
                       {item.price != null ? ` · ₹${item.price}` : ''}
                     </p>
@@ -229,23 +225,23 @@ export function OrderDetailModal({ leadId, row, onClose }: Props) {
             </ul>
           </section>
 
-          <div className="flex justify-between border-t border-slate-100 pt-3 text-sm">
-            <span className="font-medium text-slate-700">Order total</span>
-            <span className="text-lg font-bold text-slate-900">
+          <div className="flex justify-between border-t border-border pt-3 text-sm">
+            <span className="font-medium text-ink-secondary">Order total</span>
+            <span className="text-lg font-bold text-ink">
               ₹{detail.amount.toLocaleString('en-IN')}
             </span>
           </div>
 
           {detail.deliveryAddress ? (
             <section>
-              <h3 className="text-xs font-semibold uppercase text-slate-500">Delivery address</h3>
-              <p className="mt-1 text-sm text-slate-700">{detail.deliveryAddress}</p>
+              <h3 className="text-xs font-semibold uppercase text-ink-muted">Delivery address</h3>
+              <p className="mt-1 text-sm text-ink-secondary">{detail.deliveryAddress}</p>
             </section>
           ) : null}
           {detail.notes ? (
             <section>
-              <h3 className="text-xs font-semibold uppercase text-slate-500">Notes</h3>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{detail.notes}</p>
+              <h3 className="text-xs font-semibold uppercase text-ink-muted">Notes</h3>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-ink-secondary">{detail.notes}</p>
             </section>
           ) : null}
         </div>

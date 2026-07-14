@@ -57,13 +57,13 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
   return (
     <div className="warehouse-hub">
       {tab !== 'fulfillment' ? (
-        <p className="warehouse-hub-intro muted">
+        <p className="warehouse-hub-intro text-sm text-ink-secondary">
           Warehouse fulfillment — auto AWB on confirm, pick + pack with scan verification, thermal
           labels via Shiprocket.
         </p>
       ) : null}
       {orderFromUrl ? (
-        <p className="warehouse-hub-focus muted">
+        <p className="warehouse-hub-focus text-sm text-ink-muted">
           Focused order: <span className="mono">{orderFromUrl}</span>
         </p>
       ) : null}

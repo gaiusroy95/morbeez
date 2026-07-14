@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { PageShell } from '../../components/ui';
+import { Alert, PageShell } from '../../components/ui';
 
 type Stat = {
   issueLabel: string;
@@ -65,7 +65,7 @@ export function OutcomeIntelligencePage() {
 
   return (
     <PageShell title="Outcome intelligence">
-      {error ? <p className="text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {funnel ? (
         <section className="mb-6 rounded border p-4">
           <h3 className="font-semibold mb-2">Protocol recovery funnel (90d)</h3>
@@ -102,7 +102,7 @@ export function OutcomeIntelligencePage() {
             {adaptive.map((a, i) => (
               <li key={i} className="mb-2">
                 <strong>{a.issueLabel}</strong> ({a.failureType}) — {a.cropType} / {a.district}
-                <ul className="ml-4 text-sm text-slate-600">
+                <ul className="ml-4 text-sm text-ink-secondary">
                   {a.alternateTemplates.map((t) => (
                     <li key={t.templateKey}>
                       {t.label} — score {Math.round(t.score * 100)}%
@@ -153,13 +153,13 @@ export function OutcomeIntelligencePage() {
         {stats.map((s) => (
           <li key={`${s.issueLabel}-${s.protocolLabel}`} className="rounded border p-3">
             <strong>{s.issueLabel}</strong> — {s.protocolLabel}
-            <div className="text-sm text-slate-600">
+            <div className="text-sm text-ink-secondary">
               Recovery {s.recoveryPct}% · {s.sampleCount} cases
               {s.avgRecoveryDays != null ? ` · ~${s.avgRecoveryDays} days` : ''}
             </div>
           </li>
         ))}
-        {!stats.length && !error ? <li className="text-slate-500">No outcome data yet.</li> : null}
+        {!stats.length && !error ? <li className="text-ink-muted">No outcome data yet.</li> : null}
       </ul>
     </PageShell>
   );

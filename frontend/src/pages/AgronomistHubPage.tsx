@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
 import { matchesSearch } from '../lib/search-filter';
-import { Alert, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
+import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
 import { FarmerFeedbackPanel } from '../components/agronomist/FarmerFeedbackPanel';
 import { CaseReviewPanel } from '../components/agronomist/CaseReviewPanel';
 import { ImageReviewPanel } from '../components/agronomist/ImageReviewPanel';
@@ -254,13 +254,13 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
       <div className="agro-ops-head" style={{ marginBottom: 12 }}>
         <div>
           <h1 className="page-title">AI Review Center</h1>
-          <p className="page-subtitle muted">
+          <p className="page-subtitle text-sm text-ink-secondary">
             Image review, case review, training export — day-to-day farmer work lives in{' '}
             <Link to={toPath(paths.agronomist)}>Agronomist Operations</Link>.
           </p>
         </div>
       </div>
-      <p className="muted" style={{ marginBottom: 12 }}>
+      <p className="text-sm text-ink-muted" style={{ marginBottom: 12 }}>
         Field findings → AI draft → review → Super Admin approval → WhatsApp
       </p>
       <AgronomistIntelligenceBar />
@@ -297,10 +297,10 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
         <div className="mt-6 grid gap-6 lg:grid-cols-2">
           <div className="space-y-2">
             {queue.length === 0 ? (
-              <p className="text-sm text-slate-500">No field findings awaiting review.</p>
+              <p className="text-sm text-ink-muted">No field findings awaiting review.</p>
             ) : null}
             {queue.length > 0 && filteredQueue.length === 0 ? (
-              <p className="text-sm text-slate-500">No findings match your search.</p>
+              <p className="text-sm text-ink-muted">No findings match your search.</p>
             ) : null}
             {filteredQueue.map((item) => (
               <button
@@ -309,14 +309,14 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                 onClick={() => selectItem(item)}
                 className={`w-full rounded-xl border p-3 text-left text-sm ${
                   selectedId === item.finding.id
-                    ? 'border-emerald-400 bg-emerald-50'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-brand-400 bg-brand-50'
+                    : 'border-border bg-surface-elevated hover:border-border-strong'
                 }`}
               >
-                <p className="font-medium text-slate-900">
+                <p className="font-medium text-ink">
                   {item.farmer?.name ?? item.farmer?.phone ?? 'Farmer'}
                 </p>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-ink-muted">
                   {item.finding.cropType} · {item.block?.plotLabel ?? item.finding.blockName} ·{' '}
                   {new Date(item.finding.visitedAt).toLocaleDateString('en-IN')}
                 </p>
@@ -324,7 +324,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                   <p className="mt-1 text-xs text-amber-800">{item.finding.diseasePest}</p>
                 ) : null}
                 {item.existingRecommendation ? (
-                  <span className="mt-2 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+                  <span className="mt-2 inline-block rounded bg-surface-subtle px-1.5 py-0.5 text-xs">
                     Draft in progress
                   </span>
                 ) : null}
@@ -332,12 +332,12 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
             ))}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-border bg-surface-elevated p-4 shadow-sm">
             {!selected ? (
-              <p className="text-sm text-slate-500">Select a field finding to review.</p>
+              <p className="text-sm text-ink-muted">Select a field finding to review.</p>
             ) : (
               <>
-                <h2 className="font-medium text-slate-900">Finding detail</h2>
+                <h2 className="font-medium text-ink">Finding detail</h2>
                 {Array.isArray(selected.finding.photoUrls) && selected.finding.photoUrls.length > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {selected.finding.photoUrls.map((url, i) =>
@@ -347,7 +347,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                           href={url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block overflow-hidden rounded-lg border border-slate-200"
+                          className="block overflow-hidden rounded-lg border border-border"
                         >
                           <img
                             src={url}
@@ -359,7 +359,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                     )}
                   </div>
                 ) : null}
-                <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
+                <p className="mt-2 text-sm text-ink-secondary whitespace-pre-wrap">
                   {selected.finding.observations ?? 'No observations recorded.'}
                 </p>
                 {canWrite ? (
@@ -373,7 +373,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                       {aiLoading ? 'Running AI…' : 'Generate AI suggestion'}
                     </button>
                     {aiMeta?.confidence != null ? (
-                      <span className="self-center text-xs text-slate-500">
+                      <span className="self-center text-xs text-ink-muted">
                         Confidence: {Math.round(aiMeta.confidence * 100)}%
                       </span>
                     ) : null}
@@ -382,18 +382,18 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
 
                 <div className="mt-6 space-y-3">
                   <label className="block text-sm">
-                    <span className="text-slate-600">Issue detected</span>
+                    <span className="text-ink-secondary">Issue detected</span>
                     <input
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                      className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                       value={form.issueDetected}
                       onChange={(e) => setForm((f) => ({ ...f, issueDetected: e.target.value }))}
                       disabled={!canWrite}
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className="text-slate-600">Recommendation (farmer-facing)</span>
+                    <span className="text-ink-secondary">Recommendation (farmer-facing)</span>
                     <textarea
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                      className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                       rows={5}
                       value={form.recommendationText}
                       onChange={(e) =>
@@ -403,9 +403,9 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                     />
                   </label>
                   <label className="block text-sm">
-                    <span className="text-slate-600">Dosage</span>
+                    <span className="text-ink-secondary">Dosage</span>
                     <textarea
-                      className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                      className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                       rows={2}
                       value={form.dosage}
                       onChange={(e) => setForm((f) => ({ ...f, dosage: e.target.value }))}
@@ -414,22 +414,24 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                   </label>
                   {canWrite ? (
                     <div className="flex gap-2 pt-2">
-                      <button
+                      <Btn
                         type="button"
+                        variant="secondary"
+                        size="sm"
                         disabled={saving || !form.recommendationText.trim()}
                         onClick={saveDraft}
-                        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50 disabled:opacity-50"
                       >
                         Save draft
-                      </button>
-                      <button
+                      </Btn>
+                      <Btn
                         type="button"
+                        variant="primary"
+                        size="sm"
                         disabled={saving}
                         onClick={submitForApproval}
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
                       >
                         Submit for approval
-                      </button>
+                      </Btn>
                     </div>
                   ) : null}
                 </div>
@@ -443,7 +445,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
 
       {tab === 'approvals' ? (
         <div className="mt-4">
-          <p className="muted" style={{ marginBottom: 12 }}>
+          <p className="text-sm text-ink-muted" style={{ marginBottom: 12 }}>
             Your submitted recommendations — edit while pending, track who approved and when.
           </p>
           <RecommendationApprovalsWorkspace

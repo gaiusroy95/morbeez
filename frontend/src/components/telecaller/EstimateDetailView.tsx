@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { openQuoteSendLinks, sendQuoteToFarmer } from '../../lib/quoteSend';
-import { Loading } from '../ui';
+import { Alert, Loading } from '../ui';
 import {
   BulkMarginReviewBadge,
   bulkReviewHint,
@@ -104,7 +104,7 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
         <button type="button" className="est-detail-back" onClick={onBack}>
           ← Back to orders
         </button>
-        <p className="text-sm text-red-600">{error || 'Quote not found'}</p>
+        <Alert tone="error">{error || 'Quote not found'}</Alert>
       </div>
     );
   }
@@ -138,7 +138,7 @@ export function EstimateDetailView({ leadId, estimateId, canWrite, onBack, onEdi
         ← Back to orders
       </button>
 
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
 
       {quote.bulkMarginReviewStatus ? (
         <div className="est-bulk-review-banner">

@@ -1,14 +1,14 @@
 /* Commerce — Inventory dashboard */
 
 .commerce-inventory {
-  --ci-green: #1b5e20;
-  --ci-green-text: #2e7d32;
-  --ci-orange: #e65100;
-  --ci-red: #c62828;
-  --ci-border: #e5e7eb;
-  --ci-muted: #6b7280;
+  --ci-green: var(--green-700);
+  --ci-green-text: var(--green-600);
+  --ci-orange: #d97706;
+  --ci-red: var(--danger, #dc2626);
+  --ci-border: var(--border);
+  --ci-muted: var(--text-muted);
   font-size: 14px;
-  color: #111827;
+  color: var(--text);
 }
 
 .commerce-inventory__header {
@@ -46,7 +46,7 @@
 }
 
 .commerce-inventory__add-btn:hover {
-  background: #145218;
+  background: var(--green-800);
 }
 
 .commerce-inventory__header-actions {
@@ -66,13 +66,14 @@
 .commerce-inventory__view-tab {
   padding: 8px 14px;
   border: 1px solid var(--ci-border);
-  border-radius: 8px;
-  background: #fff;
-  color: #374151;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--text-secondary);
   font-size: 0.875rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .commerce-inventory__view-tab:hover {

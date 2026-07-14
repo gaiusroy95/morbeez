@@ -27,9 +27,9 @@ function FieldGrid({
     <div className="grid gap-2 sm:grid-cols-2">
       {fields.map((f) => (
         <label key={f.key} className="block text-xs">
-          <span className="font-medium text-slate-700">
+          <span className="font-medium text-ink-secondary">
             {f.label}
-            {f.unit ? <span className="font-normal text-slate-400"> ({f.unit})</span> : null}
+            {f.unit ? <span className="font-normal text-ink-muted"> ({f.unit})</span> : null}
           </span>
           <input
             type="text"
@@ -57,12 +57,12 @@ export function SoilTestForm({
 }: Props) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Macro</h5>
+      <section className="rounded-lg border border-border bg-surface-subtle/80 p-3">
+        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">Macro</h5>
         <FieldGrid fields={SOIL_MACRO_FIELDS} values={macro} onChange={onMacroChange} disabled={disabled} />
       </section>
-      <section className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">Micro elements</h5>
+      <section className="rounded-lg border border-border bg-surface-subtle/80 p-3">
+        <h5 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-secondary">Micro elements</h5>
         <FieldGrid fields={SOIL_MICRO_FIELDS} values={micro} onChange={onMicroChange} disabled={disabled} />
         <StaticSelect
           label="Soil type"
@@ -92,21 +92,21 @@ export function SoilTestReadout({
   return (
     <div className="grid gap-3 lg:grid-cols-2 text-xs">
       {metrics.soilType ? (
-        <p className="lg:col-span-2 rounded border border-slate-100 bg-white px-2 py-1.5 text-slate-800">
-          <span className="text-slate-500">Soil type: </span>
+        <p className="lg:col-span-2 rounded border border-border bg-surface-elevated px-2 py-1.5 text-ink">
+          <span className="text-ink-muted">Soil type: </span>
           <span className="font-medium">{metrics.soilType}</span>
         </p>
       ) : null}
       <div>
-        <p className="mb-1 font-semibold text-slate-600">Macro</p>
+        <p className="mb-1 font-semibold text-ink-secondary">Macro</p>
         <dl className="space-y-0.5">
           {SOIL_MACRO_FIELDS.map((f) => {
             const m = metrics.macro[f.key];
             if (!m?.value) return null;
             return (
               <div key={f.key} className="flex justify-between gap-2">
-                <dt className="text-slate-500">{f.label}</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-ink-muted">{f.label}</dt>
+                <dd className="font-medium text-ink">
                   {m.value}
                   {m.unit ? ` ${m.unit}` : ''}
                 </dd>
@@ -116,15 +116,15 @@ export function SoilTestReadout({
         </dl>
       </div>
       <div>
-        <p className="mb-1 font-semibold text-slate-600">Micro</p>
+        <p className="mb-1 font-semibold text-ink-secondary">Micro</p>
         <dl className="space-y-0.5">
           {SOIL_MICRO_FIELDS.map((f) => {
             const m = metrics.micro[f.key];
             if (!m?.value) return null;
             return (
               <div key={f.key} className="flex justify-between gap-2">
-                <dt className="text-slate-500">{f.label}</dt>
-                <dd className="font-medium text-slate-800">
+                <dt className="text-ink-muted">{f.label}</dt>
+                <dd className="font-medium text-ink">
                   {m.value}
                   {m.unit ? ` ${m.unit}` : ''}
                 </dd>

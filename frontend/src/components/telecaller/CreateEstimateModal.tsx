@@ -644,7 +644,7 @@ export function CreateEstimateModal({
               <span>COD balance</span>
               <strong>{formatInr(codAmount)}</strong>
             </div>
-            <p className="mt-2 text-xs text-slate-500">Quote valid for 48 hours.</p>
+            <p className="mt-2 text-xs text-ink-muted">Quote valid for 48 hours.</p>
           </div>
         </>
       ) : null}

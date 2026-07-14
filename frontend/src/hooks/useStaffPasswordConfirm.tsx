@@ -1,5 +1,6 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Field, Modal, inputClass } from '../components/Modal';
+import { Alert } from '../components/ui';
 
 type PendingAction = {
   title: string;
@@ -77,12 +78,8 @@ export function useStaffPasswordConfirm(canWrite: boolean) {
       saveLabel={pending.confirmLabel}
       saving={saving}
     >
-      <p className="mb-3 text-sm text-slate-600">{pending.description}</p>
-      {error ? (
-        <p className="mb-3 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <p className="mb-3 text-sm text-ink-secondary">{pending.description}</p>
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <Field label="Your password">
         <input
           type="password"

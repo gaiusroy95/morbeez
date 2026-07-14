@@ -3,6 +3,7 @@ import { conversationSessionService } from '../conversation-session.service.js';
 import {
   extractPriorProduct,
   extractSuggestedDiagnosis,
+  extractAllSuggestedDiagnoses,
   isFarmerDisagreementIntent,
   looksLikePriorExperience,
 } from '../../core/farmer-feedback-intent.service.js';
@@ -180,12 +181,8 @@ export const farmerFeedbackFlowService = {
   }): Promise<void> {
     const meta = await this.canStartDisagreement(params.farmerId);
     const mapped = params.initialText ? mapFarmerSuggestionInput(params.initialText) : undefined;
-    const initialDx =
-      typeof mapped === 'string'
-        ? mapped
-        : params.initialText
-          ? extractSuggestedDiagnosis(params.initialText)
-          : null;
+    const initialDiagnoses = params.initialText ? extractAllSuggestedDiagnoses(params.initialText) : [];
+    const initialDx = initialDiagnoses[0] ?? (typeof mapped === 'string' ? mapped : null);
     const priorProduct = params.initialText ? extractPriorProduct(params.initialText) : null;
 
     const fb = await farmerExperienceLearningService.createFromDisagreement({
@@ -197,6 +194,10 @@ export const farmerFeedbackFlowService = {
       initialFarmerDiagnosis: initialDx,
       initialText: params.initialText,
     });
+
+    if (params.initialText?.trim()) {
+      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(fb.id, params.initialText);
+    }
 
     let step: FarmerFeedbackCaptureStep = initialDx ? await nextStepAfterDiagnosis(params.farmerId, fb.id) : 'diagnosis';
     if (priorProduct) {
@@ -245,14 +246,8 @@ export const farmerFeedbackFlowService = {
         await params.send.text(params.phone, askOtherDiagnosis(params.lang));
         return true;
       }
-      // Prefer full farmer wording (multi-nutrient) so agronomist Validation can see it.
-      const dx =
-        extractSuggestedDiagnosis(text) ||
-        (typeof mapped === 'string' ? mapped : null) ||
-        text.slice(0, 500);
-      await farmerExperienceLearningService.updateCapture(feedbackId, {
-        farmer_suggested_diagnosis: dx,
-        farmer_prior_experience: text.length > 80 ? text.slice(0, 1000) : undefined,
+      await farmerExperienceLearningService.captureFarmerDiagnosesFromText(feedbackId, text, {
+        storeFullTextAsExperience: true,
       });
       const next = await nextStepAfterDiagnosis(params.farmerId, feedbackId);
       await conversationSessionService.patchContext(params.farmerId, {

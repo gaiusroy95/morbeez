@@ -21,6 +21,8 @@ import {
 } from '../components/telecaller/CropBlockFields';
 import { DynamicMasterPicker } from '../components/DynamicMasterPicker';
 import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner, StaticSelect } from '../components/ui';
+import { EmployeeKpiCard } from '../components/employees/employee-ui';
+import { StatIcon } from '../components/NavIcon';
 import { getRealtimeClient } from '../lib/realtime';
 import { formatPhoneDisplay, telHref, whatsAppPhone } from '@morbeez/shared';
 const STAGE_CLASS: Record<string, string> = {
@@ -373,7 +375,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
             </div>
           ) : null}
           {notifications.length === 0 && pendingEscalations === 0 ? (
-            <p className="muted">No new notifications.</p>
+            <p className="text-sm text-ink-muted">No new notifications.</p>
           ) : null}
           {notifications.map((n) => (
             <div key={n.id} className="tc-notification-item">
@@ -388,36 +390,36 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {overview && workspaceViewMode !== 'list' ? (
-        <div className="tc-kpi-grid">
-          <div className="tc-kpi-card">
-            <span className="tc-kpi-label">My leads</span>
-            <div className="tc-kpi-row">
-              <span className="tc-kpi-value">{overview.myLeadsCount}</span>
-            </div>
-          </div>
-          <div className="tc-kpi-card">
-            <span className="tc-kpi-label">Follow-ups</span>
-            <div className="tc-kpi-row">
-              <span className="tc-kpi-value">{overview.pendingFollowUps}</span>
-              {(overview.followUpsDueToday ?? 0) > 0 ? (
-                <span className="tc-kpi-sub text-amber-700">
-                  {overview.followUpsDueToday} due today
-                </span>
-              ) : null}
-            </div>
-          </div>
-          <div className="tc-kpi-card">
-            <span className="tc-kpi-label">Calls today</span>
-            <div className="tc-kpi-row">
-              <span className="tc-kpi-value">{overview.callsToday}</span>
-            </div>
-          </div>
-          <div className="tc-kpi-card">
-            <span className="tc-kpi-label">Interested</span>
-            <div className="tc-kpi-row">
-              <span className="tc-kpi-value">{overview.interestedFarmers}</span>
-            </div>
-          </div>
+        <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <EmployeeKpiCard
+            label="My leads"
+            value={overview.myLeadsCount}
+            icon={<StatIcon name="farmers" />}
+            iconTone="teal"
+          />
+          <EmployeeKpiCard
+            label="Follow-ups"
+            value={overview.pendingFollowUps}
+            sub={
+              (overview.followUpsDueToday ?? 0) > 0
+                ? `${overview.followUpsDueToday} due today`
+                : undefined
+            }
+            icon={<StatIcon name="tasks" />}
+            iconTone="orange"
+          />
+          <EmployeeKpiCard
+            label="Calls today"
+            value={overview.callsToday}
+            icon={<StatIcon name="cart" />}
+            iconTone="blue"
+          />
+          <EmployeeKpiCard
+            label="Interested"
+            value={overview.interestedFarmers}
+            icon={<StatIcon name="trend" />}
+            iconTone="green"
+          />
         </div>
       ) : null}
 
@@ -458,7 +460,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
           onSave={confirmDeleteLead}
           saveLabel="Delete"
         >
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-ink-secondary">
             Delete lead "{deleteLeadModal.farmerName}"? This will remove it from database.
           </p>
         </Modal>
@@ -504,7 +506,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                     showTasks ? (
                       <div className="tc-tasks-panel">
                         {tasks.length === 0 ? (
-                          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+                          <p className="text-ink-muted" style={{ margin: 0, fontSize: 13 }}>
                             No pending tasks
                           </p>
                         ) : (
@@ -516,13 +518,13 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                               <div>
                                 <strong>{t.title}</strong>
                                 {t.dueLabel ? (
-                                  <div className="muted">
+                                  <div className="text-ink-muted">
                                     {t.dueLabel}
                                     {t.isDueToday ? ' · Due today' : ''}
                                   </div>
                                 ) : null}
                                 {t.farmerName ? (
-                                  <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                                  <div className="text-ink-muted" style={{ fontSize: 12, marginTop: 2 }}>
                                     {t.farmerName}
                                   </div>
                                 ) : null}
@@ -734,9 +736,9 @@ function NewLeadModal({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <p className="text-xs font-semibold uppercase text-emerald-800">Lead setup progress</p>
-              <p className="text-xs text-slate-600">Complete core fields for cleaner handoff to telecaller workspace.</p>
+              <p className="text-xs text-ink-muted">Complete core fields for cleaner handoff to telecaller workspace.</p>
             </div>
-            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-emerald-700">
+            <span className="rounded-full bg-surface-elevated px-2 py-0.5 text-xs font-semibold text-emerald-700">
               {completionPct}%
             </span>
           </div>
@@ -745,8 +747,8 @@ function NewLeadModal({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 p-3">
-          <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Basic details</h4>
+        <section className="rounded-lg border border-border p-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Basic details</h4>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Mobile (10 digits)">
               <input className={inputClass} value={phone} onChange={(e) => setPhone(e.target.value)} required />
@@ -797,7 +799,7 @@ function NewLeadModal({
 
         <section className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3">
           <h4 className="mb-2 text-xs font-semibold uppercase text-indigo-800">Marketing attribution</h4>
-          <p className="mb-2 text-xs text-slate-600">
+          <p className="mb-2 text-xs text-ink-muted">
             Channel + campaign required for marketer scorecards. Telecaller manual leads default to field
             visits.
           </p>
@@ -849,8 +851,8 @@ function NewLeadModal({
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 p-3">
-          <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Farm & crops</h4>
+        <section className="rounded-lg border border-border p-3">
+          <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Farm & crops</h4>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Village">
               <input className={inputClass} value={village} onChange={(e) => setVillage(e.target.value)} />
@@ -860,13 +862,13 @@ function NewLeadModal({
             </Field>
           </div>
           <div className="mt-2">
-            <p className="mb-1 text-[11px] font-semibold uppercase text-slate-500">Quick crop block templates</p>
+            <p className="mb-1 text-[11px] font-semibold uppercase text-ink-muted">Quick crop block templates</p>
             <div className="flex flex-wrap gap-1.5">
               {CROP_PRESETS.filter((p) => p.key !== '__other__').map((preset) => (
                 <button
                   key={preset.key}
                   type="button"
-                  className="rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                  className="rounded-full border border-border bg-surface-elevated px-2 py-1 text-[11px] text-ink-secondary hover:bg-surface-subtle"
                   onClick={() => addPresetBlock(preset.key)}
                 >
                   + {preset.label}
@@ -882,8 +884,8 @@ function NewLeadModal({
           >
             + Add crop block
           </button>
-          <div className="mt-3 rounded border border-slate-100 bg-slate-50 p-2">
-            <p className="text-[11px] font-semibold uppercase text-slate-500">Field GPS (custom)</p>
+          <div className="mt-3 rounded border border-border/60 bg-surface-subtle p-2">
+            <p className="text-[11px] font-semibold uppercase text-ink-muted">Field GPS (custom)</p>
             <div className="mt-2 grid gap-2 md:grid-cols-3">
               <input
                 className={inputClass}
@@ -899,17 +901,17 @@ function NewLeadModal({
               />
               <button
                 type="button"
-                className="rounded border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                className="rounded border border-border bg-surface-elevated px-3 text-xs font-medium text-ink-secondary hover:bg-surface-subtle"
                 onClick={applyGpsToPrimaryBlock}
               >
                 Update GPS
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-ink-muted">
               Updates lat/lon for the first crop block. You can also edit GPS per block above.
             </p>
           </div>
-          <div className="mt-3 rounded border border-slate-100 bg-slate-50 p-2">
+          <div className="mt-3 rounded border border-border/60 bg-surface-subtle p-2">
             <DynamicMasterPicker
               masterType="market"
               label="Farmer preferred markets"
@@ -917,20 +919,20 @@ function NewLeadModal({
               value={preferredMarkets}
               onChange={setPreferredMarkets}
             />
-            <p className="mt-1 text-[11px] text-slate-500">
+            <p className="mt-1 text-[11px] text-ink-muted">
               Search, add, edit, or remove markets used for daily price broadcasts.
             </p>
           </div>
         </section>
 
-        <section className="rounded-lg border border-slate-200 p-3">
+        <section className="rounded-lg border border-border p-3">
           <button
             type="button"
             className="flex w-full items-center justify-between text-left"
             onClick={() => setShowOptional((v) => !v)}
           >
-            <h4 className="text-xs font-semibold uppercase text-slate-500">Shipping & optional</h4>
-            <span className="text-xs text-slate-500">{showOptional ? 'Hide' : 'Show'}</span>
+            <h4 className="text-xs font-semibold uppercase text-ink-muted">Shipping & optional</h4>
+            <span className="text-xs text-ink-muted">{showOptional ? 'Hide' : 'Show'}</span>
           </button>
           {showOptional ? (
             <div className="mt-2 grid gap-3 md:grid-cols-2">
@@ -957,7 +959,7 @@ function NewLeadModal({
               </Field>
             </div>
           ) : (
-            <p className="mt-2 text-xs text-slate-500">Optional settings are collapsed for faster lead creation.</p>
+            <p className="mt-2 text-xs text-ink-muted">Optional settings are collapsed for faster lead creation.</p>
           )}
         </section>
       </div>

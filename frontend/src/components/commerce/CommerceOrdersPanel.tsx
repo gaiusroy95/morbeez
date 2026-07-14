@@ -12,6 +12,7 @@ import {
   Loading,
   Panel,
   TableWrap,
+  HubTabs,
   inputClass,
   StaticSelect,
 } from '../ui';
@@ -295,21 +296,18 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
         </Btn>
       </div>
 
-      <div className="commerce-subtabs">
-        {STATUS_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={`commerce-subtab ${tab === t.id ? 'commerce-subtab--active' : ''}`}
-            onClick={() => {
-              setTab(t.id);
-              setPage(1);
-            }}
-          >
-            {t.label} ({tabCounts[t.id] ?? 0})
-          </button>
-        ))}
-      </div>
+      <HubTabs
+        tabs={STATUS_TABS.map((t) => ({
+          id: t.id,
+          label: `${t.label} (${tabCounts[t.id] ?? 0})`,
+        }))}
+        active={tab}
+        onChange={(next) => {
+          setTab(next);
+          setPage(1);
+        }}
+        className="mb-4"
+      />
 
       {loading ? <Loading /> : null}
 
@@ -352,7 +350,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                       <td>
                         {o.farmerName}
                         <br />
-                        <small className="muted">{o.phone ?? ''}</small>
+                        <small className="text-ink-muted">{o.phone ?? ''}</small>
                       </td>
                       <td>₹{o.amount.toLocaleString('en-IN')}</td>
                       <td>
@@ -362,12 +360,12 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                           o.status
                         )}
                         {o.source === 'quote' && o.quoteHoursLeft != null && o.quoteStatus !== 'paid' ? (
-                          <small className="muted block">{o.quoteHoursLeft}h left</small>
+                          <small className="block text-ink-muted">{o.quoteHoursLeft}h left</small>
                         ) : null}
                       </td>
                       <td>{o.paymentLabel}</td>
                       <td>
-                        <small className="muted">
+                        <small className="text-ink-muted">
                           {o.createdAt
                             ? new Date(o.createdAt).toLocaleDateString('en-IN')
                             : '—'}
@@ -391,7 +389,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                               {pushingWarehouseId === o.id ? 'Pushing…' : 'Push to WMS'}
                             </button>
                           ) : (
-                            <span className="muted">—</span>
+                            <span className="text-ink-muted">—</span>
                           )}
                         </td>
                       ) : null}
@@ -423,11 +421,11 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
             </DataTable>
           </TableWrap>
           {pages > 1 ? (
-            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-slate-100 px-4 py-3">
+            <div className="flex flex-wrap items-center justify-center gap-2 border-t border-border/60 px-4 py-3">
               <Btn variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
                 Previous
               </Btn>
-              <span className="text-sm text-slate-600">
+              <span className="text-sm text-ink-secondary">
                 Page {page} of {pages}
               </span>
               <Btn variant="secondary" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
@@ -461,7 +459,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                 <p>
                   <strong>{detail.statusLabel}</strong> · {detail.paymentStatus}
                 </p>
-                <p className="text-sm text-slate-600">{detail.orderDate}</p>
+                <p className="text-sm text-ink-secondary">{detail.orderDate}</p>
                 <ul className="order-timeline mt-4">
                   {detail.timeline.map((step) => (
                     <li
@@ -484,7 +482,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                           OMS status: <Badge tone="role">{detail.omsStatus}</Badge>
                         </p>
                       ) : (
-                        <p className="text-sm text-slate-600">Synced — awaiting confirmation in WMS.</p>
+                        <p className="text-sm text-ink-secondary">Synced — awaiting confirmation in WMS.</p>
                       )}
                       <p className="mt-2">
                         <WarehouseOrderLink
@@ -495,7 +493,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                     </>
                   ) : detail.isQuote && detail.quoteStatus === 'paid' && canWrite ? (
                     <>
-                      <p className="text-sm text-slate-600">
+                      <p className="text-sm text-ink-secondary">
                         This paid quote is not in the warehouse queue yet.
                       </p>
                       <Btn
@@ -520,7 +518,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                       </Btn>
                     </>
                   ) : (
-                    <p className="text-sm text-slate-600">Not synced to warehouse yet.</p>
+                    <p className="text-sm text-ink-secondary">Not synced to warehouse yet.</p>
                   )}
                 </div>
               ) : null}
@@ -545,7 +543,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
                     </a>
                   </p>
                 ) : null}
-                <p className="mt-2 text-sm text-slate-700">
+                <p className="mt-2 text-sm text-ink-secondary">
                   {detail.shipping.addressLines.map((line, i) => (
                     <span key={i}>
                       {line}
@@ -557,7 +555,7 @@ export function CommerceOrdersPanel({ canWrite }: Props) {
               {detail.isQuote && detail.quoteStatus !== 'paid' && canWrite ? (
                 <div className="order-detail-section">
                   <h4>Checkout</h4>
-                  <p className="text-sm text-slate-600">
+                  <p className="text-sm text-ink-secondary">
                     Process to checkout, then pay via Razorpay. On success the quote becomes a real order.
                   </p>
                   <Link

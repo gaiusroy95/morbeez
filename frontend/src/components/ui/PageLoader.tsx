@@ -23,8 +23,8 @@ export function PageLoader({ label = 'Loading…', className, compact }: Props) 
         <div className="absolute inset-0 animate-ping rounded-full bg-brand-400/25" />
         <div className="h-12 w-12 animate-spin rounded-full border-[3px] border-brand-100 border-t-brand-600" />
       </div>
-      <p className="mt-4 text-sm font-medium text-slate-700">{label}</p>
-      <p className="mt-1 max-w-xs text-xs text-slate-500">Please wait while we fetch the latest data</p>
+      <p className="mt-4 text-sm font-medium text-ink-secondary">{label}</p>
+      <p className="mt-1 max-w-xs text-xs text-ink-muted">Please wait while we fetch the latest data</p>
     </div>
   );
 }
@@ -42,7 +42,7 @@ export function PageShell({
 }) {
   if (loading) {
     return (
-      <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm">
+      <div className="rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)]">
         <PageLoader label={loadingLabel} />
       </div>
     );

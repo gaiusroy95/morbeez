@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { buildVisitWizardUrl } from '../../lib/visitNavigation';
-import { StaticSelect } from '../ui';
+import { Alert, StaticSelect } from '../ui';
 import type { FieldFindingListRow } from './FieldFindingDetailModal';
 import {
   FINDING_TYPE_LABELS,
@@ -308,7 +308,7 @@ export function FieldFindingsTab({
         </div>
       ) : null}
 
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
 
       <div className="tc-ff-table-wrap">
         {loading ? (
@@ -350,8 +350,8 @@ export function FieldFindingsTab({
                   >
                     <td className="tc-ff-date">{f.visitedLabel}</td>
                     <td>
-                      <strong className="block text-slate-900">{f.blockName}</strong>
-                      <span className="text-xs text-slate-500">{f.cropType}</span>
+                      <strong className="block text-ink">{f.blockName}</strong>
+                      <span className="text-xs text-ink-muted">{f.cropType}</span>
                     </td>
                     <td className="tc-ff-type">
                       {f.findingType ? (
@@ -374,7 +374,7 @@ export function FieldFindingsTab({
                         {f.finalConfirmedIssue ?? f.diseasePest}
                       </span>
                       {f.affectedAreaPct != null ? (
-                        <span className="block text-xs text-slate-500">{f.affectedAreaPct}% affected</span>
+                        <span className="block text-xs text-ink-muted">{f.affectedAreaPct}% affected</span>
                       ) : null}
                     </td>
                     <td>

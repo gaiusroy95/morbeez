@@ -177,7 +177,7 @@ export function AgronomistFarmerWorkspacePanel({
       <div className="agro-farmer-workspace-head">
         <div>
           <h2>{farmerName}</h2>
-          <p className="muted">
+          <p className="text-sm text-ink-muted">
             {[dashboard?.farmer?.district, dashboard?.activeCrops?.join(', ')].filter(Boolean).join(' · ')}
           </p>
         </div>
@@ -229,10 +229,10 @@ export function AgronomistFarmerWorkspacePanel({
               <li key={String(row.id ?? i)}>
                 {String(row.interactionType ?? row.type ?? 'Call')} —{' '}
                 {String(row.summary ?? row.notes ?? '—')}
-                <div className="muted">{String(row.createdAtLabel ?? row.created_at ?? '')}</div>
+                <div className="text-sm text-ink-muted">{String(row.createdAtLabel ?? row.created_at ?? '')}</div>
               </li>
             ))}
-            {!interactions.length ? <li className="muted">No recent calls logged.</li> : null}
+            {!interactions.length ? <li className="text-sm text-ink-muted">No recent calls logged.</li> : null}
           </ul>
         </div>
       ) : null}
@@ -279,7 +279,7 @@ export function AgronomistFarmerWorkspacePanel({
           onArchive={(id) => void archiveFinding(id)}
         />
       ) : tab === 'fieldFindings' ? (
-        <p className="muted">Link this farmer to a CRM lead to manage structured field findings.</p>
+        <p className="text-sm text-ink-muted">Link this farmer to a CRM lead to manage structured field findings.</p>
       ) : null}
 
       {tab === 'recommendations' ? (
@@ -289,7 +289,7 @@ export function AgronomistFarmerWorkspacePanel({
               <strong>{rec.issueDetected ?? 'Issue'}</strong> — {rec.recommendationText}
             </li>
           ))}
-          {!recommendations.length ? <li className="muted">No recommendations yet.</li> : null}
+          {!recommendations.length ? <li className="text-sm text-ink-muted">No recommendations yet.</li> : null}
         </ul>
       ) : null}
 
@@ -298,7 +298,7 @@ export function AgronomistFarmerWorkspacePanel({
           {followUps.map((t, i) => (
             <li key={String(t.id ?? i)}>{String(t.title ?? t.reason ?? 'Follow-up')}</li>
           ))}
-          {!followUps.length ? <li className="muted">No pending follow-ups.</li> : null}
+          {!followUps.length ? <li className="text-sm text-ink-muted">No pending follow-ups.</li> : null}
         </ul>
       ) : null}
 
@@ -311,10 +311,10 @@ export function AgronomistFarmerWorkspacePanel({
             {notes.map((n) => (
               <li key={n.id}>
                 {n.noteText}
-                <div className="muted">{new Date(n.createdAt).toLocaleString()}</div>
+                <div className="text-sm text-ink-muted">{new Date(n.createdAt).toLocaleString()}</div>
               </li>
             ))}
-            {!notes.length ? <li className="muted">No notes yet.</li> : null}
+            {!notes.length ? <li className="text-sm text-ink-muted">No notes yet.</li> : null}
           </ul>
         </div>
       ) : null}
@@ -326,7 +326,7 @@ export function AgronomistFarmerWorkspacePanel({
               {String(row.title ?? row.kind ?? 'Event')} — {String(row.atLabel ?? row.at ?? '')}
             </li>
           ))}
-          {!team.length ? <li className="muted">No team timeline entries.</li> : null}
+          {!team.length ? <li className="text-sm text-ink-muted">No team timeline entries.</li> : null}
         </ul>
       ) : null}
 
@@ -337,7 +337,7 @@ export function AgronomistFarmerWorkspacePanel({
               {String(o.orderNumber ?? o.id ?? 'Order')} — {String(o.status ?? '—')}
             </li>
           ))}
-          {!orders.length ? <li className="muted">No orders on record.</li> : null}
+          {!orders.length ? <li className="text-sm text-ink-muted">No orders on record.</li> : null}
         </ul>
       ) : null}
 

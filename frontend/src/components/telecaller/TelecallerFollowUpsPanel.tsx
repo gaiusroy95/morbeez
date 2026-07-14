@@ -45,7 +45,7 @@ function TaskSection({
           <li key={task.id} className="tc-followups-card">
             <button type="button" className="tc-followups-title" onClick={() => onOpen(task)}>
               <strong>{task.title}</strong>
-              {task.farmerName ? <span className="muted"> — {task.farmerName}</span> : null}
+              {task.farmerName ? <span className="text-ink-muted"> — {task.farmerName}</span> : null}
               {task.dueLabel ? <div className="tc-followups-due">{task.dueLabel}</div> : null}
             </button>
             {canWrite ? (
@@ -111,7 +111,7 @@ export function TelecallerFollowUpsPanel({ canWrite, onOpenLead }: Props) {
     <div className="tc-followups-panel">
       {error ? <Alert>{error}</Alert> : null}
       <div className="tc-followups-head">
-        <p className="muted">{total} follow-up items</p>
+        <p className="text-ink-muted">{total} follow-up items</p>
         <Btn label="Refresh" variant="secondary" size="sm" onClick={() => void load()} />
       </div>
       <TaskSection title="Today" tasks={sections.today} canWrite={canWrite} onComplete={(id) => void completeTask(id)} onSnooze={(id) => void snoozeTask(id)} onOpen={openTask} />
@@ -121,7 +121,7 @@ export function TelecallerFollowUpsPanel({ canWrite, onOpenLead }: Props) {
       <TaskSection title="Visit follow-ups" tasks={sections.visitFollowUps} canWrite={canWrite} onComplete={(id) => void completeTask(id)} onSnooze={(id) => void snoozeTask(id)} onOpen={openTask} />
       <TaskSection title="Order follow-ups" tasks={sections.orderFollowUps} canWrite={canWrite} onComplete={(id) => void completeTask(id)} onSnooze={(id) => void snoozeTask(id)} onOpen={openTask} />
       <TaskSection title="General" tasks={sections.general} canWrite={canWrite} onComplete={(id) => void completeTask(id)} onSnooze={(id) => void snoozeTask(id)} onOpen={openTask} />
-      {!total ? <p className="muted">No follow-ups in queue.</p> : null}
+      {!total ? <p className="text-ink-muted">No follow-ups in queue.</p> : null}
     </div>
   );
 }

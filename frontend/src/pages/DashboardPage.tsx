@@ -9,13 +9,14 @@ import {
   Filler,
   Tooltip,
 } from 'chart.js';
-import { PageShell, StaticSelect } from '../components/ui';
+import { Alert, PageShell, Panel, StaticSelect } from '../components/ui';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { canManageStaff } from '../lib/role-home';
 import { formatInr, formatInrFull, formatTrend } from '../lib/format';
 import { StatIcon } from '../components/NavIcon';
 import { SuperAdminMonitorDashboard } from '../components/dashboard/SuperAdminMonitorDashboard';
+import { cn } from '../lib/cn';
 
 Chart.register(
   LineController,
@@ -53,54 +54,78 @@ type Dashboard = {
   topProducts: Array<{ title: string; revenue: number; imageUrl?: string | null }>;
 };
 
-function StatCard({
+const KPI_ICON_TONES = {
+  green: 'bg-brand-50 text-brand-600',
+  blue: 'bg-sky-50 text-sky-600',
+  teal: 'bg-teal-50 text-teal-600',
+  purple: 'bg-violet-50 text-violet-600',
+  orange: 'bg-amber-50 text-amber-600',
+} as const;
+
+function DashboardKpiCard({
   label,
   value,
   trendPct,
   compare,
   icon,
-  iconClass,
+  iconTone,
 }: {
   label: string;
   value: string;
   trendPct: number;
   compare: string;
   icon: string;
-  iconClass: string;
+  iconTone: keyof typeof KPI_ICON_TONES;
 }) {
-  const t = formatTrend(trendPct);
+  const trend = formatTrend(trendPct);
   return (
-    <article className="stat-card">
-      <div className="stat-card-head">
-        <span className="stat-label">{label}</span>
-        <span className={`stat-icon ${iconClass}`}>
+    <article className="rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated p-4 shadow-[var(--shadow-card)] sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+        <span
+          className={cn(
+            'flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)]',
+            KPI_ICON_TONES[iconTone]
+          )}
+        >
           <StatIcon name={icon} />
         </span>
       </div>
-      <div className="stat-value">{value}</div>
-      <div className={`stat-trend ${t.up ? 'trend-up' : 'trend-down'}`}>
-        <span className="trend-pct">{t.text}</span>
-        <span className="trend-vs">vs {compare}</span>
-      </div>
+      <p className="mt-2 text-2xl font-bold tracking-tight text-ink">{value}</p>
+      <p className="mt-1.5 text-xs">
+        <span className={cn('font-semibold', trend.up ? 'text-emerald-600' : 'text-red-600')}>
+          {trend.text}
+        </span>
+        <span className="text-ink-muted"> vs {compare}</span>
+      </p>
     </article>
   );
 }
 
-function AlertCard({
+const ALERT_TONES = {
+  warn: 'text-amber-600',
+  danger: 'text-red-600',
+  neutral: 'text-ink-secondary',
+  success: 'text-emerald-600',
+} as const;
+
+function InventoryAlertTile({
   label,
   count,
   tone,
+  unit,
 }: {
   label: string;
   count: number;
-  tone: string;
+  tone: keyof typeof ALERT_TONES;
+  unit: string;
 }) {
   return (
-    <div className="alert-card">
-      <span className="alert-card-label">{label}</span>
-      <span className={`alert-card-value alert-${tone}`}>{count}</span>
-      <span className="alert-card-unit">{label.includes('Order') ? 'Orders' : 'Products'}</span>
-    </div>
+    <article className="rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated p-5 shadow-[var(--shadow-card)] transition hover:border-brand-400/50">
+      <p className="text-sm font-semibold text-ink-muted">{label}</p>
+      <p className={cn('mt-2 text-3xl font-extrabold tracking-tight', ALERT_TONES[tone])}>{count}</p>
+      <p className="mt-1 text-xs text-ink-muted">{unit}</p>
+    </article>
   );
 }
 
@@ -138,14 +163,14 @@ export function DashboardPage() {
           {
             label: 'Sales (₹)',
             data: chartData.values,
-            borderColor: '#34b35e',
-            backgroundColor: 'rgba(52, 179, 94, 0.08)',
+            borderColor: '#3aad62',
+            backgroundColor: 'rgba(58, 173, 98, 0.08)',
             borderWidth: 2.5,
             fill: true,
             tension: 0.35,
             pointRadius: 4,
-            pointBackgroundColor: '#34b35e',
-            pointBorderColor: '#fff',
+            pointBackgroundColor: '#3aad62',
+            pointBorderColor: '#ffffff',
             pointBorderWidth: 2,
             pointHoverRadius: 6,
           },
@@ -165,17 +190,17 @@ export function DashboardPage() {
         scales: {
           x: {
             grid: { display: false },
-            ticks: { color: '#94a3a8', font: { size: 11 } },
+            ticks: { color: '#667a70', font: { size: 11 } },
           },
           y: {
             beginAtZero: true,
             suggestedMax: max * 1.1,
             ticks: {
-              color: '#94a3a8',
+              color: '#667a70',
               font: { size: 11 },
               callback: (v) => (Number(v) >= 1000 ? Number(v) / 1000 + 'K' : String(v)),
             },
-            grid: { color: '#eef2ef' },
+            grid: { color: '#eaefeb' },
           },
         },
       },
@@ -196,7 +221,7 @@ export function DashboardPage() {
   }
 
   if (error) {
-    return <div className="alert alert-error">{error}</div>;
+    return <Alert tone="error">{error}</Alert>;
   }
 
   if (!data) return null;
@@ -206,64 +231,64 @@ export function DashboardPage() {
   const compare = k.compareLabel ?? 'previous period';
 
   return (
-    <>
-      <div className="stat-grid">
-        <StatCard
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <DashboardKpiCard
           label="Total Sales"
           value={formatInrFull(k.revenueInr)}
           trendPct={k.revenueTrend}
           compare={compare}
           icon="sales"
-          iconClass="stat-icon-green"
+          iconTone="green"
         />
-        <StatCard
+        <DashboardKpiCard
           label="Orders"
           value={Number(k.orders).toLocaleString('en-IN')}
           trendPct={k.ordersTrend}
           compare={compare}
           icon="cart"
-          iconClass="stat-icon-blue"
+          iconTone="blue"
         />
-        <StatCard
+        <DashboardKpiCard
           label="Farmers"
           value={Number(k.farmers).toLocaleString('en-IN')}
           trendPct={k.farmersTrend}
           compare={compare}
           icon="farmers"
-          iconClass="stat-icon-teal"
+          iconTone="teal"
         />
-        <StatCard
+        <DashboardKpiCard
           label="Conversion Rate"
           value={`${k.conversionRate}%`}
           trendPct={k.conversionTrend}
           compare={compare}
           icon="trend"
-          iconClass="stat-icon-purple"
+          iconTone="purple"
         />
-        <StatCard
+        <DashboardKpiCard
           label="AI Diagnoses"
           value={Number(k.aiDiagnoses).toLocaleString('en-IN')}
           trendPct={k.aiTrend}
           compare={compare}
           icon="ai"
-          iconClass="stat-icon-orange"
+          iconTone="orange"
         />
-        <StatCard
+        <DashboardKpiCard
           label="Avg. Order Value"
           value={formatInr(k.avgOrderValue)}
           trendPct={k.avgOrderTrend}
           compare={compare}
           icon="sales"
-          iconClass="stat-icon-green"
+          iconTone="green"
         />
       </div>
 
-      <div className="dash-main-grid">
-        <section className="card card-chart">
-          <div className="card-head">
-            <h3>Sales Overview</h3>
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.65fr_1fr]">
+        <Panel
+          title="Sales Overview"
+          actions={
             <StaticSelect
-              className="card-select"
+              className="h-9 min-w-[9rem] text-sm"
               value="week"
               onChange={() => {}}
               options={[
@@ -271,47 +296,58 @@ export function DashboardPage() {
                 { value: 'month', label: 'This Month' },
               ]}
             />
+          }
+          bodyClassName="pt-2"
+        >
+          <div className="h-[280px] w-full">
+            <canvas ref={canvasRef} className="h-full w-full" />
           </div>
-          <div className="chart-wrap">
-            <canvas ref={canvasRef} height={280} />
-          </div>
-        </section>
+        </Panel>
 
-        <section className="card card-top-products">
-          <div className="card-head">
-            <h3>Top Products</h3>
-          </div>
-          <div className="top-products-list">
+        <Panel title="Top Products" bodyClassName="p-0 sm:p-0">
+          <div className="divide-y divide-border/60">
             {!data.topProducts?.length ? (
-              <div className="top-product-empty muted">
+              <p className="px-4 py-10 text-center text-sm text-ink-muted sm:px-5">
                 No sales data yet — orders will appear here.
-              </div>
+              </p>
             ) : (
               data.topProducts.map((p, i) => (
-                <div className="top-product-row" key={`${p.title}-${i}`}>
-                  <span className="top-product-rank">{i + 1}</span>
+                <div
+                  key={`${p.title}-${i}`}
+                  className="flex items-center gap-3 px-4 py-3 sm:px-5"
+                >
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-subtle text-xs font-bold text-ink-muted">
+                    {i + 1}
+                  </span>
                   {p.imageUrl ? (
-                    <img className="top-product-img" src={p.imageUrl} alt="" loading="lazy" />
+                    <img
+                      className="h-10 w-10 shrink-0 rounded-[var(--radius-control)] border border-border/60 object-cover"
+                      src={p.imageUrl}
+                      alt=""
+                      loading="lazy"
+                    />
                   ) : (
-                    <span className="top-product-img top-product-img--ph" />
+                    <span className="h-10 w-10 shrink-0 rounded-[var(--radius-control)] border border-border/60 bg-surface-subtle" />
                   )}
-                  <div className="top-product-info">
-                    <span className="top-product-name">{p.title}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{p.title}</p>
                   </div>
-                  <span className="top-product-sales">{formatInrFull(p.revenue)}</span>
+                  <span className="shrink-0 text-sm font-semibold text-brand-700">
+                    {formatInrFull(p.revenue)}
+                  </span>
                 </div>
               ))
             )}
           </div>
-        </section>
+        </Panel>
       </div>
 
-      <div className="alert-grid">
-        <AlertCard label="Low Stock Alerts" count={a.lowStock} tone="warn" />
-        <AlertCard label="Out of Stock" count={a.outOfStock} tone="danger" />
-        <AlertCard label="Expiring Soon" count={a.expiringSoon} tone="neutral" />
-        <AlertCard label="Pending Orders" count={a.pendingOrders} tone="success" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <InventoryAlertTile label="Low Stock Alerts" count={a.lowStock} tone="warn" unit="Products" />
+        <InventoryAlertTile label="Out of Stock" count={a.outOfStock} tone="danger" unit="Products" />
+        <InventoryAlertTile label="Expiring Soon" count={a.expiringSoon} tone="neutral" unit="Products" />
+        <InventoryAlertTile label="Pending Orders" count={a.pendingOrders} tone="success" unit="Orders" />
       </div>
-    </>
+    </div>
   );
 }

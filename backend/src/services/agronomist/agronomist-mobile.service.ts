@@ -16,6 +16,7 @@ import {
   urlFromWhatsAppPayload,
 } from '../core/advisory-image-storage.service.js';
 import { normalizeSoilMetrics, SOIL_MACRO_FIELDS } from '../soil/soil-lab-metrics.js';
+import { getFarmerSuggestedDiagnosesFromStored } from '../../domain/learning/farmer-nutrient-suggestions.js';
 
 function soilMetricCells(metrics: ReturnType<typeof normalizeSoilMetrics>) {
   return SOIL_MACRO_FIELDS.slice(0, 6)
@@ -207,6 +208,7 @@ async function loadAiSessionVisitImages(
 type FarmerFeedbackVisitPack = {
   farmerFeedbackId: string | null;
   farmerSuggestedDiagnosis: string | null;
+  farmerSuggestedDiagnoses: string[];
   farmerPriorExperience: string | null;
   farmerPriorProduct: string | null;
   farmerPriorOutcome: string | null;
@@ -220,59 +222,32 @@ async function loadFarmerFeedbackForVisit(params: {
   const empty: FarmerFeedbackVisitPack = {
     farmerFeedbackId: null,
     farmerSuggestedDiagnosis: null,
+    farmerSuggestedDiagnoses: [],
     farmerPriorExperience: null,
     farmerPriorProduct: null,
     farmerPriorOutcome: null,
   };
 
   const select =
-    'id, farmer_suggested_diagnosis, farmer_prior_experience, farmer_prior_product, farmer_prior_outcome, session_id, escalation_id, created_at, status';
+    'id, farmer_suggested_diagnosis, farmer_prior_experience, farmer_prior_product, farmer_prior_outcome, session_id, escalation_id, created_at, status, metadata';
 
   const mapRow = (fb: Record<string, unknown> | null | undefined): FarmerFeedbackVisitPack => {
     if (!fb) return empty;
-    const suggested = fb.farmer_suggested_diagnosis
-      ? String(fb.farmer_suggested_diagnosis).trim()
-      : '';
     const experience = fb.farmer_prior_experience
       ? String(fb.farmer_prior_experience).trim()
       : '';
-    // Rebuild multi-nutrient summary from all farmer free text (covers truncated/single-nutrient captures).
-    const combinedSource = [suggested, experience].filter(Boolean).join('\n');
-    let diagnosis = suggested;
-    try {
-      // Dynamic import avoided — inline nutrient detect for robustness on old rows.
-      const nutrientHits: string[] = [];
-      const checks: Array<[RegExp, string]> = [
-        [/\b(?:iron|ferrous|ferric|fe(?:\s*edta)?)\b/i, 'Iron (Fe)'],
-        [/\b(?:zinc|zn(?:\s*edta)?|edta\s*zinc)\b/i, 'Zinc (Zn)'],
-        [/\b(?:magnesium|magnesium\s*sul)/i, 'Magnesium (Mg)'],
-        [/\b(?:nitrogen|ammonium\s*sul)/i, 'Nitrogen (N)'],
-        [/\b(?:calcium|edta\s*calcium)\b/i, 'Calcium (Ca)'],
-      ];
-      for (const [re, label] of checks) {
-        if (re.test(combinedSource) && !nutrientHits.includes(label)) nutrientHits.push(label);
-      }
-      if (nutrientHits.length >= 2) {
-        const core = nutrientHits.filter((l) => !l.startsWith('Calcium'));
-        const hasCa = nutrientHits.some((l) => l.startsWith('Calcium'));
-        diagnosis = [
-          core.length ? `${core.join(', ')} deficiency` : null,
-          hasCa ? (core.length ? 'calcium supply needed' : 'Calcium (Ca) deficiency') : null,
-        ]
-          .filter(Boolean)
-          .join('; ');
-        if (suggested.length > diagnosis.length + 10) {
-          diagnosis = `${diagnosis} — ${suggested}`.slice(0, 500);
-        }
-      } else if (!diagnosis && experience && /deficien|ferrous|zinc|magnesium|nitrogen|calcium/i.test(experience)) {
-        diagnosis = experience.slice(0, 500);
-      }
-    } catch {
-      /* keep suggested */
-    }
+    const diagnoses = getFarmerSuggestedDiagnosesFromStored({
+      farmer_suggested_diagnosis: fb.farmer_suggested_diagnosis
+        ? String(fb.farmer_suggested_diagnosis)
+        : null,
+      farmer_prior_experience: experience || null,
+      metadata: (fb.metadata as Record<string, unknown>) ?? null,
+    });
+    const primary = diagnoses[0] ?? (fb.farmer_suggested_diagnosis ? String(fb.farmer_suggested_diagnosis) : null);
     return {
       farmerFeedbackId: fb.id ? String(fb.id) : null,
-      farmerSuggestedDiagnosis: diagnosis || null,
+      farmerSuggestedDiagnosis: primary,
+      farmerSuggestedDiagnoses: diagnoses,
       farmerPriorExperience: experience || null,
       farmerPriorProduct: fb.farmer_prior_product ? String(fb.farmer_prior_product) : null,
       farmerPriorOutcome: fb.farmer_prior_outcome ? String(fb.farmer_prior_outcome) : null,
@@ -1558,6 +1533,7 @@ export const agronomistMobileService = {
       aiConfidence,
       farmerFeedbackId: farmerFeedback.farmerFeedbackId,
       farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+      farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
       farmerPriorExperience: farmerFeedback.farmerPriorExperience,
       farmerPriorProduct: farmerFeedback.farmerPriorProduct,
       farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
@@ -1652,6 +1628,7 @@ export const agronomistMobileService = {
       aiConfidence,
       farmerFeedbackId: farmerFeedback.farmerFeedbackId,
       farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+      farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
       farmerPriorExperience: farmerFeedback.farmerPriorExperience,
       farmerPriorProduct: farmerFeedback.farmerPriorProduct,
       farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,

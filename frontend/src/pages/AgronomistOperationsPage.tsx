@@ -193,7 +193,7 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
                     </button>
                   </li>
                 ))}
-                {visits.length === 0 ? <li className="muted">No scheduled visits.</li> : null}
+                {visits.length === 0 ? <li className="text-sm text-ink-muted">No scheduled visits.</li> : null}
               </ul>
             </section>
             <section className="agro-ops-panel">
@@ -207,7 +207,7 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
                     </button>
                   </li>
                 ))}
-                {openTasks.length === 0 ? <li className="muted">No open tasks.</li> : null}
+                {openTasks.length === 0 ? <li className="text-sm text-ink-muted">No open tasks.</li> : null}
               </ul>
             </section>
           </div>
@@ -240,7 +240,7 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
               ))}
             </tbody>
           </table>
-          {tasks.length === 0 ? <p className="muted p-4">No tasks assigned to you.</p> : null}
+          {tasks.length === 0 ? <p className="text-sm text-ink-muted p-4">No tasks assigned to you.</p> : null}
         </div>
       ) : null}
 
@@ -290,7 +290,7 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
               ))}
             </tbody>
           </table>
-          {visits.length === 0 ? <p className="muted p-4">No scheduled field visits.</p> : null}
+          {visits.length === 0 ? <p className="text-sm text-ink-muted p-4">No scheduled field visits.</p> : null}
         </div>
       ) : null}
 
@@ -352,7 +352,7 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
                 ))}
               </tbody>
             </table>
-            {farmers.length === 0 ? <p className="muted p-4">No assigned farmers yet.</p> : null}
+            {farmers.length === 0 ? <p className="text-sm text-ink-muted p-4">No assigned farmers yet.</p> : null}
           </div>
         )
       ) : null}

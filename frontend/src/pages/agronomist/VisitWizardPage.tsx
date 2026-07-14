@@ -514,7 +514,7 @@ export function VisitWizardPage({ canWrite }: Props) {
       {triage ? (
         <div className="vw-triage-badge" style={{ marginBottom: 12 }}>
           <span className="priority-badge">Triage {triage.level}</span>
-          <span className="muted" style={{ marginLeft: 8 }}>
+          <span className="text-sm text-ink-muted" style={{ marginLeft: 8 }}>
             {triage.route} · {triage.reason}
           </span>
         </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { Btn } from '../ui';
+import { Alert, Btn, Loading, Panel } from '../ui';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
@@ -135,17 +135,17 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  if (loading) return <p className="text-sm text-slate-500">Loading farmer feedback…</p>;
+  if (loading) return <Loading label="Loading farmer feedback…" />;
 
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-2">
-      {error ? <p className="col-span-2 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="col-span-2">{error}</Alert> : null}
       <div className="space-y-2">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Farmers who disagreed with AI — validate before learning is stored.
         </p>
         {items.length === 0 ? (
-          <p className="text-sm text-slate-500">No pending farmer feedback.</p>
+          <p className="text-sm text-ink-muted">No pending farmer feedback.</p>
         ) : null}
         {items.map((item) => (
           <button
@@ -155,35 +155,39 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
             className={`w-full rounded-xl border p-3 text-left text-sm ${
               selectedId === item.id
                 ? 'border-amber-400 bg-amber-50'
-                : 'border-slate-200 bg-white hover:border-slate-300'
+                : 'border-border bg-surface-elevated hover:border-border-strong'
             }`}
           >
-            <p className="font-medium text-slate-900">
+            <p className="font-medium text-ink">
               {item.farmer?.name ?? item.farmer?.phone ?? 'Farmer'}
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               {item.session?.crop_type ?? 'crop'} · AI: {item.ai_probable_issue ?? '—'} → Farmer:{' '}
               {item.farmer_suggested_diagnosis ?? '—'}
             </p>
             {item.crop_experience_years != null ? (
-              <p className="text-xs text-slate-600">{item.crop_experience_years} yrs experience</p>
+              <p className="text-xs text-ink-secondary">{item.crop_experience_years} yrs experience</p>
             ) : null}
             {item.farmer_prior_product ? (
-              <p className="mt-1 text-xs text-emerald-800">Prior: {item.farmer_prior_product}</p>
+              <p className="mt-1 text-xs text-brand-800">Prior: {item.farmer_prior_product}</p>
             ) : null}
           </button>
         ))}
       </div>
 
-      <div className="max-h-[80vh] overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <Panel
+        title="Review detail"
+        className="max-h-[80vh] lg:sticky lg:top-4"
+        bodyClassName="max-h-[calc(80vh-3.5rem)] overflow-y-auto"
+      >
         {!detail ? (
-          <p className="text-sm text-slate-500">Select feedback to review.</p>
+          <p className="text-sm text-ink-muted">Select feedback to review.</p>
         ) : (
           <>
-            <h2 className="font-medium text-slate-900">Farmer experience review</h2>
+            <h2 className="sr-only">Farmer experience review</h2>
 
             {detail.experienceStats ? (
-              <div className="mt-3 rounded-lg bg-slate-50 p-2 text-xs text-slate-700">
+              <div className="mt-3 rounded-lg bg-surface-subtle p-2 text-xs text-ink-secondary">
                 <strong>Farmer trust score:</strong> {Math.round(detail.experienceStats.trustScore * 100)}%
                 {' · '}
                 Approved corrections: {detail.experienceStats.approvedFeedbackCount}
@@ -195,28 +199,45 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
 
             <dl className="mt-3 space-y-2 text-sm">
               <div>
-                <dt className="text-slate-500">AI prediction</dt>
+                <dt className="text-ink-muted">AI prediction</dt>
                 <dd className="font-medium">{detail.feedback.ai_probable_issue ?? '—'}</dd>
               </div>
               <div>
-                <dt className="text-slate-500">Farmer suggests</dt>
-                <dd className="font-medium">{detail.feedback.farmer_suggested_diagnosis ?? '—'}</dd>
+                <dt className="text-ink-muted">Farmer suggests</dt>
+                <dd className="font-medium">
+                  {Array.isArray(
+                    (detail.feedback.metadata as { farmer_suggested_diagnoses?: string[] })
+                      ?.farmer_suggested_diagnoses
+                  ) &&
+                  (detail.feedback.metadata as { farmer_suggested_diagnoses: string[] })
+                    .farmer_suggested_diagnoses.length > 1 ? (
+                    <ul className="mt-1 list-inside list-disc space-y-1">
+                      {(
+                        detail.feedback.metadata as { farmer_suggested_diagnoses: string[] }
+                      ).farmer_suggested_diagnoses.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    (detail.feedback.farmer_suggested_diagnosis ?? '—')
+                  )}
+                </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Prior experience</dt>
+                <dt className="text-ink-muted">Prior experience</dt>
                 <dd className="whitespace-pre-wrap">
                   {detail.feedback.farmer_prior_experience ?? '—'}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Prior product / outcome</dt>
+                <dt className="text-ink-muted">Prior product / outcome</dt>
                 <dd>
                   {detail.feedback.farmer_prior_product ?? '—'} /{' '}
                   {detail.feedback.farmer_prior_outcome ?? '—'}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500">Crop experience (years)</dt>
+                <dt className="text-ink-muted">Crop experience (years)</dt>
                 <dd>
                   {detail.feedback.crop_experience_years ??
                     detail.farmerProfile?.cropExperienceYears ??
@@ -225,7 +246,7 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
               </div>
               {detail.block ? (
                 <div>
-                  <dt className="text-slate-500">Block · crop · DAP</dt>
+                  <dt className="text-ink-muted">Block · crop · DAP</dt>
                   <dd>
                     {detail.block.name} · {detail.block.crop_type} · {detail.block.dap ?? '—'} days
                   </dd>
@@ -233,23 +254,23 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
               ) : null}
               {detail.session?.symptomsText ? (
                 <div>
-                  <dt className="text-slate-500">Symptoms (session)</dt>
+                  <dt className="text-ink-muted">Symptoms (session)</dt>
                   <dd>{detail.session.symptomsText}</dd>
                 </div>
               ) : null}
             </dl>
 
             {detail.aiOutput?.summaryEn ? (
-              <div className="mt-3 rounded border border-slate-100 bg-slate-50 p-2 text-xs">
-                <p className="font-medium text-slate-700">AI summary</p>
-                <p className="mt-1 whitespace-pre-wrap text-slate-600">{detail.aiOutput.summaryEn}</p>
+              <div className="mt-3 rounded border border-border bg-surface-subtle p-2 text-xs">
+                <p className="font-medium text-ink-secondary">AI summary</p>
+                <p className="mt-1 whitespace-pre-wrap text-ink-secondary">{detail.aiOutput.summaryEn}</p>
               </div>
             ) : null}
 
             {detail.sessionImages.length > 0 ? (
               <div className="mt-3">
-                <p className="text-xs font-medium text-slate-700">Related images (WhatsApp)</p>
-                <ul className="mt-1 space-y-1 text-xs text-slate-600">
+                <p className="text-xs font-medium text-ink-secondary">Related images (WhatsApp)</p>
+                <ul className="mt-1 space-y-1 text-xs text-ink-secondary">
                   {detail.sessionImages.map((img) => (
                     <li key={img.id}>
                       {new Date(img.at).toLocaleString()} — {img.messageType}
@@ -259,7 +280,7 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                 </ul>
                 {detail.session?.imageUrl ? (
                   <a
-                    className="mt-2 inline-block text-xs text-emerald-700 hover:underline"
+                    className="mt-2 inline-block text-xs text-brand-700 hover:underline"
                     href={detail.session.imageUrl}
                     target="_blank"
                     rel="noreferrer"
@@ -279,8 +300,8 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
 
             {detail.similarApproved.length > 0 ? (
               <div className="mt-3">
-                <p className="text-xs font-medium text-slate-700">Similar verified cases</p>
-                <ul className="mt-1 list-inside list-disc text-xs text-slate-600">
+                <p className="text-xs font-medium text-ink-secondary">Similar verified cases</p>
+                <ul className="mt-1 list-inside list-disc text-xs text-ink-secondary">
                   {detail.similarApproved.map((s) => (
                     <li key={String(s.id)}>
                       {String(s.farmer_suggested_diagnosis ?? '—')} —{' '}
@@ -292,9 +313,9 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
             ) : null}
 
             {canWrite ? (
-              <div className="mt-4 space-y-3 border-t border-slate-100 pt-3">
+              <div className="mt-4 space-y-3 border-t border-border pt-3">
                 <div>
-                  <span className="text-sm text-slate-600">Farmer suggestion chips</span>
+                  <span className="text-sm text-ink-secondary">Farmer suggestion chips</span>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {[
                       'Iron (Fe) deficiency',
@@ -307,8 +328,8 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                         type="button"
                         className={`rounded-full border px-3 py-1 text-xs font-medium ${
                           finalDx === label
-                            ? 'border-emerald-700 bg-emerald-50 text-emerald-900'
-                            : 'border-slate-200 bg-white text-slate-700'
+                            ? 'border-brand-700 bg-brand-50 text-brand-900'
+                            : 'border-border bg-surface-elevated text-ink-secondary'
                         }`}
                         onClick={() => setFinalDx(label)}
                       >
@@ -329,17 +350,17 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                   </div>
                 </div>
                 <label className="block text-sm">
-                  <span className="text-slate-600">Final diagnosis (agronomist)</span>
+                  <span className="text-ink-secondary">Final diagnosis (agronomist)</span>
                   <input
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                     value={finalDx}
                     onChange={(e) => setFinalDx(e.target.value)}
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-slate-600">Updated recommendation (optional)</span>
+                  <span className="text-ink-secondary">Updated recommendation (optional)</span>
                   <textarea
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                     rows={3}
                     value={updatedRec}
                     onChange={(e) => setUpdatedRec(e.target.value)}
@@ -347,9 +368,9 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                   />
                 </label>
                 <label className="block text-sm">
-                  <span className="text-slate-600">Notes</span>
+                  <span className="text-ink-secondary">Notes</span>
                   <textarea
-                    className="mt-1 w-full rounded border border-slate-200 px-2 py-1.5 text-sm"
+                    className="mt-1 w-full rounded border border-border px-2 py-1.5 text-sm"
                     rows={2}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
@@ -380,7 +401,7 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
             ) : null}
           </>
         )}
-      </div>
+      </Panel>
     </div>
   );
 }

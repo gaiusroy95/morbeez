@@ -2,7 +2,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { t, tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle, MorbeezLogo, NetworkProvider } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MOBILE_STACK_HEADER_OPTIONS, MorbeezLogo, NetworkProvider } from '@morbeez/ui-native';
 import { FarmerAuthProvider, useFarmerAuth } from '@/context/FarmerAuthContext';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { OfflineProvider } from '@/context/OfflineContext';
@@ -40,8 +40,7 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 
 const header = {
   headerShown: true as const,
-  headerStyle: { backgroundColor: tokens.green800 },
-  headerTintColor: '#fff' as const,
+  ...MOBILE_STACK_HEADER_OPTIONS,
 };
 
 function AppStack() {

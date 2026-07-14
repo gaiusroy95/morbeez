@@ -268,7 +268,7 @@ function PickConfirmModal({
           </div>
           <div>
             <strong>{lookup.productTitle}</strong>
-            {lookup.sku ? <p className="muted">SKU: {lookup.sku}</p> : null}
+            {lookup.sku ? <p className="text-sm text-ink-muted">SKU: {lookup.sku}</p> : null}
             {rack ? <p className="pp-modal-rack">Rack {rack}</p> : null}
           </div>
         </div>
@@ -1014,7 +1014,7 @@ export function WarehouseFulfillmentPanel({
                     {assignedName ? <strong>{assignedName}&apos;s</strong> : 'your'} tray and scan the QR.
                   </p>
                   {detail?.shippingLabel ? (
-                    <p className="muted mono">Expected: {selectedQueue?.orderName ?? order.order_name}</p>
+                    <p className="text-sm text-ink-muted mono">Expected: {selectedQueue?.orderName ?? order.order_name}</p>
                   ) : null}
                   {canWrite ? (
                     <BarcodeScanInput
@@ -1198,7 +1198,7 @@ export function WarehouseFulfillmentPanel({
                 <section className="pp-sidebar-section">
                   <div className="pp-sidebar-head">
                     <h4>Rack progress</h4>
-                    <span className="muted">
+                    <span className="text-sm text-ink-muted">
                       {activeRackIndex >= 0 ? activeRackIndex + 1 : workflow.racks.length} of {workflow.racks.length} racks
                     </span>
                   </div>
@@ -1267,7 +1267,7 @@ export function WarehouseFulfillmentPanel({
                       <dt>Suggested box</dt>
                       <dd>
                         <strong>{packageInfo.suggestedBoxCode}</strong>
-                        <span className="muted"> {packageInfo.suggestedBoxName}</span>
+                        <span className="text-sm text-ink-muted"> {packageInfo.suggestedBoxName}</span>
                       </dd>
                     </div>
                     <div>
@@ -1310,7 +1310,7 @@ export function WarehouseFulfillmentPanel({
                         >
                           {packageInfo.status.replace(/_/g, ' ')}
                         </span>
-                        {packageInfo.overridden ? <span className="muted"> · overridden</span> : null}
+                        {packageInfo.overridden ? <span className="text-sm text-ink-muted"> · overridden</span> : null}
                       </dd>
                     </div>
                   </dl>
@@ -1394,7 +1394,7 @@ export function WarehouseFulfillmentPanel({
                     </div>
                   ) : null}
                   {!isManualShipping && packageNeedsConfirm ? (
-                    <p className="pp-package-hint muted">
+                    <p className="pp-package-hint text-sm text-ink-muted">
                       Confirm package before AWB / label generation. Dimensions auto-send to Shiprocket.
                     </p>
                   ) : null}
@@ -1471,7 +1471,7 @@ export function WarehouseFulfillmentPanel({
                       </Btn>
                     ) : null}
                     {awaitingTracking && !order.tracking_awb ? (
-                      <p className="pp-manual-hint muted">
+                      <p className="pp-manual-hint text-sm text-ink-muted">
                         Packed — enter LR when transport receipt is collected.
                       </p>
                     ) : null}
@@ -1568,7 +1568,7 @@ export function WarehouseFulfillmentPanel({
                       {busy ? 'Assigning AWB…' : order.shiprocket_error ? 'Retry AWB' : 'Assign AWB'}
                     </Btn>
                     {awbIssue && !printStage ? (
-                      <span className="pp-awb-assign-hint muted">
+                      <span className="pp-awb-assign-hint text-sm text-ink-muted">
                         Invoice &amp; label available even if AWB fails
                       </span>
                     ) : null}
@@ -1663,7 +1663,7 @@ export function WarehouseFulfillmentPanel({
           <div className="pp-wrong-label-card">
             <h3>Wrong label</h3>
             <p>{wrongLabel}</p>
-            <p className="muted">Use the next label from your employee tray stack.</p>
+            <p className="text-sm text-ink-muted">Use the next label from your employee tray stack.</p>
             <Btn size="sm" variant="primary" onClick={() => setWrongLabel('')}>
               Dismiss
             </Btn>

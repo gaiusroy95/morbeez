@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { agronomistClient } from '@morbeez/shared';
-import { PageShell, Input, Btn } from '../../components/ui';
+import { Alert, Btn, Input, PageShell } from '../../components/ui';
 import { paths, toPath } from '../../lib/routes';
 
 type FarmerRow = {
@@ -57,7 +57,7 @@ export function AgronomistFarmersPage() {
           {loading ? 'Searching…' : 'Search'}
         </Btn>
       </div>
-      {error ? <p className="text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       <table className="w-full text-sm">
         <thead>
           <tr>
@@ -82,7 +82,7 @@ export function AgronomistFarmersPage() {
           ))}
         </tbody>
       </table>
-      {!rows.length && !loading ? <p className="muted">No farmers match filters.</p> : null}
+      {!rows.length && !loading ? <p className="text-sm text-ink-muted">No farmers match filters.</p> : null}
     </PageShell>
   );
 }

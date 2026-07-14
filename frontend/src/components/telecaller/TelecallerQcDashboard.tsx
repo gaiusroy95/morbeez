@@ -115,7 +115,7 @@ export function TelecallerQcDashboard() {
             {selected ? (
               <article className="tc-qc-detail">
                 <h4>{selected.farmers?.name ?? 'Call review'}</h4>
-                <p className="muted">{selected.qc_flag_reason ?? 'Flagged for review'}</p>
+                <p className="text-ink-muted">{selected.qc_flag_reason ?? 'Flagged for review'}</p>
                 {selected.ai_summary ? (
                   <>
                     <p className="tc-call-summary-label">Summary</p>

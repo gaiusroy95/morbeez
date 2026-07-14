@@ -1,8 +1,8 @@
 /** Detect farmer disagreement / correction intent (multilingual keywords). */
 
 import {
+  extractAllFarmerSuggestedDiagnoses,
   mapFarmerSuggestionInput,
-  summarizeFarmerNutrientSuggestion,
 } from '../../domain/learning/farmer-nutrient-suggestions.js';
 
 const DISAGREEMENT_PATTERNS: RegExp[] = [
@@ -48,38 +48,45 @@ export function isFarmerDisagreementIntent(text: string): boolean {
 }
 
 /**
- * Prefer multi-nutrient summary from free text; fall back to "this is X" / pest keywords.
- * Never collapse Fe+Zn+Mg+N into a single nutrient.
+ * Returns the first detected issue (chip / single-line flows). Use extractAllSuggestedDiagnoses for storage.
  */
 export function extractSuggestedDiagnosis(text: string): string | null {
+  const all = extractAllSuggestedDiagnoses(text);
+  return all[0] ?? null;
+}
+
+/** Each distinct issue from farmer free text — never one combined string. */
+export function extractAllSuggestedDiagnoses(text: string): string[] {
   const t = text.trim();
-  if (!t) return null;
+  if (!t) return [];
 
   if (/^feedback\.suggest\./i.test(t)) {
     const mapped = mapFarmerSuggestionInput(t);
-    return typeof mapped === 'string' ? mapped : null;
+    return typeof mapped === 'string' ? [mapped] : [];
   }
 
-  const nutrientSummary = summarizeFarmerNutrientSuggestion(t);
-  if (nutrientSummary) {
-    // Keep a short farmer quote when the reply also explains connected issues.
-    if (t.length > nutrientSummary.length + 20 && t.length <= 500) {
-      return `${nutrientSummary} — ${t}`.slice(0, 500);
-    }
-    return nutrientSummary;
-  }
+  const nutrients = extractAllFarmerSuggestedDiagnoses(t);
+  if (nutrients.length) return nutrients;
 
   const mapped = mapFarmerSuggestionInput(t);
-  if (typeof mapped === 'string') return mapped;
-  if (mapped === null) return null;
+  if (typeof mapped === 'string') return [mapped];
 
   const m = t.match(/\b(?:this\s+is|its|it's|ഇത്)\s+([a-zA-Z\u0D00-\u0D7F\u0B80-\u0BFF\s,-]{2,200})/i);
-  if (m?.[1]) return m[1].trim().slice(0, 500);
+  if (m?.[1]) {
+    const parts = m[1]
+      .split(/\s*,\s*|\s+and\s+/i)
+      .map((p) => p.trim())
+      .filter((p) => p.length >= 3);
+    if (parts.length > 1) return parts.map((p) => p.slice(0, 120));
+    return [m[1].trim().slice(0, 200)];
+  }
+
   const pest = t.match(
     /\b(thrips?|mites?|aphids?|whitefly|borer|nematode|fungal?\s+infection|leaf\s+spot|blight)\b/i
   );
-  if (pest?.[1]) return pest[1].trim();
-  return null;
+  if (pest?.[1]) return [pest[1].trim()];
+
+  return [];
 }
 
 export function extractPriorProduct(text: string): string | null {

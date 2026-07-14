@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { Alert, HubTabs, PageShell, Panel, Select } from '../components/ui';
+import { Alert, FilterBar, HubTabs, PageShell, Panel, Select } from '../components/ui';
 import { StatIcon } from '../components/NavIcon';
+import { EmployeeKpiCard } from '../components/employees/employee-ui';
+import { cn } from '../lib/cn';
 
 const base = '/morbeez-staff/api/v1/os/analytics';
 
@@ -244,11 +246,11 @@ export function AnalyticsHubPage() {
 
   return (
     <div className="analytics-hub">
-      <div className="filter-bar">
-        <p className="muted" style={{ flex: 1, margin: 0 }}>
+      <FilterBar className="mb-4">
+        <p className="m-0 flex-1 text-sm text-ink-muted">
           Pincode-first geography, retention, broadcasts, recommendation outcomes
         </p>
-        <label className="field" style={{ margin: 0 }}>
+        <label className="flex items-center gap-2 text-sm text-ink-secondary">
           <span>Period</span>
           <Select value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 14, 30, 60, 90].map((d) => (
@@ -258,76 +260,41 @@ export function AnalyticsHubPage() {
             ))}
           </Select>
         </label>
-      </div>
+      </FilterBar>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {k && !loading && data ? (
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
-          <article className="stat-card">
-            <div className="stat-card-head">
-              <span className="stat-label">Farmers</span>
-              <span className="stat-icon stat-icon-teal">
-                <StatIcon name="farmers" />
-              </span>
-            </div>
-            <div className="stat-value">{k.farmers}</div>
-            <div className="stat-trend trend-up">
-              <span className="trend-pct">{k.retentionRate30d}%</span>
-              <span className="trend-vs">active 30d</span>
-            </div>
-          </article>
-          <article className="stat-card">
-            <div className="stat-card-head">
-              <span className="stat-label">Broadcasts</span>
-              <span className="stat-icon stat-icon-blue">
-                <StatIcon name="cart" />
-              </span>
-            </div>
-            <div className="stat-value">{k.broadcastsSent}</div>
-            <div className="stat-trend">
-              <span className="trend-pct">{k.broadcastFailureRate}%</span>
-              <span className="trend-vs">failed</span>
-            </div>
-          </article>
-          <article className="stat-card">
-            <div className="stat-card-head">
-              <span className="stat-label">Recommendations</span>
-              <span className="stat-icon stat-icon-purple">
-                <StatIcon name="ai" />
-              </span>
-            </div>
-            <div className="stat-value">{k.recommendationsTotal}</div>
-            <div className="stat-trend trend-up">
-              <span className="trend-pct">{k.recommendationSuccessRate}%</span>
-              <span className="trend-vs">positive</span>
-            </div>
-          </article>
-          <article className="stat-card">
-            <div className="stat-card-head">
-              <span className="stat-label">Top district</span>
-            </div>
-            <div className="stat-value" style={{ fontSize: '1.1rem' }}>
-              {k.topDistrict}
-            </div>
-          </article>
-          <article className="stat-card">
-            <div className="stat-card-head">
-              <span className="stat-label">AI diagnosis</span>
-              <span className="stat-icon stat-icon-purple">
-                <StatIcon name="ai" />
-              </span>
-            </div>
-            <div className="stat-value">{k.aiDiagnosisCount}</div>
-            <div className="stat-trend trend-up">
-              <span className="trend-pct">{k.aiFollowupImprovementRate}%</span>
-              <span className="trend-vs">follow-up improved</span>
-            </div>
-            <div className="stat-trend">
-              <span className="trend-pct">{k.aiEscalationRate}% escalated</span>
-              <span className="trend-vs">{k.aiLowConfidenceRate}% low confidence</span>
-            </div>
-          </article>
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <EmployeeKpiCard
+            label="Farmers"
+            value={k.farmers}
+            sub={`${k.retentionRate30d}% active 30d`}
+            icon={<StatIcon name="farmers" />}
+            iconTone="teal"
+          />
+          <EmployeeKpiCard
+            label="Broadcasts"
+            value={k.broadcastsSent}
+            sub={`${k.broadcastFailureRate}% failed`}
+            icon={<StatIcon name="cart" />}
+            iconTone="blue"
+          />
+          <EmployeeKpiCard
+            label="Recommendations"
+            value={k.recommendationsTotal}
+            sub={`${k.recommendationSuccessRate}% positive`}
+            icon={<StatIcon name="ai" />}
+            iconTone="purple"
+          />
+          <EmployeeKpiCard label="Top district" value={k.topDistrict} />
+          <EmployeeKpiCard
+            label="AI diagnosis"
+            value={k.aiDiagnosisCount}
+            sub={`${k.aiFollowupImprovementRate}% follow-up improved · ${k.aiEscalationRate}% escalated`}
+            icon={<StatIcon name="ai" />}
+            iconTone="purple"
+          />
         </div>
       ) : null}
 
@@ -339,11 +306,11 @@ export function AnalyticsHubPage() {
           {tab === 'geography' ? (
             <div className="space-y-6">
               {data.geography.pincodeFirstNote ? (
-                <p className="text-xs text-slate-500">{data.geography.pincodeFirstNote}</p>
+                <p className="text-xs text-ink-muted">{data.geography.pincodeFirstNote}</p>
               ) : null}
-              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="overflow-hidden rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated shadow-[var(--shadow-card)]">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <thead className="bg-surface-subtle text-xs uppercase text-ink-muted">
                     <tr>
                       <th className="px-4 py-3">District</th>
                       <th className="px-4 py-3">Intensity</th>
@@ -356,7 +323,7 @@ export function AnalyticsHubPage() {
                   </thead>
                   <tbody>
                     {data.geography.districts.map((d) => (
-                      <tr key={d.district} className="border-t border-slate-100">
+                      <tr key={d.district} className="border-t border-border/60">
                         <td className="px-4 py-3">
                           <button
                             type="button"
@@ -379,15 +346,15 @@ export function AnalyticsHubPage() {
                   </tbody>
                 </table>
                 {data.geography.districts.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-500">
+                  <p className="px-4 py-8 text-center text-sm text-ink-muted">
                     No geography data — assign pincodes to farmers in Intelligence hub.
                   </p>
                 ) : null}
               </div>
 
               {selectedDistrict ? (
-                <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <h2 className="font-medium text-slate-900">
+                <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                  <h2 className="font-medium text-ink">
                     Pincode breakdown — {selectedDistrict}
                   </h2>
                   {pinLoading ? (
@@ -396,7 +363,7 @@ export function AnalyticsHubPage() {
                     </div>
                   ) : (
                     <table className="mt-3 w-full text-left text-sm">
-                      <thead className="text-xs uppercase text-slate-500">
+                      <thead className="text-xs uppercase text-ink-muted">
                         <tr>
                           <th className="py-2">Pincode</th>
                           <th className="py-2">Village</th>
@@ -425,25 +392,25 @@ export function AnalyticsHubPage() {
 
           {tab === 'retention' ? (
             <div className="grid gap-6 lg:grid-cols-2">
-              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="font-medium text-slate-900">Active farmers</h2>
+              <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-5 shadow-[var(--shadow-card)]">
+                <h2 className="font-medium text-ink">Active farmers</h2>
                 <dl className="mt-4 space-y-3 text-sm">
                   <Row label="Total farmers" value={data.retention.totalFarmers} />
                   <Row label="Active (7 days)" value={`${data.retention.active7d} (${data.retention.rate7d}%)`} />
                   <Row label="Active (30 days)" value={`${data.retention.active30d} (${data.retention.rate30d}%)`} />
                   <Row label="Inactive 90+ days" value={data.retention.inactive90d} />
                 </dl>
-                <p className="mt-4 text-xs text-slate-500">
+                <p className="mt-4 text-xs text-ink-muted">
                   Active = login or CRM interaction in the window.
                 </p>
               </section>
-              <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="font-medium text-slate-900">New signups by week</h2>
+              <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-5 shadow-[var(--shadow-card)]">
+                <h2 className="font-medium text-ink">New signups by week</h2>
                 <div className="mt-4 space-y-2">
                   {data.retention.signupCohortByWeek.map((w) => (
                     <div key={w.label} className="flex items-center gap-3 text-sm">
-                      <span className="w-16 shrink-0 text-slate-500">{w.label}</span>
-                      <div className="flex-1 rounded-full bg-slate-100">
+                      <span className="w-16 shrink-0 text-ink-muted">{w.label}</span>
+                      <div className="flex-1 rounded-full bg-surface-subtle">
                         <div
                           className="h-2 rounded-full bg-emerald-500"
                           style={{
@@ -466,14 +433,14 @@ export function AnalyticsHubPage() {
                 <KpiCard label="Failed" value={String(data.broadcasts.totals.failed)} />
                 <KpiCard label="Skipped" value={String(data.broadcasts.totals.skipped)} />
               </div>
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="font-medium text-slate-900">Daily sends (last 14 days)</h2>
+              <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                <h2 className="font-medium text-ink">Daily sends (last 14 days)</h2>
                 <MiniBarChart labels={data.broadcasts.dailyLabels} values={data.broadcasts.dailySent} />
               </section>
-              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-medium">By broadcast kind</h2>
+              <section className="overflow-hidden rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated shadow-[var(--shadow-card)]">
+                <h2 className="border-b border-border/60 px-4 py-3 text-sm font-medium">By broadcast kind</h2>
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <thead className="bg-surface-subtle text-xs uppercase text-ink-muted">
                     <tr>
                       <th className="px-4 py-3">Kind</th>
                       <th className="px-4 py-3">Sent</th>
@@ -483,7 +450,7 @@ export function AnalyticsHubPage() {
                   </thead>
                   <tbody>
                     {data.broadcasts.byKind.map((b) => (
-                      <tr key={b.kind} className="border-t border-slate-100">
+                      <tr key={b.kind} className="border-t border-border/60">
                         <td className="px-4 py-3">{b.kind.replace(/_/g, ' ')}</td>
                         <td className="px-4 py-3">{b.sent}</td>
                         <td className="px-4 py-3">{b.failed}</td>
@@ -504,13 +471,13 @@ export function AnalyticsHubPage() {
                 <KpiCard label="Communicated" value={String(data.recommendations.totals.communicated)} />
                 <KpiCard label="Success rate" value={`${data.recommendations.totals.successRate}%`} />
               </div>
-              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h2 className="font-medium text-slate-900">Workflow funnel</h2>
+              <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                <h2 className="font-medium text-ink">Workflow funnel</h2>
                 <div className="mt-4 space-y-2">
                   {data.recommendations.funnel.map((f) => (
                     <div key={f.stage} className="flex items-center gap-3 text-sm">
-                      <span className="w-36 shrink-0 text-slate-600">{f.stage}</span>
-                      <div className="flex-1 rounded-full bg-slate-100">
+                      <span className="w-36 shrink-0 text-ink-secondary">{f.stage}</span>
+                      <div className="flex-1 rounded-full bg-surface-subtle">
                         <div
                           className="h-2 rounded-full bg-violet-500"
                           style={{
@@ -534,7 +501,7 @@ export function AnalyticsHubPage() {
             <div className="space-y-6">
               {precisionLoading ? (
                 <Panel title="Morbeez module precision">
-                  <p className="text-sm text-slate-500">Loading module analytics…</p>
+                  <p className="text-sm text-ink-muted">Loading module analytics…</p>
                 </Panel>
               ) : modulePrecision ? (
                 <>
@@ -603,7 +570,7 @@ export function AnalyticsHubPage() {
                 </>
               ) : (
                 <Panel title="Morbeez module precision">
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-ink-muted">
                     No attribution data yet — replies will appear after farmers receive module-tagged
                     answers.
                   </p>
@@ -616,7 +583,7 @@ export function AnalyticsHubPage() {
             <div className="space-y-6">
               {maiosLoading ? (
                 <Panel title="MAIOS v12 KPIs">
-                  <p className="text-sm text-slate-500">Loading MAIOS analytics…</p>
+                  <p className="text-sm text-ink-muted">Loading MAIOS analytics…</p>
                 </Panel>
               ) : maiosKpis ? (
                 <>
@@ -654,13 +621,13 @@ export function AnalyticsHubPage() {
                   {maiosTrends ? (
                     <Panel title="Recovery response trend (D3 / D7 / D14)">
                       <MiniBarChart labels={maiosTrends.labels} values={maiosTrends.d14Responses} />
-                      <p className="text-xs text-slate-500 mt-2">Daily D14 recovery responses</p>
+                      <p className="text-xs text-ink-muted mt-2">Daily D14 recovery responses</p>
                     </Panel>
                   ) : null}
                 </>
               ) : (
                 <Panel title="MAIOS v12 KPIs">
-                  <p className="text-sm text-slate-500">No MAIOS cases in this period yet.</p>
+                  <p className="text-sm text-ink-muted">No MAIOS cases in this period yet.</p>
                 </Panel>
               )}
             </div>
@@ -693,7 +660,7 @@ export function AnalyticsHubPage() {
                 </>
               ) : (
                 <Panel title="Compatibility overrides">
-                  <p className="text-sm text-slate-500">No override data in this period.</p>
+                  <p className="text-sm text-ink-muted">No override data in this period.</p>
                 </Panel>
               )}
             </div>
@@ -724,20 +691,20 @@ export function AnalyticsHubPage() {
               </div>
               {aiLoading ? (
                 <Panel title="AI accuracy trends">
-                  <p className="text-sm text-slate-500">Loading AI trend charts…</p>
+                  <p className="text-sm text-ink-muted">Loading AI trend charts…</p>
                 </Panel>
               ) : aiTrends ? (
                 <>
-                  <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h2 className="font-medium text-slate-900">Daily diagnoses</h2>
+                  <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                    <h2 className="font-medium text-ink">Daily diagnoses</h2>
                     <MiniBarChart labels={aiTrends.labels} values={aiTrends.dailyDiagnoses} />
                   </section>
-                  <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h2 className="font-medium text-slate-900">Daily escalations</h2>
+                  <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                    <h2 className="font-medium text-ink">Daily escalations</h2>
                     <MiniBarChart labels={aiTrends.labels} values={aiTrends.dailyEscalations} />
                   </section>
-                  <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h2 className="font-medium text-slate-900">Daily low-confidence cases</h2>
+                  <section className="rounded-[var(--radius-card)] border border-border/60 bg-surface-elevated p-4 shadow-[var(--shadow-card)]">
+                    <h2 className="font-medium text-ink">Daily low-confidence cases</h2>
                     <MiniBarChart labels={aiTrends.labels} values={aiTrends.dailyLowConfidence} />
                   </section>
                   <div className="grid gap-6 lg:grid-cols-2">
@@ -760,7 +727,7 @@ export function AnalyticsHubPage() {
                 </>
               ) : (
                 <Panel title="AI accuracy trends">
-                  <p className="text-sm text-slate-500">No AI trend data for this period.</p>
+                  <p className="text-sm text-ink-muted">No AI trend data for this period.</p>
                 </Panel>
               )}
             </div>
@@ -794,7 +761,7 @@ function toneClass(tone?: 'good' | 'warn' | 'risk'): string {
   if (tone === 'good') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
   if (tone === 'warn') return 'text-amber-700 bg-amber-50 border-amber-200';
   if (tone === 'risk') return 'text-rose-700 bg-rose-50 border-rose-200';
-  return 'text-slate-900 bg-white border-slate-200';
+  return 'text-ink bg-surface-elevated border-border';
 }
 
 function KpiCard({
@@ -809,10 +776,10 @@ function KpiCard({
   tone?: 'good' | 'warn' | 'risk';
 }) {
   return (
-    <article className={`rounded-xl border p-4 shadow-sm ${toneClass(tone)}`}>
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+    <article className={cn('rounded-[var(--radius-card)] border p-4 shadow-[var(--shadow-card)]', toneClass(tone))}>
+      <p className="text-xs uppercase tracking-wide text-ink-muted">{label}</p>
       <p className="mt-2 text-2xl font-semibold">{value}</p>
-      {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
+      {sub ? <p className="mt-1 text-xs text-ink-muted">{sub}</p> : null}
     </article>
   );
 }
@@ -820,8 +787,8 @@ function KpiCard({
 function Row({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="flex justify-between gap-4">
-      <dt className="text-slate-600">{label}</dt>
-      <dd className="font-medium text-slate-900">{value}</dd>
+      <dt className="text-ink-secondary">{label}</dt>
+      <dd className="font-medium text-ink">{value}</dd>
     </div>
   );
 }
@@ -829,13 +796,13 @@ function Row({ label, value }: { label: string; value: string | number }) {
 function HeatBar({ intensity }: { intensity: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-2 w-24 overflow-hidden rounded-full bg-slate-100">
+      <div className="h-2 w-24 overflow-hidden rounded-full bg-surface-subtle">
         <div
           className="h-full rounded-full bg-emerald-500"
           style={{ width: `${Math.min(100, intensity)}%` }}
         />
       </div>
-      <span className="text-xs text-slate-500">{intensity}</span>
+      <span className="text-xs text-ink-muted">{intensity}</span>
     </div>
   );
 }
@@ -851,7 +818,7 @@ function MiniBarChart({ labels, values }: { labels: string[]; values: number[] }
             style={{ height: `${Math.max(4, (v / max) * 96)}px` }}
             title={String(v)}
           />
-          <span className="text-[10px] text-slate-500">{labels[i]}</span>
+          <span className="text-[10px] text-ink-muted">{labels[i]}</span>
         </div>
       ))}
     </div>
@@ -866,12 +833,12 @@ function StatusTable({
   rows: Array<{ status: string; count: number }>;
 }) {
   return (
-    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <h2 className="border-b border-slate-100 px-4 py-3 text-sm font-medium">{title}</h2>
+    <section className="overflow-hidden rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)]">
+      <h2 className="border-b border-border/60 px-4 py-3 text-sm font-semibold text-ink">{title}</h2>
       <table className="w-full text-left text-sm">
         <tbody>
           {rows.map((r) => (
-            <tr key={r.status} className="border-t border-slate-100">
+            <tr key={r.status} className="border-t border-border/60">
               <td className="px-4 py-2 capitalize">{r.status.replace(/_/g, ' ')}</td>
               <td className="px-4 py-2 text-right font-medium">{r.count}</td>
             </tr>
@@ -879,7 +846,7 @@ function StatusTable({
         </tbody>
       </table>
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-slate-500">No data in this period.</p>
+        <p className="px-4 py-6 text-center text-sm text-ink-muted">No data in this period.</p>
       ) : null}
     </section>
   );

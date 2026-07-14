@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatInr } from '../../lib/format';
-import { Alert, Loading, Panel } from '../ui';
+import { MiniStatCard } from '../employees/employee-ui';
+import { Alert, Badge, Loading, Panel } from '../ui';
 import { WMS_API } from './warehouse-api';
 
 type Overview = {
@@ -35,42 +36,22 @@ export function WarehouseOverviewPanel() {
   const f = data.finance;
 
   return (
-    <div className="warehouse-kpi-grid">
-      <Panel title="Today">
-        <ul className="warehouse-kpi-list">
-          <li>
-            <span>Sales</span>
-            <strong>{formatInr(f.dailySales)}</strong>
-          </li>
-          <li>
-            <span>Orders</span>
-            <strong>{f.ordersToday}</strong>
-          </li>
-          <li>
-            <span>GST liability</span>
-            <strong>{formatInr(f.gstLiability)}</strong>
-          </li>
-          <li>
-            <span>Pending COD</span>
-            <strong>{formatInr(f.pendingCod)}</strong>
-          </li>
-          <li>
-            <span>SKU tracked</span>
-            <strong>{data.stockItemCount}</strong>
-          </li>
-          <li>
-            <span>Open NDR/RTO</span>
-            <strong>{f.openNdrRto}</strong>
-          </li>
-        </ul>
-      </Panel>
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <MiniStatCard label="Sales today" value={formatInr(f.dailySales)} />
+        <MiniStatCard label="Orders today" value={f.ordersToday} />
+        <MiniStatCard label="GST liability" value={formatInr(f.gstLiability)} />
+        <MiniStatCard label="Pending COD" value={formatInr(f.pendingCod)} />
+        <MiniStatCard label="SKU tracked" value={data.stockItemCount} />
+        <MiniStatCard label="Open NDR/RTO" value={f.openNdrRto} />
+      </div>
       {data.openExceptions.length > 0 ? (
         <Panel title="Delivery exceptions">
-          <ul className="warehouse-exception-list">
+          <ul className="space-y-2 text-sm text-ink-secondary">
             {data.openExceptions.map((ex) => (
-              <li key={ex.id}>
-                <span className="badge badge-warn">{ex.exception_type}</span>
-                {ex.reason ?? 'No reason'}
+              <li key={ex.id} className="flex flex-wrap items-center gap-2">
+                <Badge tone="warn">{ex.exception_type}</Badge>
+                <span>{ex.reason ?? 'No reason'}</span>
               </li>
             ))}
           </ul>

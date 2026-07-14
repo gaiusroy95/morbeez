@@ -15,6 +15,7 @@ import {
   DataTable,
   EmptyState,
   FilterBar,
+  HubTabs,
   Input,
   Loading,
   Panel,
@@ -25,6 +26,15 @@ import {
 import { StatIcon } from '../components/NavIcon';
 import { EmployeePricingDashboard } from '../components/employees/EmployeePricingDashboard';
 import { BulkMarginReviewPanel } from '../components/employees/BulkMarginReviewPanel';
+import {
+  EmployeeKpiCard,
+  ListItemRow,
+  MiniStatCard,
+  OnlineStatus,
+  PerfBadge,
+  PerformanceBar,
+  ProgressRing,
+} from '../components/employees/employee-ui';
 
 type Employee = {
   id: string;
@@ -105,14 +115,6 @@ type Detail = {
   recentTasks: Array<{ id: string; title: string; status: string; dueAt: string | null }>;
 };
 
-function perfClass(label: string): string {
-  if (label === 'Excellent') return 'perf-excellent';
-  if (label === 'Very Good') return 'perf-verygood';
-  if (label === 'Good') return 'perf-good';
-  if (label === 'Average') return 'perf-average';
-  return 'perf-low';
-}
-
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
@@ -124,35 +126,6 @@ function formatDateTime(value: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-}
-
-function ProgressRing({ pct, label, display }: { pct: number; label: string; display: string }) {
-  const r = 36;
-  const c = 2 * Math.PI * r;
-  const offset = c - (pct / 100) * c;
-  return (
-    <div className="emp-ring">
-      <svg viewBox="0 0 88 88">
-        <circle cx="44" cy="44" r={r} fill="none" stroke="#e5ebe7" strokeWidth="8" />
-        <circle
-          cx="44"
-          cy="44"
-          r={r}
-          fill="none"
-          stroke="#34b35e"
-          strokeWidth="8"
-          strokeDasharray={c}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          transform="rotate(-90 44 44)"
-        />
-        <text x="44" y="48" textAnchor="middle" className="emp-ring-value">
-          {display}
-        </text>
-      </svg>
-      <div className="emp-ring-label">{label}</div>
-    </div>
-  );
 }
 
 export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
@@ -359,7 +332,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     }
     if (error && !detail?.employee) {
       return (
-        <div className="emp-page">
+        <div className="space-y-4">
           <Alert tone="error">{error}</Alert>
           <Btn className="mt-4" onClick={() => navigate(toPath(paths.employees))}>
             Back to employees
@@ -369,7 +342,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     }
     if (!detail?.employee) {
       return (
-        <div className="emp-page">
+        <div className="space-y-4">
           <Alert tone="error">Employee not found</Alert>
           <Btn className="mt-4" onClick={() => navigate(toPath(paths.employees))}>
             Back to employees
@@ -392,8 +365,8 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
     const turnoverPct = Math.min(100, Math.round((e.turnoverInr / 200000) * 100));
 
     return (
-      <div className="emp-page route-employees-detail">
-        <nav className="mb-4 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+        <div className="space-y-6">
+        <nav className="flex flex-wrap items-center gap-2 text-sm text-ink-muted">
           <button
             type="button"
             className="font-semibold text-brand-700 hover:underline"
@@ -402,20 +375,22 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
             Employees
           </button>
           <span>/</span>
-          <span className="font-medium text-slate-800">{e.fullName}</span>
+          <span className="font-medium text-ink">{e.fullName}</span>
         </nav>
 
-        <div className="emp-detail-header">
-          <div className="emp-profile-main">
-            <div className="emp-avatar-lg">{initials(e.fullName)}</div>
+        <div className="flex flex-col gap-6 rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated p-5 shadow-[var(--shadow-card)] lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-800 text-lg font-bold text-white">
+              {initials(e.fullName)}
+            </div>
             <div>
-              <h2 style={{ margin: '0 0 6px', fontSize: '1.35rem' }}>
+              <h2 className="mb-1.5 flex flex-wrap items-center gap-2 text-xl font-bold tracking-tight text-ink">
                 {e.fullName} {e.active ? <Badge tone="active">Active</Badge> : <Badge tone="archived">Inactive</Badge>}
               </h2>
-              <p className="muted" style={{ margin: 0 }}>
+              <p className="text-sm text-ink-muted">
                 {roleLabel(e.role)} · {e.employeeCode} · {e.email}
               </p>
-              <p className="muted" style={{ margin: '8px 0 0', fontSize: 13 }}>
+              <p className="mt-2 text-sm text-ink-muted">
                 Last login: {formatDateTime(ov.lastLoginAt ?? e.lastLoginAt)}
                 {ov.isLateLogin ? ' · Late login' : ''}
                 {e.performanceSource === 'engine' ? (
@@ -430,70 +405,36 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
               </p>
             </div>
           </div>
-          <div className="emp-metrics-rings">
+          <div className="flex flex-wrap justify-center gap-6 lg:justify-end">
             <ProgressRing pct={e.performanceScore} label="Performance" display={`${e.performanceScore}%`} />
             <ProgressRing pct={Math.min(100, roi)} label="ROI" display={`${roi}%`} />
             <ProgressRing pct={turnoverPct} label="Sales (mo)" display={formatInrFull(e.turnoverInr)} />
           </div>
         </div>
 
-        <div className="emp-subtabs">
-          {['overview', 'performance', 'leads', 'tasks', 'activity'].map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`emp-subtab ${detailTab === t ? 'active' : ''}`}
-              onClick={() => setDetailTab(t)}
-            >
-              {t.charAt(0).toUpperCase() + t.slice(1)}
-            </button>
-          ))}
-        </div>
+        <HubTabs
+          tabs={['overview', 'performance', 'leads', 'tasks', 'activity'].map((t) => ({
+            id: t,
+            label: t.charAt(0).toUpperCase() + t.slice(1),
+          }))}
+          active={detailTab}
+          onChange={setDetailTab}
+        />
 
         {detailTab === 'overview' ? (
           <>
-            <div className="emp-overview-grid">
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Pending Tasks</div>
-                <div className="emp-mini-value">{e.pendingTasks}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Follow-ups Today</div>
-                <div className="emp-mini-value">{e.pendingFollowUpsToday}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Total Leads</div>
-                <div className="emp-mini-value">{e.totalLeads}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Interactions today</div>
-                <div className="emp-mini-value">{ov.interactionsToday}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Interactions (mo)</div>
-                <div className="emp-mini-value">{ov.interactionsThisMonth}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">New leads today</div>
-                <div className="emp-mini-value">{ov.newLeadsToday}</div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Est. incentive</div>
-                <div className="emp-mini-value" style={{ fontSize: '1rem' }}>
-                  {formatInrFull(ov.estimatedIncentiveInr)}
-                </div>
-              </div>
-              <div className="emp-mini-card">
-                <div className="emp-mini-label">Status</div>
-                <div className="emp-mini-value" style={{ fontSize: '1rem' }}>
-                  <span className={`status-dot ${e.statusOnline ? 'online' : ''}`}>
-                    {e.statusOnline ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-              </div>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+              <MiniStatCard label="Pending Tasks" value={e.pendingTasks} />
+              <MiniStatCard label="Follow-ups Today" value={e.pendingFollowUpsToday} />
+              <MiniStatCard label="Total Leads" value={e.totalLeads} />
+              <MiniStatCard label="Interactions today" value={ov.interactionsToday} />
+              <MiniStatCard label="Interactions (mo)" value={ov.interactionsThisMonth} />
+              <MiniStatCard label="New leads today" value={ov.newLeadsToday} />
+              <MiniStatCard label="Est. incentive" value={formatInrFull(ov.estimatedIncentiveInr)} />
+              <MiniStatCard label="Status" value={<OnlineStatus online={e.statusOnline} />} />
             </div>
 
-            <div className="emp-chart-row">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <Panel title="Turnover trend (6 months)">
                 <div className="chart-wrap" style={{ height: 220, padding: '12px 0' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 180 }}>
@@ -508,7 +449,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                               borderRadius: '6px 6px 0 0',
                             }}
                           />
-                          <small className="muted">{detail.turnoverTrend.labels[i]}</small>
+                          <small className="text-ink-muted">{detail.turnoverTrend.labels[i]}</small>
                         </div>
                       );
                     })}
@@ -517,25 +458,16 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
               </Panel>
               <Panel title="Performance breakdown">
                 {detail.performanceBreakdown.map((row) => (
-                  <div className="emp-bar-row" key={row.label}>
-                    <span className="emp-bar-label">{row.label}</span>
-                    <div className="emp-bar-track">
-                      <div className="emp-bar-fill" style={{ width: `${row.pct}%` }} />
-                    </div>
-                    <span style={{ width: 36, fontSize: 12, fontWeight: 700 }}>{row.pct}%</span>
-                  </div>
+                  <PerformanceBar key={row.label} label={row.label} pct={row.pct} />
                 ))}
               </Panel>
             </div>
 
-            <div className="emp-bottom-grid">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
               <Panel title="Recent leads">
                 {detail.recentLeads.length ? (
                   detail.recentLeads.map((l) => (
-                    <div className="emp-list-item" key={l.id}>
-                      <strong>{l.name}</strong>
-                      <div className="muted">{l.crop}</div>
-                    </div>
+                    <ListItemRow key={l.id} title={l.name} subtitle={l.crop} />
                   ))
                 ) : (
                   <EmptyState>No leads assigned</EmptyState>
@@ -544,30 +476,23 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
               <Panel title="Recent tasks">
                 {detail.recentTasks.length ? (
                   detail.recentTasks.map((t) => (
-                    <div className="emp-list-item" key={t.id}>
-                      <strong>{t.title}</strong>
-                      <Badge tone={t.status === 'done' ? 'success' : 'warn'}>{t.status}</Badge>
-                    </div>
+                    <ListItemRow
+                      key={t.id}
+                      title={t.title}
+                      trailing={<Badge tone={t.status === 'done' ? 'success' : 'warn'}>{t.status}</Badge>}
+                    />
                   ))
                 ) : (
                   <EmptyState>No tasks</EmptyState>
                 )}
               </Panel>
               <Panel title="Employee info">
-                <div className="emp-list-item">
-                  <span className="muted">Role</span>
-                  <div>{roleLabel(e.role)}</div>
-                </div>
-                <div className="emp-list-item">
-                  <span className="muted">Code</span>
-                  <div>{e.employeeCode}</div>
-                </div>
-                <div className="emp-list-item">
-                  <span className="muted">Performance</span>
-                  <div>
-                    <span className={`perf-pill ${perfClass(e.performanceLabel)}`}>{e.performanceLabel}</span>
-                  </div>
-                </div>
+                <ListItemRow title="Role" subtitle={roleLabel(e.role)} />
+                <ListItemRow title="Code" subtitle={e.employeeCode} />
+                <ListItemRow
+                  title="Performance"
+                  trailing={<PerfBadge label={e.performanceLabel} />}
+                />
               </Panel>
             </div>
           </>
@@ -584,13 +509,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
             <Panel title="Performance breakdown">
               {detail.performanceBreakdown.length ? (
                 detail.performanceBreakdown.map((row) => (
-                  <div className="emp-bar-row" key={row.label}>
-                    <span className="emp-bar-label">{row.label}</span>
-                    <div className="emp-bar-track">
-                      <div className="emp-bar-fill" style={{ width: `${row.pct}%` }} />
-                    </div>
-                    <span style={{ width: 36, fontSize: 12, fontWeight: 700 }}>{row.pct}%</span>
-                  </div>
+                  <PerformanceBar key={row.label} label={row.label} pct={row.pct} />
                 ))
               ) : (
                 <EmptyState>No performance components available</EmptyState>
@@ -598,7 +517,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
             </Panel>
             {detail.performanceFactors && detail.performanceFactors.length > 0 ? (
               <Panel title="Score factors (explainability)">
-                <ul className="muted" style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                <ul className="m-0 list-disc pl-5 text-sm text-ink-muted">
                   {detail.performanceFactors.slice(0, 12).map((f, i) => (
                     <li key={f.code ?? i}>{f.label}</li>
                   ))}
@@ -619,7 +538,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                             borderRadius: '6px 6px 0 0',
                           }}
                         />
-                        <small className="muted">{detail.turnoverTrend.labels[i]}</small>
+                        <small className="text-ink-muted">{detail.turnoverTrend.labels[i]}</small>
                       </div>
                     );
                   })}
@@ -726,13 +645,12 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
               return (
                 <div className="space-y-3">
                   {events.map((ev) => (
-                    <div key={ev.id} className="emp-list-item">
-                      <div>
-                        <strong>{ev.label}</strong>
-                        <div className="muted">{ev.sub}</div>
-                      </div>
-                      <div className="muted">{formatDateTime(ev.at)}</div>
-                    </div>
+                    <ListItemRow
+                      key={ev.id}
+                      title={ev.label}
+                      subtitle={ev.sub}
+                      trailing={formatDateTime(ev.at)}
+                    />
                   ))}
                 </div>
               );
@@ -764,7 +682,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
   const sec = workspace.secondary;
 
   return (
-    <div className="emp-page">
+    <div className="space-y-6">
       {error ? <Alert tone="error">{error}</Alert> : null}
 
       {showHeavyPanels ? (
@@ -777,96 +695,56 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
           </div>
         </>
       ) : (
-        <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <div className="mb-4 rounded-[var(--radius-card)] border border-border/80 bg-surface-subtle px-4 py-3 text-sm text-ink-secondary">
           Loading pricing and margin tools…
         </div>
       )}
 
-      <div className="stat-grid">
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <span className="stat-label">Total Employees</span>
-            <span className="stat-icon stat-icon-teal">
-              <StatIcon name="farmers" />
-            </span>
-          </div>
-          <div className="stat-value">{s.totalEmployees}</div>
-          <div className="stat-trend trend-up">
-            <span className="trend-pct">+{s.activeCount}</span>
-            <span className="trend-vs">active</span>
-          </div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <span className="stat-label">Avg Performance</span>
-            <span className="stat-icon stat-icon-purple">
-              <StatIcon name="trend" />
-            </span>
-          </div>
-          <div className="stat-value">{s.avgPerformanceScore}</div>
-          <div className="stat-trend trend-up">
-            <span className="trend-pct">/ 100</span>
-          </div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <span className="stat-label">Avg Turnover</span>
-            <span className="stat-icon stat-icon-green">
-              <StatIcon name="sales" />
-            </span>
-          </div>
-          <div className="stat-value">{formatInrFull(s.avgTurnoverInr)}</div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-card-head">
-            <span className="stat-label">Pending Tasks</span>
-            <span className="stat-icon stat-icon-orange">
-              <StatIcon name="cart" />
-            </span>
-          </div>
-          <div className="stat-value">{s.pendingTasks}</div>
-        </article>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <EmployeeKpiCard
+          label="Total Employees"
+          value={s.totalEmployees}
+          sub={`+${s.activeCount} active`}
+          icon={<StatIcon name="farmers" />}
+          iconTone="teal"
+        />
+        <EmployeeKpiCard
+          label="Avg Performance"
+          value={s.avgPerformanceScore}
+          sub="/ 100"
+          icon={<StatIcon name="trend" />}
+          iconTone="purple"
+        />
+        <EmployeeKpiCard
+          label="Avg Turnover"
+          value={formatInrFull(s.avgTurnoverInr)}
+          icon={<StatIcon name="sales" />}
+          iconTone="green"
+        />
+        <EmployeeKpiCard
+          label="Pending Tasks"
+          value={s.pendingTasks}
+          icon={<StatIcon name="cart" />}
+          iconTone="orange"
+        />
       </div>
 
-      <div className="emp-mini-grid">
-        <div className="emp-mini-card">
-          <div className="emp-mini-label">Online now</div>
-          <div className="emp-mini-value">{sec.onlineNow}</div>
-        </div>
-        <div className="emp-mini-card">
-          <div className="emp-mini-label">Late login</div>
-          <div className="emp-mini-value">{sec.lateLogin}</div>
-        </div>
-        <div className="emp-mini-card">
-          <div className="emp-mini-label">Low turnover</div>
-          <div className="emp-mini-value">{sec.lowTurnover}</div>
-        </div>
-        <div className="emp-mini-card">
-          <div className="emp-mini-label">Interactions today</div>
-          <div className="emp-mini-value">{sec.interactionsToday ?? s.interactionsToday ?? 0}</div>
-        </div>
-        <div className="emp-mini-card">
-          <div className="emp-mini-label">Total leads</div>
-          <div className="emp-mini-value">{sec.totalLeads}</div>
-        </div>
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+        <MiniStatCard label="Online now" value={sec.onlineNow} />
+        <MiniStatCard label="Late login" value={sec.lateLogin} />
+        <MiniStatCard label="Low turnover" value={sec.lowTurnover} />
+        <MiniStatCard label="Interactions today" value={sec.interactionsToday ?? s.interactionsToday ?? 0} />
+        <MiniStatCard label="Total leads" value={sec.totalLeads} />
       </div>
 
-      <div className="emp-tabs-row">
-        <button
-          type="button"
-          className={`emp-tab ${listTab === 'active' ? 'active' : ''}`}
-          onClick={() => setListTab('active')}
-        >
-          Active Employees ({s.activeCount})
-        </button>
-        <button
-          type="button"
-          className={`emp-tab ${listTab === 'inactive' ? 'active' : ''}`}
-          onClick={() => setListTab('inactive')}
-        >
-          Inactive Employees ({s.inactiveCount})
-        </button>
-      </div>
+      <HubTabs
+        tabs={[
+          { id: 'active', label: `Active Employees (${s.activeCount})` },
+          { id: 'inactive', label: `Inactive Employees (${s.inactiveCount})` },
+        ]}
+        active={listTab}
+        onChange={(id) => setListTab(id as 'active' | 'inactive')}
+      />
 
       <Panel>
         <FilterBar>
@@ -909,15 +787,17 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                 filtered.map((e) => (
                   <tr
                     key={e.id}
-                    className="emp-table-row--clickable"
+                    className="cursor-pointer transition hover:bg-surface-subtle/60"
                     onClick={() => openEmployee(e.id)}
                   >
                     <td>
-                      <div className="emp-table-user">
-                        <span className="emp-table-avatar">{initials(e.fullName)}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 to-brand-800 text-xs font-bold text-white">
+                          {initials(e.fullName)}
+                        </span>
                         <div>
-                          <strong>{e.fullName}</strong>
-                          <small>
+                          <strong className="text-ink">{e.fullName}</strong>
+                          <small className="block text-ink-muted">
                             {e.employeeCode} · {e.email}
                           </small>
                         </div>
@@ -926,17 +806,15 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                     <td>
                       <Badge tone="role">{roleLabel(e.role)}</Badge>
                       {e.role === 'agronomist' && e.agronomistTier === 'experienced' ? (
-                        <Badge tone="ok" style={{ marginLeft: 6 }}>
+                        <Badge tone="success" className="ml-1.5">
                           Experienced
                         </Badge>
                       ) : null}
                     </td>
                     <td>
-                      <span className={`perf-pill ${perfClass(e.performanceLabel)}`}>
-                        {e.performanceScore} · {e.performanceLabel}
-                      </span>
+                      <PerfBadge label={e.performanceLabel} score={e.performanceScore} />
                       {e.performanceSource === 'engine' ? (
-                        <small className="muted" style={{ display: 'block', marginTop: 4 }}>
+                        <small className="mt-1 block text-ink-muted">
                           {e.attributedFarmerCount ?? 0} farmers
                         </small>
                       ) : null}
@@ -946,19 +824,17 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                     <td>{e.pendingTasks}</td>
                     <td>{e.pendingFollowUpsToday}</td>
                     <td>
-                      <span className={`status-dot ${e.statusOnline ? 'online' : ''}`}>
-                        {e.statusOnline ? 'Online' : 'Offline'}
-                      </span>
+                      <OnlineStatus online={e.statusOnline} />
                     </td>
                     <td onClick={(ev) => ev.stopPropagation()}>
-                      <details className="relative emp-row-actions">
-                        <summary className="cursor-pointer list-none rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                      <details className="relative">
+                        <summary className="cursor-pointer list-none rounded-[var(--radius-control)] border border-border bg-surface-elevated px-3 py-1.5 text-sm font-medium text-ink-secondary hover:bg-surface-subtle">
                           Actions ▾
                         </summary>
-                        <div className="absolute right-0 z-20 mt-2 w-52 rounded-md border border-slate-200 bg-white p-2 shadow-lg">
+                        <div className="absolute right-0 z-20 mt-2 w-52 rounded-[var(--radius-control)] border border-border bg-surface-elevated p-2 shadow-[var(--shadow-elevated)]">
                           <button
                             type="button"
-                            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                            className="block w-full rounded px-2 py-1.5 text-left text-sm text-ink-secondary hover:bg-surface-subtle"
                             onClick={() => openEmployee(e.id)}
                           >
                             View
@@ -966,7 +842,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                           {canWrite ? (
                             <button
                               type="button"
-                              className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                              className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
                               onClick={() => setEditingEmployee(e)}
                             >
                               Edit
@@ -1005,7 +881,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                           {canWrite ? (
                             <button
                               type="button"
-                              className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                              className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
                               onClick={async () => {
                                 try {
                                   const url = await sendResetLink(e.id);
@@ -1036,7 +912,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
                           ) : null}
                           <button
                             type="button"
-                            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-slate-50"
+                            className="block w-full rounded px-2 py-1.5 text-left text-sm hover:bg-surface-subtle"
                             onClick={() => window.print()}
                           >
                             Monthly Payout Print
@@ -1105,7 +981,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
           saving={deactivateSaving}
         >
           {deactivateError ? <Alert tone="error">{deactivateError}</Alert> : null}
-          <p className="mb-2 text-sm text-slate-600">
+          <p className="mb-2 text-sm text-ink-secondary">
             Enter your admin password to confirm deactivation.
           </p>
           <Field label="Admin password confirmation">
@@ -1136,12 +1012,12 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
           }}
           saveLabel="Confirm"
         >
-          <p className="text-sm text-slate-700">{confirmActionModal.body}</p>
+          <p className="text-sm text-ink-secondary">{confirmActionModal.body}</p>
         </Modal>
       ) : null}
       {infoModal ? (
         <Modal title={infoModal.title} onClose={() => setInfoModal(null)}>
-          <p className="whitespace-pre-wrap text-sm text-slate-700">{infoModal.message}</p>
+          <p className="whitespace-pre-wrap text-sm text-ink-secondary">{infoModal.message}</p>
         </Modal>
       ) : null}
     </div>
@@ -1346,7 +1222,7 @@ function NewEmployeeModal({
       {error ? <Alert tone="error">{error}</Alert> : null}
       {!inviteUrl ? (
       <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-slate-800">Basic Information</h4>
+        <h4 className="text-sm font-semibold text-ink">Basic Information</h4>
         <Field label="Full name">
           <input
             className={inputClass}
@@ -1372,7 +1248,7 @@ function NewEmployeeModal({
             options={assignableRoles.map((r) => ({ value: r, label: roleLabel(r) }))}
           />
         </Field>
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           After create, an email invite link is generated. The employee must open it and enter the
           organization console password.
         </p>
@@ -1403,7 +1279,7 @@ function NewEmployeeModal({
         <Field label="Joining date">
           <input type="date" className={inputClass} value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
         </Field>
-        <h4 className="text-sm font-semibold text-slate-800">Role & Department</h4>
+        <h4 className="text-sm font-semibold text-ink">Role & Department</h4>
         <Field label="Department">
           <input className={inputClass} value={department} onChange={(e) => setDepartment(e.target.value)} />
         </Field>
@@ -1419,7 +1295,7 @@ function NewEmployeeModal({
             ]}
           />
         </Field>
-        <h4 className="text-sm font-semibold text-slate-800">Location & Languages</h4>
+        <h4 className="text-sm font-semibold text-ink">Location & Languages</h4>
         <Field label="State">
           <input className={inputClass} value={state} onChange={(e) => setState(e.target.value)} />
         </Field>
@@ -1450,7 +1326,7 @@ function NewEmployeeModal({
             ))}
           </div>
         </Field>
-        <h4 className="text-sm font-semibold text-slate-800">Agriculture Skills</h4>
+        <h4 className="text-sm font-semibold text-ink">Agriculture Skills</h4>
         <Field label="Crops expertise">
           <div className="grid grid-cols-2 gap-2 text-sm">
             {['Ginger', 'Banana', 'Cardamom', 'Pepper', 'Vegetables'].map((crop) => (
@@ -1481,7 +1357,7 @@ function NewEmployeeModal({
         <Field label="Field experience years">
           <input type="number" className={inputClass} value={fieldExperienceYears} onChange={(e) => setFieldExperienceYears(Number(e.target.value || 0))} />
         </Field>
-        <h4 className="text-sm font-semibold text-slate-800">Salary & Incentives</h4>
+        <h4 className="text-sm font-semibold text-ink">Salary & Incentives</h4>
         <Field label="Fixed salary">
           <input type="number" className={inputClass} value={fixedSalary} onChange={(e) => setFixedSalary(Number(e.target.value || 0))} />
         </Field>
@@ -1491,21 +1367,21 @@ function NewEmployeeModal({
         <Field label="Travel allowance">
           <input type="number" className={inputClass} value={travelAllowance} onChange={(e) => setTravelAllowance(Number(e.target.value || 0))} />
         </Field>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-ink-secondary">
           <input type="checkbox" checked={incentiveEnabled} onChange={(e) => setIncentiveEnabled(e.target.checked)} />
           Incentive enabled
         </label>
 
         {role === 'telecaller' ? (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
-            <h5 className="text-sm font-semibold text-slate-800">Telecaller Conditional Fields</h5>
+            <h5 className="text-sm font-semibold text-ink">Telecaller Conditional Fields</h5>
             <Field label="Monthly Sales Target">
               <input type="number" className={inputClass} value={monthlySalesTarget} onChange={(e) => setMonthlySalesTarget(Number(e.target.value || 0))} />
             </Field>
             <Field label="Incentive % After Target">
               <input type="number" className={inputClass} value={incentivePct} onChange={(e) => setIncentivePct(Number(e.target.value || 0))} />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={conversionBonusEnabled} onChange={(e) => setConversionBonusEnabled(e.target.checked)} />
               Conversion Bonus Enabled
             </label>
@@ -1515,15 +1391,15 @@ function NewEmployeeModal({
             <Field label="Additional Bonus After Conversion Target">
               <input type="number" className={inputClass} value={additionalBonus} onChange={(e) => setAdditionalBonus(Number(e.target.value || 0))} />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={retentionBonusEnabled} onChange={(e) => setRetentionBonusEnabled(e.target.checked)} />
               Retention Bonus Enabled
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={relationshipBonusEnabled} onChange={(e) => setRelationshipBonusEnabled(e.target.checked)} />
               Relationship Bonus Enabled
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={followUpBonusEnabled} onChange={(e) => setFollowUpBonusEnabled(e.target.checked)} />
               Follow-up Bonus Enabled
             </label>
@@ -1532,11 +1408,11 @@ function NewEmployeeModal({
 
         {role === 'agronomist' ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 space-y-3">
-            <h5 className="text-sm font-semibold text-slate-800">Agronomist settings</h5>
-            <label className="flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm text-slate-800">
+            <h5 className="text-sm font-semibold text-ink">Agronomist settings</h5>
+            <label className="flex items-center justify-between gap-3 rounded-lg border border-emerald-300 bg-white px-3 py-2.5 text-sm text-ink">
               <span>
                 <strong>Experienced agronomist</strong>
-                <span className="block text-xs font-normal text-slate-500 mt-0.5">
+                <span className="block text-xs font-normal text-ink-muted mt-0.5">
                   Can edit AI responses, submit, and approve without Super Admin (new agronomists
                   require approval).
                 </span>
@@ -1556,7 +1432,7 @@ function NewEmployeeModal({
             <Field label="Escalation Resolution Bonus">
               <input type="number" className={inputClass} value={escalationBonus} onChange={(e) => setEscalationBonus(Number(e.target.value || 0))} />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={kmAllowanceEnabled} onChange={(e) => setKmAllowanceEnabled(e.target.checked)} />
               KM Allowance Enabled
             </label>
@@ -1569,11 +1445,11 @@ function NewEmployeeModal({
             <Field label="Assigned Regions">
               <input className={inputClass} value={assignedRegions} onChange={(e) => setAssignedRegions(e.target.value)} placeholder="District/Taluk list" />
             </Field>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={gpsTrackingEnabled} onChange={(e) => setGpsTrackingEnabled(e.target.checked)} />
               GPS Tracking Enabled
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
+            <label className="flex items-center gap-2 text-sm text-ink-secondary">
               <input type="checkbox" checked={offlineSyncEnabled} onChange={(e) => setOfflineSyncEnabled(e.target.checked)} />
               Offline Sync Enabled
             </label>
@@ -1581,7 +1457,7 @@ function NewEmployeeModal({
         ) : null}
 
         {role !== 'telecaller' && role !== 'agronomist' ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-ink-secondary">
             Role-based conditional fields are disabled. Select role <strong>Telecaller</strong> or <strong>Agronomist</strong> to enable additional fields.
           </div>
         ) : null}
@@ -1594,7 +1470,7 @@ function NewEmployeeModal({
             Estimated Total: {formatInrFull(fixedSalary + Math.round((monthlySalesTarget * incentivePct) / 10000))}
           </strong>
         </div>
-        <h4 className="text-sm font-semibold text-slate-800">Attendance Rules</h4>
+        <h4 className="text-sm font-semibold text-ink">Attendance Rules</h4>
         <Field label="Minimum daily hours">
           <input type="number" className={inputClass} value={minDailyHours} onChange={(e) => setMinDailyHours(Number(e.target.value || 0))} />
         </Field>
@@ -1610,7 +1486,7 @@ function NewEmployeeModal({
         <Field label="Idle warning threshold (minutes)">
           <input type="number" className={inputClass} value={idleWarningMinutes} onChange={(e) => setIdleWarningMinutes(Number(e.target.value || 0))} />
         </Field>
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-ink-secondary">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Active account
         </label>
@@ -1691,10 +1567,10 @@ function EditEmployeeModal({
           />
         </Field>
         {role === 'agronomist' ? (
-          <label className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-slate-800">
+          <label className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-ink">
             <span>
               <strong>Experienced agronomist</strong>
-              <span className="block text-xs font-normal text-slate-500 mt-0.5">
+              <span className="block text-xs font-normal text-ink-muted mt-0.5">
                 Self-approve recommendations without Super Admin
               </span>
             </span>
@@ -1705,7 +1581,7 @@ function EditEmployeeModal({
             />
           </label>
         ) : null}
-        <label className="flex items-center gap-2 text-sm text-slate-700">
+        <label className="flex items-center gap-2 text-sm text-ink-secondary">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Active account
         </label>

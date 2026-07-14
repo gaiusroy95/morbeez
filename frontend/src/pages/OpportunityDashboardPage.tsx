@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../lib/api';
-import { Alert, Btn, HubTabs, Panel, ReadOnlyBanner, TableWrap } from '../components/ui';
+import { Alert, Btn, DataTable, EmptyState, HubTabs, Panel, ReadOnlyBanner, TableWrap } from '../components/ui';
 import { StatIcon } from '../components/NavIcon';
+import { EmployeeKpiCard } from '../components/employees/employee-ui';
 
 const intelBase = '/morbeez-staff/api/v1/os/intelligence';
 const dashBase = `${intelBase}/opportunity-dashboard`;
@@ -257,22 +258,13 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
 
   return (
     <div>
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 12,
-          marginBottom: 16,
-        }}
-      >
-        <p className="muted" style={{ margin: 0, maxWidth: 560 }}>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <p className="m-0 max-w-xl text-sm text-ink-muted">
           Events → attribution → opportunity scores → dashboards. Relationship-driven signals, not
           sales-only lead counts.
         </p>
         {canWrite ? (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <div className="flex flex-wrap gap-2">
             <Btn variant="secondary" disabled={actionBusy || recalcBusy} onClick={() => void runGenerateAlerts()}>
               {actionBusy ? 'Working…' : 'Run alerts + CRM tasks'}
             </Btn>
@@ -292,140 +284,56 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
       <HubTabs tabs={TABS} active={tab} onChange={(id) => setTab(id as Tab)} />
 
       {loading ? (
-        <p className="muted">Loading…</p>
+        <p className="text-ink-muted">Loading…</p>
       ) : tab === 'overview' && overview && k ? (
         <>
-          <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Farmers scored</span>
-                <span className="stat-icon stat-icon-teal">
-                  <StatIcon name="farmers" />
-                </span>
-              </div>
-              <div className="stat-value">{k.farmersScored}</div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Avg opportunity</span>
-                <span className="stat-icon stat-icon-purple">
-                  <StatIcon name="ai" />
-                </span>
-              </div>
-              <div className="stat-value">{k.avgOpportunityScore}</div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">High opportunity</span>
-                <span className="stat-icon stat-icon-green">
-                  <StatIcon name="trend" />
-                </span>
-              </div>
-              <div className="stat-value">{k.highOpportunityFarmers}</div>
-              <div className="stat-trend">
-                <span className="trend-vs">score ≥ 70</span>
-              </div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">At risk / churned</span>
-                <span className="stat-icon stat-icon-blue">
-                  <StatIcon name="tasks" />
-                </span>
-              </div>
-              <div className="stat-value">
-                {k.atRiskFarmers} / {k.churnedFarmers}
-              </div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Events (30d)</span>
-                <span className="stat-icon stat-icon-blue">
-                  <StatIcon name="cart" />
-                </span>
-              </div>
-              <div className="stat-value">{k.events30d}</div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Conversions (30d)</span>
-                <span className="stat-icon stat-icon-green">
-                  <StatIcon name="sales" />
-                </span>
-              </div>
-              <div className="stat-value">{k.conversions30d}</div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Employees scored</span>
-                <span className="stat-icon stat-icon-teal">
-                  <StatIcon name="farmers" />
-                </span>
-              </div>
-              <div className="stat-value">{k.employeesScored}</div>
-              <div className="stat-trend">
-                <span className="trend-vs">{k.activeAttributions} active attributions</span>
-              </div>
-            </article>
-            <article className="stat-card">
-              <div className="stat-card-head">
-                <span className="stat-label">Last score run</span>
-                <span className="stat-icon stat-icon-purple">
-                  <StatIcon name="ai" />
-                </span>
-              </div>
-              <div className="stat-value" style={{ fontSize: 15 }}>
-                {formatWhen(k.lastFarmerScoreRun)}
-              </div>
-            </article>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <EmployeeKpiCard label="Farmers scored" value={k.farmersScored} icon={<StatIcon name="farmers" />} iconTone="teal" />
+            <EmployeeKpiCard label="Avg opportunity" value={k.avgOpportunityScore} icon={<StatIcon name="ai" />} iconTone="purple" />
+            <EmployeeKpiCard label="High opportunity" value={k.highOpportunityFarmers} sub="score ≥ 70" icon={<StatIcon name="trend" />} iconTone="green" />
+            <EmployeeKpiCard label="At risk / churned" value={`${k.atRiskFarmers} / ${k.churnedFarmers}`} icon={<StatIcon name="tasks" />} iconTone="blue" />
+            <EmployeeKpiCard label="Events (30d)" value={k.events30d} icon={<StatIcon name="cart" />} iconTone="blue" />
+            <EmployeeKpiCard label="Conversions (30d)" value={k.conversions30d} icon={<StatIcon name="sales" />} iconTone="green" />
+            <EmployeeKpiCard
+              label="Employees scored"
+              value={k.employeesScored}
+              sub={`${k.activeAttributions} active attributions`}
+              icon={<StatIcon name="farmers" />}
+              iconTone="teal"
+            />
+            <EmployeeKpiCard label="Last score run" value={formatWhen(k.lastFarmerScoreRun)} icon={<StatIcon name="ai" />} iconTone="purple" />
           </div>
 
-          <div
-            style={{
-              marginTop: 16,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: 16,
-            }}
-          >
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
             <Panel title="Retention bands">
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <ul className="m-0 list-none space-y-2 p-0">
                 {overview.retentionBands.map((b) => (
-                  <li
-                    key={b.band}
-                    style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}
-                  >
-                    <span>{bandLabel(b.band)}</span>
-                    <strong>{b.count}</strong>
+                  <li key={b.band} className="flex justify-between gap-4 py-1.5 text-sm">
+                    <span className="text-ink-secondary">{bandLabel(b.band)}</span>
+                    <strong className="text-ink">{b.count}</strong>
                   </li>
                 ))}
               </ul>
             </Panel>
             <Panel title="Opportunity distribution">
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <ul className="m-0 list-none space-y-2 p-0">
                 {overview.scoreDistribution.map((b) => (
-                  <li
-                    key={b.bucket}
-                    style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}
-                  >
-                    <span>{b.bucket}</span>
-                    <strong>{b.count}</strong>
+                  <li key={b.bucket} className="flex justify-between gap-4 py-1.5 text-sm">
+                    <span className="text-ink-secondary">{b.bucket}</span>
+                    <strong className="text-ink">{b.count}</strong>
                   </li>
                 ))}
               </ul>
             </Panel>
             <Panel title="Event volume (30d)">
               {eventVolume.length === 0 ? (
-                <p className="muted">No events in period.</p>
+                <p className="text-sm text-ink-muted">No events in period.</p>
               ) : (
-                <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                <ul className="m-0 list-none space-y-2 p-0">
                   {eventVolume.slice(0, 12).map((e) => (
-                    <li
-                      key={e.eventType}
-                      style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}
-                    >
-                      <span>{e.eventType.replace(/_/g, ' ')}</span>
-                      <strong>{e.count}</strong>
+                    <li key={e.eventType} className="flex justify-between gap-4 py-1.5 text-sm">
+                      <span className="text-ink-secondary">{e.eventType.replace(/_/g, ' ')}</span>
+                      <strong className="text-ink">{e.count}</strong>
                     </li>
                   ))}
                 </ul>
@@ -436,7 +344,7 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
       ) : tab === 'districts' ? (
         <Panel title="District opportunity heatmap">
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>District</th>
@@ -459,13 +367,13 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       ) : tab === 'farmers' ? (
         <Panel title="Top opportunity farmers (score ≥ 50)">
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -488,16 +396,16 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       ) : tab === 'alerts' ? (
         <Panel title="Open intelligence alerts">
           {alerts.length === 0 ? (
-            <p className="muted">No open alerts. Run nightly scoring or “Run alerts + CRM tasks”.</p>
+            <p className="text-sm text-ink-muted">No open alerts. Run nightly scoring or “Run alerts + CRM tasks”.</p>
           ) : (
             <TableWrap>
-              <table className="data-table">
+              <DataTable>
                 <thead>
                   <tr>
                     <th>Severity</th>
@@ -515,7 +423,7 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                       <td>
                         <strong>{a.title}</strong>
                         {a.body ? (
-                          <div className="muted" style={{ fontSize: 12 }}>
+                          <div className="text-xs text-ink-muted">
                             {a.body}
                           </div>
                         ) : null}
@@ -531,14 +439,14 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </DataTable>
             </TableWrap>
           )}
         </Panel>
       ) : tab === 'at_risk' ? (
         <Panel title="At-risk and churned farmers">
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -559,13 +467,13 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       ) : tab === 'relationship' ? (
         <Panel title={`Top relationship builders (≥${minAttributed} farmers)`}>
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -586,13 +494,13 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       ) : tab === 'retention' ? (
         <Panel title={`High retention quality (≥${minAttributed} farmers)`}>
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -613,13 +521,13 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       ) : (
         <Panel title={`Employee leaderboard (≥${minAttributed} attributed farmers)`}>
           <TableWrap>
-            <table className="data-table">
+            <DataTable>
               <thead>
                 <tr>
                   <th>Name</th>
@@ -642,7 +550,7 @@ export function OpportunityDashboardPage({ canWrite }: { canWrite: boolean }) {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </DataTable>
           </TableWrap>
         </Panel>
       )}

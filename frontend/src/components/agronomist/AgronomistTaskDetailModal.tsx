@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
-import { Btn } from '../ui';
+import { Alert, Btn, Loading } from '../ui';
 
 export type AgronomistTaskRow = {
   id: string;
@@ -133,36 +133,36 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
 
   return (
     <Modal title={task?.title ?? 'Task details'} onClose={onClose} wide>
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {task ? (
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
+      {loading ? <Loading label="Loading task…" /> : null}
+      {!loading && task ? (
         <div className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2 text-sm">
-            <div><span className="text-slate-500">Farmer</span><div className="font-medium">{task.farmerName ?? '—'}</div></div>
-            <div><span className="text-slate-500">Priority</span><div className="font-medium capitalize">{task.priority ?? 'medium'}</div></div>
-            <div><span className="text-slate-500">Block</span><div>{task.blockName ?? '—'}{task.cropName ? ` (${task.cropName})` : ''}</div></div>
-            <div><span className="text-slate-500">Due</span><div>{task.dueLabel ?? '—'}</div></div>
-            <div><span className="text-slate-500">Status</span><div className="capitalize">{task.status ?? 'pending'}</div></div>
-            <div><span className="text-slate-500">Assigned agronomist</span><div>{task.assignedAgronomist ?? '—'}</div></div>
+            <div><span className="text-ink-muted">Farmer</span><div className="font-medium">{task.farmerName ?? '—'}</div></div>
+            <div><span className="text-ink-muted">Priority</span><div className="font-medium capitalize">{task.priority ?? 'medium'}</div></div>
+            <div><span className="text-ink-muted">Block</span><div>{task.blockName ?? '—'}{task.cropName ? ` (${task.cropName})` : ''}</div></div>
+            <div><span className="text-ink-muted">Due</span><div>{task.dueLabel ?? '—'}</div></div>
+            <div><span className="text-ink-muted">Status</span><div className="capitalize">{task.status ?? 'pending'}</div></div>
+            <div><span className="text-ink-muted">Assigned agronomist</span><div>{task.assignedAgronomist ?? '—'}</div></div>
           </div>
           {task.issue ? (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Issue</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Issue</p>
               <p className="text-sm">{task.issue}</p>
             </div>
           ) : null}
 
           <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Discussion</p>
-            <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">Discussion</p>
+            <div className="max-h-64 space-y-3 overflow-y-auto rounded-lg border border-border bg-surface-subtle p-3">
               {comments.length === 0 ? (
-                <p className="text-sm text-slate-500">No comments yet — start the thread.</p>
+                <p className="text-sm text-ink-muted">No comments yet — start the thread.</p>
               ) : (
                 comments.map((c) => (
-                  <div key={c.id} className="rounded-md bg-white p-2 shadow-sm">
+                  <div key={c.id} className="rounded-md bg-surface-elevated p-2 shadow-sm">
                     <p className="text-xs font-semibold text-green-800">
                       {c.authorName ?? c.authorEmail}{' '}
-                      <span className="font-normal text-slate-500">· {roleLabel(c.authorRole)} · {c.atLabel}</span>
+                      <span className="font-normal text-ink-muted">· {roleLabel(c.authorRole)} · {c.atLabel}</span>
                     </p>
                     <p className="mt-1 text-sm whitespace-pre-wrap">{c.body}</p>
                   </div>
@@ -172,7 +172,7 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
             {canWrite && task.status === 'pending' ? (
               <div className="mt-3 space-y-2">
                 <textarea
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border-strong px-3 py-2 text-sm"
                   rows={3}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}

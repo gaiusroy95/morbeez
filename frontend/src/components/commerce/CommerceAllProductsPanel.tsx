@@ -4,7 +4,17 @@ import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 import { Modal } from '../Modal';
-import { StaticSelect } from '../ui';
+import {
+  Alert,
+  Btn,
+  Field,
+  FilterBar,
+  Input,
+  Loading,
+  Panel,
+  StaticSelect,
+} from '../ui';
+import { FilterableStatCard } from '../employees/employee-ui';
 import { ProductActionMenu } from './ProductActionMenu';
 import '../../styles/commerce-products.css';
 
@@ -222,6 +232,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchDeleting, setBatchDeleting] = useState(false);
   const [statFilter, setStatFilter] = useState<'all' | 'low' | 'out' | 'expiring'>('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [viewProduct, setViewProduct] = useState<ProductRow | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
@@ -563,9 +574,9 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
     (!shopifyStatus.connected || shopifyStatus.storeMismatch);
 
   return (
-    <div className="commerce-products">
+    <div className="commerce-products space-y-4">
       {showShopifyWarning ? (
-        <div className="commerce-products__shopify-banner" role="alert">
+        <Alert tone="warn">
           <strong>Shopify storefront issue:</strong> {shopifyStatus.message}
           {shopifyStatus.storefrontUrl ? (
             <>
@@ -574,42 +585,37 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
                 href={`${shopifyStatus.storefrontUrl}/collections/all`}
                 target="_blank"
                 rel="noreferrer"
+                className="font-semibold text-brand-700 hover:underline"
               >
                 Open storefront
               </a>
             </>
           ) : null}
-        </div>
+        </Alert>
       ) : shopifyStatus?.connected ? (
-        <div className="commerce-products__shopify-ok">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border/80 bg-brand-50 px-4 py-3 text-sm text-ink-secondary">
           <span>
             Shopify: {shopifyStatus.storeDomain} · {shopifyStatus.productCount} product
             {shopifyStatus.productCount === 1 ? '' : 's'} synced
           </span>
           {canWrite && shopifyStatus.productCount > 0 ? (
-            <button
-              type="button"
-              className="commerce-products__btn commerce-products__btn--outline commerce-products__shopify-publish-all"
-              disabled={publishingAll}
-              onClick={() => void publishAllToStorefront()}
-            >
+            <Btn variant="secondary" disabled={publishingAll} onClick={() => void publishAllToStorefront()}>
               {publishingAll ? 'Publishing…' : 'Publish all to storefront'}
-            </button>
+            </Btn>
           ) : null}
         </div>
       ) : null}
 
-      <header className="commerce-products__header">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="commerce-products__title">All Products</h2>
-          <p className="commerce-products__subtitle">
+          <h2 className="text-xl font-bold text-ink">All Products</h2>
+          <p className="mt-1 text-sm text-ink-muted">
             Manage all your products, variants and inventory
           </p>
         </div>
-        <div className="commerce-products__header-actions">
-          <button
-            type="button"
-            className="commerce-products__btn commerce-products__btn--outline"
+        <div className="flex flex-wrap gap-2">
+          <Btn
+            variant="secondary"
             disabled={!canWrite}
             onClick={() => {
               setError('');
@@ -618,197 +624,144 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
               setImportOpen(true);
             }}
           >
-            <span aria-hidden>↓</span> Import
-          </button>
-          <button
-            type="button"
-            className="commerce-products__btn commerce-products__btn--outline"
-            onClick={exportCsv}
-            disabled={!products.length}
-          >
-            <span aria-hidden>↑</span> Export
-          </button>
+            Import
+          </Btn>
+          <Btn variant="secondary" onClick={exportCsv} disabled={!products.length}>
+            Export
+          </Btn>
           {canWrite ? (
-            <button
-              type="button"
-              className="commerce-products__btn commerce-products__btn--primary"
-              onClick={() => navigate(toPath(paths.commerceProductNew))}
-            >
+            <Btn variant="primary" onClick={() => navigate(toPath(paths.commerceProductNew))}>
               + Add New Product
-            </button>
+            </Btn>
           ) : null}
         </div>
-      </header>
+      </div>
 
-      {notice ? (
-        <div className="commerce-products__notice" role="status">
-          {notice}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="commerce-products__error" role="alert">
-          {error}
-        </div>
-      ) : null}
+      {notice ? <Alert tone="success">{notice}</Alert> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
       {stats ? (
-        <div className="commerce-products__stats">
-          <button
-            type="button"
-            className={`commerce-products__stat-card ${statFilter === 'all' ? 'commerce-products__stat-card--active' : ''}`}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FilterableStatCard
+            label="Total Products"
+            value={stats.total}
+            sub={`Active: ${stats.active} · Inactive: ${stats.inactive}`}
+            active={statFilter === 'all'}
             onClick={() => applyStatFilter('all')}
-          >
-            <div>
-              <p className="commerce-products__stat-label">Total Products</p>
-              <p className="commerce-products__stat-value">{stats.total}</p>
-              <p className="commerce-products__stat-hint">
-                Active: {stats.active} · Inactive: {stats.inactive}
-              </p>
-            </div>
-            <span className="commerce-products__stat-icon commerce-products__stat-icon--green" aria-hidden>
-              📦
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`commerce-products__stat-card ${statFilter === 'low' ? 'commerce-products__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Low Stock"
+            value={stats.lowStock}
+            sub="View low stock products"
+            active={statFilter === 'low'}
             onClick={() => applyStatFilter('low')}
-          >
-            <div>
-              <p className="commerce-products__stat-label">Low Stock</p>
-              <p className="commerce-products__stat-value">{stats.lowStock}</p>
-              <p className="commerce-products__stat-hint commerce-products__stat-hint--link">
-                View low stock products
-              </p>
-            </div>
-            <span className="commerce-products__stat-icon commerce-products__stat-icon--orange" aria-hidden>
-              📂
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`commerce-products__stat-card ${statFilter === 'out' ? 'commerce-products__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Out of Stock"
+            value={stats.outOfStock}
+            sub="View out of stock products"
+            active={statFilter === 'out'}
             onClick={() => applyStatFilter('out')}
-          >
-            <div>
-              <p className="commerce-products__stat-label">Out of Stock</p>
-              <p className="commerce-products__stat-value">{stats.outOfStock}</p>
-              <p className="commerce-products__stat-hint commerce-products__stat-hint--link">
-                View out of stock products
-              </p>
-            </div>
-            <span className="commerce-products__stat-icon commerce-products__stat-icon--red" aria-hidden>
-              ⊟
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`commerce-products__stat-card ${statFilter === 'expiring' ? 'commerce-products__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Expiring Soon"
+            value={stats.expiringSoon}
+            sub="Within 90 days"
+            active={statFilter === 'expiring'}
             onClick={() => applyStatFilter('expiring')}
-          >
-            <div>
-              <p className="commerce-products__stat-label">Expiring Soon</p>
-              <p className="commerce-products__stat-value">{stats.expiringSoon}</p>
-              <p className="commerce-products__stat-hint">Within 90 days</p>
-            </div>
-            <span className="commerce-products__stat-icon commerce-products__stat-icon--yellow" aria-hidden>
-              📅
-            </span>
-          </button>
+          />
         </div>
       ) : null}
 
-      <div className="commerce-products__filters">
-        <div className="commerce-products__search-wrap">
-          <span className="commerce-products__search-icon" aria-hidden>
-            ⌕
-          </span>
-          <input
+      <FilterBar>
+        <div className="relative min-w-[240px] flex-1">
+          <Input
             type="search"
-            className="commerce-products__search"
             placeholder="Search products..."
             value={draftSearch}
             onChange={(e) => setDraftSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
+            className="pl-9"
           />
+          <span
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+            aria-hidden
+          >
+            ⌕
+          </span>
         </div>
-        <StaticSelect
-          className="commerce-products__select"
-          value={draftCategory}
-          onChange={setDraftCategory}
-          options={[
-            { value: 'all', label: 'All Categories' },
-            ...categories.map((c) => ({ value: c, label: c })),
-          ]}
-        />
-        <StaticSelect
-          className="commerce-products__select"
-          value={draftBrand}
-          onChange={setDraftBrand}
-          options={[
-            { value: 'all', label: 'All Brands' },
-            ...brands.map((b) => ({ value: b, label: b })),
-          ]}
-        />
-        <StaticSelect
-          className="commerce-products__select"
-          value={draftStatus}
-          onChange={setDraftStatus}
-          options={[
-            { value: 'all', label: 'All Status' },
-            { value: 'active', label: 'Active' },
-            { value: 'draft', label: 'Draft' },
-            { value: 'archived', label: 'Archived' },
-          ]}
-        />
-        <div className="commerce-products__filter-actions">
-          <button
-            type="button"
-            className="commerce-products__btn commerce-products__btn--outline"
-            onClick={resetFilters}
-          >
-            ↺ Reset
-          </button>
-          <button
-            type="button"
-            className="commerce-products__btn commerce-products__btn--primary"
-            onClick={applyFilters}
-          >
+        <Btn variant="secondary" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen}>
+          Filters
+        </Btn>
+        <Btn variant="primary" onClick={applyFilters}>
+          Search
+        </Btn>
+      </FilterBar>
+
+      {filtersOpen ? (
+        <Panel bodyClassName="flex flex-wrap items-end gap-3">
+          <Field label="Category" className="min-w-[160px] flex-1">
+            <StaticSelect
+              value={draftCategory}
+              onChange={setDraftCategory}
+              options={[
+                { value: 'all', label: 'All Categories' },
+                ...categories.map((c) => ({ value: c, label: c })),
+              ]}
+            />
+          </Field>
+          <Field label="Brand" className="min-w-[160px] flex-1">
+            <StaticSelect
+              value={draftBrand}
+              onChange={setDraftBrand}
+              options={[
+                { value: 'all', label: 'All Brands' },
+                ...brands.map((b) => ({ value: b, label: b })),
+              ]}
+            />
+          </Field>
+          <Field label="Status" className="min-w-[140px] flex-1">
+            <StaticSelect
+              value={draftStatus}
+              onChange={setDraftStatus}
+              options={[
+                { value: 'all', label: 'All Status' },
+                { value: 'active', label: 'Active' },
+                { value: 'draft', label: 'Draft' },
+                { value: 'archived', label: 'Archived' },
+              ]}
+            />
+          </Field>
+          <Btn variant="ghost" onClick={resetFilters}>
+            Reset
+          </Btn>
+          <Btn variant="secondary" onClick={applyFilters}>
             Apply Filters
-          </button>
-        </div>
-      </div>
+          </Btn>
+        </Panel>
+      ) : null}
 
       {selectedIds.size > 0 && canWrite ? (
-        <div className="commerce-products__batch-bar" role="toolbar" aria-label="Batch actions">
-          <span className="commerce-products__batch-count">
-            {selectedIds.size} selected
-          </span>
-          <div className="commerce-products__batch-actions">
-            <button
-              type="button"
-              className="commerce-products__btn commerce-products__btn--outline"
-              onClick={clearSelection}
-              disabled={batchDeleting}
-            >
+        <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated px-4 py-3 shadow-[var(--shadow-card)]"
+          role="toolbar"
+          aria-label="Batch actions"
+        >
+          <span className="text-sm font-semibold text-ink">{selectedIds.size} selected</span>
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="secondary" onClick={clearSelection} disabled={batchDeleting}>
               Clear selection
-            </button>
-            <button
-              type="button"
-              className="commerce-products__btn commerce-products__btn--danger"
-              onClick={() => void batchArchiveSelected()}
-              disabled={batchDeleting}
-            >
+            </Btn>
+            <Btn variant="danger" onClick={() => void batchArchiveSelected()} disabled={batchDeleting}>
               {batchDeleting ? 'Deleting…' : 'Delete selected'}
-            </button>
+            </Btn>
           </div>
         </div>
       ) : null}
 
-      <div className="commerce-products__table-card">
+      <Panel bodyClassName="p-0">
         {loading ? (
-          <p className="commerce-products__loading">Loading products…</p>
+          <Loading label="Loading products…" />
         ) : (
           <>
             <div className="commerce-products__table-wrap">
@@ -1003,7 +956,7 @@ export function CommerceAllProductsPanel({ canWrite }: Props) {
             </footer>
           </>
         )}
-      </div>
+      </Panel>
 
       <ProductActionMenu open={!!menuProduct} anchor={menuAnchor} onClose={closeMenu}>
         {menuProduct ? (

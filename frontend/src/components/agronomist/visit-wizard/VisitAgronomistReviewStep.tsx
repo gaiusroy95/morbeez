@@ -34,7 +34,7 @@ export function VisitAgronomistReviewStep({
         Review each AI-detected issue. Approve, modify (with observation), or reject before continuing.
       </p>
       {farmerSuggestedDiagnosis || farmerPriorExperience || farmerPriorProduct ? (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+        <div className="rounded-[var(--radius-control)] border border-amber-200/80 bg-amber-50 p-3 text-sm text-amber-950">
           <p className="text-xs font-bold uppercase tracking-wide text-amber-800">
             Farmer recommendation (WhatsApp)
           </p>

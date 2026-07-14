@@ -2,7 +2,17 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
-import { Alert, Loading } from '../ui';
+import {
+  Alert,
+  Btn,
+  DataTable,
+  EmptyState,
+  FilterBar,
+  Input,
+  Loading,
+  Panel,
+  TableWrap,
+} from '../ui';
 
 const FIELD_BASE = '/morbeez-staff/api/v1/os/field';
 
@@ -91,103 +101,135 @@ export function CaseLibraryPanel({ canWrite: _canWrite }: { canWrite: boolean })
   }
 
   return (
-    <div className="agronomist-panel">
-      <h2>Visit AI case library</h2>
-      <p className="text-muted">
-        Search submitted field visits with AI hypotheses, Q&amp;A, recommendations, and agronomist review
-        decisions.
-      </p>
-      {error ? <Alert variant="danger">{error}</Alert> : null}
-      <div className="agronomist-filter-row" style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input className="form-control" placeholder="Crop type" value={cropType} onChange={(e) => setCropType(e.target.value)} />
-        <input className="form-control" placeholder="Issue / diagnosis" value={issue} onChange={(e) => setIssue(e.target.value)} />
-        <input className="form-control" placeholder="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} />
-        <input className="form-control" placeholder="DAP bucket" value={dapBucket} onChange={(e) => setDapBucket(e.target.value)} />
-        <input className="form-control" placeholder="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)} />
-        <input className="form-control" placeholder="Review action" value={reviewAction} onChange={(e) => setReviewAction(e.target.value)} />
-        <button type="button" className="btn btn-primary" onClick={() => void load()} disabled={loading}>
-          Search
-        </button>
-      </div>
-      {loading ? <Loading label="Loading cases…" /> : null}
-      <table className="table table-sm">
-        <thead>
-          <tr>
-            <th>Visited</th>
-            <th>Crop</th>
-            <th>Issue</th>
-            <th>Diagnosis</th>
-            <th>DAP</th>
-            <th>Confidence</th>
-            <th>Outcome</th>
-            <th>Review</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id} style={{ cursor: 'pointer' }} onClick={() => void openDetail(row)}>
-              <td>{new Date(row.visitedAt).toLocaleDateString('en-IN')}</td>
-              <td>{row.cropType ?? '—'}</td>
-              <td>{row.issueName}</td>
-              <td>{row.finalDiagnosis ?? '—'}</td>
-              <td>{row.dap ?? row.dapBucket ?? '—'}</td>
-              <td>{row.confidence != null ? `${Math.round(row.confidence * 100)}%` : '—'}</td>
-              <td>{row.outcome ?? '—'}</td>
-              <td>{row.reviewAction?.replace(/_/g, ' ') ?? '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {!loading && !rows.length ? <p className="text-muted">No submitted visit AI cases yet.</p> : null}
+    <div className="mt-4 space-y-4">
+      <Panel
+        title="Visit AI case library"
+        description="Search submitted field visits with AI hypotheses, Q&A, recommendations, and agronomist review decisions."
+      >
+        {error ? <Alert tone="error" className="mb-4">{error}</Alert> : null}
+        <FilterBar>
+          <Input placeholder="Crop type" value={cropType} onChange={(e) => setCropType(e.target.value)} />
+          <Input placeholder="Issue / diagnosis" value={issue} onChange={(e) => setIssue(e.target.value)} />
+          <Input placeholder="Outcome" value={outcome} onChange={(e) => setOutcome(e.target.value)} />
+          <Input placeholder="DAP bucket" value={dapBucket} onChange={(e) => setDapBucket(e.target.value)} />
+          <Input placeholder="Severity" value={severity} onChange={(e) => setSeverity(e.target.value)} />
+          <Input
+            placeholder="Review action"
+            value={reviewAction}
+            onChange={(e) => setReviewAction(e.target.value)}
+          />
+          <Btn type="button" onClick={() => void load()} disabled={loading}>
+            Search
+          </Btn>
+        </FilterBar>
+        {loading ? <Loading label="Loading cases…" /> : null}
+        {!loading && !rows.length ? (
+          <EmptyState>No submitted visit AI cases yet.</EmptyState>
+        ) : null}
+        {!loading && rows.length > 0 ? (
+          <TableWrap>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Visited</th>
+                  <th>Crop</th>
+                  <th>Issue</th>
+                  <th>Diagnosis</th>
+                  <th>DAP</th>
+                  <th>Confidence</th>
+                  <th>Outcome</th>
+                  <th>Review</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="cursor-pointer hover:bg-surface-subtle"
+                    onClick={() => void openDetail(row)}
+                  >
+                    <td>{new Date(row.visitedAt).toLocaleDateString('en-IN')}</td>
+                    <td>{row.cropType ?? '—'}</td>
+                    <td>{row.issueName}</td>
+                    <td>{row.finalDiagnosis ?? '—'}</td>
+                    <td>{row.dap ?? row.dapBucket ?? '—'}</td>
+                    <td>{row.confidence != null ? `${Math.round(row.confidence * 100)}%` : '—'}</td>
+                    <td>{row.outcome ?? '—'}</td>
+                    <td>{row.reviewAction?.replace(/_/g, ' ') ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </DataTable>
+          </TableWrap>
+        ) : null}
+      </Panel>
 
       {selected ? (
-        <div className="agronomist-panel" style={{ marginTop: 16, border: '1px solid #ddd', padding: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0 }}>{selected.finalDiagnosis ?? selected.issueName}</h3>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSelected(null)}>
+        <Panel
+          title={selected.finalDiagnosis ?? selected.issueName}
+          actions={
+            <Btn type="button" variant="secondary" size="sm" onClick={() => setSelected(null)}>
               Close
-            </button>
-          </div>
+            </Btn>
+          }
+        >
           {selected.fieldFindingId ? (
-            <p className="text-muted">
+            <p className="mb-4 text-sm text-ink-muted">
               Field finding:{' '}
-              <Link to={toPath(paths.agronomistVisitDetail.replace(':findingId', selected.fieldFindingId))}>
+              <Link
+                className="text-brand-700 hover:underline"
+                to={toPath(paths.agronomistVisitDetail.replace(':findingId', selected.fieldFindingId))}
+              >
                 Open visit record
               </Link>
             </p>
           ) : null}
           {detailLoading ? <Loading label="Loading case detail…" /> : null}
           {detail ? (
-            <>
-              <h4>Hypotheses</h4>
-              <ul>
-                {(detail.hypotheses ?? []).map((h) => (
-                  <li key={h.label}>
-                    {h.label} ({Math.round(h.confidence * 100)}%){h.selected ? ' · selected' : ''}
-                  </li>
+            <div className="space-y-4 text-sm text-ink-secondary">
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Hypotheses
+                </h4>
+                <ul className="list-inside list-disc space-y-1">
+                  {(detail.hypotheses ?? []).map((h) => (
+                    <li key={h.label}>
+                      {h.label} ({Math.round(h.confidence * 100)}%){h.selected ? ' · selected' : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Follow-up Q&amp;A
+                </h4>
+                <ul className="list-inside list-disc space-y-1">
+                  {(detail.questions ?? []).map((q, i) => (
+                    <li key={`${q.questionText}-${i}`}>
+                      {q.questionText} — {q.answer ?? 'unanswered'}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+                  Recommendation
+                </h4>
+                {(detail.recommendations ?? []).map((rec, i) => (
+                  <p key={i}>
+                    {rec.humanText ?? rec.aiText}
+                    {rec.reviewAction ? ` (${rec.reviewAction.replace(/_/g, ' ')})` : ''}
+                  </p>
                 ))}
-              </ul>
-              <h4>Follow-up Q&amp;A</h4>
-              <ul>
-                {(detail.questions ?? []).map((q, i) => (
-                  <li key={`${q.questionText}-${i}`}>
-                    {q.questionText} — {q.answer ?? 'unanswered'}
-                  </li>
-                ))}
-              </ul>
-              <h4>Recommendation</h4>
-              {(detail.recommendations ?? []).map((rec, i) => (
-                <p key={i}>
-                  {rec.humanText ?? rec.aiText}
-                  {rec.reviewAction ? ` (${rec.reviewAction.replace(/_/g, ' ')})` : ''}
-                </p>
-              ))}
+              </div>
               {detail.metadata?.imageSignal ? (
-                <p className="text-muted">Image signal: {JSON.stringify(detail.metadata.imageSignal)}</p>
+                <p className="text-sm text-ink-muted">
+                  Image signal: {JSON.stringify(detail.metadata.imageSignal)}
+                </p>
               ) : null}
-            </>
+            </div>
           ) : null}
-        </div>
+        </Panel>
       ) : null}
     </div>
   );

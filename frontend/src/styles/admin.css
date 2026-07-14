@@ -1,22 +1,29 @@
-/* Morbeez Agriculture â€” Operations Console (dashboard mockup) */
+/* Morbeez Agriculture — Operations Console */
 :root {
-  --green-900: #1a4d32;
-  --green-800: #215c3a;
-  --green-700: #2a6b44;
-  --green-500: #34b35e;
-  --green-400: #4bc96e;
-  --green-100: #e8f5ec;
+  --green-950: #0d2818;
+  --green-900: #143d28;
+  --green-800: #1a5236;
+  --green-700: #246b45;
+  --green-600: #2d8554;
+  --green-500: #3aad62;
+  --green-400: #52c97a;
+  --green-100: #e6f4ec;
+  --green-50: #f2faf5;
   --sidebar-w: 272px;
   --sidebar-w-collapsed: 84px;
-  --bg: #f4f7f5;
+  --bg: #f3f6f4;
+  --bg-subtle: #eaefeb;
   --card: #ffffff;
-  --text: #1a2e24;
-  --text-muted: #6b7c72;
-  --border: #e5ebe7;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(26, 46, 36, 0.04), 0 4px 16px rgba(26, 46, 36, 0.06);
-  --font: 'Inter', system-ui, sans-serif;
+  --text: #122118;
+  --text-secondary: #3d4f45;
+  --text-muted: #667a70;
+  --border: #dde5e0;
+  --border-strong: #c5d0c8;
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 3px rgba(18, 33, 24, 0.05), 0 4px 14px rgba(18, 33, 24, 0.06);
+  --shadow-elevated: 0 8px 24px rgba(18, 33, 24, 0.08), 0 2px 6px rgba(18, 33, 24, 0.04);
+  --font: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
 *,
@@ -63,9 +70,9 @@ body {
   width: 100%;
   max-width: 420px;
   background: var(--card);
-  border-radius: 16px;
+  border-radius: var(--radius);
   padding: 40px 36px;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-elevated);
 }
 
 .login-brand-row {
@@ -267,6 +274,11 @@ body {
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--green-400);
+}
+
+.sidebar-link.active .nav-icon {
+  opacity: 1;
 }
 
 .nav-icon {
@@ -405,6 +417,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
+  box-shadow: 0 1px 2px rgba(18, 33, 24, 0.04);
 }
 
 .page-heading {
@@ -412,6 +425,7 @@ body {
   font-size: 1.65rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text);
   flex: 1;
   min-width: 120px;
 }
@@ -862,7 +876,7 @@ body {
   border-radius: var(--radius-sm);
   font-size: 14px;
   font-family: inherit;
-  background: #fff;
+  background: var(--card);
 }
 
 .field textarea,
@@ -918,7 +932,7 @@ textarea {
 }
 
 .btn-secondary {
-  background: #fff;
+  background: var(--card);
   color: var(--text);
   border: 1px solid var(--border);
 }
@@ -935,10 +949,12 @@ textarea {
 
 .alert-error {
   background: #fef2f2;
-  color: #dc2626;
+  color: #b91c1c;
   border: 1px solid #fecaca;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .panel,
@@ -964,6 +980,7 @@ textarea {
   margin: 0;
   font-size: 1rem;
   font-weight: 700;
+  color: var(--text);
 }
 
 .panel-body {

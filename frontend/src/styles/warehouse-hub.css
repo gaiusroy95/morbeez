@@ -8,7 +8,7 @@
 }
 
 .warehouse-row--focus td {
-  background: #ecfdf5;
+  background: var(--green-50);
 }
 
 .warehouse-kpi-grid {
@@ -34,7 +34,7 @@
 
 .warehouse-kpi-list strong {
   font-size: 1.05rem;
-  color: var(--brand-700, #1b5e20);
+  color: var(--brand-700, var(--green-800));
 }
 
 .warehouse-product-cell {
@@ -83,7 +83,7 @@
   grid-column: 1 / -1;
   margin: 0 0 0.25rem;
   font-size: 0.8rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .warehouse-location-error {
@@ -113,28 +113,28 @@
 .warehouse-location-field select {
   width: 100%;
   padding: 0.5rem 0.65rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   font-size: 0.875rem;
   font-weight: 400;
-  background: #fff;
+  background: var(--card);
 }
 
 .warehouse-location-field select:disabled {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
 }
 
 .warehouse-location-code {
   grid-column: 1 / -1;
   margin: 0;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .warehouse-landed-cell {
   font-weight: 600;
-  color: #0f766e;
+  color: var(--green-800);
   white-space: nowrap;
 }
 
@@ -166,7 +166,7 @@
 
 .warehouse-scan-row .scan-msg {
   font-size: 0.85rem;
-  color: #1b5e20;
+  color: var(--green-800);
   font-weight: 600;
 }
 
@@ -255,8 +255,8 @@
 .barcode-scan-video {
   width: 100%;
   border-radius: 10px;
-  border: 1px solid #e2e8f0;
-  background: #0f172a;
+  border: 1px solid var(--border);
+  background: var(--text);
 }
 
 .barcode-scan-error {

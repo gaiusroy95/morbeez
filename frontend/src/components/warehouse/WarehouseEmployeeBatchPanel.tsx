@@ -192,7 +192,7 @@ export function WarehouseEmployeeBatchPanel({ canWrite }: { canWrite: boolean })
       <header className="elb-toolbar">
         <div>
           <h2>Assign &amp; print labels</h2>
-          <p className="muted">
+          <p className="text-sm text-ink-muted">
             Assign orders employee-wise, bulk-print label stacks into separate trays, then pick &amp; pack
             with QR verification.
           </p>
@@ -240,7 +240,7 @@ export function WarehouseEmployeeBatchPanel({ canWrite }: { canWrite: boolean })
                     />
                     <span className="elb-order-pick-main">
                       <strong>{o.orderName}</strong>
-                      <span className="muted">
+                      <span className="text-sm text-ink-muted">
                         {formatStatus(o.omsStatus)} · {o.courier}
                         {o.awb ? ` · AWB ${o.awb}` : ''}
                       </span>
@@ -280,7 +280,7 @@ export function WarehouseEmployeeBatchPanel({ canWrite }: { canWrite: boolean })
                     <strong>{b.batch_number}</strong>
                     <span>{b.assigned_employee_name}</span>
                     <span className="elb-batch-status">{formatStatus(b.batch_status)}</span>
-                    <span className="muted">{b.total_orders} orders</span>
+                    <span className="text-sm text-ink-muted">{b.total_orders} orders</span>
                   </button>
                   {canWrite && b.batch_status !== 'printed' && b.batch_status !== 'completed' ? (
                     <Btn size="sm" variant="primary" disabled={busy} onClick={() => void printBatch(b.id)}>
@@ -300,14 +300,14 @@ export function WarehouseEmployeeBatchPanel({ canWrite }: { canWrite: boolean })
             <EmptyState>Select a batch to preview the label stack.</EmptyState>
           ) : (
             <>
-              <p className="muted elb-stack-hint">Top of stack = first order to pick. Bottom = last.</p>
+              <p className="text-sm text-ink-muted elb-stack-hint">Top of stack = first order to pick. Bottom = last.</p>
               <ol className="elb-stack">
                 {[...stack].reverse().map((item) => (
                   <li key={item.labelId} className="elb-stack-item">
                     <span className="elb-stack-seq">#{item.printSequence}</span>
                     <div>
                       <strong>{item.orderName}</strong>
-                      <span className="mono muted">{item.qrCode}</span>
+                      <span className="mono text-sm text-ink-muted">{item.qrCode}</span>
                       {item.awb ? <span className="mono">AWB {item.awb}</span> : null}
                     </div>
                     <Link

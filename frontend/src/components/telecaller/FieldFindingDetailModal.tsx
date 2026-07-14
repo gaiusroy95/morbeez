@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import { Alert } from '../ui';
 import {
   FINDING_TYPE_LABELS,
   REVIEW_SEVERITY_LABELS,
@@ -142,12 +143,12 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
 
   return (
     <Modal title="Field finding details" onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <p className="text-sm text-ink-muted">Loading…</p> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {detail && !loading ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700">
+            <span className="rounded-full bg-surface-subtle px-2.5 py-0.5 text-xs text-ink-secondary">
               {detail.visitedLabel}
             </span>
             {detail.findingType ? (
@@ -175,12 +176,12 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
           <div className="flex items-center gap-3">
             <div className="tc-ff-avatar">{detail.agronomistInitials}</div>
             <div>
-              <p className="font-semibold text-slate-900">{String(detail.agronomistName)}</p>
-              <p className="text-xs text-slate-500">{String(detail.agronomistRole)}</p>
+              <p className="font-semibold text-ink">{String(detail.agronomistName)}</p>
+              <p className="text-xs text-ink-muted">{String(detail.agronomistRole)}</p>
             </div>
             <div className="ml-auto text-right text-sm">
-              <p className="font-medium text-slate-800">{detail.blockName}</p>
-              <p className="text-slate-500">{detail.cropType}</p>
+              <p className="font-medium text-ink">{detail.blockName}</p>
+              <p className="text-ink-muted">{detail.cropType}</p>
             </div>
           </div>
 
@@ -211,7 +212,7 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs"
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs"
                   onClick={() => setEditing(false)}
                 >
                   Cancel
@@ -221,25 +222,25 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
           ) : (
             <>
               {detail.affectedAreaPct != null ? (
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-ink-secondary">
                   <strong>Affected area:</strong> {detail.affectedAreaPct}% of block
                 </p>
               ) : null}
 
               <section>
-                <h3 className="text-xs font-semibold uppercase text-slate-500">Observations</h3>
-                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
+                <h3 className="text-xs font-semibold uppercase text-ink-muted">Observations</h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-ink">
                   {detail.observations || '—'}
                 </p>
               </section>
 
               {detail.parameters.length > 0 ? (
                 <section>
-                  <h3 className="text-xs font-semibold uppercase text-slate-500">Parameters</h3>
+                  <h3 className="text-xs font-semibold uppercase text-ink-muted">Parameters</h3>
                   <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
                     {detail.parameters.map((p, i) => (
-                      <li key={i} className="text-slate-700">
-                        <span className="text-slate-500">{p.label}:</span> {p.value}
+                      <li key={i} className="text-ink-secondary">
+                        <span className="text-ink-muted">{p.label}:</span> {p.value}
                       </li>
                     ))}
                   </ul>
@@ -248,12 +249,12 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
 
               {detail.actionTaken ? (
                 <section>
-                  <h3 className="text-xs font-semibold uppercase text-slate-500">Action taken</h3>
-                  <p className="mt-1 text-sm text-slate-800">{detail.actionTaken}</p>
+                  <h3 className="text-xs font-semibold uppercase text-ink-muted">Action taken</h3>
+                  <p className="mt-1 text-sm text-ink">{detail.actionTaken}</p>
                 </section>
               ) : null}
 
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-ink-secondary">
                 <strong>Next follow-up:</strong> {detail.followUpLabel}
               </p>
             </>
@@ -261,7 +262,7 @@ export function FieldFindingDetailModal({ leadId, row, canWrite, onClose, onSave
 
           {detail.photoUrls.length > 0 ? (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase text-slate-500">Photos</h3>
+              <h3 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Photos</h3>
               <div className="tc-ff-photo-grid">
                 {detail.photoUrls.map((url, i) => (
                   <a key={i} href={url} target="_blank" rel="noreferrer" className="tc-ff-photo">

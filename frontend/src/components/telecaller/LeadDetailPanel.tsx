@@ -26,7 +26,7 @@ import { AgronomistTasksTab } from './AgronomistTasksTab';
 import '../../styles/agronomist-ops.css';
 import { AgronomistActivityModal } from './AgronomistActivityModal';
 import { Modal } from '../Modal';
-import { StaticSelect } from '../ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, HubTabs, Loading, Panel, StaticSelect, TBody, Td, Th, THead, TableWrap } from '../ui';
 import { CallIntelligencePanel } from './CallIntelligencePanel';
 import { LeadTimelineFeed } from './LeadTimelineFeed';
 import { TelecallerLeadTeamPanel } from './TelecallerLeadTeamPanel';
@@ -142,23 +142,6 @@ const LEAD_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'roi_tracker', label: 'ROI tracker' },
   { id: 'field_activity', label: 'Field activity' },
 ];
-
-const TAB_ICONS: Record<Tab, string> = {
-  overview: '◉',
-  interactions: '☎',
-  whatsapp: '🟢',
-  blocks: '▦',
-  findings: '🧪',
-  agronomist: '🧑‍🌾',
-  agronomist_tasks: '📋',
-  pending_tasks: '⏰',
-  team: '👥',
-  escalations: '⚠',
-  notes: '📝',
-  orders: '🛒',
-  roi_tracker: '📒',
-  field_activity: '🌿',
-};
 
 export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Props) {
   const visibleTabs = useMemo(
@@ -418,11 +401,15 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
   }
 
   if (loading && !detail) {
-    return <p className="tc-muted" style={{ padding: 24 }}>Loading farmer…</p>;
+    return <Loading label="Loading farmer…" />;
   }
 
   if (!detail) {
-    return <p className="text-sm text-red-600" style={{ padding: 24 }}>{error || 'Lead not found'}</p>;
+    return (
+      <Alert tone="error" className="m-6">
+        {error || 'Lead not found'}
+      </Alert>
+    );
   }
 
   const l = detail.lead;
@@ -637,35 +624,35 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
             </div>
           </div>
         </div>
-        <nav className="tc-detail-tabs" role="tablist">
-          {visibleTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              className={`tc-detail-tab ${tab === t.id ? 'active' : ''}`}
-            >
-              <span className="tc-tab-icon">{TAB_ICONS[t.id]}</span>
-              {t.label}
-            </button>
-          ))}
-        </nav>
+        <HubTabs
+          className="mt-3 border-t border-border pt-1"
+          tabs={visibleTabs.map((t) => ({
+            id: t.id,
+            label: t.label,
+            badge:
+              t.id === 'pending_tasks' && pendingCount > 0
+                ? pendingCount
+                : t.id === 'escalations' && escalationCount > 0
+                  ? escalationCount
+                  : undefined,
+          }))}
+          active={tab}
+          onChange={setTab}
+        />
         {canWrite ? (
-          <div className="tc-detail-actions">
-            <button type="button" className="tc-action-btn" onClick={() => setModal('call')}>
+          <div className="flex flex-wrap items-center gap-2 py-3">
+            <Btn size="sm" variant="secondary" onClick={() => setModal('call')}>
               Log call
-            </button>
-            <button type="button" className="tc-action-btn" onClick={() => setModal('task')}>
+            </Btn>
+            <Btn size="sm" variant="secondary" onClick={() => setModal('task')}>
               Follow-up
-            </button>
-            <button type="button" className="tc-action-btn" onClick={() => setModal('visit')}>
+            </Btn>
+            <Btn size="sm" variant="secondary" onClick={() => setModal('visit')}>
               Schedule visit
-            </button>
-            <button type="button" className="tc-action-btn" onClick={() => setShowCreateEstimate(true)}>
+            </Btn>
+            <Btn size="sm" variant="secondary" onClick={() => setShowCreateEstimate(true)}>
               Create quote
-            </button>
+            </Btn>
             <div className="tc-detail-alert-badges">
               {pendingCount > 0 ? (
                 <button
@@ -690,7 +677,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
         ) : null}
       </header>
 
-      {error ? <p className="text-sm text-red-600" style={{ padding: '12px 20px 0' }}>{error}</p> : null}
+      {error ? <Alert tone="error" className="mx-5 mt-3">{error}</Alert> : null}
 
       {modal ? (
         <CrmModals
@@ -795,7 +782,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
           onSave={confirmArchiveResource}
           saveLabel="Archive"
         >
-          <p className="text-sm text-slate-700">Do you want to archive this {archiveModal.label}?</p>
+          <p className="text-sm text-ink-secondary">Do you want to archive this {archiveModal.label}?</p>
         </Modal>
       ) : null}
 
@@ -1187,81 +1174,68 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
 
         {tab === 'escalations' ? (
           <>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-ink-muted">
               Cases needing review. Click a row to open details, change status, and add comments for
               the agronomist team.
             </p>
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Reason</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Priority</th>
-                    <th className="px-4 py-3">When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {escalations.map((e) => {
-                    const workflow = String(
-                      e.workflowStatus ?? e.status ?? 'pending'
-                    ) as EscalationListRow['workflowStatus'];
-                    const row: EscalationListRow = {
-                      id: String(e.id),
-                      summary: e.summary
-                        ? String(e.summary)
-                        : String(e.reason ?? '').slice(0, 160),
-                      reason: e.reason ? String(e.reason) : undefined,
-                      statusLabel: String(e.statusLabel ?? e.status ?? 'Pending'),
-                      workflowStatus: workflow,
-                      priority: e.priority ? String(e.priority) : undefined,
-                      createdLabel: String(e.createdLabel ?? e.created_at ?? '—'),
-                    };
-                    const badgeClass =
-                      workflow === 'completed'
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : workflow === 'agronomist_review'
-                          ? 'bg-amber-100 text-amber-900'
-                          : 'bg-slate-100 text-slate-800';
-                    return (
-                      <tr
-                        key={row.id}
-                        className="cursor-pointer border-t border-slate-100 transition-colors hover:bg-emerald-50/60"
-                        onClick={() => setSelectedEscalation(row)}
-                      >
-                        <td className="px-4 py-3 max-w-md">
-                          {String(row.summary || row.reason || '—').slice(0, 120)}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
-                          >
-                            {row.statusLabel}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 capitalize text-slate-600">
-                          {row.priority ?? '—'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                          {row.createdLabel}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <Panel bodyClassName="p-0">
               {escalations.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-slate-500">
-                  No escalations for this farmer.
-                </p>
-              ) : null}
-            </div>
+                <EmptyState>No escalations for this farmer.</EmptyState>
+              ) : (
+                <TableWrap>
+                  <DataTable>
+                    <THead>
+                      <tr>
+                        <Th>Reason</Th>
+                        <Th>Status</Th>
+                        <Th>Priority</Th>
+                        <Th>When</Th>
+                      </tr>
+                    </THead>
+                    <TBody>
+                      {escalations.map((e) => {
+                        const workflow = String(
+                          e.workflowStatus ?? e.status ?? 'pending'
+                        ) as EscalationListRow['workflowStatus'];
+                        const row: EscalationListRow = {
+                          id: String(e.id),
+                          summary: e.summary
+                            ? String(e.summary)
+                            : String(e.reason ?? '').slice(0, 160),
+                          reason: e.reason ? String(e.reason) : undefined,
+                          statusLabel: String(e.statusLabel ?? e.status ?? 'Pending'),
+                          workflowStatus: workflow,
+                          priority: e.priority ? String(e.priority) : undefined,
+                          createdLabel: String(e.createdLabel ?? e.created_at ?? '—'),
+                        };
+                        return (
+                          <tr
+                            key={row.id}
+                            className="cursor-pointer transition hover:bg-brand-50/50"
+                            onClick={() => setSelectedEscalation(row)}
+                          >
+                            <Td className="max-w-md font-medium text-ink">
+                              {String(row.summary || row.reason || '—').slice(0, 120)}
+                            </Td>
+                            <Td>
+                              <Badge tone={workflowBadgeTone(workflow)}>{row.statusLabel}</Badge>
+                            </Td>
+                            <Td className="capitalize">{row.priority ?? '—'}</Td>
+                            <Td className="whitespace-nowrap">{row.createdLabel}</Td>
+                          </tr>
+                        );
+                      })}
+                    </TBody>
+                  </DataTable>
+                </TableWrap>
+              )}
+            </Panel>
           </>
         ) : null}
 
         {tab === 'notes' ? (
           <>
-            <p className="mb-3 text-xs text-slate-500">
+            <p className="mb-3 text-xs text-ink-muted">
               Internal notes for this farmer. Click a row to read or edit the full note.
             </p>
             {canWrite ? (
@@ -1269,54 +1243,51 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                 <ActionBtn onClick={() => setModal('note')}>+ Add note</ActionBtn>
               </div>
             ) : null}
-            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                  <tr>
-                    <th className="px-4 py-3">Summary</th>
-                    <th className="px-4 py-3">By</th>
-                    <th className="px-4 py-3">When</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {notesHistory.map((n) => {
-                    const row: NoteListRow = {
-                      id: String(n.id),
-                      summary: n.summary ? String(n.summary) : String(n.note ?? '').slice(0, 160),
-                      author: String(n.author ?? 'Telecaller'),
-                      createdLabel: String(n.createdLabel ?? '—'),
-                      canEdit: n.canEdit !== false && !n.isLegacy,
-                      isLegacy: Boolean(n.isLegacy),
-                    };
-                    return (
-                      <tr
-                        key={row.id}
-                        className="cursor-pointer border-t border-slate-100 transition-colors hover:bg-emerald-50/60"
-                        onClick={() => setSelectedNote(row)}
-                      >
-                        <td className="px-4 py-3 max-w-lg">
-                          <span className="text-slate-800">
-                            {String(row.summary || '—').slice(0, 120)}
-                          </span>
-                          {row.isLegacy ? (
-                            <span className="ml-2 text-xs text-slate-400">(historical)</span>
-                          ) : null}
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">{row.author}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                          {row.createdLabel}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <Panel bodyClassName="p-0">
               {notesHistory.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-slate-500">
-                  No notes yet. Use + Add note to create one.
-                </p>
-              ) : null}
-            </div>
+                <EmptyState>No notes yet. Use + Add note to create one.</EmptyState>
+              ) : (
+                <TableWrap>
+                  <DataTable>
+                    <THead>
+                      <tr>
+                        <Th>Summary</Th>
+                        <Th>By</Th>
+                        <Th>When</Th>
+                      </tr>
+                    </THead>
+                    <TBody>
+                      {notesHistory.map((n) => {
+                        const row: NoteListRow = {
+                          id: String(n.id),
+                          summary: n.summary ? String(n.summary) : String(n.note ?? '').slice(0, 160),
+                          author: String(n.author ?? 'Telecaller'),
+                          createdLabel: String(n.createdLabel ?? '—'),
+                          canEdit: n.canEdit !== false && !n.isLegacy,
+                          isLegacy: Boolean(n.isLegacy),
+                        };
+                        return (
+                          <tr
+                            key={row.id}
+                            className="cursor-pointer transition hover:bg-brand-50/50"
+                            onClick={() => setSelectedNote(row)}
+                          >
+                            <Td className="max-w-lg">
+                              <span className="text-ink">{String(row.summary || '—').slice(0, 120)}</span>
+                              {row.isLegacy ? (
+                                <span className="ml-2 text-xs text-ink-muted">(historical)</span>
+                              ) : null}
+                            </Td>
+                            <Td>{row.author}</Td>
+                            <Td className="whitespace-nowrap">{row.createdLabel}</Td>
+                          </tr>
+                        );
+                      })}
+                    </TBody>
+                  </DataTable>
+                </TableWrap>
+              )}
+            </Panel>
           </>
         ) : null}
 
@@ -1393,7 +1364,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
                   );
                 })}
                 {messages.length === 0 ? (
-                  <p className="tc-muted" style={{ textAlign: 'center', padding: 24 }}>
+                  <p className="text-center text-sm text-ink-muted" style={{ padding: 24 }}>
                     No WhatsApp messages in log yet.
                   </p>
                 ) : null}
@@ -1412,7 +1383,7 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
             </div>
             <aside className="tc-wa-session">
               <h3>Session</h3>
-              <label className="block text-xs text-slate-600">
+              <label className="block text-xs text-ink-secondary">
                 Owner
                 <StaticSelect
                   className="tc-stage-select mt-1.5 w-full"
@@ -1444,10 +1415,18 @@ export function LeadDetailPanel({ leadId, canWrite, variant = 'telecaller' }: Pr
 
 function ActionBtn({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" className="tc-action-btn" onClick={onClick}>
+    <Btn size="sm" variant="secondary" onClick={onClick}>
       {children}
-    </button>
+    </Btn>
   );
+}
+
+function workflowBadgeTone(
+  workflow: EscalationListRow['workflowStatus']
+): 'success' | 'warn' | 'neutral' {
+  if (workflow === 'completed') return 'success';
+  if (workflow === 'agronomist_review') return 'warn';
+  return 'neutral';
 }
 
 function categoryBadgeClass(category: string): string {
@@ -1475,95 +1454,95 @@ function PendingTasksTable({
 }) {
   if (tasks.length === 0) {
     return (
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <p className="px-4 py-6 text-center text-sm text-slate-500">{empty}</p>
-      </div>
+      <Panel bodyClassName="p-0">
+        <EmptyState>{empty}</EmptyState>
+      </Panel>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <p className="border-b border-slate-100 px-4 py-2 text-xs text-slate-500">
-        {tasks.length} pending item{tasks.length === 1 ? '' : 's'} — tasks, interactions, field
-        follow-ups, escalations, AI approvals
-      </p>
-      <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-          <tr>
-            <th className="px-4 py-3">Category</th>
-            <th className="px-4 py-3">Task</th>
-            <th className="px-4 py-3">Due</th>
-            <th className="px-4 py-3">Farmer</th>
-            <th className="px-4 py-3">Status</th>
-            {canWrite ? <th className="px-4 py-3 w-24" /> : null}
-          </tr>
-        </thead>
-        <tbody>
-          {tasks.map((t) => {
-            const id = String(t.id);
-            const isDueToday = Boolean(t.isDueToday);
-            const category = String(t.category ?? 'Pending');
-            const navigateTab = t.navigateTab as Tab | null | undefined;
-            const canComplete = Boolean(t.canComplete && t.taskId);
-            const taskId = t.taskId ? String(t.taskId) : null;
-            return (
-              <tr
-                key={id}
-                className={`border-t border-slate-100 ${isDueToday ? 'bg-amber-50/80' : ''} ${
-                  navigateTab ? 'cursor-pointer hover:bg-emerald-50/60' : ''
-                }`}
-                onClick={() => {
-                  if (navigateTab) onNavigate(navigateTab);
-                }}
-              >
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${categoryBadgeClass(category)}`}
-                  >
-                    {category}
-                  </span>
-                </td>
-                <td className="px-4 py-3">
-                  <strong className="block text-slate-900">{String(t.title ?? '—')}</strong>
-                  {t.subtitle ? (
-                    <span className="text-xs text-slate-500">{String(t.subtitle)}</span>
-                  ) : null}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-slate-600">
-                  {String(t.dueLabel ?? t.dueAt ?? '—')}
-                  {isDueToday ? (
-                    <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
-                      Today
+    <Panel
+      bodyClassName="p-0"
+      description={`${tasks.length} pending item${tasks.length === 1 ? '' : 's'} — tasks, interactions, field follow-ups, escalations, AI approvals`}
+    >
+      <TableWrap>
+        <DataTable>
+          <THead>
+            <tr>
+              <Th>Category</Th>
+              <Th>Task</Th>
+              <Th>Due</Th>
+              <Th>Farmer</Th>
+              <Th>Status</Th>
+              {canWrite ? <Th className="w-24" /> : null}
+            </tr>
+          </THead>
+          <TBody>
+            {tasks.map((t) => {
+              const id = String(t.id);
+              const isDueToday = Boolean(t.isDueToday);
+              const category = String(t.category ?? 'Pending');
+              const navigateTab = t.navigateTab as Tab | null | undefined;
+              const canComplete = Boolean(t.canComplete && t.taskId);
+              const taskId = t.taskId ? String(t.taskId) : null;
+              return (
+                <tr
+                  key={id}
+                  className={`${isDueToday ? 'bg-amber-50/80' : ''} ${
+                    navigateTab ? 'cursor-pointer hover:bg-brand-50/50' : ''
+                  }`}
+                  onClick={() => {
+                    if (navigateTab) onNavigate(navigateTab);
+                  }}
+                >
+                  <Td>
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${categoryBadgeClass(category)}`}
+                    >
+                      {category}
                     </span>
+                  </Td>
+                  <Td>
+                    <strong className="block text-ink">{String(t.title ?? '—')}</strong>
+                    {t.subtitle ? (
+                      <span className="text-xs text-ink-muted">{String(t.subtitle)}</span>
+                    ) : null}
+                  </Td>
+                  <Td className="whitespace-nowrap">
+                    {String(t.dueLabel ?? t.dueAt ?? '—')}
+                    {isDueToday ? (
+                      <span className="ml-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                        Today
+                      </span>
+                    ) : null}
+                  </Td>
+                  <Td>{String(t.farmerName ?? '—')}</Td>
+                  <Td>
+                    <Badge tone="neutral">{String(t.statusLabel ?? t.status ?? 'pending')}</Badge>
+                  </Td>
+                  {canWrite ? (
+                    <Td onClick={(e) => e.stopPropagation()}>
+                      {canComplete && taskId ? (
+                        <Btn
+                          size="sm"
+                          variant="secondary"
+                          className="border-brand-200 bg-brand-50 text-brand-800 hover:bg-brand-100"
+                          onClick={() => onComplete(taskId)}
+                        >
+                          Done
+                        </Btn>
+                      ) : (
+                        <span className="text-xs text-ink-muted">Open tab →</span>
+                      )}
+                    </Td>
                   ) : null}
-                </td>
-                <td className="px-4 py-3">{String(t.farmerName ?? '—')}</td>
-                <td className="px-4 py-3">
-                  <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                    {String(t.statusLabel ?? t.status ?? 'pending')}
-                  </span>
-                </td>
-                {canWrite ? (
-                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                    {canComplete && taskId ? (
-                      <button
-                        type="button"
-                        className="rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-100"
-                        onClick={() => onComplete(taskId)}
-                      >
-                        Done
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-400">Open tab →</span>
-                    )}
-                  </td>
-                ) : null}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+                </tr>
+              );
+            })}
+          </TBody>
+        </DataTable>
+      </TableWrap>
+    </Panel>
   );
 }
 

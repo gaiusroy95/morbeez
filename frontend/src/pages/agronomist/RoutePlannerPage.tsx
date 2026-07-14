@@ -77,7 +77,7 @@ export function RoutePlannerPage() {
               </Link>
             </li>
           ))}
-          {!routes.length ? <li className="muted">No routes yet.</li> : null}
+          {!routes.length ? <li className="text-sm text-ink-muted">No routes yet.</li> : null}
         </ul>
       </section>
     </div>

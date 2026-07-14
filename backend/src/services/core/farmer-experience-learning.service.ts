@@ -10,6 +10,10 @@ import { weatherAlertsService } from '../whatsapp/scenarios/weather-alerts.servi
 import type { AdvisoryLanguage } from '../ai/types.js';
 import { env } from '../../config/env.js';
 import { escalationService } from '../ai/escalation.service.js';
+import {
+  extractAllFarmerSuggestedDiagnoses,
+  getFarmerSuggestedDiagnosesFromStored,
+} from '../../domain/learning/farmer-nutrient-suggestions.js';
 
 export type FarmerFeedbackStatus = 'pending_capture' | 'pending_review' | 'approved' | 'rejected' | 'partial';
 
@@ -97,7 +101,10 @@ export const farmerExperienceLearningService = {
     return mapRow(data as Record<string, unknown>);
   },
 
-  async updateCapture(id: string, patch: Partial<FarmerFeedbackRow>): Promise<FarmerFeedbackRow> {
+  async updateCapture(
+    id: string,
+    patch: Partial<FarmerFeedbackRow> & { metadata?: Record<string, unknown> }
+  ): Promise<FarmerFeedbackRow> {
     const row: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (patch.farmer_suggested_diagnosis !== undefined) {
       row.farmer_suggested_diagnosis = patch.farmer_suggested_diagnosis;
@@ -113,6 +120,11 @@ export const farmerExperienceLearningService = {
     if (patch.capture_step !== undefined) row.capture_step = patch.capture_step;
     if (patch.status !== undefined) row.status = patch.status;
 
+    if (patch.metadata) {
+      const existing = await this.getById(id).catch(() => null);
+      row.metadata = { ...(existing?.metadata ?? {}), ...patch.metadata };
+    }
+
     const { data, error } = await supabase
       .from('farmer_advisory_feedback')
       .update(row)
@@ -124,8 +136,41 @@ export const farmerExperienceLearningService = {
     return mapRow(data as Record<string, unknown>);
   },
 
+  /**
+   * Parse farmer free text into separate issues and persist (metadata.farmer_suggested_diagnoses).
+   * farmer_suggested_diagnosis holds the primary (first) issue only — not a combined string.
+   */
+  async captureFarmerDiagnosesFromText(
+    id: string,
+    sourceText: string,
+    options?: { storeFullTextAsExperience?: boolean }
+  ): Promise<FarmerFeedbackRow> {
+    const diagnoses = extractAllFarmerSuggestedDiagnoses(sourceText);
+    const primary = diagnoses[0] ?? sourceText.trim().slice(0, 200) || null;
+    const existing = await this.getById(id);
+
+    return this.updateCapture(id, {
+      farmer_suggested_diagnosis: primary,
+      ...(options?.storeFullTextAsExperience !== false && sourceText.length > 40
+        ? { farmer_prior_experience: sourceText.slice(0, 1000) }
+        : {}),
+      metadata: {
+        ...existing.metadata,
+        farmer_suggested_diagnoses: diagnoses,
+        farmer_suggestion_source_text: sourceText.slice(0, 1000),
+      },
+    });
+  },
+
+  getSuggestedDiagnoses(fb: FarmerFeedbackRow): string[] {
+    return getFarmerSuggestedDiagnosesFromStored(fb);
+  },
+
   async submitForReview(feedbackId: string): Promise<FarmerFeedbackRow> {
     const fb = await this.getById(feedbackId);
+    const allDx = this.getSuggestedDiagnoses(fb);
+    const farmerDxLabel =
+      allDx.length > 1 ? allDx.join('; ') : allDx[0] ?? fb.farmer_suggested_diagnosis ?? '—';
 
     if (!fb.session_id) {
       throw new NotFoundError('Feedback has no advisory session');
@@ -134,7 +179,7 @@ export const farmerExperienceLearningService = {
     const { escalationId: escId } = await escalationService.ensureOpenEscalation({
       sessionId: fb.session_id,
       farmerId: fb.farmer_id,
-      reason: `Farmer experience feedback: suggested "${fb.farmer_suggested_diagnosis ?? '—'}" vs AI "${fb.ai_probable_issue ?? '—'}"`,
+      reason: `Farmer experience feedback: suggested "${farmerDxLabel}" vs AI "${fb.ai_probable_issue ?? '—'}"`,
       confidence_at_escalation: fb.ai_confidence ?? 0.5,
       priority: 'high',
     });
@@ -165,7 +210,7 @@ export const farmerExperienceLearningService = {
       farmerId: fb.farmer_id,
       title: 'Farmer corrected AI diagnosis — agronomist review',
       notes: [
-        `Farmer: ${fb.farmer_suggested_diagnosis ?? '—'}`,
+        allDx.length > 1 ? `Farmer issues (${allDx.length}): ${allDx.join('; ')}` : `Farmer: ${farmerDxLabel}`,
         fb.farmer_prior_product ? `Prior product: ${fb.farmer_prior_product}` : null,
         fb.farmer_prior_outcome ? `Outcome: ${fb.farmer_prior_outcome}` : null,
       ]
@@ -352,6 +397,7 @@ export const farmerExperienceLearningService = {
           }
         : null,
       similarApproved: similar ?? [],
+      farmerSuggestedDiagnoses: this.getSuggestedDiagnoses(fb),
       consoleSessionUrl: fb.session_id
         ? `${env.API_BASE_URL ?? ''}/morbeez-staff`.replace(/\/$/, '')
         : null,

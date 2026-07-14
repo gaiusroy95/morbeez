@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal } from '../Modal';
+import { Alert, Loading } from '../ui';
 import type { AgronomistActivityRow } from './AgronomistTab';
 
 type Props = {
@@ -75,16 +76,16 @@ export function AgronomistActivityModal({ leadId, activity, onClose }: Props) {
 
   return (
     <Modal title={title} onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <Loading label="Loading activity…" /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {!loading ? (
         <div className="space-y-3 text-sm">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-muted">
             {activity.dateLabel} · {activity.block}
           </p>
-          <p className="whitespace-pre-wrap text-slate-800">{body || '—'}</p>
+          <p className="whitespace-pre-wrap text-ink">{body || '—'}</p>
           {meta ? (
-            <pre className="whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+            <pre className="whitespace-pre-wrap rounded-lg bg-surface-subtle p-3 text-xs text-ink-secondary">
               {meta}
             </pre>
           ) : null}

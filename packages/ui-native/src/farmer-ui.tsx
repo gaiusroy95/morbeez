@@ -4,7 +4,7 @@ import { tokens } from '@morbeez/shared';
 
 const healthColors: Record<string, { bg: string; text: string }> = {
   stable: { bg: tokens.green100, text: tokens.green800 },
-  monitor: { bg: '#FFF4E5', text: '#B45309' },
+  monitor: { bg: tokens.warningBg, text: tokens.warning },
   alert: { bg: tokens.dangerBg, text: tokens.danger },
   critical: { bg: tokens.dangerBg, text: tokens.danger },
 };
@@ -122,7 +122,7 @@ export function FieldCard({
 }
 
 export function AlertCard({ message, meta, tone = 'info' }: { message: string; meta?: string; tone?: string }) {
-  const bg = tone === 'warning' ? '#FFF4E5' : tone === 'success' ? tokens.green100 : tokens.card;
+  const bg = tone === 'warning' ? tokens.warningBg : tone === 'success' ? tokens.green100 : tokens.card;
   return (
     <View style={[styles.alertCard, { backgroundColor: bg }]}>
       <Text style={styles.alertMessage}>{message}</Text>
@@ -147,7 +147,7 @@ export function SectionHeader({ title, action, onAction }: { title: string; acti
 export function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
   const full = Math.round(rating);
   return (
-    <Text style={{ color: '#f5a623', fontSize: size }}>
+    <Text style={{ color: tokens.warning, fontSize: size }}>
       {'★'.repeat(full)}
       {'☆'.repeat(Math.max(0, 5 - full))}
     </Text>
@@ -598,7 +598,7 @@ export function PromoBanner({ title, subtitle, onPress }: { title: string; subti
 }
 
 export function OrderStatusChip({ label, tone = 'neutral' }: { label: string; tone?: string }) {
-  const bg = tone === 'success' ? tokens.green100 : tone === 'warning' ? '#FFF4E5' : tokens.card;
+  const bg = tone === 'success' ? tokens.green100 : tone === 'warning' ? tokens.warningBg : tokens.card;
   return (
     <View style={[styles.orderChip, { backgroundColor: bg }]}>
       <Text style={styles.orderChipText}>{label}</Text>
@@ -1176,15 +1176,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FFF4E5',
+    backgroundColor: tokens.warningBg,
     borderRadius: tokens.radiusSm,
     borderWidth: 1,
-    borderColor: '#FDBA74',
+    borderColor: tokens.warning,
     padding: 12,
     marginBottom: 12,
   },
-  weatherIcon: { fontSize: 18, color: '#EA580C' },
-  weatherMessage: { flex: 1, fontSize: 13, fontWeight: '600', color: '#9A3412' },
+  weatherIcon: { fontSize: 18, color: tokens.warning },
+  weatherMessage: { flex: 1, fontSize: 13, fontWeight: '600', color: tokens.warning },
   weatherAction: { fontSize: 12, fontWeight: '700', color: tokens.green700 },
   homeQuickWrap: { marginBottom: 12 },
   homeQuickTitle: { fontSize: 16, fontWeight: '700', color: tokens.text, marginBottom: 10 },

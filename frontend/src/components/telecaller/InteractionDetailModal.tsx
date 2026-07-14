@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Modal, Field, inputClass } from '../Modal';
+import { Alert, Badge, Btn, Loading } from '../ui';
 import { OperationalChainPanel, type OperationalChain } from './OperationalChainPanel';
 
 export type InteractionListRow = {
@@ -180,49 +181,31 @@ export function InteractionDetailModal({
 
   return (
     <Modal title={titleLabel} onClose={onClose} wide>
-      {loading ? <p className="text-sm text-slate-500">Loading…</p> : null}
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {loading ? <Loading label="Loading interaction…" /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {detail && !loading ? (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            {showPending ? (
-              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-900">
-                Pending
-              </span>
-            ) : null}
-            {showCompleted ? (
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-900">
-                Completed
-              </span>
-            ) : null}
+            {showPending ? <Badge tone="warn">Pending</Badge> : null}
+            {showCompleted ? <Badge tone="success">Completed</Badge> : null}
             {dueToday ? (
-              <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+              <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-inset ring-red-600/10">
                 Due today
               </span>
             ) : null}
             {detail.status === 'Escalated' ? (
-              <span className="rounded-full bg-fuchsia-100 px-2.5 py-0.5 text-xs font-medium text-fuchsia-900">
-                Escalated · case review
-              </span>
+              <Badge tone="role">Escalated · case review</Badge>
             ) : null}
-            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-              {detail.status}
-            </span>
-            <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-xs text-blue-800">
+            <Badge tone="neutral">{detail.status}</Badge>
+            <Badge tone="info">
               {detail.by}
               {detail.role ? ` · ${detail.role}` : ''}
-            </span>
-            <span className="rounded-full bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-              {detail.createdLabel}
-            </span>
+            </Badge>
+            <Badge tone="neutral">{detail.createdLabel}</Badge>
             {canWrite && detail.canEdit && detail.editForm && !editing ? (
-              <button
-                type="button"
-                className="ml-auto text-xs font-medium text-emerald-700 hover:underline"
-                onClick={() => setEditing(true)}
-              >
+              <Btn size="sm" variant="ghost" className="ml-auto text-brand-700" onClick={() => setEditing(true)}>
                 Edit
-              </button>
+              </Btn>
             ) : null}
           </div>
 
@@ -270,25 +253,16 @@ export function InteractionDetailModal({
                 </>
               )}
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
-                  onClick={() => void saveEdit()}
-                >
+                <Btn size="sm" variant="primary" disabled={saving} onClick={() => void saveEdit()}>
                   {saving ? 'Saving…' : 'Save'}
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600"
-                  onClick={() => setEditing(false)}
-                >
+                </Btn>
+                <Btn size="sm" variant="secondary" onClick={() => setEditing(false)}>
                   Cancel
-                </button>
+                </Btn>
               </div>
             </div>
           ) : detail.summary ? (
-            <p className="text-sm leading-relaxed text-slate-800">{detail.summary}</p>
+            <p className="text-sm leading-relaxed text-ink">{detail.summary}</p>
           ) : null}
 
           {detail.operationalChain ? (
@@ -311,11 +285,11 @@ export function InteractionDetailModal({
           ) : null}
 
           {detail.fields.length > 0 ? (
-            <dl className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50/80 p-4 text-sm">
+            <dl className="grid gap-2 rounded-xl border border-border bg-surface-subtle/80 p-4 text-sm">
               {detail.fields.map((f) => (
                 <div key={f.label} className="grid grid-cols-[minmax(0,9rem)_1fr] gap-2">
-                  <dt className="font-medium text-slate-500">{f.label}</dt>
-                  <dd className="text-slate-900">{f.value}</dd>
+                  <dt className="font-medium text-ink-muted">{f.label}</dt>
+                  <dd className="text-ink">{f.value}</dd>
                 </div>
               ))}
             </dl>
@@ -323,10 +297,10 @@ export function InteractionDetailModal({
 
           {detail.sections.map((s) => (
             <div key={s.title}>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 {s.title}
               </h3>
-              <div className="whitespace-pre-wrap rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-800">
+              <div className="whitespace-pre-wrap rounded-xl border border-border bg-surface-elevated p-4 text-sm text-ink">
                 {s.content}
               </div>
             </div>
@@ -334,17 +308,17 @@ export function InteractionDetailModal({
 
           {detail.products.length > 0 ? (
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 Products
               </h3>
               <ul className="space-y-2">
                 {detail.products.map((p, i) => (
                   <li
                     key={`${p.name}-${i}`}
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="rounded-lg border border-border px-3 py-2 text-sm"
                   >
                     <strong>{p.name}</strong>
-                    {p.detail ? <p className="mt-1 text-slate-600">{p.detail}</p> : null}
+                    {p.detail ? <p className="mt-1 text-ink-secondary">{p.detail}</p> : null}
                   </li>
                 ))}
               </ul>
@@ -353,14 +327,14 @@ export function InteractionDetailModal({
 
           {detail.followUpTimeline.length > 0 ? (
             <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-muted">
                 WhatsApp follow-up timeline
               </h3>
               <ul className="space-y-2 border-l-2 border-emerald-200 pl-4">
                 {detail.followUpTimeline.map((f, i) => (
                   <li key={i} className="text-sm">
-                    <div className="font-medium text-slate-800">{f.label}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-medium text-ink">{f.label}</div>
+                    <div className="text-xs text-ink-muted">
                       {f.atLabel} · {f.status}
                       {f.detail ? ` · ${f.detail}` : ''}
                     </div>
@@ -371,7 +345,7 @@ export function InteractionDetailModal({
           ) : null}
 
           {detail.source === 'rec_record' ? (
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               Full WhatsApp message history is on the <strong>WhatsApp</strong> tab.
             </p>
           ) : null}

@@ -38,7 +38,7 @@ export function VisitDetailPage() {
 
   if (loading) return <Loading label="Loading visit…" />;
   if (error) return <Alert>{error}</Alert>;
-  if (!finding) return <p className="muted">Visit not found.</p>;
+  if (!finding) return <p className="text-sm text-ink-muted">Visit not found.</p>;
 
   return (
     <div className="visit-wizard-page">

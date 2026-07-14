@@ -83,7 +83,7 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
           Refresh
         </Btn>
       </div>
-      {error ? <Alert>{error}</Alert> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
       {s ? (
         <div className="agro-ops-stats">
           <StatCard label="Today's visits" value={String(s.todaysVisits)} />
@@ -119,16 +119,16 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
               ) : (
                 <span className={`priority-badge priority-${row.priority}`}> {row.priority}</span>
               )}
-              <div className="muted">{row.issueSummary ?? '—'}</div>
+              <div className="text-sm text-ink-muted">{row.issueSummary ?? '—'}</div>
               {row.monitoringRecovery ? (
-                <div className="text-xs muted">
+                <div className="text-xs text-ink-muted">
                   Recovery: D3 {row.monitoringRecovery.d3 ?? '—'} · D7 {row.monitoringRecovery.d7 ?? '—'} · D14{' '}
                   {row.monitoringRecovery.d14 ?? '—'}
                 </div>
               ) : null}
             </li>
           ))}
-          {!center?.priorityQueue?.length ? <li className="muted">No urgent or emergency visits.</li> : null}
+          {!center?.priorityQueue?.length ? <li className="text-sm text-ink-muted">No urgent or emergency visits.</li> : null}
         </ul>
       </section>
 
@@ -138,14 +138,14 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
           {(center?.todaysVisits ?? []).map((v) => (
             <li key={v.id}>
               <strong>{v.farmerName}</strong> — {v.title}
-              <div className="muted">
+              <div className="text-sm text-ink-muted">
                 {v.dueLabel}
                 {v.blockName ? ` · ${v.blockName}` : ''}
                 {v.cropName ? ` · ${v.cropName}` : ''}
               </div>
             </li>
           ))}
-          {!center?.todaysVisits?.length ? <li className="muted">No visits scheduled for today.</li> : null}
+          {!center?.todaysVisits?.length ? <li className="text-sm text-ink-muted">No visits scheduled for today.</li> : null}
         </ul>
       </section>
 
@@ -162,7 +162,7 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
                 <strong>{farmer?.name ?? 'Farmer'}</strong>
                 {block?.name ? ` · ${block.name}` : ''}
                 {block?.crop_type ? ` · ${block.crop_type}` : ''}
-                <div className="muted">
+                <div className="text-sm text-ink-muted">
                   Step: {String(d.current_step ?? 'intakeTriage')} · Updated{' '}
                   {String(d.updated_at ?? '').slice(0, 16).replace('T', ' ')}
                 </div>
@@ -179,7 +179,7 @@ export function VisitCommandCenterPage({ canWrite }: { canWrite: boolean }) {
               </li>
             );
           })}
-          {!drafts.length ? <li className="muted">No in-progress visit drafts.</li> : null}
+          {!drafts.length ? <li className="text-sm text-ink-muted">No in-progress visit drafts.</li> : null}
         </ul>
       </section>
 

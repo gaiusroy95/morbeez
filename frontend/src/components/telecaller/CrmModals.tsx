@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
-import { SearchSelect, StaticSelect } from '../ui';
+import { Alert, SearchSelect, StaticSelect } from '../ui';
 import { MasterSelect } from './MasterSelect';
 import { InteractionTypePicker } from './InteractionTypePicker';
 import { FieldActivityTypePicker } from '../operations/field-activities/FieldActivityTypePicker';
@@ -127,7 +127,7 @@ function AddBlockModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Block name">
           <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required />
@@ -276,7 +276,7 @@ function AddInteractionModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <InteractionTypePicker
           value={interactionType}
@@ -315,7 +315,7 @@ function AddInteractionModal({
           />
         </Field>
 
-        <div className="tc-ix-form-checks space-y-2 rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+        <div className="tc-ix-form-checks space-y-2 rounded-lg border border-border bg-surface-subtle/80 p-3">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -478,7 +478,7 @@ function AddRecommendationModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <Field label="Block">
           <StaticSelect
@@ -555,7 +555,7 @@ function AddFieldFindingModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <Field label="Block">
           <StaticSelect
@@ -646,7 +646,7 @@ function NewOrderModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         {catalog.length > 0 ? (
           <Field label="Catalog product">
@@ -738,7 +738,7 @@ function LogCallModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <MasterSelect
           masterType="interaction_outcome"
@@ -794,7 +794,7 @@ function AddNoteModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <Field label="Note">
         <textarea
           className={inputClass}
@@ -841,7 +841,7 @@ function AddTaskModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <Field label="Title">
           <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -853,7 +853,7 @@ function AddTaskModal({
             value={dueAt}
             onChange={(e) => setDueAt(e.target.value)}
           />
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1 text-xs text-ink-muted">
             Follow-ups due today appear in your CRM notifications when you open the workspace.
           </p>
         </Field>
@@ -903,7 +903,7 @@ function ScheduleVisitModal({
         })
       }
     >
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <div className="space-y-3">
         <Field label="Title">
           <input className={inputClass} value={title} onChange={(e) => setTitle(e.target.value)} />

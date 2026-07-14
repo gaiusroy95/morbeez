@@ -85,7 +85,7 @@ export function FarmerMapPage() {
           {pins.map((pin) => (
             <li key={pin.id}>
               <strong>{pin.name}</strong>
-              {pin.subtitle ? <span className="muted"> — {pin.subtitle}</span> : null}
+              {pin.subtitle ? <span className="text-sm text-ink-muted"> — {pin.subtitle}</span> : null}
               <div>
                 <a
                   href={`https://www.google.com/maps/search/?api=1&query=${pin.latitude},${pin.longitude}`}
@@ -97,7 +97,7 @@ export function FarmerMapPage() {
               </div>
             </li>
           ))}
-          {!pins.length ? <li className="muted">No farmers with plot GPS nearby.</li> : null}
+          {!pins.length ? <li className="text-sm text-ink-muted">No farmers with plot GPS nearby.</li> : null}
         </ul>
       </section>
     </div>

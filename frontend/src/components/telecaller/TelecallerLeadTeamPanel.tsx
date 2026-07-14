@@ -85,14 +85,14 @@ export function TelecallerLeadTeamPanel({ leadId, canWrite }: Props) {
                 <strong>
                   {authorType} · {title}
                 </strong>
-                {at ? <span className="muted">{at}</span> : null}
+                {at ? <span className="text-ink-muted">{at}</span> : null}
               </div>
               {body ? <p>{body}</p> : null}
             </li>
           );
         })}
       </ul>
-      {!entries.length ? <p className="muted">No team activity yet.</p> : null}
+      {!entries.length ? <p className="text-ink-muted">No team activity yet.</p> : null}
     </div>
   );
 }

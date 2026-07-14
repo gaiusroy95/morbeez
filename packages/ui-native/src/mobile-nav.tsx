@@ -10,7 +10,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { tokens } from '@morbeez/shared';
+import { tokens, shadow } from '@morbeez/shared';
 import { HeaderMorbeezLogo } from './MorbeezLogo';
 
 /** Android 3-button / gesture nav bar — use when insets.bottom is 0 on real devices. */
@@ -62,14 +62,26 @@ export function androidPressHandlers(onPress: () => void, disabled?: boolean) {
   return { onPress };
 }
 
+/** Shared stack header styling for all Morbeez mobile apps. */
+export const MOBILE_STACK_HEADER_OPTIONS = {
+  headerStyle: {
+    backgroundColor: tokens.green800,
+    ...shadow.sm,
+  },
+  headerTintColor: tokens.textOnPrimary,
+  headerTitleStyle: { fontWeight: '600' as const, fontSize: 17 },
+  headerShadowVisible: false,
+} as const;
+
 export function useMobileTabBarStyle() {
   const bottomInset = useDeviceBottomInset();
   return {
     borderTopColor: tokens.border,
-    backgroundColor: '#fff',
+    backgroundColor: tokens.card,
     paddingBottom: bottomInset,
-    paddingTop: 6,
-    height: 56 + bottomInset,
+    paddingTop: 8,
+    height: 58 + bottomInset,
+    ...shadow.sm,
   };
 }
 
@@ -85,12 +97,17 @@ export function StickyScreenFooter({ children, style }: { children: ReactNode; s
 export function useMobileTabScreenOptions() {
   const tabBarStyle = useMobileTabBarStyle();
   return {
-    headerStyle: { backgroundColor: tokens.green800 },
-    headerTintColor: '#fff' as const,
-    headerTitleStyle: { fontWeight: '600' as const },
+    headerStyle: {
+      backgroundColor: tokens.green800,
+      ...shadow.sm,
+    },
+    headerTintColor: tokens.textOnPrimary,
+    headerTitleStyle: { fontWeight: '600' as const, fontSize: 17 },
+    headerShadowVisible: false,
     headerLeft: () => <HeaderMorbeezLogo style={{ marginLeft: 12 }} />,
-    tabBarActiveTintColor: tokens.green700,
+    tabBarActiveTintColor: tokens.primary,
     tabBarInactiveTintColor: tokens.textMuted,
+    tabBarLabelStyle: { fontSize: 11, fontWeight: '600' as const },
     tabBarStyle,
     sceneStyle: { flex: 1, backgroundColor: tokens.bg },
   };

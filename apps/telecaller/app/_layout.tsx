@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { tokens } from '@morbeez/shared';
-import { BrandedHeaderTitle, NetworkProvider } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MOBILE_STACK_HEADER_OPTIONS, NetworkProvider } from '@morbeez/ui-native';
 import { LocaleProvider, useLocale } from '@/context/LocaleContext';
 import { StaffAuthProvider, useStaffAuth } from '@/context/StaffAuth';
 import { TelecallerDashboardProvider } from '@/context/TelecallerDashboardContext';
@@ -37,8 +37,7 @@ function RootStack() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: tokens.green800 },
-        headerTintColor: '#fff',
+        ...MOBILE_STACK_HEADER_OPTIONS,
         headerTitleStyle: { fontWeight: '600' },
         contentStyle: { backgroundColor: tokens.bg },
       }}

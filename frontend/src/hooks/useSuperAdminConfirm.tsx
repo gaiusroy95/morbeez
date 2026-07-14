@@ -1,6 +1,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Field, Modal, inputClass } from '../components/Modal';
+import { Alert } from '../components/ui';
 
 type PendingAction = {
   title: string;
@@ -91,12 +92,8 @@ export function useSuperAdminConfirm() {
       saveLabel={pending.confirmLabel}
       saving={saving}
     >
-      <p className="mb-3 text-sm text-slate-600">{pending.description}</p>
-      {error ? (
-        <p className="mb-3 text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      ) : null}
+      <p className="mb-3 text-sm text-ink-secondary">{pending.description}</p>
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       <Field label="Super admin password">
         <input
           type="password"

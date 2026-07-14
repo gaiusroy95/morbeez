@@ -245,6 +245,8 @@ export type RecommendationVisitContext = {
   farmerFeedbackId?: string | null;
   /** Farmer-suggested correction from dispute flow (validated by agronomist). */
   farmerSuggestedDiagnosis?: string | null;
+  /** Each distinct issue the farmer named (not one combined string). */
+  farmerSuggestedDiagnoses?: string[];
   /** Farmer-described prior field experience / treatment history. */
   farmerPriorExperience?: string | null;
   /** Products / sprays the farmer reported using. */

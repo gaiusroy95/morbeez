@@ -75,9 +75,9 @@ export function WarehousePrintPage() {
               ) : null}
               <div>
                 <h1>{String(doc.title ?? type)}</h1>
-                <p className="muted">{company.companyName}</p>
-                <p className="muted">{company.formattedAddress}</p>
-                {company.gstin ? <p className="muted">GSTIN: {company.gstin}</p> : null}
+                <p className="text-sm text-ink-muted">{company.companyName}</p>
+                <p className="text-sm text-ink-muted">{company.formattedAddress}</p>
+                {company.gstin ? <p className="text-sm text-ink-muted">GSTIN: {company.gstin}</p> : null}
               </div>
             </header>
 
@@ -195,12 +195,12 @@ function CourierLabelBody({
   const addr = (doc.deliveryAddress as string[]) ?? [];
   return (
     <section className="warehouse-print-courier">
-      <p className="muted">{String(doc.trackingLabel ?? 'AWB')}</p>
+      <p className="text-sm text-ink-muted">{String(doc.trackingLabel ?? 'AWB')}</p>
       <p className="warehouse-print-awb mono">{String(doc.awbCode ?? 'Tracking pending')}</p>
       <p>
         <strong>{String(doc.courierName)}</strong>
         {doc.shippingMethod === 'manual' ? (
-          <span className="muted"> &nbsp;|&nbsp; Manual logistics</span>
+          <span className="text-sm text-ink-muted"> &nbsp;|&nbsp; Manual logistics</span>
         ) : null}
         {doc.dispatchRack ? (
           <>
@@ -244,7 +244,7 @@ function CourierLabelBody({
             ) : null}
           </p>
           <p className="warehouse-print-qr mono">{String(doc.qrPayload)}</p>
-          <p className="muted">Scan this QR during pack to verify correct label.</p>
+          <p className="text-sm text-ink-muted">Scan this QR during pack to verify correct label.</p>
         </div>
       ) : null}
     </section>

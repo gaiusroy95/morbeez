@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import { BrandedHeaderTitle } from '@morbeez/ui-native';
+import { BrandedHeaderTitle, MOBILE_STACK_HEADER_OPTIONS } from '@morbeez/ui-native';
 import { tokens } from '@morbeez/shared';
 import { WarehouseQueueProvider } from '@/context/WarehouseQueueContext';
 
@@ -8,8 +8,7 @@ export default function AppLayout() {
     <WarehouseQueueProvider>
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: tokens.green800 },
-          headerTintColor: '#fff',
+          ...MOBILE_STACK_HEADER_OPTIONS,
         }}
       >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { Field, Modal, inputClass } from '../Modal';
-import { StaticSelect } from '../ui';
+import { Alert, StaticSelect } from '../ui';
 import {
   CropBlockFields,
   blockFromApi,
@@ -162,13 +162,13 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
 
   return (
     <Modal title="Edit farmer profile" onClose={onClose} onSave={save} saving={saving || loading}>
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
       {loading ? (
-        <p className="text-sm text-slate-500">Loading…</p>
+        <p className="text-sm text-ink-muted">Loading…</p>
       ) : (
         <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
           <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Basic details</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Basic details</h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Farmer name" className="sm:col-span-2">
                 <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} />
@@ -209,7 +209,7 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
           </section>
 
           <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Farm & crops</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Farm & crops</h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Village">
                 <input className={inputClass} value={village} onChange={(e) => setVillage(e.target.value)} />
@@ -229,7 +229,7 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
                 />
               </Field>
             </div>
-            <p className="mt-3 text-xs text-slate-500">Each row: block name, crop, acre, planted date</p>
+            <p className="mt-3 text-xs text-ink-muted">Each row: block name, crop, acre, planted date</p>
             <CropBlockFields blocks={cropBlocks} onChange={setCropBlocks} />
             <button
               type="button"
@@ -241,7 +241,7 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
           </section>
 
           <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Shipping</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Shipping</h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Shipping address" className="sm:col-span-2">
                 <textarea
@@ -258,7 +258,7 @@ export function EditFarmerModal({ leadId, onClose, onSaved }: Props) {
           </section>
 
           <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase text-slate-500">Assignment & optional</h4>
+            <h4 className="mb-2 text-xs font-semibold uppercase text-ink-muted">Assignment & optional</h4>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Assigned crop advisor (email)">
                 <input className={inputClass} value={assignedCropAdvisor} onChange={(e) => setAssignedCropAdvisor(e.target.value)} />

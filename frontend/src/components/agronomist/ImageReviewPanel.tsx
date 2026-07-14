@@ -174,7 +174,7 @@ export function ImageReviewPanel({ canWrite }: { canWrite: boolean }) {
           <div className="ir-queue-list">
             {loading ? <Loading /> : null}
             {!loading && items.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-slate-500">No images awaiting review.</p>
+              <p className="px-3 py-4 text-sm text-ink-muted">No images awaiting review.</p>
             ) : null}
             {items.map((item) => (
               <button
@@ -218,7 +218,7 @@ export function ImageReviewPanel({ canWrite }: { canWrite: boolean }) {
                 {img.imageUrl ? (
                   <img src={img.imageUrl} alt="Crop sample for review" />
                 ) : (
-                  <p className="text-sm text-slate-500">Image unavailable</p>
+                  <p className="text-sm text-ink-muted">Image unavailable</p>
                 )}
                 <div className="ir-image-meta">
                   {img.farmer?.district ? `${img.farmer.district} · ` : ''}
@@ -346,7 +346,7 @@ export function ImageReviewPanel({ canWrite }: { canWrite: boolean }) {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-slate-500">Read-only — agronomist write access required.</p>
+                  <p className="text-sm text-ink-muted">Read-only — agronomist write access required.</p>
                 )}
               </div>
             </div>

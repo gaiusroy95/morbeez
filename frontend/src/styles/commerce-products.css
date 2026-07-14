@@ -33,14 +33,14 @@
 }
 
 .commerce-products {
-  --cp-green: #1b5e20;
-  --cp-green-hover: #2e7d32;
-  --cp-green-light: #e8f5e9;
-  --cp-border: #e5e7eb;
-  --cp-muted: #6b7280;
-  --cp-bg: #f9fafb;
+  --cp-green: var(--green-700);
+  --cp-green-hover: var(--green-600);
+  --cp-green-light: var(--green-50);
+  --cp-border: var(--border);
+  --cp-muted: var(--text-muted);
+  --cp-bg: var(--bg-subtle);
   font-size: 14px;
-  color: #111827;
+  color: var(--text);
 }
 
 .commerce-products__header {
@@ -57,7 +57,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #111827;
+  color: var(--text);
 }
 
 .commerce-products__subtitle {
@@ -171,23 +171,23 @@
   justify-content: space-between;
   gap: 12px;
   padding: 18px 20px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--cp-border);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow);
   text-align: left;
   cursor: pointer;
   transition: box-shadow 0.15s, border-color 0.15s;
 }
 
 .commerce-products__stat-card:hover {
-  border-color: #d1d5db;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-elevated);
 }
 
 .commerce-products__stat-card--active {
   border-color: var(--cp-green);
-  box-shadow: 0 0 0 1px var(--cp-green);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--cp-green) 40%, transparent);
 }
 
 .commerce-products__stat-label {

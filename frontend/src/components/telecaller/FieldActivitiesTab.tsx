@@ -9,6 +9,7 @@ import {
   type FieldActivityType,
 } from '../operations/field-activities/field-activity-utils';
 import { useStaffPasswordConfirm } from '../../hooks/useStaffPasswordConfirm';
+import { Loading } from '../ui';
 
 type Props = {
   leadId: string;
@@ -217,7 +218,7 @@ export function FieldActivitiesTab({ leadId, farmerName, canWrite }: Props) {
   }
 
   if (loading && blocks.length === 0) {
-    return <p className="tc-muted">Loading field activities…</p>;
+    return <Loading label="Loading field activities…" />;
   }
 
   return (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { StaticSelect } from '../ui';
+import { Alert, StaticSelect } from '../ui';
 import type { InteractionListRow } from './InteractionDetailModal';
 
 const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -341,7 +341,7 @@ export function InteractionsTab({
         </div>
       ) : null}
 
-      {error ? <p className="mb-3 text-sm text-red-600">{error}</p> : null}
+      {error ? <Alert tone="error" className="mb-3">{error}</Alert> : null}
 
       <div className="tc-ix-timeline-mobile">
         {loading ? (

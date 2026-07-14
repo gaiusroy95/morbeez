@@ -141,7 +141,7 @@ export function WarehouseReturnsPanel({ canWrite }: { canWrite: boolean }) {
             </Btn>
           }
         >
-          <p className="muted">
+          <p className="text-sm text-ink-muted">
             Order: {selected.commerce_orders?.order_name} · Phone:{' '}
             {selected.commerce_orders?.phone ?? '—'}
           </p>

@@ -1,27 +1,39 @@
 @import 'tailwindcss';
 
+/* Morbeez design system v2 — keep in sync with packages/shared/src/theme/tokens.ts */
 @theme {
-  --color-brand-950: #0f2e1e;
-  --color-brand-900: #1a4d32;
-  --color-brand-800: #215c3a;
-  --color-brand-700: #2a6b44;
-  --color-brand-600: #2d7a4a;
-  --color-brand-500: #34b35e;
-  --color-brand-400: #4bc96e;
-  --color-brand-100: #e8f5ec;
-  --color-brand-50: #f4fbf6;
-  --color-surface: #f4f7f5;
-  --color-ink: #1a2e24;
-  --color-ink-muted: #6b7c72;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --shadow-card: 0 1px 2px rgba(26, 46, 36, 0.04), 0 4px 16px rgba(26, 46, 36, 0.06);
-  --radius-card: 12px;
+  --color-brand-950: #0d2818;
+  --color-brand-900: #143d28;
+  --color-brand-800: #1a5236;
+  --color-brand-700: #246b45;
+  --color-brand-600: #2d8554;
+  --color-brand-500: #3aad62;
+  --color-brand-400: #52c97a;
+  --color-brand-200: #c8e8d4;
+  --color-brand-100: #e6f4ec;
+  --color-brand-50: #f2faf5;
+  --color-surface: #f3f6f4;
+  --color-surface-subtle: #eaefeb;
+  --color-surface-elevated: #ffffff;
+  --color-ink: #122118;
+  --color-ink-secondary: #3d4f45;
+  --color-ink-muted: #667a70;
+  --color-border: #dde5e0;
+  --color-border-strong: #c5d0c8;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --shadow-xs: 0 1px 2px rgba(18, 33, 24, 0.04);
+  --shadow-card: 0 1px 3px rgba(18, 33, 24, 0.05), 0 4px 14px rgba(18, 33, 24, 0.06);
+  --shadow-elevated: 0 8px 24px rgba(18, 33, 24, 0.08), 0 2px 6px rgba(18, 33, 24, 0.04);
+  --radius-card: 14px;
+  --radius-control: 10px;
 }
 
 @layer base {
   html {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   body,
@@ -29,9 +41,20 @@
     min-height: 100%;
     color: var(--color-ink);
     background: var(--color-surface);
+    line-height: 1.5;
   }
 
   * {
     box-sizing: border-box;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-brand-500) 25%, transparent);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--color-brand-500) 50%, transparent);
+    outline-offset: 2px;
   }
 }

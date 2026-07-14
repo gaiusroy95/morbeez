@@ -3,7 +3,18 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { paths, toPath } from '../../lib/routes';
 import { Modal } from '../Modal';
-import { StaticSelect } from '../ui';
+import {
+  Alert,
+  Btn,
+  Field,
+  FilterBar,
+  HubTabs,
+  Input,
+  Loading,
+  Panel,
+  StaticSelect,
+} from '../ui';
+import { FilterableStatCard } from '../employees/employee-ui';
 import { InventoryFulfillmentView } from '../inventory/InventoryFulfillmentView';
 import { AddStockModal } from './AddStockModal';
 import { InventoryGrnModal } from './InventoryGrnModal';
@@ -172,193 +183,151 @@ export function CommerceInventoryPanel({
   const searchForFulfillment = appliedSearch.trim() || draftSearch.trim();
 
   return (
-    <div className="commerce-inventory">
-      <div className="commerce-inventory__header">
-        <h2 className="commerce-inventory__title">Inventory</h2>
-        <div className="commerce-inventory__header-actions">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <h2 className="text-xl font-bold text-ink">Inventory</h2>
+        <div className="flex flex-wrap gap-2">
           {canWrite && view === 'catalog' ? (
-            <button
-              type="button"
-              className="commerce-inventory__add-btn"
+            <Btn
+              variant="primary"
               onClick={() => {
                 setAddStockVariantId(null);
                 setAddStockOpen(true);
               }}
             >
               + Add Stock
-            </button>
+            </Btn>
           ) : null}
           {canWarehouseWrite && view === 'catalog' ? (
             <>
-              <button
-                type="button"
-                className="commerce-inventory__secondary-btn"
-                onClick={() => setPoOpen(true)}
-              >
+              <Btn variant="secondary" onClick={() => setPoOpen(true)}>
                 Purchase Order
-              </button>
-              <button
-                type="button"
-                className="commerce-inventory__secondary-btn"
+              </Btn>
+              <Btn
+                variant="secondary"
                 onClick={() => {
                   setGrnPoId(undefined);
                   setGrnOpen(true);
                 }}
               >
                 Receive GRN
-              </button>
+              </Btn>
             </>
           ) : null}
         </div>
       </div>
 
-      <div className="commerce-inventory__view-tabs" role="tablist" aria-label="Inventory view">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'catalog'}
-          className={`commerce-inventory__view-tab${view === 'catalog' ? ' commerce-inventory__view-tab--active' : ''}`}
-          onClick={() => setView('catalog')}
-        >
-          Catalog &amp; batches
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === 'fulfillment'}
-          className={`commerce-inventory__view-tab${view === 'fulfillment' ? ' commerce-inventory__view-tab--active' : ''}`}
-          onClick={() => setView('fulfillment')}
-        >
-          Fulfillment stock
-        </button>
-      </div>
+      <HubTabs
+        tabs={[
+          { id: 'catalog' as const, label: 'Catalog & batches' },
+          { id: 'fulfillment' as const, label: 'Fulfillment stock' },
+        ]}
+        active={view}
+        onChange={setView}
+      />
 
       {view === 'catalog' && canWarehouseWrite ? (
-        <p className="commerce-inventory__intro muted">
-          <strong>Add Stock</strong> updates Shopify catalog stock and syncs batches to warehouse
-          fulfillment. Switch to <strong>Fulfillment stock</strong> for available / reserved /
+        <p className="text-sm text-ink-secondary">
+          <strong className="text-ink">Add Stock</strong> updates Shopify catalog stock and syncs batches to warehouse
+          fulfillment. Switch to <strong className="text-ink">Fulfillment stock</strong> for available / reserved /
           rack-level view.{' '}
-          <Link to={toPath(`${paths.warehouse}?tab=stock`)} className="commerce-warehouse-link">
+          <Link to={toPath(`${paths.warehouse}?tab=stock`)} className="font-semibold text-brand-700 hover:underline">
             Warehouse hub
           </Link>
         </p>
       ) : null}
 
       {view === 'fulfillment' ? (
-        <p className="commerce-inventory__intro muted">
-          Pickable quantities for orders — same catalog as above, with <strong>reserved</strong> and{' '}
-          <strong>rack</strong> detail. Set <strong>packaging</strong> (dead weight, category, preferred box) per
-          SKU for automatic courier dimensions. Use <strong>Catalog &amp; batches</strong> to add stock or receive
+        <p className="text-sm text-ink-secondary">
+          Pickable quantities for orders — same catalog as above, with <strong className="text-ink">reserved</strong> and{' '}
+          <strong className="text-ink">rack</strong> detail. Set <strong className="text-ink">packaging</strong> (dead weight, category, preferred box) per
+          SKU for automatic courier dimensions. Use <strong className="text-ink">Catalog &amp; batches</strong> to add stock or receive
           GRN.
         </p>
       ) : null}
 
-      {error ? (
-        <div className="commerce-inventory__error" role="alert">
-          {error}
-        </div>
-      ) : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
       {view === 'catalog' && stats ? (
-        <div className="commerce-inventory__stats">
-          <button
-            type="button"
-            className={`commerce-inventory__stat-card ${statFilter === 'all' ? 'commerce-inventory__stat-card--active' : ''}`}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <FilterableStatCard
+            label="Total Stock Value"
+            value={formatInr(stats.totalStockValue)}
+            active={statFilter === 'all'}
             onClick={() => applyStatFilter('all')}
-          >
-            <p className="commerce-inventory__stat-label">Total Stock Value</p>
-            <p className="commerce-inventory__stat-value">
-              {formatInr(stats.totalStockValue)}
-            </p>
-          </button>
-          <button
-            type="button"
-            className={`commerce-inventory__stat-card ${statFilter === 'in_stock' ? 'commerce-inventory__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Total Stock"
+            value={`${stats.totalStock.toLocaleString('en-IN')} Units`}
+            valueClassName="text-brand-600"
+            active={statFilter === 'in_stock'}
             onClick={() => applyStatFilter('in_stock')}
-          >
-            <p className="commerce-inventory__stat-label">Total Stock</p>
-            <p className="commerce-inventory__stat-value commerce-inventory__stat-value--green">
-              {stats.totalStock.toLocaleString('en-IN')} Units
-            </p>
-          </button>
-          <button
-            type="button"
-            className={`commerce-inventory__stat-card ${statFilter === 'low_stock' ? 'commerce-inventory__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Low Stock"
+            value={`${stats.lowStockProducts} Products`}
+            valueClassName="text-amber-600"
+            active={statFilter === 'low_stock'}
             onClick={() => applyStatFilter('low_stock')}
-          >
-            <p className="commerce-inventory__stat-label">Low Stock</p>
-            <p className="commerce-inventory__stat-value commerce-inventory__stat-value--orange">
-              {stats.lowStockProducts} Products
-            </p>
-          </button>
-          <button
-            type="button"
-            className={`commerce-inventory__stat-card ${statFilter === 'out_of_stock' ? 'commerce-inventory__stat-card--active' : ''}`}
+          />
+          <FilterableStatCard
+            label="Out of Stock"
+            value={`${stats.outOfStockProducts} Products`}
+            valueClassName="text-red-600"
+            active={statFilter === 'out_of_stock'}
             onClick={() => applyStatFilter('out_of_stock')}
-          >
-            <p className="commerce-inventory__stat-label">Out of Stock</p>
-            <p className="commerce-inventory__stat-value commerce-inventory__stat-value--red">
-              {stats.outOfStockProducts} Products
-            </p>
-          </button>
+          />
         </div>
       ) : null}
 
-      <div className="commerce-inventory__toolbar">
-        <div className="commerce-inventory__search-wrap">
-          <span className="commerce-inventory__search-icon" aria-hidden>
-            ⌕
-          </span>
-          <input
+      <FilterBar>
+        <div className="relative min-w-[240px] flex-1">
+          <Input
             type="search"
-            className="commerce-inventory__search"
             placeholder={view === 'fulfillment' ? 'Search SKU or product…' : 'Search products...'}
             value={draftSearch}
             onChange={(e) => setDraftSearch(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && applySearch()}
+            className="pl-9"
           />
+          <span
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+            aria-hidden
+          >
+            ⌕
+          </span>
         </div>
         {view === 'catalog' ? (
-          <button
-            type="button"
-            className="commerce-inventory__filter-btn"
-            onClick={() => setFiltersOpen((o) => !o)}
-            aria-expanded={filtersOpen}
-          >
-            <span aria-hidden>▾</span> Filters
-          </button>
+          <Btn variant="secondary" onClick={() => setFiltersOpen((o) => !o)} aria-expanded={filtersOpen}>
+            Filters
+          </Btn>
         ) : null}
-        <button
-          type="button"
-          className="commerce-inventory__filter-btn"
-          style={{ background: '#1b5e20', color: '#fff', borderColor: '#1b5e20' }}
-          onClick={applySearch}
-        >
+        <Btn variant="primary" onClick={applySearch}>
           Search
-        </button>
-      </div>
+        </Btn>
+      </FilterBar>
 
       {view === 'catalog' && filtersOpen ? (
-        <div className="commerce-inventory__filter-panel">
-          <StaticSelect
-            label="Stock status"
-            value={statusFilter}
-            onChange={(value) => {
-              const v = value as StatusFilter;
-              setStatusFilter(v);
-              setStatFilter(v);
-              setPage(1);
-            }}
-            options={[
-              { value: 'all', label: 'All' },
-              { value: 'in_stock', label: 'In Stock' },
-              { value: 'low_stock', label: 'Low Stock' },
-              { value: 'out_of_stock', label: 'Out of Stock' },
-            ]}
-          />
-          <button
-            type="button"
-            className="commerce-inventory__filter-btn"
+        <Panel bodyClassName="flex flex-wrap items-end gap-3">
+          <Field label="Stock status" className="min-w-[180px] flex-1">
+            <StaticSelect
+              value={statusFilter}
+              onChange={(value) => {
+                const v = value as StatusFilter;
+                setStatusFilter(v);
+                setStatFilter(v);
+                setPage(1);
+              }}
+              options={[
+                { value: 'all', label: 'All' },
+                { value: 'in_stock', label: 'In Stock' },
+                { value: 'low_stock', label: 'Low Stock' },
+                { value: 'out_of_stock', label: 'Out of Stock' },
+              ]}
+            />
+          </Field>
+          <Btn
+            variant="ghost"
             onClick={() => {
               setDraftSearch('');
               setAppliedSearch('');
@@ -368,32 +337,27 @@ export function CommerceInventoryPanel({
             }}
           >
             Reset
-          </button>
-          <button
-            type="button"
-            className="commerce-inventory__filter-btn"
-            style={{ background: '#1b5e20', color: '#fff', borderColor: '#1b5e20' }}
-            onClick={applySearch}
-          >
+          </Btn>
+          <Btn variant="secondary" onClick={applySearch}>
             Apply
-          </button>
-        </div>
+          </Btn>
+        </Panel>
       ) : null}
 
       {view === 'fulfillment' ? (
-        <div className="commerce-inventory__table-card commerce-inventory__fulfillment-wrap">
+        <Panel bodyClassName="p-0 overflow-hidden">
           <InventoryFulfillmentView
             canWrite={canWrite || canWarehouseWrite}
             searchQuery={searchForFulfillment}
             hideSearch
           />
-        </div>
+        </Panel>
       ) : null}
 
       {view === 'catalog' ? (
-      <div className="commerce-inventory__table-card">
+      <Panel bodyClassName="p-0">
         {loading ? (
-          <p className="commerce-inventory__loading">Loading inventory…</p>
+          <Loading label="Loading inventory…" />
         ) : (
           <>
             <div className="commerce-inventory__table-wrap">
@@ -522,7 +486,7 @@ export function CommerceInventoryPanel({
             ) : null}
           </>
         )}
-      </div>
+      </Panel>
       ) : null}
 
       {addStockOpen && canWrite ? (
@@ -567,7 +531,7 @@ export function CommerceInventoryPanel({
           onSave={() => setViewRow(null)}
           saveLabel="Close"
         >
-          <div className="space-y-2 text-sm text-slate-700">
+          <div className="space-y-2 text-sm text-ink-secondary">
             <p>
               <strong>Variant:</strong> {viewRow.variant}
             </p>

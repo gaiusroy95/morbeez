@@ -73,20 +73,20 @@ export function ForgotPasswordPage() {
   const showResetLink = phase === 'done' && resetUrl;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-900 via-brand-800 to-brand-600 p-4 sm:p-6">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white p-8 shadow-2xl sm:p-10">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-950 via-brand-800 to-brand-600 p-4 sm:p-6">
+      <div className="w-full max-w-md rounded-[var(--radius-card)] border border-white/10 bg-surface-elevated p-8 shadow-[var(--shadow-elevated)] sm:p-10">
         <div className="mb-8 flex items-center gap-4">
           <LogoMark />
           <div>
             <div className="text-xl font-extrabold tracking-tight text-brand-900">Morbeez</div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">
+            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-muted">
               Staff console
             </div>
           </div>
         </div>
 
-        <h1 className="text-2xl font-bold text-slate-900">Forgot password</h1>
-        <p className="mt-2 text-sm text-slate-600">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Forgot password</h1>
+        <p className="mt-2 text-sm leading-relaxed text-ink-secondary">
           Enter your work email. When your account is found, a one-time password reset link will appear
           below (valid for 1 hour).
         </p>
@@ -101,7 +101,7 @@ export function ForgotPasswordPage() {
           <div className="mt-5">
             <Alert tone="success">{message}</Alert>
             {phase === 'pending' && resetUrl ? (
-              <p className="mt-3 text-center text-sm text-slate-500">Preparing your reset link…</p>
+              <p className="mt-3 text-center text-sm text-ink-muted">Preparing your reset link…</p>
             ) : null}
           </div>
         ) : null}
@@ -109,9 +109,8 @@ export function ForgotPasswordPage() {
         {showResetLink ? (
           <div className="mt-5 space-y-3">
             <Alert tone="success">Your password reset link is ready. Open it to choose a new password.</Alert>
-            <label className="block text-sm font-medium text-slate-700">Reset link</label>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800"
+            <label className="mb-1.5 block text-sm font-medium text-ink-secondary">Reset link</label>
+            <Input
               readOnly
               value={resetUrl}
               onFocus={(e) => e.target.select()}
@@ -122,12 +121,12 @@ export function ForgotPasswordPage() {
               </Btn>
               <a
                 href={resetUrl}
-                className="inline-flex flex-1 items-center justify-center rounded-lg border border-brand-600 bg-white px-4 py-2 text-center text-sm font-semibold text-brand-700 hover:bg-brand-50"
+                className="inline-flex flex-1 items-center justify-center rounded-[var(--radius-control)] border border-brand-600 bg-surface-elevated px-4 py-2 text-center text-sm font-semibold text-brand-700 hover:bg-brand-50"
               >
                 Open reset page
               </a>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-ink-muted">
               Share this link only with the employee who owns the account. Email delivery will be added
               later; until then, copy and send the link manually if needed.
             </p>
@@ -152,7 +151,7 @@ export function ForgotPasswordPage() {
           </form>
         ) : null}
 
-        <p className="mt-6 text-center text-sm text-slate-500">
+        <p className="mt-6 text-center text-sm text-ink-muted">
           <Link to={toPath(paths.login)} className="font-semibold text-brand-700 hover:underline">
             Back to sign in
           </Link>

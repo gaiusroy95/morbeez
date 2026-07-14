@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import {
   extractPriorProduct,
   extractSuggestedDiagnosis,
+  extractAllSuggestedDiagnoses,
   isFarmerDisagreementIntent,
 } from '../src/services/core/farmer-feedback-intent.service.js';
 import {
   mapFarmerSuggestionInput,
   isFarmerSuggestionButtonId,
+  extractAllFarmerSuggestedDiagnoses,
+  getFarmerSuggestedDiagnosesFromStored,
 } from '../src/domain/learning/farmer-nutrient-suggestions.js';
 
 describe('farmer feedback intent', () => {
@@ -35,15 +38,36 @@ describe('farmer feedback intent', () => {
     assert.equal(extractSuggestedDiagnosis('feedback.suggest.iron'), 'Iron (Fe) deficiency');
   });
 
-  it('keeps multi-nutrient farmer free text (does not collapse to one nutrient)', () => {
+  it('splits multi-nutrient farmer free text into separate issues (not one combined string)', () => {
     const msg =
       "It's a ferrous, zinc, magnesium, and nitrogen deficiency, and the connected issue is that the leaves get thinner. So, calcium needs to be supplied.";
-    const dx = extractSuggestedDiagnosis(msg) ?? '';
-    assert.match(dx, /Iron/i);
-    assert.match(dx, /Zinc/i);
-    assert.match(dx, /Magnesium/i);
-    assert.match(dx, /Nitrogen/i);
-    assert.match(dx, /calcium/i);
+    const all = extractAllFarmerSuggestedDiagnoses(msg);
+    assert.equal(all.length, 5);
+    assert.deepEqual(all, [
+      'Iron (Fe) deficiency',
+      'Zinc (Zn) deficiency',
+      'Magnesium (Mg) deficiency',
+      'Nitrogen (N) deficiency',
+      'Calcium (Ca) deficiency',
+    ]);
+    assert.equal(extractAllSuggestedDiagnoses(msg).length, 5);
+    assert.equal(extractSuggestedDiagnosis(msg), 'Iron (Fe) deficiency');
+    assert.ok(!extractSuggestedDiagnosis(msg)?.includes(';'));
+  });
+
+  it('reads diagnoses array from feedback metadata', () => {
+    const stored = getFarmerSuggestedDiagnosesFromStored({
+      farmer_suggested_diagnosis: 'Iron (Fe) deficiency',
+      metadata: {
+        farmer_suggested_diagnoses: [
+          'Iron (Fe) deficiency',
+          'Zinc (Zn) deficiency',
+          'Magnesium (Mg) deficiency',
+        ],
+      },
+    });
+    assert.equal(stored.length, 3);
+    assert.equal(stored[1], 'Zinc (Zn) deficiency');
   });
 
   it('extracts EDTA / sulfate products from farmer treatment history', () => {
