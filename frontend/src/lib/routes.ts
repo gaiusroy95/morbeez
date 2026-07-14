@@ -73,7 +73,7 @@ export const ROUTE_META: Record<
 > = {
   [toPath(paths.dashboard)]: { title: 'Dashboard', module: 'dashboard', pageKey: 'dashboard' },
   [toPath(paths.telecaller)]: {
-    title: 'Telecaller CRM Workspace',
+    title: 'Telecaller CRM',
     module: 'telecaller_crm',
     pageKey: 'telecaller',
   },

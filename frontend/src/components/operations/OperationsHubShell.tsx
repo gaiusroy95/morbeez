@@ -12,7 +12,6 @@ import {
 export function OperationsHubShell({
   section,
   subTab,
-  onSectionChange,
   onSubTabChange,
   canWrite,
   visibility,
@@ -20,7 +19,8 @@ export function OperationsHubShell({
 }: {
   section: OpsSection;
   subTab: OpsSubTab;
-  onSectionChange: (s: OpsSection) => void;
+  /** @deprecated Section is chosen from the CRM & AI sidebar — kept optional for callers. */
+  onSectionChange?: (s: OpsSection) => void;
   onSubTabChange: (t: OpsSubTab) => void;
   canWrite: boolean;
   visibility: OpsHubVisibility;
@@ -28,24 +28,23 @@ export function OperationsHubShell({
 }) {
   const subTabs = visibleSubTabs(section, visibility);
   const showSubTabs = subTabs.length > 1;
+  const sectionLabel = OPS_SECTIONS.find((s) => s.id === section)?.label ?? 'Operations';
 
   return (
     <div className="operations-hub">
-      <p className="muted" style={{ marginBottom: 12 }}>
-        {SECTION_DESCRIPTIONS[section]}
-      </p>
+      <header className="mb-4">
+        <h2 className="text-lg font-semibold tracking-tight text-ink">{sectionLabel}</h2>
+        <p className="mt-1 text-sm text-ink-muted">{SECTION_DESCRIPTIONS[section]}</p>
+      </header>
       {!canWrite ? <ReadOnlyBanner /> : null}
-      <HubTabs tabs={OPS_SECTIONS} active={section} onChange={onSectionChange} />
       {showSubTabs ? (
-        <div className="mt-4">
-          <HubTabs
-            tabs={subTabs.map((t) => ({ id: t.id, label: t.label }))}
-            active={subTab}
-            onChange={(id) => onSubTabChange(id as OpsSubTab)}
-          />
-        </div>
+        <HubTabs
+          tabs={subTabs.map((t) => ({ id: t.id, label: t.label }))}
+          active={subTab}
+          onChange={(id) => onSubTabChange(id as OpsSubTab)}
+        />
       ) : null}
-      <div className="mt-6">{children}</div>
+      <div className={showSubTabs ? 'mt-6' : 'mt-2'}>{children}</div>
     </div>
   );
 }

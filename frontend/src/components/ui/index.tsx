@@ -8,7 +8,7 @@ const fieldBase =
 
 export const inputClass = cn(fieldBase, 'h-10 px-3');
 export const textareaClass = cn(fieldBase, 'min-h-[120px] px-3 py-2.5 leading-relaxed');
-export const selectClass = cn(fieldBase, 'h-10 px-3 pr-9');
+export const selectClass = cn(fieldBase, 'ui-select h-10 px-3 pr-9');
 
 import { PageLoader, PageShell } from './PageLoader';
 

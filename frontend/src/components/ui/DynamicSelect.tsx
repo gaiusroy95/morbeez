@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useSuperAdminConfirm } from '../../hooks/useSuperAdminConfirm';
 import { cn } from '../../lib/cn';
 import '../../styles/dynamic-master-picker.css';
@@ -191,7 +191,15 @@ export function DynamicSelect({
           {loading ? 'Loading…' : triggerLabel}
         </span>
         <span className="dmp-chevron" aria-hidden>
-          ▾
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 4.5L6 8L9.5 4.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
         </span>
       </button>
 
@@ -354,15 +362,15 @@ export function DynamicSelect({
 }
 
 /**
- * Native &lt;select&gt; for fixed option lists (status filters, page size, enums).
- * Use this instead of SearchSelect when options are static and do not need search UI.
+ * Custom listbox for fixed option lists (status filters, page size, enums).
+ * Prefer this over native &lt;select&gt; so the open menu matches the design system.
  */
 export function StaticSelect({
   label,
   value,
   onChange,
   options,
-  placeholder,
+  placeholder = 'Select…',
   disabled,
   className,
   compact,
@@ -376,32 +384,148 @@ export function StaticSelect({
   className?: string;
   compact?: boolean;
 }) {
-  const id = useId();
+  const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+
+  const selected = useMemo(
+    () => options.find((o) => o.value === value) ?? null,
+    [options, value]
+  );
+  const triggerLabel = selected?.label ?? placeholder;
+  const showPlaceholder = !selected;
+
+  useEffect(() => {
+    if (!open) return;
+    setHighlight(Math.max(0, options.findIndex((o) => o.value === value)));
+    function onDocClick(e: MouseEvent) {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open, options, value]);
+
+  function pick(next: string) {
+    onChange(next);
+    setOpen(false);
+  }
+
+  function onTriggerKeyDown(e: KeyboardEvent) {
+    if (disabled) return;
+    if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setOpen(true);
+    }
+  }
+
+  function onListKeyDown(e: KeyboardEvent) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlight((i) => Math.min(options.length - 1, (i < 0 ? -1 : i) + 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight((i) => Math.max(0, (i < 0 ? options.length : i) - 1));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setHighlight(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setHighlight(options.length - 1);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const opt = options[highlight];
+      if (opt) pick(opt.value);
+    }
+  }
+
   return (
-    <div className={cn('dmp-root', compact && 'dmp-root--compact', className)}>
-      {label ? (
-        <label htmlFor={id} className="dmp-label">
-          {label}
-        </label>
-      ) : null}
-      <select
-        id={id}
-        className={cn('dmp-native-select', compact && 'dmp-native-select--compact')}
-        value={value}
+    <div
+      ref={rootRef}
+      className={cn('dmp-root', compact && 'dmp-root--compact', open && 'dmp-root--open', className)}
+    >
+      {label ? <span className="dmp-label">{label}</span> : null}
+      <button
+        type="button"
+        className="dmp-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
         disabled={disabled}
-        onChange={(e) => onChange(e.target.value)}
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={onTriggerKeyDown}
       >
-        {placeholder ? (
-          <option value="" disabled={value !== ''}>
-            {placeholder}
-          </option>
-        ) : null}
-        {options.map((o) => (
-          <option key={o.value || '__empty'} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        <span className={cn('dmp-trigger-text', showPlaceholder && 'dmp-trigger-text--placeholder')}>
+          {triggerLabel}
+        </span>
+        <span className="dmp-chevron" aria-hidden>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 4.5L6 8L9.5 4.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          className="dmp-panel dmp-panel--static"
+          id={listId}
+          role="listbox"
+          aria-label={label ?? 'Options'}
+          tabIndex={-1}
+          onKeyDown={onListKeyDown}
+        >
+          <ul className="dmp-list">
+            {options.map((o, index) => {
+              const isSelected = o.value === value;
+              const isHighlighted = index === highlight;
+              return (
+                <li key={o.value || `__empty-${index}`} role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    className={cn(
+                      'dmp-option',
+                      isSelected && 'dmp-option--selected',
+                      isHighlighted && 'dmp-option--highlight'
+                    )}
+                    onMouseEnter={() => setHighlight(index)}
+                    onClick={() => pick(o.value)}
+                  >
+                    <span className="dmp-option-label">{o.label}</span>
+                    {isSelected ? (
+                      <span className="dmp-option-check" aria-hidden>
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path
+                            d="M3 7.2L5.8 10L11 4"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

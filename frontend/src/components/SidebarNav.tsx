@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { NavIcon } from './NavIcon';
 import {
+  collectNavPaths,
   defaultExpandedGroups,
   filterNav,
   isNavItemActive,
@@ -18,14 +19,20 @@ type Props = {
   collapsed?: boolean;
 };
 
-function isGroupActive(pathname: string, group: NavGroup): boolean {
-  return group.children.some((c) => isNavItemActive(pathname, c.path));
+function isGroupActive(
+  pathname: string,
+  search: string,
+  group: NavGroup,
+  allNavPaths: string[]
+): boolean {
+  return group.children.some((c) => isNavItemActive(pathname, c.path, search, allNavPaths));
 }
 
 export function SidebarNav({ modules, collapsed = false }: Props) {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const navigate = useNavigate();
   const groups = useMemo(() => filterNav(modules), [modules]);
+  const allNavPaths = useMemo(() => collectNavPaths(groups), [groups]);
   const [expanded, setExpanded] = useState<Set<string>>(() => {
     try {
       const saved = window.localStorage.getItem('console.sidebar.expandedGroup');
@@ -41,10 +48,12 @@ export function SidebarNav({ modules, collapsed = false }: Props) {
   const flyoutAnchorRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    const activeGroup = groups.find((group) => !('items' in group) && isGroupActive(pathname, group));
+    const activeGroup = groups.find(
+      (group) => !('items' in group) && isGroupActive(pathname, search, group, allNavPaths)
+    );
     if (!activeGroup || 'items' in activeGroup) return;
     setExpanded(new Set([activeGroup.id]));
-  }, [groups, pathname]);
+  }, [groups, pathname, search, allNavPaths]);
 
   useEffect(() => {
     setFlyoutGroupId(null);
@@ -171,8 +180,8 @@ export function SidebarNav({ modules, collapsed = false }: Props) {
           end={item.path !== toPath(paths.employees)}
           title={item.label}
           data-tooltip={item.label}
-          className={({ isActive }) =>
-            linkClassName(isActive || isNavItemActive(pathname, item.path), baseClass)
+          className={() =>
+            linkClassName(isNavItemActive(pathname, item.path, search, allNavPaths), baseClass)
           }
         >
           <NavIcon name={item.icon} />
@@ -209,9 +218,9 @@ export function SidebarNav({ modules, collapsed = false }: Props) {
                       to={child.path}
                       end
                       role="menuitem"
-                      className={({ isActive }) =>
+                      className={() =>
                         linkClassName(
-                          isActive || isNavItemActive(pathname, child.path),
+                          isNavItemActive(pathname, child.path, search, allNavPaths),
                           'sidebar-flyout-link'
                         )
                       }
@@ -238,7 +247,21 @@ export function SidebarNav({ modules, collapsed = false }: Props) {
           }
 
           const g = group as NavGroup;
-          const groupActive = isGroupActive(pathname, g);
+
+          // Only expand into a submenu when there are 2+ destinations.
+          if (g.children.length === 1) {
+            const only = g.children[0];
+            return renderItem(
+              {
+                ...only,
+                label: g.label,
+                icon: g.icon || only.icon,
+              },
+              'sidebar-link'
+            );
+          }
+
+          const groupActive = isGroupActive(pathname, search, g, allNavPaths);
           const isOpen = expanded.has(g.id) || groupActive;
           const hasFlyout = collapsed && g.children.length > 1;
           const flyoutOpen = flyoutGroupId === g.id;
@@ -277,9 +300,9 @@ export function SidebarNav({ modules, collapsed = false }: Props) {
                       to={child.path}
                       end
                       data-tooltip={child.label}
-                      className={({ isActive }) =>
+                      className={() =>
                         linkClassName(
-                          isActive || isNavItemActive(pathname, child.path),
+                          isNavItemActive(pathname, child.path, search, allNavPaths),
                           'sidebar-sublink'
                         )
                       }

@@ -33,7 +33,7 @@ export function TelecallerWorkspaceHeader({ onOpenMenu, onLogout }: Props) {
 
   return (
     <WorkspaceHeader
-      title="Telecaller CRM Workspace"
+      title="Telecaller CRM"
       onOpenMenu={onOpenMenu}
       onLogout={onLogout}
       menuAlwaysVisible

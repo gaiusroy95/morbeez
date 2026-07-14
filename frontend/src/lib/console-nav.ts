@@ -1,5 +1,6 @@
 import type { ApiModule } from './api';
 import { canAccess } from './api';
+import { buildOpsHubUrl } from './operations-hub-nav';
 import { paths, toPath } from './routes';
 
 export type NavItem = {
@@ -24,26 +25,11 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
     id: 'main',
     items: [
       { id: 'dashboard', path: toPath(paths.dashboard), label: 'Dashboard', icon: 'dashboard', module: 'dashboard' },
-    ],
-  },
-  {
-    id: 'telecaller',
-    label: 'Telecaller CRM',
-    icon: 'phone',
-    module: 'telecaller_crm',
-    children: [
       {
         id: 'telecaller',
         path: toPath(paths.telecaller),
-        label: 'Workspace',
+        label: 'Telecaller CRM',
         icon: 'phone',
-        module: 'telecaller_crm',
-      },
-      {
-        id: 'telecaller-qc',
-        path: `${toPath(paths.telecaller)}?view=qc`,
-        label: 'Call QC',
-        icon: 'analytics',
         module: 'telecaller_crm',
       },
     ],
@@ -51,29 +37,35 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
   {
     id: 'crm-ai',
     label: 'CRM & AI',
-    icon: 'ai',
+    icon: 'sparkles',
     module: 'operations',
     children: [
       {
-        id: 'operations',
-        path: toPath(paths.operations),
-        label: 'Terminology & concepts',
-        icon: 'operations',
+        id: 'ops-communications',
+        path: buildOpsHubUrl('communications'),
+        label: 'Communications',
+        icon: 'megaphone',
         module: 'operations',
       },
-    ],
-  },
-  {
-    id: 'ops',
-    label: 'Communications',
-    icon: 'operations',
-    module: 'operations',
-    children: [
       {
-        id: 'broadcasts',
-        path: toPath(paths.broadcasts),
-        label: 'Broadcasts',
-        icon: 'operations',
+        id: 'ops-knowledge',
+        path: buildOpsHubUrl('knowledge'),
+        label: 'Knowledge Base',
+        icon: 'book',
+        module: 'operations',
+      },
+      {
+        id: 'ops-automation',
+        path: buildOpsHubUrl('automation'),
+        label: 'Automation',
+        icon: 'bolt',
+        module: 'operations',
+      },
+      {
+        id: 'ops-market',
+        path: buildOpsHubUrl('market'),
+        label: 'Market Prices',
+        icon: 'sales',
         module: 'operations',
       },
     ],
@@ -88,42 +80,35 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
         id: 'intelligence',
         path: toPath(paths.intelligence),
         label: 'Masters hub',
-        icon: 'ai',
+        icon: 'layers',
         module: 'intelligence',
       },
       {
         id: 'opportunity',
         path: toPath(paths.opportunity),
         label: 'Opportunity',
-        icon: 'ai',
-        module: 'intelligence',
-      },
-      {
-        id: 'farmer-360-nav',
-        path: toPath(paths.opportunity),
-        label: 'Farmer 360 (from CRM)',
-        icon: 'farmers',
+        icon: 'target',
         module: 'intelligence',
       },
       {
         id: 'resistance',
         path: toPath(paths.resistanceDashboard),
         label: 'Resistance',
-        icon: 'ai',
+        icon: 'shield',
         module: 'intelligence',
       },
       {
         id: 'knowledge',
         path: toPath(paths.knowledgeExplorer),
         label: 'Knowledge graph',
-        icon: 'ai',
+        icon: 'network',
         module: 'intelligence',
       },
       {
         id: 'gaps',
         path: toPath(paths.productGaps),
         label: 'Product gaps',
-        icon: 'ai',
+        icon: 'trend',
         module: 'intelligence',
       },
     ],
@@ -131,14 +116,14 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
   {
     id: 'partners',
     label: 'Partner Program',
-    icon: 'farmers',
+    icon: 'partners',
     module: 'partner_program',
     children: [
       {
         id: 'partner-program',
         path: toPath(paths.partnerProgram),
         label: 'Partners',
-        icon: 'farmers',
+        icon: 'partners',
         module: 'partner_program',
       },
     ],
@@ -146,56 +131,56 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
   {
     id: 'agro',
     label: 'Agronomist',
-    icon: 'farmers',
+    icon: 'plant',
     module: 'agronomist',
     children: [
       {
         id: 'agronomist-visit-command',
         path: toPath(paths.agronomistVisitCommand),
         label: 'Visit command',
-        icon: 'farmers',
+        icon: 'field',
         module: 'agronomist',
       },
       {
         id: 'agronomist',
         path: toPath(paths.agronomist),
         label: 'Operations',
-        icon: 'farmers',
+        icon: 'calendar',
         module: 'agronomist',
       },
       {
         id: 'agronomist-ai',
         path: toPath(paths.agronomistAiReview),
         label: 'AI Review Center',
-        icon: 'ai',
+        icon: 'sparkles',
         module: 'agronomist',
       },
       {
         id: 'weakness',
         path: toPath(paths.weaknessDashboard),
         label: 'Weakness dashboard',
-        icon: 'ai',
+        icon: 'operations',
         module: 'agronomist',
       },
       {
         id: 'retraining',
         path: toPath(paths.retrainingOps),
         label: 'Retraining ops',
-        icon: 'ai',
+        icon: 'refresh',
         module: 'agronomist',
       },
       {
         id: 'similar-cases',
         path: toPath(paths.similarCasesExplorer),
         label: 'Similar cases',
-        icon: 'ai',
+        icon: 'users',
         module: 'agronomist',
       },
       {
         id: 'approvals',
         path: toPath(paths.approvals),
         label: 'Approvals',
-        icon: 'ai',
+        icon: 'clipboard',
         module: 'approve_recommendations',
       },
     ],
@@ -221,14 +206,14 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
         id: 'executive',
         path: toPath(paths.executiveCockpit),
         label: 'Executive cockpit',
-        icon: 'analytics',
+        icon: 'briefcase',
         module: 'analytics',
       },
       {
         id: 'escalations',
         path: toPath(paths.escalationCommand),
         label: 'Escalations',
-        icon: 'analytics',
+        icon: 'warning',
         module: 'telecaller_crm',
       },
       {
@@ -282,9 +267,10 @@ export function filterNav(modules: ApiModule[]): typeof NAV_GROUPS {
 }
 
 export function defaultExpandedGroups(pathname: string): string[] {
-  const base = ['telecaller', 'crm-ai', 'ops', 'intel', 'agro'];
-  if (pathname.startsWith(toPath(paths.broadcasts))) base.push('ops');
-  if (pathname.startsWith(toPath(paths.operations))) base.push('ops');
+  const base = ['crm-ai', 'intel', 'agro'];
+  if (pathname.startsWith(toPath(paths.operations)) || pathname.startsWith(toPath(paths.broadcasts))) {
+    base.push('crm-ai');
+  }
   if (pathname.startsWith(toPath(paths.commerce))) base.push('commerce');
   if (pathname.startsWith(toPath(paths.warehouse))) base.push('more');
   if (pathname.startsWith(toPath(paths.seo))) base.push('more');
@@ -292,21 +278,61 @@ export function defaultExpandedGroups(pathname: string): string[] {
   return base;
 }
 
-export function isNavItemActive(pathname: string, itemPath: string): boolean {
-  if (itemPath === toPath(paths.employees)) {
-    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+function pathMatchesLocation(pathname: string, pathOnly: string): boolean {
+  return pathname === pathOnly || pathname.startsWith(`${pathOnly}/`);
+}
+
+/**
+ * Compare pathname (+ optional search) against a nav target that may include `?query`.
+ * When `allNavPaths` is provided, a shorter parent (e.g. `/intelligence`) loses to a more
+ * specific sibling (e.g. `/intelligence/resistance`) so only one item is active.
+ */
+export function isNavItemActive(
+  pathname: string,
+  itemPath: string,
+  search = '',
+  allNavPaths: string[] = []
+): boolean {
+  const [pathOnly, query = ''] = itemPath.split('?');
+  const currentSearch = search.startsWith('?') ? search.slice(1) : search;
+
+  // Operations hub: match by `section` so CRM & AI children don't all light up together.
+  if (pathOnly === toPath(paths.operations)) {
+    const itemSection = new URLSearchParams(query).get('section') || 'communications';
+    if (pathname.startsWith(toPath(paths.broadcasts))) {
+      return itemSection === 'communications';
+    }
+    if (pathname !== pathOnly) return false;
+    const currentSection = new URLSearchParams(currentSearch).get('section') || 'communications';
+    return itemSection === currentSection;
   }
-  if (itemPath === toPath(paths.agronomist)) {
-    return pathname === itemPath;
+
+  if (!pathMatchesLocation(pathname, pathOnly)) return false;
+
+  // Prefer the most specific nav target when several prefix-match the location.
+  if (allNavPaths.length > 0) {
+    const hasMoreSpecificSibling = allNavPaths.some((other) => {
+      if (other === itemPath) return false;
+      const otherPath = other.split('?')[0];
+      if (otherPath === pathOnly || otherPath.length <= pathOnly.length) return false;
+      // other is under this item's path and also matches the current location
+      return otherPath.startsWith(`${pathOnly}/`) && pathMatchesLocation(pathname, otherPath);
+    });
+    if (hasMoreSpecificSibling) return false;
   }
-  if (itemPath === toPath(paths.agronomistAiReview)) {
-    return pathname === itemPath || pathname.startsWith(`${itemPath}/`);
+
+  return true;
+}
+
+/** Collect every navigable path from filtered nav groups (for longest-match active state). */
+export function collectNavPaths(groups: typeof NAV_GROUPS): string[] {
+  const pathsOut: string[] = [];
+  for (const group of groups) {
+    if ('items' in group) {
+      for (const item of group.items) pathsOut.push(item.path);
+    } else {
+      for (const child of group.children) pathsOut.push(child.path);
+    }
   }
-  if (itemPath === toPath(paths.operations)) {
-    return pathname === itemPath || pathname.startsWith(`${itemPath}/`) || pathname.startsWith(toPath(paths.broadcasts));
-  }
-  if (itemPath.startsWith(toPath(paths.telecaller))) {
-    return pathname.startsWith(toPath(paths.telecaller));
-  }
-  return pathname === itemPath || pathname.startsWith(`${itemPath.split('?')[0]}/`);
+  return pathsOut;
 }

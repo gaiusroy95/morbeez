@@ -81,12 +81,24 @@ type CrmView = 'workspace' | 'followUps' | 'escalations' | 'qc';
 type WorkspaceViewMode = 'list' | 'detail';
 type CrmNotification = { id: string; message: string; at: string };
 
+const CRM_VIEWS: CrmView[] = ['workspace', 'followUps', 'qc', 'escalations'];
+
+function isCrmView(value: string | null): value is CrmView {
+  return value != null && (CRM_VIEWS as string[]).includes(value);
+}
+
+/** Resolve active CRM tab from URL. Supports legacy `?view=qc`. */
+function crmViewFromSearch(params: URLSearchParams): CrmView {
+  const tab = params.get('tab');
+  if (isCrmView(tab)) return tab;
+  if (params.get('view') === 'qc') return 'qc';
+  return 'workspace';
+}
+
 export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { patchHeader } = useTelecallerHeader();
-  const [crmView, setCrmView] = useState<CrmView>(() =>
-    searchParams.get('view') === 'qc' ? 'qc' : 'workspace'
-  );
+  const [crmView, setCrmView] = useState<CrmView>(() => crmViewFromSearch(searchParams));
   const [pendingEscalations, setPendingEscalations] = useState(0);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [leads, setLeads] = useState<LeadRow[]>([]);
@@ -111,6 +123,35 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
   const base = '/morbeez-staff/api/v1/os/telecaller';
 
   const dueTodayNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    setCrmView(crmViewFromSearch(searchParams));
+  }, [searchParams]);
+
+  /** Keep HubTabs shareable via `?tab=`; migrate legacy `?view=qc`. */
+  useEffect(() => {
+    const view = searchParams.get('view');
+    const tab = searchParams.get('tab');
+    if (view !== 'qc' && (!tab || isCrmView(tab))) return;
+    const params = new URLSearchParams(searchParams);
+    params.delete('view');
+    const next = crmViewFromSearch(searchParams);
+    if (next === 'workspace') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const onCrmViewChange = useCallback(
+    (next: CrmView) => {
+      setCrmView(next);
+      const params = new URLSearchParams(searchParams);
+      params.delete('view');
+      if (next === 'workspace') params.delete('tab');
+      else params.set('tab', next);
+      setSearchParams(params, { replace: true });
+    },
+    [searchParams, setSearchParams]
+  );
 
   const loadBadges = useCallback(async () => {
     try {
@@ -274,6 +315,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
   }, [workspaceViewMode]);
 
   function openLeadWorkspace(leadId: string, lead?: OperationalLead) {
+    onCrmViewChange('workspace');
     setSelectedLeadId(leadId);
     setFocusLead(lead ?? null);
     setWorkspaceViewMode('detail');
@@ -290,7 +332,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       pendingEscalations,
       onViewEscalations: () => {
         setShowNotifications(false);
-        setCrmView('escalations');
+        onCrmViewChange('escalations');
       },
       notifications,
       showNotifications,
@@ -311,6 +353,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
     pendingEscalations,
     notifications,
     showNotifications,
+    onCrmViewChange,
   ]);
 
   async function completeTask(taskId: string) {
@@ -366,7 +409,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
                   className="tc-notification-escalation-btn"
                   onClick={() => {
                     setShowNotifications(false);
-                    setCrmView('escalations');
+                    onCrmViewChange('escalations');
                   }}
                 >
                   View escalations
@@ -431,7 +474,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
           { id: 'escalations' as const, label: 'Escalations', badge: pendingEscalations },
         ]}
         active={crmView}
-        onChange={setCrmView}
+        onChange={onCrmViewChange}
       />
 
       {crmView === 'followUps' ? (
