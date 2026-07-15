@@ -2,10 +2,14 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
+  buildFarmerExperienceSections,
   expandSeparateNutrientIssues,
   collectFarmerRecommendations,
   buildIssueDraftFromFarmerRecommendation,
   issueMatchesFarmerLabel,
+  farmerMatchStatusLabel,
+  formatActiveIngredientLine,
+  resolveFarmerAiMatchStatus,
   slugFarmerLabel,
   tokens,
   type AgronomistReviewAction,
@@ -16,17 +20,12 @@ import { Btn } from '@morbeez/ui-native';
 import { type IssueDraft } from '../IssueCard';
 import { getIssueCategoryLabel } from './visitIssueTypes';
 import { AddIssueModal } from './AddIssueModal';
-import {
-  buildFarmerObservationText,
-  type FarmerVisitFeedback,
-  withFarmerObservation,
-} from './farmerVisitFeedback';
+import { type FarmerVisitFeedback } from './farmerVisitFeedback';
 import { newIssueDraft, pickDefaultCategory } from './types';
 
 const REVIEW_ACTIONS: Array<{ value: AgronomistReviewAction; label: string }> = [
   { value: 'approve_ai', label: 'Approve' },
   { value: 'correct_ai', label: 'Modify' },
-  { value: 'partial_match', label: 'Partial' },
   { value: 'reject_recommendation', label: 'Reject' },
 ];
 
@@ -99,21 +98,20 @@ export function VisitAgronomistReviewStep({
 
   function openIssueDetails(issue: IssueDraft | null) {
     const base = issue ?? newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
-    setEditing(withFarmerObservation(base, farmerFeedback));
+    setEditing(base);
     setModalVisible(true);
   }
 
   function setReviewAction(localId: string, action: AgronomistReviewAction) {
     const issue = issues.find((i) => i.localId === localId);
     if (!issue) return;
-    const keepModifyFields = action === 'correct_ai' || action === 'partial_match';
+    const keepModifyFields = action === 'correct_ai';
     const farmerDx = farmerDxForIssue(issue) ?? farmerFeedback?.suggestedDiagnosis?.trim();
     const updated = {
       ...issue,
       ...(keepModifyFields && farmerDx
         ? {
             finalDiagnosis: farmerDx,
-            observation: buildFarmerObservationText(farmerFeedback) || issue.observation,
           }
         : {}),
       agronomistReview: {
@@ -130,26 +128,6 @@ export function VisitAgronomistReviewStep({
     if (keepModifyFields) {
       openIssueDetails(updated);
     }
-  }
-
-  function applyFarmerSuggestion(localId: string, farmerDx: string) {
-    if (!farmerDx.trim()) return;
-    const issue = issues.find((i) => i.localId === localId);
-    if (!issue) return;
-    const updated: IssueDraft = {
-      ...issue,
-      finalDiagnosis: farmerDx,
-      issueName: farmerDx,
-      observation: buildFarmerObservationText(farmerFeedback) || issue.observation,
-      agronomistReview: {
-        action: 'correct_ai',
-        finalDiagnosis: farmerDx,
-        finalRecommendation: issue.finalRecommendation,
-        modificationReason: `Farmer suggestion: ${farmerDx}`,
-      },
-    };
-    patchIssue(localId, updated);
-    openIssueDetails(updated);
   }
 
   function saveIssue(issue: IssueDraft) {
@@ -174,7 +152,6 @@ export function VisitAgronomistReviewStep({
       label,
       reason,
       localId: `farmer-${slugFarmerLabel(label)}-${Date.now()}`,
-      observation: buildFarmerObservationText(farmerFeedback),
     });
     const draft: IssueDraft = {
       ...newIssueDraft(base.category, base.localId),
@@ -185,8 +162,7 @@ export function VisitAgronomistReviewStep({
   }
 
   const farmerRecommendations = collectFarmerRecommendations(farmerFeedback ?? undefined);
-  const farmerExperience = farmerFeedback?.priorExperience?.trim() || null;
-  const farmerProduct = farmerFeedback?.priorProduct?.trim() || null;
+  const farmerSections = buildFarmerExperienceSections(farmerFeedback ?? undefined);
 
   function farmerDxForIssue(issue: IssueDraft): string | null {
     const labels = farmerRecommendations.map((r) => r.label);
@@ -205,51 +181,61 @@ export function VisitAgronomistReviewStep({
     return labels.length === 1 ? labels[0]! : null;
   }
 
+  const hasFarmerContext =
+    farmerSections.observations.length > 0 ||
+    farmerSections.activeIngredients.length > 0 ||
+    farmerSections.symptomsReported ||
+    farmerSections.responseAfterApplication;
+
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
         Review each AI issue. Approve, modify, or reject — then tap Edit issue details to confirm category, type, and
-        observation.
+        notes.
         {blockAutoApprove ? ' L4 critical — auto-approve is blocked; modify or escalate.' : ''}
       </Text>
 
-      {farmerRecommendations.length || farmerExperience || farmerProduct ? (
+      {hasFarmerContext ? (
         <View style={styles.farmerBanner}>
           <Text style={styles.farmerBannerTitle}>Farmer recommendation (WhatsApp)</Text>
           <Text style={styles.farmerBannerHint}>Tap a condition to add it to the issues list below.</Text>
-          {farmerRecommendations.map((rec) => {
-            const added = issues.some((i) =>
-              issueMatchesFarmerLabel(i.issueName, rec.label, i.finalDiagnosis)
-            );
-            return (
-              <Pressable
-                key={rec.label}
-                style={[styles.farmerChip, added && styles.farmerChipAdded]}
-                onPress={() => addIssueFromFarmerRecommendation(rec.label, rec.reason)}
-                disabled={added}
-              >
-                <View style={styles.farmerChipRow}>
-                  <Text style={[styles.farmerBannerDx, added && styles.farmerBannerDxAdded]}>
-                    {added ? '✓ ' : '+ '}
-                    {rec.label}
-                  </Text>
-                  <Text style={styles.farmerChipAction}>{added ? 'Added' : 'Add issue'}</Text>
-                </View>
-                {rec.reason ? (
-                  <Text style={styles.farmerChipReason} numberOfLines={3}>
-                    {rec.reason}
-                  </Text>
-                ) : null}
-              </Pressable>
-            );
-          })}
-          {farmerProduct ? (
-            <Text style={styles.farmerBannerMeta}>Prior products: {farmerProduct}</Text>
+
+          {farmerSections.observations.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Farmer observations</Text>
+              {farmerSections.observations.map((label) => {
+                const added = issues.some((i) =>
+                  issueMatchesFarmerLabel(i.issueName, label, i.finalDiagnosis)
+                );
+                return (
+                  <Pressable
+                    key={label}
+                    style={[styles.farmerChip, added && styles.farmerChipAdded]}
+                    onPress={() => addIssueFromFarmerRecommendation(label)}
+                    disabled={added}
+                  >
+                    <View style={styles.farmerChipRow}>
+                      <Text style={[styles.farmerBannerDx, added && styles.farmerBannerDxAdded]}>
+                        {added ? '✓ ' : '+ '}
+                        {label}
+                      </Text>
+                      <Text style={styles.farmerChipAction}>{added ? 'Added' : 'Add issue'}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
           ) : null}
-          {farmerExperience ? (
-            <Text style={styles.farmerBannerMeta} numberOfLines={6}>
-              Field experience: {farmerExperience}
-            </Text>
+
+          {farmerSections.activeIngredients.length ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Active ingredients applied</Text>
+              {farmerSections.activeIngredients.map((item) => (
+                <Text key={item.label} style={styles.bulletLine}>
+                  • {formatActiveIngredientLine(item)}
+                </Text>
+              ))}
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -259,18 +245,37 @@ export function VisitAgronomistReviewStep({
       {issues.map((issue) => {
         const action = issue.agronomistReview?.action;
         const issueFarmerDx = farmerDxForIssue(issue);
+        const aiLabel = issue.finalDiagnosis?.trim() || issue.issueName;
+        const matchStatus = resolveFarmerAiMatchStatus(aiLabel, issueFarmerDx);
+        const statusLabel = farmerMatchStatusLabel(matchStatus);
+        const statusStyle =
+          matchStatus === 'match'
+            ? styles.statusMatch
+            : matchStatus === 'conflict'
+              ? styles.statusConflict
+              : styles.statusNeutral;
+
         return (
           <View key={issue.localId} style={styles.card}>
             <Pressable onPress={() => openIssueDetails(issue)}>
               <Text style={styles.category}>{getIssueCategoryLabel(issue.category)}</Text>
-              <Text style={styles.title}>{issue.issueName}</Text>
-              {issue.finalDiagnosis ? <Text style={styles.dx}>AI: {issue.finalDiagnosis}</Text> : null}
-              {issueFarmerDx ? <Text style={styles.farmerDx}>Farmer: {issueFarmerDx}</Text> : null}
-              {!issueFarmerDx && farmerRecommendations.length > 1 ? (
+              <Text style={styles.fieldLabel}>AI diagnosis</Text>
+              <Text style={styles.title}>{aiLabel}</Text>
+              {issueFarmerDx ? (
+                <>
+                  <Text style={styles.fieldLabel}>Farmer</Text>
+                  <Text style={styles.farmerDx}>
+                    {issueFarmerDx}
+                    {matchStatus === 'match' ? ' ✓' : ''}
+                  </Text>
+                </>
+              ) : farmerRecommendations.length > 1 ? (
                 <Text style={styles.farmerDxMuted}>
                   Farmer named {farmerRecommendations.length} issues — tap above to add any missing
                 </Text>
               ) : null}
+              <Text style={styles.fieldLabel}>Status</Text>
+              <Text style={[styles.statusBadge, statusStyle]}>{statusLabel}</Text>
             </Pressable>
             <View style={styles.actions}>
               {REVIEW_ACTIONS.map((a) => {
@@ -290,13 +295,6 @@ export function VisitAgronomistReviewStep({
               })}
             </View>
             <Btn label="Edit issue details" variant="secondary" onPress={() => openIssueDetails(issue)} />
-            {issueFarmerDx ? (
-              <Btn
-                label="Use farmer suggestion"
-                variant="secondary"
-                onPress={() => applyFarmerSuggestion(issue.localId, issueFarmerDx)}
-              />
-            ) : null}
             <Btn label="Explain diagnosis" variant="secondary" onPress={() => void explainIssue(issue)} />
           </View>
         );
@@ -337,7 +335,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: tokens.warning,
     padding: 12,
-    gap: 6,
+    gap: 10,
   },
   farmerBannerTitle: {
     fontSize: 12,
@@ -345,7 +343,10 @@ const styles = StyleSheet.create({
     color: tokens.warning,
     textTransform: 'uppercase',
   },
-  farmerBannerHint: { fontSize: 11, color: tokens.textSecondary, marginBottom: 2 },
+  farmerBannerHint: { fontSize: 11, color: tokens.textSecondary },
+  section: { gap: 6 },
+  sectionTitle: { fontSize: 12, fontWeight: '700', color: tokens.text },
+  bulletLine: { fontSize: 13, color: tokens.textSecondary, lineHeight: 18, paddingLeft: 4 },
   farmerChip: {
     borderRadius: tokens.radiusSm,
     borderWidth: 1,
@@ -353,7 +354,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     paddingHorizontal: 10,
     paddingVertical: 8,
-    gap: 4,
   },
   farmerChipAdded: {
     borderColor: tokens.green700,
@@ -372,10 +372,8 @@ const styles = StyleSheet.create({
     color: tokens.green800,
     textTransform: 'uppercase',
   },
-  farmerChipReason: { fontSize: 11, color: tokens.textMuted, lineHeight: 15 },
-  farmerBannerDx: { fontSize: 15, fontWeight: '700', color: tokens.text, lineHeight: 20, flex: 1 },
+  farmerBannerDx: { fontSize: 14, fontWeight: '700', color: tokens.text, lineHeight: 20, flex: 1 },
   farmerBannerDxAdded: { color: tokens.green800 },
-  farmerBannerMeta: { fontSize: 12, color: tokens.textSecondary, lineHeight: 17 },
   card: {
     backgroundColor: tokens.card,
     borderRadius: tokens.radius,
@@ -390,10 +388,29 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   category: { fontSize: 12, fontWeight: '700', color: tokens.green800, textTransform: 'uppercase' },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: tokens.textMuted,
+    textTransform: 'uppercase',
+    marginTop: 6,
+  },
   title: { fontSize: 16, fontWeight: '700', color: tokens.text },
-  dx: { fontSize: 12, color: tokens.green800, marginTop: 4 },
-  farmerDx: { fontSize: 12, fontWeight: '700', color: tokens.warning, marginTop: 4 },
+  farmerDx: { fontSize: 14, fontWeight: '700', color: tokens.warning },
   farmerDxMuted: { fontSize: 11, color: tokens.textMuted, marginTop: 4, fontStyle: 'italic' },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    fontSize: 12,
+    fontWeight: '800',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginTop: 2,
+  },
+  statusMatch: { backgroundColor: tokens.green100, color: tokens.green800 },
+  statusConflict: { backgroundColor: '#fde8e8', color: '#b42318' },
+  statusNeutral: { backgroundColor: tokens.bg, color: tokens.textMuted },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   chip: {
     borderWidth: 1,

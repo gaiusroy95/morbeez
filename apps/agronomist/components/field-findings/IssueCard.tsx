@@ -7,6 +7,9 @@ import {
   RECOMMENDATION_TYPES,
   RECOMMENDATION_PRIORITIES,
   FIELD_REC_STATUSES,
+  buildFarmerExperienceSections,
+  composeStructuredRecommendationText,
+  formatActiveIngredientLine,
   tokens,
   type IssueCategory,
   type IssueMasterRow,
@@ -24,6 +27,7 @@ import {
   ISSUE_CATEGORY_OPTIONS,
   issueCategoryHint,
 } from './wizard/visitIssueTypes';
+import { type FarmerVisitFeedback } from './wizard/farmerVisitFeedback';
 
 function slugLabel(label: string): string {
   return label.trim().toLowerCase().replace(/[\s-]+/g, '_').replace(/[^\w]/g, '');
@@ -55,6 +59,7 @@ type Props = {
   issue: IssueDraft;
   issueMaster: IssueMasterRow[];
   cropType: string;
+  farmerFeedback?: FarmerVisitFeedback | null;
   onChange: (next: IssueDraft) => void;
   onRemove?: () => void;
   onSuggestQuestions?: () => Promise<string[]>;
@@ -69,12 +74,14 @@ export function IssueCard({
   issue,
   issueMaster,
   cropType,
+  farmerFeedback,
   onChange,
   onRemove,
   onSuggestQuestions,
   onCreateIssueType,
 }: Props) {
   const [questions, setQuestions] = useState<string[]>([]);
+  const [farmerExpOpen, setFarmerExpOpen] = useState(false);
   const [extraCategories, setExtraCategories] = useState<Array<{ value: IssueCategory; label: string }>>([]);
   const [extraTypes, setExtraTypes] = useState<Array<{ key: string; value: string; label: string }>>([]);
 
@@ -188,6 +195,13 @@ export function IssueCard({
     setQuestions(q);
   }
 
+  const farmerSections = buildFarmerExperienceSections(farmerFeedback ?? undefined);
+  const hasFarmerExperience =
+    farmerSections.observations.length > 0 ||
+    farmerSections.activeIngredients.length > 0 ||
+    farmerSections.symptomsReported ||
+    farmerSections.responseAfterApplication;
+
   return (
     <Panel title="Issue details">
       <Text style={styles.hint}>{issueCategoryHint(cropType)}</Text>
@@ -233,15 +247,60 @@ export function IssueCard({
         value={issue.status ?? 'open'}
         onChange={(status) => onChange({ ...issue, status })}
       />
-      <Text style={styles.label}>Observation</Text>
+      <Text style={styles.label}>Agronomist notes</Text>
       <TextInput
         style={[styles.input, styles.textArea]}
         value={issue.observation ?? ''}
         onChangeText={(observation) => onChange({ ...issue, observation })}
         multiline
-        placeholder="What you see on this issue…"
+        placeholder="Your field observations and validation notes…"
         placeholderTextColor={tokens.textMuted}
       />
+      {hasFarmerExperience ? (
+        <View style={styles.farmerExpSection}>
+          <Pressable style={styles.farmerExpHeader} onPress={() => setFarmerExpOpen((v) => !v)}>
+            <Text style={styles.farmerExpTitle}>
+              {farmerExpOpen ? '▼' : '▶'} Farmer experience
+            </Text>
+          </Pressable>
+          {farmerExpOpen ? (
+            <View style={styles.farmerExpBody}>
+              {farmerSections.observations.length ? (
+                <>
+                  <Text style={styles.farmerExpLabel}>Symptoms reported</Text>
+                  {farmerSections.observations.map((o) => (
+                    <Text key={o} style={styles.farmerExpLine}>
+                      • {o}
+                    </Text>
+                  ))}
+                </>
+              ) : null}
+              {farmerSections.activeIngredients.length ? (
+                <>
+                  <Text style={styles.farmerExpLabel}>Active ingredients applied</Text>
+                  {farmerSections.activeIngredients.map((item) => (
+                    <Text key={item.label} style={styles.farmerExpLine}>
+                      • {formatActiveIngredientLine(item)}
+                    </Text>
+                  ))}
+                </>
+              ) : null}
+              {farmerSections.symptomsReported ? (
+                <>
+                  <Text style={styles.farmerExpLabel}>Field notes</Text>
+                  <Text style={styles.farmerExpLine}>{farmerSections.symptomsReported}</Text>
+                </>
+              ) : null}
+              {farmerSections.responseAfterApplication ? (
+                <>
+                  <Text style={styles.farmerExpLabel}>Response after application</Text>
+                  <Text style={styles.farmerExpLine}>{farmerSections.responseAfterApplication}</Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
       {onSuggestQuestions ? (
         <>
           <Btn label="Suggest follow-up questions" variant="secondary" onPress={() => void loadQuestions()} />
@@ -307,7 +366,14 @@ function InlineRecommendations({ issue, onChange }: { issue: IssueDraft; onChang
 
   function updateRec(index: number, patch: Partial<NonNullable<IssueDraft['recommendations']>[number]>) {
     const next = [...recs];
-    next[index] = { ...next[index], ...patch };
+    const merged = { ...next[index], ...patch };
+    merged.text = composeStructuredRecommendationText({
+      activeIngredient: merged.activeIngredient,
+      dose: merged.dose,
+      method: merged.method,
+      remarks: merged.remarks ?? merged.text,
+    });
+    next[index] = merged;
     onChange({ ...issue, recommendations: next });
   }
 
@@ -316,7 +382,13 @@ function InlineRecommendations({ issue, onChange }: { issue: IssueDraft; onChang
       ...issue,
       recommendations: [
         ...recs,
-        { text: '', recommendationType: 'other', priority: 'normal', status: 'open', reviewAfterDays: 7 },
+        {
+          text: '',
+          recommendationType: 'other',
+          priority: 'normal',
+          status: 'open',
+          reviewAfterDays: 7,
+        },
       ],
     });
   }
@@ -330,18 +402,36 @@ function InlineRecommendations({ issue, onChange }: { issue: IssueDraft; onChang
       <Text style={styles.label}>Recommendations for this issue</Text>
       {recs.map((rec, index) => (
         <View key={`rec-${index}`} style={styles.recCard}>
-          <Text style={styles.fieldLabel}>Type</Text>
+          <Text style={styles.fieldLabel}>Recommendation type</Text>
           <SegmentedChips
             options={RECOMMENDATION_TYPES.slice(0, 4).map((v) => ({ value: v, label: v.replace(/_/g, ' ') }))}
             value={rec.recommendationType ?? 'other'}
             onChange={(recommendationType) => updateRec(index, { recommendationType })}
           />
           <TextField
-            label="Recommendation text"
-            value={rec.text}
-            onChangeText={(text) => updateRec(index, { text })}
+            label="Active ingredient"
+            value={rec.activeIngredient ?? ''}
+            onChangeText={(activeIngredient) => updateRec(index, { activeIngredient })}
+            placeholder="e.g. Mancozeb"
+          />
+          <TextField
+            label="Dose"
+            value={rec.dose ?? ''}
+            onChangeText={(dose) => updateRec(index, { dose })}
+            placeholder="e.g. 2 g/L"
+          />
+          <TextField
+            label="Method"
+            value={rec.method ?? ''}
+            onChangeText={(method) => updateRec(index, { method })}
+            placeholder="e.g. foliar spray"
+          />
+          <TextField
+            label="Remarks"
+            value={rec.remarks ?? rec.text}
+            onChangeText={(remarks) => updateRec(index, { remarks })}
             multiline
-            placeholder="Spray copper oxychloride…"
+            placeholder="Timing, precautions…"
           />
           <Text style={styles.fieldLabel}>Priority</Text>
           <SegmentedChips
@@ -456,4 +546,32 @@ const styles = StyleSheet.create({
   recSection: { marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: tokens.border },
   recCard: { marginBottom: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: tokens.border },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: tokens.text, marginBottom: 6, marginTop: 8 },
+  farmerExpSection: {
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  farmerExpHeader: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: tokens.bg,
+  },
+  farmerExpTitle: { fontSize: 13, fontWeight: '700', color: tokens.text },
+  farmerExpBody: {
+    padding: 12,
+    gap: 6,
+    backgroundColor: tokens.card,
+    borderTopWidth: 1,
+    borderTopColor: tokens.border,
+  },
+  farmerExpLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: tokens.textMuted,
+    textTransform: 'uppercase',
+    marginTop: 4,
+  },
+  farmerExpLine: { fontSize: 13, color: tokens.textSecondary, lineHeight: 18 },
 });

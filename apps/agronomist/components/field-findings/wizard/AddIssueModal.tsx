@@ -4,7 +4,7 @@ import { tokens, type IssueMasterRow } from '@morbeez/shared';
 import { Btn } from '@morbeez/ui-native';
 import { IssueCard, type IssueDraft } from '../IssueCard';
 import { newIssueDraft, pickDefaultCategory } from './types';
-import { buildFarmerObservationText, type FarmerVisitFeedback } from './farmerVisitFeedback';
+import { type FarmerVisitFeedback } from './farmerVisitFeedback';
 
 type Props = {
   visible: boolean;
@@ -44,19 +44,10 @@ export function AddIssueModal({
 
   const active = draft ?? issue ?? newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
 
-  function buildFarmerObservation(): string {
-    return buildFarmerObservationText(farmerFeedback);
-  }
-
   function resetOnOpen() {
     const base = issue
       ? { ...issue }
       : newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
-    const farmerText = buildFarmerObservation();
-    const obs = base.observation?.trim() ?? '';
-    if (farmerText && (!obs || /^Farmer feedback suggests/i.test(obs))) {
-      base.observation = farmerText;
-    }
     setDraft(base);
     setAiOpen(false);
     setAiSuggestions([]);
@@ -112,13 +103,14 @@ export function AddIssueModal({
             issue={active}
             issueMaster={issueMaster}
             cropType={cropType}
+            farmerFeedback={farmerFeedback}
             onChange={setDraft}
             onSuggestQuestions={() => onSuggestQuestions(active)}
             onCreateIssueType={onCreateIssueType}
           />
 
           <Btn
-            label={aiLoading ? 'Analyzing…' : 'Get AI suggestions'}
+            label={aiLoading ? 'Analyzing…' : 'Generate AI recommendations'}
             variant="secondary"
             onPress={() => void loadAiSuggestions()}
             disabled={aiLoading}

@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import {
   agronomistClient,
+  collectFarmerRecommendations,
   defaultEvidenceQuestions,
+  farmerMatchStatusLabel,
+  issueMatchesFarmerLabel,
+  resolveFarmerAiMatchStatus,
   validateRejectReasonFlow,
   visitAiCaseStatusLabel,
   type AgronomistReviewAction,
+  type FarmerRecommendationSource,
   type VisitAiRejectReason,
 } from '@morbeez/shared';
 import { Alert, Btn, Field, Input, Panel, textareaClass } from '../../ui';
@@ -23,12 +28,32 @@ const REVIEW_ACTIONS: Array<{ value: AgronomistReviewAction; label: string }> = 
 
 type Props = {
   issues: VisitIssueDraft[];
+  farmerFeedback?: FarmerRecommendationSource | null;
   onChange: (issues: VisitIssueDraft[]) => void;
 };
 
-export function VisitReviewStep({ issues, onChange }: Props) {
+function farmerDxForIssue(
+  issue: VisitIssueDraft,
+  farmerLabels: string[]
+): string | null {
+  if (!farmerLabels.length) return null;
+  const hay = `${issue.issueName} ${issue.finalDiagnosis ?? ''}`.toLowerCase();
+  for (const d of farmerLabels) {
+    if (issueMatchesFarmerLabel(issue.issueName, d, issue.finalDiagnosis)) return d;
+    const dl = d.toLowerCase();
+    if (dl.includes('iron') && /iron|ferrous|\bfe\b/i.test(hay)) return d;
+    if (dl.includes('zinc') && /zinc|\bzn\b/i.test(hay)) return d;
+    if (dl.includes('magnesium') && /magnesium|\bmg\b/i.test(hay)) return d;
+    if (dl.includes('nitrogen') && /nitrogen|\bn\b/i.test(hay)) return d;
+    if (dl.includes('calcium') && /calcium|\bca\b/i.test(hay)) return d;
+  }
+  return farmerLabels.length === 1 ? farmerLabels[0]! : null;
+}
+
+export function VisitReviewStep({ issues, farmerFeedback, onChange }: Props) {
   const [busyIndex, setBusyIndex] = useState<number | null>(null);
   const [flowError, setFlowError] = useState('');
+  const farmerLabels = collectFarmerRecommendations(farmerFeedback ?? undefined).map((r) => r.label);
 
   function patchIssue(index: number, patch: Partial<VisitIssueDraft>) {
     const next = [...issues];
@@ -193,10 +218,48 @@ export function VisitReviewStep({ issues, onChange }: Props) {
           (action === 'correct_ai' || action === 'partial_match' || action === 'escalate_urgent');
         const showEscalationHint = issue.confidenceAction === 'escalate' || issue.severity === 'high';
         const statusLabel = visitAiCaseStatusLabel(issue.visitAiCaseStatus);
+        const aiLabel = issue.finalDiagnosis ?? issue.issueName;
+        const issueFarmerDx = farmerDxForIssue(issue, farmerLabels);
+        const matchStatus = resolveFarmerAiMatchStatus(aiLabel, issueFarmerDx);
+        const matchLabel = farmerMatchStatusLabel(matchStatus);
 
         return (
-          <Panel key={issue.localId} title={issue.finalDiagnosis ?? issue.issueName}>
+          <Panel key={issue.localId} title={issue.issueName}>
             {statusLabel ? <span className="vw-status-badge">{statusLabel}</span> : null}
+            <div className="vw-match-grid">
+              <div>
+                <span className="vw-field-label">AI diagnosis</span>
+                <p className="vw-match-value">{aiLabel}</p>
+              </div>
+              {issueFarmerDx ? (
+                <div>
+                  <span className="vw-field-label">Farmer</span>
+                  <p className="vw-match-value vw-match-value--farmer">
+                    {issueFarmerDx}
+                    {matchStatus === 'match' ? ' ✓' : ''}
+                  </p>
+                </div>
+              ) : null}
+              {issueFarmerDx ? (
+                <div>
+                  <span className="vw-field-label">Status</span>
+                  <span
+                    className={[
+                      'vw-match-status',
+                      matchStatus === 'match'
+                        ? 'vw-match-status--match'
+                        : matchStatus === 'conflict'
+                          ? 'vw-match-status--conflict'
+                          : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {matchLabel}
+                  </span>
+                </div>
+              ) : null}
+            </div>
             {showEscalationHint ? (
               <div className="vw-banner vw-banner--warn">
                 This case may need senior agronomist review before farmer communication.

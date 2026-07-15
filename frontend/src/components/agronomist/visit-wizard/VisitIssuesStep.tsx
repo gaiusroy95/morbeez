@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import { RECORD_SEVERITIES, type IssueMasterRow, type RecordSeverity } from '@morbeez/shared';
+import {
+  RECORD_SEVERITIES,
+  buildFarmerExperienceSections,
+  composeStructuredRecommendationText,
+  formatActiveIngredientLine,
+  type IssueMasterRow,
+  type RecordSeverity,
+  type FarmerRecommendationSource,
+} from '@morbeez/shared';
 import { Btn, Field, Input, Select, textareaClass } from '../../ui';
 import type { VisitIssueDraft } from './types';
 import { newIssueDraft, pickDefaultIssueCategory } from './types';
@@ -15,10 +23,17 @@ const SEVERITY_COLORS: Record<RecordSeverity, string> = {
   high: 'vw-severity--high',
 };
 
+type FarmerFeedbackProp = FarmerRecommendationSource & {
+  priorExperience?: string | null;
+  priorProduct?: string | null;
+  priorOutcome?: string | null;
+};
+
 type Props = {
   issues: VisitIssueDraft[];
   issueMaster: IssueMasterRow[];
   cropType: string;
+  farmerFeedback?: FarmerFeedbackProp | null;
   onChange: (issues: VisitIssueDraft[]) => void;
 };
 
@@ -26,6 +41,7 @@ function IssueEditorModal({
   issue,
   issueMaster,
   cropType,
+  farmerFeedback,
   onSave,
   onRemove,
   onClose,
@@ -33,11 +49,19 @@ function IssueEditorModal({
   issue: VisitIssueDraft;
   issueMaster: IssueMasterRow[];
   cropType: string;
+  farmerFeedback?: FarmerFeedbackProp | null;
   onSave: (issue: VisitIssueDraft) => void;
   onRemove?: () => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(issue);
+  const [farmerExpOpen, setFarmerExpOpen] = useState(false);
+  const farmerSections = buildFarmerExperienceSections(farmerFeedback ?? undefined);
+  const hasFarmerExperience =
+    farmerSections.observations.length > 0 ||
+    farmerSections.activeIngredients.length > 0 ||
+    farmerSections.symptomsReported ||
+    farmerSections.responseAfterApplication;
 
   const nameOptions = useMemo(() => {
     const filtered = issueMaster.filter(
@@ -47,11 +71,26 @@ function IssueEditorModal({
     return getFallbackIssueTypes(cropType, draft.category);
   }, [issueMaster, draft.category, cropType]);
 
+  const recs = draft.recommendations ?? [];
+
+  function updateRec(index: number, patch: Partial<NonNullable<VisitIssueDraft['recommendations']>[number]>) {
+    const next = [...recs];
+    const merged = { ...next[index], ...patch };
+    merged.text = composeStructuredRecommendationText({
+      activeIngredient: merged.activeIngredient,
+      dose: merged.dose,
+      method: merged.method,
+      remarks: merged.remarks ?? merged.text,
+    });
+    next[index] = merged;
+    setDraft((prev) => ({ ...prev, recommendations: next }));
+  }
+
   return (
     <div className="vw-modal-backdrop" role="presentation" onClick={onClose}>
       <div className="vw-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
         <div className="vw-modal-header">
-          <h3 className="vw-modal-title">{issue.issueName ? 'Edit issue' : 'Add issue'}</h3>
+          <h3 className="vw-modal-title">{issue.issueName ? 'Edit issue details' : 'Add issue'}</h3>
           <Btn variant="secondary" size="sm" onClick={onClose}>
             Close
           </Btn>
@@ -76,7 +115,7 @@ function IssueEditorModal({
           </Select>
         </Field>
 
-        <Field label="Issue name">
+        <Field label="Issue type">
           <Select
             value={draft.issueName}
             onChange={(e) => setDraft((prev) => ({ ...prev, issueName: e.target.value }))}
@@ -110,19 +149,109 @@ function IssueEditorModal({
           ))}
         </div>
 
-        <Field label="Observation">
+        <Field label="Agronomist notes">
           <textarea
             className={textareaClass}
             value={draft.observation ?? ''}
             onChange={(e) => setDraft((prev) => ({ ...prev, observation: e.target.value }))}
-            placeholder="Field signs, spread, affected area…"
+            placeholder="Your field observations and validation notes…"
           />
         </Field>
+
+        {hasFarmerExperience ? (
+          <div className="vw-farmer-exp-collapse">
+            <button
+              type="button"
+              className="vw-farmer-exp-collapse__toggle"
+              onClick={() => setFarmerExpOpen((v) => !v)}
+            >
+              {farmerExpOpen ? '▼' : '▶'} Farmer experience
+            </button>
+            {farmerExpOpen ? (
+              <div className="vw-farmer-exp-collapse__body">
+                {farmerSections.observations.length ? (
+                  <>
+                    <p className="vw-farmer-section__title">Symptoms reported</p>
+                    <ul className="vw-farmer-list">
+                      {farmerSections.observations.map((o) => (
+                        <li key={o}>{o}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+                {farmerSections.activeIngredients.length ? (
+                  <>
+                    <p className="vw-farmer-section__title">Active ingredients applied</p>
+                    <ul className="vw-farmer-list">
+                      {farmerSections.activeIngredients.map((item) => (
+                        <li key={item.label}>{formatActiveIngredientLine(item)}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+                {farmerSections.responseAfterApplication ? (
+                  <>
+                    <p className="vw-farmer-section__title">Response after application</p>
+                    <p className="vw-muted">{farmerSections.responseAfterApplication}</p>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="vw-rec-block">
+          <p className="vw-field-label">Recommendations</p>
+          {recs.map((rec, index) => (
+            <div key={`rec-${index}`} className="vw-rec-card">
+              <Field label="Recommendation type">
+                <Input
+                  value={rec.recommendationType ?? 'other'}
+                  onChange={(e) => updateRec(index, { recommendationType: e.target.value as never })}
+                />
+              </Field>
+              <Field label="Active ingredient">
+                <Input
+                  value={rec.activeIngredient ?? ''}
+                  onChange={(e) => updateRec(index, { activeIngredient: e.target.value })}
+                />
+              </Field>
+              <Field label="Dose">
+                <Input value={rec.dose ?? ''} onChange={(e) => updateRec(index, { dose: e.target.value })} />
+              </Field>
+              <Field label="Method">
+                <Input value={rec.method ?? ''} onChange={(e) => updateRec(index, { method: e.target.value })} />
+              </Field>
+              <Field label="Remarks">
+                <textarea
+                  className={textareaClass}
+                  value={rec.remarks ?? rec.text}
+                  onChange={(e) => updateRec(index, { remarks: e.target.value })}
+                />
+              </Field>
+            </div>
+          ))}
+          <Btn
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              setDraft((prev) => ({
+                ...prev,
+                recommendations: [
+                  ...(prev.recommendations ?? []),
+                  { text: '', recommendationType: 'other', priority: 'normal', status: 'open' },
+                ],
+              }))
+            }
+          >
+            Add recommendation
+          </Btn>
+        </div>
 
         <div className="flex flex-wrap gap-2">
           {onRemove ? (
             <Btn variant="danger" onClick={onRemove}>
-              Remove issue
+              Delete issue
             </Btn>
           ) : null}
           <Btn
@@ -140,7 +269,7 @@ function IssueEditorModal({
   );
 }
 
-export function VisitIssuesStep({ issues, issueMaster, cropType, onChange }: Props) {
+export function VisitIssuesStep({ issues, issueMaster, cropType, farmerFeedback, onChange }: Props) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<VisitIssueDraft | null>(null);
 
@@ -169,9 +298,6 @@ export function VisitIssuesStep({ issues, issueMaster, cropType, onChange }: Pro
 
   return (
     <div className="vw-stack">
-      <p className="vw-hint">
-        Review AI-detected issues. Edit names or observations if the diagnosis was wrong, or add a manual entry.
-      </p>
       <Btn variant="primary" onClick={openAdd}>
         + Add issue
       </Btn>
@@ -203,6 +329,7 @@ export function VisitIssuesStep({ issues, issueMaster, cropType, onChange }: Pro
           issue={editing}
           issueMaster={issueMaster}
           cropType={cropType}
+          farmerFeedback={farmerFeedback}
           onSave={saveIssue}
           onRemove={issues.some((i) => i.localId === editing.localId) ? () => removeIssue(editing.localId) : undefined}
           onClose={() => {

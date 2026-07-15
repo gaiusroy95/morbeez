@@ -106,6 +106,18 @@ export {
   type FarmerRecommendationSource,
 } from './farmer-recommendation-issues';
 export {
+  VALIDATION_DIFF_BANNER,
+  buildFarmerExperienceSections,
+  composeStructuredRecommendationText,
+  farmerMatchStatusLabel,
+  formatActiveIngredientLine,
+  parseFarmerActiveIngredients,
+  resolveFarmerAiMatchStatus,
+  type FarmerActiveIngredient,
+  type FarmerAiMatchStatus,
+  type FarmerExperienceSections,
+} from './farmer-validation-ui';
+export {
   defaultComplianceQuestion,
   resolveComplianceQuestion,
   stripComplianceReplyHint,

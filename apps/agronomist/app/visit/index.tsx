@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import {
@@ -28,6 +28,8 @@ import {
   type SoilMoistureLevel,
   type VisitFarmContext,
   type WhatsappPreviewMessage,
+  VALIDATION_DIFF_BANNER,
+  tokens,
   type TriagePreview,
   type VisitClassification,
 } from '@morbeez/shared';
@@ -663,50 +665,12 @@ export default function VisitScreen() {
           </>
         ) : null}
 
-        {rectificationMode && (prefillDiagnosis || farmerSuggestedDiagnosis || farmerPriorExperience) ? (
-          <AlertBox>
-            Rectification visit — verify or correct AI diagnosis
-            {prefillDiagnosis ? `: ${prefillDiagnosis}` : ''}.
-            {farmerRefinedConditions.length
-              ? `\nFarmer theory (refined):\n${farmerRefinedConditions
-                  .map((c) => {
-                    const lo =
-                      c.probabilityLow != null
-                        ? Math.round(
-                            c.probabilityLow > 1 ? c.probabilityLow : c.probabilityLow * 100
-                          )
-                        : null;
-                    const hi =
-                      c.probabilityHigh != null
-                        ? Math.round(
-                            c.probabilityHigh > 1 ? c.probabilityHigh : c.probabilityHigh * 100
-                          )
-                        : null;
-                    const pct =
-                      lo != null && hi != null
-                        ? `${lo}–${hi}%`
-                        : `${Math.round(c.probability > 1 ? c.probability : c.probability * 100)}%`;
-                    const like = c.likelihood ? ` · ${c.likelihood}` : '';
-                    const role = c.role ? ` · ${c.role}` : '';
-                    const reason = c.reason ? `\n  ${c.reason}` : '';
-                    return `• ${c.label} (${pct}${like}${role})${reason}`;
-                  })
-                  .join('\n')}${
-                  farmerRefineSequenceSummary
-                    ? `\nSequence: ${farmerRefineSequenceSummary}`
-                    : ''
-                }`
-              : farmerSuggestedDiagnoses.length > 1
-                ? `\nFarmer recommendations:\n${farmerSuggestedDiagnoses.map((d) => `• ${d}`).join('\n')}`
-                : farmerSuggestedDiagnosis
-                  ? `\nFarmer recommendation: ${farmerSuggestedDiagnosis}`
-                  : farmerPriorExperience
-                    ? `\nFarmer recommendation: ${farmerPriorExperience.slice(0, 220)}`
-                    : ''}
-            {farmerPriorProduct ? `\nPrior products: ${farmerPriorProduct}` : ''}
-            {'\n'}
-            Confirm the final diagnosis in Validation — only agronomist-approved cases enter the knowledge base.
-          </AlertBox>
+        {step === 'diagnosisFinalization' &&
+        rectificationMode &&
+        (prefillDiagnosis || farmerSuggestedDiagnosis || farmerPriorExperience) ? (
+          <View style={styles.validationBanner}>
+            <Text style={styles.validationBannerText}>🟡 {VALIDATION_DIFF_BANNER}</Text>
+          </View>
         ) : null}
 
         {step === 'photos' ? (
@@ -905,4 +869,18 @@ const styles = StyleSheet.create({
   content: { padding: 16 },
   footerRow: { flexDirection: 'row', gap: 8 },
   footerBtn: { flex: 1 },
+  validationBanner: {
+    backgroundColor: tokens.warningBg,
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.warning,
+    padding: 12,
+    marginBottom: 12,
+  },
+  validationBannerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: tokens.warning,
+    lineHeight: 18,
+  },
 });

@@ -1,7 +1,10 @@
 import {
+  VALIDATION_DIFF_BANNER,
+  buildFarmerExperienceSections,
   collectFarmerRecommendations,
   buildIssueDraftFromFarmerRecommendation,
   issueMatchesFarmerLabel,
+  formatActiveIngredientLine,
   slugFarmerLabel,
   type FarmerRecommendationSource,
   type VisitIssueDraft,
@@ -19,9 +22,11 @@ type Props = {
   issues: VisitIssueDraft[];
   issueMaster: IssueMasterRow[];
   cropType: string;
+  showValidationBanner?: boolean;
   farmerFeedback?: FarmerRecommendationSource & {
     priorExperience?: string | null;
     priorProduct?: string | null;
+    priorOutcome?: string | null;
   };
   /** @deprecated use farmerFeedback */
   farmerSuggestedDiagnosis?: string | null;
@@ -36,6 +41,7 @@ export function VisitAgronomistReviewStep({
   issues,
   issueMaster,
   cropType,
+  showValidationBanner,
   farmerFeedback,
   farmerSuggestedDiagnosis,
   farmerPriorExperience,
@@ -45,15 +51,15 @@ export function VisitAgronomistReviewStep({
   const feedback: FarmerRecommendationSource & {
     priorExperience?: string | null;
     priorProduct?: string | null;
+    priorOutcome?: string | null;
   } = farmerFeedback ?? {
     suggestedDiagnosis: farmerSuggestedDiagnosis,
     priorExperience: farmerPriorExperience,
     priorProduct: farmerPriorProduct,
   };
 
+  const farmerSections = buildFarmerExperienceSections(feedback);
   const farmerRecommendations = collectFarmerRecommendations(feedback);
-  const farmerExperience = feedback.priorExperience?.trim() || null;
-  const farmerProduct = feedback.priorProduct?.trim() || null;
 
   function addIssueFromFarmerRecommendation(label: string, reason?: string) {
     const already = issues.some((i) =>
@@ -73,46 +79,77 @@ export function VisitAgronomistReviewStep({
     onChange([...issues, draft]);
   }
 
+  const hasFarmerContext =
+    farmerSections.observations.length > 0 ||
+    farmerSections.activeIngredients.length > 0 ||
+    farmerSections.symptomsReported ||
+    farmerSections.responseAfterApplication;
+
   return (
     <div className="vw-stack">
+      {showValidationBanner ? (
+        <div className="vw-validation-banner">🟡 {VALIDATION_DIFF_BANNER}</div>
+      ) : null}
+
       <p className="vw-hint">
-        Review each AI-detected issue. Approve, modify (with observation), or reject before continuing.
+        Review each AI-detected issue. Approve, modify, or reject — then edit issue details to confirm category, type,
+        and agronomist notes.
       </p>
-      {farmerRecommendations.length || farmerExperience || farmerProduct ? (
+
+      {hasFarmerContext ? (
         <div className="vw-farmer-banner">
           <p className="vw-farmer-banner__title">Farmer recommendation (WhatsApp)</p>
           <p className="vw-farmer-banner__hint">Click a condition to add it to the issues list below.</p>
-          <div className="vw-farmer-banner__chips">
-            {farmerRecommendations.map((rec) => {
-              const added = issues.some((i) =>
-                issueMatchesFarmerLabel(i.issueName, rec.label, i.finalDiagnosis)
-              );
-              return (
-                <button
-                  key={rec.label}
-                  type="button"
-                  className={['vw-farmer-chip', added ? 'vw-farmer-chip--added' : ''].filter(Boolean).join(' ')}
-                  disabled={added}
-                  onClick={() => addIssueFromFarmerRecommendation(rec.label, rec.reason)}
-                >
-                  <span className="vw-farmer-chip__label">
-                    {added ? '✓ ' : '+ '}
-                    {rec.label}
-                  </span>
-                  <span className="vw-farmer-chip__action">{added ? 'Added' : 'Add issue'}</span>
-                  {rec.reason ? <span className="vw-farmer-chip__reason">{rec.reason}</span> : null}
-                </button>
-              );
-            })}
-          </div>
-          {farmerProduct ? <p className="vw-farmer-banner__meta">Prior products: {farmerProduct}</p> : null}
-          {farmerExperience ? (
-            <p className="vw-farmer-banner__meta whitespace-pre-wrap">{farmerExperience}</p>
+
+          {farmerSections.observations.length ? (
+            <div className="vw-farmer-section">
+              <p className="vw-farmer-section__title">Farmer observations</p>
+              <div className="vw-farmer-banner__chips">
+                {farmerSections.observations.map((label) => {
+                  const added = issues.some((i) =>
+                    issueMatchesFarmerLabel(i.issueName, label, i.finalDiagnosis)
+                  );
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      className={['vw-farmer-chip', added ? 'vw-farmer-chip--added' : ''].filter(Boolean).join(' ')}
+                      disabled={added}
+                      onClick={() => addIssueFromFarmerRecommendation(label)}
+                    >
+                      <span className="vw-farmer-chip__label">
+                        {added ? '✓ ' : '+ '}
+                        {label}
+                      </span>
+                      <span className="vw-farmer-chip__action">{added ? 'Added' : 'Add issue'}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {farmerSections.activeIngredients.length ? (
+            <div className="vw-farmer-section">
+              <p className="vw-farmer-section__title">Active ingredients applied</p>
+              <ul className="vw-farmer-list">
+                {farmerSections.activeIngredients.map((item) => (
+                  <li key={item.label}>{formatActiveIngredientLine(item)}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
         </div>
       ) : null}
-      <VisitIssuesStep issues={issues} issueMaster={issueMaster} cropType={cropType} onChange={onChange} />
-      <VisitReviewStep issues={issues} onChange={onChange} />
+
+      <VisitIssuesStep
+        issues={issues}
+        issueMaster={issueMaster}
+        cropType={cropType}
+        farmerFeedback={feedback}
+        onChange={onChange}
+      />
+      <VisitReviewStep issues={issues} farmerFeedback={feedback} onChange={onChange} />
       <VisitExplainPanel issues={issues} />
       <VisitCopilotPanel
         farmerId={farmerId}

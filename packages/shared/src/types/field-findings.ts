@@ -251,6 +251,10 @@ export type StructuredVisitIssueInput = {
     recommendationType?: RecommendationType;
     priority?: RecommendationPriority;
     text: string;
+    activeIngredient?: string;
+    dose?: string;
+    method?: string;
+    remarks?: string;
     reviewAfterDays?: number;
     reviewDate?: string;
     status?: FieldRecStatus;
