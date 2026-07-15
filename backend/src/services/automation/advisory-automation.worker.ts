@@ -77,7 +77,12 @@ async function processJob(job: {
     await cultivationLoggingService.sendApplicationPrompt(
       farmer.phone,
       job.farmer_id,
-      (lang as AdvisoryLanguage) ?? 'en'
+      (lang as AdvisoryLanguage) ?? 'en',
+      {
+        advisorySessionId: job.payload.advisorySessionId
+          ? String(job.payload.advisorySessionId)
+          : undefined,
+      }
     );
   } else if (job.job_type === 'cultivation_result_validation') {
     const activityId = String(job.payload.activityId ?? '');

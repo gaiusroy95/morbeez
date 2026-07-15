@@ -35,6 +35,8 @@ export interface SessionContext {
   pendingCultivationPrompt?: 'application' | 'result';
   pendingResultActivityId?: string;
   lastAdvisorySessionId?: string;
+  /** ISO timestamp of last cultivation application-check WhatsApp (dedupe duplicate jobs). */
+  lastApplicationPromptAt?: string;
   /** Crop selection fallback after image when AI cannot infer crop */
   pendingCropSelection?: boolean;
   /** Minimal onboarding after language selection */

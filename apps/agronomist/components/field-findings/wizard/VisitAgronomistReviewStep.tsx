@@ -3,6 +3,10 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import {
   agronomistClient,
   expandSeparateNutrientIssues,
+  collectFarmerRecommendations,
+  buildIssueDraftFromFarmerRecommendation,
+  issueMatchesFarmerLabel,
+  slugFarmerLabel,
   tokens,
   type AgronomistReviewAction,
   type IssueCategory,
@@ -160,16 +164,36 @@ export function VisitAgronomistReviewStep({
     setEditing(null);
   }
 
-  const farmerDiagnoses =
-    farmerFeedback?.suggestedDiagnoses?.filter(Boolean) ??
-    (farmerFeedback?.suggestedDiagnosis?.trim() ? [farmerFeedback.suggestedDiagnosis.trim()] : []);
+  function addIssueFromFarmerRecommendation(label: string, reason?: string) {
+    const already = issues.some((i) =>
+      issueMatchesFarmerLabel(i.issueName, label, i.finalDiagnosis)
+    );
+    if (already) return;
+
+    const base = buildIssueDraftFromFarmerRecommendation({
+      label,
+      reason,
+      localId: `farmer-${slugFarmerLabel(label)}-${Date.now()}`,
+      observation: buildFarmerObservationText(farmerFeedback),
+    });
+    const draft: IssueDraft = {
+      ...newIssueDraft(base.category, base.localId),
+      ...base,
+      photosPreview: [],
+    };
+    onChange([...issues, draft]);
+  }
+
+  const farmerRecommendations = collectFarmerRecommendations(farmerFeedback ?? undefined);
   const farmerExperience = farmerFeedback?.priorExperience?.trim() || null;
   const farmerProduct = farmerFeedback?.priorProduct?.trim() || null;
 
   function farmerDxForIssue(issue: IssueDraft): string | null {
-    if (!farmerDiagnoses.length) return null;
+    const labels = farmerRecommendations.map((r) => r.label);
+    if (!labels.length) return null;
     const hay = `${issue.issueName} ${issue.finalDiagnosis ?? ''}`.toLowerCase();
-    for (const d of farmerDiagnoses) {
+    for (const d of labels) {
+      if (issueMatchesFarmerLabel(issue.issueName, d, issue.finalDiagnosis)) return d;
       const dl = d.toLowerCase();
       if (dl.includes('iron') && /iron|ferrous|\bfe\b/i.test(hay)) return d;
       if (dl.includes('zinc') && /zinc|\bzn\b/i.test(hay)) return d;
@@ -178,7 +202,7 @@ export function VisitAgronomistReviewStep({
       if (dl.includes('calcium') && /calcium|\bca\b/i.test(hay)) return d;
       if (hay.includes(dl.replace(' deficiency', '').slice(0, 8))) return d;
     }
-    return farmerDiagnoses.length === 1 ? farmerDiagnoses[0]! : null;
+    return labels.length === 1 ? labels[0]! : null;
   }
 
   return (
@@ -189,18 +213,36 @@ export function VisitAgronomistReviewStep({
         {blockAutoApprove ? ' L4 critical — auto-approve is blocked; modify or escalate.' : ''}
       </Text>
 
-      {farmerDiagnoses.length || farmerExperience || farmerProduct ? (
+      {farmerRecommendations.length || farmerExperience || farmerProduct ? (
         <View style={styles.farmerBanner}>
           <Text style={styles.farmerBannerTitle}>Farmer recommendation (WhatsApp)</Text>
-          {farmerDiagnoses.length > 1 ? (
-            farmerDiagnoses.map((dx) => (
-              <Text key={dx} style={styles.farmerBannerDx}>
-                • {dx}
-              </Text>
-            ))
-          ) : farmerDiagnoses[0] ? (
-            <Text style={styles.farmerBannerDx}>{farmerDiagnoses[0]}</Text>
-          ) : null}
+          <Text style={styles.farmerBannerHint}>Tap a condition to add it to the issues list below.</Text>
+          {farmerRecommendations.map((rec) => {
+            const added = issues.some((i) =>
+              issueMatchesFarmerLabel(i.issueName, rec.label, i.finalDiagnosis)
+            );
+            return (
+              <Pressable
+                key={rec.label}
+                style={[styles.farmerChip, added && styles.farmerChipAdded]}
+                onPress={() => addIssueFromFarmerRecommendation(rec.label, rec.reason)}
+                disabled={added}
+              >
+                <View style={styles.farmerChipRow}>
+                  <Text style={[styles.farmerBannerDx, added && styles.farmerBannerDxAdded]}>
+                    {added ? '✓ ' : '+ '}
+                    {rec.label}
+                  </Text>
+                  <Text style={styles.farmerChipAction}>{added ? 'Added' : 'Add issue'}</Text>
+                </View>
+                {rec.reason ? (
+                  <Text style={styles.farmerChipReason} numberOfLines={3}>
+                    {rec.reason}
+                  </Text>
+                ) : null}
+              </Pressable>
+            );
+          })}
           {farmerProduct ? (
             <Text style={styles.farmerBannerMeta}>Prior products: {farmerProduct}</Text>
           ) : null}
@@ -224,9 +266,9 @@ export function VisitAgronomistReviewStep({
               <Text style={styles.title}>{issue.issueName}</Text>
               {issue.finalDiagnosis ? <Text style={styles.dx}>AI: {issue.finalDiagnosis}</Text> : null}
               {issueFarmerDx ? <Text style={styles.farmerDx}>Farmer: {issueFarmerDx}</Text> : null}
-              {!issueFarmerDx && farmerDiagnoses.length > 1 ? (
+              {!issueFarmerDx && farmerRecommendations.length > 1 ? (
                 <Text style={styles.farmerDxMuted}>
-                  Farmer named {farmerDiagnoses.length} issues — see list above
+                  Farmer named {farmerRecommendations.length} issues — tap above to add any missing
                 </Text>
               ) : null}
             </Pressable>
@@ -303,7 +345,36 @@ const styles = StyleSheet.create({
     color: tokens.warning,
     textTransform: 'uppercase',
   },
-  farmerBannerDx: { fontSize: 15, fontWeight: '700', color: tokens.text, lineHeight: 20 },
+  farmerBannerHint: { fontSize: 11, color: tokens.textSecondary, marginBottom: 2 },
+  farmerChip: {
+    borderRadius: tokens.radiusSm,
+    borderWidth: 1,
+    borderColor: tokens.warning,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 4,
+  },
+  farmerChipAdded: {
+    borderColor: tokens.green700,
+    backgroundColor: tokens.green100,
+    opacity: 0.92,
+  },
+  farmerChipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  farmerChipAction: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: tokens.green800,
+    textTransform: 'uppercase',
+  },
+  farmerChipReason: { fontSize: 11, color: tokens.textMuted, lineHeight: 15 },
+  farmerBannerDx: { fontSize: 15, fontWeight: '700', color: tokens.text, lineHeight: 20, flex: 1 },
+  farmerBannerDxAdded: { color: tokens.green800 },
   farmerBannerMeta: { fontSize: 12, color: tokens.textSecondary, lineHeight: 17 },
   card: {
     backgroundColor: tokens.card,

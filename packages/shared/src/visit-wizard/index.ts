@@ -95,6 +95,17 @@ export {
 } from './visit-screening';
 export { expandSeparateNutrientIssues, shouldSplitNutrientIssue } from './visit-issue-split';
 export {
+  buildIssueDraftFromFarmerRecommendation,
+  collectFarmerRecommendations,
+  inferIssueCategoryFromFarmerLabel,
+  issueMatchesFarmerLabel,
+  slugFarmerLabel,
+  type FarmerRecommendationIssueDraft,
+  type FarmerRecommendationItem,
+  type FarmerRecommendationRefined,
+  type FarmerRecommendationSource,
+} from './farmer-recommendation-issues';
+export {
   defaultComplianceQuestion,
   resolveComplianceQuestion,
   stripComplianceReplyHint,

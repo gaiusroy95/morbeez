@@ -1,5 +1,7 @@
 import { env } from '../../../config/env.js';
+import { logger } from '../../../lib/logger.js';
 import { supabase } from '../../../lib/supabase.js';
+import { loadApplicationFollowUpContext } from '../../core/application-follow-up-message.util.js';
 import { eventBus } from '../../../events/bus.js';
 import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
@@ -23,6 +25,8 @@ import {
 
 const applicationDays = () => env.CULTIVATION_APPLICATION_DAYS ?? 5;
 const resultValidationDays = () => env.CULTIVATION_RESULT_DAYS ?? 10;
+const applicationPromptDedupHours = () =>
+  Number(process.env.REC_FOLLOWUP_APPLICATION_DEDUP_HOURS ?? 24);
 
 export type CultivationOutcome = 'better' | 'partial' | 'no_improvement';
 
@@ -129,8 +133,36 @@ export const cultivationLoggingService = {
     });
   },
 
-  async sendApplicationPrompt(phone: string, farmerId: string, lang: AdvisoryLanguage): Promise<void> {
-    const body = applicationPrompt(lang);
+  async sendApplicationPrompt(
+    phone: string,
+    farmerId: string,
+    lang: AdvisoryLanguage,
+    options?: { advisorySessionId?: string }
+  ): Promise<void> {
+    const sessionCtx = await conversationSessionService.getContext(farmerId);
+    if (sessionCtx.pendingCultivationPrompt === 'application') {
+      logger.info({ farmerId }, 'Skipping cultivation application prompt — already pending');
+      return;
+    }
+
+    const dedupMs = applicationPromptDedupHours() * 60 * 60 * 1000;
+    const lastAt = sessionCtx.lastApplicationPromptAt
+      ? Date.parse(sessionCtx.lastApplicationPromptAt)
+      : NaN;
+    if (Number.isFinite(lastAt) && Date.now() - lastAt < dedupMs) {
+      logger.info({ farmerId }, 'Skipping cultivation application prompt — sent recently');
+      return;
+    }
+
+    const advisorySessionId =
+      options?.advisorySessionId ?? sessionCtx.lastAdvisorySessionId ?? undefined;
+    const followUpCtx = await loadApplicationFollowUpContext({
+      farmerId,
+      lang,
+      advisorySessionId,
+    });
+    const body = applicationPrompt(lang, followUpCtx);
+
     try {
       await whatsappService.sendButtons({
         to: phone,
@@ -150,6 +182,7 @@ export const cultivationLoggingService = {
     await conversationSessionService.setState(farmerId, 'main_menu');
     await conversationSessionService.patchContext(farmerId, {
       pendingCultivationPrompt: 'application',
+      lastApplicationPromptAt: new Date().toISOString(),
     });
   },
 

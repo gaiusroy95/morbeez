@@ -21,6 +21,10 @@ import { outcomeKpiInterpretationService } from './outcome-kpi-interpretation.se
 import { outcomeHumanRoutingService } from './outcome-human-routing.service.js';
 import { visitAdvisoryEscalationService } from './visit-advisory-escalation.service.js';
 import { issueFollowUpQuestionsService } from './issue-follow-up-questions.service.js';
+import {
+  contextFromRecommendationRecord,
+  formatApplicationCheckMessage,
+} from './application-follow-up-message.util.js';
 
 const APPLICATION_CHECK_DAYS = () =>
   Math.max(1, Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1) || 1);
@@ -59,6 +63,7 @@ type RecRow = {
   application_status?: string | null;
   outcome?: string | null;
   communicated_at: string | null;
+  created_at?: string | null;
   technical_name: string | null;
   trade_name: string | null;
   severity: string | null;
@@ -115,7 +120,7 @@ export const recommendationFollowUpService = {
       .from('recommendation_records')
       .select(
         `id, farmer_id, block_id, ai_session_id, field_finding_id, visit_issue_id, issue_detected, recommendation_text, products, dosage,
-         application_type, dap_at_recommendation, language, status, communicated_at, technical_name, trade_name,
+         application_type, dap_at_recommendation, language, status, communicated_at, created_at, technical_name, trade_name,
          severity, metadata, farmers(phone, preferred_language), farm_blocks(crop_type)`
       )
       .eq('id', recommendationRecordId)
@@ -484,7 +489,7 @@ export const recommendationFollowUpService = {
         status: 'scheduled',
         scheduled_at: now,
         sent_at: now,
-        metadata: { claim: 'application_check_send' },
+        metadata: { claim: 'application_check_send', question: body },
       })
       .select('id')
       .maybeSingle();
@@ -521,8 +526,8 @@ export const recommendationFollowUpService = {
     }
 
     const lang = (rec.language || rec.farmers.preferred_language || 'en') as AdvisoryLanguage;
-    const copy = followUpCopy(lang);
-    const body = copy.applicationCheck;
+    const followUpCtx = contextFromRecommendationRecord(rec, lang);
+    const body = formatApplicationCheckMessage(lang, followUpCtx);
 
     try {
       try {

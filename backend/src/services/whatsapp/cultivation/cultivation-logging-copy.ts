@@ -1,6 +1,14 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
+import {
+  formatApplicationCheckMessage,
+  type ApplicationFollowUpContext,
+} from '../../core/application-follow-up-message.util.js';
 
-export function applicationPrompt(lang: AdvisoryLanguage): string {
+export function applicationPrompt(
+  lang: AdvisoryLanguage,
+  ctx?: ApplicationFollowUpContext
+): string {
+  if (ctx) return formatApplicationCheckMessage(lang, ctx);
   const map: Record<AdvisoryLanguage, string> = {
     en: 'Have you applied the recommendation we shared?\n\nPlease let us know so we can track results.',
     ml: 'ഞങ്ങൾ പങ്കിട്ട ശുപാർശ പ്രയോഗിച്ചോ?\n\nഫലം ട്രാക്ക് ചെയ്യാൻ അറിയിക്കുക.',
