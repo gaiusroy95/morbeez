@@ -1,4 +1,4 @@
-import { collectFarmerRecommendations, issueMatchesFarmerLabel, type FarmerRecommendationSource } from './farmer-recommendation-issues.js';
+import { collectFarmerRecommendations, issueMatchesFarmerLabel, type FarmerRecommendationSource } from './farmer-recommendation-issues';
 
 export type FarmerActiveIngredient = {
   label: string;

@@ -59,25 +59,34 @@ export function DynamicSelect({
   const selected = useMemo(() => options.find((o) => o.value === value) ?? null, [options, value]);
   const triggerLabel = selected?.label ?? placeholder;
 
+  function close() {
+    setOpen(false);
+    setSearch('');
+    setError('');
+    setAddName('');
+  }
+
+  /** Close first, then notify parent — nested Modals on Android often stick if parent re-renders mid-dismiss. */
+  function selectOption(option: DynamicSelectOption) {
+    close();
+    setTimeout(() => {
+      onChange(option.value, option);
+    }, 0);
+  }
+
   async function handleAdd() {
     if (!onAdd || !addName.trim()) return;
     setBusy(true);
     setError('');
     try {
-      await onAdd(addName.trim());
-      setAddName('');
+      const name = addName.trim();
+      await onAdd(name);
       close();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not add');
     } finally {
       setBusy(false);
     }
-  }
-
-  function close() {
-    setOpen(false);
-    setSearch('');
-    setError('');
   }
 
   return (
@@ -96,76 +105,91 @@ export function DynamicSelect({
         <Text style={styles.chevron}>▾</Text>
       </Pressable>
 
-      <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
-        <Pressable style={styles.backdrop} onPress={close}>
-          <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{label ?? 'Select'}</Text>
-              <Pressable onPress={close} hitSlop={8}>
-                <Text style={styles.closeBtn}>Close</Text>
-              </Pressable>
-            </View>
-
-            <View style={styles.searchWrap}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search"
-                placeholderTextColor={tokens.textMuted}
-                value={search}
-                onChangeText={setSearch}
-                autoCapitalize="words"
-                autoCorrect={false}
-              />
-            </View>
-
-            <FlatList
-              data={filtered}
-              keyExtractor={(item) => item.key}
-              keyboardShouldPersistTaps="handled"
-              style={styles.list}
-              ListEmptyComponent={<Text style={styles.empty}>No options match your search.</Text>}
-              renderItem={({ item }) => {
-                const active = item.value === value;
-                return (
-                  <Pressable
-                    style={[styles.row, active && styles.rowActive]}
-                    onPress={() => {
-                      onChange(item.value, item);
-                      close();
-                    }}
-                  >
-                    <Text style={[styles.rowText, active && styles.rowTextActive]}>{item.label}</Text>
-                    {active ? <Text style={styles.check}>✓</Text> : null}
-                  </Pressable>
-                );
-              }}
-            />
-
-            {allowAdd && onAdd ? (
-              <View style={styles.footer}>
-                <TextInput
-                  style={styles.addInput}
-                  placeholder={addPlaceholder}
-                  placeholderTextColor={tokens.textMuted}
-                  value={addName}
-                  onChangeText={setAddName}
-                  autoCapitalize="words"
-                  editable={!busy}
-                />
-                <Pressable
-                  style={[styles.addBtn, (busy || !addName.trim()) && styles.addBtnDisabled]}
-                  onPress={() => void handleAdd()}
-                  disabled={busy || !addName.trim()}
-                >
-                  <Text style={styles.addBtnText}>{addButtonLabel}</Text>
+      {/* Unmount when closed — more reliable than visible={false} inside a parent Modal (Android). */}
+      {open ? (
+        <Modal
+          visible
+          transparent
+          animationType="slide"
+          onRequestClose={close}
+          presentationStyle="overFullScreen"
+          statusBarTranslucent
+        >
+          <View style={styles.backdrop}>
+            <Pressable style={StyleSheet.absoluteFillObject} onPress={close} accessibilityLabel="Dismiss" />
+            <View style={styles.sheet}>
+              <View style={styles.sheetHeader}>
+                <Text style={styles.sheetTitle}>{label ?? 'Select'}</Text>
+                <Pressable onPress={close} hitSlop={8} accessibilityRole="button">
+                  <Text style={styles.closeBtn}>Close</Text>
                 </Pressable>
               </View>
-            ) : null}
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-          </Pressable>
-        </Pressable>
-      </Modal>
+              <View style={styles.searchWrap}>
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search"
+                  placeholderTextColor={tokens.textMuted}
+                  value={search}
+                  onChangeText={setSearch}
+                  autoCapitalize="words"
+                  autoCorrect={false}
+                />
+              </View>
+
+              <FlatList
+                data={filtered}
+                keyExtractor={(item) => item.key}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled
+                style={styles.list}
+                ListEmptyComponent={
+                  <Text style={styles.empty}>
+                    {options.length === 0
+                      ? 'No issue types available. Add a new type below.'
+                      : 'No options match your search.'}
+                  </Text>
+                }
+                renderItem={({ item }) => {
+                  const active = item.value === value;
+                  return (
+                    <Pressable
+                      style={[styles.row, active && styles.rowActive]}
+                      onPress={() => selectOption(item)}
+                    >
+                      <Text style={[styles.rowText, active && styles.rowTextActive]}>{item.label}</Text>
+                      {active ? <Text style={styles.check}>✓</Text> : null}
+                    </Pressable>
+                  );
+                }}
+              />
+
+              {allowAdd && onAdd ? (
+                <View style={styles.footer}>
+                  <TextInput
+                    style={styles.addInput}
+                    placeholder={addPlaceholder}
+                    placeholderTextColor={tokens.textMuted}
+                    value={addName}
+                    onChangeText={setAddName}
+                    autoCapitalize="words"
+                    editable={!busy}
+                  />
+                  <Pressable
+                    style={[styles.addBtn, (busy || !addName.trim()) && styles.addBtnDisabled]}
+                    onPress={() => void handleAdd()}
+                    disabled={busy || !addName.trim()}
+                  >
+                    <Text style={styles.addBtnText}>{addButtonLabel}</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+            </View>
+          </View>
+        </Modal>
+      ) : null}
     </View>
   );
 }
@@ -221,7 +245,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: tokens.text,
   },
-  list: { maxHeight: 280 },
+  /** Fixed height so nested Modal (e.g. Issue details) still lays out FlatList on Android. */
+  list: { height: 280 },
   empty: { textAlign: 'center', color: tokens.textMuted, padding: 20, fontSize: 14 },
   row: {
     flexDirection: 'row',

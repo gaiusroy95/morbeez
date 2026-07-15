@@ -4,6 +4,10 @@ import { logger } from '../../lib/logger.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
+import {
+  buildGingerRecoveryCheckInBody,
+  resolveRecoveryCheckInCondition,
+} from '../case/recovery-checkin-copy.js';
 
 function addDays(days: number): string {
   const d = new Date();
@@ -23,8 +27,16 @@ export const gingerSopFollowUpService = {
     sessionId: string;
     language: AdvisoryLanguage;
     recommendationRecordId?: string | null;
+    issueLabel?: string | null;
   }): Promise<void> {
     if (!this.enabled()) return;
+
+    const issueLabel =
+      params.issueLabel?.trim() ||
+      (await resolveRecoveryCheckInCondition({
+        sessionId: params.sessionId,
+        recommendationRecordId: params.recommendationRecordId,
+      }));
 
     for (const day of RECOVERY_DAYS) {
       await supabase.from('advisory_automation_jobs').insert({
@@ -38,6 +50,7 @@ export const gingerSopFollowUpService = {
           language: params.language,
           recommendationRecordId: params.recommendationRecordId ?? null,
           sopVersion: '3.0',
+          issueLabel: issueLabel ?? null,
         },
       });
     }
@@ -60,10 +73,15 @@ export const gingerSopFollowUpService = {
 
     if (!farmer?.phone) return;
 
-    const body =
-      lang === 'ml'
-        ? `അദരക് നിർണയം — ദിവസം ${day}: ഇപ്പോൾ വിളയുടെ നില എങ്ങനെയാണ്?\n\nImproved / Same / Worse തിരഞ്ഞെടുക്കുക.`
-        : `Ginger diagnosis check-in — Day ${day}: How is the crop now?\n\nTap Improved, Same, or Worse.`;
+    const condition = await resolveRecoveryCheckInCondition({
+      sessionId,
+      recommendationRecordId: job.payload.recommendationRecordId
+        ? String(job.payload.recommendationRecordId)
+        : null,
+      issueLabelHint: job.payload.issueLabel ? String(job.payload.issueLabel) : null,
+    });
+
+    const body = buildGingerRecoveryCheckInBody({ lang, day, condition });
 
     try {
       await whatsappService.sendButtons({
@@ -85,21 +103,25 @@ export const gingerSopFollowUpService = {
 
     const recId = job.payload.recommendationRecordId;
     if (recId) {
-      await supabase.from('recommendation_follow_ups').insert({
-        recommendation_record_id: String(recId),
-        farmer_id: job.farmer_id,
-        phase: 'outcome_check',
-        status: 'sent',
-        scheduled_at: new Date().toISOString(),
-        sent_at: new Date().toISOString(),
-        metadata: {
-          gingerSopRecoveryDay: day,
-          sessionId,
-          sopVersion: '3.0',
-        },
-      }).then(({ error }) => {
-        if (error) logger.warn({ error, day }, 'Ginger recovery follow-up row insert skipped');
-      });
+      await supabase
+        .from('recommendation_follow_ups')
+        .insert({
+          recommendation_record_id: String(recId),
+          farmer_id: job.farmer_id,
+          phase: 'outcome_check',
+          status: 'sent',
+          scheduled_at: new Date().toISOString(),
+          sent_at: new Date().toISOString(),
+          metadata: {
+            gingerSopRecoveryDay: day,
+            sessionId,
+            sopVersion: '3.0',
+            issueLabel: condition,
+          },
+        })
+        .then(({ error }) => {
+          if (error) logger.warn({ error, day }, 'Ginger recovery follow-up row insert skipped');
+        });
     }
   },
 

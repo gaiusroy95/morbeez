@@ -16,7 +16,7 @@ type Props = {
   onSave: (issue: IssueDraft) => void;
   onRemove?: () => void;
   onClose: () => void;
-  onSuggestQuestions: (issue: IssueDraft) => Promise<string[]>;
+  onSuggestQuestions?: (issue: IssueDraft) => Promise<string[]>;
   onCreateIssueType?: (input: {
     category: import('@morbeez/shared').IssueCategory;
     issueName: string;
@@ -29,18 +29,13 @@ export function AddIssueModal({
   issue,
   issueMaster,
   cropType,
-  blockDap,
   farmerFeedback,
   onSave,
   onRemove,
   onClose,
-  onSuggestQuestions,
   onCreateIssueType,
 }: Props) {
   const [draft, setDraft] = useState<IssueDraft | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiSuggestions, setAiSuggestions] = useState<Array<{ name: string; confidence: number }>>([]);
-  const [aiLoading, setAiLoading] = useState(false);
 
   const active = draft ?? issue ?? newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
 
@@ -49,8 +44,6 @@ export function AddIssueModal({
       ? { ...issue }
       : newIssueDraft(pickDefaultCategory(), `new-${Date.now()}`);
     setDraft(base);
-    setAiOpen(false);
-    setAiSuggestions([]);
   }
 
   function confirmRemove() {
@@ -72,25 +65,6 @@ export function AddIssueModal({
     );
   }
 
-  async function loadAiSuggestions() {
-    setAiLoading(true);
-    try {
-      const questions = await onSuggestQuestions(active);
-      const fromMaster = issueMaster
-        .filter((m) => m.category === active.category && (!m.cropType || m.cropType === cropType))
-        .slice(0, 3)
-        .map((m, i) => ({ name: m.issueName, confidence: Math.max(40, 82 - i * 15) }));
-      const fromAi = questions.slice(0, 2).map((q, i) => ({
-        name: q.slice(0, 60),
-        confidence: Math.max(20, 50 - i * 10),
-      }));
-      setAiSuggestions(fromMaster.length ? fromMaster : fromAi.length ? fromAi : [{ name: active.issueName || 'General observation', confidence: 60 }]);
-      setAiOpen(true);
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} onShow={resetOnOpen}>
       <View style={styles.root}>
@@ -105,41 +79,8 @@ export function AddIssueModal({
             cropType={cropType}
             farmerFeedback={farmerFeedback}
             onChange={setDraft}
-            onSuggestQuestions={() => onSuggestQuestions(active)}
             onCreateIssueType={onCreateIssueType}
           />
-
-          <Btn
-            label={aiLoading ? 'Analyzing…' : 'Generate AI recommendations'}
-            variant="secondary"
-            onPress={() => void loadAiSuggestions()}
-            disabled={aiLoading}
-          />
-
-          {aiOpen && aiSuggestions.length ? (
-            <View style={styles.aiBox}>
-              <Text style={styles.aiTitle}>Based on photos & observations, AI suggests:</Text>
-              {aiSuggestions.map((s, i) => (
-                <View key={`${s.name}-${i}`} style={styles.aiRow}>
-                  <Text style={styles.aiName}>
-                    {i + 1}. {s.name}
-                  </Text>
-                  <View style={styles.aiBarTrack}>
-                    <View style={[styles.aiBarFill, { width: `${s.confidence}%` }]} />
-                  </View>
-                  <Text style={styles.aiPct}>{s.confidence}%</Text>
-                </View>
-              ))}
-              <Btn
-                label={`Accept ${aiSuggestions[0]?.name ?? 'suggestion'}`}
-                onPress={() => {
-                  const name = aiSuggestions[0]?.name ?? active.issueName;
-                  setDraft({ ...active, issueName: name });
-                  setAiOpen(false);
-                }}
-              />
-            </View>
-          ) : null}
         </ScrollView>
         <View style={styles.footer}>
           {onRemove ? <Btn label="Remove issue" variant="secondary" onPress={confirmRemove} /> : null}
@@ -175,19 +116,4 @@ const styles = StyleSheet.create({
   title: { fontSize: 18, fontWeight: '700', color: tokens.text },
   scroll: { padding: 16, paddingBottom: 32 },
   footer: { padding: 16, gap: 8, borderTopWidth: 1, borderTopColor: tokens.border, backgroundColor: tokens.card },
-  aiBox: {
-    marginTop: 12,
-    padding: 14,
-    backgroundColor: tokens.green100,
-    borderRadius: tokens.radiusSm,
-    borderWidth: 1,
-    borderColor: tokens.border,
-    gap: 10,
-  },
-  aiTitle: { fontSize: 13, fontWeight: '600', color: tokens.text },
-  aiRow: { gap: 4 },
-  aiName: { fontSize: 14, fontWeight: '600', color: tokens.text },
-  aiBarTrack: { height: 8, backgroundColor: tokens.border, borderRadius: 4, overflow: 'hidden' },
-  aiBarFill: { height: 8, backgroundColor: tokens.green700, borderRadius: 4 },
-  aiPct: { fontSize: 12, color: tokens.textMuted },
 });

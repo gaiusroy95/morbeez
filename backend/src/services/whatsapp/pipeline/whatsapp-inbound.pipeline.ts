@@ -1916,6 +1916,10 @@ export const whatsappInboundPipeline = {
             cropType: memory.cropType,
             language: params.language,
             recommendationRecordId: rec?.id ?? null,
+            issueLabel:
+              maiosCase.diagnostics?.primary ??
+              result.advisory.probableIssue ??
+              null,
           });
         }
       }

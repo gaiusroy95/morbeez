@@ -14,7 +14,9 @@ export const fieldFindingsMastersService = {
 
     if (opts?.category) query = query.eq('category', opts.category);
     if (opts?.cropType) {
-      query = query.or(`crop_type.is.null,crop_type.eq.${opts.cropType}`);
+      const cropLower = opts.cropType.trim().toLowerCase();
+      // Global types (null crop) + crop-specific (case-insensitive).
+      query = query.or(`crop_type.is.null,crop_type.ilike.${cropLower}`);
     }
     if (opts?.q?.trim()) {
       query = query.ilike('issue_name', `%${opts.q.trim()}%`);

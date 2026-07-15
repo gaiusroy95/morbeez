@@ -183,21 +183,34 @@ export {
 } from './photo-categories';
 
 export {
+  APPLICATION_DAY_OPTIONS,
+  APPLICATION_TYPE_OPTIONS,
   DOSE_BASIS_OPTIONS,
   DOSE_UNIT_OPTIONS,
   MATERIAL_APPLICATION_MODE_OPTIONS,
+  composeRecommendationGroupsFromIssues,
+  defaultIssueRecommendationLine,
   defaultRecommendationMaterial,
   formatMaterialDose,
   formatMaterialApplicationMode,
+  issueRecommendationLinesToLegacyRecommendations,
   mapRecommendationGroupsForSubmit,
 } from './recommendation-material';
 
 import type {
+  IssueRecommendationLine,
   RecommendationGroupDraft,
   RecommendationGroupMaterialDraft,
 } from './recommendation-material';
 
-export type { DoseBasis, DoseUnit, MaterialApplicationMode, RecommendationGroupDraft, RecommendationGroupMaterialDraft } from './recommendation-material';
+export type {
+  DoseBasis,
+  DoseUnit,
+  IssueRecommendationLine,
+  MaterialApplicationMode,
+  RecommendationGroupDraft,
+  RecommendationGroupMaterialDraft,
+} from './recommendation-material';
 
 export { buildPriorRecommendationFollowUps } from './prior-recommendation-followups';
 export { protocolToRecommendationGroups } from './protocol-load';
@@ -522,6 +535,9 @@ export type VisitIssueDraft = StructuredVisitIssueInput & {
   finalRecommendation?: string;
 
   reviewAfterDays?: number;
+
+  /** Structured materials for this issue (Validation step); combined into groups on Recommendations. */
+  recommendationLines?: IssueRecommendationLine[];
 
   skipFollowUpOptional?: boolean;
 

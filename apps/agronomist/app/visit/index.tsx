@@ -16,6 +16,7 @@ import {
   mapRecommendationGroupsForSubmit,
   buildPriorRecommendationFollowUps,
   issuesNeedInitialScreening,
+  composeRecommendationGroupsFromIssues,
   type VisitScreeningParams,
   type BlockHealthLevel,
   type CropPerformanceLevel,
@@ -252,7 +253,7 @@ export default function VisitScreen() {
       try {
         const [tpls, master, session, blockDetail, recs, plotIntel] = await Promise.all([
           agronomistClient.getMeasurementTemplates(cropType),
-          agronomistClient.searchIssueMaster({ cropType }),
+          agronomistClient.searchIssueMaster({ cropType: cropType.trim().toLowerCase() || undefined }),
           agronomistClient.startVisitSession({ farmerId, blockId }),
           agronomistClient.getBlockDetail(farmerId, blockId).catch(() => null),
           agronomistClient.listFarmerRecommendations(farmerId, 20).catch(() => []),
@@ -470,8 +471,17 @@ export default function VisitScreen() {
       return;
     }
     setError('');
-    const next = getNextWizardStep(activeStep(), validationContext());
-    if (next) setStep(next);
+    const current = activeStep();
+    const next = getNextWizardStep(current, validationContext());
+    if (!next) return;
+
+    // Leaving Validation → seed Recommendation groups from per-issue materials.
+    if (current === 'diagnosisFinalization' && next === 'recommendationBuilder') {
+      const seeded = composeRecommendationGroupsFromIssues(issues);
+      if (seeded.length) setRecommendationGroups(seeded);
+    }
+
+    setStep(next);
   }
 
   function goBack() {

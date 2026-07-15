@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import {
   agronomistClient,
+  APPLICATION_DAY_OPTIONS,
+  APPLICATION_TYPE_OPTIONS,
+  composeRecommendationGroupsFromIssues,
   defaultRecommendationMaterial,
   DOSE_BASIS_OPTIONS,
   DOSE_UNIT_OPTIONS,
@@ -12,9 +15,6 @@ import {
 } from '@morbeez/shared';
 import { Btn, DynamicSelect, Panel } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
-
-const APPLICATION_DAYS = [0, 7, 14, 21] as const;
-const APPLICATION_TYPES = ['foliar_spray', 'soil_drench', 'granular', 'seed_treatment', 'other'] as const;
 
 type Props = {
   cropType: string;
@@ -34,7 +34,11 @@ function toSelectOptions<T extends string>(items: Array<{ value: T; label: strin
 export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Props) {
   const [protocolMsg, setProtocolMsg] = useState('');
   const issueOptions = useMemo(
-    () => issues.map((i) => ({ id: i.localId, label: i.issueName })),
+    () =>
+      issues.map((i) => ({
+        id: i.localId,
+        label: i.finalDiagnosis?.trim() || i.issueName || 'Issue',
+      })),
     [issues]
   );
 
@@ -44,6 +48,15 @@ export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Pro
     []
   );
   const applicationModeOptions = useMemo(() => toSelectOptions(MATERIAL_APPLICATION_MODE_OPTIONS), []);
+
+  useEffect(() => {
+    const hasIssueLines = issues.some((i) => (i.recommendationLines?.length ?? 0) > 0);
+    if (!hasIssueLines) return;
+    if (groups.length > 0) return;
+    const seeded = composeRecommendationGroupsFromIssues(issues);
+    if (seeded.length) onChange(seeded);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issues]);
 
   function addGroup() {
     const issueLocalId = issues[0]?.localId ?? '';
@@ -84,6 +97,16 @@ export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Pro
     });
   }
 
+  function resyncFromIssues() {
+    const seeded = composeRecommendationGroupsFromIssues(issues);
+    onChange(seeded);
+    setProtocolMsg(
+      seeded.length
+        ? `Combined ${seeded.reduce((n, g) => n + g.materials.length, 0)} material(s) from validated issues into ${seeded.length} group(s).`
+        : 'No issue recommendations to combine yet. Add them on Validation.'
+    );
+  }
+
   async function loadProtocol() {
     const issueLabel = issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? '';
     const issueLocalId = issues[0]?.localId ?? '';
@@ -113,15 +136,17 @@ export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Pro
   return (
     <View style={styles.root}>
       <Text style={styles.intro}>
-        Plan recommendation groups with application day and materials (name, dose, qty unit, application mode).
+        Groups combine materials from each validated issue by application day and type (tank mix). Edit links or add
+        materials as needed.
       </Text>
+      <Btn label="Rebuild groups from issue recommendations" variant="secondary" onPress={resyncFromIssues} />
       <Btn label="Load published protocol" variant="secondary" onPress={() => void loadProtocol()} />
       {protocolMsg ? <Text style={styles.intro}>{protocolMsg}</Text> : null}
       {groups.map((group, gi) => (
         <Panel key={group.localId} title={`Group ${gi + 1}`}>
           <Text style={styles.fieldLabel}>Application type</Text>
           <View style={styles.chips}>
-            {APPLICATION_TYPES.map((t) => (
+            {APPLICATION_TYPE_OPTIONS.map((t) => (
               <Pressable
                 key={t}
                 style={[styles.chip, group.applicationType === t ? styles.chipActive : null]}
@@ -135,7 +160,7 @@ export function VisitRecPlanningStep({ cropType, issues, groups, onChange }: Pro
           </View>
           <Text style={styles.fieldLabel}>Application day</Text>
           <View style={styles.chips}>
-            {APPLICATION_DAYS.map((d) => (
+            {APPLICATION_DAY_OPTIONS.map((d) => (
               <Pressable
                 key={d}
                 style={[styles.chip, group.applicationDay === d ? styles.chipActive : null]}
