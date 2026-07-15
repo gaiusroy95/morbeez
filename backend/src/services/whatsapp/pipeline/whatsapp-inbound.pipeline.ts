@@ -49,6 +49,7 @@ import {
 } from '../../core/advisory-image-storage.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappScenarioRouter } from '../scenarios/whatsapp-scenario-router.service.js';
+import { farmerFeedbackFlowService } from '../scenarios/farmer-feedback-flow.service.js';
 import {
   nutrientSoilGateService,
   soilGatePreface,
@@ -880,6 +881,28 @@ export const whatsappInboundPipeline = {
       media.audioMimeType ?? 'audio/ogg',
       captured.language
     );
+
+    const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+    if (session.state === 'farmer_feedback_capture' && send && transcript?.trim()) {
+      const handled = await farmerFeedbackFlowService.tryHandleCapture({
+        farmerId: captured.farmerId,
+        phone: captured.phone,
+        lang: captured.language,
+        text: transcript.trim(),
+        send,
+      });
+      if (handled) return;
+    }
+
+    if (!transcript?.trim()) {
+      await sendText(
+        captured.phone,
+        captured.language === 'ml'
+          ? 'വോയ്സ് നോട്ട് മനസ്സിലായില്ല. വീണ്ടും വ്യക്തമായി സംസാരിക്കുക.'
+          : 'Could not understand the voice note. Please try again.'
+      );
+      return;
+    }
 
     await this.runDiagnosis({
       farmerId: captured.farmerId,

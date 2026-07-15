@@ -12,9 +12,8 @@ import { diagnosisSessionEvidenceService } from '../pipeline/diagnosis-session-e
 import { supabase } from '../../../lib/supabase.js';
 import type { ScenarioSenders } from './whatsapp-scenario-router.service.js';
 import {
-  FARMER_NUTRIENT_SUGGESTIONS,
   FARMER_SUGGEST_OTHER_BUTTON_ID,
-  looksLikeDescriptiveHypothesis,
+  isFarmerSuggestionButtonId,
   mapFarmerSuggestionInput,
 } from '../../../domain/learning/farmer-nutrient-suggestions.js';
 
@@ -25,53 +24,33 @@ export type FarmerFeedbackCaptureStep =
   | 'product'
   | 'outcome';
 
-function ackDisagreement(lang: AdvisoryLanguage): string {
-  if (lang === 'ml') {
-    return 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം തിരഞ്ഞെടുക്കുക (അല്ലെങ്കിൽ Other).';
-  }
-  return 'Understood 👍\n\nWhat do you think the issue is? Pick one below, or Other.';
+function askFreeTextDiagnosis(lang: AdvisoryLanguage): string {
+  const map: Record<AdvisoryLanguage, string> = {
+    en: 'Understood 👍\n\nWhat do you think the issue is?\n\nType your answer here, or send a voice note.',
+    ml: 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം എന്താണ്?\n\nഇവിടെ ടൈപ്പ് ചെയ്യുക, അല്ലെങ്കിൽ വോയ്സ് നോട്ട് അയയ്ക്കുക.',
+    ta: 'புரிந்தது 👍\n\nபிரச்சனை என்ன என்று நீங்கள் நினைக்கிறீர்கள்?\n\nஇங்கே தட்டச்சு செய்யுங்கள், அல்லது குரல் செய்தி அனுப்புங்கள்.',
+    kn: 'ಅರ್ಥವಾಯಿತು 👍\n\nಸಮಸ್ಯೆ ಏನೆಂದು ನೀವು ಭಾವಿಸುತ್ತೀರಿ?\n\nಇಲ್ಲಿ ಟೈಪ್ ಮಾಡಿ, ಅಥವಾ ವಾಯ್ಸ್ ನೋಟ್ ಕಳುಹಿಸಿ.',
+    hi: 'समझ गया 👍\n\nआपको क्या लगता है समस्या क्या है?\n\nयहाँ टाइप करें, या वॉइस नोट भेजें।',
+  };
+  return map[lang] ?? map.en;
 }
 
-async function sendSuggestionPicker(
-  phone: string,
-  lang: AdvisoryLanguage,
-  send: ScenarioSenders
-): Promise<void> {
-  const body = ackDisagreement(lang);
-  if (send.list) {
-    await send.list({
-      phone,
-      body,
-      buttonText: lang === 'ml' ? 'തിരഞ്ഞെടുക്കുക' : 'Select',
-      sections: [
-        {
-          title: lang === 'ml' ? 'കർഷക നിർദ്ദേശം' : 'Farmer suggestion',
-          rows: [
-            ...FARMER_NUTRIENT_SUGGESTIONS.map((s) => ({
-              id: s.buttonId,
-              title: s.label.slice(0, 24),
-              description: s.diagnosis,
-            })),
-            {
-              id: FARMER_SUGGEST_OTHER_BUTTON_ID,
-              title: lang === 'ml' ? 'മറ്റുള്ളത്' : 'Other / type mine',
-              description: lang === 'ml' ? 'സ്വന്തം ഉത്തരം ടൈപ്പ് ചെയ്യുക' : 'Type your own answer next',
-            },
-          ],
-        },
-      ],
-    });
-    return;
-  }
-  await send.text(
-    phone,
-    `${body}\n\n1) Iron (Fe)\n2) Zinc (Zn)\n3) Magnesium (Mg)\n4) Nitrogen (N)\n5) Other — type your answer`
-  );
+function askFreeTextDiagnosisRetry(lang: AdvisoryLanguage): string {
+  const map: Record<AdvisoryLanguage, string> = {
+    en: 'Please describe what you think the issue is (type or voice note).',
+    ml: 'നിങ്ങൾ കരുതുന്ന പ്രശ്നം വിവരിക്കുക (ടൈപ്പ് അല്ലെങ്കിൽ വോയ്സ് നോട്ട്).',
+    ta: 'பிரச்சனை என்ன என்று விவரிக்கவும் (தட்டச்சு அல்லது குரல் செய்தி).',
+    kn: 'ಸಮಸ್ಯೆಯನ್ನು ವಿವರಿಸಿ (ಟೈಪ್ ಅಥವಾ ವಾಯ್ಸ್ ನೋಟ್).',
+    hi: 'समस्या क्या है बताएं (टाइप या वॉइस नोट)।',
+  };
+  return map[lang] ?? map.en;
 }
 
-function askOtherDiagnosis(lang: AdvisoryLanguage): string {
-  if (lang === 'ml') return 'ദയവായി നിങ്ങൾ കരുതുന്ന പ്രശ്നം ടൈപ്പ് ചെയ്യുക.';
-  return 'Please type what you think the issue is.';
+function isFarmerFreeTextHypothesis(text: string): boolean {
+  const t = text.trim();
+  if (!t || isFarmerSuggestionButtonId(t)) return false;
+  if (/^feedback\./i.test(t)) return false;
+  return t.length >= 3;
 }
 
 function askExperienceYears(lang: AdvisoryLanguage): string {
@@ -137,7 +116,7 @@ async function captureDiagnosisAndMaybeRefine(params: {
   sessionId: string | null;
   priorAiIssue: string | null;
 }): Promise<void> {
-  const descriptive = looksLikeDescriptiveHypothesis(params.text);
+  const descriptive = isFarmerFreeTextHypothesis(params.text);
 
   if (descriptive) {
     try {
@@ -273,7 +252,7 @@ export const farmerFeedbackFlowService = {
         t === FARMER_SUGGEST_OTHER_BUTTON_ID ||
         t === 'feedback.disagree' ||
         (isFarmerDisagreementIntent(t) &&
-          !looksLikeDescriptiveHypothesis(t) &&
+          !isFarmerFreeTextHypothesis(t) &&
           initialDiagnoses.length === 0);
       if (!skipCapture) {
         await captureDiagnosisAndMaybeRefine({
@@ -305,7 +284,7 @@ export const farmerFeedbackFlowService = {
     await conversationSessionService.setState(params.farmerId, 'farmer_feedback_capture');
 
     if (step === 'diagnosis') {
-      await sendSuggestionPicker(params.phone, params.lang, params.send);
+      await params.send.text(params.phone, askFreeTextDiagnosis(params.lang));
     } else if (step === 'experience_years') {
       await params.send.text(params.phone, askExperienceYears(params.lang));
     } else if (step === 'experience') {
@@ -331,9 +310,8 @@ export const farmerFeedbackFlowService = {
     if (!text || text.startsWith('menu.')) return false;
 
     if (step === 'diagnosis') {
-      const mapped = mapFarmerSuggestionInput(text);
-      if (mapped === null || text === FARMER_SUGGEST_OTHER_BUTTON_ID) {
-        await params.send.text(params.phone, askOtherDiagnosis(params.lang));
+      if (!isFarmerFreeTextHypothesis(text)) {
+        await params.send.text(params.phone, askFreeTextDiagnosisRetry(params.lang));
         return true;
       }
 
