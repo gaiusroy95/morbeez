@@ -479,6 +479,10 @@ export const recommendationFollowUpService = {
 
     // Claim before WhatsApp send so concurrent workers cannot double-send.
     const now = new Date().toISOString();
+    const lang = (rec.language || rec.farmers.preferred_language || 'en') as AdvisoryLanguage;
+    const followUpCtx = contextFromRecommendationRecord(rec, lang);
+    const body = formatApplicationCheckMessage(lang, followUpCtx);
+
     const { data: claim, error: claimErr } = await supabase
       .from('recommendation_follow_ups')
       .insert({
@@ -524,10 +528,6 @@ export const recommendationFollowUpService = {
       );
       return false;
     }
-
-    const lang = (rec.language || rec.farmers.preferred_language || 'en') as AdvisoryLanguage;
-    const followUpCtx = contextFromRecommendationRecord(rec, lang);
-    const body = formatApplicationCheckMessage(lang, followUpCtx);
 
     try {
       try {
