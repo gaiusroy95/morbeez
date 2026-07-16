@@ -28,6 +28,7 @@ import { goldLearningQueueService } from '../ml/retraining-pipeline.service.js';
 import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
 import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
+import { caseNeedsSiteVisit } from '../agronomist/case-needs-site-visit.js';
 
 function isAgronomistVerifyAction(action: ReviewAction): boolean {
   return action === 'approve_ai' || action === 'correct_ai' || action === 'partial_match';
@@ -216,6 +217,18 @@ export const agronomistCaseReviewService = {
     );
     sorted = sorted.filter((i) => !demoFarmerIds.has(String(i.farmerId)));
 
+    const sessionIds = [...new Set(sorted.map((i) => String(i.sessionId)).filter(Boolean))];
+    const { data: sessionMetas } = sessionIds.length
+      ? await supabase.from('ai_advisory_sessions').select('id, metadata').in('id', sessionIds)
+      : { data: [] as { id: string; metadata: unknown }[] };
+    const routeBySession = new Map<string, string | null>();
+    for (const row of sessionMetas ?? []) {
+      const meta = (row.metadata as Record<string, unknown> | null) ?? {};
+      const maios = meta.maiosCase as { route?: string } | undefined;
+      const ginger = meta.gingerSopV3 as { route?: string } | undefined;
+      routeBySession.set(String(row.id), maios?.route ?? ginger?.route ?? null);
+    }
+
     const enriched = await Promise.all(
       sorted.map(async (item) => {
         const primary = await blockService.getPrimaryBlock(String(item.farmerId));
@@ -227,9 +240,17 @@ export const agronomistCaseReviewService = {
           .limit(1)
           .maybeSingle();
 
+        const maiosRoute = routeBySession.get(String(item.sessionId)) ?? null;
+        const needsSiteVisit = caseNeedsSiteVisit({
+          reason: item.reason,
+          maiosRoute,
+        });
+
         return {
           id: item.id,
           caseRef: caseRef(item.id, String(item.createdAt)),
+          farmerId: item.farmerId ? String(item.farmerId) : null,
+          sessionId: item.sessionId ? String(item.sessionId) : null,
           farmerName: item.farmerName,
           farmerPhone: item.farmerPhone,
           cropType: item.cropType ?? primary?.crop_type ?? '—',
@@ -243,6 +264,8 @@ export const agronomistCaseReviewService = {
           timeAgo: timeAgo(String(item.createdAt)),
           farmerDisagrees: Boolean(fb),
           feedbackId: fb?.id ?? null,
+          maiosRoute,
+          needsSiteVisit,
         };
       })
     );

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { formatDate, t, tokens, type AgronomistTaskItem } from '@morbeez/shared';
-import {AlertBox, EmptyState, HubTabs, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
+import {
+  agronomistClient,
+  formatDate,
+  t,
+  tokens,
+  type AgronomistTaskItem,
+} from '@morbeez/shared';
+import { AlertBox, EmptyState, HubTabs, ListCard, Loading, stableRowKey } from '@morbeez/ui-native';
 import { openEscalationVisit } from '@/lib/open-escalation-visit';
+import { buildVisitRouteParams } from '@/lib/farmer-workspace-routing';
 import { useAgronomistQueue } from '@/context/AgronomistQueueContext';
 import { useLocale } from '@/context/LocaleContext';
 
@@ -36,6 +43,32 @@ function filterLabel(id: FilterId, locale: ReturnType<typeof useLocale>['locale'
     case 'finding_review':
       return t('findingReview', locale);
   }
+}
+
+async function openScheduledVisit(
+  task: AgronomistTaskItem,
+  router: ReturnType<typeof useRouter>
+): Promise<void> {
+  if (!task.farmerId) {
+    router.push('/(tabs)/visits');
+    return;
+  }
+
+  const blocks = await agronomistClient.getFarmerBlocks(task.farmerId);
+  const match =
+    (task.blockId ? blocks.find((b) => b.id === task.blockId) : null) ?? blocks[0];
+  if (!match) {
+    throw new Error('No farm block found for this farmer. Add a block before starting a visit.');
+  }
+
+  router.push(
+    buildVisitRouteParams({
+      farmerId: task.farmerId,
+      farmerName: task.title?.replace(/^Visit:\s*/i, '') || 'Farmer',
+      leadId: task.leadId,
+      block: { id: match.id, name: match.name, cropType: match.cropType || '_default' },
+    })
+  );
 }
 
 export default function TasksScreen() {
@@ -71,7 +104,8 @@ export default function TasksScreen() {
   const openTask = useCallback(
     async (task: AgronomistTaskItem) => {
       setTaskError('');
-      if (task.kind === 'escalation' && task.refId) {
+      // Site-visit work (escalations + field-routed AI cases) → real visit wizard.
+      if ((task.kind === 'escalation' || task.needsSiteVisit) && task.refId) {
         if (openingEscalation) return;
         setOpeningEscalation(task.refId);
         try {
@@ -87,16 +121,34 @@ export default function TasksScreen() {
         router.push(`/finding/${task.refId}`);
         return;
       }
+      // Mobile field app: AI cases open the site visit form (desk Approve/Modify stays on web).
       if (task.kind === 'ai_review' && task.refId) {
-        router.push(`/case/${task.refId}`);
+        if (openingEscalation) return;
+        setOpeningEscalation(task.refId);
+        try {
+          await openEscalationVisit(task.refId, { router });
+        } catch {
+          // Visit context missing — fall back to case screen (has Start site visit + soil/weather).
+          router.push(`/case/${task.refId}`);
+        } finally {
+          setOpeningEscalation(null);
+        }
+        return;
+      }
+      if (task.kind === 'visit') {
+        if (openingEscalation) return;
+        setOpeningEscalation(task.refId ?? task.id);
+        try {
+          await openScheduledVisit(task, router);
+        } catch (e) {
+          setTaskError(e instanceof Error ? e.message : 'Could not open visit');
+        } finally {
+          setOpeningEscalation(null);
+        }
         return;
       }
       if (task.farmerId) {
         router.push(`/farmer/${task.farmerId}`);
-        return;
-      }
-      if (task.kind === 'visit') {
-        router.push('/(tabs)/visits');
       }
     },
     [router, openingEscalation]

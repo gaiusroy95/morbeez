@@ -635,7 +635,9 @@ export const agronomistMobileService = {
       status: string;
       farmerId?: string | null;
       leadId?: string | null;
+      blockId?: string | null;
       refId?: string;
+      needsSiteVisit?: boolean;
     }> = [];
 
     if (!filter || filter === 'visit' || filter === 'all') {
@@ -658,7 +660,9 @@ export const agronomistMobileService = {
           status: String(t.status),
           farmerId: t.farmer_id ? String(t.farmer_id) : null,
           leadId: t.lead_id ? String(t.lead_id) : null,
+          blockId: t.block_id ? String(t.block_id) : null,
           refId: entityId,
+          needsSiteVisit: true,
         });
       }
     }
@@ -705,29 +709,65 @@ export const agronomistMobileService = {
     }
 
     const aiReviewEscalationIds = new Set<string>();
+    const siteVisitEscalationIds = new Set<string>();
 
-    if (!filter || filter === 'ai_review' || filter === 'all') {
+    if (!filter || filter === 'ai_review' || filter === 'escalation' || filter === 'all') {
       const queue = await agronomistCaseReviewService.listQueue({ status: 'open', page: 1, limit: 15 });
       for (const c of queue.items ?? []) {
         const entityId = String(c.id);
+        const needsSiteVisit = Boolean(
+          (c as { needsSiteVisit?: boolean }).needsSiteVisit
+        );
+        // Field-routed AI cases belong in the site-visit / escalation path, not desk review.
+        if (needsSiteVisit) {
+          siteVisitEscalationIds.add(entityId);
+          if (!filter || filter === 'escalation' || filter === 'all') {
+            tasks.push({
+              id: taskKey('escalation', entityId),
+              kind: 'escalation',
+              title: String(c.reason ?? 'Site visit required'),
+              subtitle: c.farmerName
+                ? `${c.farmerName} · Site visit`
+                : c.confidence != null
+                  ? `Site visit · ${Math.round(Number(c.confidence) * 100)}%`
+                  : 'Site visit required',
+              dueAt: c.createdAt ? String(c.createdAt) : null,
+              status: String(c.status ?? 'open'),
+              farmerId: (c as { farmerId?: string | null }).farmerId ?? null,
+              refId: entityId,
+              needsSiteVisit: true,
+            });
+          }
+          continue;
+        }
+
         aiReviewEscalationIds.add(entityId);
-        tasks.push({
-          id: taskKey('ai_review', entityId),
-          kind: 'ai_review',
-          title: String(c.reason ?? 'AI review'),
-          subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
-          dueAt: c.createdAt ? String(c.createdAt) : null,
-          status: String(c.status ?? 'open'),
-          farmerId: null,
-          refId: entityId,
-        });
+        if (!filter || filter === 'ai_review' || filter === 'all') {
+          tasks.push({
+            id: taskKey('ai_review', entityId),
+            kind: 'ai_review',
+            title: String(c.reason ?? 'AI review'),
+            subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
+            dueAt: c.createdAt ? String(c.createdAt) : null,
+            status: String(c.status ?? 'open'),
+            farmerId: (c as { farmerId?: string | null }).farmerId ?? null,
+            refId: entityId,
+            needsSiteVisit: false,
+          });
+        }
       }
     }
 
     if (!filter || filter === 'escalation' || filter === 'all') {
       const esc = await this.listEscalations({ status: 'open' });
       for (const e of esc) {
-        if ((!filter || filter === 'all') && aiReviewEscalationIds.has(e.id)) continue;
+        if (
+          (!filter || filter === 'all') &&
+          (aiReviewEscalationIds.has(e.id) || siteVisitEscalationIds.has(e.id))
+        ) {
+          continue;
+        }
+        if (siteVisitEscalationIds.has(e.id)) continue;
         tasks.push({
           id: taskKey('escalation', e.id),
           kind: 'escalation',
@@ -737,6 +777,7 @@ export const agronomistMobileService = {
           status: e.status,
           farmerId: e.farmerId,
           refId: e.id,
+          needsSiteVisit: true,
         });
       }
     }

@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { agronomistClient, tokens } from '@morbeez/shared';
 import { AlertBox, Btn, KeyValueRow, Loading, Panel, TextField, MULTILINE_MIN_HEIGHT } from '@morbeez/ui-native';
+import { openEscalationVisit } from '@/lib/open-escalation-visit';
 import { useStaffAuth } from '@/context/StaffAuth';
 
 type ReviewAction = 'approve_ai' | 'correct_ai' | 'partial_match' | 'escalate_urgent';
@@ -14,6 +15,17 @@ type CaseDetail = {
   images?: Array<{ url?: string }>;
   inquiry?: { farmerQuestion?: string | null; whatsappResponse?: string | null };
   ai?: { probableIssue?: string; summary?: string; confidence?: number };
+  location?: { weatherSummary?: string | null };
+  context?: {
+    soil?: {
+      ph?: unknown;
+      ec?: unknown;
+      organicCarbon?: unknown;
+      testedAt?: string | null;
+    } | null;
+    rainfallNote?: string | null;
+  };
+  maiosCase?: { route?: string } | null;
   review?: {
     correctDiagnosis?: string | null;
     severity?: string | null;
@@ -22,6 +34,27 @@ type CaseDetail = {
     notesForLearning?: string | null;
   };
 };
+
+function formatSoilLine(
+  soil:
+    | {
+        ph?: unknown;
+        ec?: unknown;
+        organicCarbon?: unknown;
+        testedAt?: string | null;
+      }
+    | null
+    | undefined
+): string {
+  if (!soil) return 'No soil report on file';
+  const parts = [
+    soil.ph != null && soil.ph !== '' ? `pH ${soil.ph}` : null,
+    soil.ec != null && soil.ec !== '' ? `EC ${soil.ec}` : null,
+    soil.organicCarbon != null && soil.organicCarbon !== '' ? `OC ${soil.organicCarbon}` : null,
+  ].filter(Boolean);
+  const base = parts.length ? parts.join(' · ') : 'Values not recorded';
+  return soil.testedAt ? `${base} (${soil.testedAt})` : base;
+}
 
 export default function CaseReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -32,6 +65,7 @@ export default function CaseReviewScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [openingVisit, setOpeningVisit] = useState(false);
   const [action, setAction] = useState<ReviewAction>('approve_ai');
   const [correctDiagnosis, setCorrectDiagnosis] = useState('');
   const [severity, setSeverity] = useState<'mild' | 'moderate' | 'severe'>('moderate');
@@ -64,6 +98,19 @@ export default function CaseReviewScreen() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function startSiteVisit() {
+    if (!caseId || openingVisit) return;
+    setOpeningVisit(true);
+    setError('');
+    try {
+      await openEscalationVisit(caseId, { router });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not open site visit');
+    } finally {
+      setOpeningVisit(false);
+    }
+  }
 
   async function submitReview() {
     if (!canWrite || !caseId) return;
@@ -103,9 +150,27 @@ export default function CaseReviewScreen() {
     { id: 'escalate_urgent', label: 'Reject' },
   ];
 
+  const soilLine = formatSoilLine(detail.context?.soil ?? null);
+  const weatherLine =
+    detail.location?.weatherSummary?.trim() ||
+    detail.context?.rainfallNote?.trim() ||
+    'Weather not available';
+  const maiosRoute = detail.maiosCase?.route;
+
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
       {error ? <AlertBox>{error}</AlertBox> : null}
+
+      <Panel title="Site visit">
+        <Text style={styles.body}>
+          Field cases should use the full site visit form (soil, weather, issues, recommendations).
+        </Text>
+        <Btn
+          label={openingVisit ? 'Opening visit…' : 'Start site visit'}
+          onPress={startSiteVisit}
+          disabled={openingVisit}
+        />
+      </Panel>
 
       <Panel title="Case detail">
         <KeyValueRow label="Farmer" value={detail.farmer?.name ?? detail.farmer?.phone ?? '—'} />
@@ -115,9 +180,15 @@ export default function CaseReviewScreen() {
         {detail.ai?.confidence != null ? (
           <KeyValueRow label="Confidence" value={`${Math.round(detail.ai.confidence * 100)}%`} />
         ) : null}
+        {maiosRoute ? <KeyValueRow label="MAIOS route" value={maiosRoute} /> : null}
         {detail.inquiry?.farmerQuestion ? (
           <Text style={styles.body}>Question: {detail.inquiry.farmerQuestion}</Text>
         ) : null}
+      </Panel>
+
+      <Panel title="Soil & weather used by AI">
+        <KeyValueRow label="Soil test" value={soilLine} />
+        <Text style={styles.weather}>{weatherLine}</Text>
       </Panel>
 
       {detail.images && detail.images.length > 0 ? (
@@ -133,7 +204,7 @@ export default function CaseReviewScreen() {
       ) : null}
 
       {canWrite ? (
-        <Panel title="Review decision">
+        <Panel title="Desk review (optional)">
           <View style={styles.actionRow}>
             {actions.map((a) => (
               <Pressable
@@ -179,7 +250,8 @@ const styles = StyleSheet.create({
   content: { padding: 16, paddingBottom: 32 },
   center: { flex: 1, padding: 16, justifyContent: 'center' },
   muted: { color: tokens.textMuted, textAlign: 'center' },
-  body: { fontSize: 14, color: tokens.text, marginTop: 8, lineHeight: 20 },
+  body: { fontSize: 14, color: tokens.text, marginTop: 8, marginBottom: 12, lineHeight: 20 },
+  weather: { fontSize: 14, color: tokens.text, marginTop: 8, lineHeight: 20 },
   photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   photo: { width: 88, height: 88, borderRadius: 8 },
   actionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },

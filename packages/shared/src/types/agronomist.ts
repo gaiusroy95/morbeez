@@ -67,8 +67,11 @@ export type AgronomistTaskItem = {
   status: string;
   farmerId?: string | null;
   leadId?: string | null;
+  blockId?: string | null;
   refId?: string;
   priority?: number | null;
+  /** When true, mobile should open the site-visit wizard (not desk AI case review). */
+  needsSiteVisit?: boolean;
 };
 
 export type AgronomistCallbackRow = {
