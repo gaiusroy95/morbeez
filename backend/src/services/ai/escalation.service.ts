@@ -4,6 +4,8 @@ import { computeConfidence, escalationReason, shouldEscalate } from './confidenc
 import type { AdvisoryLanguage, PlantIdHealthResult, StructuredAdvisory } from './types.js';
 import { blockService } from '../core/block.service.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
+import { expertCaseLifecycleService } from '../expert-case/expert-case-lifecycle.service.js';
+import { logger } from '../../lib/logger.js';
 
 export const OPEN_ESCALATION_STATUSES = ['pending', 'assigned', 'in_review'] as const;
 
@@ -45,6 +47,24 @@ export const escalationService = {
       .single();
 
     if (error) throw error;
+
+    if (expertCaseLifecycleService.enabled()) {
+      void expertCaseLifecycleService
+        .ensureFromAdvisory({
+          farmerId: params.farmerId,
+          sessionId: params.sessionId,
+          escalationId: String(data.id),
+          reason: params.reason,
+          issueLabel: params.reason,
+          priority,
+          confidence: params.confidence_at_escalation,
+          source: 'advisory_session',
+        })
+        .catch((err) =>
+          logger.warn({ err, escalationId: data.id }, 'Expert case dual-write failed')
+        );
+    }
+
     return { escalationId: data.id };
   },
 

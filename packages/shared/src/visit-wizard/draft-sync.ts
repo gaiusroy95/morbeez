@@ -1,7 +1,15 @@
 import type { VisitDraftPayload } from './index';
 
+export type VisitDraftSyncEnvelope = {
+  farmerId: string;
+  blockId: string;
+  currentStep: string;
+  wizardVersion: string;
+  payload: Omit<VisitDraftPayload, 'farmerId' | 'blockId' | 'currentStep' | 'wizardVersion'>;
+};
+
 export type DraftSyncClient = {
-  upsertVisitDraft(sessionId: string, body: Record<string, unknown>): Promise<unknown>;
+  upsertVisitDraft(sessionId: string, body: VisitDraftSyncEnvelope): Promise<unknown>;
 };
 
 const DEBOUNCE_MS = 800;
@@ -17,6 +25,19 @@ export function buildDraftPayload(
   };
 }
 
+export function buildDraftSyncEnvelope(
+  draft: VisitDraftPayload & { currentStep?: string }
+): VisitDraftSyncEnvelope {
+  const {
+    farmerId,
+    blockId,
+    currentStep = 'intakeTriage',
+    wizardVersion = 'v12',
+    ...payload
+  } = draft;
+  return { farmerId, blockId, currentStep, wizardVersion, payload };
+}
+
 export function scheduleServerDraftSync(
   sessionId: string,
   client: DraftSyncClient,
@@ -28,7 +49,7 @@ export function scheduleServerDraftSync(
     sessionId,
     setTimeout(() => {
       timers.delete(sessionId);
-      void client.upsertVisitDraft(sessionId, payload as unknown as Record<string, unknown>).catch(() => {
+      void client.upsertVisitDraft(sessionId, buildDraftSyncEnvelope(payload)).catch(() => {
         // best-effort
       });
     }, DEBOUNCE_MS)
@@ -45,5 +66,5 @@ export async function flushServerDraftSync(
     clearTimeout(existing);
     timers.delete(sessionId);
   }
-  await client.upsertVisitDraft(sessionId, payload as unknown as Record<string, unknown>);
+  await client.upsertVisitDraft(sessionId, buildDraftSyncEnvelope(payload));
 }

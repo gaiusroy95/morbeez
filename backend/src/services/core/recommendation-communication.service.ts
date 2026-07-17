@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, AppError } from '../../lib/errors.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { env } from '../../config/env.js';
+import { recommendationSafetyGateService } from '../safety/recommendation-safety-gate.service.js';
 import type { RecommendationStatus } from './recommendation-records.service.js';
 import { recommendationFollowUpService } from './recommendation-follow-up.service.js';
 
@@ -135,6 +136,10 @@ export const recommendationCommunicationService = {
       complianceNoAction?: 'escalate' | 'review';
     }
   ): Promise<{ sent: boolean; message?: string; reason?: string }> {
+    await recommendationSafetyGateService.assertAllowsApproval({
+      aggregateType: 'recommendation_record',
+      aggregateId: recommendationId,
+    });
     const { data, error } = await supabase
       .from('recommendation_records')
       .select(

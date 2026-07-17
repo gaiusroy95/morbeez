@@ -34,6 +34,8 @@ export * from './api/roi-helpers';
 export { buildTaxInvoiceHtml, TAX_INVOICE_CSS } from './print/tax-invoice-html';
 export type { TaxInvoiceCompany, TaxInvoiceRenderOptions } from './print/tax-invoice-html';
 export * from './visit-wizard/index';
+export * from './visit-assistant/index';
+export * from './expert-case/index';
 export * from './route-planner/index';
 export { addFarmerToTodayRoute } from './route-planner/add-to-route';
 export type { AddToRouteClients } from './route-planner/add-to-route';

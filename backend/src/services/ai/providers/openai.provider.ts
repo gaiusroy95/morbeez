@@ -201,6 +201,65 @@ export async function openaiJsonCompletion<T extends Record<string, unknown>>(
   return extractJsonObject(data.choices?.[0]?.message?.content ?? '{}') as T;
 }
 
+export type StrictJsonSchema = Record<string, unknown>;
+
+export async function openaiStrictJsonSchemaCompletion<T>(input: {
+  schemaName: string;
+  schema: StrictJsonSchema;
+  systemPrompt: string;
+  userPrompt: string;
+  validate: (value: unknown) => { ok: true; value: T } | { ok: false; errors: string[] };
+  maxTokens?: number;
+}): Promise<T> {
+  const model = env.OPENAI_TEXT_MODEL;
+  let repair: string | undefined;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await openaiFetch('/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        ...openaiTokenLimitBody(model, input.maxTokens ?? 2400),
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: input.schemaName,
+            strict: true,
+            schema: input.schema,
+          },
+        },
+        messages: [
+          { role: 'system', content: input.systemPrompt },
+          { role: 'user', content: repair ? `${input.userPrompt}\n\nREPAIR:\n${repair}` : input.userPrompt },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      const quota = parseOpenAiHttpError(res.status, text);
+      if (quota.isQuotaIssue) logOpenAiQuotaInsufficient('openai-strict-json', quota);
+      throw new AppError('OpenAI strict JSON completion failed', res.status, 'OPENAI_STRICT_JSON_FAILED', text);
+    }
+
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content ?? '';
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      repair = 'Your previous response was not a single valid JSON document. Return only schema-valid JSON.';
+      continue;
+    }
+    const validated = input.validate(parsed);
+    if (validated.ok) return validated.value;
+    repair = `Your previous JSON failed contract validation: ${validated.errors.slice(0, 8).join('; ')}. Correct it without inventing facts.`;
+  }
+
+  throw new AppError('OpenAI returned invalid strict JSON twice', 502, 'OPENAI_STRICT_JSON_INVALID');
+}
+
 /**
  * Vision + JSON completion (photos + text → arbitrary JSON schema).
  * Use for photo-calibrated refine / scoring — not crop-doctor StructuredAdvisory shape.

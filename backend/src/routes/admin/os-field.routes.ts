@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import type { VisitAssistantSnapshot } from '@morbeez/shared/visit-assistant';
 import { assertModuleAccess } from '../../lib/rbac.js';
 import { fieldPwaService } from '../../services/admin/field-pwa.service.js';
 import { fieldVisitService } from '../../services/admin/field-visit.service.js';
@@ -18,6 +19,9 @@ import { recommendationCommunicationService } from '../../services/core/recommen
 import { monitoringPlanService } from '../../services/core/monitoring-plan.service.js';
 import { visitPhotoValidationService } from '../../services/core/visit-photo-validation.service.js';
 import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
+import { visitAssistantService } from '../../services/agronomist/visit-assistant.service.js';
+import { visitAssistantRecommendationSafetyService } from '../../services/agronomist/visit-assistant-recommendation-safety.service.js';
+import { recommendationSafetyGateService } from '../../services/safety/recommendation-safety-gate.service.js';
 import { plotDigitalTwinService } from '../../services/intelligence/plot-digital-twin.service.js';
 import { recommendationOptimizerService } from '../../services/diagnosis/recommendation-optimizer.service.js';
 import { regionalThreatRadarService } from '../../services/intelligence/regional-threat-radar.service.js';
@@ -304,7 +308,13 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
   app.post(`${api}/visits/v2`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const body = structuredFieldVisitSchema.parse(request.body);
+    if (body.sessionId) {
+      await visitWizardDraftService.assertSessionOwner(body.sessionId, admin.email);
+    }
     const result = await fieldVisitService.submitStructuredVisit(body, admin.email);
+    if (body.sessionId) {
+      await visitWizardDraftService.markSubmitted(body.sessionId);
+    }
     return reply.status(201).send({ ok: true, ...result });
   });
 
@@ -313,6 +323,125 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
     const body = visitAiContextRequestSchema.parse(request.body);
     const context = await visitAiOrchestratorService.buildContext(body);
     return reply.send({ ok: true, context });
+  });
+
+  app.post(`${api}/visits/assistant/extract`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        blockId: z.string().uuid(),
+        sessionId: z.string().uuid().optional(),
+        snapshot: z
+          .object({
+            contractVersion: z.literal('visit-assistant/v1'),
+            revision: z.number().int().min(0),
+            messages: z.array(z.unknown()).max(100),
+            history: z.array(z.unknown()).max(100),
+            draft: z.object({
+              assessments: z.record(z.unknown()),
+              measurements: z.record(z.unknown()),
+              issues: z.array(z.unknown()).max(100),
+              recommendationGroups: z.array(z.unknown()).max(100),
+              monitoring: z.array(z.unknown()).max(100),
+              followUps: z.array(z.unknown()).max(100),
+              safetyConfirmation: z.unknown().nullable(),
+            }).passthrough(),
+          })
+          .passthrough(),
+        message: z.object({
+          id: z.string().trim().min(1).max(200),
+          content: z.string().trim().min(1).max(4_000),
+          createdAt: z.string().datetime(),
+        }),
+      })
+      .strict()
+      .parse(request.body);
+    if (body.sessionId) {
+      await visitWizardDraftService.assertSessionOwner(body.sessionId, admin.email);
+    }
+    const proposal = await visitAssistantService.extract({
+      ...body,
+      snapshot: body.snapshot as VisitAssistantSnapshot,
+    });
+    return reply.send({ ok: true, proposal });
+  });
+
+  app.post(`${api}/visits/assistant/validate-recommendations`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        blockId: z.string().uuid(),
+        sessionId: z.string().uuid().optional(),
+        cropType: z.string().trim().min(1).max(100).optional(),
+        dap: z.number().int().min(0).max(1000).nullable().optional(),
+        stage: z.string().trim().min(1).max(100).nullable().optional(),
+        weather: z
+          .object({
+            heavyRainLikely: z.boolean().optional(),
+            highHeatLikely: z.boolean().optional(),
+          })
+          .strict()
+          .optional(),
+        recommendationGroups: z
+          .array(
+            z.object({
+              localId: z.string().trim().min(1).max(200),
+              applicationType: z.string().max(100).optional(),
+              applicationDay: z.number().int().min(0).max(1000).optional(),
+              materials: z
+                .array(
+                  z.object({
+                    localId: z.string().trim().min(1).max(200),
+                    issueLocalId: z.string().max(200).optional(),
+                    category: z.string().max(100).optional(),
+                    technicalName: z.string().max(200).optional(),
+                    doseQuantity: z.string().max(100).optional(),
+                    doseUnit: z.enum(['KG', 'LTR', 'ML']).optional(),
+                    doseBasis: z.enum(['per_200_ltr_water', 'per_acre']).optional(),
+                    applicationMode: z.enum(['foliar', 'soil_application', 'drenching']).optional(),
+                  })
+                )
+                .max(30),
+            })
+          )
+          .max(30),
+      })
+      .strict()
+      .parse(request.body);
+    if (body.sessionId) {
+      await visitWizardDraftService.assertSessionOwner(body.sessionId, admin.email);
+    }
+    let weather = body.weather;
+    if (weather?.heavyRainLikely == null || weather.highHeatLikely == null) {
+      const environment = await visitEnvironmentService
+        .getEnvironment(body.farmerId, body.blockId)
+        .catch(() => null);
+      const forecast = environment?.weather.forecast;
+      weather = {
+        heavyRainLikely:
+          weather?.heavyRainLikely
+          ?? (typeof forecast?.heavyRainLikely === 'boolean'
+            ? forecast.heavyRainLikely
+            : undefined),
+        highHeatLikely:
+          weather?.highHeatLikely
+          ?? (typeof forecast?.highHeatLikely === 'boolean'
+            ? forecast.highHeatLikely
+            : undefined),
+      };
+    }
+    const validation = { ...body, weather };
+    const result = await visitAssistantRecommendationSafetyService.validate(validation);
+    const safetyDecision = await recommendationSafetyGateService.evaluate({
+      aggregateType: body.sessionId ? 'visit_session' : 'field_block_draft',
+      aggregateId: body.sessionId ?? body.blockId,
+      recommendationRevision: body.sessionId ?? `block:${body.blockId}`,
+      actorEmail: admin.email,
+      validation,
+    });
+    return reply.send({ ...result, safetyDecision });
   });
 
   app.get(`${api}/visits/environment`, async (request, reply) => {

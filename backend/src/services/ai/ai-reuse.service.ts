@@ -11,6 +11,7 @@ import {
 } from '../whatsapp/pipeline/crop-message-intent.service.js';
 import type { AdvisoryLanguage } from './types.js';
 import { buildQuestionReuseKeys, buildSymptomKey } from './question-reuse-keys.util.js';
+import { learningGovernanceService } from '../learning/learning-governance.service.js';
 
 export { buildSymptomKey, buildLooseSymptomKey } from './question-reuse-keys.util.js';
 
@@ -91,6 +92,24 @@ export const aiReuseService = {
 
     const crop = params.cropType.toLowerCase();
     const district = params.district?.toLowerCase() ?? null;
+
+    if (env.ENABLE_APPROVED_REUSE_MEMORY_READ) {
+      const approved = await learningGovernanceService.findApprovedReuse({
+        cropType: crop,
+        district,
+        symptomKey: params.symptomKey,
+      });
+      if (!approved) return null;
+      const payload = (approved.payload as Record<string, unknown>) ?? {};
+      if (!payload.advisory || typeof payload.advisory !== 'object') return null;
+      return {
+        id: String(approved.id),
+        sourceSessionId: String(approved.approved_version_id),
+        advisory: normalizeStructuredAdvisory(payload.advisory as StructuredAdvisory),
+        products: (payload.products ?? []) as DiagnoseResult['productRecommendations'],
+        issueLabel: String(payload.diagnosis ?? params.symptomKey),
+      };
+    }
 
     const buckets = [params.dapBucket, params.dapBucket - 15, params.dapBucket + 15].filter((b) => b >= 0);
 

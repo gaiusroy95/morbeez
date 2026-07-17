@@ -1,5 +1,6 @@
 import { logger } from '../../lib/logger.js';
 import { supabase } from '../../lib/supabase.js';
+import { env } from '../../config/env.js';
 import type { AdvisoryLanguage, StructuredAdvisory } from '../ai/types.js';
 import { aiReuseService, buildDapBucket } from '../ai/ai-reuse.service.js';
 import {
@@ -15,6 +16,7 @@ import {
 import { pickLatestOutput, textsLikelySame } from '../admin/case-review-inquiry.util.js';
 import { isAgricultureMessage } from '../whatsapp/pipeline/crop-message-intent.service.js';
 import { terminologyService } from '../whatsapp/scenarios/terminology.service.js';
+import { learningGovernanceService } from '../learning/learning-governance.service.js';
 
 const VERIFIED_CONFIDENCE = 0.88;
 
@@ -193,6 +195,51 @@ export const verifiedAdvisoryLearningService = {
       staffVerified: true;
       investigationPatterns?: PromoteVerifiedAnswerInput['investigationPattern'][];
     };
+
+    if (
+      env.ENABLE_LEARNING_CANDIDATE_SHADOW ||
+      env.DISABLE_LEGACY_AUTO_PROMOTION
+    ) {
+      const aggregateId = input.sessionId ?? input.farmerId;
+      const evidenceId = await learningGovernanceService.recordEvidence({
+        eventType: 'verified_advisory_correction',
+        sourceSurface: input.sourceType ?? 'ai_session',
+        aggregateType: input.sessionId ? 'ai_advisory_session' : 'farmer',
+        aggregateId,
+        actorEmail: input.verifiedBy,
+        farmerId: input.farmerId,
+        payload: {
+          cropType,
+          district,
+          issueLabel: input.issueLabel,
+          symptomKeys,
+          farmerSummaryEn: input.farmerSummaryEn,
+          farmerSummaryMl: input.farmerSummaryMl,
+          products: input.products ?? [],
+          advisory,
+        },
+        idempotencyKey: `verified-advisory:${aggregateId}:${buildSymptomKey(input.issueLabel)}`,
+      });
+      await learningGovernanceService.submitCandidate({
+        candidateType: 'verified_advisory',
+        claimKey: `${cropType}:${buildSymptomKey(input.issueLabel)}`,
+        payload: {
+          cropType,
+          district,
+          diagnosis: input.issueLabel,
+          symptomKey: buildSymptomKey(input.issueLabel),
+          farmerSummaryEn: input.farmerSummaryEn,
+          farmerSummaryMl: input.farmerSummaryMl,
+          products: input.products ?? [],
+        },
+        proposedBy: input.verifiedBy,
+        sourceEventIds: [evidenceId],
+        scope: input.global === false ? 'regional' : 'global',
+      });
+      if (env.DISABLE_LEGACY_AUTO_PROMOTION) {
+        return { symptomKeys, districts };
+      }
+    }
 
     const pattern =
       input.investigationPattern ?? session?.investigationPattern;

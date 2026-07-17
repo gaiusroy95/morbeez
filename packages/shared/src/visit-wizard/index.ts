@@ -10,11 +10,17 @@ import type {
 
   RecordSeverity,
 
+  RecommendationFollowed,
+
   SoilMoistureLevel,
 
   StructuredVisitIssueInput,
 
   VisitAiCaseStatus,
+
+  VisitClassification,
+
+  VisitFollowupOutcome,
 
   VisitPhotoInput,
 
@@ -170,8 +176,13 @@ export {
 } from './confidence-ui';
 export type { ConfidenceDistributionView } from './confidence-ui';
 
-export { buildDraftPayload, scheduleServerDraftSync, flushServerDraftSync } from './draft-sync';
-export type { DraftSyncClient } from './draft-sync';
+export {
+  buildDraftPayload,
+  buildDraftSyncEnvelope,
+  scheduleServerDraftSync,
+  flushServerDraftSync,
+} from './draft-sync';
+export type { DraftSyncClient, VisitDraftSyncEnvelope } from './draft-sync';
 
 export {
   isFieldLevelPhotoType,
@@ -908,7 +919,7 @@ export type VisitDraftPayload = {
   blockHealth?: BlockHealthLevel;
   cropPerformance?: CropPerformanceLevel;
   soilMoisture?: SoilMoistureLevel;
-  visitClassification?: string;
+  visitClassification?: VisitClassification;
   selectedCategories?: IssueCategory[];
   issues?: StructuredVisitIssueInput[];
   measurements?: Record<string, string>;
@@ -916,6 +927,20 @@ export type VisitDraftPayload = {
   recommendationGroups?: RecommendationGroupDraft[];
   monitoringPlan?: MonitoringPlanPreviewItem[];
   triage?: import('./step-flow.js').TriagePreview | null;
+  whatsappMessages?: WhatsappPreviewMessage[];
+  whatsappConfirmed?: boolean;
+  followUps?: Array<{
+    recommendationId: string;
+    label: string;
+    followed: RecommendationFollowed;
+    outcome: VisitFollowupOutcome;
+    notes: string;
+  }>;
+  selectedRecommendationOptionId?: string | null;
+  recApproved?: boolean;
+  latitude?: number;
+  longitude?: number;
+  assistantState?: Record<string, unknown>;
   confidenceThresholdReached?: boolean;
   savedAt: string;
 };

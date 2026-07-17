@@ -47,6 +47,7 @@ export default function VisitCommandScreen() {
         const block = d.farm_blocks as { name?: string; crop_type?: string } | null;
         const farmerId = String(d.farmer_id ?? '');
         const blockId = String(d.block_id ?? '');
+        const sessionId = String(d.session_id ?? '');
         return (
           <Pressable
             key={String(d.id)}
@@ -61,6 +62,7 @@ export default function VisitCommandScreen() {
                   blockName: block?.name ?? '',
                   cropType: block?.crop_type ?? '',
                   farmerName: farmer?.name ?? '',
+                  sessionId,
                 },
               });
             }}

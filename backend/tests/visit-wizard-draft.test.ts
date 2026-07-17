@@ -7,5 +7,6 @@ describe('visit wizard draft service', () => {
     assert.equal(typeof mod.visitWizardDraftService.upsert, 'function');
     assert.equal(typeof mod.visitWizardDraftService.listByAgent, 'function');
     assert.equal(typeof mod.visitWizardDraftService.getBySessionId, 'function');
+    assert.equal(typeof mod.visitWizardDraftService.markSubmitted, 'function');
   });
 });

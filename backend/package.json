@@ -22,6 +22,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@morbeez/shared": "file:../packages/shared",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.0",
     "@fastify/rate-limit": "^10.0.0",

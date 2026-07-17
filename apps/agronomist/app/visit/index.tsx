@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -35,6 +35,13 @@ import {
   type VisitClassification,
 } from '@morbeez/shared';
 import { AlertBox, Btn, KeyboardAwareScrollScreen, Loading, StickyScreenFooter, useStickyFooterScrollPadding } from '@morbeez/ui-native';
+import { VisitAssistantOverlay } from '@/components/visit-assistant/VisitAssistantOverlay';
+import {
+  emptyVisitAssistantState,
+  parseVisitAssistantState,
+  type VisitAssistantPersistedState,
+  type WizardAssistantPatch,
+} from '@/lib/visitAssistantBridge';
 import { FollowUpSection, type FollowUpDraft } from '@/components/field-findings/FollowUpSection';
 import { type IssueDraft } from '@/components/field-findings/IssueCard';
 import { VisitStepper, type VisitWizardStep } from '@/components/field-findings/VisitStepper';
@@ -57,7 +64,13 @@ import { VisitSummaryStep } from '@/components/field-findings/wizard/VisitSummar
 import { type VisitPhotoDraft, getVisitPhotoTypesForCrop, newIssueDraft, pickDefaultCategory } from '@/components/field-findings/wizard/types';
 import { useStaffAuth } from '@/context/StaffAuth';
 import { applyVisitPrefillContext } from '@/lib/applyVisitPrefill';
-import { clearVisitDraft, loadVisitDraft, saveVisitDraft } from '@/lib/visitDraft';
+import {
+  clearVisitDraft,
+  hydrateServerVisitDraft,
+  loadVisitDraft,
+  newestVisitDraft,
+  saveVisitDraft,
+} from '@/lib/visitDraft';
 import { ensureVisitPhotoBase64 } from '@/lib/prefillVisitPhotos';
 import { buildScreeningPrefetchKey, runVisitScreening } from '@/lib/visitScreening';
 
@@ -98,6 +111,7 @@ export default function VisitScreen() {
     recommendationId?: string;
     escalationId?: string;
     rectification?: string;
+    sessionId?: string;
   }>();
 
   const farmerId = String(params.farmerId ?? '');
@@ -108,6 +122,7 @@ export default function VisitScreen() {
   const recommendationId = params.recommendationId ? String(params.recommendationId) : '';
   const escalationId = params.escalationId ? String(params.escalationId) : '';
   const rectificationMode = params.rectification === '1' || Boolean(escalationId);
+  const requestedSessionId = params.sessionId ? String(params.sessionId) : '';
 
   const sessionRef = useRef<string | null>(null);
   const [step, setStep] = useState<VisitWizardStep>('intakeTriage');
@@ -167,6 +182,8 @@ export default function VisitScreen() {
   const [plotIntelSummary, setPlotIntelSummary] = useState<string | null>(null);
   const screeningPrefetchKeyRef = useRef<string | null>(null);
   const [screeningPrefetch, setScreeningPrefetch] = useState<Promise<IssueDraft[]> | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantState, setAssistantState] = useState<VisitAssistantPersistedState>(emptyVisitAssistantState);
 
   const buildScreeningParams = useCallback((): VisitScreeningParams | null => {
     if (!blockHealth || !cropPerformance || !soilMoisture || !visitPhotos.length) return null;
@@ -201,7 +218,7 @@ export default function VisitScreen() {
   ]);
 
   const persistDraft = useCallback(async () => {
-    if (!blockId || !farmerId) return;
+    if (loading || !blockId || !farmerId) return;
     const payload = buildDraftPayload({
       farmerId,
       blockId,
@@ -211,13 +228,21 @@ export default function VisitScreen() {
       cropPerformance: cropPerformance ?? undefined,
       soilMoisture: soilMoisture ?? undefined,
       selectedCategories: issues.map((i) => i.category),
-      issues: issues.map(({ localId, photosPreview, ...rest }) => rest),
+      issues: issues.map(({ localId, photosPreview, photos, ...rest }) => rest),
       measurements,
       recommendationGroups: recommendationGroups.length ? recommendationGroups : undefined,
       monitoringPlan: monitoringPlan.length ? monitoringPlan : undefined,
       triage: triage ?? undefined,
       fieldVoiceNote: fieldVoiceNote || undefined,
       visitClassification,
+      whatsappMessages: whatsappMessages.length ? whatsappMessages : undefined,
+      whatsappConfirmed,
+      followUps: followUps.length ? followUps : undefined,
+      selectedRecommendationOptionId: selectedRecOptionId,
+      recApproved,
+      latitude: gpsLat ?? undefined,
+      longitude: gpsLon ?? undefined,
+      assistantState,
     });
     await saveVisitDraft(blockId, payload);
     if (sessionRef.current) {
@@ -227,6 +252,7 @@ export default function VisitScreen() {
   }, [
     blockId,
     farmerId,
+    loading,
     step,
     blockHealth,
     cropPerformance,
@@ -238,6 +264,14 @@ export default function VisitScreen() {
     triage,
     fieldVoiceNote,
     visitClassification,
+    whatsappMessages,
+    whatsappConfirmed,
+    followUps,
+    selectedRecOptionId,
+    recApproved,
+    gpsLat,
+    gpsLon,
+    assistantState,
   ]);
 
   useEffect(() => {
@@ -251,19 +285,29 @@ export default function VisitScreen() {
 
     async function init() {
       try {
-        const [tpls, master, session, blockDetail, recs, plotIntel] = await Promise.all([
+        const sessionAndDraft = requestedSessionId
+          ? agronomistClient.getVisitDraft(requestedSessionId).then((result) => ({
+              sessionId: requestedSessionId,
+              serverDraft: hydrateServerVisitDraft(result.draft),
+            }))
+          : agronomistClient.startVisitSession({ farmerId, blockId }).then((session) => ({
+              sessionId: session.id,
+              serverDraft: null,
+            }));
+        const [tpls, master, resumed, blockDetail, recs, plotIntel, localDraft] = await Promise.all([
           agronomistClient.getMeasurementTemplates(cropType),
           agronomistClient.searchIssueMaster({ cropType: cropType.trim().toLowerCase() || undefined }),
-          agronomistClient.startVisitSession({ farmerId, blockId }),
+          sessionAndDraft,
           agronomistClient.getBlockDetail(farmerId, blockId).catch(() => null),
           agronomistClient.listFarmerRecommendations(farmerId, 20).catch(() => []),
           agronomistClient.getPlotIntelligence(blockId).catch(() => null),
+          loadVisitDraft(blockId),
         ]);
         if (cancelled) return;
 
         setTemplates(tpls);
         setIssueMaster(master);
-        sessionRef.current = session.id;
+        sessionRef.current = resumed.sessionId;
         setBlockDap(blockDetail?.block?.dap ?? null);
         setBlockStage(blockDetail?.block?.cropHealthLabel ?? null);
         setLatestSoilTest(blockDetail?.soilReports?.[0] ?? null);
@@ -277,15 +321,42 @@ export default function VisitScreen() {
           );
         }
 
-        setFollowUps(buildPriorRecommendationFollowUps(recs, blockId));
+        const defaultFollowUps = buildPriorRecommendationFollowUps(recs, blockId);
+        setFollowUps(defaultFollowUps);
 
-        const draft = await loadVisitDraft(blockId);
+        const serverDraft =
+          resumed.serverDraft?.farmerId === farmerId && resumed.serverDraft.blockId === blockId
+            ? resumed.serverDraft
+            : null;
+        const matchingLocalDraft =
+          localDraft?.farmerId === farmerId && localDraft.blockId === blockId ? localDraft : null;
+        const draft = newestVisitDraft(matchingLocalDraft, serverDraft);
         let restoredIssues = false;
-        if (draft && draft.farmerId === farmerId) {
+        if (draft) {
+          setStep(normalizeVisitWizardStep(draft.currentStep ?? 'intakeTriage'));
+          setDraftSavedAt(draft.savedAt);
           setBlockHealth(draft.blockHealth ?? null);
           setCropPerformance(draft.cropPerformance ?? null);
           setSoilMoisture(draft.soilMoisture ?? null);
           setMeasurements(draft.measurements ?? {});
+          setFieldVoiceNote(draft.fieldVoiceNote ?? '');
+          setRecommendationGroups(draft.recommendationGroups ?? []);
+          setMonitoringPlan(draft.monitoringPlan ?? []);
+          setTriage(draft.triage ?? null);
+          setVisitClassification(draft.visitClassification ?? (rectificationMode ? 'rectification' : 'first'));
+          setWhatsappMessages(draft.whatsappMessages ?? []);
+          setWhatsappConfirmed(draft.whatsappConfirmed ?? false);
+          setFollowUps(draft.followUps ?? defaultFollowUps);
+          setSelectedRecOptionId(draft.selectedRecommendationOptionId ?? null);
+          setRecApproved(draft.recApproved ?? false);
+          setGpsLat(draft.latitude ?? null);
+          setGpsLon(draft.longitude ?? null);
+          // Draft hydrate remaps issue localIds, so drop pending ops that may hold stale refs.
+          setAssistantState({
+            ...parseVisitAssistantState(draft.assistantState),
+            pendingProposal: null,
+            rejectedOperationIds: [],
+          });
           if (draft.issues?.length) {
             restoredIssues = true;
             setIssues(
@@ -362,7 +433,15 @@ export default function VisitScreen() {
     return () => {
       cancelled = true;
     };
-  }, [cropType, farmerId, blockId, recommendationId, escalationId]);
+  }, [
+    cropType,
+    farmerId,
+    blockId,
+    recommendationId,
+    escalationId,
+    requestedSessionId,
+    rectificationMode,
+  ]);
 
   useEffect(() => {
     if (!visitPhotos.length) {
@@ -604,6 +683,8 @@ export default function VisitScreen() {
         longitude: gpsLon ?? undefined,
       });
 
+      await clearVisitDraft(blockId);
+
       if (sessionRef.current) {
         await agronomistClient.checkOutVisitSession(sessionRef.current, {
           latitude: gpsLat ?? undefined,
@@ -611,8 +692,6 @@ export default function VisitScreen() {
           fieldFindingId: visitResult.findingId,
         });
       }
-
-      await clearVisitDraft(blockId);
 
       router.replace({
         pathname: '/visit/success',
@@ -630,6 +709,110 @@ export default function VisitScreen() {
     }
   }
 
+  const assistantWizard = useMemo(
+    () => ({
+      blockHealth,
+      cropPerformance,
+      soilMoisture,
+      visitClassification,
+      measurements,
+      fieldVoiceNote,
+      issues,
+      recommendationGroups,
+      monitoringPlan,
+      followUps,
+    }),
+    [
+      blockHealth,
+      cropPerformance,
+      soilMoisture,
+      visitClassification,
+      measurements,
+      fieldVoiceNote,
+      issues,
+      recommendationGroups,
+      monitoringPlan,
+      followUps,
+    ]
+  );
+
+  function applyAssistantPatch(patch: WizardAssistantPatch) {
+    setBlockHealth(patch.blockHealth);
+    setCropPerformance(patch.cropPerformance);
+    setSoilMoisture(patch.soilMoisture);
+    setVisitClassification(patch.visitClassification);
+    setMeasurements(patch.measurements);
+    setFieldVoiceNote(patch.fieldVoiceNote);
+    setIssues(patch.issues as IssueDraft[]);
+    setRecommendationGroups(patch.recommendationGroups);
+    setMonitoringPlan(patch.monitoringPlan);
+    setFollowUps(patch.followUps);
+    if (patch.clearRecApproved) setRecApproved(false);
+    const validationMessage = validateVisitWizardStep(activeStep(), {
+      ...validationContext(),
+      blockHealth: patch.blockHealth,
+      cropPerformance: patch.cropPerformance,
+      soilMoisture: patch.soilMoisture,
+      measurements: patch.measurements,
+      issues: patch.issues,
+      recommendationGroups: patch.recommendationGroups,
+      monitoringPlan: patch.monitoringPlan,
+      recApproved: patch.clearRecApproved ? false : recApproved,
+    });
+    setError(validationMessage ?? '');
+  }
+
+  function editRecommendationGroups(next: RecommendationGroupDraft[]) {
+    setRecommendationGroups(next);
+    setRecApproved(false);
+    setAssistantState((previous) => ({
+      ...previous,
+      safetyConfirmation: null,
+      recommendationValidation: null,
+    }));
+  }
+
+  async function changeRecApproved(approved: boolean) {
+    if (!approved) {
+      setRecApproved(false);
+      return;
+    }
+    const hasAssistantRecommendation = assistantState.filledKeys.some((key) =>
+      key.startsWith('recommendation.')
+    );
+    if (!hasAssistantRecommendation) {
+      setRecApproved(true);
+      return;
+    }
+
+    setRecApproved(false);
+    try {
+      const validation = await agronomistClient.validateVisitAssistantRecommendations({
+        farmerId,
+        blockId,
+        sessionId: sessionRef.current ?? undefined,
+        cropType: cropType || undefined,
+        dap: blockDap,
+        stage: blockStage,
+        recommendationGroups,
+      });
+      setAssistantState((previous) => ({
+        ...previous,
+        safetyConfirmation: null,
+        recommendationValidation: validation,
+      }));
+      if (validation.blockers.length) {
+        setError(validation.blockers.map((item) => item.message).join(' '));
+        setAssistantOpen(true);
+        return;
+      }
+      setError('');
+      setRecApproved(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not validate recommendation safety');
+    }
+  }
+
   if (loading) return <Loading label="Starting visit session…" />;
 
   const visibleSteps = getVisibleWizardSteps();
@@ -637,9 +820,22 @@ export default function VisitScreen() {
 
   return (
     <View style={styles.root}>
-      <VisitStepper current={activeStep()} />
+      <View style={styles.topBar}>
+        <View style={styles.topBarStepper}>
+          <VisitStepper current={activeStep()} />
+        </View>
+        <View style={styles.assistantBtn}>
+          <Btn label="Assistant" variant="secondary" onPress={() => setAssistantOpen(true)} />
+        </View>
+      </View>
       <KeyboardAwareScrollScreen contentContainerStyle={[styles.content, { paddingBottom: footerPad }]}>
         {error ? <AlertBox>{error}</AlertBox> : null}
+        {assistantState.filledKeys.length ? (
+          <Text style={styles.aiFilledHint}>
+            Assistant-filled fields: {assistantState.filledKeys.slice(0, 6).join(', ')}
+            {assistantState.filledKeys.length > 6 ? '…' : ''}
+          </Text>
+        ) : null}
 
         {step === 'intakeTriage' ? (
           <>
@@ -778,7 +974,7 @@ export default function VisitScreen() {
               cropType={cropType}
               issues={issues}
               groups={recommendationGroups}
-              onChange={setRecommendationGroups}
+              onChange={editRecommendationGroups}
             />
             <VisitEconomicOptimizerStep
               issueLabel={issues[0]?.finalDiagnosis ?? issues[0]?.issueName ?? 'Field issue'}
@@ -791,11 +987,11 @@ export default function VisitScreen() {
 
         {step === 'scheduleCompatibility' ? (
           <>
-            <VisitApplicationScheduleStep groups={recommendationGroups} onChange={setRecommendationGroups} />
+            <VisitApplicationScheduleStep groups={recommendationGroups} onChange={editRecommendationGroups} />
             <VisitRecApprovalStep
               groups={recommendationGroups}
               approved={recApproved}
-              onApprovedChange={(approved) => setRecApproved(approved)}
+              onApprovedChange={(approved) => void changeRecApproved(approved)}
             />
           </>
         ) : null}
@@ -870,12 +1066,41 @@ export default function VisitScreen() {
           </View>
         </View>
       </StickyScreenFooter>
+
+      <VisitAssistantOverlay
+        visible={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+        farmerId={farmerId}
+        blockId={blockId}
+        sessionId={sessionRef.current}
+        cropType={cropType}
+        dap={blockDap}
+        stage={blockStage}
+        wizard={assistantWizard}
+        assistantState={assistantState}
+        onAssistantStateChange={setAssistantState}
+        onApplyPatch={applyAssistantPatch}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 8,
+    paddingTop: 4,
+  },
+  topBarStepper: { flex: 1 },
+  assistantBtn: { paddingRight: 4 },
+  aiFilledHint: {
+    fontSize: 12,
+    color: tokens.textMuted,
+    marginBottom: 8,
+  },
   content: { padding: 16 },
   footerRow: { flexDirection: 'row', gap: 8 },
   footerBtn: { flex: 1 },

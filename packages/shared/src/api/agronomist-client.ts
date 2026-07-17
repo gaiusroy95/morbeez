@@ -40,11 +40,130 @@ import type {
 import type { FarmerCallLogSummary, FarmerInteractionRow } from '../types/interactions';
 import type { CultivationActivity } from '../types/activities';
 import type { PortalSoilReport } from '../types/farmer-portal';
+import type {
+  VisitAssistantProposalResponse,
+  VisitAssistantRecommendationValidationRequest,
+  VisitAssistantRecommendationValidationResult,
+  VisitAssistantSnapshot,
+} from '../visit-assistant/v1';
 
 const FIELD = `${STAFF_API_V1}/os/field`;
 const AGRO = `${STAFF_API_V1}/os/agronomist`;
 const TEL = `${STAFF_API_V1}/os/telecaller`;
+const EXPERT_CASES = `${STAFF_API_V1}/os/expert-cases`;
 const DASHBOARD_TTL_MS = 30_000;
+
+export type ExpertCaseAvailability = 'accepting' | 'paused' | 'draining' | 'offline';
+export type ExpertCasePriorityTier = 'emergency' | 'sla_risk' | 'standard';
+export type ExpertCaseAssignmentStatus =
+  | 'queued'
+  | 'offered'
+  | 'accepted'
+  | 'working'
+  | 'waiting_external'
+  | 'completed'
+  | 'intervention_required';
+
+export type ExpertCaseDraft = {
+  diagnosis?: string | null;
+  confidence?: number | null;
+  severity?: string | null;
+  recommendationText?: string | null;
+  dosage?: string | null;
+  followUpDays?: number | null;
+  recoveryStatus?: string | null;
+  knowledgeCandidate?: boolean;
+  notes?: string | null;
+  unresolvedFields?: string[];
+};
+
+export type ExpertCaseQueueItem = {
+  id: string;
+  farmer_id: string;
+  block_id?: string | null;
+  crop_type?: string | null;
+  primary_issue_label?: string | null;
+  status: string;
+  review_flag: string;
+  priority_tier: ExpertCasePriorityTier;
+  priority: 'urgent' | 'high' | 'normal' | 'low';
+  sla_due_at?: string | null;
+  owner_email?: string | null;
+  lease_token?: string | null;
+  lease_expires_at?: string | null;
+  assignment_status: ExpertCaseAssignmentStatus;
+  queue_route?: 'desk' | 'field';
+  queue_weight?: number;
+  queue_score?: number;
+  current_revision: number;
+  metadata?: Record<string, unknown>;
+  opened_at?: string;
+  updated_at?: string;
+};
+
+export type ExpertCaseCapacity = {
+  employee_email: string;
+  availability: ExpertCaseAvailability;
+  max_active_cases: number;
+  max_active_weight: number;
+  active_case_count: number;
+  active_weight: number;
+  paused_until?: string | null;
+  pause_reason?: string | null;
+};
+
+export type ExpertCaseQueue = {
+  enabled: boolean;
+  buckets: {
+    my_work: ExpertCaseQueueItem[];
+    available: ExpertCaseQueueItem[];
+    at_risk: ExpertCaseQueueItem[];
+    intervention: ExpertCaseQueueItem[];
+  };
+  capacity?: ExpertCaseCapacity;
+};
+
+export type ExpertCaseChatTurn = {
+  id: string;
+  case_id: string;
+  turn_index: number;
+  role: 'agronomist' | 'assistant' | 'system' | 'farmer';
+  content: string;
+  actor_email?: string | null;
+  base_revision?: number | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ExpertCasePendingDraft = {
+  id: string;
+  case_id: string;
+  base_revision: number;
+  draft_revision: number;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded' | 'safety_rejected';
+  draft_json: ExpertCaseDraft;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExpertCaseSafetyDecision = {
+  id: string;
+  decision: 'PASS' | 'UNRESOLVED' | 'REJECT' | 'OVERRIDDEN';
+  blockers?: Array<{ code?: string; message?: string }>;
+  warnings?: Array<{ code?: string; message?: string }>;
+  recommendation_revision: string;
+  created_at: string;
+};
+
+export type ExpertCaseDetail = {
+  enabled: boolean;
+  expertCase: ExpertCaseQueueItem;
+  revisions: Array<Record<string, unknown>>;
+  links: Array<Record<string, unknown>>;
+  turns: ExpertCaseChatTurn[];
+  draft: ExpertCasePendingDraft | null;
+  safety: ExpertCaseSafetyDecision | null;
+};
 
 export const agronomistClient = {
   async getDashboard(opts?: { force?: boolean }): Promise<AgronomistDashboard> {
@@ -233,6 +352,166 @@ export const agronomistClient = {
     const q = filter ? `?filter=${encodeURIComponent(filter)}` : '';
     const r = await staffApi<{ ok: boolean; tasks: AgronomistTaskItem[] }>(`${AGRO}/mobile/tasks${q}`);
     return dedupeBy(r.tasks ?? [], (t) => t.id);
+  },
+
+  async getExpertCaseQueue(): Promise<ExpertCaseQueue> {
+    const r = await staffApi<{ ok: boolean } & ExpertCaseQueue>(`${EXPERT_CASES}/queue`);
+    return {
+      enabled: Boolean(r.enabled),
+      buckets: {
+        my_work: r.buckets?.my_work ?? [],
+        available: r.buckets?.available ?? [],
+        at_risk: r.buckets?.at_risk ?? [],
+        intervention: r.buckets?.intervention ?? [],
+      },
+      capacity: r.capacity,
+    };
+  },
+
+  async updateExpertCapacity(body: {
+    availability: ExpertCaseAvailability;
+    reason?: string;
+    pausedUntil?: string | null;
+  }): Promise<void> {
+    await staffApi(`${EXPERT_CASES}/capacity`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getExpertCase(id: string): Promise<ExpertCaseDetail> {
+    return staffApi<ExpertCaseDetail & { ok: boolean }>(
+      `${EXPERT_CASES}/${encodeURIComponent(id)}`
+    );
+  },
+
+  async claimExpertCase(id: string, reason?: string) {
+    const r = await staffApi<{
+      ok: boolean;
+      ownership: { caseId: string; leaseToken: string; leaseExpiresAt: string };
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/claim`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+    return r.ownership;
+  },
+
+  async heartbeatExpertCase(id: string, leaseToken: string) {
+    const r = await staffApi<{
+      ok: boolean;
+      lease: { leaseExpiresAt: string };
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/heartbeat`, {
+      method: 'POST',
+      body: JSON.stringify({ leaseToken }),
+    });
+    return r.lease;
+  },
+
+  async releaseExpertCase(
+    id: string,
+    body: { leaseToken?: string; reason?: string; interruption?: boolean } = {}
+  ): Promise<void> {
+    await staffApi(`${EXPERT_CASES}/${encodeURIComponent(id)}/release`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async getExpertCaseChat(id: string) {
+    return staffApi<{
+      ok: boolean;
+      enabled: boolean;
+      turns: ExpertCaseChatTurn[];
+      draft: ExpertCasePendingDraft | null;
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/chat`);
+  },
+
+  async postExpertCaseChat(id: string, content: string, leaseToken?: string | null) {
+    return staffApi<{
+      ok: boolean;
+      agronomistTurn: ExpertCaseChatTurn;
+      assistantTurn: ExpertCaseChatTurn;
+      draft: ExpertCaseDraft;
+      clarification: string | null;
+      baseRevision: number;
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ content, leaseToken }),
+    });
+  },
+
+  async approveExpertCaseDraft(
+    id: string,
+    body: {
+      leaseToken?: string | null;
+      expectedBaseRevision: number;
+      draftPatch?: ExpertCaseDraft;
+    }
+  ) {
+    return staffApi<{
+      ok: boolean;
+      draft: ExpertCaseDraft;
+      draftId: string;
+      baseRevision: number;
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/draft/approve`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async evaluateExpertCaseSafety(
+    id: string,
+    body: {
+      recommendationRevision: string;
+      validation: VisitAssistantRecommendationValidationRequest;
+      unstructured?: {
+        recommendationText?: string | null;
+        dosage?: string | null;
+        cropType?: string | null;
+        applicationType?: string | null;
+      };
+    }
+  ) {
+    return staffApi<{
+      ok: boolean;
+      result: {
+        decision: ExpertCaseSafetyDecision['decision'];
+        decisionId: string;
+        blockers: Array<{ code?: string; message?: string }>;
+        warnings: Array<{ code?: string; message?: string }>;
+      };
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/safety`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+
+  async commitExpertCase(
+    id: string,
+    body: {
+      idempotencyKey: string;
+      leaseToken?: string | null;
+      expectedRevision: number;
+      draft: ExpertCaseDraft;
+      safetyDecisionId?: string | null;
+      closeCase?: boolean;
+      summary?: Record<string, unknown>;
+    }
+  ) {
+    return staffApi<{
+      ok: boolean;
+      result: {
+        commandId: string;
+        caseId: string;
+        revision: number;
+        closed: boolean;
+        communicationIntentId?: string | null;
+        knowledgeCandidateId?: string | null;
+      };
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/commit`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
 
   async listCallbacks(): Promise<AgronomistCallbackRow[]> {
@@ -467,6 +746,29 @@ export const agronomistClient = {
   async submitStructuredVisit(body: StructuredFieldVisitPayload) {
     return staffApi<{ ok: boolean; findingId: string; recommendationIds: string[] }>(
       `${FIELD}/visits/v2`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+  },
+
+  async extractVisitAssistantProposal(body: {
+    farmerId: string;
+    blockId: string;
+    sessionId?: string;
+    snapshot: VisitAssistantSnapshot;
+    message: { id: string; content: string; createdAt: string };
+  }): Promise<VisitAssistantProposalResponse> {
+    const r = await staffApi<{ ok: boolean; proposal: VisitAssistantProposalResponse }>(
+      `${FIELD}/visits/assistant/extract`,
+      { method: 'POST', body: JSON.stringify(body) }
+    );
+    return r.proposal;
+  },
+
+  async validateVisitAssistantRecommendations(
+    body: VisitAssistantRecommendationValidationRequest
+  ): Promise<VisitAssistantRecommendationValidationResult> {
+    return staffApi<VisitAssistantRecommendationValidationResult>(
+      `${FIELD}/visits/assistant/validate-recommendations`,
       { method: 'POST', body: JSON.stringify(body) }
     );
   },

@@ -1,30 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type {
-  BlockHealthLevel,
-  CropPerformanceLevel,
-  IssueCategory,
-  SoilMoistureLevel,
-  StructuredVisitIssueInput,
-} from '@morbeez/shared';
+import type { VisitDraft } from './visitDraftRecovery';
+export {
+  hydrateServerVisitDraft,
+  newestVisitDraft,
+  type VisitDraft,
+} from './visitDraftRecovery';
 
 const PREFIX = 'agronomist_visit_draft_';
 
-export type VisitDraft = {
-  farmerId: string;
-  blockId: string;
-  sessionId?: string;
-  blockHealth?: BlockHealthLevel;
-  cropPerformance?: CropPerformanceLevel;
-  soilMoisture?: SoilMoistureLevel;
-  selectedCategories?: IssueCategory[];
-  issues?: StructuredVisitIssueInput[];
-  measurements?: Record<string, string>;
-  savedAt: string;
-};
-
 export async function saveVisitDraft(blockId: string, draft: VisitDraft): Promise<void> {
   try {
-    await AsyncStorage.setItem(PREFIX + blockId, JSON.stringify({ ...draft, savedAt: new Date().toISOString() }));
+    await AsyncStorage.setItem(PREFIX + blockId, JSON.stringify(draft));
   } catch {
     // Draft persistence is best-effort; a missing native module must not crash the visit flow.
   }

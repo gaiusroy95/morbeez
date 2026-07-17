@@ -325,6 +325,79 @@ const envSchema = z.object({
   AI_DAILY_VOICE_LIMIT_FREE: coerceEnvInt(5),
   AI_DAILY_VOICE_LIMIT_PREMIUM: coerceEnvInt(30),
 
+  /** Expert Copilot Domain 3 — canonical cases (shadow dual-write by default). */
+  ENABLE_EXPERT_CASES: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_CASE_DEDUPE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_CASE_OWNERSHIP: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_CASE_VERSION_LOCK: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_CASE_RECURRENCE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_COPILOT_QUEUE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_COPILOT_AUTO_ASSIGN: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_COPILOT_LEASE_REAPER: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_COPILOT_CHAT: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENFORCE_SERVER_RECOMMENDATION_SAFETY: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_EXPERT_COMMIT_RPCS: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_LEARNING_CANDIDATE_SHADOW: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  DISABLE_LEGACY_AUTO_PROMOTION: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_APPROVED_REUSE_MEMORY_READ: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENFORCE_GOVERNANCE_AUDIT: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_REVIEWER_RISK_MONITORING: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  EXPERT_CASE_LEASE_SECONDS: coerceEnvInt(900),
+  EXPERT_CASE_RECURRENCE_DAYS: coerceEnvInt(14),
+  EXPERT_CASE_INTERRUPTION_LIMIT: coerceEnvInt(2),
+
   GSC_SITE_URL: z.string().url().optional(),
   GSC_CLIENT_ID: z.string().optional(),
   GSC_CLIENT_SECRET: z.string().optional(),
