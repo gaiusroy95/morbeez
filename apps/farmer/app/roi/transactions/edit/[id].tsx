@@ -11,6 +11,7 @@ import {
 } from '@morbeez/shared';
 import { AlertBox, Loading, TextField } from '@morbeez/ui-native';
 import { StickySaveBar } from '@/components/roi/RoiFormFields';
+import { FarmConfirmedSourceMeta } from '@/components/FarmConfirmedSourceMeta';
 import { useLocale } from '@/context/LocaleContext';
 
 export default function EditTransactionScreen() {
@@ -75,6 +76,13 @@ export default function EditTransactionScreen() {
             <Text style={styles.meta}>
               {row.type === 'income' ? t('totalIncome', locale) : t('spent', locale)} · {formatInr(row.amountInr)}
             </Text>
+            <FarmConfirmedSourceMeta
+              input={row}
+              locale={locale}
+              kind="roi"
+              id={row.id}
+              label={row.label}
+            />
           </>
         ) : null}
         <TextField label={t('amount', locale)} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />

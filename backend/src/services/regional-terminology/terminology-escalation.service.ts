@@ -3,9 +3,15 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import { terminologyConceptSuggestService } from './terminology-concept-suggest.service.js';
 
+function normalizeNullableScope(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 export const terminologyEscalationService = {
   /**
    * Stage 4 — create or bump priority for unknown regional word (does not guess meaning).
+   * Open-task dedupe is scoped by term + language + district + crop.
    */
   async escalateUnknown(params: {
     farmerId: string;
@@ -18,14 +24,25 @@ export const terminologyEscalationService = {
   }): Promise<{ taskId: string; created: boolean }> {
     const term = params.unknownWord.trim().slice(0, 120);
     const termKey = term.toLowerCase();
+    const language = params.language;
+    const cropType = normalizeNullableScope(params.cropType);
+    const district = normalizeNullableScope(params.district);
 
-    const { data: existing } = await supabase
+    let existingQuery = supabase
       .from('terminology_review_tasks')
-      .select('id, occurrence_count, priority_score')
+      .select('id, occurrence_count, priority_score, language, crop_type, district')
       .eq('term', termKey)
-      .in('status', ['open', 'in_review'])
-      .limit(1)
-      .maybeSingle();
+      .eq('language', language)
+      .in('status', ['open', 'in_review']);
+
+    existingQuery = cropType
+      ? existingQuery.eq('crop_type', cropType)
+      : existingQuery.is('crop_type', null);
+    existingQuery = district
+      ? existingQuery.eq('district', district)
+      : existingQuery.is('district', null);
+
+    const { data: existing } = await existingQuery.limit(1).maybeSingle();
 
     if (existing?.id) {
       const count = Number(existing.occurrence_count ?? 1) + 1;
@@ -40,7 +57,7 @@ export const terminologyEscalationService = {
         .select('id')
         .single();
       throwIfSupabaseError(error, 'Could not update terminology escalation');
-      await this.recordPattern(params.farmerId, termKey, params.language);
+      await this.recordPattern(params.farmerId, termKey, language);
       return { taskId: String(data?.id ?? existing.id), created: false };
     }
 
@@ -51,9 +68,9 @@ export const terminologyEscalationService = {
         term: termKey,
         unknown_word: term,
         raw_message: params.rawMessage.slice(0, 500),
-        language: params.language,
-        crop_type: params.cropType ?? null,
-        district: params.district ?? null,
+        language,
+        crop_type: cropType,
+        district,
         employee_id: params.employeeId ?? null,
         context_text: params.rawMessage.slice(0, 500),
         status: 'open',
@@ -65,7 +82,7 @@ export const terminologyEscalationService = {
       .single();
 
     throwIfSupabaseError(error, 'Could not create terminology escalation');
-    await this.recordPattern(params.farmerId, termKey, params.language);
+    await this.recordPattern(params.farmerId, termKey, language);
     await terminologyConceptSuggestService.attachSuggestionToTask(String(data!.id)).catch(() => {});
     return { taskId: String(data!.id), created: true };
   },

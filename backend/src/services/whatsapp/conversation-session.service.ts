@@ -26,6 +26,9 @@ export type ConversationState =
   | 'roi_set_pin'
   | 'roi_edit_pin'
   | 'roi_edit_amount'
+  | 'farm_activity_draft'
+  | 'farm_activity_clarify'
+  | 'farm_activity_confirm'
   | 'farmer_feedback_capture'
   | 'human_takeover';
 
@@ -39,6 +42,8 @@ export interface ConversationSession {
   ai_paused: boolean;
   last_menu_at: string | null;
   last_ai_at: string | null;
+  active_plot_id?: string | null;
+  active_block_id?: string | null;
   context: SessionContext;
 }
 

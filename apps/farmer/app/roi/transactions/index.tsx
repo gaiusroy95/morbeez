@@ -12,6 +12,8 @@ import {
 import {AlertBox, Btn, HubTabs, Loading, stableRowKey } from '@morbeez/ui-native';
 import { useRoiFilter } from '@/context/RoiFilterContext';
 import { useLocale } from '@/context/LocaleContext';
+import { FarmConfirmedSourceMeta } from '@/components/FarmConfirmedSourceMeta';
+import { presentFarmConfirmedActions } from '@/lib/farm-confirmed-actions';
 
 type TxFilter = 'all' | 'expense' | 'income';
 
@@ -46,6 +48,16 @@ export default function TransactionsScreen() {
   }, [load]);
 
   function onRowPress(item: TransactionRow) {
+    const handled = presentFarmConfirmedActions({
+      input: item,
+      locale,
+      kind: 'roi',
+      id: item.id,
+      label: item.label,
+      onEdit: () => router.push(`/roi/transactions/edit/${item.id}`),
+    });
+    if (handled) return;
+
     Alert.alert(item.label, undefined, [
       { text: t('cancel', locale), style: 'cancel' },
       {
@@ -101,6 +113,14 @@ export default function TransactionsScreen() {
             <View style={styles.main}>
               <Text style={styles.label}>{item.label}</Text>
               <Text style={styles.meta}>{item.dateLabel}</Text>
+              <FarmConfirmedSourceMeta
+                input={item}
+                locale={locale}
+                kind="roi"
+                id={item.id}
+                label={item.label}
+                onEdit={() => router.push(`/roi/transactions/edit/${item.id}`)}
+              />
             </View>
             <Text style={[styles.amt, item.type === 'income' ? styles.income : styles.expense]}>
               {item.type === 'income' ? '+' : '-'}

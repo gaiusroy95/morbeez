@@ -27,6 +27,20 @@ type RoiEntry = {
   creditInr: number | null;
   staffEditUsed: boolean;
   staffEditedBy: string | null;
+  activityId?: string | null;
+  activity_id?: string | null;
+  sourceActivityId?: string | null;
+  source_activity_id?: string | null;
+  source?: string | null;
+  sourceType?: string | null;
+  source_type?: string | null;
+  sourceMessageId?: string | null;
+  source_message_id?: string | null;
+  seasonId?: string | null;
+  season_id?: string | null;
+  linkedActivity?: { id?: string; label?: string | null; activityLabel?: string | null } | null;
+  linked_activity?: { id?: string; label?: string | null; activity_label?: string | null } | null;
+  season?: { id?: string; name?: string | null; seasonName?: string | null } | null;
 };
 
 type Props = {
@@ -35,6 +49,50 @@ type Props = {
 };
 
 const CATEGORIES = ['labour', 'purchase', 'misc', 'harvest', 'income'] as const;
+
+function RoiProvenance({ entry }: { entry: RoiEntry }) {
+  const activity = entry.linkedActivity ?? entry.linked_activity;
+  const activityId =
+    activity?.id ??
+    entry.activityId ??
+    entry.activity_id ??
+    entry.sourceActivityId ??
+    entry.source_activity_id;
+  const activityLabel = activity
+    ? (('activityLabel' in activity ? activity.activityLabel : undefined) ??
+        ('activity_label' in activity ? activity.activity_label : undefined) ??
+        activity.label)
+    : null;
+  const source = entry.sourceType ?? entry.source_type ?? entry.source;
+  const sourceMessageId = entry.sourceMessageId ?? entry.source_message_id;
+  const seasonId = entry.season?.id ?? entry.seasonId ?? entry.season_id;
+  const seasonName = entry.season?.name ?? entry.season?.seasonName;
+
+  if (!activityId && !source && !sourceMessageId && !seasonId) return <span>—</span>;
+  return (
+    <div className="space-y-1 text-xs">
+      {activityId ? (
+        <div>
+          <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700">
+            Linked activity
+          </span>
+          <div className="mt-1 max-w-[180px] truncate" title={activityId}>
+            {activityLabel || activityId}
+          </div>
+        </div>
+      ) : null}
+      {source ? <div className="text-ink-secondary">Source: {source.replace(/_/g, ' ')}</div> : null}
+      {sourceMessageId ? (
+        <div className="max-w-[180px] truncate font-mono text-[10px] text-ink-tertiary" title={sourceMessageId}>
+          Message {sourceMessageId}
+        </div>
+      ) : null}
+      {seasonId ? (
+        <div className="text-ink-secondary" title={seasonId}>Season: {seasonName || seasonId}</div>
+      ) : null}
+    </div>
+  );
+}
 
 export function RoiTrackerTab({ leadId, canWrite }: Props) {
   const base = '/morbeez-staff/api/v1/os/telecaller';
@@ -147,6 +205,7 @@ export function RoiTrackerTab({ leadId, canWrite }: Props) {
                   <Th>Comments</Th>
                   <Th>Expense</Th>
                   <Th>Income</Th>
+                  <Th>Provenance</Th>
                   <Th>Edited</Th>
                   {canWrite ? <Th /> : null}
                 </tr>
@@ -159,6 +218,7 @@ export function RoiTrackerTab({ leadId, canWrite }: Props) {
                     <Td className="max-w-[200px] truncate">{row.comments ?? '—'}</Td>
                     <Td>{row.debitInr != null ? `₹${row.debitInr}` : '—'}</Td>
                     <Td>{row.creditInr != null ? `₹${row.creditInr}` : '—'}</Td>
+                    <Td><RoiProvenance entry={row} /></Td>
                     <Td className="text-xs">
                       {row.staffEditUsed ? `Yes (${row.staffEditedBy ?? 'staff'})` : '—'}
                     </Td>

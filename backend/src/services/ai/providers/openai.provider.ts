@@ -260,6 +260,100 @@ export async function openaiStrictJsonSchemaCompletion<T>(input: {
   throw new AppError('OpenAI returned invalid strict JSON twice', 502, 'OPENAI_STRICT_JSON_INVALID');
 }
 
+export async function openaiStrictJsonSchemaMediaCompletion<T>(input: {
+  schemaName: string;
+  schema: StrictJsonSchema;
+  systemPrompt: string;
+  userPrompt: string;
+  mediaBase64: string;
+  mimeType: string;
+  fileName?: string;
+  validate: (value: unknown) => { ok: true; value: T } | { ok: false; errors: string[] };
+  maxTokens?: number;
+}): Promise<T> {
+  const model = env.OPENAI_VISION_MODEL;
+  const isPdf = input.mimeType === 'application/pdf';
+  const mediaPart = isPdf
+    ? {
+        type: 'file' as const,
+        file: {
+          filename: input.fileName?.trim() || 'invoice.pdf',
+          file_data: `data:application/pdf;base64,${input.mediaBase64}`,
+        },
+      }
+    : {
+        type: 'image_url' as const,
+        image_url: {
+          url: `data:${input.mimeType};base64,${input.mediaBase64}`,
+          detail: 'high' as const,
+        },
+      };
+  let repair: string | undefined;
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const res = await openaiFetch('/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        ...openaiTokenLimitBody(model, input.maxTokens ?? 3200),
+        response_format: {
+          type: 'json_schema',
+          json_schema: {
+            name: input.schemaName,
+            strict: true,
+            schema: input.schema,
+          },
+        },
+        messages: [
+          { role: 'system', content: input.systemPrompt },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: repair ? `${input.userPrompt}\n\nREPAIR:\n${repair}` : input.userPrompt,
+              },
+              mediaPart,
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      const quota = parseOpenAiHttpError(res.status, text);
+      if (quota.isQuotaIssue) logOpenAiQuotaInsufficient('openai-strict-json-media', quota);
+      throw new AppError(
+        'OpenAI strict JSON media completion failed',
+        res.status,
+        'OPENAI_STRICT_JSON_MEDIA_FAILED',
+        text
+      );
+    }
+
+    const data = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content ?? '';
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      repair = 'Your previous response was not a single valid JSON document. Return only schema-valid JSON.';
+      continue;
+    }
+    const validated = input.validate(parsed);
+    if (validated.ok) return validated.value;
+    repair = `Your previous JSON failed contract validation: ${validated.errors.slice(0, 8).join('; ')}. Correct it without inventing facts.`;
+  }
+
+  throw new AppError(
+    'OpenAI returned invalid strict media JSON twice',
+    502,
+    'OPENAI_STRICT_JSON_MEDIA_INVALID'
+  );
+}
+
 /**
  * Vision + JSON completion (photos + text → arbitrary JSON schema).
  * Use for photo-calibrated refine / scoring — not crop-doctor StructuredAdvisory shape.

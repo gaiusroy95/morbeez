@@ -50,6 +50,8 @@ import {
 import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappScenarioRouter } from '../scenarios/whatsapp-scenario-router.service.js';
 import { farmerFeedbackFlowService } from '../scenarios/farmer-feedback-flow.service.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
+import { farmActivityInvoiceEvidenceService } from '../../farm-activity/farm-activity-invoice-evidence.service.js';
 import {
   nutrientSoilGateService,
   soilGatePreface,
@@ -883,6 +885,30 @@ export const whatsappInboundPipeline = {
     );
 
     const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+    if (
+      farmActivityAssistantService.voiceEnabled() &&
+      send &&
+      transcript?.trim() &&
+      (
+        farmActivityAssistantService.isFarmActivityState(session.state) ||
+        farmActivityAssistantService.looksLikeIntent(transcript)
+      )
+    ) {
+      const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+        farmerId: captured.farmerId,
+        phone: captured.phone,
+        language: captured.language,
+        text: transcript.trim(),
+        messageId: msg.messageId,
+        sessionState: session.state,
+        send,
+        modality: 'voice',
+        transcript: transcript.trim(),
+        conversationSessionId: session.id,
+        blockId: session.active_block_id ?? null,
+      });
+      if (farmHandled) return;
+    }
     if (session.state === 'farmer_feedback_capture' && send && transcript?.trim()) {
       const handled = await farmerFeedbackFlowService.tryHandleCapture({
         farmerId: captured.farmerId,
@@ -937,6 +963,46 @@ export const whatsappInboundPipeline = {
           : 'We could not load your photo. Please send the image again in a moment.'
       );
       return;
+    }
+
+    const invoiceCaption = (msg.text ?? '').trim();
+    const looksLikeInvoice =
+      env.ENABLE_FARM_ACTIVITY_ASSISTANT &&
+      env.ENABLE_FARM_ACTIVITY_INVOICE_OCR &&
+      (/invoice|receipt|bill|രസീത്|ബിൽ|चालान|ರಸೀದಿ|ரசீது/i.test(invoiceCaption) ||
+        /document/i.test(msg.msgType));
+    if (looksLikeInvoice && media.imageBase64 && senders) {
+      try {
+        const buffer = Buffer.from(media.imageBase64, 'base64');
+        const invoice = await farmActivityInvoiceEvidenceService.extract({
+          farmerId: captured.farmerId,
+          source: {
+            messageId: msg.messageId,
+            channel: 'whatsapp',
+            text: invoiceCaption || undefined,
+          },
+          media: {
+            kind: /pdf/i.test(media.imageMimeType ?? '') ? 'pdf' : 'image',
+            mimeType: media.imageMimeType ?? 'image/jpeg',
+            buffer,
+            mediaId: msg.messageId,
+          },
+        });
+        if (invoice.ok) {
+          const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+          const handled = await farmActivityAssistantService.presentInvoiceDraft({
+            farmerId: captured.farmerId,
+            phone: captured.phone,
+            language: captured.language,
+            send: senders,
+            invoice,
+            conversationSessionId: session.id,
+          });
+          if (handled) return;
+        }
+      } catch (err) {
+        logger.warn({ err, farmerId: captured.farmerId }, 'Farm activity invoice OCR path failed');
+      }
     }
 
     if (!media.imageBase64) {

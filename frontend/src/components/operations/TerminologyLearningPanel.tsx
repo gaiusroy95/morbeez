@@ -30,6 +30,12 @@ type TermTask = {
   confidence_score?: number | null;
   status: string;
   source_channel?: string | null;
+  audio_url?: string | null;
+  audioUrl?: string | null;
+  transcript?: string | null;
+  source_transcript?: string | null;
+  source_context?: string | null;
+  sourceContext?: string | null;
   farmers?: { phone: string; name: string | null; district: string | null };
 };
 
@@ -47,6 +53,7 @@ type LearnedTerm = {
   language: string;
   meaning: string;
   standardTerm: string | null;
+  cropType?: string | null;
   district: string | null;
   state: string | null;
   status: string;
@@ -57,6 +64,13 @@ type LearnedTerm = {
   conceptCode: string | null;
   conceptCategory: string | null;
   aliases: Array<{ alias: string; language: string }>;
+  sourceContext?: string | null;
+  source_context?: string | null;
+  audioUrl?: string | null;
+  audio_url?: string | null;
+  transcript?: string | null;
+  sourceTranscript?: string | null;
+  source_transcript?: string | null;
 };
 
 type Section = 'pending' | 'learned';
@@ -97,6 +111,7 @@ export function TerminologyLearningPanel({
   const [termForm, setTermForm] = useState({
     term: '',
     language: 'ml',
+    cropType: '',
     district: '',
     state: '',
     meaning: '',
@@ -195,6 +210,7 @@ export function TerminologyLearningPanel({
     setTermForm({
       term: term.term,
       language: term.language,
+      cropType: term.cropType ?? '',
       district: term.district ?? '',
       state: term.state ?? '',
       meaning: term.meaning,
@@ -486,6 +502,20 @@ export function TerminologyLearningPanel({
             </button>
           </div>
           <div className="flex-1 space-y-3 overflow-y-auto p-4">
+            <CandidateSourceContext
+              contextText={
+                termDrawer.sourceContext ??
+                termDrawer.source_context ??
+                null
+              }
+              audioUrl={termDrawer.audioUrl ?? termDrawer.audio_url ?? null}
+              transcript={
+                termDrawer.transcript ??
+                termDrawer.sourceTranscript ??
+                termDrawer.source_transcript ??
+                null
+              }
+            />
             <Field label="Regional term">
               <input className={inputClass} value={termForm.term} onChange={(e) => setTermForm((f) => ({ ...f, term: e.target.value }))} />
             </Field>
@@ -527,9 +557,25 @@ export function TerminologyLearningPanel({
                 />
               </Field>
             </div>
-            <Field label="District">
-              <input className={inputClass} value={termForm.district} onChange={(e) => setTermForm((f) => ({ ...f, district: e.target.value }))} />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Crop scope">
+                {termDrawer.cropType != null || termForm.cropType ? (
+                  <input
+                    className={`${inputClass} bg-slate-50`}
+                    value={termForm.cropType || '—'}
+                    readOnly
+                    title="Crop is returned by the API but is not editable without a backend change"
+                  />
+                ) : (
+                  <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-500">
+                    Crop scope not provided by API
+                  </p>
+                )}
+              </Field>
+              <Field label="District scope">
+                <input className={inputClass} value={termForm.district} onChange={(e) => setTermForm((f) => ({ ...f, district: e.target.value }))} />
+              </Field>
+            </div>
             <Field label="State">
               <input className={inputClass} value={termForm.state} onChange={(e) => setTermForm((f) => ({ ...f, state: e.target.value }))} />
             </Field>
@@ -593,6 +639,20 @@ function MappingForm({
       <p className="text-sm">
         Regional term: <strong>{mapModal.unknown_word ?? mapModal.term}</strong>
       </p>
+      <CandidateSourceContext
+        contextText={
+          mapModal.sourceContext ??
+          mapModal.source_context ??
+          mapModal.context_text ??
+          mapModal.raw_message ??
+          null
+        }
+        audioUrl={mapModal.audioUrl ?? mapModal.audio_url ?? null}
+        transcript={mapModal.transcript ?? mapModal.source_transcript ?? null}
+        cropType={mapModal.crop_type}
+        district={mapModal.district}
+        language={mapModal.language}
+      />
       {mapModal.ai_suggested_concept_name ? (
         <p className="rounded bg-sky-50 px-3 py-2 text-xs text-sky-900">
           AI suggests: <strong>{mapModal.ai_suggested_concept_name}</strong>
@@ -652,6 +712,65 @@ function MappingForm({
       <Field label="Aliases / synonyms (one per line)">
         <textarea className={inputClass} rows={2} value={mapForm.aliases} onChange={(e) => setMapForm((f) => ({ ...f, aliases: e.target.value }))} />
       </Field>
+    </div>
+  );
+}
+
+function CandidateSourceContext({
+  contextText,
+  audioUrl,
+  transcript,
+  cropType,
+  district,
+  language,
+}: {
+  contextText?: string | null;
+  audioUrl?: string | null;
+  transcript?: string | null;
+  cropType?: string | null;
+  district?: string | null;
+  language?: string | null;
+}) {
+  const hasAny = Boolean(contextText || audioUrl || transcript || cropType || district || language);
+  if (!hasAny) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+        Source context, audio, and transcript are not available for this candidate.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Source context</p>
+      {(cropType || district || language) ? (
+        <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+          {language ? <span className="rounded-full bg-white px-2 py-0.5">Lang: {language.toUpperCase()}</span> : null}
+          {cropType ? <span className="rounded-full bg-white px-2 py-0.5">Crop: {cropType}</span> : null}
+          {district ? <span className="rounded-full bg-white px-2 py-0.5">District: {district}</span> : null}
+        </div>
+      ) : null}
+      {contextText ? (
+        <p className="whitespace-pre-wrap text-xs text-slate-700">{contextText}</p>
+      ) : (
+        <p className="text-xs text-slate-400">No sample message / context text.</p>
+      )}
+      {transcript ? (
+        <div>
+          <p className="text-[11px] font-medium uppercase text-slate-500">Transcript</p>
+          <p className="mt-1 whitespace-pre-wrap text-xs text-slate-700">{transcript}</p>
+        </div>
+      ) : null}
+      {audioUrl ? (
+        <div>
+          <p className="mb-1 text-[11px] font-medium uppercase text-slate-500">Audio</p>
+          <audio controls className="w-full" src={audioUrl}>
+            <a href={audioUrl} target="_blank" rel="noreferrer" className="text-sky-700 underline">
+              Open audio source
+            </a>
+          </audio>
+        </div>
+      ) : null}
     </div>
   );
 }

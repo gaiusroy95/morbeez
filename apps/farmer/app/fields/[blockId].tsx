@@ -25,6 +25,7 @@ import {
   useStickyFooterScrollPadding,
 } from '@morbeez/ui-native';
 import { useLocale } from '@/context/LocaleContext';
+import { presentFarmConfirmedActions } from '@/lib/farm-confirmed-actions';
 
 type BlockTab = 'activities' | 'soilTests' | 'fieldFindings' | 'recommendations';
 
@@ -121,6 +122,15 @@ export default function BlockDetailScreen() {
             activities={sortedActivities}
             plantingDate={b.plantingDate}
             locale={locale}
+            onPressActivity={(activity) => {
+              presentFarmConfirmedActions({
+                input: activity,
+                locale,
+                kind: 'activity',
+                id: activity.id,
+                label: activity.activityLabel,
+              });
+            }}
           />
         ) : null}
 

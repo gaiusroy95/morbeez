@@ -1,6 +1,9 @@
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
+  farmConfirmedBadgeLabel,
+  farmConfirmedProvenanceSummary,
   formatInr,
+  resolveFarmConfirmedVisibility,
   t,
   tokens,
   type AppLocale,
@@ -168,6 +171,11 @@ export function ActivityTimeline({
           a.activityLabel && a.activityLabel.toLowerCase() !== title.toLowerCase() ? a.activityLabel : null;
         const description = [productLine, a.notes].filter(Boolean).join(' · ');
 
+        const confirmed = resolveFarmConfirmedVisibility(a);
+        const sourceBadge = farmConfirmedBadgeLabel(confirmed.badge);
+        const provenanceLine = farmConfirmedProvenanceSummary(confirmed);
+        const pressable = Boolean(onPressActivity) && confirmed.isWhatsAppConfirmed;
+
         return (
           <View key={a.id} style={styles.timelineRow}>
             <View style={styles.timelineRail}>
@@ -177,7 +185,7 @@ export function ActivityTimeline({
             <Pressable
               style={styles.timelineCard}
               onPress={() => onPressActivity?.(a)}
-              disabled={!onPressActivity}
+              disabled={!pressable}
             >
               <Text style={styles.timelineDate}>
                 {dap != null ? `DAP ${dap}, ${a.dateLabel}` : a.dateLabel}
@@ -187,9 +195,17 @@ export function ActivityTimeline({
                 <View style={styles.timelineMeta}>
                   <Text style={styles.timelineTitle}>{title}</Text>
                   {description ? <Text style={styles.timelineNotes}>{description}</Text> : null}
+                  {provenanceLine ? (
+                    <Text style={styles.timelineProvenance}>{provenanceLine}</Text>
+                  ) : null}
                   {a.costInr ? <Text style={styles.timelineCost}>{formatInr(a.costInr)}</Text> : null}
                 </View>
                 <View style={styles.timelineRight}>
+                  {sourceBadge ? (
+                    <View style={styles.sourceBadge}>
+                      <Text style={styles.sourceBadgeText}>{sourceBadge}</Text>
+                    </View>
+                  ) : null}
                   <View style={styles.completedBadge}>
                     <Text style={styles.completedText}>{t('completedStatus', loc)}</Text>
                   </View>
@@ -442,7 +458,10 @@ const styles = StyleSheet.create({
   timelineRight: { alignItems: 'flex-end', gap: 6 },
   completedBadge: { backgroundColor: tokens.green100, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
   completedText: { fontSize: 10, fontWeight: '700', color: tokens.green800 },
+  sourceBadge: { backgroundColor: '#E8F5E9', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  sourceBadgeText: { fontSize: 10, fontWeight: '700', color: '#1B5E20' },
   timelineNotes: { fontSize: 13, color: tokens.textMuted, marginTop: 4, lineHeight: 18 },
+  timelineProvenance: { fontSize: 12, color: tokens.textMuted, marginTop: 4, lineHeight: 16 },
   timelineCost: { fontSize: 13, fontWeight: '700', color: tokens.green800, marginTop: 6 },
   soilCard: {
     backgroundColor: tokens.card,

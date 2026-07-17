@@ -58,6 +58,7 @@ import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.servic
 import type { PostIntakeDiagnosisPayload } from '../pipeline/diagnosis-follow-up-reasoning.engine.js';
 import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
 import { recoveryValidationService } from '../../case/recovery-validation.service.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
 
 const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 
@@ -374,6 +375,29 @@ export const whatsappScenarioRouter = {
         sessionState: session.state,
       });
       if (roiHandled) return { handled: true };
+    }
+
+    if (
+      farmActivityAssistantService.enabled() &&
+      (
+        farmActivityAssistantService.isFarmActivityState(session.state) ||
+        farmActivityAssistantService.isActionButton(text) ||
+        Boolean(text && farmActivityAssistantService.looksLikeIntent(text))
+      )
+    ) {
+      const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        language: lang,
+        text,
+        messageId: msg.messageId,
+        sessionState: session.state,
+        send,
+        modality: 'text',
+        conversationSessionId: session.id,
+        blockId: session.active_block_id ?? null,
+      });
+      if (farmHandled) return { handled: true };
     }
 
     if (session.state === 'post_diagnosis_intake') {

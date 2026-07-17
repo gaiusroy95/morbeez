@@ -157,4 +157,10 @@ export interface SessionContext {
     confidence: number;
     plotLabel?: string;
   };
+  /** WhatsApp Farm Activity Assistant draft pointer (Confirm/Edit/Cancel). */
+  farmActivityAssistant?: {
+    draftId: string;
+    revision: number;
+    clarificationAttempts?: number;
+  };
 }

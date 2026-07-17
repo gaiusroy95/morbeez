@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { StaticSelect } from '../../ui';
 import { AddFieldActivityModal } from './AddFieldActivityModal';
 import { useStaffPasswordConfirm } from '../../../hooks/useStaffPasswordConfirm';
@@ -8,6 +8,7 @@ import {
   formatDateLabel,
   fieldActivityAddedFromLabel,
   iconForActivityType,
+  isConfirmedVoiceActivity,
   type FieldActivity,
   type FieldActivityBlock,
   type FieldActivityForm,
@@ -75,9 +76,23 @@ function activityTitle(row: FieldActivity): string {
   );
 }
 
+function displayValue(value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-IN');
+}
+
 export function FieldActivityPhase2Panel(props: Props) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'voice'>('all');
+  const [inspectedActivity, setInspectedActivity] = useState<FieldActivity | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const { canConfirm, requestConfirm, confirmModal } = useStaffPasswordConfirm(props.canWrite);
 
@@ -88,11 +103,13 @@ export function FieldActivityPhase2Panel(props: Props) {
   const healthStatus =
     pendingCount > 0 ? 'Moderate' : props.activities.length > 0 ? 'Active tracking' : 'No records';
 
-  const timelineRows = [...props.activities].sort((a, b) => {
-    const dateCmp = String(b.applied_at).localeCompare(String(a.applied_at));
-    if (dateCmp !== 0) return dateCmp;
-    return String(b.created_at).localeCompare(String(a.created_at));
-  });
+  const timelineRows = [...props.activities]
+    .filter((row) => sourceFilter === 'all' || isConfirmedVoiceActivity(row))
+    .sort((a, b) => {
+      const dateCmp = String(b.applied_at).localeCompare(String(a.applied_at));
+      if (dateCmp !== 0) return dateCmp;
+      return String(b.created_at).localeCompare(String(a.created_at));
+    });
 
   useEffect(() => {
     if (!openMenuId) return;
@@ -123,9 +140,16 @@ export function FieldActivityPhase2Panel(props: Props) {
             }))}
             compact
           />
-          <button type="button" className="fa-filter-btn">
-            ▾ Filter
-          </button>
+          <StaticSelect
+            className="fa-filter-btn"
+            value={sourceFilter}
+            onChange={(value) => setSourceFilter(value as 'all' | 'voice')}
+            options={[
+              { value: 'all', label: 'All activities' },
+              { value: 'voice', label: 'Voice-derived' },
+            ]}
+            compact
+          />
         </div>
       </div>
 
@@ -199,6 +223,7 @@ export function FieldActivityPhase2Panel(props: Props) {
             const badge = dateBadgeParts(row.applied_at);
             const sla = followUpSlaBadge(row);
             const menuOpen = openMenuId === row.id;
+            const voiceDerived = isConfirmedVoiceActivity(row);
 
             return (
               <article key={row.id} className="fa-timeline-row">
@@ -224,6 +249,15 @@ export function FieldActivityPhase2Panel(props: Props) {
                             ? 'Pending'
                             : 'Cancelled'}
                       </span>
+                      {voiceDerived ? (
+                        <button
+                          type="button"
+                          className="fa-voice-badge"
+                          onClick={() => setInspectedActivity(row)}
+                        >
+                          🎙 Voice-derived
+                        </button>
+                      ) : null}
                       {canConfirm ? (
                         <div
                           className="fa-row-menu-wrap"
@@ -251,6 +285,19 @@ export function FieldActivityPhase2Panel(props: Props) {
                               >
                                 Edit
                               </button>
+                              {voiceDerived ? (
+                                <button
+                                  type="button"
+                                  className="fa-row-menu-item"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setOpenMenuId(null);
+                                    setInspectedActivity(row);
+                                  }}
+                                >
+                                  Inspect voice
+                                </button>
+                              ) : null}
                               <button
                                 type="button"
                                 className="fa-row-menu-item fa-row-menu-item--danger"
@@ -305,8 +352,9 @@ export function FieldActivityPhase2Panel(props: Props) {
 
           {timelineRows.length === 0 ? (
             <p className="fa-timeline-empty">
-              No field activities for this block yet. Click &quot;+ Add Activity&quot; to log the
-              first one.
+              {sourceFilter === 'voice'
+                ? 'No confirmed voice-derived activities for this block.'
+                : 'No field activities for this block yet. Click "+ Add Activity" to log the first one.'}
             </p>
           ) : null}
         </div>
@@ -340,6 +388,135 @@ export function FieldActivityPhase2Panel(props: Props) {
         onClose={() => props.onCloseEditModal?.()}
         onSave={props.onEditSave ?? (async () => false)}
       />
+
+      {inspectedActivity ? (
+        <VoiceActivityDrawer
+          activity={inspectedActivity}
+          onClose={() => setInspectedActivity(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function VoiceActivityDrawer({
+  activity,
+  onClose,
+}: {
+  activity: FieldActivity;
+  onClose: () => void;
+}) {
+  const transcript = activity.transcript ?? activity.source_transcript;
+  const language = activity.source_language ?? activity.language;
+  const sourceMessage = activity.source_message ?? activity.sourceMessage;
+  const sourceMessageId = activity.source_message_id ?? activity.sourceMessageId;
+  const confidence = activity.extraction_confidence ?? activity.extractionConfidence;
+  const warnings = activity.extraction_warnings ?? activity.extractionWarnings ?? [];
+  const original = activity.original_values ?? activity.originalValues ?? {};
+  const confirmed = activity.confirmed_values ?? activity.confirmedValues ?? {};
+  const valueKeys = Array.from(new Set([...Object.keys(original), ...Object.keys(confirmed)]));
+  const auditEvents = activity.audit_events ?? activity.auditEvents ?? [];
+  const confirmedBy = activity.confirmed_by ?? activity.confirmedBy;
+  const confirmedAt = activity.confirmed_at ?? activity.confirmedAt;
+  const correctionReason = activity.correction_reason ?? activity.correctionReason;
+  const roiEntryId = activity.roi_entry_id ?? activity.roiEntryId;
+  const seasonId = activity.season_id ?? activity.seasonId ?? activity.season?.id;
+  const seasonName = activity.season?.name ?? activity.season?.season_name;
+
+  return (
+    <>
+      <button type="button" className="fa-drawer-backdrop" aria-label="Close activity inspection" onClick={onClose} />
+      <aside className="fa-inspection-drawer" aria-label="Voice-derived activity inspection">
+        <div className="fa-drawer-header">
+          <div>
+            <p className="fa-drawer-eyebrow">Confirmed voice-derived activity</p>
+            <h2>{activityTitle(activity)}</h2>
+          </div>
+          <button type="button" className="fa-modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="fa-drawer-body">
+          <DrawerSection title="Source">
+            <Detail label="Language" value={language?.toUpperCase()} />
+            <Detail label="Source message ID" value={sourceMessageId} mono />
+            <Detail label="Source message" value={sourceMessage} />
+            <Detail label="Transcript" value={transcript} pre />
+          </DrawerSection>
+
+          <DrawerSection title="Extraction">
+            <Detail
+              label="Confidence"
+              value={confidence != null ? `${Math.round((confidence <= 1 ? confidence * 100 : confidence))}%` : null}
+            />
+            {warnings.length ? (
+              <ul className="fa-warning-list">
+                {warnings.map((warning, index) => <li key={`${warning}-${index}`}>{warning}</li>)}
+              </ul>
+            ) : (
+              <p className="fa-detail-empty">No extraction warnings recorded.</p>
+            )}
+          </DrawerSection>
+
+          <DrawerSection title="Original vs confirmed">
+            {valueKeys.length ? (
+              <div className="fa-value-compare">
+                <div className="fa-value-compare-head"><span>Field</span><span>Original</span><span>Confirmed</span></div>
+                {valueKeys.map((key) => (
+                  <div key={key} className="fa-value-compare-row">
+                    <span>{key.replace(/_/g, ' ')}</span>
+                    <span>{displayValue(original[key])}</span>
+                    <span>{displayValue(confirmed[key])}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="fa-detail-empty">No value comparison supplied.</p>}
+            <Detail label="Confirmed by" value={confirmedBy} />
+            <Detail label="Confirmed at" value={formatDateTime(confirmedAt)} />
+            <Detail label="Correction reason" value={correctionReason} />
+          </DrawerSection>
+
+          <DrawerSection title="Links">
+            <Detail label="ROI entry" value={roiEntryId} mono />
+            <Detail label="Season" value={seasonName ?? seasonId} />
+          </DrawerSection>
+
+          <DrawerSection title="Audit events">
+            {auditEvents.length ? (
+              <ol className="fa-audit-list">
+                {auditEvents.map((event, index) => (
+                  <li key={event.id ?? index}>
+                    <strong>{event.action ?? event.event ?? 'Activity event'}</strong>
+                    <span>{event.actor ?? 'System'} · {formatDateTime(event.created_at ?? event.createdAt)}</span>
+                    {event.details ? <p>{displayValue(event.details)}</p> : null}
+                  </li>
+                ))}
+              </ol>
+            ) : <p className="fa-detail-empty">No audit events supplied.</p>}
+          </DrawerSection>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="fa-drawer-section"><h3>{title}</h3>{children}</section>;
+}
+
+function Detail({
+  label,
+  value,
+  mono = false,
+  pre = false,
+}: {
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+  pre?: boolean;
+}) {
+  return (
+    <div className="fa-detail">
+      <dt>{label}</dt>
+      <dd className={`${mono ? 'fa-detail--mono' : ''} ${pre ? 'fa-detail--pre' : ''}`}>{value || '—'}</dd>
     </div>
   );
 }

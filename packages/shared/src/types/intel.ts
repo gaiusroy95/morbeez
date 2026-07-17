@@ -1,3 +1,5 @@
+import type { FarmConfirmedRecordProvenance } from '../farm-activity-assistant/visibility';
+
 export type PortalNotification = {
   id: string;
   type: string;
@@ -199,6 +201,8 @@ export type TransactionRow = {
   seasonId: string | null;
   blockId: string | null;
   categoryId: string | null;
+  /** Present only for WhatsApp Farm Assistant–confirmed rows; omit on legacy records. */
+  provenance?: FarmConfirmedRecordProvenance | null;
 };
 
 export type ExpenseBookLine = {

@@ -368,6 +368,13 @@ export const en = {
   description: 'Description',
   telecaller: 'Telecaller',
   saveAddress: 'Save address',
+  confirmedOn: 'Confirmed',
+  linkedActivity: 'Linked activity',
+  linkedRoi: 'Linked ROI',
+  correctWhatsAppEntry: 'Correct entry',
+  undoWhatsAppEntry: 'Undo entry',
+  requestCorrectionWhatsApp: 'Correct via WhatsApp',
+  couldNotOpenLink: 'Could not open link',
 } as const;
 
 export type I18nKey = keyof typeof en;

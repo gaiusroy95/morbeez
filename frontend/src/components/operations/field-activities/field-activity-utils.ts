@@ -36,6 +36,47 @@ export type FieldActivity = {
   created_at: string;
   added_from?: string | null;
   source?: string | null;
+  source_type?: string | null;
+  sourceType?: string | null;
+  source_message_id?: string | null;
+  sourceMessageId?: string | null;
+  source_message?: string | null;
+  sourceMessage?: string | null;
+  transcript?: string | null;
+  source_transcript?: string | null;
+  language?: string | null;
+  source_language?: string | null;
+  extraction_confidence?: number | null;
+  extractionConfidence?: number | null;
+  extraction_warnings?: string[] | null;
+  extractionWarnings?: string[] | null;
+  original_values?: Record<string, unknown> | null;
+  originalValues?: Record<string, unknown> | null;
+  confirmed_values?: Record<string, unknown> | null;
+  confirmedValues?: Record<string, unknown> | null;
+  confirmed_by?: string | null;
+  confirmedBy?: string | null;
+  confirmed_at?: string | null;
+  confirmedAt?: string | null;
+  correction_reason?: string | null;
+  correctionReason?: string | null;
+  roi_entry_id?: string | null;
+  roiEntryId?: string | null;
+  season_id?: string | null;
+  seasonId?: string | null;
+  season?: { id?: string; name?: string | null; season_name?: string | null } | null;
+  audit_events?: FieldActivityAuditEvent[] | null;
+  auditEvents?: FieldActivityAuditEvent[] | null;
+};
+
+export type FieldActivityAuditEvent = {
+  id?: string;
+  action?: string | null;
+  event?: string | null;
+  actor?: string | null;
+  created_at?: string | null;
+  createdAt?: string | null;
+  details?: string | Record<string, unknown> | null;
 };
 
 export type FieldActivityType = {
@@ -114,12 +155,26 @@ export function formatDateLabel(iso: string): string {
 }
 
 export function fieldActivityAddedFromLabel(row: FieldActivity): string {
-  const from = String(row.added_from ?? row.source ?? '').toLowerCase();
+  if (isConfirmedVoiceActivity(row)) return 'Voice-derived';
+  const from = String(row.added_from ?? row.source_type ?? row.sourceType ?? row.source ?? '').toLowerCase();
+  if (from.includes('voice') || from.includes('audio')) return 'Voice-derived';
   if (from === 'interaction') return 'Interaction';
   if (from === 'telecaller') return 'Interaction';
   if (from === 'whatsapp') return 'WhatsApp';
   if (from === 'admin' || from === 'direct') return 'Direct Entry';
   return 'Direct Entry';
+}
+
+export function isConfirmedVoiceActivity(row: FieldActivity): boolean {
+  const source = String(
+    row.source_type ?? row.sourceType ?? row.added_from ?? row.source ?? ''
+  ).toLowerCase();
+  const hasVoiceSource =
+    source.includes('voice') ||
+    source.includes('audio') ||
+    Boolean(row.transcript ?? row.source_transcript);
+  const isConfirmed = Boolean(row.confirmed_at ?? row.confirmedAt ?? row.confirmed_by ?? row.confirmedBy);
+  return hasVoiceSource && isConfirmed;
 }
 
 export function formFromFieldActivity(row: FieldActivity): FieldActivityForm {

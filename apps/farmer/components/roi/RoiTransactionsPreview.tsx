@@ -11,6 +11,7 @@ import {
   type TransactionRow,
 } from '@morbeez/shared';
 import { Btn, DynamicSelect, EmptyState, HubTabs, Panel, TextField } from '@morbeez/ui-native';
+import { FarmConfirmedSourceMeta } from '@/components/FarmConfirmedSourceMeta';
 
 type DatePreset = 'all' | '7d' | '30d' | 'custom';
 
@@ -141,6 +142,14 @@ export function RoiTransactionsPreview({
                 {tx.dateLabel}
                 {tx.note ? ` · ${tx.note}` : ''}
               </Text>
+              <FarmConfirmedSourceMeta
+                input={tx}
+                locale={locale ?? 'en'}
+                kind="roi"
+                id={tx.id}
+                label={tx.label}
+                onEdit={() => router.push(`/roi/transactions/edit/${tx.id}`)}
+              />
             </View>
             <Text style={[styles.txAmt, tx.type === 'income' ? styles.income : styles.expense]}>
               {tx.type === 'income' ? '+' : '-'}

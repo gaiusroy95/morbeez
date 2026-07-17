@@ -58,6 +58,7 @@ export const conversationIntelligenceService = {
       language,
       cropType,
       district,
+      farmerId: input.farmerId,
     });
 
     const unknownTerms: string[] = [];
@@ -71,11 +72,19 @@ export const conversationIntelligenceService = {
         cropType,
         district,
       });
-      await supabase
+      let channelUpdate = supabase
         .from('terminology_review_tasks')
         .update({ source_channel: input.channel === 'field' ? 'field' : input.channel })
         .eq('term', term.token.toLowerCase())
+        .eq('language', language)
         .in('status', ['open', 'in_review']);
+      channelUpdate = cropType
+        ? channelUpdate.eq('crop_type', cropType)
+        : channelUpdate.is('crop_type', null);
+      channelUpdate = district
+        ? channelUpdate.eq('district', district)
+        : channelUpdate.is('district', null);
+      await channelUpdate;
     }
 
     return {

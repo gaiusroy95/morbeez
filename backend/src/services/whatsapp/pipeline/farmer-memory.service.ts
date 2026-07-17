@@ -151,6 +151,7 @@ export const farmerMemoryService = {
           language: lang,
           cropType: cropType || null,
           district: farmerRow?.district ? String(farmerRow.district) : null,
+          farmerId,
         });
       }
       const block = await terminologyAiContextService.buildPromptBlock({

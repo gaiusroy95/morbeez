@@ -363,4 +363,11 @@ export const hi: Partial<Record<I18nKey, string>> = {
   description: 'विवरण',
   telecaller: 'Telecaller',
   saveAddress: 'सेव address',
+  confirmedOn: 'पुष्टि',
+  linkedActivity: 'जुड़ी activity',
+  linkedRoi: 'जुड़ा ROI',
+  correctWhatsAppEntry: 'Entry सुधारें',
+  undoWhatsAppEntry: 'Entry undo करें',
+  requestCorrectionWhatsApp: 'WhatsApp से सुधारें',
+  couldNotOpenLink: 'Link नहीं खुला',
 };

@@ -2,6 +2,11 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { normalizeRegionalFarmerQuery } from '../ai/regional-query-normalize.util.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
+import { farmerTerminologyMemoryService } from './farmer-terminology-memory.service.js';
+import {
+  normalizeLexiconToken,
+  pickBestScopedRow,
+} from './terminology-match.util.js';
 import type { TerminologyDictionaryEntry } from './types.js';
 
 const BUILTIN: Record<string, { meaning: string; standardTerm: string; crop?: string }> = {
@@ -24,7 +29,38 @@ function mapRow(row: Record<string, unknown>): TerminologyDictionaryEntry {
     confidence: Number(row.confidence ?? 0.7),
     replyPreferred: row.reply_preferred !== false,
     conceptId: row.concept_id ? String(row.concept_id) : null,
+    source: 'dictionary',
   };
+}
+
+async function lookupDictionaryRows(
+  token: string,
+  language: AdvisoryLanguage,
+  opts?: { cropType?: string | null; district?: string | null }
+): Promise<TerminologyDictionaryEntry | null> {
+  const { data, error } = await supabase
+    .from('agronomy_terms')
+    .select('*')
+    .eq('term', token)
+    .eq('language', language)
+    .eq('status', 'active')
+    .limit(40);
+  throwIfSupabaseError(error, 'Could not lookup terminology');
+
+  const rows = (data ?? []).map((row) => {
+    const mapped = mapRow(row as Record<string, unknown>);
+    return {
+      ...mapped,
+      cropType: mapped.cropType,
+      district: mapped.district,
+      confidence: mapped.confidence,
+    };
+  });
+  const best = pickBestScopedRow(rows, {
+    cropType: opts?.cropType,
+    district: opts?.district,
+  });
+  return best ?? null;
 }
 
 async function lookupAlias(
@@ -32,75 +68,89 @@ async function lookupAlias(
   language: AdvisoryLanguage,
   opts?: { cropType?: string | null; district?: string | null }
 ): Promise<TerminologyDictionaryEntry | null> {
-  const key = token.trim().toLowerCase();
-  const { data: aliasRow, error } = await supabase
+  const { data: aliasRows, error } = await supabase
     .from('terminology_term_aliases')
     .select('term_id, agronomy_terms(*)')
-    .eq('alias', key)
+    .eq('alias', token)
     .eq('language', language)
-    .limit(1)
-    .maybeSingle();
+    .limit(40);
   throwIfSupabaseError(error, 'Could not lookup terminology alias');
-  const rawTerm = aliasRow?.agronomy_terms as unknown;
-  const termRow = (Array.isArray(rawTerm) ? rawTerm[0] : rawTerm) as Record<string, unknown> | null | undefined;
-  if (!termRow || String(termRow.status ?? 'active') !== 'active') return null;
-  if (opts?.cropType && termRow.crop_type && String(termRow.crop_type) !== opts.cropType) return null;
-  if (opts?.district && termRow.district && String(termRow.district) !== opts.district) return null;
-  return mapRow(termRow);
+
+  const candidates: TerminologyDictionaryEntry[] = [];
+  for (const aliasRow of aliasRows ?? []) {
+    const rawTerm = (aliasRow as { agronomy_terms?: unknown }).agronomy_terms;
+    const termRow = (Array.isArray(rawTerm) ? rawTerm[0] : rawTerm) as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    if (!termRow || String(termRow.status ?? 'active') !== 'active') continue;
+    if (String(termRow.language ?? language) !== language) continue;
+    candidates.push(mapRow(termRow));
+  }
+
+  return (
+    pickBestScopedRow(candidates, {
+      cropType: opts?.cropType,
+      district: opts?.district,
+    }) ?? null
+  );
+}
+
+function lookupBuiltin(
+  token: string,
+  language: AdvisoryLanguage,
+  opts?: { cropType?: string | null }
+): TerminologyDictionaryEntry | null {
+  const builtin = BUILTIN[token];
+  if (!builtin) return null;
+  if (builtin.crop && opts?.cropType && builtin.crop !== opts.cropType) return null;
+  return {
+    id: `builtin:${token}`,
+    term: token,
+    language,
+    meaning: builtin.meaning,
+    standardTerm: builtin.standardTerm,
+    localScript: null,
+    cropType: builtin.crop ?? null,
+    district: null,
+    confidence: 0.95,
+    source: 'builtin',
+  };
 }
 
 export const terminologyDictionaryService = {
+  /**
+   * Deterministic lookup priority:
+   * farmer override → district+crop → crop → language-global → builtin.
+   * District fallback always retains language.
+   */
   async lookup(
     token: string,
     language: AdvisoryLanguage,
-    opts?: { cropType?: string | null; district?: string | null }
+    opts?: { cropType?: string | null; district?: string | null; farmerId?: string | null }
   ): Promise<TerminologyDictionaryEntry | null> {
-    const key = token.trim().toLowerCase();
+    const key = normalizeLexiconToken(token);
     if (!key || key.length < 2) return null;
 
-    const builtin = BUILTIN[key];
-    if (builtin && (!builtin.crop || !opts?.cropType || builtin.crop === opts.cropType)) {
-      return {
-        id: `builtin:${key}`,
+    if (opts?.farmerId) {
+      const farmerHit = await farmerTerminologyMemoryService.lookup({
+        farmerId: opts.farmerId,
         term: key,
         language,
-        meaning: builtin.meaning,
-        standardTerm: builtin.standardTerm,
-        localScript: null,
-        cropType: builtin.crop ?? null,
-        district: null,
-        confidence: 0.95,
-      };
+        cropType: opts.cropType,
+        district: opts.district,
+      });
+      if (farmerHit) return farmerHit;
     }
 
-    let q = supabase
-      .from('agronomy_terms')
-      .select('*')
-      .eq('term', key)
-      .eq('language', language)
-      .eq('status', 'active');
-
-    if (opts?.cropType) q = q.or(`crop_type.is.null,crop_type.eq.${opts.cropType}`);
-
-    const { data, error } = await q.order('confidence', { ascending: false }).limit(1).maybeSingle();
-    throwIfSupabaseError(error, 'Could not lookup terminology');
-    if (data) return mapRow(data as Record<string, unknown>);
+    const dictionaryHit = await lookupDictionaryRows(key, language, opts);
+    if (dictionaryHit) return dictionaryHit;
 
     const aliasHit = await lookupAlias(key, language, opts);
     if (aliasHit) return aliasHit;
 
-    if (opts?.district) {
-      const { data: dRow, error: dErr } = await supabase
-        .from('agronomy_terms')
-        .select('*')
-        .eq('term', key)
-        .eq('district', opts.district)
-        .eq('status', 'active')
-        .limit(1)
-        .maybeSingle();
-      throwIfSupabaseError(dErr, 'Could not lookup terminology by district');
-      if (dRow) return mapRow(dRow as Record<string, unknown>);
-    }
+    const builtin = lookupBuiltin(key, language, opts);
+    if (builtin) return builtin;
 
     const normalized = normalizeRegionalFarmerQuery(token);
     if (normalized !== token && normalized.length >= 2) {
@@ -121,7 +171,7 @@ export const terminologyDictionaryService = {
     approvedBy?: string;
     confidence?: number;
   }): Promise<TerminologyDictionaryEntry> {
-    const term = params.term.trim().toLowerCase();
+    const term = normalizeLexiconToken(params.term);
     const { data, error } = await supabase
       .from('agronomy_terms')
       .upsert(
@@ -138,6 +188,7 @@ export const terminologyDictionaryService = {
           approved_by: params.approvedBy ?? null,
           approved_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
+          status: 'active',
         },
         { onConflict: 'term,language,crop_type,district' }
       )
@@ -154,17 +205,36 @@ export const terminologyDictionaryService = {
     district?: string | null;
     limit?: number;
   }): Promise<TerminologyDictionaryEntry[]> {
-    let q = supabase
+    const { data, error } = await supabase
       .from('agronomy_terms')
       .select('*')
       .eq('language', opts.language)
+      .eq('status', 'active')
       .order('confidence', { ascending: false })
-      .limit(opts.limit ?? 40);
-
-    if (opts.cropType) q = q.or(`crop_type.is.null,crop_type.eq.${opts.cropType}`);
-
-    const { data, error } = await q;
+      .limit(Math.max((opts.limit ?? 40) * 3, 40));
     throwIfSupabaseError(error, 'Could not list terminology');
-    return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+
+    const mapped = (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
+    const ranked = mapped
+      .map((row) => ({
+        row,
+        score: pickBestScopedRow([row], {
+          cropType: opts.cropType,
+          district: opts.district,
+        })
+          ? (row.district && row.cropType
+              ? 100
+              : row.district
+                ? 80
+                : row.cropType
+                  ? 60
+                  : 40) + row.confidence
+          : -1,
+      }))
+      .filter((x) => x.score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, opts.limit ?? 40)
+      .map((x) => x.row);
+    return ranked;
   },
 };

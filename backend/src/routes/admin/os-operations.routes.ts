@@ -668,6 +668,8 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
           .optional(),
         meaning: z.string().min(1).max(500),
         standardTerm: z.string().max(200).optional(),
+        cropType: z.string().max(80).nullable().optional(),
+        district: z.string().max(120).nullable().optional(),
         replyPreferred: z.boolean().optional(),
         examples: z.array(z.string()).optional(),
         aliases: z.array(z.string()).optional(),
@@ -716,6 +718,7 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
       .object({
         term: z.string().min(1).max(120).optional(),
         language: z.string().max(10).optional(),
+        cropType: z.string().max(80).nullable().optional(),
         district: z.string().max(120).nullable().optional(),
         state: z.string().max(120).nullable().optional(),
         meaning: z.string().max(500).optional(),
@@ -750,6 +753,129 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
       .parse(request.body);
     const profile = await terminologyAdminService.upsertLocalizationProfile(body);
     return reply.send({ ok: true, profile });
+  });
+
+  app.get(`${api}/terminology/farmer-overrides`, async (request, reply) => {
+    await assertModuleAccess(request, 'operations', 'read');
+    const q = request.query as { farmerId?: string; language?: string };
+    const overrides = await terminologyAdminService.listFarmerOverrides(q);
+    return reply.send({ ok: true, overrides });
+  });
+
+  app.put(`${api}/terminology/farmer-overrides`, async (request, reply) => {
+    await assertModuleAccess(request, 'operations', 'write');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        term: z.string().min(1).max(120),
+        language: z.string().min(2).max(10),
+        meaning: z.string().min(1).max(500),
+        standardTerm: z.string().max(200).nullable().optional(),
+        cropType: z.string().max(80).nullable().optional(),
+        district: z.string().max(120).nullable().optional(),
+      })
+      .parse(request.body);
+    const override = await terminologyAdminService.upsertFarmerOverride(body);
+    return reply.send({ ok: true, override });
+  });
+
+  app.post(`${api}/terminology/farmer-overrides/promote`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'operations', 'write');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        term: z.string().min(1).max(120),
+        language: z.string().min(2).max(10),
+        meaning: z.string().min(1).max(500),
+        standardTerm: z.string().max(200).nullable().optional(),
+        cropType: z.string().max(80).nullable().optional(),
+        district: z.string().max(120).nullable().optional(),
+      })
+      .parse(request.body);
+    const term = await terminologyAdminService.promoteFarmerOverride({
+      ...body,
+      approvedBy: admin.email,
+    });
+    return reply.send({ ok: true, term });
+  });
+
+  app.get(`${api}/terminology/product-aliases`, async (request, reply) => {
+    await assertModuleAccess(request, 'operations', 'read');
+    const q = request.query as { status?: string; language?: string; search?: string };
+    const aliases = await terminologyAdminService.listProductAliases(q);
+    return reply.send({ ok: true, aliases });
+  });
+
+  app.post(`${api}/terminology/product-aliases`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'operations', 'write');
+    const body = z
+      .object({
+        alias: z.string().min(1).max(120),
+        language: z.string().min(2).max(10),
+        canonicalProductKey: z.string().min(1).max(200),
+        shopifyProductId: z.string().max(80).nullable().optional(),
+        farmerId: z.string().uuid().nullable().optional(),
+        cropType: z.string().max(80).nullable().optional(),
+        district: z.string().max(120).nullable().optional(),
+      })
+      .parse(request.body);
+    const alias = await terminologyAdminService.proposeProductAlias({
+      ...body,
+      proposedBy: admin.email,
+    });
+    return reply.status(201).send({ ok: true, alias });
+  });
+
+  app.patch(`${api}/terminology/product-aliases/:id`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'operations', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        status: z.enum(['approved', 'rejected', 'retired', 'pending']),
+      })
+      .parse(request.body);
+    const alias = await terminologyAdminService.reviewProductAlias(id, body.status, admin.email);
+    return reply.send({ ok: true, alias });
+  });
+
+  app.get(`${api}/terminology/unit-aliases`, async (request, reply) => {
+    await assertModuleAccess(request, 'operations', 'read');
+    const q = request.query as { status?: string; language?: string; search?: string };
+    const aliases = await terminologyAdminService.listUnitAliases(q);
+    return reply.send({ ok: true, aliases });
+  });
+
+  app.post(`${api}/terminology/unit-aliases`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'operations', 'write');
+    const body = z
+      .object({
+        alias: z.string().min(1).max(120),
+        language: z.string().min(2).max(10),
+        canonicalUnit: z.enum([
+          'kg', 'g', 'litre', 'ml', 'quintal', 'tonne', 'bag', 'piece', 'hour', 'day', 'acre', 'other',
+        ]),
+        farmerId: z.string().uuid().nullable().optional(),
+        cropType: z.string().max(80).nullable().optional(),
+        district: z.string().max(120).nullable().optional(),
+      })
+      .parse(request.body);
+    const alias = await terminologyAdminService.proposeUnitAlias({
+      ...body,
+      proposedBy: admin.email,
+    });
+    return reply.status(201).send({ ok: true, alias });
+  });
+
+  app.patch(`${api}/terminology/unit-aliases/:id`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'operations', 'write');
+    const { id } = request.params as { id: string };
+    const body = z
+      .object({
+        status: z.enum(['approved', 'rejected', 'retired', 'pending']),
+      })
+      .parse(request.body);
+    const alias = await terminologyAdminService.reviewUnitAlias(id, body.status, admin.email);
+    return reply.send({ ok: true, alias });
   });
 
   app.get(`${api}/weather-rules`, async (request, reply) => {

@@ -64,6 +64,7 @@ export const regionalTerminologyProcessor = {
       language: params.language,
       cropType: ctx.cropType,
       district: ctx.district,
+      farmerId: params.farmerId,
     });
 
     if (!detection.hasUnknown) {

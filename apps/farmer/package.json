@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "test": "jest",
+    "test:pure": "node --import tsx --test __tests__/farm-confirmed-visibility.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

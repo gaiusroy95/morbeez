@@ -398,6 +398,30 @@ const envSchema = z.object({
   EXPERT_CASE_RECURRENCE_DAYS: coerceEnvInt(14),
   EXPERT_CASE_INTERRUPTION_LIMIT: coerceEnvInt(2),
 
+  /** Multilingual WhatsApp Farm Activity Assistant — phased, default off. */
+  ENABLE_FARM_ACTIVITY_ASSISTANT: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_FARM_ACTIVITY_VOICE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_FARM_ACTIVITY_INVOICE_OCR: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_FARM_ACTIVITY_INVENTORY_SYNC: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  ENABLE_FARMER_TERMINOLOGY_MEMORY: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  FARM_ACTIVITY_DRAFT_TTL_MINUTES: coerceEnvInt(60),
+  FARM_ACTIVITY_MAX_CLARIFICATIONS: coerceEnvInt(2),
+
   GSC_SITE_URL: z.string().url().optional(),
   GSC_CLIENT_ID: z.string().optional(),
   GSC_CLIENT_SECRET: z.string().optional(),

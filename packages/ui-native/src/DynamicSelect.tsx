@@ -116,7 +116,7 @@ export function DynamicSelect({
           statusBarTranslucent
         >
           <View style={styles.backdrop}>
-            <Pressable style={StyleSheet.absoluteFillObject} onPress={close} accessibilityLabel="Dismiss" />
+            <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Dismiss" />
             <View style={styles.sheet}>
               <View style={styles.sheetHeader}>
                 <Text style={styles.sheetTitle}>{label ?? 'Select'}</Text>

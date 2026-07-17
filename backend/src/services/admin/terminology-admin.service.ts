@@ -5,6 +5,13 @@ import { learningLoopService } from '../core/learning-loop.service.js';
 import { terminologyDictionaryService } from '../regional-terminology/terminology-dictionary.service.js';
 import { terminologyEscalationService } from '../regional-terminology/terminology-escalation.service.js';
 import { terminologyConceptSuggestService } from '../regional-terminology/terminology-concept-suggest.service.js';
+import { farmerTerminologyMemoryService } from '../regional-terminology/farmer-terminology-memory.service.js';
+import { productAliasService } from '../regional-terminology/product-alias.service.js';
+import {
+  unitAliasService,
+  FARM_ACTIVITY_CANONICAL_UNITS,
+  type FarmActivityCanonicalUnit,
+} from '../regional-terminology/unit-alias.service.js';
 
 const CONCEPT_CATEGORIES = [
   'general',
@@ -161,6 +168,7 @@ export const terminologyAdminService = {
     input: {
       term?: string;
       language?: string;
+      cropType?: string | null;
       district?: string | null;
       state?: string | null;
       meaning?: string;
@@ -174,6 +182,7 @@ export const terminologyAdminService = {
     const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
     if (input.term !== undefined) patch.term = input.term.trim().toLowerCase();
     if (input.language !== undefined) patch.language = input.language;
+    if (input.cropType !== undefined) patch.crop_type = input.cropType;
     if (input.district !== undefined) patch.district = input.district;
     if (input.state !== undefined) patch.state = input.state;
     if (input.meaning !== undefined) patch.meaning = input.meaning.trim().slice(0, 500);
@@ -273,6 +282,8 @@ export const terminologyAdminService = {
       conceptCategory?: string;
       meaning: string;
       standardTerm?: string;
+      cropType?: string | null;
+      district?: string | null;
       replyPreferred?: boolean;
       examples?: string[];
       aliases?: string[];
@@ -296,13 +307,26 @@ export const terminologyAdminService = {
       conceptId = String(created.id);
     }
 
+    const cropType =
+      input.cropType !== undefined
+        ? input.cropType
+        : task.crop_type
+          ? String(task.crop_type)
+          : null;
+    const district =
+      input.district !== undefined
+        ? input.district
+        : task.district
+          ? String(task.district)
+          : null;
+
     const entry = await terminologyDictionaryService.upsertApproved({
       term: String(task.term),
       language: String(task.language ?? 'ml'),
       meaning: input.meaning,
       standardTerm: input.standardTerm ?? input.meaning,
-      cropType: task.crop_type ? String(task.crop_type) : null,
-      district: task.district ? String(task.district) : null,
+      cropType,
+      district,
       approvedBy: input.resolvedBy,
     });
 
@@ -365,8 +389,8 @@ export const terminologyAdminService = {
       language: String(task.language ?? 'ml'),
       meaning: input.meaning,
       standardTerm: input.standardTerm ?? input.meaning,
-      cropType: task.crop_type ? String(task.crop_type) : null,
-      district: task.district ? String(task.district) : null,
+      cropType,
+      district,
       action: 'approved',
       taskId,
       farmerId: task.farmer_id ? String(task.farmer_id) : null,
@@ -380,17 +404,17 @@ export const terminologyAdminService = {
         language: String(task.language ?? 'ml'),
         meaning: input.meaning,
         standardTerm: input.standardTerm ?? input.meaning,
-        cropType: task.crop_type ? String(task.crop_type) : null,
-        district: task.district ? String(task.district) : null,
+        cropType,
+        district,
         resolvedBy: input.resolvedBy,
         farmerId: task.farmer_id ? String(task.farmer_id) : null,
       })
       .catch(() => {});
 
-    if (conceptId && task.district) {
+    if (conceptId && district) {
       await this.syncProfilePreferredTerm({
         language: String(task.language ?? 'ml'),
-        district: String(task.district),
+        district: String(district),
         conceptId,
         termId: entry.id,
         regionalTerm: String(task.unknown_word ?? task.term),
@@ -486,5 +510,138 @@ export const terminologyAdminService = {
       .single();
     throwIfSupabaseError(error, 'Could not skip task');
     return data;
+  },
+
+  async listFarmerOverrides(params?: { farmerId?: string; language?: string; limit?: number }) {
+    if (params?.farmerId) {
+      return farmerTerminologyMemoryService.listForFarmer({
+        farmerId: params.farmerId,
+        language: params.language,
+        limit: params.limit,
+      });
+    }
+    if (!farmerTerminologyMemoryService.enabled()) return [];
+    let q = supabase
+      .from('farmer_terminology_overrides')
+      .select('*')
+      .eq('active', true)
+      .order('updated_at', { ascending: false })
+      .limit(params?.limit ?? 200);
+    if (params?.language) q = q.eq('language', params.language);
+    const { data, error } = await q;
+    throwIfSupabaseError(error, 'Could not list farmer terminology overrides');
+    return (data ?? []).map((row) => ({
+      id: String(row.id),
+      farmerId: String(row.farmer_id),
+      term: String(row.term),
+      language: String(row.language ?? 'en'),
+      meaning: String(row.resolved_meaning),
+      standardTerm: row.standard_term ? String(row.standard_term) : null,
+      cropType: row.crop_type ? String(row.crop_type) : null,
+      district: row.district ? String(row.district) : null,
+      updatedAt: String(row.updated_at ?? row.created_at),
+    }));
+  },
+
+  async upsertFarmerOverride(input: {
+    farmerId: string;
+    term: string;
+    language: string;
+    meaning: string;
+    standardTerm?: string | null;
+    cropType?: string | null;
+    district?: string | null;
+  }) {
+    return farmerTerminologyMemoryService.upsertOverride(input);
+  },
+
+  /**
+   * Promote a farmer-private override into regional agronomy_terms after human review.
+   * Does not auto-promote; requires explicit staff action.
+   */
+  async promoteFarmerOverride(input: {
+    farmerId: string;
+    term: string;
+    language: string;
+    meaning: string;
+    standardTerm?: string | null;
+    cropType?: string | null;
+    district?: string | null;
+    approvedBy?: string;
+  }) {
+    const entry = await terminologyDictionaryService.upsertApproved({
+      term: input.term,
+      language: input.language,
+      meaning: input.meaning,
+      standardTerm: input.standardTerm ?? input.meaning,
+      cropType: input.cropType ?? null,
+      district: input.district ?? null,
+      approvedBy: input.approvedBy,
+    });
+    await terminologyEscalationService.recordLearningHistory({
+      term: input.term,
+      language: input.language,
+      meaning: input.meaning,
+      standardTerm: input.standardTerm ?? input.meaning,
+      cropType: input.cropType ?? null,
+      district: input.district ?? null,
+      action: 'approved',
+      farmerId: input.farmerId,
+      approvedBy: input.approvedBy ?? null,
+      metadata: { promotedFrom: 'farmer_terminology_overrides' },
+    });
+    return entry;
+  },
+
+  async listProductAliases(params?: { status?: string; language?: string; search?: string }) {
+    return productAliasService.list(params);
+  },
+
+  async proposeProductAlias(input: {
+    alias: string;
+    language: string;
+    canonicalProductKey: string;
+    shopifyProductId?: string | null;
+    farmerId?: string | null;
+    cropType?: string | null;
+    district?: string | null;
+    proposedBy?: string | null;
+  }) {
+    return productAliasService.propose(input);
+  },
+
+  async reviewProductAlias(
+    id: string,
+    status: 'approved' | 'rejected' | 'retired' | 'pending',
+    approvedBy?: string
+  ) {
+    return productAliasService.setStatus({ id, status, approvedBy });
+  },
+
+  async listUnitAliases(params?: { status?: string; language?: string; search?: string }) {
+    return unitAliasService.list(params);
+  },
+
+  async proposeUnitAlias(input: {
+    alias: string;
+    language: string;
+    canonicalUnit: FarmActivityCanonicalUnit;
+    farmerId?: string | null;
+    cropType?: string | null;
+    district?: string | null;
+    proposedBy?: string | null;
+  }) {
+    if (!(FARM_ACTIVITY_CANONICAL_UNITS as readonly string[]).includes(input.canonicalUnit)) {
+      throw new ValidationError('Invalid canonical unit');
+    }
+    return unitAliasService.propose(input);
+  },
+
+  async reviewUnitAlias(
+    id: string,
+    status: 'approved' | 'rejected' | 'retired' | 'pending',
+    approvedBy?: string
+  ) {
+    return unitAliasService.setStatus({ id, status, approvedBy });
   },
 };
