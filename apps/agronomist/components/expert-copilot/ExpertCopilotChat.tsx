@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -26,6 +26,7 @@ import {
 import { AlertBox } from '@morbeez/ui-native';
 import { openEscalationVisit } from '@/lib/open-escalation-visit';
 import { canCommitExpertDraft } from '@/lib/expert-copilot';
+import { useLocale, useT } from '@/context/LocaleContext';
 
 type ChatListItem =
   | { kind: 'assigned'; id: string }
@@ -73,7 +74,7 @@ function CheckLine({ text, ok = true }: { text: string; ok?: boolean }) {
   );
 }
 
-function SectionTitle({ children }: { children: string }) {
+function SectionTitle({ children }: { children: ReactNode }) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
@@ -96,6 +97,8 @@ export function ExpertCopilotChat({
   onReload: () => Promise<void>;
 }) {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = useT();
   const listRef = useRef<FlatList<ChatListItem>>(null);
   const caseId = initialDetail.expertCase.id;
 
@@ -289,7 +292,12 @@ export function ExpertCopilotChat({
     setBusy('chat');
     setError('');
     try {
-      const result = await agronomistClient.postExpertCaseChat(caseId, content, leaseToken);
+      const result = await agronomistClient.postExpertCaseChat(
+        caseId,
+        content,
+        leaseToken,
+        locale
+      );
       setDetail((current) => ({
         ...current,
         turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
@@ -396,15 +404,15 @@ export function ExpertCopilotChat({
         },
       });
       setApprovedActions([
-        'Farmer recommendation queued in local language (WhatsApp).',
-        `Follow-up reminder scheduled for Day ${draft.followUpDays ?? 7}.`,
-        'Compatibility & weather advisory attached.',
-        'Safety validation recorded.',
+        t('ecActionFarmerWhatsApp'),
+        t('ecActionFollowUp').replace('{days}', String(draft.followUpDays ?? 7)),
+        t('ecActionCompatWeather'),
+        t('ecActionSafety'),
         commitResult.result.knowledgeCandidateId
-          ? 'Knowledge candidate submitted for expert review.'
-          : 'Learning candidate queued.',
-        'Case analytics updated.',
-        'Opening next pending case…',
+          ? t('ecActionKnowledge')
+          : t('ecActionLearning'),
+        t('ecActionAnalytics'),
+        t('ecActionNextCase'),
       ]);
       await onReload();
       setTimeout(() => {
@@ -434,22 +442,24 @@ export function ExpertCopilotChat({
     if (item.kind === 'assigned') {
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <Text style={styles.assistantLabel}>AI Copilot</Text>
-          <Text style={styles.cardTitle}>📥 New Case Assigned</Text>
+          <Text style={styles.assistantLabel}>{t('ecAiCopilot')}</Text>
+          <Text style={styles.cardTitle}>📥 {t('ecNewCaseAssigned')}</Text>
           <Text style={styles.contextLine}>
-            Case ID: {(briefing?.caseCode || caseId.slice(0, 8)).toUpperCase()}
+            {t('ecCaseId')}: {(briefing?.caseCode || caseId.slice(0, 8)).toUpperCase()}
           </Text>
           <Text style={styles.contextLine}>
-            Priority: {priorityLabel(detail.expertCase.priority)}
+            {t('ecPriority')}: {priorityLabel(detail.expertCase.priority)}
           </Text>
           <Text style={styles.contextLine}>
-            Farmer: {briefing?.farmerName || 'Farmer'}
+            {t('ecFarmer')}: {briefing?.farmerName || t('ecFarmer')}
           </Text>
           <Text style={styles.contextLine}>
-            Crop: {briefing?.cropType || detail.expertCase.crop_type || '—'}
+            {t('ecCrop')}: {briefing?.cropType || detail.expertCase.crop_type || '—'}
           </Text>
           {briefing?.growthStage ? (
-            <Text style={styles.contextLine}>Growth Stage: {briefing.growthStage}</Text>
+            <Text style={styles.contextLine}>
+              {t('ecGrowthStage')}: {briefing.growthStage}
+            </Text>
           ) : null}
           <Text style={styles.timestamp}>{formatTime(detail.expertCase.opened_at)}</Text>
         </View>
@@ -460,9 +470,9 @@ export function ExpertCopilotChat({
       const images = briefing?.images ?? [];
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <SectionTitle>Case Summary</SectionTitle>
+          <SectionTitle>{t('ecCaseSummary')}</SectionTitle>
           <Text style={styles.contextLine}>
-            📷 Images · {briefing?.imageCount || images.length || 0} uploaded
+            📷 {t('ecImages')} · {briefing?.imageCount || images.length || 0} {t('ecUploaded')}
           </Text>
           {images.length ? (
             <View style={styles.mediaRow}>
@@ -475,33 +485,39 @@ export function ExpertCopilotChat({
             </View>
           ) : null}
 
-          <SectionTitle>🌦 Weather</SectionTitle>
+          <SectionTitle>🌦 {t('ecWeather')}</SectionTitle>
           {briefing?.weather?.rainfall7dMm != null ? (
             <Text style={styles.contextLine}>
-              Rainfall (7 Days): {briefing.weather.rainfall7dMm} mm
+              {t('ecRainfall7d')}: {briefing.weather.rainfall7dMm} mm
             </Text>
           ) : null}
           {briefing?.weather?.humidityPct != null ? (
-            <Text style={styles.contextLine}>Humidity: {briefing.weather.humidityPct}%</Text>
+            <Text style={styles.contextLine}>
+              {t('ecHumidity')}: {briefing.weather.humidityPct}%
+            </Text>
           ) : null}
           {briefing?.weather?.temperatureC != null ? (
             <Text style={styles.contextLine}>
-              Temperature: {briefing.weather.temperatureC}°C
+              {t('ecTemperature')}: {briefing.weather.temperatureC}°C
             </Text>
           ) : null}
           {briefing?.weather?.summary ? (
             <Text style={styles.contextLine}>{briefing.weather.summary}</Text>
           ) : !briefing?.weather ? (
-            <Text style={styles.contextLine}>Weather context pending</Text>
+            <Text style={styles.contextLine}>{t('ecWeatherPending')}</Text>
           ) : null}
 
-          <SectionTitle>🧪 Soil Report</SectionTitle>
-          <Text style={styles.contextLine}>pH: {briefing?.soil?.ph ?? 'Pending'}</Text>
-          <Text style={styles.contextLine}>EC: {briefing?.soil?.ec ?? 'Pending'}</Text>
+          <SectionTitle>🧪 {t('ecSoilReport')}</SectionTitle>
+          <Text style={styles.contextLine}>
+            pH: {briefing?.soil?.ph ?? t('ecPending')}
+          </Text>
+          <Text style={styles.contextLine}>
+            EC: {briefing?.soil?.ec ?? t('ecPending')}
+          </Text>
 
           {(briefing?.previousActivities?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Previous Activities</SectionTitle>
+              <SectionTitle>{t('ecPreviousActivities')}</SectionTitle>
               {briefing!.previousActivities!.map((act) => (
                 <Text key={act} style={styles.contextLine}>
                   • {act}
@@ -510,10 +526,12 @@ export function ExpertCopilotChat({
             </>
           ) : null}
 
-          <SectionTitle>AI Initial Diagnosis</SectionTitle>
+          <SectionTitle>{t('ecAiInitialDiagnosis')}</SectionTitle>
           <View style={styles.diagRow}>
             <Text style={styles.diagPrimary}>
-              {briefing?.primaryDiagnosis || detail.expertCase.primary_issue_label || 'Pending'}
+              {briefing?.primaryDiagnosis ||
+                detail.expertCase.primary_issue_label ||
+                t('ecPending')}
             </Text>
             {confidencePct(briefing?.primaryConfidence) ? (
               <View style={styles.confidencePill}>
@@ -525,16 +543,18 @@ export function ExpertCopilotChat({
           </View>
           {briefing?.alternativeDiagnosis ? (
             <Text style={styles.cardMeta}>
-              Alternative · {briefing.alternativeDiagnosis}
+              {t('ecAlternative')} · {briefing.alternativeDiagnosis}
               {confidencePct(briefing.alternativeConfidence)
                 ? ` (${confidencePct(briefing.alternativeConfidence)})`
                 : ''}
             </Text>
           ) : null}
           {briefing?.confidenceBand ? (
-            <Text style={styles.cardMeta}>Confidence · {briefing.confidenceBand}</Text>
+            <Text style={styles.cardMeta}>
+              {t('ecConfidence')} · {briefing.confidenceBand}
+            </Text>
           ) : null}
-          <Text style={styles.cardHint}>Reply in chat — e.g. “Open all images”.</Text>
+          <Text style={styles.cardHint}>{t('ecOpenImagesHint')}</Text>
         </View>
       );
     }
@@ -542,22 +562,22 @@ export function ExpertCopilotChat({
     if (item.kind === 'image_analysis' && draft.imageAnalysis) {
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <SectionTitle>AI Image Analysis</SectionTitle>
-          <Text style={styles.contextLine}>Detected</Text>
+          <SectionTitle>{t('ecAiImageAnalysis')}</SectionTitle>
+          <Text style={styles.contextLine}>{t('ecDetected')}</Text>
           {(draft.imageAnalysis.findings ?? []).map((f) => (
             <CheckLine key={f} text={f} />
           ))}
           {draft.imageAnalysis.annotated ? (
-            <Text style={styles.cardMeta}>AI Overlay Enabled — disease regions highlighted.</Text>
+            <Text style={styles.cardMeta}>{t('ecOverlayEnabled')}</Text>
           ) : draft.imageAnalysis.offerAnnotate ? (
-            <Text style={styles.cardHint}>Would you like AI annotated images?</Text>
+            <Text style={styles.cardHint}>{t('ecWantAnnotated')}</Text>
           ) : null}
         </View>
       );
     }
 
     if (item.kind === 'turn') {
-      const turn = turns.find((t) => t.id === item.turnId);
+      const turn = turns.find((row) => row.id === item.turnId);
       if (!turn) return null;
       const mine = turn.role === 'agronomist';
       return (
@@ -565,9 +585,9 @@ export function ExpertCopilotChat({
           {!mine ? (
             <Text style={styles.assistantLabel}>
               {turn.role === 'assistant'
-                ? 'AI Copilot'
+                ? t('ecAiCopilot')
                 : turn.role === 'farmer'
-                  ? 'Farmer'
+                  ? t('ecFarmer')
                   : turn.role}
             </Text>
           ) : null}
@@ -586,24 +606,26 @@ export function ExpertCopilotChat({
       const checklist = draftValidationChecklist(draft);
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <Text style={styles.cardTitle}>📋 Structured Preview</Text>
+          <Text style={styles.cardTitle}>📋 {t('ecStructuredPreview')}</Text>
 
-          <SectionTitle>Diagnosis</SectionTitle>
+          <SectionTitle>{t('ecDiagnosis')}</SectionTitle>
           <PreviewRow
-            label="Primary"
+            label={t('ecPrimary')}
             value={`${draft.diagnosis || '—'} ${confidencePct(draft.confidence) ?? ''}`.trim()}
           />
           {draft.secondaryDiagnosis ? (
             <PreviewRow
-              label="Secondary"
+              label={t('ecSecondary')}
               value={`${draft.secondaryDiagnosis} ${confidencePct(draft.secondaryConfidence) ?? ''}`.trim()}
             />
           ) : null}
-          {draft.severity ? <PreviewRow label="Severity" value={draft.severity} /> : null}
+          {draft.severity ? (
+            <PreviewRow label={t('ecSeverity')} value={draft.severity} />
+          ) : null}
 
           {(draft.evidence?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Evidence</SectionTitle>
+              <SectionTitle>{t('ecEvidence')}</SectionTitle>
               {draft.evidence!.map((e) => (
                 <CheckLine key={e} text={e} />
               ))}
@@ -612,7 +634,7 @@ export function ExpertCopilotChat({
 
           {(draft.rootCauses?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Root Cause</SectionTitle>
+              <SectionTitle>{t('ecRootCause')}</SectionTitle>
               {draft.rootCauses!.map((r) => (
                 <Text key={r} style={styles.contextLine}>
                   • {r}
@@ -621,35 +643,35 @@ export function ExpertCopilotChat({
             </>
           ) : null}
 
-          <SectionTitle>Treatment</SectionTitle>
+          <SectionTitle>{t('ecTreatment')}</SectionTitle>
           <PreviewRow
-            label="Product"
+            label={t('ecProduct')}
             value={draft.treatmentProduct || draft.recommendationText || '—'}
             wide
           />
           <PreviewRow
-            label="Dose"
+            label={t('ecDose')}
             value={
               draft.dosageSource === 'label'
-                ? `Registered · ${draft.dosage || 'label dose'}`
-                : draft.dosage || '⚠ Label dose pending'
+                ? `${t('ecRegistered')} · ${draft.dosage || 'label dose'}`
+                : draft.dosage || `⚠ ${t('ecLabelDosePending')}`
             }
           />
-          <PreviewRow label="Method" value={draft.applicationMethod || '—'} />
-          <PreviewRow label="Timing" value={draft.applicationTiming || '—'} />
+          <PreviewRow label={t('ecMethod')} value={draft.applicationMethod || '—'} />
+          <PreviewRow label={t('ecTiming')} value={draft.applicationTiming || '—'} />
 
           {draft.nutritionProduct ? (
             <>
-              <SectionTitle>Nutrition</SectionTitle>
-              <PreviewRow label="Product" value={draft.nutritionProduct} />
-              <PreviewRow label="Dose" value={draft.nutritionDose || '—'} />
-              <PreviewRow label="Timing" value={draft.nutritionTiming || '—'} />
+              <SectionTitle>{t('ecNutrition')}</SectionTitle>
+              <PreviewRow label={t('ecProduct')} value={draft.nutritionProduct} />
+              <PreviewRow label={t('ecDose')} value={draft.nutritionDose || '—'} />
+              <PreviewRow label={t('ecTiming')} value={draft.nutritionTiming || '—'} />
             </>
           ) : null}
 
           {(draft.culturalPractices?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Cultural Practice</SectionTitle>
+              <SectionTitle>{t('ecCulturalPractice')}</SectionTitle>
               {draft.culturalPractices!.map((c) => (
                 <Text key={c} style={styles.contextLine}>
                   • {c}
@@ -658,16 +680,16 @@ export function ExpertCopilotChat({
             </>
           ) : null}
 
-          <SectionTitle>Follow-up</SectionTitle>
+          <SectionTitle>{t('ecFollowUp')}</SectionTitle>
           <PreviewRow
-            label="Days"
-            value={draft.followUpDays != null ? `${draft.followUpDays} days` : '—'}
+            label={t('ecDays')}
+            value={draft.followUpDays != null ? `${draft.followUpDays}` : '—'}
           />
           {(draft.farmerTasks?.length ?? 0) > 0 ? (
             <>
-              {draft.farmerTasks!.map((t) => (
-                <Text key={t} style={styles.contextLine}>
-                  • {t}
+              {draft.farmerTasks!.map((task) => (
+                <Text key={task} style={styles.contextLine}>
+                  • {task}
                 </Text>
               ))}
             </>
@@ -675,7 +697,7 @@ export function ExpertCopilotChat({
 
           {(draft.precautions?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Precaution</SectionTitle>
+              <SectionTitle>{t('ecPrecaution')}</SectionTitle>
               {draft.precautions!.map((p) => (
                 <Text key={p} style={styles.contextLine}>
                   • {p}
@@ -686,8 +708,8 @@ export function ExpertCopilotChat({
 
           {draft.knowledgeCandidate ? (
             <>
-              <SectionTitle>Knowledge Candidate</SectionTitle>
-              <Text style={styles.contextLine}>YES</Text>
+              <SectionTitle>{t('ecKnowledgeCandidate')}</SectionTitle>
+              <Text style={styles.contextLine}>{t('ecYes')}</Text>
               {draft.knowledgeCandidateReason ? (
                 <Text style={styles.cardMeta}>{draft.knowledgeCandidateReason}</Text>
               ) : null}
@@ -696,7 +718,7 @@ export function ExpertCopilotChat({
 
           {checklist.length ? (
             <>
-              <SectionTitle>AI Validation</SectionTitle>
+              <SectionTitle>{t('ecAiValidation')}</SectionTitle>
               {checklist.map((c) => (
                 <CheckLine key={c} text={c} />
               ))}
@@ -710,11 +732,11 @@ export function ExpertCopilotChat({
       const v = draft.validations;
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <Text style={styles.cardTitle}>Running automatic validations…</Text>
+          <Text style={styles.cardTitle}>{t('ecRunningValidations')}</Text>
 
           {(v.compatibility?.length ?? 0) > 0 ? (
             <>
-              <SectionTitle>Compatibility Check</SectionTitle>
+              <SectionTitle>{t('ecCompatibilityCheck')}</SectionTitle>
               {v.compatibility!.map((row) => (
                 <Text key={row.product} style={styles.contextLine}>
                   {row.status === 'fail' ? '❌' : row.status === 'separate' ? '↔' : '✓'}{' '}
@@ -727,63 +749,75 @@ export function ExpertCopilotChat({
 
           {v.weather ? (
             <>
-              <SectionTitle>Weather Validation</SectionTitle>
+              <SectionTitle>{t('ecWeatherValidation')}</SectionTitle>
               {v.weather.forecast ? (
-                <Text style={styles.contextLine}>Forecast · {v.weather.forecast}</Text>
+                <Text style={styles.contextLine}>
+                  {t('ecForecast')} · {v.weather.forecast}
+                </Text>
               ) : null}
               {v.weather.recommendation ? (
                 <Text style={styles.contextLine}>
-                  Recommendation · {v.weather.recommendation}
+                  {t('ecRecommendation')} · {v.weather.recommendation}
                 </Text>
               ) : null}
               {v.weather.wind ? (
-                <Text style={styles.contextLine}>Wind · {v.weather.wind}</Text>
+                <Text style={styles.contextLine}>
+                  {t('ecWind')} · {v.weather.wind}
+                </Text>
               ) : null}
               {v.weather.humidity ? (
-                <Text style={styles.contextLine}>Humidity · {v.weather.humidity}</Text>
+                <Text style={styles.contextLine}>
+                  {t('ecHumidity')} · {v.weather.humidity}
+                </Text>
               ) : null}
             </>
           ) : null}
 
           {v.dosage ? (
             <>
-              <SectionTitle>Dosage Validation</SectionTitle>
+              <SectionTitle>{t('ecDosageValidation')}</SectionTitle>
               <Text style={styles.contextLine}>{v.dosage.message || v.dosage.status}</Text>
               {v.dosage.askLabelDose ? (
-                <Text style={styles.cardHint}>Reply Yes to apply registered label dosage.</Text>
+                <Text style={styles.cardHint}>{t('ecReplyYesLabelDose')}</Text>
               ) : null}
             </>
           ) : null}
 
           {v.frac ? (
             <>
-              <SectionTitle>Resistance Management</SectionTitle>
+              <SectionTitle>{t('ecResistanceMgmt')}</SectionTitle>
               <Text style={styles.contextLine}>
-                Previous · {v.frac.previousSpray}
-                {v.frac.daysAgo != null ? ` · ${v.frac.daysAgo} days ago` : ''}
+                {t('ecPrevious')} · {v.frac.previousSpray}
+                {v.frac.daysAgo != null ? ` · ${v.frac.daysAgo} ${t('ecDaysAgo')}` : ''}
               </Text>
               <Text style={styles.contextLine}>
-                FRAC · {v.frac.rotationOk ? 'Different MoA ✓' : 'Review needed'} · Risk{' '}
-                {v.frac.risk || '—'}
+                {t('ecFrac')} · {v.frac.rotationOk ? t('ecDifferentMoA') : t('ecReviewNeeded')} ·{' '}
+                {t('ecRisk')} {v.frac.risk || '—'}
               </Text>
             </>
           ) : null}
 
           {v.phytotoxicity ? (
             <>
-              <SectionTitle>Phytotoxicity</SectionTitle>
-              <Text style={styles.contextLine}>Risk · {v.phytotoxicity.risk || '—'}</Text>
+              <SectionTitle>{t('ecPhytotoxicity')}</SectionTitle>
+              <Text style={styles.contextLine}>
+                {t('ecRisk')} · {v.phytotoxicity.risk || '—'}
+              </Text>
             </>
           ) : null}
 
           {v.safety ? (
             <>
-              <SectionTitle>Safety Validation</SectionTitle>
-              {v.safety.ppe ? <CheckLine text="PPE Required" /> : null}
+              <SectionTitle>{t('ecSafetyValidation')}</SectionTitle>
+              {v.safety.ppe ? <CheckLine text={t('ecPpeRequired')} /> : null}
               {v.safety.reiHours != null ? (
-                <CheckLine text={`Re-entry Interval · ${v.safety.reiHours} Hours`} />
+                <CheckLine
+                  text={`${t('ecRei')} · ${v.safety.reiHours} ${t('ecHours')}`}
+                />
               ) : null}
-              {v.safety.phiRecorded ? <CheckLine text="Harvest Interval · Recorded" /> : null}
+              {v.safety.phiRecorded ? (
+                <CheckLine text={`${t('ecHarvestInterval')} · ${t('ecRecorded')}`} />
+              ) : null}
             </>
           ) : null}
         </View>
@@ -793,21 +827,21 @@ export function ExpertCopilotChat({
     if (item.kind === 'missing') {
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
-          <SectionTitle>Missing Information</SectionTitle>
-          <Text style={styles.contextLine}>I still need these details.</Text>
+          <SectionTitle>{t('ecMissingInfo')}</SectionTitle>
+          <Text style={styles.contextLine}>{t('ecStillNeed')}</Text>
           {(draft.farmerQuestions ?? []).map((q, i) => (
             <Text key={q} style={styles.contextLine}>
               {i + 1}. {q}
             </Text>
           ))}
           {draft.farmerQuestionsSent ? (
-            <Text style={styles.cardMeta}>Questions sent to farmer.</Text>
+            <Text style={styles.cardMeta}>{t('ecQuestionsSent')}</Text>
           ) : (
-            <Text style={styles.cardHint}>Reply “Yes” to send these questions to the farmer.</Text>
+            <Text style={styles.cardHint}>{t('ecReplyYesSendQs')}</Text>
           )}
           {draft.farmerAnswers ? (
             <>
-              <SectionTitle>Farmer replies</SectionTitle>
+              <SectionTitle>{t('ecFarmerReplies')}</SectionTitle>
               {Object.entries(draft.farmerAnswers).map(([k, v]) => (
                 <Text key={k} style={styles.contextLine}>
                   {k}: {v}
@@ -830,9 +864,11 @@ export function ExpertCopilotChat({
             safety.decision === 'PASS' ? styles.safetyPass : styles.safetyStop,
           ]}
         >
-          <Text style={styles.cardTitle}>Safety gate · {safety.decision}</Text>
+          <Text style={styles.cardTitle}>
+            {t('ecSafetyGate')} · {safety.decision}
+          </Text>
           {issues.length === 0 ? (
-            <Text style={styles.bubbleText}>No blockers. Confirm below to approve the case.</Text>
+            <Text style={styles.bubbleText}>{t('ecNoBlockers')}</Text>
           ) : (
             issues.map((issue, index) => (
               <Text key={`${issue.code}-${index}`} style={styles.bubbleText}>
@@ -850,9 +886,7 @@ export function ExpertCopilotChat({
               <View style={[styles.checkbox, safetyConfirmed && styles.checkboxChecked]}>
                 <Text style={styles.checkmark}>{safetyConfirmed ? '✓' : ''}</Text>
               </View>
-              <Text style={styles.confirmText}>
-                I reviewed diagnosis, dosage, validations, and farmer instructions.
-              </Text>
+              <Text style={styles.confirmText}>{t('ecConfirmReviewCheck')}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -862,8 +896,8 @@ export function ExpertCopilotChat({
     if (item.kind === 'approved' && approvedActions) {
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble, styles.safetyPass]}>
-          <Text style={styles.cardTitle}>✅ Case Approved Successfully</Text>
-          <SectionTitle>Actions Completed Automatically</SectionTitle>
+          <Text style={styles.cardTitle}>✅ {t('ecCaseApproved')}</Text>
+          <SectionTitle>{t('ecActionsCompleted')}</SectionTitle>
           {approvedActions.map((a) => (
             <Text key={a} style={styles.contextLine}>
               • {a}
@@ -892,14 +926,16 @@ export function ExpertCopilotChat({
         <View style={styles.priorityRow}>
           <View style={[styles.priorityDot, { backgroundColor: priorityColor(priority) }]} />
           <Text style={styles.headerPriority}>
-            Priority: {priority.charAt(0).toUpperCase() + priority.slice(1)}
+            {t('ecPriority')}: {priority.charAt(0).toUpperCase() + priority.slice(1)}
           </Text>
         </View>
         <Text style={styles.headerMeta} numberOfLines={1}>
-          Farmer: {farmerLabel}
+          {t('ecFarmer')}: {farmerLabel}
           {detail.expertCase.crop_type ? ` · ${detail.expertCase.crop_type}` : ''}
         </Text>
-        <Text style={styles.headerMeta}>Created: {createdLabel}</Text>
+        <Text style={styles.headerMeta}>
+          {t('ecCreated')}: {createdLabel}
+        </Text>
       </View>
 
       {error ? (
@@ -935,7 +971,7 @@ export function ExpertCopilotChat({
                 }
               }}
             >
-              <Text style={styles.quickChipText}>Site visit</Text>
+              <Text style={styles.quickChipText}>{t('ecSiteVisit')}</Text>
             </Pressable>
           ) : null}
           <Pressable
@@ -944,7 +980,7 @@ export function ExpertCopilotChat({
               setMessage('Open all images');
             }}
           >
-            <Text style={styles.quickChipText}>Images</Text>
+            <Text style={styles.quickChipText}>{t('ecImagesChip')}</Text>
           </Pressable>
           {leaseToken && canWrite ? (
             <Pressable
@@ -953,7 +989,7 @@ export function ExpertCopilotChat({
               disabled={Boolean(busy)}
             >
               <Text style={styles.quickChipText}>
-                {busy === 'safety' ? 'Checking…' : 'Safety'}
+                {busy === 'safety' ? t('ecChecking') : t('ecSafetyChip')}
               </Text>
             </Pressable>
           ) : null}
@@ -968,7 +1004,7 @@ export function ExpertCopilotChat({
             {busy === 'claim' ? (
               <ActivityIndicator color={tokens.textOnPrimary} />
             ) : (
-              <Text style={styles.approveBtnText}>Claim case to chat</Text>
+              <Text style={styles.approveBtnText}>{t('ecClaimToChat')}</Text>
             )}
           </Pressable>
         ) : null}
@@ -980,7 +1016,7 @@ export function ExpertCopilotChat({
                 style={styles.composerInput}
                 value={message}
                 onChangeText={setMessage}
-                placeholder="Type expert note or Yes / Approve"
+                placeholder={t('ecComposerPlaceholder')}
                 placeholderTextColor={tokens.textMuted}
                 multiline
                 maxLength={4000}
@@ -1011,10 +1047,10 @@ export function ExpertCopilotChat({
               ) : (
                 <Text style={styles.approveBtnText}>
                   {!safety || safety.decision !== 'PASS'
-                    ? 'Validate & continue'
+                    ? t('ecValidateContinue')
                     : !safetyConfirmed
-                      ? 'Confirm review'
-                      : 'Approve & next case'}
+                      ? t('ecConfirmReviewBtn')
+                      : t('ecApproveNext')}
                 </Text>
               )}
             </Pressable>

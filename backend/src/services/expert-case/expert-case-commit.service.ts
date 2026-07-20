@@ -177,6 +177,12 @@ export const expertCaseCommitService = {
       if (env.ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX && input.draft.recommendationText) {
         const contentHash = requestHash(input.draft);
         const draftExtra = input.draft as Record<string, unknown>;
+        const { data: farmer } = await supabase
+          .from('farmers')
+          .select('preferred_language, phone')
+          .eq('id', caseRow.farmer_id)
+          .maybeSingle();
+        const farmerLanguage = String(farmer?.preferred_language ?? 'en');
         const { data: intent, error: intentErr } = await supabase
           .from('communication_intents')
           .upsert(
@@ -188,7 +194,11 @@ export const expertCaseCommitService = {
               purpose: 'recommendation',
               content_version: revision,
               content_hash: contentHash,
-              recipient_snapshot: { farmerId: caseRow.farmer_id },
+              recipient_snapshot: {
+                farmerId: caseRow.farmer_id,
+                phone: farmer?.phone ?? null,
+                language: farmerLanguage,
+              },
               payload: {
                 recommendationText: input.draft.recommendationText,
                 dosage: input.draft.dosage,
@@ -202,6 +212,7 @@ export const expertCaseCommitService = {
                 culturalPractices: draftExtra.culturalPractices ?? [],
                 farmerTasks: draftExtra.farmerTasks ?? [],
                 followUpDays: input.draft.followUpDays ?? 7,
+                language: farmerLanguage,
               },
               status: 'queued',
               updated_at: new Date().toISOString(),

@@ -101,4 +101,9 @@ describe('Expert Copilot simulation', () => {
     const copper = validations.compatibility?.find((row) => /copper/i.test(row.product));
     assert.equal(copper?.status, 'fail');
   });
+
+  it('localizes open-images messages for Malayalam UI', () => {
+    const afterOpen = applyOpenImagesIntent(emptyExpertCaseDraft(), { imageCount: 4 }, 'ml');
+    assert.match(afterOpen.assistantMessage, /ഫോട്ടോ|ലോഡ്/);
+  });
 });

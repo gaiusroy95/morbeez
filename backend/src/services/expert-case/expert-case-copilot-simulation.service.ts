@@ -11,6 +11,12 @@ import {
 } from '@morbeez/shared/expert-case';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
+import {
+  copilotMsg,
+  defaultFarmerQuestions,
+  normalizeCopilotLocale,
+  type CopilotUiLocale,
+} from './expert-case-copilot-i18n.js';
 
 const IMAGE_OPEN_RE = /\b(open|show|view|load)\b.*\b(image|photo|picture)s?\b|\ball images\b/i;
 const YES_RE = /^(yes|y|ok|okay|sure|do it|send|apply|proceed|approve)\b/i;
@@ -257,7 +263,8 @@ const DEFAULT_FINDINGS = [
 
 export function applyOpenImagesIntent(
   draft: ExpertCaseReviewDraft,
-  briefing: ExpertCaseBriefing | null
+  briefing: ExpertCaseBriefing | null,
+  locale: CopilotUiLocale | string = 'en'
 ): {
   draft: ExpertCaseReviewDraft;
   assistantMessage: string;
@@ -275,21 +282,24 @@ export function applyOpenImagesIntent(
     evidence: draft.evidence?.length ? draft.evidence : findings.slice(0, 5),
   });
   const lines = [
-    'Images loaded.',
+    copilotMsg(locale, 'imagesLoaded'),
     '',
-    'AI Image Analysis',
-    'Detected',
+    copilotMsg(locale, 'imageAnalysisTitle'),
+    copilotMsg(locale, 'detected'),
     ...findings.map((f) => `✓ ${f}`),
     '',
-    'Would you like AI annotated images?',
+    copilotMsg(locale, 'wantAnnotated'),
   ];
   if (briefing?.imageCount) {
-    lines.splice(1, 0, `${briefing.imageCount} photo(s) available.`);
+    lines.splice(1, 0, copilotMsg(locale, 'photosAvailable', { n: briefing.imageCount }));
   }
   return { draft: next, assistantMessage: lines.join('\n') };
 }
 
-export function applyAnnotationIntent(draft: ExpertCaseReviewDraft): {
+export function applyAnnotationIntent(
+  draft: ExpertCaseReviewDraft,
+  locale: CopilotUiLocale | string = 'en'
+): {
   draft: ExpertCaseReviewDraft;
   assistantMessage: string;
 } {
@@ -303,11 +313,14 @@ export function applyAnnotationIntent(draft: ExpertCaseReviewDraft): {
   });
   return {
     draft: next,
-    assistantMessage: 'AI Overlay Enabled\n\nPossible disease regions highlighted.',
+    assistantMessage: copilotMsg(locale, 'overlayEnabled'),
   };
 }
 
-export function applyLabelDoseIntent(draft: ExpertCaseReviewDraft): {
+export function applyLabelDoseIntent(
+  draft: ExpertCaseReviewDraft,
+  locale: CopilotUiLocale | string = 'en'
+): {
   draft: ExpertCaseReviewDraft;
   assistantMessage: string;
 } {
@@ -322,7 +335,7 @@ export function applyLabelDoseIntent(draft: ExpertCaseReviewDraft): {
       ...(draft.validations ?? {}),
       dosage: {
         status: 'validated',
-        message: 'Registered dosage applied.',
+        message: copilotMsg(locale, 'registeredDoseApplied', { product }),
         labelDoseApplied: true,
         askLabelDose: false,
       },
@@ -331,7 +344,7 @@ export function applyLabelDoseIntent(draft: ExpertCaseReviewDraft): {
   next.unresolvedFields = (next.unresolvedFields ?? []).filter((f) => f !== 'dosage');
   return {
     draft: next,
-    assistantMessage: `Registered dosage applied for ${product}.`,
+    assistantMessage: copilotMsg(locale, 'registeredDoseApplied', { product }),
   };
 }
 
@@ -340,30 +353,30 @@ export async function applySendFarmerQuestionsIntent(params: {
   farmerId: string;
   draft: ExpertCaseReviewDraft;
   actorEmail: string;
+  /** Agronomist UI locale for chat replies; farmer WhatsApp uses farmer preferred language. */
+  uiLocale?: CopilotUiLocale | string;
+  farmerLocale?: CopilotUiLocale | string | null;
 }): Promise<{
   draft: ExpertCaseReviewDraft;
   assistantMessage: string;
   intentId?: string | null;
 }> {
+  const farmerLang = normalizeCopilotLocale(params.farmerLocale ?? params.uiLocale ?? 'en');
+  const uiLang = normalizeCopilotLocale(params.uiLocale ?? 'en');
   const questions =
     params.draft.farmerQuestions?.length
       ? params.draft.farmerQuestions
-      : [
-          'Current soil pH?',
-          'Current soil EC?',
-          'Any fungicide sprayed during the last 7 days?',
-          'Did symptoms start after continuous rainfall?',
-        ];
+      : defaultFarmerQuestions(farmerLang);
 
   let intentId: string | null = null;
   try {
     const { data: farmer } = await supabase
       .from('farmers')
-      .select('phone')
+      .select('phone, preferred_language')
       .eq('id', params.farmerId)
       .maybeSingle();
     const text = [
-      'Morbeez expert follow-up — please reply with:',
+      copilotMsg(farmer?.preferred_language ?? farmerLang, 'farmerQIntro'),
       ...questions.map((q, i) => `${i + 1}. ${q}`),
     ].join('\n');
     const { data: intent } = await supabase
@@ -379,8 +392,14 @@ export async function applySendFarmerQuestionsIntent(params: {
         recipient_snapshot: {
           farmerId: params.farmerId,
           phone: farmer?.phone ?? null,
+          language: farmer?.preferred_language ?? farmerLang,
         },
-        payload: { questions, text, recommendationText: text },
+        payload: {
+          questions,
+          text,
+          recommendationText: text,
+          language: farmer?.preferred_language ?? farmerLang,
+        },
         status: 'queued',
         updated_at: new Date().toISOString(),
       })
@@ -398,7 +417,7 @@ export async function applySendFarmerQuestionsIntent(params: {
 
   return {
     draft: next,
-    assistantMessage: 'Questions sent to the farmer via WhatsApp.',
+    assistantMessage: copilotMsg(uiLang, 'questionsSent'),
     intentId,
   };
 }
@@ -487,7 +506,8 @@ export function buildCopilotValidations(
 
 export function ensureMissingFarmerQuestions(
   draft: ExpertCaseReviewDraft,
-  briefing?: ExpertCaseBriefing | null
+  briefing?: ExpertCaseBriefing | null,
+  locale: CopilotUiLocale | string = 'en'
 ): ExpertCaseReviewDraft {
   if (draft.farmerQuestionsSent && draft.farmerAnswers) return draft;
   const missing: string[] = [...(draft.farmerQuestions ?? [])];
@@ -497,14 +517,14 @@ export function ensureMissingFarmerQuestions(
     briefing.soil.ph === 'Pending' ||
     briefing.soil.ec === 'Pending';
   if (soilPending) {
-    if (!missing.some((q) => /pH/i.test(q))) missing.push('Current soil pH?');
-    if (!missing.some((q) => /EC/i.test(q))) missing.push('Current soil EC?');
+    if (!missing.some((q) => /pH/i.test(q))) missing.push(copilotMsg(locale, 'farmerQPh'));
+    if (!missing.some((q) => /EC/i.test(q))) missing.push(copilotMsg(locale, 'farmerQEc'));
   }
-  if (!missing.some((q) => /fungicide/i.test(q))) {
-    missing.push('Any fungicide sprayed during the last 7 days?');
+  if (!missing.some((q) => /fungicide|ಫಂಗಿ|फफूंद|ഫംഗി|பூஞ்சை/i.test(q))) {
+    missing.push(copilotMsg(locale, 'farmerQFungicide'));
   }
-  if (!missing.some((q) => /rain/i.test(q))) {
-    missing.push('Did symptoms start after continuous rainfall?');
+  if (!missing.some((q) => /rain|बारिश|മഴ|மழை|ಮಳೆ/i.test(q))) {
+    missing.push(copilotMsg(locale, 'farmerQRain'));
   }
   return mergeExpertCaseDraft(draft, { farmerQuestions: missing });
 }
@@ -513,10 +533,12 @@ export function enrichDraftAfterExtraction(params: {
   draft: ExpertCaseReviewDraft;
   briefing?: ExpertCaseBriefing | null;
   runValidations: boolean;
+  locale?: CopilotUiLocale | string;
 }): ExpertCaseReviewDraft {
+  const locale = params.locale ?? 'en';
   let draft = mergeExpertCaseDraft(emptyExpertCaseDraft(), params.draft);
   if (params.runValidations && draftHasTreatment(draft)) {
-    draft = ensureMissingFarmerQuestions(draft, params.briefing);
+    draft = ensureMissingFarmerQuestions(draft, params.briefing, locale);
     const validations = buildCopilotValidations(draft, params.briefing);
     draft = mergeExpertCaseDraft(draft, { validations });
     if (!draft.knowledgeCandidate && draft.diagnosis) {

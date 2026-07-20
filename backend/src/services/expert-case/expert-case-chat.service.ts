@@ -16,12 +16,14 @@ import {
   mergeExpertCaseDraft,
   parseFarmerAnswerMessage,
 } from './expert-case-copilot-simulation.service.js';
+import { copilotMsg, normalizeCopilotLocale } from './expert-case-copilot-i18n.js';
 
 export type ExpertChatMessageInput = {
   caseId: string;
   ownerEmail: string;
   leaseToken?: string | null;
   content: string;
+  uiLocale?: string | null;
 };
 
 export type ExpertCaseDraftPayload = ExpertCaseReviewDraft;
@@ -286,9 +288,15 @@ export const expertCaseChatService = {
     const content = input.content.trim();
     if (!content) throw new ConflictError('Message is empty');
 
-    const [priorPending, links] = await Promise.all([
+    const locale = normalizeCopilotLocale(input.uiLocale);
+    const [priorPending, links, farmerRow] = await Promise.all([
       this.getPendingDraft(input.caseId),
       supabase.from('expert_case_links').select('*').eq('case_id', input.caseId),
+      supabase
+        .from('farmers')
+        .select('preferred_language')
+        .eq('id', owned.farmer_id)
+        .maybeSingle(),
     ]);
     let currentDraft =
       (priorPending?.draft_json as ExpertCaseDraftPayload | null | undefined) ??
@@ -298,6 +306,9 @@ export const expertCaseChatService = {
       expertCase: owned as unknown as Record<string, unknown>,
       links: links.data ?? [],
     });
+    const farmerLocale = normalizeCopilotLocale(
+      farmerRow.data?.preferred_language ?? locale
+    );
 
     const farmerAnswers = parseFarmerAnswerMessage(content);
     if (farmerAnswers) {
@@ -317,7 +328,7 @@ export const expertCaseChatService = {
     const intent = detectCopilotIntent(content, currentDraft);
 
     if (intent === 'open_images') {
-      const result = applyOpenImagesIntent(currentDraft, briefing);
+      const result = applyOpenImagesIntent(currentDraft, briefing, locale);
       return this.persistDraftResult({
         caseId: input.caseId,
         ownerEmail: input.ownerEmail,
@@ -325,14 +336,14 @@ export const expertCaseChatService = {
         owned,
         agronomistContent: content,
         assistantMessage: result.assistantMessage,
-        clarification: 'Would you like AI annotated images?',
+        clarification: copilotMsg(locale, 'wantAnnotated'),
         draft: result.draft,
-        metadata: { intent },
+        metadata: { intent, uiLocale: locale },
       });
     }
 
     if (intent === 'enable_annotations') {
-      const result = applyAnnotationIntent(currentDraft);
+      const result = applyAnnotationIntent(currentDraft, locale);
       return this.persistDraftResult({
         caseId: input.caseId,
         ownerEmail: input.ownerEmail,
@@ -342,16 +353,17 @@ export const expertCaseChatService = {
         assistantMessage: result.assistantMessage,
         clarification: null,
         draft: result.draft,
-        metadata: { intent },
+        metadata: { intent, uiLocale: locale },
       });
     }
 
     if (intent === 'apply_label_dose') {
-      const result = applyLabelDoseIntent(currentDraft);
+      const result = applyLabelDoseIntent(currentDraft, locale);
       const enriched = enrichDraftAfterExtraction({
         draft: result.draft,
         briefing,
         runValidations: true,
+        locale: farmerLocale,
       });
       return this.persistDraftResult({
         caseId: input.caseId,
@@ -362,20 +374,20 @@ export const expertCaseChatService = {
         assistantMessage: [
           result.assistantMessage,
           '',
-          'Resistance Management: FRAC rotation OK · Risk LOW',
-          'Phytotoxicity: LOW',
-          'Safety: PPE required · REI 24h · Harvest interval recorded',
+          copilotMsg(locale, 'resistanceFrac'),
+          copilotMsg(locale, 'phytotoxicityLow'),
+          copilotMsg(locale, 'safetyPpe'),
           enriched.farmerQuestions?.length
-            ? `\nMissing information — send these questions to farmer?\n${enriched.farmerQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+            ? `\n${copilotMsg(locale, 'missingInfoSend')}\n${enriched.farmerQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
             : '',
         ]
           .filter(Boolean)
           .join('\n'),
         clarification: enriched.farmerQuestions?.length
-          ? 'Send these questions to farmer?'
+          ? copilotMsg(locale, 'askSendFarmerQs')
           : null,
         draft: enriched,
-        metadata: { intent },
+        metadata: { intent, uiLocale: locale },
       });
     }
 
@@ -385,6 +397,8 @@ export const expertCaseChatService = {
         farmerId: String(owned.farmer_id),
         draft: currentDraft,
         actorEmail: input.ownerEmail,
+        uiLocale: locale,
+        farmerLocale,
       });
       return this.persistDraftResult({
         caseId: input.caseId,
@@ -395,7 +409,7 @@ export const expertCaseChatService = {
         assistantMessage: result.assistantMessage,
         clarification: null,
         draft: result.draft,
-        metadata: { intent, intentId: result.intentId },
+        metadata: { intent, intentId: result.intentId, uiLocale: locale },
       });
     }
 
@@ -413,6 +427,7 @@ export const expertCaseChatService = {
       currentDraft,
       clarificationAlreadyAsked: clarificationCount > 0,
       briefing,
+      uiLocale: locale,
     });
 
     let draft = mergeExpertCaseDraft(currentDraft, extraction.draft);
@@ -420,6 +435,7 @@ export const expertCaseChatService = {
       draft,
       briefing,
       runValidations: true,
+      locale: farmerLocale,
     });
     if (farmerAnswers) {
       draft = mergeExpertCaseDraft(draft, { farmerAnswers });
@@ -431,26 +447,27 @@ export const expertCaseChatService = {
       draft.dosageSource !== 'label' &&
       !clarification
     ) {
-      clarification =
-        'Manufacturer label dose detected. Use the registered label dosage for this formulation?';
+      clarification = copilotMsg(locale, 'askLabelDose');
     } else if (
       (draft.farmerQuestions?.length ?? 0) > 0 &&
       !draft.farmerQuestionsSent &&
       !clarification
     ) {
-      clarification = 'Send these missing-field questions to the farmer?';
+      clarification = copilotMsg(locale, 'askSendFarmerQs');
     }
 
     const assistantParts = [
-      extraction.assistantMessage || 'Understood. Extracting expert recommendations…',
+      extraction.assistantMessage || copilotMsg(locale, 'extracting'),
       draft.validations
         ? [
             '',
-            'Running automatic validations…',
+            copilotMsg(locale, 'runningValidations'),
             draft.validations.dosage?.askLabelDose
-              ? `Dosage: ${draft.validations.dosage.message}`
-              : 'Dosage validated.',
-            'Compatibility, weather, FRAC, phytotoxicity, and safety checks attached to the structured preview.',
+              ? copilotMsg(locale, 'dosageAsk', {
+                  message: draft.validations.dosage.message || '',
+                })
+              : copilotMsg(locale, 'dosageOk'),
+            copilotMsg(locale, 'validationsAttached'),
           ].join('\n')
         : '',
     ];
@@ -467,6 +484,7 @@ export const expertCaseChatService = {
       metadata: {
         intent: 'free_text',
         hasValidations: Boolean(draft.validations),
+        uiLocale: locale,
       },
     });
   },
@@ -479,19 +497,20 @@ export const expertCaseChatService = {
     currentDraft?: ExpertCaseDraftPayload | null;
     clarificationAlreadyAsked?: boolean;
     briefing?: Awaited<ReturnType<typeof loadExpertCaseBriefing>> | null;
+    uiLocale?: string | null;
   }): Promise<{
     assistantMessage: string;
     clarification: string | null;
     draft: ExpertCaseDraftPayload;
   }> {
+    const locale = normalizeCopilotLocale(params.uiLocale);
     const fallback: {
       assistantMessage: string;
       clarification: string | null;
       draft: ExpertCaseDraftPayload;
     } = {
-      assistantMessage:
-        'I captured your note. Review the structured preview and confirm diagnosis, dosage, and follow-up — or clarify anything unclear.',
-      clarification: 'Which diagnosis and treatment should I apply to the draft?',
+      assistantMessage: copilotMsg(locale, 'extracting'),
+      clarification: copilotMsg(locale, 'clarifyDiagnosis'),
       draft: {
         ...emptyExpertCaseDraft(),
         notes: params.message.slice(0, 500),
@@ -510,12 +529,15 @@ export const expertCaseChatService = {
           'Preserve explicit fields; never invent products, doses, IDs, or approvals.',
           'Unknown fields are null and listed in unresolvedFields.',
           'Ask at most one clarification for the whole case; when clarificationAlreadyAsked is true, clarification must be null.',
-          'assistantMessage should briefly confirm extraction (e.g. Understood. Extracting expert recommendations...).',
+          `Write assistantMessage and clarification in language code "${locale}" (simple spoken style for Indian agronomists).`,
+          'Keep structured field values (diagnosis names, product names, doses, evidence) in English so forms/tables stay consistent.',
+          'assistantMessage should briefly confirm extraction.',
           'If the message is a composite recommendation, fill as many structured fields as possible.',
         ].join(' '),
         userPrompt: JSON.stringify({
           caseId: params.caseId,
           currentRevision: params.currentRevision,
+          uiLocale: locale,
           briefing: params.briefing ?? null,
           history: params.history.slice(-12),
           latestMessage: params.message,

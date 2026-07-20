@@ -3,8 +3,11 @@ import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { supabase } from '../../lib/supabase.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
+import { farmerReplyPolishService } from '../whatsapp/pipeline/farmer-reply-polish.service.js';
 import { expertCaseOwnershipService } from './expert-case-ownership.service.js';
 import { expertCaseQueueService } from './expert-case-queue.service.js';
+import { toAdvisoryLanguage } from './expert-case-copilot-i18n.js';
+import type { AdvisoryLanguage } from '../ai/types.js';
 
 const INTERVAL_MS = 30_000;
 const COMMUNICATION_MAX_ATTEMPTS = 5;
@@ -161,22 +164,41 @@ export class ExpertCopilotWorker {
 
       const providerKey = `expert-intent:${intent.id}:v${intent.content_version}`;
       try {
-        const recipient = (intent.recipient_snapshot as { farmerId?: string; phone?: string }) ?? {};
+        const recipient =
+          (intent.recipient_snapshot as {
+            farmerId?: string;
+            phone?: string;
+            language?: string;
+          }) ?? {};
         let phone = recipient.phone?.trim() ?? '';
+        let language: AdvisoryLanguage = toAdvisoryLanguage(
+          (intent.payload as { language?: string } | null)?.language ?? recipient.language
+        );
         if (!phone && recipient.farmerId) {
           const { data: farmer } = await supabase
             .from('farmers')
-            .select('phone')
+            .select('phone, preferred_language')
             .eq('id', recipient.farmerId)
             .maybeSingle();
           phone = String(farmer?.phone ?? '').trim();
+          if (farmer?.preferred_language) {
+            language = toAdvisoryLanguage(String(farmer.preferred_language));
+          }
         }
         if (!phone) throw new Error('recipient_phone_missing');
 
-        await whatsappService.sendText(
-          phone,
-          communicationText((intent.payload as Record<string, unknown>) ?? {})
-        );
+        const draftText = communicationText((intent.payload as Record<string, unknown>) ?? {});
+        const localized =
+          language === 'en'
+            ? draftText
+            : await farmerReplyPolishService.polish({
+                factualDraft: draftText,
+                language,
+                task: 'agronomy',
+                lockedFacts: draftText,
+              });
+
+        await whatsappService.sendText(phone, localized);
         await supabase.from('communication_attempts').insert({
           intent_id: intent.id,
           attempt_number: attemptNumber,

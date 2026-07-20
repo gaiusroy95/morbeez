@@ -427,7 +427,12 @@ export const agronomistClient = {
     }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/chat`);
   },
 
-  async postExpertCaseChat(id: string, content: string, leaseToken?: string | null) {
+  async postExpertCaseChat(
+    id: string,
+    content: string,
+    leaseToken?: string | null,
+    uiLocale?: string | null
+  ) {
     return staffApi<{
       ok: boolean;
       agronomistTurn: ExpertCaseChatTurn;
@@ -437,7 +442,7 @@ export const agronomistClient = {
       baseRevision: number;
     }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/chat`, {
       method: 'POST',
-      body: JSON.stringify({ content, leaseToken }),
+      body: JSON.stringify({ content, leaseToken, uiLocale: uiLocale ?? undefined }),
     });
   },
 

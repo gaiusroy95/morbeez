@@ -259,6 +259,7 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       .object({
         content: z.string().min(1).max(10_000),
         leaseToken: z.string().uuid().nullish(),
+        uiLocale: z.enum(['en', 'hi', 'ml', 'ta', 'kn']).nullish(),
       })
       .parse(request.body);
     const result = await expertCaseChatService.postMessage({
@@ -266,6 +267,7 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       ownerEmail: admin.email,
       leaseToken: body.leaseToken,
       content: body.content,
+      uiLocale: body.uiLocale,
     });
     return reply.send({ ok: true, ...result });
   });
