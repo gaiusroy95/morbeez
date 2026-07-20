@@ -175,10 +175,10 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       if (expertCaseQueueService.enabled()) {
         const buckets = await expertCaseQueueService.listBuckets(admin.email);
         const next =
-          buckets.my_work.find((row) => row.id !== id) ??
-          buckets.available.find((row) => row.id !== id) ??
+          buckets.my_work.find((row) => String(row.id ?? '') !== id) ??
+          buckets.available.find((row) => String(row.id ?? '') !== id) ??
           null;
-        nextCaseId = next?.id ?? null;
+        nextCaseId = typeof next?.id === 'string' ? next.id : null;
       }
     } catch {
       /* optional */
