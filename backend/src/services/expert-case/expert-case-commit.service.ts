@@ -24,6 +24,7 @@ export type CaseReviewCommitInput = {
     recoveryStatus?: string | null;
     knowledgeCandidate?: boolean;
     notes?: string | null;
+    [key: string]: unknown;
   };
   safetyDecisionId?: string | null;
   closeCase?: boolean;
@@ -175,6 +176,7 @@ export const expertCaseCommitService = {
       let communicationIntentId: string | null = null;
       if (env.ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX && input.draft.recommendationText) {
         const contentHash = requestHash(input.draft);
+        const draftExtra = input.draft as Record<string, unknown>;
         const { data: intent, error: intentErr } = await supabase
           .from('communication_intents')
           .upsert(
@@ -191,6 +193,15 @@ export const expertCaseCommitService = {
                 recommendationText: input.draft.recommendationText,
                 dosage: input.draft.dosage,
                 diagnosis: input.draft.diagnosis,
+                treatmentProduct: draftExtra.treatmentProduct ?? null,
+                applicationMethod: draftExtra.applicationMethod ?? null,
+                applicationTiming: draftExtra.applicationTiming ?? null,
+                nutritionProduct: draftExtra.nutritionProduct ?? null,
+                nutritionDose: draftExtra.nutritionDose ?? null,
+                precautions: draftExtra.precautions ?? [],
+                culturalPractices: draftExtra.culturalPractices ?? [],
+                farmerTasks: draftExtra.farmerTasks ?? [],
+                followUpDays: input.draft.followUpDays ?? 7,
               },
               status: 'queued',
               updated_at: new Date().toISOString(),
@@ -209,6 +220,29 @@ export const expertCaseCommitService = {
           idempotency_key: `comm:${communicationIntentId}`,
           status: 'pending',
         });
+      }
+
+      // Day-N follow-up reminder (callback)
+      const followUpDays = Number(input.draft.followUpDays ?? 7);
+      if (followUpDays > 0 && caseRow.farmer_id) {
+        const due = new Date();
+        due.setDate(due.getDate() + followUpDays);
+        try {
+          await supabase.from('callbacks').insert({
+            farmer_id: caseRow.farmer_id,
+            reason: `Expert case Day-${followUpDays} follow-up · ${input.draft.diagnosis ?? 'crop check'} · request fresh photos`,
+            status: 'pending',
+            due_at: due.toISOString(),
+            created_by: input.actorEmail,
+            metadata: {
+              expertCaseId: input.caseId,
+              followUpDays,
+              source: 'expert_case_commit',
+            },
+          });
+        } catch {
+          /* callbacks table shape may vary — non-blocking */
+        }
       }
 
       let knowledgeCandidateId: string | null = null;

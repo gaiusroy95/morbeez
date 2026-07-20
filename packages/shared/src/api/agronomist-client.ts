@@ -64,18 +64,17 @@ export type ExpertCaseAssignmentStatus =
   | 'completed'
   | 'intervention_required';
 
-export type ExpertCaseDraft = {
-  diagnosis?: string | null;
-  confidence?: number | null;
-  severity?: string | null;
-  recommendationText?: string | null;
-  dosage?: string | null;
-  followUpDays?: number | null;
-  recoveryStatus?: string | null;
-  knowledgeCandidate?: boolean;
-  notes?: string | null;
-  unresolvedFields?: string[];
-};
+export type {
+  ExpertCaseBriefing,
+  ExpertCaseReviewDraft as ExpertCaseDraft,
+  ExpertCaseValidations,
+  ExpertCompatibilityRow,
+} from '../expert-case/case-review-contract.js';
+import type {
+  ExpertCaseBriefing,
+  ExpertCaseReviewDraft,
+} from '../expert-case/case-review-contract.js';
+type ExpertCaseDraft = ExpertCaseReviewDraft;
 
 export type ExpertCaseQueueItem = {
   id: string;
@@ -163,6 +162,8 @@ export type ExpertCaseDetail = {
   turns: ExpertCaseChatTurn[];
   draft: ExpertCasePendingDraft | null;
   safety: ExpertCaseSafetyDecision | null;
+  briefing?: ExpertCaseBriefing | null;
+  nextCaseId?: string | null;
 };
 
 export const agronomistClient = {
@@ -469,6 +470,8 @@ export const agronomistClient = {
         dosage?: string | null;
         cropType?: string | null;
         applicationType?: string | null;
+        phiDays?: number | null;
+        reiHours?: number | null;
       };
     }
   ) {

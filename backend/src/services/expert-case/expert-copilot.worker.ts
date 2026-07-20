@@ -12,11 +12,30 @@ const COMMUNICATION_MAX_ATTEMPTS = 5;
 function communicationText(payload: Record<string, unknown>): string {
   const diagnosis = String(payload.diagnosis ?? '').trim();
   const recommendation = String(payload.recommendationText ?? '').trim();
+  const treatment = String(payload.treatmentProduct ?? '').trim();
   const dosage = String(payload.dosage ?? '').trim();
+  const method = String(payload.applicationMethod ?? '').trim();
+  const timing = String(payload.applicationTiming ?? '').trim();
+  const nutrition = [payload.nutritionProduct, payload.nutritionDose]
+    .filter(Boolean)
+    .map(String)
+    .join(' · ');
+  const precautions = Array.isArray(payload.precautions)
+    ? (payload.precautions as string[]).filter(Boolean).join('; ')
+    : '';
+  const cultural = Array.isArray(payload.culturalPractices)
+    ? (payload.culturalPractices as string[]).filter(Boolean).join('; ')
+    : '';
+  const followUp = payload.followUpDays != null ? `Follow-up in ${payload.followUpDays} days. Please send fresh photos.` : '';
   return [
     diagnosis ? `Expert review: ${diagnosis}` : 'Expert recommendation',
-    recommendation,
+    treatment || recommendation,
     dosage ? `Dosage: ${dosage}` : '',
+    method || timing ? `Apply: ${[method, timing].filter(Boolean).join(' · ')}` : '',
+    nutrition ? `Nutrition: ${nutrition}` : '',
+    cultural ? `Field practice: ${cultural}` : '',
+    precautions ? `Caution: ${precautions}` : '',
+    followUp,
   ]
     .filter(Boolean)
     .join('\n\n')

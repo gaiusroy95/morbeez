@@ -7,6 +7,7 @@ import { supabase } from '../../lib/supabase.js';
 import { expertCaseBackfillService } from '../../services/expert-case/expert-case-backfill.service.js';
 import { expertCaseChatService } from '../../services/expert-case/expert-case-chat.service.js';
 import { expertCaseCommitService } from '../../services/expert-case/expert-case-commit.service.js';
+import { loadExpertCaseBriefing } from '../../services/expert-case/expert-case-copilot-simulation.service.js';
 import { expertCaseLifecycleService } from '../../services/expert-case/expert-case-lifecycle.service.js';
 import { expertCaseOwnershipService } from '../../services/expert-case/expert-case-ownership.service.js';
 import { expertCaseQueueService } from '../../services/expert-case/expert-case-queue.service.js';
@@ -17,18 +18,46 @@ import { recommendationSafetyGateService } from '../../services/safety/recommend
 
 const uuidParam = z.object({ id: z.string().uuid() });
 
-const draftSchema = z.object({
-  diagnosis: z.string().max(500).nullish(),
-  confidence: z.number().min(0).max(1).nullish(),
-  severity: z.string().max(100).nullish(),
-  recommendationText: z.string().max(10_000).nullish(),
-  dosage: z.string().max(1000).nullish(),
-  followUpDays: z.number().int().min(0).max(365).nullish(),
-  recoveryStatus: z.string().max(100).nullish(),
-  knowledgeCandidate: z.boolean().optional(),
-  notes: z.string().max(10_000).nullish(),
-  unresolvedFields: z.array(z.string().max(100)).max(50).optional(),
-});
+const draftSchema = z
+  .object({
+    diagnosis: z.string().max(500).nullish(),
+    confidence: z.number().min(0).max(100).nullish(),
+    severity: z.string().max(100).nullish(),
+    secondaryDiagnosis: z.string().max(500).nullish(),
+    secondaryConfidence: z.number().min(0).max(100).nullish(),
+    recommendationText: z.string().max(10_000).nullish(),
+    dosage: z.string().max(1000).nullish(),
+    dosageSource: z.enum(['label', 'manual', 'pending']).nullish(),
+    applicationMethod: z.string().max(200).nullish(),
+    applicationTiming: z.string().max(200).nullish(),
+    treatmentProduct: z.string().max(500).nullish(),
+    evidence: z.array(z.string().max(300)).max(30).optional(),
+    rootCauses: z.array(z.string().max(300)).max(20).optional(),
+    nutritionProduct: z.string().max(300).nullish(),
+    nutritionDose: z.string().max(200).nullish(),
+    nutritionTiming: z.string().max(200).nullish(),
+    culturalPractices: z.array(z.string().max(300)).max(20).optional(),
+    precautions: z.array(z.string().max(300)).max(20).optional(),
+    farmerTasks: z.array(z.string().max(300)).max(20).optional(),
+    followUpDays: z.number().int().min(0).max(365).nullish(),
+    recoveryStatus: z.string().max(100).nullish(),
+    knowledgeCandidate: z.boolean().optional(),
+    knowledgeCandidateReason: z.string().max(2000).nullish(),
+    notes: z.string().max(10_000).nullish(),
+    unresolvedFields: z.array(z.string().max(100)).max(50).optional(),
+    farmerQuestions: z.array(z.string().max(500)).max(20).optional(),
+    farmerQuestionsSent: z.boolean().optional(),
+    farmerAnswers: z.record(z.string(), z.string().max(500)).nullish(),
+    imageAnalysis: z
+      .object({
+        findings: z.array(z.string().max(300)).max(20).optional(),
+        annotated: z.boolean().optional(),
+        offerAnnotate: z.boolean().optional(),
+      })
+      .nullish(),
+    validations: z.record(z.string(), z.unknown()).nullish(),
+  })
+  .passthrough();
 
 export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
   const api = '/morbeez-staff/api/v1/os/expert-cases';
@@ -113,7 +142,7 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get(`${api}/:id`, async (request, reply) => {
-    await assertModuleAccess(request, 'agronomist', 'read');
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const { id } = uuidParam.parse(request.params);
     const expertCase = await expertCaseLifecycleService.getById(id);
     if (!expertCase) return reply.status(404).send({ ok: false, error: 'Expert case not found' });
@@ -135,6 +164,26 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
         .limit(1)
         .maybeSingle(),
     ]);
+
+    const briefing = await loadExpertCaseBriefing({
+      expertCase: expertCase as unknown as Record<string, unknown>,
+      links: links.data ?? [],
+    });
+
+    let nextCaseId: string | null = null;
+    try {
+      if (expertCaseQueueService.enabled()) {
+        const buckets = await expertCaseQueueService.listBuckets(admin.email);
+        const next =
+          buckets.my_work.find((row) => row.id !== id) ??
+          buckets.available.find((row) => row.id !== id) ??
+          null;
+        nextCaseId = next?.id ?? null;
+      }
+    } catch {
+      /* optional */
+    }
+
     return reply.send({
       ok: true,
       enabled: env.ENABLE_EXPERT_CASES,
@@ -144,6 +193,8 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       turns,
       draft,
       safety: safety.data ?? null,
+      briefing,
+      nextCaseId,
     });
   });
 

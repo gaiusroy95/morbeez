@@ -15,6 +15,7 @@
     "./farmer": "./src/api/farmer-client.ts",
     "./farm-activity-assistant": "./src/farm-activity-assistant/index.ts",
     "./farm-activity-assistant/v1": "./src/farm-activity-assistant/v1.ts",
+    "./expert-case": "./src/expert-case/index.ts",
     "./visit-assistant": "./src/visit-assistant/index.ts",
     "./visit-assistant/v1": "./src/visit-assistant/v1.ts",
     "./fulfillment/fulfillment-gates": "./src/fulfillment/fulfillment-gates.ts",
