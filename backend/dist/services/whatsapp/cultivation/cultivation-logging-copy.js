@@ -1,4 +1,7 @@
-export function applicationPrompt(lang) {
+import { formatApplicationCheckMessage, } from '../../core/application-follow-up-message.util.js';
+export function applicationPrompt(lang, ctx) {
+    if (ctx)
+        return formatApplicationCheckMessage(lang, ctx);
     const map = {
         en: 'Have you applied the recommendation we shared?\n\nPlease let us know so we can track results.',
         ml: 'ഞങ്ങൾ പങ്കിട്ട ശുപാർശ പ്രയോഗിച്ചോ?\n\nഫലം ട്രാക്ക് ചെയ്യാൻ അറിയിക്കുക.',

@@ -2,6 +2,7 @@ import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
 import type { SessionContext } from '../scenarios/session-context.types.js';
 import { type InvestigationContext, type PostIntakeDiagnosisPayload } from './diagnosis-follow-up-reasoning.engine.js';
 import { type FollowUpQuestionKind } from './diagnosis-follow-up-question.generator.js';
+import type { MaiosCase } from '../../../domain/case/types.js';
 import { type FollowUpChoiceOption } from './follow-up-question.types.js';
 export type SimilarLearnedCase = {
     reuseCaseId: string;
@@ -20,6 +21,7 @@ export type FollowUpQuestion = {
     purpose?: string;
     libraryId?: string;
     fromExpertLibrary?: boolean;
+    fromEvsi?: boolean;
 };
 type IntakeContext = NonNullable<SessionContext['diagnosisIntake']>;
 type PostDiagnosisIntakeContext = NonNullable<SessionContext['postDiagnosisIntake']>;
@@ -98,6 +100,7 @@ export declare const diagnosisFollowUpService: {
         reused: boolean;
         plotLabel?: string;
         symptomsText?: string;
+        maiosCase?: MaiosCase | null;
     }): Promise<boolean>;
     sendPostDiagnosisQuestion(phone: string, language: AdvisoryLanguage, intake: PostDiagnosisIntakeContext, prefix?: string): Promise<void>;
     handlePostDiagnosisMessage(params: {

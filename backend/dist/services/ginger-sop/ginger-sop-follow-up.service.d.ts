@@ -6,6 +6,7 @@ export declare const gingerSopFollowUpService: {
         sessionId: string;
         language: AdvisoryLanguage;
         recommendationRecordId?: string | null;
+        issueLabel?: string | null;
     }): Promise<void>;
     processRecoveryJob(job: {
         farmer_id: string;

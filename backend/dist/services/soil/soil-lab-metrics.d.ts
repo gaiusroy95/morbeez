@@ -40,4 +40,18 @@ export declare function microPrompt(lang: string): string;
 export declare function soilTypePrompt(lang: string): string;
 export declare function parseSoilType(text: string): string | null;
 export declare function hasAnyMetricValue(metrics: SoilLabMetrics): boolean;
+/** Flat numeric map for AI rules (N/P/K aliases included). */
+export declare function soilMetricsToFlatRecord(raw: unknown): Record<string, number>;
+export declare function soilDeficiencyFlags(raw: unknown): string[];
+/** Farmer / AI facing soil summary — supports v2 macro/micro and legacy flat metrics. */
+export declare function formatSoilMetricsForAi(raw: unknown, meta?: {
+    reportedAt?: string | null;
+    labName?: string | null;
+    maxLines?: number;
+}): string | null;
+export declare function formatSoilMetricsMultiline(raw: unknown, meta?: {
+    reportedAt?: string | null;
+    labName?: string | null;
+    maxLines?: number;
+}): string[];
 //# sourceMappingURL=soil-lab-metrics.d.ts.map

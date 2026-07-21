@@ -26,14 +26,14 @@ export const farmerTeamTimelineService = {
                 .limit(20),
             supabase
                 .from('crm_field_findings')
-                .select('id, summary, visited_at, created_at, submitted_by_role, partner_id')
+                .select('id, observations, disease_pest, crop_type, block_name, visited_at, created_at, submitted_by_role, partner_id')
                 .eq('farmer_id', farmerId)
                 .is('archived_at', null)
                 .order('visited_at', { ascending: false })
                 .limit(15),
             supabase
                 .from('agronomist_escalations')
-                .select('id, title, status, created_at, updated_at')
+                .select('id, reason, status, created_at, updated_at')
                 .eq('farmer_id', farmerId)
                 .order('created_at', { ascending: false })
                 .limit(10),
@@ -67,11 +67,15 @@ export const farmerTeamTimelineService = {
             });
         }
         for (const v of visitsRes.data ?? []) {
+            const visitBody = String(v.observations ?? '').trim() ||
+                String(v.disease_pest ?? '').trim() ||
+                [v.crop_type, v.block_name].filter(Boolean).join(' · ') ||
+                'Visit recorded';
             entries.push({
                 id: `visit-${v.id}`,
                 source: 'visit',
                 title: 'Field visit',
-                body: String(v.summary ?? 'Visit recorded'),
+                body: visitBody.slice(0, 280),
                 authorType: String(v.submitted_by_role ?? 'agronomist'),
                 authorName: null,
                 at: String(v.visited_at ?? v.created_at),
@@ -82,7 +86,7 @@ export const farmerTeamTimelineService = {
             entries.push({
                 id: `escalation-${e.id}`,
                 source: 'escalation',
-                title: String(e.title ?? 'Escalation'),
+                title: String(e.reason ?? 'Escalation').slice(0, 120),
                 body: `Status ${String(e.status)}`,
                 authorType: 'expert',
                 authorName: null,

@@ -8,6 +8,7 @@ import { failureAnalysisService } from './failure-analysis.service.js';
 import { executionVerificationService } from './execution-verification.service.js';
 import { regionalLearningService } from '../regional-learning/regional-learning.service.js';
 import { goldLearningQueueService } from '../ml/retraining-pipeline.service.js';
+import { buildMaiosRecoveryCheckInBody, resolveRecoveryCheckInCondition, } from './recovery-checkin-copy.js';
 function addDays(days) {
     const d = new Date();
     d.setDate(d.getDate() + days);
@@ -22,6 +23,11 @@ export const recoveryValidationService = {
             return;
         const pack = await cropPackLoaderService.load(params.cropType);
         const days = pack.recoveryDays.length ? pack.recoveryDays : [3, 7, 14];
+        const issueLabel = params.issueLabel?.trim() ||
+            (await resolveRecoveryCheckInCondition({
+                sessionId: params.sessionId,
+                recommendationRecordId: params.recommendationRecordId,
+            }));
         for (const day of days) {
             await supabase.from('advisory_automation_jobs').insert({
                 farmer_id: params.farmerId,
@@ -35,6 +41,7 @@ export const recoveryValidationService = {
                     recommendationRecordId: params.recommendationRecordId,
                     cropType: params.cropType,
                     sopVersion: pack.version,
+                    issueLabel: issueLabel ?? null,
                 },
             });
         }
@@ -52,9 +59,19 @@ export const recoveryValidationService = {
             .maybeSingle();
         if (!farmer?.phone)
             return;
-        const body = lang === 'ml'
-            ? `MAIOS (${pack.displayName}) — ദിവസം ${day}: ഇപ്പോൾ വിളയുടെ നില എങ്ങനെയാണ്?`
-            : `MAIOS (${pack.displayName}) check-in — Day ${day}: How is the crop now?`;
+        const condition = await resolveRecoveryCheckInCondition({
+            sessionId,
+            recommendationRecordId: job.payload.recommendationRecordId
+                ? String(job.payload.recommendationRecordId)
+                : null,
+            issueLabelHint: job.payload.issueLabel ? String(job.payload.issueLabel) : null,
+        });
+        const body = buildMaiosRecoveryCheckInBody({
+            lang,
+            cropDisplayName: pack.displayName,
+            day,
+            condition,
+        });
         try {
             await whatsappService.sendButtons({
                 to: farmer.phone,
@@ -101,7 +118,7 @@ export const recoveryValidationService = {
                 recommendation_record_id: String(recId),
                 phase: 'outcome_check',
                 channel: 'whatsapp',
-                metadata: { maiosRecoveryDay: day, sessionId },
+                metadata: { maiosRecoveryDay: day, sessionId, issueLabel: condition },
             }).then(({ error }) => {
                 if (error)
                     logger.warn({ error, day }, 'MAIOS recovery follow-up row insert skipped');

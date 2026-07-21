@@ -28,7 +28,7 @@ export declare const employeePerformanceService: {
         incentive_earned_inr: number;
         repeat_customers: number;
         return_count: number;
-        performance_status: "warning" | "good" | "critical" | "excellent" | "restricted";
+        performance_status: "warning" | "good" | "excellent" | "critical" | "restricted";
         action_stage: number;
         metadata: {};
     }>;

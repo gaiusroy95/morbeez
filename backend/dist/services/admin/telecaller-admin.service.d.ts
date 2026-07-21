@@ -65,7 +65,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -118,7 +118,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -126,7 +126,7 @@ export declare const telecallerAdminService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;
@@ -275,7 +275,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -283,7 +283,7 @@ export declare const telecallerAdminService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;
@@ -406,7 +406,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -414,7 +414,7 @@ export declare const telecallerAdminService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;
@@ -558,7 +558,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -566,7 +566,7 @@ export declare const telecallerAdminService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;
@@ -808,7 +808,7 @@ export declare const telecallerAdminService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -816,7 +816,7 @@ export declare const telecallerAdminService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;

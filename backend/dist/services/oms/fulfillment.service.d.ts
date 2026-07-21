@@ -481,7 +481,7 @@ export declare const fulfillmentService: {
     getOrderTimeline(commerceOrderId: string): Promise<{
         key: string;
         label: string;
-        status: "pending" | "done" | "current";
+        status: "pending" | "current" | "done";
         at: string | null;
         detail: string | null;
     }[]>;

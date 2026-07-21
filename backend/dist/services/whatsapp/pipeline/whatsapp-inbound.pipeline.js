@@ -2,6 +2,7 @@ import { env } from '../../../config/env.js';
 import { eventBus } from '../../../events/bus.js';
 import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
+import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
 import { leadCaptureService } from './lead-capture.service.js';
@@ -30,6 +31,10 @@ import { farmerService } from '../../farmer/farmer.service.js';
 import { advisoryImageStorageService, downloadAdvisoryImageBase64, } from '../../core/advisory-image-storage.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappScenarioRouter } from '../scenarios/whatsapp-scenario-router.service.js';
+import { farmerFeedbackFlowService } from '../scenarios/farmer-feedback-flow.service.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
+import { looksLikeFarmActivityMessage } from '../../farm-activity/farm-activity-message-intent.service.js';
+import { farmActivityInvoiceEvidenceService } from '../../farm-activity/farm-activity-invoice-evidence.service.js';
 import { nutrientSoilGateService, soilGatePreface, } from '../scenarios/nutrient-soil-gate.service.js';
 import { cropSelectionService } from '../scenarios/crop-selection.service.js';
 import { farmerPurgeService } from '../../farmer/farmer-purge.service.js';
@@ -38,6 +43,7 @@ import { onboardingFlowService, pincodePrompt } from '../scenarios/onboarding-fl
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { isMainMenuGreeting } from '../scenarios/whatsapp-menu.service.js';
 import { diagnosisFlowService } from '../scenarios/diagnosis-flow.service.js';
+import { diagnosisSessionEvidenceService } from './diagnosis-session-evidence.service.js';
 import { multiPlotService } from '../scenarios/multi-plot.service.js';
 import { aiReuseService } from '../../ai/ai-reuse.service.js';
 import { cropDetectionService } from './crop-detection.service.js';
@@ -56,7 +62,8 @@ import { assessmentPlaybookService } from '../scenarios/assessment-playbook.serv
 import { roiFlowService } from '../roi/roi-flow.service.js';
 import { diagnosisFollowUpService } from './diagnosis-follow-up.service.js';
 import { normalizeStructuredAdvisory } from '../../ai/advisory-normalize.js';
-import { scheduleImageBatch, mergeImageBatchCaption, whatsappImageBatchPendingCount, } from './whatsapp-image-batch.service.js';
+import { recommendationFollowUpService } from '../../core/recommendation-follow-up.service.js';
+import { scheduleImageBatch, mergeImageBatchCaption, whatsappImageBatchPendingCount, WHATSAPP_IMAGE_BATCH_MAX, } from './whatsapp-image-batch.service.js';
 import { evidenceQualityService } from '../../case/evidence-quality.service.js';
 import { caseBuilderService } from '../../case/case-builder.service.js';
 import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
@@ -156,6 +163,22 @@ function buildDiagnosisReply(params) {
         footer: responseComposerService.advisoryDisclaimer(params.language),
     });
 }
+function languageCodeFromInboundText(text) {
+    const trimmed = text.trim();
+    if (trimmed.startsWith('lang.')) {
+        const code = trimmed.replace('lang.', '');
+        return ['en', 'ml', 'ta', 'kn', 'hi'].includes(code) ? code : null;
+    }
+    return languageFromSelection(trimmed);
+}
+async function applyLanguageSelection(params) {
+    const selected = languageCodeFromInboundText(params.text);
+    if (!selected)
+        return false;
+    await conversationSessionService.setLanguageForOnboarding(params.farmerId, selected);
+    await whatsappScenarioRouter.startMinimalOnboarding(params.phone, params.farmerId, selected, params.send);
+    return true;
+}
 function languageFromSelection(text) {
     const t = text.trim().toLowerCase();
     // "hi" / "hello" are greetings — never treat as Hindi (use lang.hi button or "hindi" text).
@@ -244,27 +267,6 @@ async function tryAssessmentPlaybook(params) {
     });
     return true;
 }
-function validationQuestion(issue, language) {
-    const lower = issue.toLowerCase();
-    if (/thrip|silver|streak|scrap/.test(lower)) {
-        return language === 'ml'
-            ? 'സ്ഥിരീകരിക്കാൻ: ഇലയുടെ അടിയിൽ ചെറിയ കീടങ്ങളോ കറുത്ത മലമുണ്ടോ?'
-            : 'To confirm: do you see tiny insects or black dots under the leaves?';
-    }
-    if (/root|rot|nematode|rhizome/.test(lower)) {
-        return language === 'ml'
-            ? 'സ്ഥിരീകരിക്കാൻ: വേരുകൾ മൃദുവായിട്ടുണ്ടോ, ദുർഗന്ധമുണ്ടോ?'
-            : 'To confirm: are roots soft and is there any foul smell?';
-    }
-    if (/yellow|chlorosis|deficien/.test(lower)) {
-        return language === 'ml'
-            ? 'സ്ഥിരീകരിക്കാൻ: ഇലമഞ്ഞപ്പ് താഴെ നിന്ന് മുകളിലേക്ക് പടരുന്നുണ്ടോ?'
-            : 'To confirm: is yellowing spreading from lower leaves upward?';
-    }
-    return language === 'ml'
-        ? 'സ്ഥിരീകരിക്കാൻ: പ്രശ്നം എത്ര വേഗത്തിൽ പടരുന്നു?'
-        : 'To confirm: how fast is this issue spreading in the field?';
-}
 function languageSelectCopy() {
     return {
         body: 'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.',
@@ -342,6 +344,13 @@ function isFarmerResetCommand(text) {
 }
 export const whatsappInboundPipeline = {
     async process(msg, send, _hooks) {
+        if (msg.messageId?.trim()) {
+            const claimed = await claimInboundWhatsAppMessage(msg.messageId);
+            if (!claimed) {
+                logger.info({ messageId: msg.messageId, phone: msg.phone }, 'Duplicate WhatsApp inbound skipped');
+                return;
+            }
+        }
         if (msg.text?.trim() && isFarmerResetCommand(msg.text)) {
             const phone = orderWhatsappService.normalizePhone(msg.phone);
             await farmerPurgeService.purgeByPhone(phone);
@@ -356,7 +365,13 @@ export const whatsappInboundPipeline = {
         const captured = await leadCaptureService.captureAndIdentify(msg, 'en');
         // Conversation state + ownership (human takeover / pause AI)
         let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
-        if (!captured.hadHistoricalLead) {
+        const isLanguagePick = Boolean(languageCodeFromInboundText(msg.text ?? ''));
+        const isGreeting = Boolean(msg.text?.trim() && isMainMenuGreeting(msg.text));
+        // Bootstrap brand-new farmers once on first Hi — never reset mid-flow (e.g. after language tap).
+        if (!captured.hadHistoricalLead &&
+            isGreeting &&
+            !isLanguagePick &&
+            !session.preferred_language) {
             const now = new Date().toISOString();
             await supabase
                 .from('conversation_sessions')
@@ -383,6 +398,16 @@ export const whatsappInboundPipeline = {
             logger.info({ farmerId: captured.farmerId }, 'AI paused for WhatsApp conversation');
             return;
         }
+        if (msg.text?.trim()) {
+            const { expertCaseInboundService } = await import('../../expert-case/expert-case-inbound.service.js');
+            const handled = await expertCaseInboundService.tryHandleFarmerReply({
+                farmerId: captured.farmerId,
+                text: msg.text,
+                phone: msg.phone,
+            });
+            if (handled)
+                return;
+        }
         await supabase.from('interaction_logs').insert({
             farmer_id: captured.farmerId,
             channel: 'whatsapp',
@@ -405,11 +430,11 @@ export const whatsappInboundPipeline = {
             externalMessageId: msg.messageId,
             contentPreview: msg.text || msg.msgType,
         });
-        // Recover farmers who said "hi" before fix (was misread as Hindi → skipped language menu).
+        // Recover farmers whose greeting was misread as Hindi (legacy bug) — never wipe a valid pick.
         const ctxEarly = await conversationSessionService.getContext(captured.farmerId);
         const onboardingDoneEarly = await onboardingFlowService.isComplete(captured.farmerId);
         if (!onboardingDoneEarly &&
-            session.preferred_language &&
+            session.preferred_language === 'hi' &&
             msg.text &&
             isMainMenuGreeting(msg.text) &&
             (ctxEarly.onboardingStep === 'pincode' ||
@@ -426,24 +451,38 @@ export const whatsappInboundPipeline = {
                 .eq('channel', 'whatsapp');
             session = { ...session, preferred_language: null, state: 'language_select' };
         }
-        // Step 1 — language selection (required before anything else for new farmers)
+        // New farmer flow: Hi → language select → pincode → acreage → crop → planting date → main menu
         if (!session.preferred_language) {
-            if (msg.text?.startsWith('lang.')) {
-                const code = msg.text.replace('lang.', '');
-                if (['en', 'ml', 'ta', 'kn', 'hi'].includes(code)) {
-                    await conversationSessionService.setLanguageForOnboarding(captured.farmerId, code);
-                    await whatsappScenarioRouter.startMinimalOnboarding(msg.phone, captured.farmerId, code, send);
-                    return;
-                }
+            if (await applyLanguageSelection({
+                farmerId: captured.farmerId,
+                phone: msg.phone,
+                text: msg.text ?? '',
+                send,
+            })) {
+                return;
             }
-            const typedLang = msg.text ? languageFromSelection(msg.text) : null;
-            if (typedLang) {
-                const selected = typedLang;
-                if (selected && ['en', 'ml', 'ta', 'kn', 'hi'].includes(selected)) {
-                    await conversationSessionService.setLanguageForOnboarding(captured.farmerId, selected);
-                    await whatsappScenarioRouter.startMinimalOnboarding(msg.phone, captured.farmerId, selected, send);
-                    return;
+            const ctxLang = await conversationSessionService.getContext(captured.farmerId);
+            const onboardingAlreadyStarted = session.state === 'onboarding_minimal' || Boolean(ctxLang.onboardingStep);
+            if (onboardingAlreadyStarted) {
+                const { data: farmerRow } = await supabase
+                    .from('farmers')
+                    .select('preferred_language')
+                    .eq('id', captured.farmerId)
+                    .maybeSingle();
+                const lang = normalizeLanguage(null, farmerRow?.preferred_language ?? captured.language);
+                await conversationSessionService.setLanguageForOnboarding(captured.farmerId, lang);
+                session = { ...session, preferred_language: lang, state: 'onboarding_minimal' };
+                const step = ctxLang.onboardingStep ?? 'pincode';
+                if (step === 'pincode') {
+                    await send.text(msg.phone, pincodePrompt(lang));
                 }
+                else if (step === 'acreage') {
+                    await whatsappScenarioRouter.sendAcreageOnboardingStep(msg.phone, lang, send);
+                }
+                else {
+                    await send.text(msg.phone, onboardingFlowService.currentStepPrompt(step, lang));
+                }
+                return;
             }
             const copy = languageSelectCopy();
             if (send.list) {
@@ -542,6 +581,7 @@ export const whatsappInboundPipeline = {
                     sendText: send.text,
                     send,
                 });
+                await diagnosisSessionEvidenceService.rememberPhotoPaths(captured.farmerId, diagnosisSessionEvidenceService.collectPendingPhotoPaths(sessCtx));
                 await conversationSessionService.patchContext(captured.farmerId, {
                     pendingDiagnosisImagePath: undefined,
                     pendingDiagnosisImageMime: undefined,
@@ -660,6 +700,46 @@ export const whatsappInboundPipeline = {
             return;
         }
         let transcript = await transcriptionService.transcribeVoice(media.audioBuffer, media.audioMimeType ?? 'audio/ogg', captured.language);
+        const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+        if (farmActivityAssistantService.voiceEnabled() &&
+            send &&
+            transcript?.trim() &&
+            (farmActivityAssistantService.isFarmActivityState(session.state) ||
+                farmActivityAssistantService.looksLikeIntent(transcript))) {
+            const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+                farmerId: captured.farmerId,
+                phone: captured.phone,
+                language: captured.language,
+                text: transcript.trim(),
+                messageId: msg.messageId,
+                sessionState: session.state,
+                send,
+                modality: 'voice',
+                transcript: transcript.trim(),
+                conversationSessionId: session.id,
+                blockId: session.active_block_id ?? null,
+            });
+            if (farmHandled)
+                return;
+        }
+        if (session.state === 'farmer_feedback_capture' && send && transcript?.trim()) {
+            const handled = await farmerFeedbackFlowService.tryHandleCapture({
+                farmerId: captured.farmerId,
+                phone: captured.phone,
+                lang: captured.language,
+                text: transcript.trim(),
+                send,
+                messageId: msg.messageId,
+            });
+            if (handled)
+                return;
+        }
+        if (!transcript?.trim()) {
+            await sendText(captured.phone, captured.language === 'ml'
+                ? 'വോയ്സ് നോട്ട് മനസ്സിലായില്ല. വീണ്ടും വ്യക്തമായി സംസാരിക്കുക.'
+                : 'Could not understand the voice note. Please try again.');
+            return;
+        }
         await this.runDiagnosis({
             farmerId: captured.farmerId,
             phone: captured.phone,
@@ -686,6 +766,46 @@ export const whatsappInboundPipeline = {
                 : 'We could not load your photo. Please send the image again in a moment.');
             return;
         }
+        const invoiceCaption = (msg.text ?? '').trim();
+        const looksLikeInvoice = env.ENABLE_FARM_ACTIVITY_ASSISTANT &&
+            env.ENABLE_FARM_ACTIVITY_INVOICE_OCR &&
+            (/invoice|receipt|bill|രസീത്|ബിൽ|चालान|ರಸೀದಿ|ரசீது/i.test(invoiceCaption) ||
+                /document/i.test(msg.msgType));
+        if (looksLikeInvoice && media.imageBase64 && senders) {
+            try {
+                const buffer = Buffer.from(media.imageBase64, 'base64');
+                const invoice = await farmActivityInvoiceEvidenceService.extract({
+                    farmerId: captured.farmerId,
+                    source: {
+                        messageId: msg.messageId,
+                        channel: 'whatsapp',
+                        text: invoiceCaption || undefined,
+                    },
+                    media: {
+                        kind: /pdf/i.test(media.imageMimeType ?? '') ? 'pdf' : 'image',
+                        mimeType: media.imageMimeType ?? 'image/jpeg',
+                        buffer,
+                        mediaId: msg.messageId,
+                    },
+                });
+                if (invoice.ok) {
+                    const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+                    const handled = await farmActivityAssistantService.presentInvoiceDraft({
+                        farmerId: captured.farmerId,
+                        phone: captured.phone,
+                        language: captured.language,
+                        send: senders,
+                        invoice,
+                        conversationSessionId: session.id,
+                    });
+                    if (handled)
+                        return;
+                }
+            }
+            catch (err) {
+                logger.warn({ err, farmerId: captured.farmerId }, 'Farm activity invoice OCR path failed');
+            }
+        }
         if (!media.imageBase64) {
             await sendText(captured.phone, imageQualityMessage(captured.language, 'unsupported'));
             return;
@@ -702,6 +822,9 @@ export const whatsappInboundPipeline = {
             return;
         }
         await recordImageHash(captured.farmerId, quality.contentHash);
+        // Push overdue "Have you applied…" jobs out so album uploads are not flooded
+        // with old recommendation follow-ups while photos are being analyzed.
+        void recommendationFollowUpService.deferPendingFollowUpJobs(captured.farmerId).catch(() => { });
         const earlyStored = await advisoryImageStorageService.uploadFromBase64(captured.farmerId, media.imageBase64, media.imageMimeType ?? 'image/jpeg');
         const imageMime = media.imageMimeType ?? 'image/jpeg';
         const sessCtx = await conversationSessionService.getContext(captured.farmerId);
@@ -718,8 +841,18 @@ export const whatsappInboundPipeline = {
             await conversationSessionService.patchContext(captured.farmerId, {
                 pendingDiagnosisImagePath: existingBatch[0]?.path ?? batchEntry.path,
                 pendingDiagnosisImageMime: existingBatch[0]?.mime ?? batchEntry.mime,
-                pendingDiagnosisImageBatch: [...existingBatch, batchEntry].slice(-4),
+                pendingDiagnosisImageBatch: [...existingBatch, batchEntry].slice(-WHATSAPP_IMAGE_BATCH_MAX),
             });
+            await diagnosisSessionEvidenceService.rememberPhotoPaths(captured.farmerId, [
+                batchEntry.path,
+                ...existingBatch.map((b) => b.path),
+            ]);
+            if (msg.text?.trim()) {
+                await diagnosisSessionEvidenceService.appendTranscript(captured.farmerId, 'farmer', `Photo caption: ${msg.text.trim().slice(0, 400)}`);
+            }
+            else {
+                await diagnosisSessionEvidenceService.appendTranscript(captured.farmerId, 'system', 'Farmer uploaded a crop photo for diagnosis');
+            }
             if (msg.messageId) {
                 void attachImageToInboundLog({
                     messageId: msg.messageId,
@@ -728,7 +861,7 @@ export const whatsappInboundPipeline = {
                 });
             }
         }
-        scheduleImageBatch({
+        await scheduleImageBatch({
             farmerId: captured.farmerId,
             phone: captured.phone,
             language: captured.language,
@@ -748,116 +881,138 @@ export const whatsappInboundPipeline = {
     async flushBatchedDiagnosisImages(batch) {
         if (!batch.images.length)
             return;
-        const primary = batch.images[0];
-        const caption = batch.caption;
-        const memoryPeek = await farmerMemoryService.build(batch.farmerId, {
-            symptomsText: caption || undefined,
-        });
-        const willReuse = await aiReuseService.peekMatch({
-            farmerId: batch.farmerId,
-            cropType: memoryPeek.cropType,
-            symptomsText: caption || undefined,
-            activePlotId: memoryPeek.activePlotId,
-            compactHistory: farmerMemoryService.formatCompactHistory(memoryPeek),
-            hasMedia: true,
-        });
-        if (!willReuse) {
-            const usage = await aiUsageControlService.checkAndConsume({
-                farmerId: batch.farmerId,
-                kind: 'image',
-                isPremium: batch.isPremium,
-            });
-            if (!usage.allowed) {
-                await batch.sendText(batch.phone, aiUsageControlService.usageLimitMessage(batch.language, usage.reason));
+        // Prevent overlapping diagnoses for the same farmer (multi-instance / late photos).
+        const sessBefore = await conversationSessionService.getContext(batch.farmerId);
+        if (sessBefore.diagnosisInFlightAt) {
+            const started = Date.parse(String(sessBefore.diagnosisInFlightAt));
+            if (Number.isFinite(started) && Date.now() - started < 3 * 60 * 1000) {
+                logger.warn({ farmerId: batch.farmerId, imageCount: batch.images.length }, 'Skipping image batch flush — diagnosis already in flight');
                 return;
             }
         }
-        if (await tryAssessmentPlaybook({
-            farmerId: batch.farmerId,
-            phone: batch.phone,
-            language: batch.language,
-            text: caption || undefined,
-            hasCropMedia: true,
-            imageBase64: primary.imageBase64,
-            imageMimeType: primary.imageMimeType,
-            sendText: batch.sendText,
-        })) {
+        await conversationSessionService.patchContext(batch.farmerId, {
+            diagnosisInFlightAt: new Date().toISOString(),
+        });
+        // Await defer so overdue "Have you applied…" jobs cannot race the analysis ack.
+        await recommendationFollowUpService.deferPendingFollowUpJobs(batch.farmerId).catch(() => { });
+        try {
+            const primary = batch.images[0];
+            const caption = batch.caption;
+            const memoryPeek = await farmerMemoryService.build(batch.farmerId, {
+                symptomsText: caption || undefined,
+            });
+            const willReuse = await aiReuseService.peekMatch({
+                farmerId: batch.farmerId,
+                cropType: memoryPeek.cropType,
+                symptomsText: caption || undefined,
+                activePlotId: memoryPeek.activePlotId,
+                compactHistory: farmerMemoryService.formatCompactHistory(memoryPeek),
+                hasMedia: true,
+            });
+            if (!willReuse) {
+                const usage = await aiUsageControlService.checkAndConsume({
+                    farmerId: batch.farmerId,
+                    kind: 'image',
+                    isPremium: batch.isPremium,
+                });
+                if (!usage.allowed) {
+                    await batch.sendText(batch.phone, aiUsageControlService.usageLimitMessage(batch.language, usage.reason));
+                    return;
+                }
+            }
+            if (await tryAssessmentPlaybook({
+                farmerId: batch.farmerId,
+                phone: batch.phone,
+                language: batch.language,
+                text: caption || undefined,
+                hasCropMedia: true,
+                imageBase64: primary.imageBase64,
+                imageMimeType: primary.imageMimeType,
+                sendText: batch.sendText,
+            })) {
+                await conversationSessionService.patchContext(batch.farmerId, {
+                    pendingDiagnosisImagePath: undefined,
+                    pendingDiagnosisImageMime: undefined,
+                    pendingDiagnosisImageBatch: undefined,
+                });
+                return;
+            }
+            const plots = await multiPlotService.listPlots(batch.farmerId);
+            const memory = await farmerMemoryService.build(batch.farmerId, {
+                symptomsText: caption || undefined,
+            });
+            const farmerAlreadySelectedCrop = memory.knownCropLocked;
+            if (plots.length <= 1 && !farmerAlreadySelectedCrop && batch.send) {
+                const detected = await cropDetectionService.detectFromImage({
+                    imageBase64: primary.imageBase64,
+                    imageMimeType: primary.imageMimeType,
+                    caption: caption || undefined,
+                });
+                if (detected.crop && detected.crop !== 'other' && detected.confidence >= 0.62) {
+                    await multiPlotService.setPrimaryCropType(batch.farmerId, detected.crop);
+                }
+                else {
+                    await askCropSelection(batch.send, batch.phone, batch.language, batch.farmerId);
+                    await conversationSessionService.patchContext(batch.farmerId, { pendingCropSelection: true });
+                    await conversationSessionService.setState(batch.farmerId, 'crop_select');
+                    return;
+                }
+            }
+            // Vision-first for photos: Crop Doctor runs below; follow-up Q&A only after analysis (post_diagnosis_intake).
+            if (batch.images.length > 1) {
+                await batch.sendText(batch.phone, batch.language === 'ml'
+                    ? `${batch.images.length} ഫോട്ടോകൾ ലഭിച്ചു — ഓരോന്നും വിശകലനം ചെയ്ത് ഒരു രോഗനിർണയം തയ്യാറാക്കുന്നു…`
+                    : `Received ${batch.images.length} photos — analyzing each one, then combining into one diagnosis…`);
+            }
+            const diagnosisImages = await Promise.all(batch.images.map(async (img) => {
+                if (img.imageBase64) {
+                    return {
+                        imageBase64: img.imageBase64,
+                        imageMimeType: img.imageMimeType,
+                        imageStoragePath: img.storagePath,
+                    };
+                }
+                if (img.storagePath) {
+                    const downloaded = await downloadAdvisoryImageBase64(img.storagePath);
+                    if (downloaded) {
+                        return {
+                            imageBase64: downloaded.base64,
+                            imageMimeType: downloaded.mimeType,
+                            imageStoragePath: img.storagePath,
+                        };
+                    }
+                }
+                return {
+                    imageMimeType: img.imageMimeType,
+                    imageStoragePath: img.storagePath,
+                };
+            }));
+            await this.runDiagnosis({
+                farmerId: batch.farmerId,
+                phone: batch.phone,
+                language: batch.language,
+                imageBase64: primary.imageBase64,
+                imageMimeType: primary.imageMimeType,
+                imageStoragePath: primary.storagePath,
+                diagnosisImages,
+                symptomsText: caption,
+                channel: 'whatsapp',
+                inboundMessageId: primary.messageId,
+                sendText: batch.sendText,
+                send: batch.send,
+            });
+            await diagnosisSessionEvidenceService.rememberPhotoPaths(batch.farmerId, diagnosisImages.map((i) => i.imageStoragePath).filter(Boolean));
             await conversationSessionService.patchContext(batch.farmerId, {
                 pendingDiagnosisImagePath: undefined,
                 pendingDiagnosisImageMime: undefined,
                 pendingDiagnosisImageBatch: undefined,
             });
-            return;
         }
-        const plots = await multiPlotService.listPlots(batch.farmerId);
-        const memory = await farmerMemoryService.build(batch.farmerId, {
-            symptomsText: caption || undefined,
-        });
-        const farmerAlreadySelectedCrop = memory.knownCropLocked;
-        if (plots.length <= 1 && !farmerAlreadySelectedCrop && batch.send) {
-            const detected = await cropDetectionService.detectFromImage({
-                imageBase64: primary.imageBase64,
-                imageMimeType: primary.imageMimeType,
-                caption: caption || undefined,
+        finally {
+            await conversationSessionService.patchContext(batch.farmerId, {
+                diagnosisInFlightAt: undefined,
             });
-            if (detected.crop && detected.crop !== 'other' && detected.confidence >= 0.62) {
-                await multiPlotService.setPrimaryCropType(batch.farmerId, detected.crop);
-            }
-            else {
-                await askCropSelection(batch.send, batch.phone, batch.language, batch.farmerId);
-                await conversationSessionService.patchContext(batch.farmerId, { pendingCropSelection: true });
-                await conversationSessionService.setState(batch.farmerId, 'crop_select');
-                return;
-            }
         }
-        // Vision-first for photos: Crop Doctor runs below; follow-up Q&A only after analysis (post_diagnosis_intake).
-        if (batch.images.length > 1) {
-            await batch.sendText(batch.phone, batch.language === 'ml'
-                ? `${batch.images.length} ഫോട്ടോകൾ ലഭിച്ചു — ഒരുമിച്ച് വിശകലനം ചെയ്യുന്നു…`
-                : `Received ${batch.images.length} photos — analyzing together…`);
-        }
-        const diagnosisImages = await Promise.all(batch.images.map(async (img) => {
-            if (img.imageBase64) {
-                return {
-                    imageBase64: img.imageBase64,
-                    imageMimeType: img.imageMimeType,
-                    imageStoragePath: img.storagePath,
-                };
-            }
-            if (img.storagePath) {
-                const downloaded = await downloadAdvisoryImageBase64(img.storagePath);
-                if (downloaded) {
-                    return {
-                        imageBase64: downloaded.base64,
-                        imageMimeType: downloaded.mimeType,
-                        imageStoragePath: img.storagePath,
-                    };
-                }
-            }
-            return {
-                imageMimeType: img.imageMimeType,
-                imageStoragePath: img.storagePath,
-            };
-        }));
-        await this.runDiagnosis({
-            farmerId: batch.farmerId,
-            phone: batch.phone,
-            language: batch.language,
-            imageBase64: primary.imageBase64,
-            imageMimeType: primary.imageMimeType,
-            imageStoragePath: primary.storagePath,
-            diagnosisImages,
-            symptomsText: caption,
-            channel: 'whatsapp',
-            inboundMessageId: primary.messageId,
-            sendText: batch.sendText,
-            send: batch.send,
-        });
-        await conversationSessionService.patchContext(batch.farmerId, {
-            pendingDiagnosisImagePath: undefined,
-            pendingDiagnosisImageMime: undefined,
-            pendingDiagnosisImageBatch: undefined,
-        });
     },
     async processText(msg, captured, sendText) {
         await this.replyToText(msg, captured, sendText);
@@ -871,6 +1026,31 @@ export const whatsappInboundPipeline = {
             return;
         }
         await classifyCommercialLead(captured.farmerId, msg.text);
+        if (looksLikeFarmActivityMessage(msg.text)) {
+            const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+            if (farmActivityAssistantService.enabled()) {
+                const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+                    farmerId: captured.farmerId,
+                    phone: captured.phone,
+                    language: captured.language,
+                    text: msg.text,
+                    messageId: msg.messageId,
+                    sessionState: session.state,
+                    send: { text: sendText },
+                    modality: 'text',
+                    conversationSessionId: session.id,
+                    blockId: session.active_block_id ?? null,
+                });
+                if (farmHandled)
+                    return;
+            }
+            else {
+                await sendText(captured.phone, captured.language === 'ml'
+                    ? 'ഇത് വളം/തൊഴിലാളി രേഖയാണെന്ന് തോന്നുന്നു — രോഗനിർണയ അല്ല. ഏത് പ്ലോട്ട്/ബ്ലോക്ക് ആണെന്ന് വ്യക്തമാക്കി വീണ്ടും അയയ്ക്കുക.'
+                    : 'That looks like fertilizer or labour details to record — not a crop disease question. Please say which plot/block it was for, or contact your agronomist to log it.');
+                return;
+            }
+        }
         const sessCtxEarly = await conversationSessionService.getContext(captured.farmerId);
         const batchPending = whatsappImageBatchPendingCount(captured.farmerId);
         const hasPendingImage = batchPending > 0 ||
@@ -1088,6 +1268,8 @@ export const whatsappInboundPipeline = {
     async runDiagnosis(params) {
         try {
             const sessCtx = await conversationSessionService.getContext(params.farmerId);
+            const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
+            const continuingEvidence = session.state === 'diagnosis_awaiting_photos' && Boolean(sessCtx.maiosCase);
             const symptomsText = params.symptomsText?.trim() ||
                 sessCtx.pendingSymptomsText ||
                 undefined;
@@ -1134,7 +1316,40 @@ export const whatsappInboundPipeline = {
                 ...params.diagnosisImages?.map((i) => i.imageStoragePath).filter(Boolean),
                 ...(imageStoragePath && !params.diagnosisImages?.length ? [imageStoragePath] : []),
             ];
-            const photoCount = params.diagnosisImages?.length ?? (imageBase64 ? 1 : 0);
+            let photoCount = params.diagnosisImages?.length ?? (imageBase64 ? 1 : 0);
+            let diagnosisImages = params.diagnosisImages;
+            if (continuingEvidence && sessCtx.maiosCase) {
+                const priorPaths = sessCtx.maiosCase.evidence.photos
+                    .filter((p) => p.status === 'captured' && p.storagePath)
+                    .map((p) => p.storagePath);
+                const incoming = photoPaths.filter(Boolean);
+                const newPaths = incoming.filter((p) => !priorPaths.includes(p));
+                const mergedPaths = newPaths.length > 0 ? [...priorPaths, ...newPaths] : priorPaths;
+                if (mergedPaths.length > 0) {
+                    photoCount = mergedPaths.length;
+                    diagnosisImages = await Promise.all(mergedPaths.map(async (path) => {
+                        const downloaded = await downloadAdvisoryImageBase64(path);
+                        return {
+                            imageBase64: downloaded?.base64,
+                            imageMimeType: downloaded?.mimeType ?? 'image/jpeg',
+                            imageStoragePath: path,
+                        };
+                    }));
+                    const primary = diagnosisImages[diagnosisImages.length - 1];
+                    if (primary?.imageBase64) {
+                        imageBase64 = primary.imageBase64;
+                        imageMimeType = primary.imageMimeType;
+                        imageStoragePath = primary.imageStoragePath;
+                    }
+                }
+            }
+            logger.info({
+                farmerId: params.farmerId,
+                continuingEvidence,
+                photoCount,
+                mergedPathCount: diagnosisImages?.length ?? photoCount,
+                sessionState: session.state,
+            }, 'WhatsApp runDiagnosis evidence merge');
             const hasSoilReport = await soilFlowService.hasSoilReport(params.farmerId);
             const result = await cropDoctorService.diagnose({
                 farmerId: params.farmerId,
@@ -1146,10 +1361,10 @@ export const whatsappInboundPipeline = {
                 imageBase64,
                 imageMimeType,
                 imageStoragePath,
-                diagnosisImages: params.diagnosisImages,
+                diagnosisImages,
                 fieldInvestigation: params.fieldInvestigation,
                 issueLabelHint: params.issueLabelHint,
-                skipReuseCache: params.skipReuseCache,
+                skipReuseCache: params.skipReuseCache ?? continuingEvidence,
                 investigationPattern: params.investigationPattern,
                 channel: params.channel ?? 'whatsapp',
                 compactHistory: farmerMemoryService.formatCompactHistory(memory),
@@ -1158,12 +1373,14 @@ export const whatsappInboundPipeline = {
                 morbeezFieldContext: morbeezFieldContext ?? undefined,
                 activePlotId: memory.activePlotId,
                 maiosPhotoCount: photoCount,
-                maiosPhotoPaths: photoPaths,
+                maiosPhotoPaths: diagnosisImages
+                    ?.map((i) => i.imageStoragePath)
+                    .filter(Boolean),
                 maiosIntakeConfidence: sessCtx.diagnosisIntake?.matchConfidence,
                 maiosHasSoilReport: hasSoilReport,
             });
             const maiosCase = result.maiosCase;
-            const hasImage = Boolean(imageBase64 || imageStoragePath || (params.diagnosisImages?.length ?? 0) > 0);
+            const hasImage = Boolean(imageBase64 || imageStoragePath || (diagnosisImages?.length ?? 0) > 0);
             if (hasImage && result.reused) {
                 logger.warn({ farmerId: params.farmerId, sessionId: result.sessionId }, 'Unexpected reuse cache hit for image diagnosis');
             }
@@ -1212,7 +1429,8 @@ export const whatsappInboundPipeline = {
             }
             if (maiosCase &&
                 maiosCase.evidence.completenessPct < 30 &&
-                maiosCase.evidence.tier === 'T0') {
+                maiosCase.evidence.tier === 'T0' &&
+                !continuingEvidence) {
                 const capturedSlots = maiosCase.evidence.photos
                     .filter((p) => p.status === 'captured')
                     .map((p) => p.slot);
@@ -1282,6 +1500,7 @@ export const whatsappInboundPipeline = {
                     reused: Boolean(result.reused),
                     plotLabel: sessCtx.activePlotLabel ?? undefined,
                     symptomsText,
+                    maiosCase: maiosCase ?? null,
                 });
                 if (clarificationStarted)
                     return;
@@ -1321,9 +1540,7 @@ export const whatsappInboundPipeline = {
             const productBlock = shopifyLinksService.formatRecommendationsForWhatsApp(result.productRecommendations, params.language);
             if (productBlock)
                 body += `\n\n${productBlock}`;
-            const validationQ = assessment.needsValidationQuestion
-                ? validationQuestion(result.advisory.probableIssue, params.language)
-                : responseComposerService.extractValidationQuestion(body);
+            const validationQ = responseComposerService.extractValidationQuestion(body);
             const reply = buildDiagnosisReply({
                 advisory: result.advisory,
                 language: params.language,
@@ -1374,6 +1591,9 @@ export const whatsappInboundPipeline = {
                         cropType: memory.cropType,
                         language: params.language,
                         recommendationRecordId: rec?.id ?? null,
+                        issueLabel: maiosCase.diagnostics?.primary ??
+                            result.advisory.probableIssue ??
+                            null,
                     });
                 }
             }
@@ -1414,6 +1634,48 @@ export const whatsappInboundPipeline = {
         const pending = sessCtx.pendingDiagnosisDelivery;
         if (!pending?.sessionId)
             return;
+        const clarification = sessCtx.diagnosis?.postClarificationSummary?.trim();
+        if (clarification) {
+            const images = await diagnosisSessionEvidenceService.loadImages({
+                farmerId: params.farmerId,
+                sessionId: pending.sessionId,
+            });
+            if (images.length) {
+                logger.info({
+                    farmerId: params.farmerId,
+                    sessionId: pending.sessionId,
+                    photoCount: images.length,
+                }, 'Re-diagnosing with original photos + post-clarification chat');
+                await conversationSessionService.patchContext(params.farmerId, {
+                    pendingDiagnosisDelivery: undefined,
+                    diagnosis: {
+                        imageCount: sessCtx.diagnosis?.imageCount ?? images.length,
+                        ...sessCtx.diagnosis,
+                        postClarificationSummary: undefined,
+                    },
+                });
+                await this.runDiagnosis({
+                    farmerId: params.farmerId,
+                    phone: params.phone,
+                    language: params.language,
+                    symptomsText: clarification,
+                    fieldInvestigation: clarification,
+                    skipReuseCache: true,
+                    imageBase64: images[0].imageBase64,
+                    imageMimeType: images[0].mimeType,
+                    imageStoragePath: images[0].path,
+                    diagnosisImages: images.map((i) => ({
+                        imageBase64: i.imageBase64,
+                        imageMimeType: i.mimeType,
+                        imageStoragePath: i.path,
+                    })),
+                    channel: 'whatsapp',
+                    sendText: params.sendText,
+                    send: params.send,
+                });
+                return;
+            }
+        }
         const session = await cropDoctorService.getSession(pending.sessionId);
         const outputs = session.ai_advisory_outputs ?? [];
         const latest = outputs[outputs.length - 1];

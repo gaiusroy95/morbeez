@@ -11,6 +11,7 @@ export type TerminologyDictionaryEntry = {
     confidence: number;
     replyPreferred?: boolean;
     conceptId?: string | null;
+    source?: 'farmer' | 'dictionary' | 'builtin';
 };
 export type DetectedTerm = {
     token: string;
@@ -18,7 +19,7 @@ export type DetectedTerm = {
     meaning?: string;
     standardTerm?: string;
     confidence: number;
-    source: 'builtin' | 'dictionary' | 'unknown';
+    source: 'farmer' | 'builtin' | 'dictionary' | 'unknown';
     replyPreferred?: boolean;
     conceptId?: string | null;
 };

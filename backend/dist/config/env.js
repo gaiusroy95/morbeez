@@ -172,6 +172,21 @@ const envSchema = z.object({
         .string()
         .transform((v) => v !== 'false')
         .default('true'),
+    /** MAIOS v17 reasoning layer (Bayesian + EVSI) — composes v12 case builder output. */
+    ENABLE_MAIOS_REASONING: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** When true, reasoning runs in parallel but does not replace fused hypotheses. */
+    MAIOS_REASONING_SHADOW: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
+    /** Structured vision features (spindle, grey center) for v17 evidence repository. */
+    ENABLE_STRUCTURED_VISION: z
+        .string()
+        .transform((v) => v !== 'false')
+        .default('true'),
     ENABLE_OUTBOX_WORKER: z
         .string()
         .transform((v) => v !== 'false')
@@ -300,6 +315,101 @@ const envSchema = z.object({
     AI_DAILY_IMAGE_LIMIT_PREMIUM: coerceEnvInt(50),
     AI_DAILY_VOICE_LIMIT_FREE: coerceEnvInt(5),
     AI_DAILY_VOICE_LIMIT_PREMIUM: coerceEnvInt(30),
+    /** Expert Copilot Domain 3 — canonical cases (shadow dual-write by default). */
+    ENABLE_EXPERT_CASES: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_CASE_DEDUPE: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_CASE_OWNERSHIP: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_CASE_VERSION_LOCK: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_CASE_RECURRENCE: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_COPILOT_QUEUE: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_COPILOT_AUTO_ASSIGN: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_COPILOT_LEASE_REAPER: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_COPILOT_CHAT: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENFORCE_SERVER_RECOMMENDATION_SAFETY: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_EXPERT_COMMIT_RPCS: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_LEARNING_CANDIDATE_SHADOW: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    DISABLE_LEGACY_AUTO_PROMOTION: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_APPROVED_REUSE_MEMORY_READ: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENFORCE_GOVERNANCE_AUDIT: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_REVIEWER_RISK_MONITORING: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    EXPERT_CASE_LEASE_SECONDS: coerceEnvInt(900),
+    EXPERT_CASE_RECURRENCE_DAYS: coerceEnvInt(14),
+    EXPERT_CASE_INTERRUPTION_LIMIT: coerceEnvInt(2),
+    /** Multilingual WhatsApp Farm Activity Assistant — phased, default off. */
+    ENABLE_FARM_ACTIVITY_ASSISTANT: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_FARM_ACTIVITY_VOICE: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_FARM_ACTIVITY_INVOICE_OCR: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_FARM_ACTIVITY_INVENTORY_SYNC: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    ENABLE_FARMER_TERMINOLOGY_MEMORY: z
+        .string()
+        .transform((v) => v === 'true')
+        .default('false'),
+    FARM_ACTIVITY_DRAFT_TTL_MINUTES: coerceEnvInt(60),
+    FARM_ACTIVITY_MAX_CLARIFICATIONS: coerceEnvInt(2),
     GSC_SITE_URL: z.string().url().optional(),
     GSC_CLIENT_ID: z.string().optional(),
     GSC_CLIENT_SECRET: z.string().optional(),

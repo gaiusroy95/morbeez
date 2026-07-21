@@ -10,6 +10,15 @@ export declare const YES_NO_CHOICES: FollowUpChoiceOption[];
 export declare const SPRAY_TIMING_CHOICES: FollowUpChoiceOption[];
 export declare function normalizeFollowUpKind(raw: unknown): FollowUpQuestionKind;
 export declare function defaultChoicesForKind(kind: FollowUpQuestionKind): FollowUpChoiceOption[];
+/** EVSI questions often carry `choices: []`; treat empty stored arrays as missing. */
+export declare function resolveFollowUpChoices(params: {
+    question: {
+        id: string;
+        kind?: FollowUpQuestionKind;
+        choices?: FollowUpChoiceOption[];
+    };
+    storedChoices?: FollowUpChoiceOption[] | null;
+}): FollowUpChoiceOption[];
 export declare function localizeChoice(option: FollowUpChoiceOption, lang: AdvisoryLanguage): string;
 export declare function normalizeChoiceOptions(raw: unknown, kind: FollowUpQuestionKind): FollowUpChoiceOption[];
 export declare function formatChoiceAnswerLabel(answerId: string, choices: FollowUpChoiceOption[], lang?: AdvisoryLanguage): string;

@@ -7,7 +7,9 @@ export declare const diagnosisFlowService: {
     }>;
     firstImagePrompt(language: AdvisoryLanguage): string;
     analyzingPrompt(language: AdvisoryLanguage): string;
-    storeDiagnosisResult(farmerId: string, sessionId: string, advisory: StructuredAdvisory, summary: string): Promise<void>;
+    storeDiagnosisResult(farmerId: string, sessionId: string, advisory: StructuredAdvisory, summary: string, options?: {
+        photoPaths?: string[];
+    }): Promise<void>;
     waterVolumeList(language: AdvisoryLanguage): {
         body: string;
         buttonText: string;

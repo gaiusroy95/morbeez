@@ -1,32 +1,49 @@
 import { supabase } from '../../lib/supabase.js';
+import { formatSoilMetricsForAi, soilDeficiencyFlags, soilMetricsToFlatRecord, } from '../soil/soil-lab-metrics.js';
 import { plotDigitalTwinService } from '../intelligence/plot-digital-twin.service.js';
 import { regionalThreatRadarService } from '../intelligence/regional-threat-radar.service.js';
 function formatSoilBlock(soilTestSummary) {
     if (!soilTestSummary?.metrics)
         return 'No soil report on file';
-    const metrics = soilTestSummary.metrics;
-    const lines = Object.entries(metrics).map(([k, v]) => `${k}: ${String(v)}`);
-    const deficiencies = [];
-    const n = Number(metrics.nitrogen ?? metrics.N ?? metrics.n);
-    const p = Number(metrics.phosphorus ?? metrics.P ?? metrics.p);
-    const k = Number(metrics.potassium ?? metrics.K ?? metrics.k);
-    const ph = Number(metrics.ph ?? metrics.pH);
-    if (Number.isFinite(n) && n < 200)
-        deficiencies.push('low nitrogen');
-    if (Number.isFinite(p) && p < 15)
-        deficiencies.push('low phosphorus');
-    if (Number.isFinite(k) && k < 100)
-        deficiencies.push('low potassium');
-    if (Number.isFinite(ph) && (ph < 5.5 || ph > 7.5))
-        deficiencies.push('suboptimal pH');
+    const formatted = formatSoilMetricsForAi(soilTestSummary.metrics, {
+        reportedAt: soilTestSummary.reportedAt ? String(soilTestSummary.reportedAt) : null,
+        labName: soilTestSummary.labName ? String(soilTestSummary.labName) : null,
+        maxLines: 10,
+    });
+    if (!formatted)
+        return 'No soil report on file';
+    const deficiencies = soilDeficiencyFlags(soilTestSummary.metrics);
     const defLine = deficiencies.length ? `Deficiency flags: ${deficiencies.join(', ')}` : '';
-    return [lines.join('; '), defLine].filter(Boolean).join('\n');
+    return [formatted, defLine].filter(Boolean).join('\n');
 }
 function formatWeatherBlock(weather) {
     if (!weather)
         return 'Weather unavailable';
     const w = weather;
-    return `Temp ${w.temperatureC ?? '?'}°C, humidity ${w.humidityPct ?? '?'}%, rain ${w.rainfallMm ?? '?'}mm, risk ${w.weatherRiskScore ?? '?'}`;
+    const lines = [
+        `Today: temp ${w.temperatureC ?? '?'}°C, humidity ${w.humidityPct ?? '?'}%, rain ${w.rainfallMm ?? '?'}mm, risk ${w.weatherRiskScore ?? '?'}`,
+    ];
+    const last7 = w.last7Days;
+    const totals = w.totals7d;
+    if (last7?.length) {
+        lines.push(`Last 7 days: total rain ${totals?.rainfallMm ?? '?'}mm, avg temp ${totals?.avgTempC ?? '?'}°C, avg humidity ${totals?.avgHumidityPct ?? '?'}%`);
+        lines.push(`Daily pattern: ${last7
+            .map((d) => `${String(d.date).slice(5)} ${d.rainfallMm}mm rain / ${d.temperatureC}°C / ${d.humidityPct}% RH`)
+            .join('; ')}`);
+    }
+    const pressures = w.pressures;
+    if (pressures?.irrigationTrend) {
+        lines.push(`Irrigation trend: ${pressures.irrigationTrend}`);
+    }
+    const flags = [
+        pressures?.heatStress && 'heat stress',
+        pressures?.waterlogging && 'waterlogging risk',
+        pressures?.fungalPressure && 'fungal pressure',
+        pressures?.pestPressure && 'pest pressure',
+    ].filter(Boolean);
+    if (flags.length)
+        lines.push(`7-day pressure flags: ${flags.join(', ')}`);
+    return lines.join('\n');
 }
 function parseMeasurementValue(measurements, pattern) {
     const row = measurements.find((m) => pattern.test(m.key));
@@ -37,8 +54,8 @@ function parseMeasurementValue(measurements, pattern) {
 }
 export function computeEvidenceSignals(context, issueCategory, imageSignal) {
     const hints = [];
-    const metrics = (context.soilTestSummary?.metrics ?? {});
-    const n = Number(metrics.nitrogen ?? metrics.N ?? metrics.n);
+    const flat = soilMetricsToFlatRecord(context.soilTestSummary?.metrics);
+    const n = flat.nitrogen ?? flat.N;
     const incidence = parseMeasurementValue(context.measurements, /incidence/i);
     const severity = parseMeasurementValue(context.measurements, /severity|damage/i);
     if (Number.isFinite(n) && n < 200) {
@@ -56,6 +73,27 @@ export function computeEvidenceSignals(context, issueCategory, imageSignal) {
     if (context.blockAssessment?.blockHealth === 'need_assistance' ||
         context.blockAssessment?.cropPerformance === 'below_expectation') {
         hints.push({ signal: 'Poor block/crop assessment', reason: 'Agronomist flagged block stress' });
+    }
+    const weather = context.weatherSnapshot;
+    const totals = weather?.totals7d;
+    const pressures = weather?.pressures;
+    if (/nutrient|deficien/.test(issueCategory) && totals?.rainfallMm != null && totals.rainfallMm >= 35) {
+        hints.push({
+            signal: 'Heavy 7-day rainfall',
+            reason: `${totals.rainfallMm}mm may leach mobile nutrients (N, K)`,
+        });
+    }
+    if (/nutrient|deficien/.test(issueCategory) && pressures?.heatStress) {
+        hints.push({
+            signal: 'Heat stress (7-day pattern)',
+            reason: 'Elevated K demand and transpiration stress',
+        });
+    }
+    if (/nutrient|deficien/.test(issueCategory) && pressures?.waterlogging) {
+        hints.push({
+            signal: 'Wet 7-day pattern',
+            reason: 'Root oxygen stress; impaired K uptake likely',
+        });
     }
     if (imageSignal && context.soilTestSummary && Number.isFinite(n) && n < 200) {
         const imgHay = imageSignal.label.toLowerCase();

@@ -33,6 +33,8 @@ export declare const recommendationCommunicationService: {
     sendApprovedRecommendation(recommendationId: string, options?: {
         force?: boolean;
         customMessage?: string;
+        complianceQuestion?: string;
+        complianceNoAction?: "escalate" | "review";
     }): Promise<{
         sent: boolean;
         message?: string;
@@ -93,6 +95,8 @@ export declare const recommendationCommunicationService: {
         issueLabel: string;
         message: string;
         compliancePrompt: string;
+        complianceQuestion: string;
+        complianceNoAction: "escalate";
     }[]>;
 };
 export {};

@@ -9,5 +9,7 @@ export declare function plantingDatePrompt(lang: AdvisoryLanguage): string;
 export declare function pincodePrompt(lang: AdvisoryLanguage): string;
 export declare function invalidPincodeReply(lang: AdvisoryLanguage): string;
 export declare function pincodeSavedReply(lang: AdvisoryLanguage, district: string, state: string): string;
+export declare function pincodePendingVerifyReply(lang: AdvisoryLanguage, pincode: string): string;
+/** Extract a 6-digit Indian PIN from free text (strips spaces/punctuation/fullwidth digits). */
 export declare function parsePincodeInput(text: string): string | null;
 //# sourceMappingURL=onboarding-flow.service.d.ts.map

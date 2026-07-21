@@ -1,12 +1,15 @@
+import type { VisionObservation } from '../../domain/maios-reasoning/vision-observation.types.js';
 export type VisitAnalyzePhotoInput = {
     dataBase64: string;
     mimeType?: string;
+    photoType?: string;
 };
 export type VisitImageSignal = {
     label: string;
     confidence: number;
     source: 'plant_id' | 'vision' | 'fusion';
     photoCount: number;
+    observations?: VisionObservation[];
 };
 export type VisitImageContext = {
     cropType?: string;

@@ -13,6 +13,8 @@ export declare const agronomistCaseReviewService: {
         items: {
             id: any;
             caseRef: string;
+            farmerId: string | null;
+            sessionId: string | null;
             farmerName: string;
             farmerPhone: {} | null;
             cropType: {};
@@ -26,6 +28,8 @@ export declare const agronomistCaseReviewService: {
             timeAgo: string;
             farmerDisagrees: boolean;
             feedbackId: any;
+            maiosRoute: string | null;
+            needsSiteVisit: boolean;
         }[];
         total: number;
         page: number;
@@ -185,6 +189,7 @@ export declare const agronomistCaseReviewService: {
         submittedForApproval: boolean;
         selfApproved: boolean;
         verifiedAnswerIndexed: boolean;
+        learningFacadeRecorded: boolean;
         message: string;
     }>;
     listDiagnosisLabels(params: {

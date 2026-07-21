@@ -37,6 +37,15 @@ function isLikelyRegionalCandidate(token, fullMessage) {
     }
     return false;
 }
+function resolveDetectedSource(entry) {
+    if (entry.source)
+        return entry.source;
+    if (entry.id.startsWith('farmer:'))
+        return 'farmer';
+    if (entry.id.startsWith('builtin:'))
+        return 'builtin';
+    return 'dictionary';
+}
 /**
  * Stage 2 — Regional Terminology Detection Engine
  * Tokenize → dictionary lookup → known vs unknown (never guess unknown).
@@ -51,6 +60,7 @@ export const terminologyDetectionEngine = {
             const entry = await terminologyDictionaryService.lookup(token, params.language, {
                 cropType: params.cropType,
                 district: params.district,
+                farmerId: params.farmerId,
             });
             if (entry) {
                 terms.push({
@@ -59,7 +69,7 @@ export const terminologyDetectionEngine = {
                     meaning: entry.meaning,
                     standardTerm: entry.standardTerm ?? entry.meaning,
                     confidence: entry.confidence,
-                    source: entry.id.startsWith('builtin:') ? 'builtin' : 'dictionary',
+                    source: resolveDetectedSource(entry),
                     replyPreferred: entry.replyPreferred !== false,
                     conceptId: entry.conceptId ?? null,
                 });

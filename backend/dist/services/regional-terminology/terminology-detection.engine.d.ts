@@ -13,6 +13,7 @@ export declare const terminologyDetectionEngine: {
         language: AdvisoryLanguage;
         cropType?: string | null;
         district?: string | null;
+        farmerId?: string | null;
     }): Promise<TerminologyDetectionResult>;
 };
 export {};

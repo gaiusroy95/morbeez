@@ -1,6 +1,8 @@
 import type { ReviewAction } from '../../domain/ai-training/enums.js';
 import type { VisitAiRejectBody, VisitAnalyzeRequest, VisitAnalyzeVisitRequest, VisitAiAnswersBody, VisitAiSyncQuestionsBody } from '../../domain/ai-training/validators.js';
+import { type VisitQuestionAnswerType } from '../../domain/visit-ai/question-quality.js';
 import type { DiagnosisSource } from '../../domain/diagnosis/types.js';
+import type { MaiosReasoningSnapshot } from '../../domain/maios-reasoning/types.js';
 type HypothesisRow = {
     label: string;
     confidence: number;
@@ -51,6 +53,7 @@ export declare const visitAiOrchestratorService: {
             outcome: string | null;
         }[];
         diagnosisSource: DiagnosisSource;
+        reasoning: MaiosReasoningSnapshot | undefined;
     }>;
     skipFollowUp(aiCaseId: string): Promise<{
         skipped: boolean;
@@ -77,8 +80,11 @@ export declare const visitAiOrchestratorService: {
         questions: {
             id: string;
             questionText: string;
-            answerType: "yes_no_unknown" | "text" | "number";
+            answerType: VisitQuestionAnswerType;
             answer: string | undefined;
+            options: string[] | undefined;
+            priority: number | undefined;
+            imageTarget: string | undefined;
         }[];
         recommendations: {
             aiText: string;
@@ -90,22 +96,31 @@ export declare const visitAiOrchestratorService: {
     getQuestions(aiCaseId: string): Promise<{
         id: string;
         questionText: string;
-        answerType: "yes_no_unknown" | "text" | "number";
+        answerType: VisitQuestionAnswerType;
         answer?: string;
+        options?: string[];
+        priority?: number;
+        imageTarget?: string;
     }[]>;
     syncQuestions(aiCaseId: string, body: VisitAiSyncQuestionsBody): Promise<{
         questions: {
             id: string;
             questionText: string;
-            answerType: "yes_no_unknown" | "text" | "number";
+            answerType: VisitQuestionAnswerType;
             answer?: string;
+            options?: string[];
+            priority?: number;
+            imageTarget?: string;
         }[];
     }>;
     regenerateQuestions(aiCaseId: string): Promise<{
         id: string;
         questionText: string;
-        answerType: "yes_no_unknown" | "text" | "number";
+        answerType: VisitQuestionAnswerType;
         answer?: string;
+        options?: string[];
+        priority?: number;
+        imageTarget?: string;
     }[]>;
     saveAnswers(aiCaseId: string, body: VisitAiAnswersBody): Promise<{
         saved: number;
@@ -115,6 +130,8 @@ export declare const visitAiOrchestratorService: {
         finalConfidence: number;
         confidenceAction: "auto_send" | "employee_review" | "escalate";
         hypotheses: HypothesisRow[];
+        distribution: import("../../domain/visit-ai/confidence-distribution.js").HypothesisDistribution;
+        reasoning: MaiosReasoningSnapshot | undefined;
     }>;
     recommend(aiCaseId: string, finalDiagnosis?: string): Promise<{
         recommendationId: string;
@@ -124,6 +141,89 @@ export declare const visitAiOrchestratorService: {
         reviewAfterDays: number;
         reviewDate: string;
         expectedImprovementDays: string;
+    }>;
+    screenVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string): Promise<{
+        issues: {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: "high";
+            observation: string;
+            escalationRequired: boolean;
+            diagnosisSource: DiagnosisSource;
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+        }[];
+        insufficientEvidence: boolean;
+    } | {
+        issues: {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: "low" | "high" | "medium";
+            observation: string;
+            aiCaseId: string;
+            hypotheses: {
+                label: string;
+                confidence: number;
+                rationale: string | undefined;
+                selected: boolean;
+                imagePrediction: string | undefined;
+                imageConfidence: number | undefined;
+            }[];
+            selectedHypothesisLabel: string;
+            finalDiagnosis: string;
+            confidenceAction: "auto_send" | "employee_review" | "escalate";
+            skipFollowUpOptional: boolean;
+            imageSignal: {
+                label: string;
+                confidence: number;
+            } | undefined;
+            similarCases: {
+                issueLabel: string;
+                score: number;
+                confidence: number;
+                outcome: string | null;
+            }[];
+            diagnosisSource: DiagnosisSource;
+            rootCause: {
+                symptoms: string[];
+                photoSignals: string[];
+                soilSignals: string[];
+                weatherSignals: string[];
+                conclusion: string;
+            };
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+            followUpQuestions: {
+                id: string;
+                questionText: string;
+                answerType: VisitQuestionAnswerType;
+                options?: string[];
+                priority?: number;
+                imageTarget?: string;
+            }[];
+            initialRecommendation: {
+                text: string;
+                method: string;
+                category: string;
+            } | undefined;
+        }[];
+        insufficientEvidence?: undefined;
     }>;
     analyzeVisit(input: VisitAnalyzeVisitRequest, agronomistEmail: string): Promise<{
         issues: {

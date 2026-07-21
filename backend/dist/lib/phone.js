@@ -20,4 +20,24 @@ export function normalizeWhatsAppWaId(waId) {
         return digits;
     return digits;
 }
+/**
+ * Display / dial form with leading "+", e.g. +916282873542.
+ * - 10-digit local India → +91…
+ * - Already country-coded digits → +…
+ */
+export function formatPhoneE164(phone, defaultCountryCode = '91') {
+    const raw = String(phone ?? '').trim();
+    if (!raw)
+        return null;
+    const digits = raw.replace(/\D/g, '');
+    if (!digits)
+        return null;
+    if (digits.length === 10) {
+        return `+${defaultCountryCode}${digits}`;
+    }
+    if (digits.length === 11 && digits.startsWith('0') && defaultCountryCode === '91') {
+        return `+${defaultCountryCode}${digits.slice(1)}`;
+    }
+    return `+${digits}`;
+}
 //# sourceMappingURL=phone.js.map

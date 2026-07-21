@@ -1,21 +1,39 @@
 import { conversationSessionService } from '../conversation-session.service.js';
-import { extractPriorProduct, extractSuggestedDiagnosis, isFarmerDisagreementIntent, looksLikePriorExperience, } from '../../core/farmer-feedback-intent.service.js';
+import { extractPriorProduct, extractAllSuggestedDiagnoses, isFarmerDisagreementIntent, looksLikePriorExperience, } from '../../core/farmer-feedback-intent.service.js';
 import { farmerExperienceLearningService } from '../../core/farmer-experience-learning.service.js';
+import { farmerHypothesisRefineService } from '../../core/farmer-hypothesis-refine.service.js';
+import { diagnosisSessionEvidenceService } from '../pipeline/diagnosis-session-evidence.service.js';
 import { supabase } from '../../../lib/supabase.js';
-function ackDisagreement(lang) {
-    if (lang === 'ml') {
-        return 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം എന്താണ്?';
-    }
-    if (lang === 'ta') {
-        return 'புரிந்தது 👍\n\nஉங்கள் கருத்துப்படி பிரச்சனை என்ன?';
-    }
-    if (lang === 'kn') {
-        return 'ಅರ್ಥವಾಯಿತು 👍\n\nನೀವು ಯಾವ ಸಮಸ್ಯೆ ಎಂದು ಭಾವಿಸುತ್ತೀರಿ?';
-    }
-    if (lang === 'hi') {
-        return 'समझ गया 👍\n\nआपको क्या समस्या लगती है?';
-    }
-    return 'Understood 👍\n\nWhat do you think the issue is?';
+import { FARMER_SUGGEST_OTHER_BUTTON_ID, isFarmerSuggestionButtonId, mapFarmerSuggestionInput, } from '../../../domain/learning/farmer-nutrient-suggestions.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
+import { looksLikeFarmActivityMessage } from '../../farm-activity/farm-activity-message-intent.service.js';
+function askFreeTextDiagnosis(lang) {
+    const map = {
+        en: 'Understood 👍\n\nWhat do you think the issue is?\n\nType your answer here, or send a voice note.',
+        ml: 'മനസ്സിലായി 👍\n\nനിങ്ങൾ കരുതുന്ന പ്രശ്നം എന്താണ്?\n\nഇവിടെ ടൈപ്പ് ചെയ്യുക, അല്ലെങ്കിൽ വോയ്സ് നോട്ട് അയയ്ക്കുക.',
+        ta: 'புரிந்தது 👍\n\nபிரச்சனை என்ன என்று நீங்கள் நினைக்கிறீர்கள்?\n\nஇங்கே தட்டச்சு செய்யுங்கள், அல்லது குரல் செய்தி அனுப்புங்கள்.',
+        kn: 'ಅರ್ಥವಾಯಿತು 👍\n\nಸಮಸ್ಯೆ ಏನೆಂದು ನೀವು ಭಾವಿಸುತ್ತೀರಿ?\n\nಇಲ್ಲಿ ಟೈಪ್ ಮಾಡಿ, ಅಥವಾ ವಾಯ್ಸ್ ನೋಟ್ ಕಳುಹಿಸಿ.',
+        hi: 'समझ गया 👍\n\nआपको क्या लगता है समस्या क्या है?\n\nयहाँ टाइप करें, या वॉइस नोट भेजें।',
+    };
+    return map[lang] ?? map.en;
+}
+function askFreeTextDiagnosisRetry(lang) {
+    const map = {
+        en: 'Please describe what you think the issue is (type or voice note).',
+        ml: 'നിങ്ങൾ കരുതുന്ന പ്രശ്നം വിവരിക്കുക (ടൈപ്പ് അല്ലെങ്കിൽ വോയ്സ് നോട്ട്).',
+        ta: 'பிரச்சனை என்ன என்று விவரிக்கவும் (தட்டச்சு அல்லது குரல் செய்தி).',
+        kn: 'ಸಮಸ್ಯೆಯನ್ನು ವಿವರಿಸಿ (ಟೈಪ್ ಅಥವಾ ವಾಯ್ಸ್ ನೋಟ್).',
+        hi: 'समस्या क्या है बताएं (टाइप या वॉइस नोट)।',
+    };
+    return map[lang] ?? map.en;
+}
+function isFarmerFreeTextHypothesis(text) {
+    const t = text.trim();
+    if (!t || isFarmerSuggestionButtonId(t))
+        return false;
+    if (/^feedback\./i.test(t))
+        return false;
+    return t.length >= 3;
 }
 function askExperienceYears(lang) {
     if (lang === 'ml') {
@@ -45,11 +63,77 @@ function askOutcome(lang) {
         return 'ഫലം എങ്ങനെയായിരുന്നു? (മെച്ചം / ഭാഗികം / ഇല്ല)';
     return 'What was the outcome? (improved / partial / no change)';
 }
+function askOutcomeRetry(lang) {
+    if (lang === 'ml') {
+        return 'ഫലം മാത്രം പറയുക: മെച്ചം / ഭാഗികം / ഇല്ല.\n\n(വളം/തൊഴിലാളി രേഖപ്പെടുത്താൻ വേണ്ടിയുള്ള വിവരങ്ങൾ ഞാൻ വേറെ സേവ് ചെയ്യും.)';
+    }
+    return 'Please reply with crop outcome only: improved, partial, or no change.';
+}
+function askOutcomeAfterActivity(lang) {
+    if (lang === 'ml') {
+        return 'വളം/തൊഴിലാളി വിവരങ്ങൾ രേഖപ്പെടുത്തി. ചികിത്സയ്ക്ക് ശേഷം വിളയുടെ ഫലം എങ്ങനെയായിരുന്നു?\n\nമെച്ചം / ഭാഗികം / ഇല്ല';
+    }
+    return 'I noted the fertilizer and labour details. How was the crop after treatment?\n\nReply: improved / partial / no change';
+}
+export function parseFarmerOutcomeAnswer(text) {
+    const t = text.trim();
+    if (!t || looksLikeFarmActivityMessage(t))
+        return null;
+    if (t.length > 60 && /\b(applied|fertiliz|spray|labou?r|kg|paid|per acre)\b/i.test(t)) {
+        return null;
+    }
+    if (/^(improved|better|good|recovered|fine)\b|മെച്ചം|சரி|हो गया|recover/i.test(t)) {
+        return 'improved';
+    }
+    if (/^(partial|partially|some improvement)\b|ഭാഗിക|कुछ हद/i.test(t)) {
+        return 'partial';
+    }
+    if (/^(no change|same|not improved|worse|no improvement)\b|ഇല്ല|नहीं|same/i.test(t)) {
+        return 'no_change';
+    }
+    if (/^[1１]$/.test(t))
+        return 'improved';
+    if (/^[2２]$/.test(t))
+        return 'partial';
+    if (/^[3３]$/.test(t))
+        return 'no_change';
+    return null;
+}
+async function recordAppliedTreatmentDuringFeedback(params) {
+    await farmerExperienceLearningService.updateCapture(params.feedbackId, {
+        farmer_prior_product: params.text.slice(0, 500),
+        farmer_prior_experience: params.text.slice(0, 1000),
+    });
+    await conversationSessionService.patchContext(params.farmerId, {
+        farmerFeedbackResume: {
+            feedbackId: params.feedbackId,
+            step: params.step,
+        },
+    });
+    if (farmActivityAssistantService.enabled()) {
+        const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
+        const handled = await farmActivityAssistantService.tryHandleInbound({
+            farmerId: params.farmerId,
+            phone: params.phone,
+            language: params.lang,
+            text: params.text,
+            messageId: params.messageId ?? `feedback:${params.feedbackId}`,
+            sessionState: session.state,
+            send: params.send,
+            modality: 'text',
+            conversationSessionId: session.id,
+            blockId: session.active_block_id ?? null,
+        });
+        if (handled)
+            return;
+    }
+    await params.send.text(params.phone, askOutcomeAfterActivity(params.lang));
+}
 function submittedReply(lang) {
     if (lang === 'ml') {
-        return 'നന്ദി! നിങ്ങളുടെ അനുഭവം ഞങ്ങളുടെ വിദഗ്ധർ പരിശോധിക്കും. സ്ഥിരീകരിച്ചാൽ ഭാവിയിൽ മെച്ചപ്പെട്ട ഉപദേശം ലഭിക്കും.';
+        return 'നന്ദി! നിങ്ങളുടെ അനുഭവം ഞങ്ങളുടെ വിദഗ്ധർ പരിശോധിക്കും. സ്ഥിരീകരിച്ചാൽ മാത്രമേ അറിവ് ശേഖരത്തിലേക്ക് ചേർക്കൂ.';
     }
-    return 'Thank you! Our agronomist team will review your experience. Verified learnings help future advice for farmers in your area.';
+    return 'Thank you! Our agronomist team will review your experience. Only agronomist-approved cases enter the knowledge base used for future advice.';
 }
 async function farmerHasExperienceYears(farmerId) {
     const { data } = await supabase
@@ -66,6 +150,41 @@ function parseExperienceYears(text) {
         return null;
     return n;
 }
+async function captureDiagnosisAndMaybeRefine(params) {
+    const descriptive = isFarmerFreeTextHypothesis(params.text);
+    if (descriptive) {
+        try {
+            const refined = await farmerHypothesisRefineService.refine({
+                farmerText: params.text,
+                sessionId: params.sessionId,
+                farmerId: params.farmerId,
+                lang: params.lang,
+                priorAiIssue: params.priorAiIssue,
+            });
+            await farmerExperienceLearningService.captureFarmerDiagnosesFromText(params.feedbackId, params.text, {
+                storeFullTextAsExperience: true,
+                refinedAssessment: {
+                    conditions: refined.conditions,
+                    sequenceSummary: refined.sequenceSummary,
+                    source: refined.source,
+                },
+            });
+            await diagnosisSessionEvidenceService.appendTranscript(params.farmerId, 'farmer', `Correction hypothesis: ${params.text.slice(0, 400)}`);
+            await diagnosisSessionEvidenceService.appendTranscript(params.farmerId, 'assistant', refined.replyToFarmer.slice(0, 500));
+            await params.send.text(params.phone, refined.replyToFarmer);
+            return;
+        }
+        catch {
+            // LLM refine unavailable — keep farmer free text for agronomist; no invented scores.
+            await farmerExperienceLearningService.captureFarmerDiagnosesFromText(params.feedbackId, params.text, { storeFullTextAsExperience: true, storeAsRawHypothesis: true });
+            await params.send.text(params.phone, params.lang === 'ml'
+                ? 'നന്ദി — നിങ്ങളുടെ വിവരണം രേഖപ്പെടുത്തി. അഗ്രോണമിസ്റ്റ് പരിശോധിക്കും. കുറച്ച് ചോദ്യങ്ങൾ കൂടി…'
+                : 'Thanks — your description is saved for agronomist review. A few quick follow-up questions…');
+            return;
+        }
+    }
+    await farmerExperienceLearningService.captureFarmerDiagnosesFromText(params.feedbackId, params.text, { storeFullTextAsExperience: true });
+}
 async function nextStepAfterDiagnosis(farmerId, feedbackId) {
     if (!(await farmerHasExperienceYears(farmerId))) {
         await farmerExperienceLearningService.updateCapture(feedbackId, {
@@ -78,6 +197,35 @@ async function nextStepAfterDiagnosis(farmerId, feedbackId) {
 }
 export const farmerFeedbackFlowService = {
     isDisagreementIntent: isFarmerDisagreementIntent,
+    parseOutcomeAnswer: parseFarmerOutcomeAnswer,
+    async resumeAfterActivityCommit(params) {
+        const ctx = await conversationSessionService.getContext(params.farmerId);
+        const resume = ctx.farmerFeedbackResume;
+        if (!resume?.feedbackId)
+            return false;
+        await conversationSessionService.patchContext(params.farmerId, {
+            farmerFeedbackResume: undefined,
+            farmerFeedbackId: resume.feedbackId,
+            farmerFeedbackStep: resume.step,
+        });
+        await conversationSessionService.setState(params.farmerId, 'farmer_feedback_capture');
+        if (resume.step === 'outcome') {
+            await params.send.text(params.phone, askOutcomeAfterActivity(params.lang));
+        }
+        else if (resume.step === 'experience') {
+            await params.send.text(params.phone, askExperience(params.lang));
+        }
+        else if (resume.step === 'product') {
+            await params.send.text(params.phone, askProduct(params.lang));
+        }
+        else if (resume.step === 'experience_years') {
+            await params.send.text(params.phone, askExperienceYears(params.lang));
+        }
+        else {
+            await params.send.text(params.phone, askFreeTextDiagnosis(params.lang));
+        }
+        return true;
+    },
     async canStartDisagreement(farmerId) {
         const ctx = await conversationSessionService.getContext(farmerId);
         const sessionId = ctx.diagnosis?.lastSessionId ?? ctx.lastAdvisorySessionId ?? null;
@@ -103,7 +251,9 @@ export const farmerFeedbackFlowService = {
     },
     async startFlow(params) {
         const meta = await this.canStartDisagreement(params.farmerId);
-        const initialDx = params.initialText ? extractSuggestedDiagnosis(params.initialText) : null;
+        const mapped = params.initialText ? mapFarmerSuggestionInput(params.initialText) : undefined;
+        const initialDiagnoses = params.initialText ? extractAllSuggestedDiagnoses(params.initialText) : [];
+        const initialDx = initialDiagnoses[0] ?? (typeof mapped === 'string' ? mapped : null);
         const priorProduct = params.initialText ? extractPriorProduct(params.initialText) : null;
         const fb = await farmerExperienceLearningService.createFromDisagreement({
             farmerId: params.farmerId,
@@ -114,6 +264,27 @@ export const farmerFeedbackFlowService = {
             initialFarmerDiagnosis: initialDx,
             initialText: params.initialText,
         });
+        if (params.initialText?.trim()) {
+            const t = params.initialText.trim();
+            const skipCapture = mapped === null ||
+                t === FARMER_SUGGEST_OTHER_BUTTON_ID ||
+                t === 'feedback.disagree' ||
+                (isFarmerDisagreementIntent(t) &&
+                    !isFarmerFreeTextHypothesis(t) &&
+                    initialDiagnoses.length === 0);
+            if (!skipCapture) {
+                await captureDiagnosisAndMaybeRefine({
+                    feedbackId: fb.id,
+                    farmerId: params.farmerId,
+                    phone: params.phone,
+                    lang: params.lang,
+                    text: t,
+                    send: params.send,
+                    sessionId: meta?.sessionId ?? null,
+                    priorAiIssue: meta?.aiIssue ?? null,
+                });
+            }
+        }
         let step = initialDx ? await nextStepAfterDiagnosis(params.farmerId, fb.id) : 'diagnosis';
         if (priorProduct) {
             await farmerExperienceLearningService.updateCapture(fb.id, {
@@ -128,7 +299,7 @@ export const farmerFeedbackFlowService = {
         });
         await conversationSessionService.setState(params.farmerId, 'farmer_feedback_capture');
         if (step === 'diagnosis') {
-            await params.send.text(params.phone, ackDisagreement(params.lang));
+            await params.send.text(params.phone, askFreeTextDiagnosis(params.lang));
         }
         else if (step === 'experience_years') {
             await params.send.text(params.phone, askExperienceYears(params.lang));
@@ -150,9 +321,20 @@ export const farmerFeedbackFlowService = {
         if (!text || text.startsWith('menu.'))
             return false;
         if (step === 'diagnosis') {
-            const dx = extractSuggestedDiagnosis(text) || text.slice(0, 200);
-            await farmerExperienceLearningService.updateCapture(feedbackId, {
-                farmer_suggested_diagnosis: dx,
+            if (!isFarmerFreeTextHypothesis(text)) {
+                await params.send.text(params.phone, askFreeTextDiagnosisRetry(params.lang));
+                return true;
+            }
+            const meta = await farmerFeedbackFlowService.canStartDisagreement(params.farmerId);
+            await captureDiagnosisAndMaybeRefine({
+                feedbackId,
+                farmerId: params.farmerId,
+                phone: params.phone,
+                lang: params.lang,
+                text,
+                send: params.send,
+                sessionId: meta?.sessionId ?? null,
+                priorAiIssue: meta?.aiIssue ?? null,
             });
             const next = await nextStepAfterDiagnosis(params.farmerId, feedbackId);
             await conversationSessionService.patchContext(params.farmerId, {
@@ -185,12 +367,13 @@ export const farmerFeedbackFlowService = {
         }
         if (step === 'experience') {
             const product = extractPriorProduct(text);
+            const productOrPractice = product || (looksLikePriorExperience(text) ? text.slice(0, 400) : null);
             await farmerExperienceLearningService.updateCapture(feedbackId, {
                 farmer_prior_experience: text.slice(0, 1000),
-                farmer_prior_product: product ?? undefined,
-                capture_step: product ? 'outcome' : 'product',
+                farmer_prior_product: productOrPractice ?? undefined,
+                capture_step: productOrPractice ? 'outcome' : 'product',
             });
-            if (product || looksLikePriorExperience(text)) {
+            if (productOrPractice) {
                 await conversationSessionService.patchContext(params.farmerId, {
                     farmerFeedbackStep: 'outcome',
                 });
@@ -217,13 +400,24 @@ export const farmerFeedbackFlowService = {
             return true;
         }
         if (step === 'outcome') {
-            let outcome = text.slice(0, 200);
-            if (/improved|better|മെച്ചം|சரி/i.test(text))
-                outcome = 'improved';
-            else if (/partial|ഭാഗിക/i.test(text))
-                outcome = 'partial';
-            else if (/no|not|ഇല്ല/i.test(text))
-                outcome = 'no_change';
+            if (looksLikeFarmActivityMessage(text)) {
+                await recordAppliedTreatmentDuringFeedback({
+                    farmerId: params.farmerId,
+                    phone: params.phone,
+                    lang: params.lang,
+                    text,
+                    feedbackId,
+                    step: 'outcome',
+                    send: params.send,
+                    messageId: params.messageId,
+                });
+                return true;
+            }
+            const outcome = parseFarmerOutcomeAnswer(text);
+            if (!outcome) {
+                await params.send.text(params.phone, askOutcomeRetry(params.lang));
+                return true;
+            }
             await farmerExperienceLearningService.updateCapture(feedbackId, {
                 farmer_prior_outcome: outcome,
             });

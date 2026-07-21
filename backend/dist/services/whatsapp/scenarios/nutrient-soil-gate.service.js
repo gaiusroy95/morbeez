@@ -6,22 +6,6 @@ import { responseComposerService } from '../pipeline/response-composer.service.j
 import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
 import { whatsappDiagnosisRendererService } from '../pipeline/whatsapp-diagnosis-renderer.service.js';
 import { pickLocalizedFarmerSummary } from '../pipeline/crop-message-intent.service.js';
-function validationQuestion(issue, language) {
-    const lower = issue.toLowerCase();
-    if (/thrip|silver|streak|scrap/.test(lower)) {
-        return language === 'ml'
-            ? 'സ്ഥിരീകരിക്കാൻ: ഇലയുടെ അടിയിൽ ചെറിയ കീടങ്ങളോ കറുത്ത മലമുണ്ടോ?'
-            : 'To confirm: do you see tiny insects or black dots under the leaves?';
-    }
-    if (/yellow|chlorosis|deficien|nutrient|nitrogen|potassium/.test(lower)) {
-        return language === 'ml'
-            ? 'സ്ഥിരീകരിക്കാൻ: മഞ്ഞപ്പം താഴെ നിന്ന് മുകളിലേക്ക് പടരുന്നുണ്ടോ?'
-            : 'To confirm: is yellowing spreading from lower leaves upward?';
-    }
-    return language === 'ml'
-        ? 'സ്ഥിരീകരിക്കാൻ: പ്രശ്നം എത്ര വേഗത്തിൽ പടരുന്നു?'
-        : 'To confirm: how fast is this issue spreading in the field?';
-}
 const NUTRIENT_PATTERN = /nutrient|deficien|nitrogen|potassium|phosphorus|npk|chlorosis|yellowing|മണ്ണ്|പോഷക|ஊட்டச்சத்து|पोषक|ನೈಟ್ರೋಜನ್/i;
 export function suggestsNutrientDeficiency(advisory) {
     if ((advisory.nutrientDeficiency?.length ?? 0) > 0)
@@ -65,13 +49,13 @@ function buildDeliverReply(advisory, language, extraFooter) {
     if (env.ENABLE_WHATSAPP_RICH_DIAGNOSIS) {
         return responseComposerService.composeDiagnosis({
             body,
-            validationQuestion: validationQuestion(advisory.probableIssue, language),
+            validationQuestion: null,
             footer,
         });
     }
     return responseComposerService.compose({
         body,
-        validationQuestion: validationQuestion(advisory.probableIssue, language),
+        validationQuestion: null,
         footer,
     });
 }

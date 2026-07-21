@@ -1,4 +1,5 @@
 import { type SoilLabMetrics } from '../../soil/soil-lab-metrics.js';
+import type { InboundMessage } from '../pipeline/types.js';
 import type { AdvisoryLanguage } from '../../ai/types.js';
 type SoilMenuList = {
     body: string;
@@ -23,6 +24,20 @@ export declare const soilFlowService: {
     addressReply(language: AdvisoryLanguage): string;
     requestSoilTesting(farmerId: string, language: AdvisoryLanguage): Promise<string>;
     reportReceivedReply(language: AdvisoryLanguage): string;
+    resolveSoilBlockId(farmerId: string, preferredBlockId?: string | null): Promise<string | null>;
+    /**
+     * Download WhatsApp soil report (photo/PDF), store file, insert crm_soil_reports
+     * so telecaller portal + farmer/agronomist apps can display it on the block.
+     */
+    saveUploadedReportFromWhatsApp(params: {
+        farmerId: string;
+        msg: InboundMessage;
+        blockId?: string | null;
+    }): Promise<{
+        reportId: string | null;
+        pdfUrl: string | null;
+        blockId: string | null;
+    }>;
     macroEntryPrompt(lang: AdvisoryLanguage): string;
     microEntryPrompt(lang: AdvisoryLanguage): string;
     soilTypeEntryPrompt(lang: AdvisoryLanguage): string;

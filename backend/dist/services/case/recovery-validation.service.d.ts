@@ -7,6 +7,7 @@ export declare const recoveryValidationService: {
         cropType: string;
         language: AdvisoryLanguage;
         recommendationRecordId?: string | null;
+        issueLabel?: string | null;
     }): Promise<void>;
     processRecoveryJobSend(job: {
         farmer_id: string;

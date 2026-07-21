@@ -12,6 +12,11 @@ import { fieldContextService } from '../case/field-context.service.js';
 import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
 import { economicGateService } from '../case/economic-gate.service.js';
 import { goldLearningQueueService } from '../ml/retraining-pipeline.service.js';
+import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
+import { caseNeedsSiteVisit } from '../agronomist/case-needs-site-visit.js';
+function isAgronomistVerifyAction(action) {
+    return action === 'approve_ai' || action === 'correct_ai' || action === 'partial_match';
+}
 function formatDt(iso) {
     if (!iso)
         return null;
@@ -160,6 +165,17 @@ export const agronomistCaseReviewService = {
             : { data: [] };
         const demoFarmerIds = new Set((farmerSources ?? []).filter((f) => f.source === 'demo_seed').map((f) => String(f.id)));
         sorted = sorted.filter((i) => !demoFarmerIds.has(String(i.farmerId)));
+        const sessionIds = [...new Set(sorted.map((i) => String(i.sessionId)).filter(Boolean))];
+        const { data: sessionMetas } = sessionIds.length
+            ? await supabase.from('ai_advisory_sessions').select('id, metadata').in('id', sessionIds)
+            : { data: [] };
+        const routeBySession = new Map();
+        for (const row of sessionMetas ?? []) {
+            const meta = row.metadata ?? {};
+            const maios = meta.maiosCase;
+            const ginger = meta.gingerSopV3;
+            routeBySession.set(String(row.id), maios?.route ?? ginger?.route ?? null);
+        }
         const enriched = await Promise.all(sorted.map(async (item) => {
             const primary = await blockService.getPrimaryBlock(String(item.farmerId));
             const { data: fb } = await supabase
@@ -169,9 +185,16 @@ export const agronomistCaseReviewService = {
                 .in('status', ['pending_review', 'partial', 'pending_capture'])
                 .limit(1)
                 .maybeSingle();
+            const maiosRoute = routeBySession.get(String(item.sessionId)) ?? null;
+            const needsSiteVisit = caseNeedsSiteVisit({
+                reason: item.reason,
+                maiosRoute,
+            });
             return {
                 id: item.id,
                 caseRef: caseRef(item.id, String(item.createdAt)),
+                farmerId: item.farmerId ? String(item.farmerId) : null,
+                sessionId: item.sessionId ? String(item.sessionId) : null,
                 farmerName: item.farmerName,
                 farmerPhone: item.farmerPhone,
                 cropType: item.cropType ?? primary?.crop_type ?? '—',
@@ -185,6 +208,8 @@ export const agronomistCaseReviewService = {
                 timeAgo: timeAgo(String(item.createdAt)),
                 farmerDisagrees: Boolean(fb),
                 feedbackId: fb?.id ?? null,
+                maiosRoute,
+                needsSiteVisit,
             };
         }));
         return { items: enriched, total, page, limit };
@@ -796,12 +821,31 @@ export const agronomistCaseReviewService = {
                 action: body.action,
             });
         }
+        let learningFacadeRecorded = false;
+        if (isAgronomistVerifyAction(body.action) && issue.trim()) {
+            const maiosCase = detail.maiosCase;
+            try {
+                await maiosLearningFacadeService.recordAgronomistVerifiedOutcome({
+                    farmerId: esc.farmerId,
+                    cropType: String(detail.block?.cropType ?? 'ginger').toLowerCase(),
+                    verifiedIssueLabel: issue.trim(),
+                    sessionId: esc.sessionId ?? undefined,
+                    reasoning: maiosCase?.reasoning ?? null,
+                    reviewAction: body.action,
+                });
+                learningFacadeRecorded = true;
+            }
+            catch (err) {
+                logger.warn({ err, escalationId }, 'MAIOS learning facade case review record failed');
+            }
+        }
         return {
             escalationId,
             recommendationId,
             submittedForApproval: Boolean(body.submitForApproval),
             selfApproved,
             verifiedAnswerIndexed: selfApproved,
+            learningFacadeRecorded,
             message: body.submitForApproval
                 ? selfApproved
                     ? 'Approved and sent to the farmer. Similar questions will reuse this answer.'

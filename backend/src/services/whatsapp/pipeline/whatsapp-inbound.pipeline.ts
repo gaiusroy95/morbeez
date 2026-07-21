@@ -247,6 +247,33 @@ function buildDiagnosisReply(params: {
   });
 }
 
+function languageCodeFromInboundText(text: string): AdvisoryLanguage | null {
+  const trimmed = text.trim();
+  if (trimmed.startsWith('lang.')) {
+    const code = trimmed.replace('lang.', '') as AdvisoryLanguage;
+    return ['en', 'ml', 'ta', 'kn', 'hi'].includes(code) ? code : null;
+  }
+  return languageFromSelection(trimmed);
+}
+
+async function applyLanguageSelection(params: {
+  farmerId: string;
+  phone: string;
+  text: string;
+  send: Senders;
+}): Promise<boolean> {
+  const selected = languageCodeFromInboundText(params.text);
+  if (!selected) return false;
+  await conversationSessionService.setLanguageForOnboarding(params.farmerId, selected);
+  await whatsappScenarioRouter.startMinimalOnboarding(
+    params.phone,
+    params.farmerId,
+    selected,
+    params.send
+  );
+  return true;
+}
+
 function languageFromSelection(text: string): AdvisoryLanguage | null {
   const t = text.trim().toLowerCase();
   // "hi" / "hello" are greetings — never treat as Hindi (use lang.hi button or "hindi" text).
@@ -489,9 +516,7 @@ export const whatsappInboundPipeline = {
 
     // Conversation state + ownership (human takeover / pause AI)
     let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
-    const isLanguagePick =
-      Boolean(msg.text?.trim().startsWith('lang.')) ||
-      Boolean(msg.text && languageFromSelection(msg.text));
+    const isLanguagePick = Boolean(languageCodeFromInboundText(msg.text ?? ''));
     const isGreeting = Boolean(msg.text?.trim() && isMainMenuGreeting(msg.text));
     // Bootstrap brand-new farmers once on first Hi — never reset mid-flow (e.g. after language tap).
     if (
@@ -565,12 +590,12 @@ export const whatsappInboundPipeline = {
       contentPreview: msg.text || msg.msgType,
     });
 
-    // Recover farmers who said "hi" before fix (was misread as Hindi → skipped language menu).
+    // Recover farmers whose greeting was misread as Hindi (legacy bug) — never wipe a valid pick.
     const ctxEarly = await conversationSessionService.getContext(captured.farmerId);
     const onboardingDoneEarly = await onboardingFlowService.isComplete(captured.farmerId);
     if (
       !onboardingDoneEarly &&
-      session.preferred_language &&
+      session.preferred_language === 'hi' &&
       msg.text &&
       isMainMenuGreeting(msg.text) &&
       (ctxEarly.onboardingStep === 'pincode' ||
@@ -589,35 +614,38 @@ export const whatsappInboundPipeline = {
       session = { ...session, preferred_language: null, state: 'language_select' };
     }
 
-    // Step 1 — language selection (required before anything else for new farmers)
+    // New farmer flow: Hi → language select → pincode → acreage → crop → planting date → main menu
     if (!session.preferred_language) {
-      if (msg.text?.startsWith('lang.')) {
-        const code = msg.text.replace('lang.', '') as AdvisoryLanguage;
-        if (['en', 'ml', 'ta', 'kn', 'hi'].includes(code)) {
-          await conversationSessionService.setLanguageForOnboarding(captured.farmerId, code);
-          await whatsappScenarioRouter.startMinimalOnboarding(
-            msg.phone,
-            captured.farmerId,
-            code,
-            send
-          );
-          return;
-        }
+      if (await applyLanguageSelection({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        text: msg.text ?? '',
+        send,
+      })) {
+        return;
       }
 
-      const typedLang = msg.text ? languageFromSelection(msg.text) : null;
-      if (typedLang) {
-        const selected = typedLang;
-        if (selected && ['en', 'ml', 'ta', 'kn', 'hi'].includes(selected)) {
-          await conversationSessionService.setLanguageForOnboarding(captured.farmerId, selected);
-          await whatsappScenarioRouter.startMinimalOnboarding(
-            msg.phone,
-            captured.farmerId,
-            selected,
-            send
-          );
-          return;
+      const ctxLang = await conversationSessionService.getContext(captured.farmerId);
+      const onboardingAlreadyStarted =
+        session.state === 'onboarding_minimal' || Boolean(ctxLang.onboardingStep);
+      if (onboardingAlreadyStarted) {
+        const { data: farmerRow } = await supabase
+          .from('farmers')
+          .select('preferred_language')
+          .eq('id', captured.farmerId)
+          .maybeSingle();
+        const lang = normalizeLanguage(null, farmerRow?.preferred_language ?? captured.language);
+        await conversationSessionService.setLanguageForOnboarding(captured.farmerId, lang);
+        session = { ...session, preferred_language: lang, state: 'onboarding_minimal' };
+        const step = ctxLang.onboardingStep ?? 'pincode';
+        if (step === 'pincode') {
+          await send.text(msg.phone, pincodePrompt(lang));
+        } else if (step === 'acreage') {
+          await whatsappScenarioRouter.sendAcreageOnboardingStep(msg.phone, lang, send);
+        } else {
+          await send.text(msg.phone, onboardingFlowService.currentStepPrompt(step, lang));
         }
+        return;
       }
 
       const copy = languageSelectCopy();

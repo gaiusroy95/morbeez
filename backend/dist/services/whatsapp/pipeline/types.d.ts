@@ -27,6 +27,9 @@ export interface PipelineFarmerContext {
 export interface MediaExtractResult {
     imageBase64?: string;
     imageMimeType?: string;
+    /** PDF / non-image document (e.g. soil lab report). */
+    documentBase64?: string;
+    documentMimeType?: string;
     audioBuffer?: Buffer;
     audioMimeType?: string;
     audioDurationSec?: number;

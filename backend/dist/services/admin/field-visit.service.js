@@ -447,6 +447,11 @@ export const fieldVisitService = {
                     void recommendationCommunicationService
                         .sendApprovedRecommendation(String(row.id), {
                         customMessage: whatsappOverride?.message,
+                        complianceQuestion: whatsappOverride?.complianceQuestion?.trim() ||
+                            (whatsappOverride?.compliancePrompt
+                                ? whatsappOverride.compliancePrompt.replace(/\s*Reply\s+Yes\s+or\s+No\.?/gi, '').trim()
+                                : undefined),
+                        complianceNoAction: whatsappOverride?.complianceNoAction ?? 'escalate',
                     })
                         .catch(() => ({ sent: false }));
                     if (issue.aiCaseId && !partnerId) {

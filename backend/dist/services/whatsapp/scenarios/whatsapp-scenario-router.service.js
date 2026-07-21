@@ -14,7 +14,6 @@ import { nutrientSoilGateService, suggestsNutrientDeficiency, } from './nutrient
 import { callbackFlowService } from './callback-flow.service.js';
 import { terminologyService } from './terminology.service.js';
 import { diagnosisFlowService } from './diagnosis-flow.service.js';
-import { farmerWelcomeService } from './farmer-welcome.service.js';
 import { multiPlotService } from './multi-plot.service.js';
 import { orderWhatsappService } from '../orders/order-whatsapp.service.js';
 import { cultivationLoggingService } from '../cultivation/cultivation-logging.service.js';
@@ -24,7 +23,7 @@ import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
 import { cropSelectionService } from './crop-selection.service.js';
 import { farmerPurgeService } from '../../farmer/farmer-purge.service.js';
 import { blockService } from '../../core/block.service.js';
-import { invalidPincodeReply, onboardingFlowService, parsePincodeInput, pincodePrompt, pincodeSavedReply, plantingDatePrompt, } from './onboarding-flow.service.js';
+import { invalidPincodeReply, onboardingFlowService, parsePincodeInput, pincodePrompt, pincodeSavedReply, pincodePendingVerifyReply, plantingDatePrompt, } from './onboarding-flow.service.js';
 import { pincodeService } from '../../core/pincode.service.js';
 import { recommendationFollowUpService } from '../../core/recommendation-follow-up.service.js';
 import { improvementLevelFromButton } from '../../../domain/ai-training/outcome-kpi.js';
@@ -36,6 +35,7 @@ import { regionalTerminologyProcessor } from '../../regional-terminology/regiona
 import { diagnosisFollowUpService } from '../pipeline/diagnosis-follow-up.service.js';
 import { gingerSopFollowUpService } from '../../ginger-sop/ginger-sop-follow-up.service.js';
 import { recoveryValidationService } from '../../case/recovery-validation.service.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
 const CROP_MEDIA_INTAKE = new Set(['image', 'image_message', 'document']);
 const CROP_MEDIA = new Set(['image', 'image_message', 'document']);
 const MENU_IDS = new Set([
@@ -275,6 +275,25 @@ export const whatsappScenarioRouter = {
             if (roiHandled)
                 return { handled: true };
         }
+        if (farmActivityAssistantService.enabled() &&
+            (farmActivityAssistantService.isFarmActivityState(session.state) ||
+                farmActivityAssistantService.isActionButton(text) ||
+                Boolean(text && farmActivityAssistantService.looksLikeIntent(text)))) {
+            const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+                farmerId: captured.farmerId,
+                phone: msg.phone,
+                language: lang,
+                text,
+                messageId: msg.messageId,
+                sessionState: session.state,
+                send,
+                modality: 'text',
+                conversationSessionId: session.id,
+                blockId: session.active_block_id ?? null,
+            });
+            if (farmHandled)
+                return { handled: true };
+        }
         if (session.state === 'post_diagnosis_intake') {
             const postResult = await diagnosisFollowUpService.handlePostDiagnosisMessage({
                 farmerId: captured.farmerId,
@@ -325,12 +344,15 @@ export const whatsappScenarioRouter = {
                 lang,
                 text,
                 send,
+                messageId: msg.messageId,
             });
             if (capturedFb)
                 return { handled: true };
         }
         if (text &&
-            (text === 'feedback.disagree' || farmerFeedbackFlowService.isDisagreementIntent(text))) {
+            (text === 'feedback.disagree' ||
+                /^feedback\.suggest\./i.test(text) ||
+                farmerFeedbackFlowService.isDisagreementIntent(text))) {
             const canStart = await farmerFeedbackFlowService.canStartDisagreement(captured.farmerId);
             if (canStart?.sessionId) {
                 await farmerFeedbackFlowService.startFlow({
@@ -338,7 +360,7 @@ export const whatsappScenarioRouter = {
                     phone: msg.phone,
                     lang,
                     send,
-                    initialText: text === 'feedback.disagree' ? undefined : text,
+                    initialText: text === 'feedback.disagree' || /^feedback\.suggest\./i.test(text) ? text : text,
                 });
                 return { handled: true };
             }
@@ -398,6 +420,12 @@ export const whatsappScenarioRouter = {
                 else if (text === 'rec.apply_help') {
                     reply = await recommendationFollowUpService.handleApplicationReply(captured.farmerId, recId, 'need_clarification');
                 }
+                else if (text === 'rec.compliance_yes') {
+                    reply = await recommendationFollowUpService.handleComplianceReply(captured.farmerId, recId, 'yes');
+                }
+                else if (text === 'rec.compliance_no') {
+                    reply = await recommendationFollowUpService.handleComplianceReply(captured.farmerId, recId, 'no');
+                }
                 else {
                     const kpiLevel = improvementLevelFromButton(text);
                     if (kpiLevel) {
@@ -443,6 +471,19 @@ export const whatsappScenarioRouter = {
             const interpreted = await recommendationFollowUpService.interpretAndHandleOutcomeText(captured.farmerId, pendingRecId, text, false);
             if (interpreted) {
                 await send.text(msg.phone, interpreted);
+                return { handled: true };
+            }
+        }
+        if (text && pendingRecId && ctxEarly.pendingRecommendationFollowUp === 'compliance') {
+            const normalized = text.trim().toLowerCase();
+            if (/^(yes|y|applied|done|completed)$/i.test(normalized)) {
+                const reply = await recommendationFollowUpService.handleComplianceReply(captured.farmerId, pendingRecId, 'yes');
+                await send.text(msg.phone, reply);
+                return { handled: true };
+            }
+            if (/^(no|n|not yet|pending)$/i.test(normalized)) {
+                const reply = await recommendationFollowUpService.handleComplianceReply(captured.farmerId, pendingRecId, 'no');
+                await send.text(msg.phone, reply);
                 return { handled: true };
             }
         }
@@ -520,15 +561,26 @@ export const whatsappScenarioRouter = {
                     await send.text(msg.phone, invalidPincodeReply(lang));
                     return { handled: true };
                 }
-                const row = await pincodeService.assignFarmerPincode(captured.farmerId, pc);
-                if (!row) {
+                const assigned = await pincodeService.assignFarmerPincodeDetailed(captured.farmerId, pc);
+                if (!assigned) {
                     await send.text(msg.phone, invalidPincodeReply(lang));
                     return { handled: true };
                 }
                 await conversationSessionService.patchContext(captured.farmerId, {
                     onboardingStep: 'acreage',
                 });
-                await send.text(msg.phone, pincodeSavedReply(lang, row.district, row.state));
+                if (assigned.source === 'provisional') {
+                    await send.text(msg.phone, pincodePendingVerifyReply(lang, assigned.row.pincode));
+                    void createTelecallerTask({
+                        farmerId: captured.farmerId,
+                        title: `Verify pincode ${assigned.row.pincode}`,
+                        notes: `Farmer sent PIN ${assigned.row.pincode} during WhatsApp onboarding; not found in master/India Post. Confirm district/taluk.`,
+                        priority: 'normal',
+                    }).catch(() => { });
+                }
+                else {
+                    await send.text(msg.phone, pincodeSavedReply(lang, assigned.row.district, assigned.row.state));
+                }
                 await this.sendAcreageOnboardingStep(msg.phone, lang, send);
                 return { handled: true };
             }
@@ -627,7 +679,16 @@ export const whatsappScenarioRouter = {
         }
         if (session.state === 'nutrient_soil_confirm' || SOIL_CONFIRM_IDS.has(text)) {
             if (CROP_MEDIA.has(msg.msgType) || msg.msgType === 'document') {
-                await nutrientSoilGateService.markSoilReportReceived(captured.farmerId);
+                const saved = await soilFlowService.saveUploadedReportFromWhatsApp({
+                    farmerId: captured.farmerId,
+                    msg,
+                });
+                logger.info({
+                    farmerId: captured.farmerId,
+                    reportId: saved.reportId,
+                    blockId: saved.blockId,
+                    hasFile: Boolean(saved.pdfUrl),
+                }, 'WhatsApp soil report saved (nutrient confirm)');
                 await send.text(msg.phone, soilFlowService.reportReceivedReply(lang));
                 const delivered = await nutrientSoilGateService.deliverPending({
                     farmerId: captured.farmerId,
@@ -986,9 +1047,18 @@ export const whatsappScenarioRouter = {
                 return { handled: true };
             }
         }
-        // Soil report upload (PDF / photo) while in soil flow
+        // Soil report upload (PDF / photo) while in soil flow — persist to crm_soil_reports
         if ((msg.msgType === 'document' || CROP_MEDIA.has(msg.msgType)) && session.state === 'soil_flow') {
-            await nutrientSoilGateService.markSoilReportReceived(captured.farmerId);
+            const saved = await soilFlowService.saveUploadedReportFromWhatsApp({
+                farmerId: captured.farmerId,
+                msg,
+            });
+            logger.info({
+                farmerId: captured.farmerId,
+                reportId: saved.reportId,
+                blockId: saved.blockId,
+                hasFile: Boolean(saved.pdfUrl),
+            }, 'WhatsApp soil report saved (soil_flow)');
             await send.text(msg.phone, soilFlowService.reportReceivedReply(lang));
             const delivered = await nutrientSoilGateService.deliverPending({
                 farmerId: captured.farmerId,
@@ -1050,12 +1120,10 @@ export const whatsappScenarioRouter = {
                 'plot_select',
             ]);
             if (diagnosisStates.has(session.state) || session.state === 'main_menu') {
-                const { shouldRunDiagnosis } = await diagnosisFlowService.recordImageReceived(captured.farmerId);
-                if (shouldRunDiagnosis) {
-                    const welcome = await farmerWelcomeService.buildWelcomeLine(captured.farmerId, lang);
-                    await send.text(msg.phone, diagnosisFlowService.analyzingPrompt(lang));
-                    return { handled: true, runDiagnosis: true, welcomePrefix: welcome ?? undefined };
-                }
+                // Do NOT return runDiagnosis here — that raced concurrent album uploads into
+                // multiple diagnoses. Images always go through processImage → scheduleImageBatch.
+                await diagnosisFlowService.recordImageReceived(captured.farmerId);
+                return { handled: false };
             }
         }
         if (session.state === 'diagnosis_awaiting_photos' && text) {

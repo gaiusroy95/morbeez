@@ -33,7 +33,30 @@ export declare const farmerExperienceLearningService: {
         initialFarmerDiagnosis?: string | null;
         initialText?: string;
     }): Promise<FarmerFeedbackRow>;
-    updateCapture(id: string, patch: Partial<FarmerFeedbackRow>): Promise<FarmerFeedbackRow>;
+    updateCapture(id: string, patch: Partial<FarmerFeedbackRow> & {
+        metadata?: Record<string, unknown>;
+    }): Promise<FarmerFeedbackRow>;
+    /**
+     * Parse farmer free text into separate issues and persist (metadata.farmer_suggested_diagnoses).
+     * farmer_suggested_diagnosis holds the primary (first) issue only — not a combined string.
+     * Optional refinedAssessment stores ranked probabilities for agronomist Validate.
+     */
+    captureFarmerDiagnosesFromText(id: string, sourceText: string, options?: {
+        storeFullTextAsExperience?: boolean;
+        /** Persist farmer free text as-is (no regex label dictionary). */
+        storeAsRawHypothesis?: boolean;
+        refinedAssessment?: {
+            conditions: Array<{
+                label: string;
+                probability: number;
+                role: string;
+                reason: string;
+            }>;
+            sequenceSummary?: string;
+            source?: string;
+        };
+    }): Promise<FarmerFeedbackRow>;
+    getSuggestedDiagnoses(fb: FarmerFeedbackRow): string[];
     submitForReview(feedbackId: string): Promise<FarmerFeedbackRow>;
     getById(id: string): Promise<FarmerFeedbackRow>;
     listPendingReview(limit?: number): Promise<Array<FarmerFeedbackRow & {
@@ -92,6 +115,7 @@ export declare const farmerExperienceLearningService: {
             status: any;
             created_at: any;
         }[];
+        farmerSuggestedDiagnoses: string[];
         consoleSessionUrl: string | null;
     }>;
     review(id: string, body: {

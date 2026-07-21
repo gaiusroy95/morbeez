@@ -3,6 +3,8 @@ import { eventBus } from '../../events/bus.js';
 import { computeConfidence, escalationReason, shouldEscalate } from './confidence.js';
 import { blockService } from '../core/block.service.js';
 import { confidenceLifecycleService } from '../core/confidence-lifecycle.service.js';
+import { expertCaseLifecycleService } from '../expert-case/expert-case-lifecycle.service.js';
+import { logger } from '../../lib/logger.js';
 export const OPEN_ESCALATION_STATUSES = ['pending', 'assigned', 'in_review'];
 function priorityForConfidence(confidence) {
     if (confidence < 0.4)
@@ -33,6 +35,20 @@ export const escalationService = {
             .single();
         if (error)
             throw error;
+        if (expertCaseLifecycleService.enabled()) {
+            void expertCaseLifecycleService
+                .ensureFromAdvisory({
+                farmerId: params.farmerId,
+                sessionId: params.sessionId,
+                escalationId: String(data.id),
+                reason: params.reason,
+                issueLabel: params.reason,
+                priority,
+                confidence: params.confidence_at_escalation,
+                source: 'advisory_session',
+            })
+                .catch((err) => logger.warn({ err, escalationId: data.id }, 'Expert case dual-write failed'));
+        }
         return { escalationId: data.id };
     },
     /** @deprecated Use createCaseForReview — kept for callers; always creates a new row. */

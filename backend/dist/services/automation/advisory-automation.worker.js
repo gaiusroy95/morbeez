@@ -55,7 +55,11 @@ async function processJob(job) {
         logger.info({ farmerId: job.farmer_id }, 'Callback reminder — telecaller queue');
     }
     else if (job.job_type === 'cultivation_application_prompt') {
-        await cultivationLoggingService.sendApplicationPrompt(farmer.phone, job.farmer_id, lang ?? 'en');
+        await cultivationLoggingService.sendApplicationPrompt(farmer.phone, job.farmer_id, lang ?? 'en', {
+            advisorySessionId: job.payload.advisorySessionId
+                ? String(job.payload.advisorySessionId)
+                : undefined,
+        });
     }
     else if (job.job_type === 'cultivation_result_validation') {
         const activityId = String(job.payload.activityId ?? '');
@@ -130,12 +134,20 @@ async function poll() {
         .select('id, farmer_id, job_type, payload, attempts')
         .eq('status', 'pending')
         .lte('scheduled_at', now)
+        .order('scheduled_at', { ascending: true })
         .limit(10);
     for (const job of jobs ?? []) {
-        await supabase
+        // Atomic claim — only one worker may process a given pending job.
+        const { data: claimed, error: claimErr } = await supabase
             .from('advisory_automation_jobs')
-            .update({ status: 'processing', attempts: job.attempts + 1 })
-            .eq('id', job.id);
+            .update({ status: 'processing', attempts: (job.attempts ?? 0) + 1 })
+            .eq('id', job.id)
+            .eq('status', 'pending')
+            .select('id')
+            .maybeSingle();
+        if (claimErr || !claimed?.id) {
+            continue;
+        }
         try {
             await processJob(job);
         }
@@ -144,7 +156,7 @@ async function poll() {
             await supabase
                 .from('advisory_automation_jobs')
                 .update({
-                status: job.attempts >= 3 ? 'failed' : 'pending',
+                status: (job.attempts ?? 0) >= 3 ? 'failed' : 'pending',
                 last_error: String(err),
             })
                 .eq('id', job.id);

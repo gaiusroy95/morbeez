@@ -1,8 +1,12 @@
+import { diagnosisLabelsMatch } from '../../maios-reasoning/diagnosis-fusion.service.js';
 import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
 const LABELS = {
     en: {
         whatISee: '🔍 What I see',
         primaryIssue: '🎯 Primary issue',
+        mostLikely: '🎯 Most likely cause',
+        rankedCauses: '📊 Ranked possibilities',
+        diseaseWatch: '⚠️ Disease watch',
         lessLikely: '❌ Less likely',
         immediateAction: '💊 Immediate action',
         tableHeader: 'Item · Dose · Method',
@@ -16,6 +20,9 @@ const LABELS = {
     ml: {
         whatISee: '🔍 എന്താണ് കാണുന്നത്',
         primaryIssue: '🎯 പ്രധാന പ്രശ്നം',
+        mostLikely: '🎯 ഏറ്റവും സാധ്യതയുള്ള കാരണം',
+        rankedCauses: '📊 സാധ്യതാ ക്രമം',
+        diseaseWatch: '⚠️ രോഗ നിരീക്ഷണം',
         lessLikely: '❌ കുറവ് സാധ്യത',
         immediateAction: '💊 ഉടനടി നടപടി',
         tableHeader: 'ഉൽപ്പന്നം · ഡോസ് · രീതി',
@@ -29,6 +36,9 @@ const LABELS = {
     ta: {
         whatISee: '🔍 நான் காண்பது',
         primaryIssue: '🎯 முதன்மை பிரச்சனை',
+        mostLikely: '🎯 மிகவும் சாத்தியமான காரணம்',
+        rankedCauses: '📊 வாய்ப்பு வரிசை',
+        diseaseWatch: '⚠️ நோய் கண்காணிப்பு',
         lessLikely: '❌ குறைந்த சாத்தியம்',
         immediateAction: '💊 உடனடி நடவடிக்கை',
         tableHeader: 'பொருள் · அளவு · முறை',
@@ -42,6 +52,9 @@ const LABELS = {
     kn: {
         whatISee: '🔍 ನಾನು ನೋಡುವುದು',
         primaryIssue: '🎯 ಪ್ರಮುಖ ಸಮಸ್ಯೆ',
+        mostLikely: '🎯 ಅತ್ಯಂತ ಸಾಧ್ಯ ಕಾರಣ',
+        rankedCauses: '📊 ಸಾಧ್ಯತೆ ಕ್ರಮ',
+        diseaseWatch: '⚠️ ರೋಗ ವೀಕ್ಷಣೆ',
         lessLikely: '❌ ಕಡಿಮೆ ಸಾಧ್ಯತೆ',
         immediateAction: '💊 ತಕ್ಷಣ ಕ್ರಮ',
         tableHeader: 'ವಸ್ತು · ಡೋಸ್ · ವಿಧಾನ',
@@ -55,6 +68,9 @@ const LABELS = {
     hi: {
         whatISee: '🔍 मैं क्या देख रहा हूँ',
         primaryIssue: '🎯 मुख्य समस्या',
+        mostLikely: '🎯 सबसे संभावित कारण',
+        rankedCauses: '📊 संभावना क्रम',
+        diseaseWatch: '⚠️ रोग निगरानी',
         lessLikely: '❌ कम संभावना',
         immediateAction: '💊 तुरंत कार्रवाई',
         tableHeader: 'वस्तु · मात्रा · तरीका',
@@ -70,7 +86,8 @@ function hasImageEvidence(advisory) {
     return Boolean(advisory.imageObservations?.length);
 }
 function hasRichSections(advisory) {
-    return Boolean(advisory.imageObservations?.length ||
+    return Boolean(advisory.farmerReport?.trim() ||
+        advisory.imageObservations?.length ||
         advisory.differentialDiagnosis?.length ||
         advisory.dosageGuidance?.length ||
         advisory.agronomistAssessment?.trim() ||
@@ -98,6 +115,20 @@ export const whatsappDiagnosisRendererService = {
         if (!hasRichSections(advisory)) {
             return legacyFallback(input);
         }
+        if (advisory.farmerReport?.trim()) {
+            const sections = [];
+            if (input.plotLabel?.trim() && !advisory.farmerReport.includes(input.plotLabel.trim())) {
+                sections.push(`📍 ${input.plotLabel.trim()}`);
+            }
+            sections.push(advisory.farmerReport.trim());
+            if (input.reuseNote)
+                sections.push('', input.reuseNote);
+            if (input.safetyNote)
+                sections.push('', input.safetyNote);
+            if (input.escalateNote)
+                sections.push('', input.escalateNote);
+            return sections.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
         const t = LABELS[language] ?? LABELS.en;
         const sections = [];
         if (input.plotLabel?.trim()) {
@@ -110,12 +141,63 @@ export const whatsappDiagnosisRendererService = {
             sections.push(t.whatISee, ...observations.map((o) => `• ${o}`));
         }
         const confPct = Math.round(advisory.confidence * 100);
-        sections.push('', `${t.primaryIssue}: ${advisory.probableIssue} — ${severityLabel(advisory.severity, language)} (${confPct}%)`);
-        if (advisory.differentialDiagnosis?.length) {
-            sections.push('', t.lessLikely);
-            for (const d of advisory.differentialDiagnosis.slice(0, 4)) {
-                sections.push(`• ${d.label} — ${d.reason}`);
+        const usePresentation = Boolean(advisory.diagnosisHeadline || advisory.diagnosisRanked?.length);
+        if (usePresentation && advisory.diagnosisHeadline?.trim()) {
+            sections.push('', `${t.mostLikely}: ${advisory.diagnosisHeadline.trim()}`);
+        }
+        else {
+            const primaryLine = confPct < 50
+                ? `${t.mostLikely}: ${advisory.probableIssue} (${confPct}% — several factors possible)`
+                : `${t.primaryIssue}: ${advisory.probableIssue} — ${severityLabel(advisory.severity, language)} (${confPct}%)`;
+            sections.push('', primaryLine);
+        }
+        if (advisory.diagnosisRanked?.length) {
+            const primaryRows = advisory.diagnosisRanked.filter((r) => r.role === 'primary');
+            const otherRows = advisory.diagnosisRanked.filter((r) => r.role !== 'primary');
+            if (primaryRows.length) {
+                sections.push('', t.rankedCauses);
+                for (const r of primaryRows) {
+                    const pct = Math.round(r.probability * 100);
+                    const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+                    sections.push(`${r.label} — ${pct}% ${stars}`);
+                }
             }
+            const lessLikelyRows = otherRows.filter((r) => r.role === 'alternative' || r.role === 'disease_watch');
+            const contributingRows = otherRows.filter((r) => r.role === 'contributing');
+            if (contributingRows.length) {
+                if (!primaryRows.length)
+                    sections.push('', t.rankedCauses);
+                for (const r of contributingRows) {
+                    const pct = Math.round(r.probability * 100);
+                    sections.push(`• ${r.label} — ${pct}% (contributing)`);
+                }
+            }
+            if (lessLikelyRows.length) {
+                sections.push('', t.lessLikely);
+                for (const r of lessLikelyRows) {
+                    const pct = Math.round(r.probability * 100);
+                    sections.push(`• ${r.label} — ${pct}%`);
+                }
+            }
+        }
+        else if (advisory.differentialDiagnosis?.length) {
+            const alternatives = advisory.differentialDiagnosis
+                .filter((d) => !diagnosisLabelsMatch(d.label, advisory.probableIssue))
+                .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0))
+                .slice(0, 4);
+            if (alternatives.length) {
+                sections.push('', t.lessLikely);
+                for (const d of alternatives) {
+                    const pct = d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
+                    sections.push(`• ${d.label}${pct} — ${d.reason}`);
+                }
+            }
+        }
+        if (advisory.diseaseWatchNote?.trim()) {
+            sections.push('', t.diseaseWatch, advisory.diseaseWatchNote.trim());
+        }
+        if (advisory.treatmentAlignmentNote?.trim()) {
+            sections.push('', `ℹ️ ${advisory.treatmentAlignmentNote.trim()}`);
         }
         if (advisory.dosageGuidance?.length) {
             sections.push('', t.immediateAction, t.tableHeader);

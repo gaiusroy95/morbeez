@@ -127,6 +127,30 @@ export declare const whatsappOsAdminService: {
         source?: "admin" | "telecaller" | "whatsapp" | "system" | "mobile";
         assignedEmployee?: string;
     }): Promise<any>;
+    assertFieldActivityBelongsToFarmer(activityId: string, farmerId: string): Promise<{
+        id: string;
+        farm_block_id: string | null;
+        farmer_id: string;
+    }>;
+    updateFieldActivity(activityId: string, params: {
+        activityTypeId?: string;
+        activityType: "spray_applied" | "fertigation" | "drench" | "scouting" | "other";
+        activityLabel?: string;
+        activityDate: string;
+        dap?: number;
+        notes?: string;
+        costInr?: number;
+        costBreakdown?: {
+            labourCostInr?: number;
+            sprayCostInr?: number;
+            fertilizerCostInr?: number;
+            machineryCostInr?: number;
+        };
+        followUpRequired?: boolean;
+        followUpDate?: string;
+        status?: "completed" | "pending" | "cancelled";
+    }): Promise<any>;
+    deleteFieldActivity(activityId: string): Promise<void>;
     syncFieldActivityToRoi(params: {
         farmerId: string;
         blockId: string;

@@ -91,6 +91,25 @@ export const diagnosisOrchestratorService = {
                 envelope: buildInsufficientEvidenceEnvelope('AI diagnosis unavailable — configure OPENAI_API_KEY or PLANT_ID_API_KEY'),
             };
         }
+        if (input.purpose === 'screening') {
+            logger.info({
+                event: 'diagnosis.screen_visit.start',
+                farmerId: input.farmerId,
+                blockId: input.blockId,
+                agronomistEmail,
+            }, 'Diagnosis screening visit started');
+            const result = await visitAiOrchestratorService.screenVisit(input, agronomistEmail);
+            logger.info({
+                event: 'diagnosis.screen_visit.complete',
+                farmerId: input.farmerId,
+                blockId: input.blockId,
+                issueCount: result.issues?.length ?? 0,
+            }, 'Diagnosis screening visit complete');
+            return {
+                ...result,
+                diagnosisDegraded: !env.OPENAI_API_KEY?.trim(),
+            };
+        }
         const triage = await this.triagePreview(input);
         const result = await visitAiOrchestratorService.analyzeVisit(input, agronomistEmail);
         const issues = (result.issues ?? []).map((issue) => {

@@ -7,6 +7,7 @@ import { whatsappInboundPipeline } from './pipeline/whatsapp-inbound.pipeline.js
 import { whatsappOutboundService } from './whatsapp-outbound.service.js';
 import { logger } from '../../lib/logger.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
+import { extractInteractiveReplyText, resolveInboundUserText, } from './inbound-reply-text.util.js';
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -51,9 +52,14 @@ export function parseAdsGyaniWebhook(payload) {
     const textObj = message?.text;
     const buttonObj = message?.button;
     const interactive = message?.interactive;
+    const interactiveReply = extractInteractiveReplyText(interactive);
     let text = '';
-    if (typeof message?.message_body === 'string')
+    if (interactiveReply) {
+        text = interactiveReply;
+    }
+    else if (typeof message?.message_body === 'string' && message.message_body.trim()) {
         text = message.message_body;
+    }
     else if (textObj?.body)
         text = textObj.body;
     else if (typeof message?.body === 'string')
@@ -62,11 +68,6 @@ export function parseAdsGyaniWebhook(payload) {
         text = buttonObj.text;
     else if (typeof message?.caption === 'string')
         text = message.caption;
-    else if (interactive) {
-        const btnReply = interactive.button_reply;
-        const listReply = interactive.list_reply;
-        text = btnReply?.title ?? listReply?.title ?? '';
-    }
     else if (typeof payload.text === 'string')
         text = payload.text;
     else if (typeof payload.message === 'string')
@@ -172,7 +173,9 @@ export const whatsappService = {
         const parsed = parseAdsGyaniWebhook(payload);
         if (!parsed)
             return;
-        await whatsappInboundPipeline.process(toInboundFromAdsGyani(payload, parsed), {
+        const inbound = toInboundFromAdsGyani(payload, parsed);
+        inbound.text = resolveInboundUserText(inbound) || inbound.text;
+        await whatsappInboundPipeline.process(inbound, {
             text: (phone, text) => this.sendText(phone, text),
             list: (p) => this.sendList({
                 to: p.phone,
@@ -233,15 +236,14 @@ export const whatsappService = {
                 if (!from)
                     continue;
                 const msgType = String(msg.type ?? 'text');
-                let text = msg.text?.body ??
-                    msg.button?.text ??
-                    '';
                 const interactive = msg.interactive;
-                if (!text && interactive) {
-                    const btn = interactive.button_reply;
-                    const list = interactive.list_reply;
-                    // Prefer stable IDs for state machines (language/menu), fallback to title.
-                    text = btn?.id ?? list?.id ?? btn?.title ?? list?.title ?? '';
+                const interactiveReply = extractInteractiveReplyText(interactive);
+                let text = interactiveReply ?? '';
+                if (!text) {
+                    text =
+                        msg.text?.body ??
+                            msg.button?.text ??
+                            '';
                 }
                 if (!text) {
                     text = msg.image?.caption ?? '';
@@ -263,6 +265,7 @@ export const whatsappService = {
                         campaignSource: value?.metadata?.campaign_id,
                     },
                 };
+                inbound.text = resolveInboundUserText(inbound) || inbound.text;
                 await whatsappInboundPipeline.process(inbound, {
                     text: (phone, t) => this.sendText(phone, t),
                     list: (p) => this.sendList({

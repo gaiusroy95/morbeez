@@ -16,12 +16,27 @@ export interface DosageItem {
     method: string;
     frequency?: string;
 }
+export interface ConnectedPreventionItem {
+    connectedRisk: string;
+    preventiveProduct: string;
+    dose: string;
+    method: string;
+    reason: string;
+    riskLevel?: 'moderate' | 'high';
+}
 export type AdvisorySeverity = 'mild' | 'moderate' | 'severe';
 export interface DifferentialDiagnosisItem {
     label: string;
     reason: string;
     /** 0–1 probability estimate (SOP v3 top-5 differential) */
     probability?: number;
+}
+export type DiagnosisRankRole = 'primary' | 'contributing' | 'disease_watch' | 'alternative';
+export interface DiagnosisRankItem {
+    label: string;
+    probability: number;
+    role: DiagnosisRankRole;
+    stars: number;
 }
 export interface CostEstimateItem {
     item: string;
@@ -35,6 +50,10 @@ export interface StructuredAdvisory {
     stressAnalysis: string[];
     treatments: TreatmentItem[];
     dosageGuidance: DosageItem[];
+    connectedPrevention?: ConnectedPreventionItem[];
+    connectedPreventionNoneNote?: string;
+    tankMixRecommendation?: string;
+    separateOperationNote?: string;
     precautions: string[];
     escalationRecommended: boolean;
     escalationReason?: string;
@@ -57,6 +76,31 @@ export interface StructuredAdvisory {
     agronomistAssessment?: string;
     morbeezDataUsed?: string[];
     costEstimate?: CostEstimateItem[];
+    /** Farmer-facing headline after Bayesian + treatment alignment (v17 presentation). */
+    diagnosisHeadline?: string;
+    diagnosisRanked?: DiagnosisRankItem[];
+    diseaseWatchNote?: string;
+    treatmentAlignmentNote?: string;
+    contributingFactor?: string;
+    recoveryOutlook?: 'excellent' | 'good' | 'moderate' | 'poor';
+    recoveryReason?: string;
+    monitorAdvice?: string;
+    lastFertilizer?: string;
+    lastFertilizerDate?: string;
+    lastFertilizerDaysAgo?: string;
+    lastFoliarSpray?: string;
+    lastFoliarSprayDate?: string;
+    lastFoliarSprayDaysAgo?: string;
+    lastDrench?: string;
+    lastDrenchDate?: string;
+    lastDrenchDaysAgo?: string;
+    previousDisease?: string;
+    previousRecommendation?: string;
+    previousDiagnosisStatus?: string;
+    /** Full MORBEEZ CROP DOCTOR farmer report (WhatsApp / farmer surfaces). */
+    farmerReport?: string;
+    /** Agronomist-only technical appendix (Bayesian scores, etc.). */
+    technicalReport?: string;
 }
 export interface PlantIdHealthResult {
     diseases?: Array<{

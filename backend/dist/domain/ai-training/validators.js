@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { FINDING_TYPES, REVIEW_ACTIONS, REVIEW_SEVERITIES, RECOMMENDATION_OUTCOMES, FARMER_FEEDBACK_DECISIONS, EXPERIENCE_LEVELS, FARMING_STYLES, IMAGE_REVIEW_ACTIONS, BLOCK_HEALTH_LEVELS, CROP_PERFORMANCE_LEVELS, SOIL_MOISTURE_LEVELS, ISSUE_STATUSES, ISSUE_CATEGORIES, RECOMMENDATION_TYPES, RECOMMENDATION_PRIORITIES, FIELD_REC_STATUSES, RECOMMENDATION_FOLLOWED, VISIT_FOLLOWUP_OUTCOMES, RECORD_SEVERITIES, VISIT_AI_REJECT_REASONS, } from './enums.js';
+import { FINDING_TYPES, REVIEW_ACTIONS, REVIEW_SEVERITIES, RECOMMENDATION_OUTCOMES, FARMER_FEEDBACK_DECISIONS, EXPERIENCE_LEVELS, FARMING_STYLES, IMAGE_REVIEW_ACTIONS, BLOCK_HEALTH_LEVELS, CROP_PERFORMANCE_LEVELS, SOIL_MOISTURE_LEVELS, ISSUE_STATUSES, ISSUE_CATEGORIES, RECOMMENDATION_TYPES, RECOMMENDATION_PRIORITIES, FIELD_REC_STATUSES, RECOMMENDATION_FOLLOWED, VISIT_FOLLOWUP_OUTCOMES, RECORD_SEVERITIES, VISIT_AI_REJECT_REASONS, VISIT_AI_ANSWER_TYPES, } from './enums.js';
 export const findingTypeSchema = z.enum(FINDING_TYPES);
 export const reviewSeveritySchema = z.enum(REVIEW_SEVERITIES);
 export const reviewActionSchema = z.enum(REVIEW_ACTIONS);
@@ -185,6 +185,8 @@ export const structuredFieldVisitSchema = z.object({
         issueIndex: z.number().int().min(0).max(11),
         message: z.string().min(1).max(4000),
         compliancePrompt: z.string().max(500).optional(),
+        complianceQuestion: z.string().max(300).optional(),
+        complianceNoAction: z.enum(['escalate', 'review']).optional(),
     }))
         .max(12)
         .optional(),
@@ -230,7 +232,10 @@ export const visitAiQuestionDraftSchema = z.object({
     id: z.string().uuid().optional(),
     questionText: z.string().min(1).max(500),
     answer: z.string().max(500).optional(),
-    answerType: z.enum(['yes_no_unknown', 'text', 'number']).optional(),
+    answerType: z.enum(VISIT_AI_ANSWER_TYPES).optional(),
+    options: z.array(z.string().max(120)).max(12).optional(),
+    priority: z.number().int().min(1).max(8).optional(),
+    imageTarget: z.string().max(80).optional(),
 });
 export const visitAiSyncQuestionsBodySchema = z.object({
     questions: z.array(visitAiQuestionDraftSchema).max(15),
@@ -284,6 +289,7 @@ export const visitAiRejectBodySchema = z
 });
 export const visitAnalyzeVisitRequestSchema = visitAiContextRequestSchema.extend({
     fieldVoiceNote: z.string().max(4000).optional(),
+    purpose: z.enum(['screening', 'full']).optional(),
     analyzePhotos: z
         .array(z.object({
         dataBase64: z.string().min(100).max(12_000_000),

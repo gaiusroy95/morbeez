@@ -11,14 +11,16 @@ import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappService } from '../whatsapp.service.js';
 import { contextPackService } from './context-pack.service.js';
 import { farmerMemoryService } from './farmer-memory.service.js';
+import { diagnosisSessionEvidenceService } from './diagnosis-session-evidence.service.js';
 import { nearbyCasesService } from './nearby-cases.service.js';
 import { diagnosisFollowUpReasoningEngine, } from './diagnosis-follow-up-reasoning.engine.js';
 import { diagnosisFollowUpQuestionGenerator, } from './diagnosis-follow-up-question.generator.js';
 import { expertFollowUpLearningService } from '../../core/expert-follow-up-learning.service.js';
 import { cropPackLoaderService } from '../../crop-pack/crop-pack-loader.service.js';
+import { maiosEvsiWhatsappBridgeService } from '../../maios-reasoning/maios-evsi-whatsapp-bridge.service.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { getReviewThreshold } from '../../../domain/ai-training/confidence-routing.js';
-import { localizeChoice, YES_NO_CHOICES, } from './follow-up-question.types.js';
+import { localizeChoice, resolveFollowUpChoices, } from './follow-up-question.types.js';
 const MAX_QUESTIONS = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MAX_QUESTIONS ?? 3);
 const MAX_POST_DIAGNOSIS_QUESTIONS = () => Number(process.env.DIAGNOSIS_POST_FOLLOW_UP_MAX_QUESTIONS ?? 3);
 const MIN_SIMILAR_CASES = () => Number(process.env.DIAGNOSIS_FOLLOW_UP_MIN_CASES ?? 1);
@@ -346,6 +348,19 @@ export const diagnosisFollowUpService = {
         }
         const evidenceGaps = opts?.evidenceGaps ??
             (opts?.farmerId ? await this.deriveEvidenceGaps(opts.farmerId) : []);
+        if (maiosEvsiWhatsappBridgeService.isEnabled()) {
+            const reasoning = intake.reasoningSnapshot ??
+                (await maiosEvsiWhatsappBridgeService.refreshReasoningForPreDiagnosis({
+                    investigation,
+                    priorAnswers: intake.answers,
+                    questionTexts: intake.questionTexts ?? {},
+                }));
+            if (reasoning) {
+                intake.reasoningSnapshot = reasoning;
+            }
+        }
+        const evsiHint = intake.reasoningSnapshot &&
+            maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(intake.reasoningSnapshot, intake.answers);
         const result = await diagnosisFollowUpQuestionGenerator.planNextQuestion({
             ctx: investigation,
             priorAnswers: intake.answers,
@@ -354,6 +369,7 @@ export const diagnosisFollowUpService = {
             maxQuestions,
             learnedPatterns: investigation.learnedPatterns,
             evidenceGaps,
+            evsiHint,
         });
         if (result.intakeComplete || !result.question) {
             return { intakeComplete: true };
@@ -376,6 +392,21 @@ export const diagnosisFollowUpService = {
         if (questionsAsked >= maxQuestions) {
             return { intakeComplete: true };
         }
+        if (maiosEvsiWhatsappBridgeService.isEnabled()) {
+            const reasoning = intake.reasoningSnapshot ??
+                (await maiosEvsiWhatsappBridgeService.refreshReasoningForPostDiagnosis({
+                    investigation,
+                    advisory: intake.advisorySnapshot,
+                    priorAnswers: intake.answers,
+                    questionTexts: intake.questionTexts ?? {},
+                    photoCount: investigation.hasPhoto ? 1 : 0,
+                }));
+            if (reasoning) {
+                intake.reasoningSnapshot = reasoning;
+            }
+        }
+        const evsiHint = intake.reasoningSnapshot &&
+            maiosEvsiWhatsappBridgeService.plannerHintFromReasoning(intake.reasoningSnapshot, intake.answers);
         const result = await diagnosisFollowUpQuestionGenerator.planPostDiagnosisQuestion({
             ctx: investigation,
             advisory: intake.advisorySnapshot,
@@ -384,6 +415,7 @@ export const diagnosisFollowUpService = {
             questionsAsked,
             maxQuestions,
             learnedPatterns: investigation.learnedPatterns,
+            evsiHint,
         });
         if (result.intakeComplete || !result.question) {
             return { intakeComplete: true };
@@ -451,7 +483,7 @@ export const diagnosisFollowUpService = {
                 cropType: params.cropType,
                 district,
                 symptomsText: params.symptomsText,
-                issueLabelHint: ctx.bestIssueLabel,
+                issueLabelHint: params.hasPhoto ? undefined : ctx.bestIssueLabel,
                 language: params.language,
                 max: MAX_QUESTIONS(),
             });
@@ -473,15 +505,7 @@ export const diagnosisFollowUpService = {
             !evidenceMode) {
             return { started: false };
         }
-        const pendingSavedQuestions = savedLibrary.map((s) => ({
-            id: s.id,
-            kind: s.kind,
-            text: expertFollowUpLearningService.localize(s, params.language),
-            choices: s.choices,
-            purpose: s.purpose,
-            libraryId: s.libraryId,
-            fromExpertLibrary: true,
-        }));
+        const pendingSavedQuestions = [];
         const draftIntake = {
             initialSymptoms: params.symptomsText,
             questions: [],
@@ -537,11 +561,10 @@ export const diagnosisFollowUpService = {
                 : `${body}\n\n(Send a close photo, or type skip.)`);
             return;
         }
-        const choices = q.choices?.length
-            ? q.choices
-            : intake.questionChoices?.[q.id]?.length
-                ? intake.questionChoices[q.id]
-                : YES_NO_CHOICES;
+        const choices = resolveFollowUpChoices({
+            question: q,
+            storedChoices: intake.questionChoices?.[q.id],
+        });
         try {
             await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
             return;
@@ -652,9 +675,10 @@ export const diagnosisFollowUpService = {
             }
         }
         else {
-            const choices = current.choices?.length
-                ? current.choices
-                : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+            const choices = resolveFollowUpChoices({
+                question: current,
+                storedChoices: intake.questionChoices?.[current.id],
+            });
             const choiceIds = new Set(choices.map((c) => c.id));
             const btn = this.parseButtonReply(params.text);
             let answer = btn?.questionId === current.id ? btn.answer : undefined;
@@ -665,6 +689,9 @@ export const diagnosisFollowUpService = {
                 else if (typed === 'yes' || typed === 'no')
                     answer = typed;
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '353716' }, body: JSON.stringify({ sessionId: '353716', location: 'diagnosis-follow-up.service.ts:handleIntakeMessage', message: 'intake answer validation', data: { questionId: current.id, choiceCount: choices.length, choiceIds: [...choiceIds], parsedAnswer: answer ?? null, textLen: params.text?.length ?? 0, rejected: !answer || !choiceIds.has(answer ?? '') }, timestamp: Date.now(), hypothesisId: 'A' }) }).catch(() => { });
+            // #endregion
             if (!answer || !choiceIds.has(answer)) {
                 if (farmerSentCropEvidence(params)) {
                     await abandonDiagnosisIntake(params.farmerId);
@@ -677,6 +704,9 @@ export const diagnosisFollowUpService = {
             intake.answers[current.id] = answer;
             intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
             intake.currentIndex += 1;
+            const qText = intake.questionTexts?.[current.id] ?? current.text;
+            const choiceLabel = current.choices.find((c) => c.id === answer)?.labelEn ?? answer;
+            await diagnosisSessionEvidenceService.appendQaPair(params.farmerId, qText, String(choiceLabel));
             const investigation = await this.buildInvestigationContext({
                 farmerId: params.farmerId,
                 language: params.language,
@@ -760,7 +790,11 @@ export const diagnosisFollowUpService = {
             questionChoices: {},
             questionsAsked: 0,
             maxQuestions: MAX_POST_DIAGNOSIS_QUESTIONS(),
+            reasoningSnapshot: params.maiosCase?.reasoning ?? undefined,
         };
+        if (params.maiosCase) {
+            await conversationSessionService.patchContext(params.farmerId, { maiosCase: params.maiosCase });
+        }
         const planned = await this.planNextPostDiagnosisQuestion(investigation, draftIntake);
         if (planned.intakeComplete || !planned.question)
             return false;
@@ -816,11 +850,10 @@ export const diagnosisFollowUpService = {
                 : `${body}\n\n(Send a close photo, or type skip.)`);
             return;
         }
-        const choices = q.choices?.length
-            ? q.choices
-            : intake.questionChoices?.[q.id]?.length
-                ? intake.questionChoices[q.id]
-                : YES_NO_CHOICES;
+        const choices = resolveFollowUpChoices({
+            question: q,
+            storedChoices: intake.questionChoices?.[q.id],
+        });
         try {
             await sendStructuredChoices({ phone, language, body, questionId: q.id, choices });
             return;
@@ -858,9 +891,10 @@ export const diagnosisFollowUpService = {
             intake.currentIndex += 1;
         }
         else {
-            const choices = current.choices?.length
-                ? current.choices
-                : intake.questionChoices?.[current.id] ?? YES_NO_CHOICES;
+            const choices = resolveFollowUpChoices({
+                question: current,
+                storedChoices: intake.questionChoices?.[current.id],
+            });
             const choiceIds = new Set(choices.map((c) => c.id));
             const btn = this.parseButtonReply(params.text);
             let answer = btn?.questionId === current.id ? btn.answer : undefined;
@@ -871,6 +905,9 @@ export const diagnosisFollowUpService = {
                 else if (typed === 'yes' || typed === 'no')
                     answer = typed;
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7869/ingest/6033885c-c8c2-47bd-a805-5253965ee464', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '353716' }, body: JSON.stringify({ sessionId: '353716', location: 'diagnosis-follow-up.service.ts:handlePostDiagnosisMessage', message: 'post-diagnosis answer validation', data: { questionId: current.id, kind: current.kind, purpose: current.purpose ?? null, rawChoiceCount: current.choices?.length ?? 0, storedChoiceCount: intake.questionChoices?.[current.id]?.length ?? -1, resolvedChoiceCount: choices.length, choiceIds: [...choiceIds], parsedAnswer: answer ?? null, textPreview: params.text?.slice(0, 32) ?? '', rejected: !answer || !choiceIds.has(answer ?? '') }, timestamp: Date.now(), hypothesisId: 'A' }) }).catch(() => { });
+            // #endregion
             if (!answer || !choiceIds.has(answer)) {
                 await this.sendPostDiagnosisQuestion(params.phone, params.language, intake, intakeAnswerHint(params.language));
                 return { handled: true, ready: false };
@@ -878,6 +915,9 @@ export const diagnosisFollowUpService = {
             intake.answers[current.id] = answer;
             intake.questionsAsked = (intake.questionsAsked ?? 0) + 1;
             intake.currentIndex += 1;
+            const qText = intake.questionTexts?.[current.id] ?? current.text;
+            const choiceLabel = current.choices.find((c) => c.id === answer)?.labelEn ?? answer;
+            await diagnosisSessionEvidenceService.appendQaPair(params.farmerId, qText, String(choiceLabel));
         }
         const investigation = await this.buildInvestigationContext({
             farmerId: params.farmerId,
@@ -894,8 +934,15 @@ export const diagnosisFollowUpService = {
         }
         await conversationSessionService.patchContext(params.farmerId, { postDiagnosisIntake: intake });
         if (intake.currentIndex >= intake.questions.length) {
+            const clarification = diagnosisFollowUpReasoningEngine.formatFieldInvestigationSummary(intake.answers, intake.questionTexts ?? {}, intake.questionChoices ?? {}, investigation);
+            const ctx = await conversationSessionService.getContext(params.farmerId);
             await conversationSessionService.patchContext(params.farmerId, {
                 postDiagnosisIntake: undefined,
+                diagnosis: {
+                    imageCount: ctx.diagnosis?.imageCount ?? 1,
+                    ...ctx.diagnosis,
+                    postClarificationSummary: clarification.slice(0, 2000),
+                },
             });
             await conversationSessionService.setState(params.farmerId, 'diagnosis');
             logger.info({

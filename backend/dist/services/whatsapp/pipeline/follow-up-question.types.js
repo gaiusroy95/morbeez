@@ -20,6 +20,16 @@ export function defaultChoicesForKind(kind) {
         return YES_NO_CHOICES;
     return [];
 }
+/** EVSI questions often carry `choices: []`; treat empty stored arrays as missing. */
+export function resolveFollowUpChoices(params) {
+    if (params.question.choices?.length)
+        return params.question.choices;
+    if (params.storedChoices?.length)
+        return params.storedChoices;
+    if (!params.question.kind || params.question.kind === 'yes_no')
+        return YES_NO_CHOICES;
+    return defaultChoicesForKind(params.question.kind);
+}
 export function localizeChoice(option, lang) {
     if (lang === 'ml' && option.labelMl.trim())
         return option.labelMl.trim();
@@ -52,7 +62,7 @@ export function normalizeChoiceOptions(raw, kind) {
     }
     if (out.length >= 2)
         return out;
-    return SPRAY_TIMING_CHOICES;
+    return [];
 }
 export function formatChoiceAnswerLabel(answerId, choices, lang = 'en') {
     const hit = choices.find((c) => c.id === answerId);

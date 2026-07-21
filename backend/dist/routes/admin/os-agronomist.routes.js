@@ -661,6 +661,13 @@ export async function osAgronomistRoutes(app) {
         const result = await agronomistMobileService.logFarmerCall(farmerId, admin.email, body);
         return reply.status(201).send({ ok: true, result });
     });
+    app.get(`${api}/crm-masters`, async (request, reply) => {
+        await assertModuleAccess(request, 'agronomist', 'read');
+        const q = request.query;
+        const type = z.string().min(1).parse(q.type ?? 'interaction_outcome');
+        const items = await crmFarmerService.listMasters(type, q.parentId || null, q.search);
+        return reply.send({ ok: true, items });
+    });
     app.post(`${api}/farmers/:farmerId/reminders`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'agronomist', 'write');
         const { farmerId } = request.params;

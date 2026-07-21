@@ -1,4 +1,5 @@
 import { inputClassifierService } from './input-classifier.service.js';
+import { looksLikeFarmActivityMessage } from '../../farm-activity/farm-activity-message-intent.service.js';
 const INDIC_SCRIPT = /[\u0D00-\u0D7F\u0B80-\u0BFF\u0C80-\u0CFF\u0900-\u097F]/;
 function hasIndicScript(text) {
     const t = text.trim();
@@ -32,7 +33,9 @@ export function isAgricultureMessage(text) {
  * Route to Crop Doctor text diagnosis (same bar for English, Hindi, Malayalam, etc.).
  */
 export function shouldRunCropDoctorTextDiagnosis(text) {
-    const t = text.trim();
+    const t = text.trim().replace(/^["']+|["']+$/g, '');
+    if (looksLikeFarmActivityMessage(t))
+        return false;
     if (t.length < 12)
         return false;
     if (!isAgricultureMessage(t))

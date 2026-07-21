@@ -14,6 +14,8 @@ export type FarmerMemorySnapshot = {
     lastAdvisorySummary?: string;
     /** Chronological WhatsApp turns (Farmer / Assistant). */
     recentTurns: string[];
+    /** Active diagnosis photos + thread-scoped Q&A (when a diagnosis session is open). */
+    diagnosisEvidenceBlock?: string;
     /** Crop is known from plot, session, onboarding, or recent chat — do not re-ask. */
     knownCropLocked: boolean;
     onboardingComplete: boolean;

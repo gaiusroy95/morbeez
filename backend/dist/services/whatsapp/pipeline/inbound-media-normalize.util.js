@@ -1,3 +1,4 @@
+import { resolveInboundUserText } from '../inbound-reply-text.util.js';
 const IMAGE_MSG_TYPES = new Set([
     'image',
     'image_message',
@@ -65,7 +66,7 @@ export function extractInboundCaption(msg) {
 }
 export function withNormalizedMediaFields(msg) {
     const msgType = normalizeInboundMsgType(msg);
-    const text = extractInboundCaption(msg) || msg.text;
+    const text = resolveInboundUserText(msg) || extractInboundCaption(msg) || msg.text;
     return { ...msg, msgType, text };
 }
 //# sourceMappingURL=inbound-media-normalize.util.js.map

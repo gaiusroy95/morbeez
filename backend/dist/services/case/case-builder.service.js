@@ -14,10 +14,13 @@ import { labIntelligenceService } from '../lab-intelligence/lab-intelligence.ser
 import { resistanceDetectionService } from './resistance-detection.service.js';
 import { predictiveRiskService } from '../predictive-risk/predictive-risk.service.js';
 import { regionalLearningService } from '../regional-learning/regional-learning.service.js';
+import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
 import { groundIntelligenceService } from '../ground-intelligence/ground-intelligence.service.js';
 import { knowledgeGraphService } from '../knowledge-graph/knowledge-graph.service.js';
 import { supplyIntelligenceService } from '../supply-intelligence/supply-intelligence.service.js';
 import { cultivationContextService } from './cultivation-context.service.js';
+import { inputHistoryService } from './input-history.service.js';
+import { maiosReasoningPipelineService } from '../maios-reasoning/maios-reasoning-pipeline.service.js';
 import { MAIOS_VERSION as MAIOS_VER } from '../../domain/case/types.js';
 function buildHypotheses(input) {
     const rows = [];
@@ -282,6 +285,40 @@ export const caseBuilderService = {
                 void regionalLearningService.recordIssueStat(district, identity.cropType, input.advisory.probableIssue);
             }
         }
+        let reasoning = await maiosReasoningPipelineService.run({
+            cropType: identity.cropType,
+            pack,
+            symptomsText: input.symptomsText,
+            contextPack: {
+                ...input.contextPack,
+                dap: identity.dap ?? input.contextPack?.dap ?? null,
+                daysSinceLastFertilizer: inputHistoryService.daysSinceLastFertilizer(inputHistory),
+                cropType: identity.cropType,
+            },
+            regionalPriors,
+            photos,
+            hypotheses,
+            eqs,
+            maiosRoute: route,
+            escalationRecommended: input.advisory?.escalationRecommended,
+            visionLabel: undefined,
+            visionConfidence: undefined,
+            farmerAnswers: input.farmerAnswers,
+            visionObservations: input.visionObservations,
+            dap: identity.dap ?? input.contextPack?.dap ?? null,
+        });
+        if (reasoning && !reasoning.shadowMode) {
+            hypotheses = maiosReasoningPipelineService.enrichHypotheses(hypotheses, reasoning);
+        }
+        if (reasoning?.decision.action === 'LOCK') {
+            void maiosLearningFacadeService.recordFromReasoningSnapshot({
+                farmerId: input.farmerId,
+                cropType: identity.cropType,
+                sessionId: input.sessionId,
+                channel: input.channel === 'field_visit' ? 'visit' : input.channel === 'api' ? 'api' : 'whatsapp',
+                snapshot: reasoning,
+            });
+        }
         return {
             maiosVersion: MAIOS_VER,
             sopVersion: pack.version,
@@ -320,6 +357,7 @@ export const caseBuilderService = {
             predictiveRisk,
             supplySignals,
             regionalClusterId: regionalCluster?.clusterKey ?? null,
+            reasoning: reasoning ?? undefined,
         };
     },
     formatTelecallerNotes(maiosCase) {

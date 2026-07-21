@@ -30,7 +30,9 @@ export declare const cultivationLoggingService: {
         daysFromNow?: number;
         language?: AdvisoryLanguage;
     }): Promise<void>;
-    sendApplicationPrompt(phone: string, farmerId: string, lang: AdvisoryLanguage): Promise<void>;
+    sendApplicationPrompt(phone: string, farmerId: string, lang: AdvisoryLanguage, options?: {
+        advisorySessionId?: string;
+    }): Promise<void>;
     sendResultValidationPrompt(phone: string, farmerId: string, lang: AdvisoryLanguage, activityId: string): Promise<void>;
     handleApplied(farmerId: string, _phone: string, lang: AdvisoryLanguage): Promise<string>;
     handleNotYet(farmerId: string, lang: AdvisoryLanguage): Promise<string>;

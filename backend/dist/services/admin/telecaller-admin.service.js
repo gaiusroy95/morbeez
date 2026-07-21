@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { leadService } from '../crm/lead.service.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { crmFarmerService } from './crm-farmer.service.js';
@@ -28,6 +29,13 @@ function normalizeJoinRow(raw) {
     if (Array.isArray(raw))
         return raw[0] ?? null;
     return raw;
+}
+/** Telecaller "mine" = assigned to agent OR unassigned (WhatsApp / inbound pool). */
+function applyTelecallerLeadScope(builder, scope, agentEmail) {
+    if (scope === 'mine') {
+        return builder.or(`assigned_to.eq.${agentEmail},assigned_to.is.null`);
+    }
+    return builder;
 }
 function initials(name) {
     return (name
@@ -145,7 +153,7 @@ function mapLeadRow(row) {
         })(),
         farmerName: name,
         farmerInitials: initials(name),
-        phone: farmer?.phone ?? null,
+        phone: formatPhoneE164(farmer?.phone != null ? String(farmer.phone) : null),
         district: farmer?.district ?? null,
         state: farmer?.state ?? null,
         farmerStatus: row.status === 'won' ? 'customer' : 'active',
@@ -236,18 +244,16 @@ export const telecallerAdminService = {
     },
     async listLeads(query, agentEmail) {
         const page = Math.max(1, query.page ?? 1);
-        const limit = Math.min(50, Math.max(1, query.limit ?? 20));
+        const limit = Math.min(200, Math.max(1, query.limit ?? 20));
         const from = (page - 1) * limit;
         const to = from + limit - 1;
         let builder = supabase
             .from('leads')
-            .select('*, farmers(phone, name, first_name, last_name, district, state, preferred_language)', {
+            .select('*, farmers(phone, name, first_name, last_name, district, state, preferred_language, village)', {
             count: 'exact',
         })
             .order('updated_at', { ascending: false });
-        if (query.scope === 'mine') {
-            builder = builder.eq('assigned_to', agentEmail);
-        }
+        builder = applyTelecallerLeadScope(builder, query.scope, agentEmail);
         if (query.stage && query.stage !== 'all') {
             builder = builder.eq('stage', query.stage);
         }
@@ -265,7 +271,7 @@ export const telecallerAdminService = {
             supabase
                 .from('leads')
                 .select('id', { count: 'exact', head: true })
-                .eq('assigned_to', agentEmail),
+                .or(`assigned_to.eq.${agentEmail},assigned_to.is.null`),
             supabase.from('leads').select('id', { count: 'exact', head: true }),
         ]);
         const { telecallerIntelligenceService } = await import('../intelligence/telecaller-intelligence.service.js');
@@ -403,7 +409,7 @@ export const telecallerAdminService = {
                 crop: primaryCrop,
                 acreage: totalAcre,
                 whatsappSame: farmer?.whatsapp_same_as_phone !== false,
-                whatsappPhone: farmer?.whatsapp_phone ? String(farmer.whatsapp_phone) : null,
+                whatsappPhone: formatPhoneE164(farmer?.whatsapp_phone ? String(farmer.whatsapp_phone) : null),
                 shippingAddress: farmer?.shipping_address ? String(farmer.shipping_address) : null,
                 deliveryPincode: farmer?.delivery_pincode ? String(farmer.delivery_pincode) : null,
                 roiEnabled: Boolean(farmer?.roi_enabled),

@@ -16,9 +16,14 @@ import { outcomeKpiInterpretationService } from './outcome-kpi-interpretation.se
 import { outcomeHumanRoutingService } from './outcome-human-routing.service.js';
 import { visitAdvisoryEscalationService } from './visit-advisory-escalation.service.js';
 import { issueFollowUpQuestionsService } from './issue-follow-up-questions.service.js';
-const APPLICATION_CHECK_DAYS = () => Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1);
-const OUTCOME_CHECK_DAYS = () => Number(process.env.REC_FOLLOWUP_OUTCOME_DAYS ?? 5);
+import { contextFromRecommendationRecord, formatApplicationCheckMessage, } from './application-follow-up-message.util.js';
+const APPLICATION_CHECK_DAYS = () => Math.max(1, Number(process.env.REC_FOLLOWUP_APPLICATION_DAYS ?? 1) || 1);
+const OUTCOME_CHECK_DAYS = () => Math.max(1, Number(process.env.REC_FOLLOWUP_OUTCOME_DAYS ?? 7) || 7);
+/** Optional second outcome check (effectiveness learning). 0 disables. */
+const OUTCOME_SECOND_CHECK_DAYS = () => Math.max(0, Number(process.env.REC_FOLLOWUP_OUTCOME_SECOND_DAYS ?? 14) || 14);
 const MAX_APPLICATION_REMINDERS = () => Number(process.env.REC_FOLLOWUP_MAX_REMINDERS ?? 3);
+/** Do not re-send the same application-check prompt within this window. */
+const APPLICATION_CHECK_DEDUP_HOURS = () => Math.max(1, Number(process.env.REC_FOLLOWUP_APPLICATION_DEDUP_HOURS ?? 12) || 12);
 const NO_RESPONSE_ESCALATION_DAYS = () => Number(process.env.REC_FOLLOWUP_NO_RESPONSE_DAYS ?? 3);
 const OUTCOME_REMINDER_DAYS = () => Number(process.env.REC_FOLLOWUP_OUTCOME_REMINDER_DAYS ?? 2);
 const MAX_OUTCOME_REMINDERS = () => Number(process.env.REC_FOLLOWUP_MAX_OUTCOME_REMINDERS ?? 2);
@@ -64,7 +69,7 @@ export const recommendationFollowUpService = {
         const { data, error } = await supabase
             .from('recommendation_records')
             .select(`id, farmer_id, block_id, ai_session_id, field_finding_id, visit_issue_id, issue_detected, recommendation_text, products, dosage,
-         application_type, dap_at_recommendation, language, status, communicated_at, technical_name, trade_name,
+         application_type, dap_at_recommendation, language, status, communicated_at, created_at, technical_name, trade_name,
          severity, metadata, farmers(phone, preferred_language), farm_blocks(crop_type)`)
             .eq('id', recommendationRecordId)
             .maybeSingle();
@@ -79,6 +84,80 @@ export const recommendationFollowUpService = {
             farmers: (Array.isArray(farmersRel) ? farmersRel[0] : farmersRel),
             farm_blocks: (Array.isArray(blocksRel) ? blocksRel[0] : blocksRel),
         };
+    },
+    async onCompliancePromptSent(recommendationRecordId, question, noAction) {
+        const rec = await this.loadRecord(recommendationRecordId);
+        if (!rec)
+            return;
+        await supabase.from('recommendation_follow_ups').insert({
+            recommendation_record_id: recommendationRecordId,
+            farmer_id: rec.farmer_id,
+            block_id: rec.block_id,
+            phase: 'compliance_check',
+            status: 'sent',
+            scheduled_at: new Date().toISOString(),
+            sent_at: new Date().toISOString(),
+            metadata: { question, noAction },
+        });
+        await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'compliance');
+    },
+    async handleComplianceReply(farmerId, recommendationRecordId, reply) {
+        const rec = await this.loadRecord(recommendationRecordId);
+        if (!rec || rec.farmer_id !== farmerId) {
+            return 'Could not find your recommendation. Type menu for help.';
+        }
+        const lang = (rec.language || 'en');
+        const copy = followUpCopy(lang);
+        const now = new Date().toISOString();
+        const meta = rec.metadata ?? {};
+        const followMeta = meta.complianceFollowUp;
+        const noAction = followMeta?.noAction ?? 'escalate';
+        await supabase
+            .from('recommendation_follow_ups')
+            .update({
+            status: 'responded',
+            farmer_response: reply === 'yes' ? 'compliance_yes' : 'compliance_no',
+            responded_at: now,
+            updated_at: now,
+        })
+            .eq('recommendation_record_id', recommendationRecordId)
+            .eq('phase', 'compliance_check')
+            .in('status', ['sent', 'scheduled']);
+        if (reply === 'yes') {
+            await supabase
+                .from('recommendation_records')
+                .update({
+                application_status: 'applied',
+                updated_at: now,
+            })
+                .eq('id', recommendationRecordId);
+            await this.upsertLearningSample(rec, { applicationConfirmed: true });
+            await clearConversationPending(farmerId);
+            return copy.appliedThanks;
+        }
+        if (noAction === 'review') {
+            await createTelecallerTask({
+                farmerId,
+                title: 'Agronomist review — treatment not completed',
+                notes: `Farmer answered No to compliance check. Rec ${recommendationRecordId.slice(0, 8)}. Issue: ${rec.issue_detected ?? 'n/a'}`,
+                priority: 'high',
+            });
+            await supabase
+                .from('recommendation_records')
+                .update({
+                application_status: 'need_clarification',
+                updated_at: now,
+            })
+                .eq('id', recommendationRecordId);
+        }
+        else {
+            await this.escalateNoApplicationConfirmation(farmerId, recommendationRecordId, rec);
+        }
+        await this.upsertLearningSample(rec, { applicationConfirmed: false, escalated: true });
+        await clearConversationPending(farmerId);
+        return lang === 'ml'
+            ? 'നിങ്ങളുടെ മറുപടി രേഖപ്പെടുത്തി. ഞങ്ങളുടെ അഗ്രോണമി ടീം ഉടൻ ബന്ധപ്പെടും.'
+            : 'Thank you. Our agronomy team will follow up with you shortly.';
     },
     /** Stage 1 — recommendation communicated; schedule Day-1 application check. */
     async onRecommendationCommunicated(recommendationRecordId) {
@@ -132,6 +211,23 @@ export const recommendationFollowUpService = {
         await this.onRecommendationCommunicated(rec.id);
     },
     async scheduleJob(params) {
+        const { data: existing } = await supabase
+            .from('advisory_automation_jobs')
+            .select('id')
+            .eq('farmer_id', params.farmerId)
+            .eq('job_type', params.jobType)
+            .in('status', ['pending', 'processing'])
+            .contains('payload', { recommendationRecordId: params.recommendationRecordId })
+            .limit(1)
+            .maybeSingle();
+        if (existing?.id) {
+            logger.info({
+                farmerId: params.farmerId,
+                jobType: params.jobType,
+                recommendationRecordId: params.recommendationRecordId,
+            }, 'Skipping duplicate automation job schedule');
+            return;
+        }
         await supabase.from('advisory_automation_jobs').insert({
             farmer_id: params.farmerId,
             session_id: params.sessionId ?? null,
@@ -143,39 +239,198 @@ export const recommendationFollowUpService = {
             },
         });
     },
+    /**
+     * When a farmer starts a new photo diagnosis, push due follow-up prompts out
+     * so they are not flooded with old "Have you applied…" messages mid-analysis.
+     * Also collapses duplicate pending application-check jobs for the same farmer
+     * (generic copy makes them look identical in WhatsApp).
+     */
+    async deferPendingFollowUpJobs(farmerId, hours = 6) {
+        const deferUntil = new Date(Date.now() + hours * 60 * 60 * 1000).toISOString();
+        const followUpTypes = [
+            'rec_application_check',
+            'rec_application_reminder',
+            'whatsapp_follow_up',
+            'cultivation_application_prompt',
+        ];
+        const { data, error } = await supabase
+            .from('advisory_automation_jobs')
+            .update({
+            scheduled_at: deferUntil,
+            last_error: 'Deferred — farmer started new photo diagnosis',
+        })
+            .eq('farmer_id', farmerId)
+            .eq('status', 'pending')
+            .in('job_type', followUpTypes)
+            .lte('scheduled_at', new Date().toISOString())
+            .select('id');
+        if (error) {
+            logger.warn({ err: error, farmerId }, 'Could not defer follow-up jobs during diagnosis');
+            return 0;
+        }
+        // Keep at most one pending application-check / whatsapp_follow_up per farmer.
+        await this.collapseDuplicateApplicationJobs(farmerId);
+        const count = data?.length ?? 0;
+        if (count > 0) {
+            logger.info({ farmerId, count, deferUntil }, 'Deferred due follow-up jobs during photo diagnosis');
+        }
+        return count;
+    },
+    /** Cancel extra pending application prompts so one album upload cannot fan out N identical WhatsApp messages. */
+    async collapseDuplicateApplicationJobs(farmerId) {
+        const { data: pending } = await supabase
+            .from('advisory_automation_jobs')
+            .select('id, job_type, scheduled_at, payload')
+            .eq('farmer_id', farmerId)
+            .eq('status', 'pending')
+            .in('job_type', ['rec_application_check', 'whatsapp_follow_up'])
+            .order('scheduled_at', { ascending: false });
+        if (!pending?.length || pending.length === 1)
+            return 0;
+        const keepId = pending[0].id;
+        const dropIds = pending.slice(1).map((j) => j.id);
+        const { error } = await supabase
+            .from('advisory_automation_jobs')
+            .update({
+            status: 'cancelled',
+            last_error: 'Collapsed duplicate application-check job',
+            completed_at: new Date().toISOString(),
+        })
+            .in('id', dropIds);
+        if (error) {
+            logger.warn({ err: error, farmerId }, 'Could not collapse duplicate application jobs');
+            return 0;
+        }
+        logger.info({ farmerId, kept: keepId, cancelled: dropIds.length }, 'Collapsed duplicate application-check jobs');
+        return dropIds.length;
+    },
     async sendApplicationCheck(recommendationRecordId) {
         const rec = await this.loadRecord(recommendationRecordId);
         if (!rec?.farmers?.phone)
             return false;
-        const lang = (rec.language || rec.farmers.preferred_language || 'en');
-        const copy = followUpCopy(lang);
-        const body = copy.applicationCheck;
-        try {
-            await whatsappService.sendButtons({
-                to: rec.farmers.phone,
-                body,
-                buttons: [
-                    { id: 'rec.apply_yes', title: 'Yes Applied' },
-                    { id: 'rec.apply_not', title: 'Not Yet' },
-                    { id: 'rec.apply_help', title: 'Need Help' },
-                ],
-            });
+        if (rec.application_status === 'applied' ||
+            rec.application_status === 'not_applied' ||
+            rec.status === 'applied' ||
+            rec.status === 'outcome_recorded') {
+            logger.info({ recommendationRecordId, status: rec.status, applicationStatus: rec.application_status }, 'Skipping application check — already resolved');
+            return false;
         }
-        catch {
-            await whatsappService.sendText(rec.farmers.phone, `${body}\n\nReply: Yes Applied / Not Yet / Need Clarification`);
+        // Never interrupt an in-progress photo diagnosis with follow-up buttons.
+        const { data: sess } = await supabase
+            .from('conversation_sessions')
+            .select('context')
+            .eq('farmer_id', rec.farmer_id)
+            .eq('channel', 'whatsapp')
+            .maybeSingle();
+        const ctx = (sess?.context ?? {});
+        const inFlightAt = ctx.diagnosisInFlightAt ? Date.parse(String(ctx.diagnosisInFlightAt)) : NaN;
+        if (Number.isFinite(inFlightAt) && Date.now() - inFlightAt < 3 * 60 * 1000) {
+            logger.info({ recommendationRecordId, farmerId: rec.farmer_id }, 'Skipping application check — diagnosis in flight');
+            return false;
         }
+        const since = new Date(Date.now() - APPLICATION_CHECK_DEDUP_HOURS() * 60 * 60 * 1000).toISOString();
+        const { data: recent } = await supabase
+            .from('recommendation_follow_ups')
+            .select('id')
+            .eq('recommendation_record_id', recommendationRecordId)
+            .eq('phase', 'application_check')
+            .in('status', ['sent', 'scheduled'])
+            .gte('sent_at', since)
+            .limit(1)
+            .maybeSingle();
+        if (recent?.id) {
+            logger.info({ recommendationRecordId, since }, 'Skipping duplicate application check — already sent recently');
+            await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'application');
+            return false;
+        }
+        // Also skip if ANY application check was sent to this farmer recently (generic copy looks identical).
+        const { data: recentFarmer } = await supabase
+            .from('recommendation_follow_ups')
+            .select('id')
+            .eq('farmer_id', rec.farmer_id)
+            .eq('phase', 'application_check')
+            .in('status', ['sent', 'scheduled'])
+            .or(`sent_at.gte.${since},created_at.gte.${since}`)
+            .limit(1)
+            .maybeSingle();
+        if (recentFarmer?.id) {
+            logger.info({ recommendationRecordId, farmerId: rec.farmer_id, since }, 'Skipping application check — farmer already received one recently');
+            return false;
+        }
+        // Claim before WhatsApp send so concurrent workers cannot double-send.
         const now = new Date().toISOString();
-        await supabase.from('recommendation_follow_ups').insert({
+        const lang = (rec.language || rec.farmers.preferred_language || 'en');
+        const followUpCtx = contextFromRecommendationRecord(rec, lang);
+        const body = formatApplicationCheckMessage(lang, followUpCtx);
+        const { data: claim, error: claimErr } = await supabase
+            .from('recommendation_follow_ups')
+            .insert({
             recommendation_record_id: recommendationRecordId,
             farmer_id: rec.farmer_id,
             block_id: rec.block_id,
             phase: 'application_check',
-            status: 'sent',
+            status: 'scheduled',
             scheduled_at: now,
             sent_at: now,
-        });
-        await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'application');
-        return true;
+            metadata: { claim: 'application_check_send', question: body },
+        })
+            .select('id')
+            .maybeSingle();
+        if (claimErr || !claim?.id) {
+            logger.info({ recommendationRecordId, err: claimErr }, 'Skipping application check — could not claim send slot');
+            return false;
+        }
+        // Winner-takes-all: if another claim landed first for this farmer, abort.
+        const { data: peers } = await supabase
+            .from('recommendation_follow_ups')
+            .select('id')
+            .eq('farmer_id', rec.farmer_id)
+            .eq('phase', 'application_check')
+            .in('status', ['scheduled', 'sent'])
+            .gte('created_at', since)
+            .order('created_at', { ascending: true })
+            .limit(1);
+        if (peers?.[0]?.id && peers[0].id !== claim.id) {
+            await supabase
+                .from('recommendation_follow_ups')
+                .update({ status: 'cancelled', metadata: { superseded: true } })
+                .eq('id', claim.id);
+            logger.info({ recommendationRecordId, winner: peers[0].id }, 'Skipping application check — another send claimed first');
+            return false;
+        }
+        try {
+            try {
+                await whatsappService.sendButtons({
+                    to: rec.farmers.phone,
+                    body,
+                    buttons: [
+                        { id: 'rec.apply_yes', title: 'Yes Applied' },
+                        { id: 'rec.apply_not', title: 'Not Yet' },
+                        { id: 'rec.apply_help', title: 'Need Help' },
+                    ],
+                });
+            }
+            catch {
+                await whatsappService.sendText(rec.farmers.phone, `${body}\n\nReply: Yes Applied / Not Yet / Need Clarification`);
+            }
+            await supabase
+                .from('recommendation_follow_ups')
+                .update({ status: 'sent', sent_at: new Date().toISOString() })
+                .eq('id', claim.id);
+            await conversationPatchPending(rec.farmer_id, recommendationRecordId, 'application');
+            await this.collapseDuplicateApplicationJobs(rec.farmer_id);
+            return true;
+        }
+        catch (err) {
+            await supabase
+                .from('recommendation_follow_ups')
+                .update({
+                status: 'cancelled',
+                metadata: { claim: 'application_check_send', error: String(err) },
+            })
+                .eq('id', claim.id);
+            throw err;
+        }
     },
     async sendApplicationReminder(recommendationRecordId, reminderCount) {
         const rec = await this.loadRecord(recommendationRecordId);
@@ -218,15 +473,15 @@ export const recommendationFollowUpService = {
                     to: rec.farmers.phone,
                     body,
                     buttons: [
-                        { id: 'rec.outcome_full', title: 'Fully better' },
-                        { id: 'rec.outcome_slight', title: 'Slight better' },
-                        { id: 'rec.outcome_none', title: 'No change' },
+                        { id: 'rec.outcome_full', title: 'Crop recovered' },
+                        { id: 'rec.outcome_slight', title: 'Partial improve' },
+                        { id: 'rec.outcome_none', title: 'No improvement' },
                     ],
                 });
                 await whatsappService.sendText(rec.farmers.phone, lang === 'ml' ? '4 = കൂടുതൽ മോശം (Worse)' : '4 = Worse — reply 4 if crop worsened');
             }
             catch {
-                await whatsappService.sendText(rec.farmers.phone, `${body}\n\n1 Fully improved\n2 Slightly improved\n3 No improvement\n4 Worse`);
+                await whatsappService.sendText(rec.farmers.phone, `${body}\n\n1 Crop recovered\n2 Partially improved\n3 No improvement\n4 Worse`);
             }
         }
         const now = new Date().toISOString();
@@ -269,10 +524,10 @@ export const recommendationFollowUpService = {
             ];
         }
         return [
-            { id: 'rec.outcome_full', title: '1 Fully improved' },
-            { id: 'rec.outcome_slight', title: '2 Slightly improved' },
-            { id: 'rec.outcome_none', title: '3 No improvement' },
-            { id: 'rec.outcome_worse', title: '4 Worse' },
+            { id: 'rec.outcome_full', title: '1 Crop recovered', description: 'Fully recovered' },
+            { id: 'rec.outcome_slight', title: '2 Partially improved', description: 'Some improvement' },
+            { id: 'rec.outcome_none', title: '3 No improvement', description: 'No change' },
+            { id: 'rec.outcome_worse', title: '4 Worse', description: 'Crop worsened' },
         ];
     },
     async sendOutcomeReminder(recommendationRecordId, reminderCount) {
@@ -605,6 +860,22 @@ export const recommendationFollowUpService = {
                     payload: { language: rec.language, phase: 'outcome_check' },
                     sessionId: rec.ai_session_id,
                 });
+                const secondDays = OUTCOME_SECOND_CHECK_DAYS();
+                if (secondDays > OUTCOME_CHECK_DAYS()) {
+                    await this.scheduleJob({
+                        farmerId,
+                        recommendationRecordId,
+                        jobType: 'rec_outcome_check',
+                        scheduledAt: new Date(Date.now() + secondDays * 24 * 60 * 60 * 1000).toISOString(),
+                        payload: {
+                            language: rec.language,
+                            phase: 'outcome_check',
+                            effectivenessCheck: true,
+                            day: secondDays,
+                        },
+                        sessionId: rec.ai_session_id,
+                    });
+                }
             }
             await this.upsertLearningSample(rec, { applicationConfirmed: true });
             const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');

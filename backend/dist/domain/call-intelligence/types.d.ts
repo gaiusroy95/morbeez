@@ -1,6 +1,6 @@
 export declare const CALL_OUTCOMES: readonly ["answered", "connected", "callback", "no_answer", "busy", "completed"];
 export type CallOutcome = (typeof CALL_OUTCOMES)[number];
-export declare const CONNECTED_OUTCOMES: Set<"completed" | "answered" | "connected" | "callback" | "no_answer" | "busy">;
+export declare const CONNECTED_OUTCOMES: Set<"completed" | "callback" | "answered" | "connected" | "no_answer" | "busy">;
 export type CallSummaryJson = {
     bullets: string[];
     crop?: string | null;

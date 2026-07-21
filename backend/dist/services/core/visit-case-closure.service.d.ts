@@ -15,6 +15,7 @@ export declare const visitCaseClosureService: {
         closedBy: string;
         trainingEventIds: string[];
         learningSampleRecommendationIds: string[];
+        learningFacadeVisitCaseIds: string[];
         issuesUpdated: number;
         learningConsent: boolean;
     }>;

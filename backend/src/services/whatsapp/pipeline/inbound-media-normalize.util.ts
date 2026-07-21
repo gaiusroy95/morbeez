@@ -1,4 +1,5 @@
 import type { InboundMessage } from './types.js';
+import { resolveInboundUserText } from '../inbound-reply-text.util.js';
 
 const IMAGE_MSG_TYPES = new Set([
   'image',
@@ -68,6 +69,6 @@ export function extractInboundCaption(msg: InboundMessage): string {
 
 export function withNormalizedMediaFields(msg: InboundMessage): InboundMessage {
   const msgType = normalizeInboundMsgType(msg);
-  const text = extractInboundCaption(msg) || msg.text;
+  const text = resolveInboundUserText(msg) || extractInboundCaption(msg) || msg.text;
   return { ...msg, msgType, text };
 }

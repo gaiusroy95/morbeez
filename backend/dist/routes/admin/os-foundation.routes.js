@@ -107,7 +107,7 @@ export async function osFoundationRoutes(app) {
         const body = z.object({ pincode: z.string().min(6).max(6) }).parse(request.body);
         const row = await pincodeService.assignFarmerPincode(farmerId, body.pincode);
         if (!row)
-            return reply.code(404).send({ ok: false, message: 'Pincode not found in master' });
+            return reply.code(400).send({ ok: false, message: 'Invalid 6-digit pincode' });
         return reply.send({ ok: true, pincode: row });
     });
     app.get(`${api}/farmers/:farmerId/blocks`, async (request, reply) => {

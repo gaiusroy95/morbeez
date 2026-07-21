@@ -1,9 +1,15 @@
 import type { AdvisoryLanguage } from '../ai/types.js';
 import type { TerminologyDictionaryEntry } from './types.js';
 export declare const terminologyDictionaryService: {
+    /**
+     * Deterministic lookup priority:
+     * farmer override → district+crop → crop → language-global → builtin.
+     * District fallback always retains language.
+     */
     lookup(token: string, language: AdvisoryLanguage, opts?: {
         cropType?: string | null;
         district?: string | null;
+        farmerId?: string | null;
     }): Promise<TerminologyDictionaryEntry | null>;
     upsertApproved(params: {
         term: string;

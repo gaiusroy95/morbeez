@@ -4,6 +4,7 @@ import { NotFoundError } from '../../lib/errors.js';
 import { aiTrainingEventService } from './ai-training-event.service.js';
 import { recommendationFollowUpService } from './recommendation-follow-up.service.js';
 import { learningLoopService } from './learning-loop.service.js';
+import { maiosLearningFacadeService } from '../maios-reasoning/maios-learning-facade.service.js';
 function mapOutcomeToLearning(outcome) {
     if (!outcome || outcome === 'unknown')
         return null;
@@ -12,6 +13,34 @@ function mapOutcomeToLearning(outcome) {
     if (outcome === 'partial')
         return 'partial';
     return 'no_improvement';
+}
+function isAgronomistVerifiedReview(reviewAction) {
+    const action = String(reviewAction ?? '').toLowerCase();
+    return action === 'approve_ai' || action === 'correct_ai' || action === 'partial_match';
+}
+function reasoningSnapshotFromCase(aiCase) {
+    const meta = aiCase.metadata ?? {};
+    const snap = meta.reasoningSnapshot;
+    if (!snap || typeof snap !== 'object')
+        return null;
+    const s = snap;
+    return s.pipelineVersion === '17.0' ? s : null;
+}
+async function resolveVisitCropType(blockId, aiCase) {
+    const meta = aiCase.metadata ?? {};
+    if (typeof meta.cropType === 'string' && meta.cropType.trim()) {
+        return meta.cropType.trim();
+    }
+    if (blockId) {
+        const { data } = await supabase
+            .from('farm_blocks')
+            .select('crop_type')
+            .eq('id', blockId)
+            .maybeSingle();
+        if (data?.crop_type)
+            return String(data.crop_type);
+    }
+    return 'ginger';
 }
 function mapReviewActionToHumanAction(action) {
     if (action === 'approve_ai' ||
@@ -137,6 +166,7 @@ export const visitCaseClosureService = {
             .neq('status', 'resolved');
         const trainingEventIds = [];
         const learningSampleRecIds = [];
+        const learningFacadeRecorded = [];
         if (learningConsent) {
             for (const aiCase of bundle.aiCases) {
                 const aiPrediction = resolveInitialAiLabel(aiCase, bundle.finding);
@@ -169,6 +199,24 @@ export const visitCaseClosureService = {
                 });
                 if (eventId)
                     trainingEventIds.push(eventId);
+                if (isAgronomistVerifiedReview(reviewAction) && humanFinalLabel?.trim()) {
+                    const cropType = await resolveVisitCropType(blockId, aiCase);
+                    const reasoning = reasoningSnapshotFromCase(aiCase);
+                    await maiosLearningFacadeService
+                        .recordAgronomistVerifiedOutcome({
+                        farmerId,
+                        cropType,
+                        verifiedIssueLabel: humanFinalLabel.trim(),
+                        sessionId: aiCase.ai_advisory_session_id
+                            ? String(aiCase.ai_advisory_session_id)
+                            : undefined,
+                        reasoning,
+                        outcome: mapOutcomeToLearning(input.outcome),
+                        reviewAction: reviewAction ? String(reviewAction) : null,
+                    })
+                        .catch(() => { });
+                    learningFacadeRecorded.push(String(aiCase.id));
+                }
             }
             for (const rec of bundle.recommendations) {
                 const recRow = await recommendationFollowUpService.loadRecord(String(rec.id));
@@ -242,6 +290,7 @@ export const visitCaseClosureService = {
             closedBy: input.closedBy,
             trainingEventIds,
             learningSampleRecommendationIds: learningSampleRecIds,
+            learningFacadeVisitCaseIds: learningFacadeRecorded,
             issuesUpdated: bundle.issues.length,
             learningConsent,
         };

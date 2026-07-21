@@ -3,6 +3,7 @@ import { seasonalPriorityService } from './seasonal-priority.service.js';
 import { fetchWeatherForecast } from './weather-fetch.service.js';
 import { diseaseWeatherRulesService, } from './disease-weather-rules.service.js';
 import { nearbyCasesService } from './nearby-cases.service.js';
+import { blockService } from '../../core/block.service.js';
 import { plotLocationService } from '../../core/plot-location.service.js';
 import { whatsappDiagnosisContextService } from './whatsapp-diagnosis-context.service.js';
 export const contextPackService = {
@@ -45,10 +46,16 @@ export const contextPackService = {
         });
         const nearby = await nearbyCasesService.summarize(farmerId, cropType);
         const nearbySummary = nearbyCasesService.formatForPrompt(nearby);
+        let dap = options?.dap;
+        if (blockId && dap == null) {
+            const block = await blockService.getById(blockId, farmerId);
+            dap = block?.dap;
+        }
         const pack = {
             district: farmer?.district ? String(farmer.district) : pm?.district,
             pincode: pm?.pincode ?? undefined,
             village: farmer?.village ? String(farmer.village) : pm?.village ?? undefined,
+            dap,
             coordSource: resolved.coordSource,
             seasonPhase,
             weatherRiskScore: weather.weatherRiskScore,

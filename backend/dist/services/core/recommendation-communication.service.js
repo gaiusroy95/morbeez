@@ -3,6 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, AppError } from '../../lib/errors.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { env } from '../../config/env.js';
+import { recommendationSafetyGateService } from '../safety/recommendation-safety-gate.service.js';
 import { recommendationFollowUpService } from './recommendation-follow-up.service.js';
 function pickSummary(text) {
     return text.trim();
@@ -88,6 +89,10 @@ export function buildApprovedRecommendationMessage(row, extras) {
 }
 export const recommendationCommunicationService = {
     async sendApprovedRecommendation(recommendationId, options) {
+        await recommendationSafetyGateService.assertAllowsApproval({
+            aggregateType: 'recommendation_record',
+            aggregateId: recommendationId,
+        });
         const { data, error } = await supabase
             .from('recommendation_records')
             .select('id, farmer_id, issue_detected, recommendation_text, dosage, application_type, weather_warning, language, status, communicated_at, metadata, farmers(phone, name, preferred_language)')
@@ -128,6 +133,23 @@ export const recommendationCommunicationService = {
                     : undefined,
             });
         await whatsappService.sendText(phone, text.slice(0, 4000));
+        const complianceQuestion = options?.complianceQuestion?.trim();
+        const complianceNoAction = options?.complianceNoAction ?? 'escalate';
+        if (complianceQuestion) {
+            try {
+                await whatsappService.sendButtons({
+                    to: phone,
+                    body: complianceQuestion.slice(0, 1024),
+                    buttons: [
+                        { id: 'rec.compliance_yes', title: 'Yes' },
+                        { id: 'rec.compliance_no', title: 'No' },
+                    ],
+                });
+            }
+            catch {
+                await whatsappService.sendText(phone, `${complianceQuestion}\n\nReply *Yes* or *No*.`.slice(0, 4000));
+            }
+        }
         const now = new Date().toISOString();
         const { error: updErr } = await supabase
             .from('recommendation_records')
@@ -135,11 +157,26 @@ export const recommendationCommunicationService = {
             status: 'communicated',
             communicated_at: now,
             updated_at: now,
-            metadata: { ...(row.metadata ?? {}), whatsapp_sent_at: now },
+            metadata: {
+                ...(row.metadata ?? {}),
+                whatsapp_sent_at: now,
+                ...(complianceQuestion
+                    ? {
+                        complianceFollowUp: {
+                            question: complianceQuestion,
+                            noAction: complianceNoAction,
+                            sentAt: now,
+                        },
+                    }
+                    : {}),
+            },
         })
             .eq('id', recommendationId);
         throwIfSupabaseError(updErr, 'Could not mark recommendation communicated');
         await recommendationFollowUpService.onRecommendationCommunicated(recommendationId);
+        if (complianceQuestion) {
+            await recommendationFollowUpService.onCompliancePromptSent(recommendationId, complianceQuestion, complianceNoAction);
+        }
         const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
         void farmerEventCaptureService.trackRecommendationMilestone({
             recommendationRecordId: recommendationId,
@@ -302,14 +339,16 @@ export const recommendationCommunicationService = {
                 reviewDate: input.reviewDate,
                 monitoringInterval: input.monitoringInterval,
             });
-            const compliancePrompt = lang === 'ml'
-                ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ? Yes അല്ലെങ്കിൽ No എന്ന് മറുപടി നൽകുക.`
-                : `Have you completed ${diagnosis} treatment? Reply Yes or No.`;
+            const complianceQuestion = lang === 'ml'
+                ? `${diagnosis} ചികിത്സ പൂർത്തിയാക്കിയോ?`
+                : `Have you completed ${diagnosis} treatment?`;
             return {
                 issueIndex,
                 issueLabel: diagnosis,
                 message,
-                compliancePrompt,
+                compliancePrompt: `${complianceQuestion} Reply Yes or No.`,
+                complianceQuestion,
+                complianceNoAction: 'escalate',
             };
         });
     },

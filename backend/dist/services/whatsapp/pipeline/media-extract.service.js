@@ -68,27 +68,46 @@ export async function extractInboundMedia(params) {
     }
     if (params.msgType === 'document') {
         const doc = msg.document;
-        const mime = doc?.mime_type ?? '';
-        if (!mime.startsWith('image/'))
+        const mime = (doc?.mime_type ?? '').toLowerCase();
+        const filename = (doc?.filename ?? '').toLowerCase();
+        const isImage = mime.startsWith('image/');
+        const isPdf = mime === 'application/pdf' ||
+            mime.includes('pdf') ||
+            filename.endsWith('.pdf');
+        if (!isImage && !isPdf)
             return {};
         const mediaId = doc?.id ?? (msg.media_id != null ? String(msg.media_id) : undefined);
         const mediaUrl = doc?.url ?? msg.media_url;
+        const fallbackMime = isPdf ? 'application/pdf' : mime || 'image/jpeg';
+        let buffer = null;
+        let resolvedMime = fallbackMime;
         if (isCloud) {
-            const resolved = await resolveCloudMedia({ mediaId, mediaUrl, fallbackMime: mime });
+            const resolved = await resolveCloudMedia({ mediaId, mediaUrl, fallbackMime });
             if (resolved) {
-                return {
-                    imageBase64: resolved.buffer.toString('base64'),
-                    imageMimeType: resolved.mimeType.split(';')[0],
-                };
+                buffer = resolved.buffer;
+                resolvedMime = resolved.mimeType.split(';')[0] || fallbackMime;
             }
         }
         else if (mediaUrl) {
-            const { buffer, mimeType } = await fetchPublicUrlAsBuffer(mediaUrl);
-            return {
-                imageBase64: buffer.toString('base64'),
-                imageMimeType: mimeType.split(';')[0],
-            };
+            const fetched = await fetchPublicUrlAsBuffer(mediaUrl);
+            buffer = fetched.buffer;
+            resolvedMime = fetched.mimeType.split(';')[0] || fallbackMime;
         }
+        else if (mediaId != null) {
+            const fetched = await downloadWhatsAppMedia(String(mediaId));
+            buffer = fetched.buffer;
+            resolvedMime = fetched.mimeType.split(';')[0] || fallbackMime;
+        }
+        if (!buffer?.length)
+            return {};
+        const base64 = buffer.toString('base64');
+        if (isPdf || resolvedMime.includes('pdf')) {
+            return { documentBase64: base64, documentMimeType: 'application/pdf' };
+        }
+        return {
+            imageBase64: base64,
+            imageMimeType: resolvedMime.startsWith('image/') ? resolvedMime : 'image/jpeg',
+        };
     }
     if (params.msgType === 'audio' || params.msgType === 'voice' || params.msgType === 'audio_message') {
         const audio = msg.audio;

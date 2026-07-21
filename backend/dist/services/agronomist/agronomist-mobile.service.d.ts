@@ -71,7 +71,9 @@ export declare const agronomistMobileService: {
         status: string;
         farmerId?: string | null;
         leadId?: string | null;
+        blockId?: string | null;
         refId?: string;
+        needsSiteVisit?: boolean;
     }[]>;
     listCallbacks(_agentEmail: string): Promise<{
         id: string;
@@ -304,7 +306,7 @@ export declare const agronomistMobileService: {
             dueLabel: string | null;
             isDueToday: boolean;
             taskId: string | null;
-            source: "call" | "recommendation" | "follow_up" | "visit" | "task" | "log" | "rec_record";
+            source: "call" | "visit" | "follow_up" | "recommendation" | "task" | "log" | "rec_record";
             canArchive: boolean;
             canEdit: boolean;
             nextAction?: string | null;
@@ -546,7 +548,7 @@ export declare const agronomistMobileService: {
             attributionBadge: string | null;
             farmerName: string;
             farmerInitials: string;
-            phone: {} | null;
+            phone: string | null;
             district: {} | null;
             state: {} | null;
             farmerStatus: string;
@@ -554,7 +556,7 @@ export declare const agronomistMobileService: {
         farmer: {
             id: string;
             name: string;
-            phone: {} | null;
+            phone: string | null;
             email: null;
             district: {} | null;
             state: {} | null;
@@ -672,6 +674,22 @@ export declare const agronomistMobileService: {
         issueDetected: string | null;
         aiDiagnosis: string | null;
         aiConfidence: number | null;
+        farmerFeedbackId: string | null;
+        farmerSuggestedDiagnosis: string | null;
+        farmerSuggestedDiagnoses: string[];
+        farmerRefinedConditions: {
+            label: string;
+            probability: number;
+            probabilityLow?: number;
+            probabilityHigh?: number;
+            likelihood?: string;
+            role?: string;
+            reason?: string;
+        }[];
+        farmerRefineSequenceSummary: string | null;
+        farmerPriorExperience: string | null;
+        farmerPriorProduct: string | null;
+        farmerPriorOutcome: string | null;
         recommendationText: string;
         symptomsText: string | null;
         images: {
@@ -694,6 +712,22 @@ export declare const agronomistMobileService: {
         issueDetected: string | null;
         aiDiagnosis: string | null;
         aiConfidence: number | null;
+        farmerFeedbackId: string | null;
+        farmerSuggestedDiagnosis: string | null;
+        farmerSuggestedDiagnoses: string[];
+        farmerRefinedConditions: {
+            label: string;
+            probability: number;
+            probabilityLow?: number;
+            probabilityHigh?: number;
+            likelihood?: string;
+            role?: string;
+            reason?: string;
+        }[];
+        farmerRefineSequenceSummary: string | null;
+        farmerPriorExperience: string | null;
+        farmerPriorProduct: string | null;
+        farmerPriorOutcome: string | null;
         recommendationText: string;
         symptomsText: string | null;
         images: {

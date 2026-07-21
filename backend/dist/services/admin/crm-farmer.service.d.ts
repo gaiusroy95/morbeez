@@ -192,7 +192,7 @@ export declare const crmFarmerService: {
             id: any;
             reportedLabel: string | null;
             metrics: import("../soil/soil-lab-metrics.js").SoilLabMetrics;
-            pdfUrl: any;
+            pdfUrl: string | null;
         }[];
         visits: {
             id: string | undefined;
@@ -255,7 +255,7 @@ export declare const crmFarmerService: {
         };
         soilReport: {
             metrics: import("../soil/soil-lab-metrics.js").SoilLabMetrics;
-            pdfUrl: any;
+            pdfUrl: string | null;
             reportedLabel: string | null;
         };
         latestVisit: {

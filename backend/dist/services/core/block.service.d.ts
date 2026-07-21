@@ -8,6 +8,7 @@ export type FarmBlockRow = {
     crop_category: string | null;
     crop_subtype: string | null;
     plot_label: string | null;
+    variety_name: string | null;
     planting_date: string | null;
     stage: string | null;
     acreage_decimal: number | null;

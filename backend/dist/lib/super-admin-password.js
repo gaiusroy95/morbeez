@@ -8,9 +8,13 @@ export async function assertSuperAdminPasswordConfirm(actor, confirmPassword) {
     if (actor.role !== 'super_admin') {
         throw new UnauthorizedError('Super admin role required for edit or delete');
     }
+    await assertAdminPasswordConfirm(actor, confirmPassword);
+}
+/** Verify the signed-in staff user's password (any active admin role). */
+export async function assertAdminPasswordConfirm(actor, confirmPassword) {
     const password = confirmPassword?.trim();
     if (!password) {
-        throw new UnauthorizedError('Super admin password confirmation required');
+        throw new UnauthorizedError('Password confirmation required');
     }
     const { data: row, error } = await supabase
         .from('admin_users')

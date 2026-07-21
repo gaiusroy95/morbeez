@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { assertModuleAccess } from '../../lib/rbac.js';
-import { assertSuperAdminPasswordConfirm, confirmPasswordSchema, } from '../../lib/super-admin-password.js';
+import { assertAdminPasswordConfirm, assertSuperAdminPasswordConfirm, confirmPasswordSchema, } from '../../lib/super-admin-password.js';
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { whatsappBroadcastAdminService } from '../../services/admin/whatsapp-broadcast-admin.service.js';
@@ -383,6 +383,44 @@ export async function osOperationsRoutes(app) {
         const activity = await whatsappOsAdminService.createFieldActivity(body);
         return reply.status(201).send({ ok: true, activity });
     });
+    const fieldActivityPatchBody = z.object({
+        activityTypeId: z.string().uuid().optional(),
+        activityType: z.enum(['spray_applied', 'fertigation', 'drench', 'scouting', 'other']),
+        activityLabel: z.string().max(120).optional(),
+        activityDate: z.string().min(8).max(20),
+        dap: z.number().int().min(0).max(5000).optional(),
+        notes: z.string().max(1000).optional(),
+        costInr: z.number().min(0).max(10000000).optional(),
+        costBreakdown: z
+            .object({
+            labourCostInr: z.number().min(0).max(10000000).optional(),
+            sprayCostInr: z.number().min(0).max(10000000).optional(),
+            fertilizerCostInr: z.number().min(0).max(10000000).optional(),
+            machineryCostInr: z.number().min(0).max(10000000).optional(),
+        })
+            .optional(),
+        followUpRequired: z.boolean().optional(),
+        followUpDate: z.string().min(8).max(20).optional(),
+        status: z.enum(['completed', 'pending', 'cancelled']).optional(),
+        confirmPassword: confirmPasswordSchema,
+    });
+    app.patch(`${api}/field-activities/:activityId`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'operations', 'write');
+        const { activityId } = request.params;
+        const body = fieldActivityPatchBody.parse(request.body);
+        const { confirmPassword, ...patch } = body;
+        await assertAdminPasswordConfirm(actor, confirmPassword);
+        const activity = await whatsappOsAdminService.updateFieldActivity(activityId, patch);
+        return reply.send({ ok: true, activity });
+    });
+    app.delete(`${api}/field-activities/:activityId`, async (request, reply) => {
+        const actor = await assertModuleAccess(request, 'operations', 'write');
+        const { activityId } = request.params;
+        const body = z.object({ confirmPassword: confirmPasswordSchema }).parse(request.body ?? {});
+        await assertAdminPasswordConfirm(actor, body.confirmPassword);
+        await whatsappOsAdminService.deleteFieldActivity(activityId);
+        return reply.send({ ok: true });
+    });
     app.get(`${api}/masters`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');
         const q = request.query;
@@ -564,6 +602,8 @@ export async function osOperationsRoutes(app) {
                 .optional(),
             meaning: z.string().min(1).max(500),
             standardTerm: z.string().max(200).optional(),
+            cropType: z.string().max(80).nullable().optional(),
+            district: z.string().max(120).nullable().optional(),
             replyPreferred: z.boolean().optional(),
             examples: z.array(z.string()).optional(),
             aliases: z.array(z.string()).optional(),
@@ -607,6 +647,7 @@ export async function osOperationsRoutes(app) {
             .object({
             term: z.string().min(1).max(120).optional(),
             language: z.string().max(10).optional(),
+            cropType: z.string().max(80).nullable().optional(),
             district: z.string().max(120).nullable().optional(),
             state: z.string().max(120).nullable().optional(),
             meaning: z.string().max(500).optional(),
@@ -639,6 +680,120 @@ export async function osOperationsRoutes(app) {
             .parse(request.body);
         const profile = await terminologyAdminService.upsertLocalizationProfile(body);
         return reply.send({ ok: true, profile });
+    });
+    app.get(`${api}/terminology/farmer-overrides`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const overrides = await terminologyAdminService.listFarmerOverrides(q);
+        return reply.send({ ok: true, overrides });
+    });
+    app.put(`${api}/terminology/farmer-overrides`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            farmerId: z.string().uuid(),
+            term: z.string().min(1).max(120),
+            language: z.string().min(2).max(10),
+            meaning: z.string().min(1).max(500),
+            standardTerm: z.string().max(200).nullable().optional(),
+            cropType: z.string().max(80).nullable().optional(),
+            district: z.string().max(120).nullable().optional(),
+        })
+            .parse(request.body);
+        const override = await terminologyAdminService.upsertFarmerOverride(body);
+        return reply.send({ ok: true, override });
+    });
+    app.post(`${api}/terminology/farmer-overrides/promote`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            farmerId: z.string().uuid(),
+            term: z.string().min(1).max(120),
+            language: z.string().min(2).max(10),
+            meaning: z.string().min(1).max(500),
+            standardTerm: z.string().max(200).nullable().optional(),
+            cropType: z.string().max(80).nullable().optional(),
+            district: z.string().max(120).nullable().optional(),
+        })
+            .parse(request.body);
+        const term = await terminologyAdminService.promoteFarmerOverride({
+            ...body,
+            approvedBy: admin.email,
+        });
+        return reply.send({ ok: true, term });
+    });
+    app.get(`${api}/terminology/product-aliases`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const aliases = await terminologyAdminService.listProductAliases(q);
+        return reply.send({ ok: true, aliases });
+    });
+    app.post(`${api}/terminology/product-aliases`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            alias: z.string().min(1).max(120),
+            language: z.string().min(2).max(10),
+            canonicalProductKey: z.string().min(1).max(200),
+            shopifyProductId: z.string().max(80).nullable().optional(),
+            farmerId: z.string().uuid().nullable().optional(),
+            cropType: z.string().max(80).nullable().optional(),
+            district: z.string().max(120).nullable().optional(),
+        })
+            .parse(request.body);
+        const alias = await terminologyAdminService.proposeProductAlias({
+            ...body,
+            proposedBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, alias });
+    });
+    app.patch(`${api}/terminology/product-aliases/:id`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            status: z.enum(['approved', 'rejected', 'retired', 'pending']),
+        })
+            .parse(request.body);
+        const alias = await terminologyAdminService.reviewProductAlias(id, body.status, admin.email);
+        return reply.send({ ok: true, alias });
+    });
+    app.get(`${api}/terminology/unit-aliases`, async (request, reply) => {
+        await assertModuleAccess(request, 'operations', 'read');
+        const q = request.query;
+        const aliases = await terminologyAdminService.listUnitAliases(q);
+        return reply.send({ ok: true, aliases });
+    });
+    app.post(`${api}/terminology/unit-aliases`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const body = z
+            .object({
+            alias: z.string().min(1).max(120),
+            language: z.string().min(2).max(10),
+            canonicalUnit: z.enum([
+                'kg', 'g', 'litre', 'ml', 'quintal', 'tonne', 'bag', 'piece', 'hour', 'day', 'acre', 'other',
+            ]),
+            farmerId: z.string().uuid().nullable().optional(),
+            cropType: z.string().max(80).nullable().optional(),
+            district: z.string().max(120).nullable().optional(),
+        })
+            .parse(request.body);
+        const alias = await terminologyAdminService.proposeUnitAlias({
+            ...body,
+            proposedBy: admin.email,
+        });
+        return reply.status(201).send({ ok: true, alias });
+    });
+    app.patch(`${api}/terminology/unit-aliases/:id`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'operations', 'write');
+        const { id } = request.params;
+        const body = z
+            .object({
+            status: z.enum(['approved', 'rejected', 'retired', 'pending']),
+        })
+            .parse(request.body);
+        const alias = await terminologyAdminService.reviewUnitAlias(id, body.status, admin.email);
+        return reply.send({ ok: true, alias });
     });
     app.get(`${api}/weather-rules`, async (request, reply) => {
         await assertModuleAccess(request, 'operations', 'read');

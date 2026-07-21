@@ -18,6 +18,7 @@ type RecRow = {
     application_status?: string | null;
     outcome?: string | null;
     communicated_at: string | null;
+    created_at?: string | null;
     technical_name: string | null;
     trade_name: string | null;
     severity: string | null;
@@ -34,6 +35,8 @@ export type ApplicationReply = 'yes_applied' | 'not_yet' | 'need_clarification';
 export type OutcomeReply = 'improved' | 'no_improvement' | 'worsened' | 'partial';
 export declare const recommendationFollowUpService: {
     loadRecord(recommendationRecordId: string): Promise<RecRow | null>;
+    onCompliancePromptSent(recommendationRecordId: string, question: string, noAction: "escalate" | "review"): Promise<void>;
+    handleComplianceReply(farmerId: string, recommendationRecordId: string, reply: "yes" | "no"): Promise<string>;
     /** Stage 1 — recommendation communicated; schedule Day-1 application check. */
     onRecommendationCommunicated(recommendationRecordId: string): Promise<void>;
     /** After AI diagnosis — mark latest session rec as communicated and start follow-up. */
@@ -46,6 +49,15 @@ export declare const recommendationFollowUpService: {
         payload?: Record<string, unknown>;
         sessionId?: string | null;
     }): Promise<void>;
+    /**
+     * When a farmer starts a new photo diagnosis, push due follow-up prompts out
+     * so they are not flooded with old "Have you applied…" messages mid-analysis.
+     * Also collapses duplicate pending application-check jobs for the same farmer
+     * (generic copy makes them look identical in WhatsApp).
+     */
+    deferPendingFollowUpJobs(farmerId: string, hours?: number): Promise<number>;
+    /** Cancel extra pending application prompts so one album upload cannot fan out N identical WhatsApp messages. */
+    collapseDuplicateApplicationJobs(farmerId: string): Promise<number>;
     sendApplicationCheck(recommendationRecordId: string): Promise<boolean>;
     sendApplicationReminder(recommendationRecordId: string, reminderCount: number): Promise<void>;
     sendOutcomeCheck(recommendationRecordId: string): Promise<boolean>;

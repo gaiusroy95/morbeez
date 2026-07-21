@@ -1,4 +1,5 @@
 import type { InvestigationContext } from './diagnosis-follow-up-reasoning.engine.js';
+import type { EvsiPlannerHint } from '../../maios-reasoning/evsi-planner-hint.types.js';
 import { type FollowUpChoiceOption, type FollowUpQuestionKind } from './follow-up-question.types.js';
 export type { FollowUpChoiceOption, FollowUpQuestionKind };
 export type GeneratedFollowUpQuestion = {
@@ -26,6 +27,8 @@ export type PlanNextQuestionInput = {
     learnedPatterns: LearnedInvestigationPattern[];
     /** MAIOS v12 — missing evidence slots from case (photo/module gaps) */
     evidenceGaps?: string[];
+    /** Bayesian EVSI slot — LLM writes farmer-facing wording from photo context */
+    evsiHint?: EvsiPlannerHint | null;
 };
 export type PostDiagnosisAdvisorySnapshot = {
     probableIssue: string;
@@ -48,6 +51,7 @@ export type PlanPostDiagnosisQuestionInput = {
     questionsAsked: number;
     maxQuestions: number;
     learnedPatterns: LearnedInvestigationPattern[];
+    evsiHint?: EvsiPlannerHint | null;
 };
 export type PlanNextQuestionResult = {
     intakeComplete: boolean;

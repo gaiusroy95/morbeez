@@ -90,7 +90,7 @@ export declare const telecallerMobileService: {
         attributionBadge: string | null;
         farmerName: string;
         farmerInitials: string;
-        phone: {} | null;
+        phone: string | null;
         district: {} | null;
         state: {} | null;
         farmerStatus: string;

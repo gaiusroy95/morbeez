@@ -9,7 +9,10 @@ import { logger } from '../../lib/logger.js';
 import type { InboundMessage } from './pipeline/types.js';
 import type { WhatsAppProvider } from './whatsapp-outbound.types.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
-import { extractInteractiveReplyText } from './inbound-reply-text.util.js';
+import {
+  extractInteractiveReplyText,
+  resolveInboundUserText,
+} from './inbound-reply-text.util.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -218,8 +221,11 @@ export const whatsappService = {
     const parsed = parseAdsGyaniWebhook(payload);
     if (!parsed) return;
 
+    const inbound = toInboundFromAdsGyani(payload, parsed);
+    inbound.text = resolveInboundUserText(inbound) || inbound.text;
+
     await whatsappInboundPipeline.process(
-      toInboundFromAdsGyani(payload, parsed),
+      inbound,
       {
         text: (phone, text) => this.sendText(phone, text),
         list: (p) =>
@@ -323,6 +329,7 @@ export const whatsappService = {
             campaignSource: (value?.metadata as Record<string, string> | undefined)?.campaign_id,
           },
         };
+        inbound.text = resolveInboundUserText(inbound) || inbound.text;
 
         await whatsappInboundPipeline.process(
           inbound,

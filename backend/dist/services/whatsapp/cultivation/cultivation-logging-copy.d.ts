@@ -1,5 +1,6 @@
 import type { AdvisoryLanguage } from '../../ai/types.js';
-export declare function applicationPrompt(lang: AdvisoryLanguage): string;
+import { type ApplicationFollowUpContext } from '../../core/application-follow-up-message.util.js';
+export declare function applicationPrompt(lang: AdvisoryLanguage, ctx?: ApplicationFollowUpContext): string;
 export declare function appliedThanks(lang: AdvisoryLanguage): string;
 export declare function notYetReminder(lang: AdvisoryLanguage): string;
 export declare function resultValidationPrompt(lang: AdvisoryLanguage): string;

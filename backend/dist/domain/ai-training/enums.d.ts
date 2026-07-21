@@ -65,8 +65,8 @@ export type IssueStatus = (typeof ISSUE_STATUSES)[number];
 /** Issue categories for visit issue cards (maps to FINDING_TYPES where overlapping) */
 export declare const ISSUE_CATEGORIES: readonly ["disease", "pest", "nutrient_deficiency", "nutrient_toxicity", "water_stress", "environmental_stress", "soil_problem", "growth_issue", "chemical_injury", "mechanical_damage", "weed", "other"];
 export type IssueCategory = (typeof ISSUE_CATEGORIES)[number];
-/** Visit AI question answer types */
-export declare const VISIT_AI_ANSWER_TYPES: readonly ["yes_no_unknown", "text", "number"];
+/** Visit AI question answer types (v12 diagnostic engine) */
+export declare const VISIT_AI_ANSWER_TYPES: readonly ["yes_no_unknown", "yes_no", "single_choice", "multiple_choice", "percentage", "number", "text", "image_upload"];
 export type VisitAiAnswerType = (typeof VISIT_AI_ANSWER_TYPES)[number];
 /** Visit AI case lifecycle */
 export declare const VISIT_AI_CASE_STATUSES: readonly ["draft", "analyzed", "qa_complete", "recommended", "reviewed", "submitted"];

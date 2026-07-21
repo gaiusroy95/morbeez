@@ -14,10 +14,20 @@ export const advisoryImageStorageService = {
             logger.warn({ farmerId, bytes: buffer.length }, 'Advisory image too large — skipped storage');
             return null;
         }
-        const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+        const ext = mimeType === 'application/pdf' || mimeType.includes('pdf')
+            ? 'pdf'
+            : mimeType === 'image/png'
+                ? 'png'
+                : mimeType === 'image/webp'
+                    ? 'webp'
+                    : 'jpg';
         const path = `${farmerId}/${randomUUID()}.${ext}`;
         const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-            contentType: mimeType,
+            contentType: ext === 'pdf'
+                ? 'application/pdf'
+                : mimeType.startsWith('image/')
+                    ? mimeType
+                    : 'image/jpeg',
             upsert: false,
         });
         if (error) {
@@ -40,7 +50,13 @@ export async function downloadAdvisoryImageBase64(path) {
     if (!buffer.length)
         return null;
     const ext = key.split('.').pop()?.toLowerCase();
-    const mimeType = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+    const mimeType = ext === 'png'
+        ? 'image/png'
+        : ext === 'webp'
+            ? 'image/webp'
+            : ext === 'pdf'
+                ? 'application/pdf'
+                : 'image/jpeg';
     return { base64: buffer.toString('base64'), mimeType };
 }
 export async function resolveAdvisoryImageUrl(path) {

@@ -7,6 +7,7 @@ import { inferCropHint } from './crop-hints.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { multiPlotService } from '../scenarios/multi-plot.service.js';
 import { farmerExperienceLearningService } from '../../core/farmer-experience-learning.service.js';
+import { diagnosisSessionEvidenceService } from './diagnosis-session-evidence.service.js';
 async function fetchRecentTurns(farmerId, limit = 12) {
     const { data } = await supabase
         .from('interaction_logs')
@@ -99,6 +100,7 @@ export const farmerMemoryService = {
                     language: lang,
                     cropType: cropType || null,
                     district: farmerRow?.district ? String(farmerRow.district) : null,
+                    farmerId,
                 });
             }
             const block = await terminologyAiContextService.buildPromptBlock({
@@ -110,6 +112,9 @@ export const farmerMemoryService = {
             if (block.trim())
                 regionalTerminologyBlock = block;
         }
+        const diagnosisEvidenceBlock = await diagnosisSessionEvidenceService
+            .formatEvidenceForPrompt({ farmerId })
+            .catch(() => undefined);
         return {
             farmerId,
             cropType,
@@ -123,6 +128,7 @@ export const farmerMemoryService = {
             lastSpray: compact.lastSpray,
             lastAdvisorySummary: sessionCtx.diagnosis?.lastAdvisorySummary,
             recentTurns,
+            diagnosisEvidenceBlock,
             knownCropLocked,
             onboardingComplete,
             verifiedRegionalHints: verifiedRegionalHints ?? undefined,
@@ -140,6 +146,9 @@ export const farmerMemoryService = {
                 ? `Last diagnosis summary: ${memory.lastAdvisorySummary.slice(0, 400)}`
                 : null,
             memory.lastSpray ? `Last spray guidance: ${memory.lastSpray}` : null,
+            memory.diagnosisEvidenceBlock?.trim()
+                ? memory.diagnosisEvidenceBlock.trim()
+                : null,
         ].filter(Boolean);
         const chat = memory.recentTurns.slice(-6);
         if (chat.length) {
@@ -168,7 +177,8 @@ export const farmerMemoryService = {
             ? `Expert-verified learnings for this crop/area:\n${memory.verifiedRegionalHints.trim()}`
             : null;
         const terminology = memory.regionalTerminologyBlock?.trim() ?? null;
-        return [header, hints, terminology, turns ? `Conversation:\n${turns}` : null]
+        const evidence = memory.diagnosisEvidenceBlock?.trim() ?? null;
+        return [header, evidence, hints, terminology, turns ? `Conversation:\n${turns}` : null]
             .filter(Boolean)
             .join('\n\n');
     },

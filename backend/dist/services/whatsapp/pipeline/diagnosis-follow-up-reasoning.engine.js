@@ -115,8 +115,8 @@ export const diagnosisFollowUpReasoningEngine = {
             const q = questionTexts[qid] ?? qid;
             parts.push(`Follow-up "${q}" → ${formatAnswerHuman(ans, questionChoices[qid], ctx.language)}`);
         }
-        if (ctx.bestIssueLabel)
-            parts.push(`Closest learned case: ${ctx.bestIssueLabel}`);
+        if (ctx.bestIssueLabel && !ctx.hasPhoto)
+            parts.push(`Closest learned case (text only): ${ctx.bestIssueLabel}`);
         if (ctx.heavyRainLikely)
             parts.push('Weather: heavy rain likely');
         if (ctx.highHumidityLikely)
@@ -141,31 +141,30 @@ export const diagnosisFollowUpReasoningEngine = {
         const holistic = this.synthesizeAllAnswersConclusion(ctx.symptomsText, answers, questionTexts, questionChoices, ctx);
         const inferred = this.inferPrimaryIssueFromIntake(ctx.symptomsText, answers, questionTexts, questionChoices, ctx);
         lines.push('');
-        lines.push(`Investigation conclusion (use as probableIssue unless image strongly contradicts): ${inferred}`);
+        lines.push(`Investigation guidance for Crop Doctor: ${inferred}`);
         lines.push('');
         lines.push('INTEGRATED SYNTHESIS (all answers combined — farmerSummary MUST reflect this):');
         lines.push(holistic);
-        if (ctx.bestIssueLabel) {
+        if (!ctx.hasPhoto && ctx.bestIssueLabel?.trim()) {
             lines.push('');
-            lines.push(`Similar verified cases in Morbeez suggested: ${ctx.bestIssueLabel}`);
+            lines.push(`Similar verified cases in Morbeez (text similarity only — not from this photo): ${ctx.bestIssueLabel}`);
         }
         return lines.join('\n');
     },
     inferPrimaryIssueFromIntake(initialSymptoms, answers, questionTexts, questionChoices, ctx) {
-        if (ctx.bestIssueLabel?.trim()) {
-            const confirmed = Object.entries(answers)
-                .filter(([, v]) => v !== 'skip')
-                .map(([id, v]) => `${questionTexts[id] ?? id}: ${formatAnswerHuman(v, questionChoices[id], ctx.language)}`)
-                .slice(0, 4);
-            if (confirmed.length) {
-                return `${ctx.bestIssueLabel.trim()} — confirmed by: ${confirmed.join('; ')}`;
-            }
-            return ctx.bestIssueLabel.trim();
+        const confirmed = Object.entries(answers)
+            .filter(([, v]) => v !== 'skip')
+            .map(([id, v]) => `${questionTexts[id] ?? id}: ${formatAnswerHuman(v, questionChoices[id], ctx.language)}`);
+        if (confirmed.length) {
+            return `Use farmer investigation answers together with the photo analysis — ${confirmed.join('; ')}`;
+        }
+        if (ctx.hasPhoto && (ctx.imageObservations?.length ?? 0) > 0) {
+            return 'Resolve probableIssue from imageObservations and field context only';
         }
         if (Object.keys(answers).length) {
-            return `Field issue (${initialSymptoms.trim().slice(0, 80)}) — resolve using all investigation answers and image`;
+            return `Field issue (${initialSymptoms.trim().slice(0, 80)}) — resolve using investigation answers`;
         }
-        return 'Field issue — resolve using investigation answers and image';
+        return 'Resolve from investigation answers and attached photo analysis';
     },
     synthesizeAllAnswersConclusion(initialSymptoms, answers, questionTexts, questionChoices, ctx) {
         const parts = [];

@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
+import { formatPhoneE164 } from '../../lib/phone.js';
 import { fieldPwaService } from '../admin/field-pwa.service.js';
 import { crmFarmerService } from '../admin/crm-farmer.service.js';
 import { cropHealthFromTone } from '../../lib/block-health.js';
@@ -12,6 +13,7 @@ import { recommendationFollowUpService } from '../core/recommendation-follow-up.
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
 import { resolveAdvisoryImageUrl, urlFromWhatsAppPayload, } from '../core/advisory-image-storage.service.js';
 import { normalizeSoilMetrics, SOIL_MACRO_FIELDS } from '../soil/soil-lab-metrics.js';
+import { getFarmerSuggestedDiagnosesFromStored } from '../../domain/learning/farmer-nutrient-suggestions.js';
 function soilMetricCells(metrics) {
     return SOIL_MACRO_FIELDS.slice(0, 6)
         .map((f) => {
@@ -75,7 +77,7 @@ async function resolveLeadId(farmerId) {
 function mapFarmerFromJoin(farmerId, f) {
     return {
         id: farmerId,
-        phone: f?.phone ? String(f.phone) : null,
+        phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
         name: [f?.first_name, f?.last_name].filter(Boolean).join(' ') ||
             String(f?.name ?? '').trim() ||
             'Farmer',
@@ -167,6 +169,99 @@ async function loadAiSessionVisitImages(farmerId, aiSessionId) {
         pushImage(url, log.content ? String(log.content).slice(0, 200) : null);
     }
     return { symptomsText, images, cropType, aiDiagnosis, aiConfidence };
+}
+async function loadFarmerFeedbackForVisit(params) {
+    const empty = {
+        farmerFeedbackId: null,
+        farmerSuggestedDiagnosis: null,
+        farmerSuggestedDiagnoses: [],
+        farmerRefinedConditions: [],
+        farmerRefineSequenceSummary: null,
+        farmerPriorExperience: null,
+        farmerPriorProduct: null,
+        farmerPriorOutcome: null,
+    };
+    const select = 'id, farmer_suggested_diagnosis, farmer_prior_experience, farmer_prior_product, farmer_prior_outcome, session_id, escalation_id, created_at, status, metadata';
+    const mapRow = (fb) => {
+        if (!fb)
+            return empty;
+        const experience = fb.farmer_prior_experience
+            ? String(fb.farmer_prior_experience).trim()
+            : '';
+        const metadata = fb.metadata ?? null;
+        const diagnoses = getFarmerSuggestedDiagnosesFromStored({
+            farmer_suggested_diagnosis: fb.farmer_suggested_diagnosis
+                ? String(fb.farmer_suggested_diagnosis)
+                : null,
+            farmer_prior_experience: experience || null,
+            metadata,
+        });
+        const primary = diagnoses[0] ?? (fb.farmer_suggested_diagnosis ? String(fb.farmer_suggested_diagnosis) : null);
+        const refined = metadata?.farmer_refined_assessment;
+        const farmerRefinedConditions = Array.isArray(refined?.conditions)
+            ? refined.conditions
+                .map((c) => ({
+                label: String(c.label ?? '').trim(),
+                probability: Number(c.probability ?? 0),
+                probabilityLow: c.probabilityLow != null && Number.isFinite(Number(c.probabilityLow))
+                    ? Number(c.probabilityLow)
+                    : undefined,
+                probabilityHigh: c.probabilityHigh != null && Number.isFinite(Number(c.probabilityHigh))
+                    ? Number(c.probabilityHigh)
+                    : undefined,
+                likelihood: c.likelihood ? String(c.likelihood) : undefined,
+                role: c.role ? String(c.role) : undefined,
+                reason: c.reason ? String(c.reason) : undefined,
+            }))
+                .filter((c) => c.label)
+            : [];
+        return {
+            farmerFeedbackId: fb.id ? String(fb.id) : null,
+            farmerSuggestedDiagnosis: primary,
+            farmerSuggestedDiagnoses: diagnoses,
+            farmerRefinedConditions,
+            farmerRefineSequenceSummary: refined?.sequenceSummary
+                ? String(refined.sequenceSummary)
+                : null,
+            farmerPriorExperience: experience || null,
+            farmerPriorProduct: fb.farmer_prior_product ? String(fb.farmer_prior_product) : null,
+            farmerPriorOutcome: fb.farmer_prior_outcome ? String(fb.farmer_prior_outcome) : null,
+        };
+    };
+    if (params.escalationId) {
+        const { data } = await supabase
+            .from('farmer_advisory_feedback')
+            .select(select)
+            .eq('escalation_id', params.escalationId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        const mapped = mapRow(data);
+        if (mapped.farmerSuggestedDiagnosis || mapped.farmerPriorExperience)
+            return mapped;
+    }
+    if (params.aiSessionId) {
+        const { data } = await supabase
+            .from('farmer_advisory_feedback')
+            .select(select)
+            .eq('session_id', params.aiSessionId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        const mapped = mapRow(data);
+        if (mapped.farmerSuggestedDiagnosis || mapped.farmerPriorExperience)
+            return mapped;
+    }
+    // Latest open/reviewed farmer correction for this farmer (rectification visits).
+    const { data: latest } = await supabase
+        .from('farmer_advisory_feedback')
+        .select(select)
+        .eq('farmer_id', params.farmerId)
+        .in('status', ['pending_capture', 'pending_review', 'approved', 'partial'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+    return mapRow(latest);
 }
 export const agronomistMobileService = {
     async getMobileDashboard(agentEmail) {
@@ -356,7 +451,7 @@ export const agronomistMobileService = {
             farmer: {
                 id: farmerId,
                 name,
-                phone: farmer.phone ? String(farmer.phone) : null,
+                phone: formatPhoneE164(farmer.phone != null ? String(farmer.phone) : null),
                 district: farmer.district ? String(farmer.district) : null,
                 acreage,
             },
@@ -427,7 +522,9 @@ export const agronomistMobileService = {
                     status: String(t.status),
                     farmerId: t.farmer_id ? String(t.farmer_id) : null,
                     leadId: t.lead_id ? String(t.lead_id) : null,
+                    blockId: t.block_id ? String(t.block_id) : null,
                     refId: entityId,
+                    needsSiteVisit: true,
                 });
             }
         }
@@ -471,27 +568,58 @@ export const agronomistMobileService = {
             }
         }
         const aiReviewEscalationIds = new Set();
-        if (!filter || filter === 'ai_review' || filter === 'all') {
+        const siteVisitEscalationIds = new Set();
+        if (!filter || filter === 'ai_review' || filter === 'escalation' || filter === 'all') {
             const queue = await agronomistCaseReviewService.listQueue({ status: 'open', page: 1, limit: 15 });
             for (const c of queue.items ?? []) {
                 const entityId = String(c.id);
+                const needsSiteVisit = Boolean(c.needsSiteVisit);
+                // Field-routed AI cases belong in the site-visit / escalation path, not desk review.
+                if (needsSiteVisit) {
+                    siteVisitEscalationIds.add(entityId);
+                    if (!filter || filter === 'escalation' || filter === 'all') {
+                        tasks.push({
+                            id: taskKey('escalation', entityId),
+                            kind: 'escalation',
+                            title: String(c.reason ?? 'Site visit required'),
+                            subtitle: c.farmerName
+                                ? `${c.farmerName} · Site visit`
+                                : c.confidence != null
+                                    ? `Site visit · ${Math.round(Number(c.confidence) * 100)}%`
+                                    : 'Site visit required',
+                            dueAt: c.createdAt ? String(c.createdAt) : null,
+                            status: String(c.status ?? 'open'),
+                            farmerId: c.farmerId ?? null,
+                            refId: entityId,
+                            needsSiteVisit: true,
+                        });
+                    }
+                    continue;
+                }
                 aiReviewEscalationIds.add(entityId);
-                tasks.push({
-                    id: taskKey('ai_review', entityId),
-                    kind: 'ai_review',
-                    title: String(c.reason ?? 'AI review'),
-                    subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
-                    dueAt: c.createdAt ? String(c.createdAt) : null,
-                    status: String(c.status ?? 'open'),
-                    farmerId: null,
-                    refId: entityId,
-                });
+                if (!filter || filter === 'ai_review' || filter === 'all') {
+                    tasks.push({
+                        id: taskKey('ai_review', entityId),
+                        kind: 'ai_review',
+                        title: String(c.reason ?? 'AI review'),
+                        subtitle: c.confidence != null ? `Confidence ${Math.round(Number(c.confidence) * 100)}%` : 'Needs review',
+                        dueAt: c.createdAt ? String(c.createdAt) : null,
+                        status: String(c.status ?? 'open'),
+                        farmerId: c.farmerId ?? null,
+                        refId: entityId,
+                        needsSiteVisit: false,
+                    });
+                }
             }
         }
         if (!filter || filter === 'escalation' || filter === 'all') {
             const esc = await this.listEscalations({ status: 'open' });
             for (const e of esc) {
-                if ((!filter || filter === 'all') && aiReviewEscalationIds.has(e.id))
+                if ((!filter || filter === 'all') &&
+                    (aiReviewEscalationIds.has(e.id) || siteVisitEscalationIds.has(e.id))) {
+                    continue;
+                }
+                if (siteVisitEscalationIds.has(e.id))
                     continue;
                 tasks.push({
                     id: taskKey('escalation', e.id),
@@ -502,6 +630,7 @@ export const agronomistMobileService = {
                     status: e.status,
                     farmerId: e.farmerId,
                     refId: e.id,
+                    needsSiteVisit: true,
                 });
             }
         }
@@ -537,7 +666,7 @@ export const agronomistMobileService = {
                 id: String(r.id),
                 farmerId: String(r.farmer_id),
                 farmerName: f?.name ?? null,
-                phone: f?.phone ?? null,
+                phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
                 reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
                 status: String(r.status),
                 requestedAt: String(r.created_at),
@@ -876,9 +1005,13 @@ export const agronomistMobileService = {
                 })),
             },
             activities,
-            soilReports: soilRows.map((s) => {
+            soilReports: await Promise.all(soilRows.map(async (s) => {
                 const metrics = normalizeSoilMetrics(s.metrics);
                 const metricCells = soilMetricCells(metrics);
+                const rawPdf = s.pdf_url ? String(s.pdf_url) : null;
+                const pdfUrl = rawPdf
+                    ? ((await resolveAdvisoryImageUrl(rawPdf)) ?? rawPdf)
+                    : null;
                 return {
                     id: String(s.id),
                     blockId,
@@ -887,11 +1020,11 @@ export const agronomistMobileService = {
                     dapLabel: null,
                     health: 'good',
                     healthLabel: metricCells.length ? 'Lab values on file' : 'Report on file',
-                    pdfUrl: s.pdf_url ? String(s.pdf_url) : null,
+                    pdfUrl,
                     highlights: metricCells.map((m) => `${m.label}: ${m.value}`),
                     metrics: metricCells,
                 };
-            }),
+            })),
             fieldFindings,
             blockRecommendations,
         };
@@ -1211,6 +1344,11 @@ export const agronomistMobileService = {
             aiDiagnosis = aiDiagnosis ?? sessionPack.aiDiagnosis;
             aiConfidence = sessionPack.aiConfidence;
         }
+        const farmerFeedback = await loadFarmerFeedbackForVisit({
+            farmerId,
+            aiSessionId,
+            escalationId,
+        });
         return {
             recommendationId,
             farmerId,
@@ -1223,12 +1361,20 @@ export const agronomistMobileService = {
             issueDetected: row.issue_detected ? String(row.issue_detected) : null,
             aiDiagnosis,
             aiConfidence,
+            farmerFeedbackId: farmerFeedback.farmerFeedbackId,
+            farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+            farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
+            farmerRefinedConditions: farmerFeedback.farmerRefinedConditions,
+            farmerRefineSequenceSummary: farmerFeedback.farmerRefineSequenceSummary,
+            farmerPriorExperience: farmerFeedback.farmerPriorExperience,
+            farmerPriorProduct: farmerFeedback.farmerPriorProduct,
+            farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
             recommendationText: String(row.recommendation_text ?? ''),
             symptomsText,
             images,
             source: row.source ? String(row.source) : null,
             status: row.status ? String(row.status) : null,
-            rectificationMode: Boolean(escalationId || row.status === 'draft'),
+            rectificationMode: Boolean(escalationId || row.status === 'draft' || farmerFeedback.farmerSuggestedDiagnosis),
         };
     },
     async getEscalationVisitContext(escalationId) {
@@ -1283,6 +1429,11 @@ export const agronomistMobileService = {
                 }
             }
         }
+        const farmerFeedback = await loadFarmerFeedbackForVisit({
+            farmerId,
+            aiSessionId,
+            escalationId: String(esc.id),
+        });
         return {
             recommendationId,
             farmerId,
@@ -1295,6 +1446,14 @@ export const agronomistMobileService = {
             issueDetected,
             aiDiagnosis,
             aiConfidence,
+            farmerFeedbackId: farmerFeedback.farmerFeedbackId,
+            farmerSuggestedDiagnosis: farmerFeedback.farmerSuggestedDiagnosis,
+            farmerSuggestedDiagnoses: farmerFeedback.farmerSuggestedDiagnoses,
+            farmerRefinedConditions: farmerFeedback.farmerRefinedConditions,
+            farmerRefineSequenceSummary: farmerFeedback.farmerRefineSequenceSummary,
+            farmerPriorExperience: farmerFeedback.farmerPriorExperience,
+            farmerPriorProduct: farmerFeedback.farmerPriorProduct,
+            farmerPriorOutcome: farmerFeedback.farmerPriorOutcome,
             recommendationText,
             symptomsText,
             images,

@@ -2,6 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from './block.service.js';
 import { weatherSnapshotService } from './weather-snapshot.service.js';
+import { deriveWeatherPressures } from '../whatsapp/pipeline/weather-fetch.service.js';
 function snapshotFromPack(pack, extras) {
     return {
         measurements: pack.measurements,
@@ -67,7 +68,8 @@ export const visitAiContextService = {
             : null;
         const lat = input.latitude ?? (block.latitude != null ? Number(block.latitude) : null);
         const lon = input.longitude ?? (block.longitude != null ? Number(block.longitude) : null);
-        const today = weatherBundle?.last7Days[weatherBundle.last7Days.length - 1];
+        const last7Raw = weatherBundle?.last7Days ?? [];
+        const today = last7Raw[last7Raw.length - 1];
         const alerts = [];
         if (weatherBundle?.heavyRainLikely)
             alerts.push('heavy_rain_likely');
@@ -75,6 +77,21 @@ export const visitAiContextService = {
             alerts.push('high_heat_likely');
         if (weatherBundle?.highHumidityLikely)
             alerts.push('high_humidity_likely');
+        const last7Days = last7Raw.map((d) => ({
+            date: d.date,
+            rainfallMm: d.rainfallMm,
+            temperatureC: d.maxTempC,
+            humidityPct: d.avgHumidityPct,
+        }));
+        const totals7d = last7Days.length > 0
+            ? {
+                rainfallMm: Math.round(last7Days.reduce((s, d) => s + (d.rainfallMm ?? 0), 0) * 10) / 10,
+                avgTempC: Math.round((last7Days.reduce((s, d) => s + (d.temperatureC ?? 0), 0) / last7Days.length) * 10) /
+                    10,
+                avgHumidityPct: Math.round((last7Days.reduce((s, d) => s + (d.humidityPct ?? 0), 0) / last7Days.length) * 10) / 10,
+            }
+            : null;
+        const pressures = last7Raw.length ? deriveWeatherPressures(last7Raw) : null;
         return {
             farmerId: input.farmerId,
             blockId: input.blockId,
@@ -85,14 +102,17 @@ export const visitAiContextService = {
             blockAssessment: input.blockAssessment,
             measurements: input.measurements ?? [],
             soilTestSummary,
-            weatherSnapshot: today
+            weatherSnapshot: today || last7Days.length
                 ? {
-                    rainfallMm: today.rainfallMm,
-                    humidityPct: today.avgHumidityPct,
-                    temperatureC: today.maxTempC,
+                    rainfallMm: today?.rainfallMm ?? 0,
+                    humidityPct: today?.avgHumidityPct ?? 70,
+                    temperatureC: today?.maxTempC ?? 28,
                     weatherRiskScore: weatherBundle?.weatherRiskScore ?? null,
                     diseaseAlerts: alerts,
                     locationLabel: weatherBundle?.locationLabel ?? null,
+                    last7Days,
+                    totals7d,
+                    pressures,
                 }
                 : null,
             gps: lat != null && lon != null ? { latitude: lat, longitude: lon } : null,

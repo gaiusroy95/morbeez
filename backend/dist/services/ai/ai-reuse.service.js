@@ -6,6 +6,7 @@ import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 import { blockService } from '../core/block.service.js';
 import { buildCrossLanguageIntentSlug, pickLocalizedFarmerSummary, } from '../whatsapp/pipeline/crop-message-intent.service.js';
 import { buildQuestionReuseKeys, buildSymptomKey } from './question-reuse-keys.util.js';
+import { learningGovernanceService } from '../learning/learning-governance.service.js';
 export { buildSymptomKey, buildLooseSymptomKey } from './question-reuse-keys.util.js';
 const MIN_CONFIDENCE = 0.65;
 /** Staff-verified rows from agronomist case review / feedback. */
@@ -54,6 +55,25 @@ export const aiReuseService = {
             return null;
         const crop = params.cropType.toLowerCase();
         const district = params.district?.toLowerCase() ?? null;
+        if (env.ENABLE_APPROVED_REUSE_MEMORY_READ) {
+            const approved = await learningGovernanceService.findApprovedReuse({
+                cropType: crop,
+                district,
+                symptomKey: params.symptomKey,
+            });
+            if (!approved)
+                return null;
+            const payload = approved.payload ?? {};
+            if (!payload.advisory || typeof payload.advisory !== 'object')
+                return null;
+            return {
+                id: String(approved.id),
+                sourceSessionId: String(approved.approved_version_id),
+                advisory: normalizeStructuredAdvisory(payload.advisory),
+                products: (payload.products ?? []),
+                issueLabel: String(payload.diagnosis ?? params.symptomKey),
+            };
+        }
         const buckets = [params.dapBucket, params.dapBucket - 15, params.dapBucket + 15].filter((b) => b >= 0);
         for (const dapBucket of buckets) {
             const { data: rows } = await supabase
@@ -68,10 +88,20 @@ export const aiReuseService = {
                 .order('hit_count', { ascending: false })
                 .order('confidence_score', { ascending: false })
                 .limit(5);
-            const hit = (rows ?? []).sort((a, b) => {
+            const hit = (rows ?? [])
+                .filter((r) => {
+                const snap = r.advisory_snapshot;
+                // Prefer staff-verified; allow legacy outcome_ok rows without explicit false.
+                return snap?.staffVerified !== false;
+            })
+                .sort((a, b) => {
+                const aSnap = a.advisory_snapshot;
+                const bSnap = b.advisory_snapshot;
+                const aStaff = aSnap?.staffVerified === true ? 4 : 0;
+                const bStaff = bSnap?.staffVerified === true ? 4 : 0;
                 const aDist = a.district === (district ?? '') ? 2 : a.district === '' ? 1 : 0;
                 const bDist = b.district === (district ?? '') ? 2 : b.district === '' ? 1 : 0;
-                return bDist - aDist;
+                return bStaff + bDist - (aStaff + aDist);
             })[0];
             if (!hit)
                 continue;

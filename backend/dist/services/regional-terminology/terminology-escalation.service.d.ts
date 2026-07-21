@@ -2,6 +2,7 @@ import type { AdvisoryLanguage } from '../ai/types.js';
 export declare const terminologyEscalationService: {
     /**
      * Stage 4 — create or bump priority for unknown regional word (does not guess meaning).
+     * Open-task dedupe is scoped by term + language + district + crop.
      */
     escalateUnknown(params: {
         farmerId: string;

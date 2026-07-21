@@ -1,6 +1,36 @@
+import { diagnosisLabelsMatch } from '../maios-reasoning/diagnosis-fusion.service.js';
+/** Align probableIssue with the LLM's own highest-ranked differential when inconsistent. */
+function reconcileProbableIssue(advisory) {
+    const ranked = [...(advisory.differentialDiagnosis ?? [])]
+        .filter((d) => d.label?.trim())
+        .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0));
+    const top = ranked[0];
+    if (!top?.label)
+        return advisory;
+    const topProb = top.probability ?? 0;
+    const issue = advisory.probableIssue?.trim();
+    if (!issue) {
+        return { ...advisory, probableIssue: top.label, confidence: Math.max(advisory.confidence, topProb) };
+    }
+    if (diagnosisLabelsMatch(issue, top.label)) {
+        return {
+            ...advisory,
+            probableIssue: top.label,
+            confidence: Math.max(advisory.confidence, topProb),
+        };
+    }
+    if (topProb >= advisory.confidence + 0.08 && topProb >= 0.45) {
+        return {
+            ...advisory,
+            probableIssue: top.label,
+            confidence: topProb,
+        };
+    }
+    return advisory;
+}
 /** Ensure extended rich-diagnosis fields exist with safe defaults (reuse cache / legacy rows). */
 export function normalizeStructuredAdvisory(raw) {
-    const advisory = { ...raw };
+    let advisory = { ...raw };
     advisory.confidence = Math.min(1, Math.max(0, Number(advisory.confidence) || 0.5));
     advisory.uncertain = Boolean(advisory.uncertain);
     advisory.escalationRecommended = Boolean(advisory.escalationRecommended);
@@ -8,6 +38,13 @@ export function normalizeStructuredAdvisory(raw) {
     advisory.stressAnalysis = advisory.stressAnalysis ?? [];
     advisory.treatments = advisory.treatments ?? [];
     advisory.dosageGuidance = advisory.dosageGuidance ?? [];
+    advisory.connectedPrevention = (advisory.connectedPrevention ?? []).map((item) => ({
+        ...item,
+        riskLevel: item.riskLevel === 'high' || item.riskLevel === 'moderate' ? item.riskLevel : undefined,
+    }));
+    advisory.connectedPreventionNoneNote = advisory.connectedPreventionNoneNote ?? '';
+    advisory.tankMixRecommendation = advisory.tankMixRecommendation ?? '';
+    advisory.separateOperationNote = advisory.separateOperationNote ?? '';
     advisory.precautions = advisory.precautions ?? [];
     advisory.recommendedProductTags = advisory.recommendedProductTags ?? [];
     advisory.farmerSummaryEn = advisory.farmerSummaryEn ?? '';
@@ -24,6 +61,8 @@ export function normalizeStructuredAdvisory(raw) {
     advisory.rejectedHypotheses = advisory.rejectedHypotheses ?? [];
     advisory.morbeezDataUsed = advisory.morbeezDataUsed ?? [];
     advisory.costEstimate = advisory.costEstimate ?? [];
+    advisory.farmerReport = advisory.farmerReport ?? '';
+    advisory.technicalReport = advisory.technicalReport ?? '';
     if (!advisory.severity) {
         advisory.severity =
             advisory.confidence >= 0.85 ? 'moderate' : advisory.confidence >= 0.7 ? 'moderate' : 'mild';
@@ -41,6 +80,7 @@ export function normalizeStructuredAdvisory(raw) {
     if (!advisory.imageObservations.length && advisory.stressAnalysis.length) {
         advisory.imageObservations = advisory.stressAnalysis.slice(0, 4);
     }
+    advisory = reconcileProbableIssue(advisory);
     return advisory;
 }
 //# sourceMappingURL=advisory-normalize.js.map

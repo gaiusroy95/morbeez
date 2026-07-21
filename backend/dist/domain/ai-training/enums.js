@@ -93,8 +93,17 @@ export const ISSUE_CATEGORIES = [
     'weed',
     'other',
 ];
-/** Visit AI question answer types */
-export const VISIT_AI_ANSWER_TYPES = ['yes_no_unknown', 'text', 'number'];
+/** Visit AI question answer types (v12 diagnostic engine) */
+export const VISIT_AI_ANSWER_TYPES = [
+    'yes_no_unknown',
+    'yes_no',
+    'single_choice',
+    'multiple_choice',
+    'percentage',
+    'number',
+    'text',
+    'image_upload',
+];
 /** Visit AI case lifecycle */
 export const VISIT_AI_CASE_STATUSES = [
     'draft',

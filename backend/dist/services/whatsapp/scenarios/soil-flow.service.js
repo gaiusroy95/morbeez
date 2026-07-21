@@ -1,7 +1,12 @@
 import { supabase } from '../../../lib/supabase.js';
+import { logger } from '../../../lib/logger.js';
 import { crmFarmerService } from '../../admin/crm-farmer.service.js';
+import { advisoryImageStorageService } from '../../core/advisory-image-storage.service.js';
+import { multiPlotService } from './multi-plot.service.js';
+import { blockService } from '../../core/block.service.js';
 import { applyMacroValues, applyMicroValues, emptySoilLabMetrics, formatSoilSummary, hasAnyMetricValue, macroPrompt, microPrompt, normalizeSoilMetrics, parseCommaValues, parseSoilType, soilTypePrompt, } from '../../soil/soil-lab-metrics.js';
 import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { extractInboundMedia } from '../pipeline/media-extract.service.js';
 import { t } from './whatsapp-flow-copy.js';
 /** Scenarios 12–14, 43 — soil testing flows. */
 export const soilFlowService = {
@@ -72,6 +77,88 @@ export const soilFlowService = {
     reportReceivedReply(language) {
         return t('soilReportReceived', language);
     },
+    async resolveSoilBlockId(farmerId, preferredBlockId) {
+        if (preferredBlockId?.trim())
+            return preferredBlockId.trim();
+        const active = await multiPlotService.getActivePlotId(farmerId);
+        if (active)
+            return active;
+        const primary = await blockService.getPrimaryBlock(farmerId);
+        return primary?.id ? String(primary.id) : null;
+    },
+    /**
+     * Download WhatsApp soil report (photo/PDF), store file, insert crm_soil_reports
+     * so telecaller portal + farmer/agronomist apps can display it on the block.
+     */
+    async saveUploadedReportFromWhatsApp(params) {
+        const blockId = await this.resolveSoilBlockId(params.farmerId, params.blockId);
+        let pdfUrl = null;
+        try {
+            const media = await extractInboundMedia({
+                channel: params.msg.channel,
+                msgType: params.msg.msgType,
+                messageObject: params.msg.messageObject,
+            });
+            const base64 = media.documentBase64 ?? media.imageBase64;
+            const mimeType = media.documentMimeType ?? media.imageMimeType ?? 'image/jpeg';
+            if (base64?.trim()) {
+                pdfUrl = await advisoryImageStorageService.uploadFromBase64(params.farmerId, base64, mimeType);
+            }
+        }
+        catch (err) {
+            logger.error({ err, farmerId: params.farmerId }, 'WhatsApp soil report media download failed');
+        }
+        const markMeta = async () => {
+            const now = new Date().toISOString();
+            const { data: farmer } = await supabase
+                .from('farmers')
+                .select('metadata')
+                .eq('id', params.farmerId)
+                .maybeSingle();
+            const meta = (farmer?.metadata ?? {});
+            await supabase
+                .from('farmers')
+                .update({
+                metadata: { ...meta, soil_report_uploaded: true, soil_report_at: now },
+                updated_at: now,
+            })
+                .eq('id', params.farmerId);
+        };
+        if (!pdfUrl) {
+            logger.warn({ farmerId: params.farmerId, blockId }, 'Soil report WhatsApp upload: media missing — metadata flag only');
+            await markMeta();
+            return { reportId: null, pdfUrl: null, blockId };
+        }
+        try {
+            const report = await crmFarmerService.createSoilReport(params.farmerId, {
+                blockId: blockId ?? undefined,
+                metrics: emptySoilLabMetrics(),
+                pdfUrl,
+                uploadedBy: 'whatsapp',
+            });
+            await markMeta();
+            await createTelecallerTask({
+                farmerId: params.farmerId,
+                title: 'Soil report uploaded (WhatsApp)',
+                notes: [
+                    blockId ? `Block: ${blockId}` : 'Block: (unassigned — assign in CRM)',
+                    `File: ${pdfUrl}`,
+                    'Review and enter lab metrics if needed.',
+                ].join('\n'),
+                priority: 'normal',
+            }).catch(() => { });
+            return {
+                reportId: report?.id ? String(report.id) : null,
+                pdfUrl,
+                blockId,
+            };
+        }
+        catch (err) {
+            logger.error({ err, farmerId: params.farmerId }, 'WhatsApp soil report DB insert failed');
+            await markMeta();
+            return { reportId: null, pdfUrl, blockId };
+        }
+    },
     macroEntryPrompt(lang) {
         return macroPrompt(lang);
     },
@@ -85,8 +172,9 @@ export const soilFlowService = {
         return parseSoilType(text);
     },
     async saveLabMetrics(farmerId, metrics, options) {
+        const blockId = await this.resolveSoilBlockId(farmerId, options?.blockId);
         await crmFarmerService.createSoilReport(farmerId, {
-            blockId: options?.blockId,
+            blockId: blockId ?? undefined,
             metrics: metrics,
             uploadedBy: options?.uploadedBy ?? 'whatsapp',
         });

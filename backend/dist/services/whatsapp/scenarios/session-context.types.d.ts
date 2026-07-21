@@ -6,6 +6,16 @@ export interface DiagnosisPending {
     lastAdvisorySummary?: string;
     dosageItems?: DosageItem[];
     technicalOnly?: boolean;
+    /** Persisted advisory-image storage paths for this diagnosis thread (never drop after pending clear). */
+    photoPaths?: string[];
+    /** Farmer ↔ assistant turns scoped to this diagnosis (intake Q&A, corrections, refinements). */
+    transcript?: Array<{
+        role: 'farmer' | 'assistant' | 'system';
+        text: string;
+        at: string;
+    }>;
+    /** Farmer answers after Crop Doctor, kept until final delivery / re-diagnose. */
+    postClarificationSummary?: string;
 }
 export interface SessionContext {
     diagnosis?: DiagnosisPending;
@@ -23,6 +33,8 @@ export interface SessionContext {
     pendingCultivationPrompt?: 'application' | 'result';
     pendingResultActivityId?: string;
     lastAdvisorySessionId?: string;
+    /** ISO timestamp of last cultivation application-check WhatsApp (dedupe duplicate jobs). */
+    lastApplicationPromptAt?: string;
     /** Crop selection fallback after image when AI cannot infer crop */
     pendingCropSelection?: boolean;
     /** Minimal onboarding after language selection */
@@ -32,7 +44,9 @@ export interface SessionContext {
     onboardingComplete?: boolean;
     /** Auto recommendation follow-up engine */
     pendingRecommendationRecordId?: string;
-    pendingRecommendationFollowUp?: 'application' | 'outcome';
+    pendingRecommendationFollowUp?: 'application' | 'outcome' | 'compliance';
+    /** ISO timestamp while a batched photo diagnosis is running (dedupe concurrent flushes). */
+    diagnosisInFlightAt?: string;
     /** Assessment playbook router (insect / weed / compatibility, etc.) */
     lastPlaybookCategory?: string;
     /** ROI tracker (farmers add only; telecaller edits in CRM) */
@@ -54,6 +68,11 @@ export interface SessionContext {
     /** Farmer Experience Learning — correction after AI diagnosis */
     farmerFeedbackId?: string;
     farmerFeedbackStep?: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+    /** Resume farmer experience feedback after farm-activity confirm. */
+    farmerFeedbackResume?: {
+        feedbackId: string;
+        step: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+    };
     /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
     pendingDiagnosisImagePath?: string;
     pendingDiagnosisImageMime?: string;
@@ -118,6 +137,7 @@ export interface SessionContext {
         confidenceBand?: 'high' | 'medium' | 'low';
         pendingPhoto?: boolean;
         evidenceMode?: boolean;
+        reasoningSnapshot?: import('../../../domain/maios-reasoning/types.js').MaiosReasoningSnapshot;
     };
     /** After Crop Doctor when confidence is below review threshold — AI-planned clarification before final reply. */
     postDiagnosisIntake?: {
@@ -158,6 +178,7 @@ export interface SessionContext {
         }>>;
         questionsAsked: number;
         maxQuestions: number;
+        reasoningSnapshot?: import('../../../domain/maios-reasoning/types.js').MaiosReasoningSnapshot;
     };
     /** Stored until post-diagnosis Q&A completes (then farmer gets full advisory). */
     pendingDiagnosisDelivery?: {
@@ -166,6 +187,12 @@ export interface SessionContext {
         reused: boolean;
         confidence: number;
         plotLabel?: string;
+    };
+    /** WhatsApp Farm Activity Assistant draft pointer (Confirm/Edit/Cancel). */
+    farmActivityAssistant?: {
+        draftId: string;
+        revision: number;
+        clarificationAttempts?: number;
     };
 }
 //# sourceMappingURL=session-context.types.d.ts.map

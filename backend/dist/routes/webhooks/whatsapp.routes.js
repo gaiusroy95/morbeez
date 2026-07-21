@@ -2,8 +2,8 @@ import { env } from '../../config/env.js';
 import { createHmac, createHash, timingSafeEqual } from 'crypto';
 import { verifyWhatsAppWebhook } from '../../middleware/webhookVerify.js';
 import { WebhookVerificationError } from '../../lib/errors.js';
-import { isWebhookDuplicate, claimWebhook, finalizeWebhookClaim } from '../../middleware/idempotency.js';
-import { whatsappService } from '../../services/whatsapp/whatsapp.service.js';
+import { isWebhookDuplicate, claimWebhook, finalizeWebhookClaim, } from '../../middleware/idempotency.js';
+import { whatsappService, parseAdsGyaniWebhook } from '../../services/whatsapp/whatsapp.service.js';
 import { logger } from '../../lib/logger.js';
 import { metaWhatsAppIdempotencyKey, summarizeMetaWhatsAppValue, } from '../../lib/meta-whatsapp-webhook.js';
 /** Meta Cloud API webhook subscription (GET hub.challenge). */
@@ -57,8 +57,11 @@ export async function whatsappWebhookRoutes(app) {
         const raw = request.body;
         verifyAdsGyaniWebhook(raw, request.headers);
         const payload = JSON.parse(raw.toString());
-        const idempotencyKey = (payload.id != null && String(payload.id)) ||
-            (payload.message_id != null && String(payload.message_id)) ||
+        const parsedForKey = payload.entry ? null : parseAdsGyaniWebhook(payload);
+        const idempotencyKey = (payload.entry ? metaWhatsAppIdempotencyKey(payload) : null) ??
+            (parsedForKey?.messageId ? `msg:${parsedForKey.messageId}` : null) ??
+            (payload.id != null ? String(payload.id) : null) ??
+            (payload.message_id != null ? String(payload.message_id) : null) ??
             `adsgyani:${createHash('sha256').update(raw).digest('hex').slice(0, 32)}`;
         if (await isWebhookDuplicate('whatsapp_adsgyani', idempotencyKey)) {
             return reply.code(200).send({ ok: true, duplicate: true });

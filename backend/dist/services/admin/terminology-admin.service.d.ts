@@ -1,3 +1,4 @@
+import { type FarmActivityCanonicalUnit } from '../regional-terminology/unit-alias.service.js';
 export declare const terminologyAdminService: {
     getSummary(): Promise<{
         pendingTerms: number;
@@ -71,6 +72,7 @@ export declare const terminologyAdminService: {
     updateRegionalTerm(termId: string, input: {
         term?: string;
         language?: string;
+        cropType?: string | null;
         district?: string | null;
         state?: string | null;
         meaning?: string;
@@ -154,6 +156,8 @@ export declare const terminologyAdminService: {
         conceptCategory?: string;
         meaning: string;
         standardTerm?: string;
+        cropType?: string | null;
+        district?: string | null;
         replyPreferred?: boolean;
         examples?: string[];
         aliases?: string[];
@@ -168,5 +172,74 @@ export declare const terminologyAdminService: {
     }): Promise<void>;
     rejectTask(taskId: string, resolvedBy?: string, reason?: string): Promise<any>;
     skipTask(taskId: string, resolvedBy?: string): Promise<any>;
+    listFarmerOverrides(params?: {
+        farmerId?: string;
+        language?: string;
+        limit?: number;
+    }): Promise<import("../regional-terminology/types.js").TerminologyDictionaryEntry[] | {
+        id: string;
+        farmerId: string;
+        term: string;
+        language: string;
+        meaning: string;
+        standardTerm: string | null;
+        cropType: string | null;
+        district: string | null;
+        updatedAt: string;
+    }[]>;
+    upsertFarmerOverride(input: {
+        farmerId: string;
+        term: string;
+        language: string;
+        meaning: string;
+        standardTerm?: string | null;
+        cropType?: string | null;
+        district?: string | null;
+    }): Promise<import("../regional-terminology/types.js").TerminologyDictionaryEntry | null>;
+    /**
+     * Promote a farmer-private override into regional agronomy_terms after human review.
+     * Does not auto-promote; requires explicit staff action.
+     */
+    promoteFarmerOverride(input: {
+        farmerId: string;
+        term: string;
+        language: string;
+        meaning: string;
+        standardTerm?: string | null;
+        cropType?: string | null;
+        district?: string | null;
+        approvedBy?: string;
+    }): Promise<import("../regional-terminology/types.js").TerminologyDictionaryEntry>;
+    listProductAliases(params?: {
+        status?: string;
+        language?: string;
+        search?: string;
+    }): Promise<import("../regional-terminology/product-alias.service.js").ProductAliasMatch[]>;
+    proposeProductAlias(input: {
+        alias: string;
+        language: string;
+        canonicalProductKey: string;
+        shopifyProductId?: string | null;
+        farmerId?: string | null;
+        cropType?: string | null;
+        district?: string | null;
+        proposedBy?: string | null;
+    }): Promise<import("../regional-terminology/product-alias.service.js").ProductAliasMatch>;
+    reviewProductAlias(id: string, status: "approved" | "rejected" | "retired" | "pending", approvedBy?: string): Promise<import("../regional-terminology/product-alias.service.js").ProductAliasMatch>;
+    listUnitAliases(params?: {
+        status?: string;
+        language?: string;
+        search?: string;
+    }): Promise<import("../regional-terminology/unit-alias.service.js").UnitAliasMatch[]>;
+    proposeUnitAlias(input: {
+        alias: string;
+        language: string;
+        canonicalUnit: FarmActivityCanonicalUnit;
+        farmerId?: string | null;
+        cropType?: string | null;
+        district?: string | null;
+        proposedBy?: string | null;
+    }): Promise<import("../regional-terminology/unit-alias.service.js").UnitAliasMatch>;
+    reviewUnitAlias(id: string, status: "approved" | "rejected" | "retired" | "pending", approvedBy?: string): Promise<import("../regional-terminology/unit-alias.service.js").UnitAliasMatch>;
 };
 //# sourceMappingURL=terminology-admin.service.d.ts.map

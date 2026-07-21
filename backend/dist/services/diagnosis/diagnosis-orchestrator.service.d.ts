@@ -193,6 +193,92 @@ export declare const diagnosisOrchestratorService: {
         issues: never[];
         diagnosisDegraded: boolean;
         envelope: DiagnosisEnvelope;
+    } | {
+        diagnosisDegraded: boolean;
+        issues: {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: "high";
+            observation: string;
+            escalationRequired: boolean;
+            diagnosisSource: DiagnosisSource;
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+        }[];
+        insufficientEvidence: boolean;
+        envelope?: undefined;
+    } | {
+        diagnosisDegraded: boolean;
+        issues: {
+            localId: string;
+            category: string;
+            issueName: string;
+            confidence: number;
+            aiConfidence: number;
+            severity: "low" | "high" | "medium";
+            observation: string;
+            aiCaseId: string;
+            hypotheses: {
+                label: string;
+                confidence: number;
+                rationale: string | undefined;
+                selected: boolean;
+                imagePrediction: string | undefined;
+                imageConfidence: number | undefined;
+            }[];
+            selectedHypothesisLabel: string;
+            finalDiagnosis: string;
+            confidenceAction: "auto_send" | "employee_review" | "escalate";
+            skipFollowUpOptional: boolean;
+            imageSignal: {
+                label: string;
+                confidence: number;
+            } | undefined;
+            similarCases: {
+                issueLabel: string;
+                score: number;
+                confidence: number;
+                outcome: string | null;
+            }[];
+            diagnosisSource: DiagnosisSource;
+            rootCause: {
+                symptoms: string[];
+                photoSignals: string[];
+                soilSignals: string[];
+                weatherSignals: string[];
+                conclusion: string;
+            };
+            evidence: {
+                photoSummary: string;
+                measurementSummary: string;
+                soilSummary: string;
+                weatherSummary: string;
+                historySummary: string;
+            };
+            followUpQuestions: {
+                id: string;
+                questionText: string;
+                answerType: import("../../domain/visit-ai/question-quality.js").VisitQuestionAnswerType;
+                options?: string[];
+                priority?: number;
+                imageTarget?: string;
+            }[];
+            initialRecommendation: {
+                text: string;
+                method: string;
+                category: string;
+            } | undefined;
+        }[];
+        insufficientEvidence?: undefined;
+        envelope?: undefined;
     }>;
     resolveSourceFromImage(hasModel: boolean, imageSource?: "plant_id" | "vision" | "fusion" | null): DiagnosisSource;
 };

@@ -21,6 +21,24 @@ import { whatsappDiagnosisContextService } from '../whatsapp/pipeline/whatsapp-d
 import { normalizeStructuredAdvisory } from './advisory-normalize.js';
 import { caseBuilderService } from '../case/case-builder.service.js';
 import { casePersistService } from '../case/case-persist.service.js';
+import { cropDoctorReasoningBridgeService } from '../maios-reasoning/crop-doctor-reasoning-bridge.service.js';
+import { cropDoctorFarmerReportService } from './crop-doctor-farmer-report.service.js';
+import { cropDoctorReportContextService } from './crop-doctor-report-context.service.js';
+import { analyzeAndFuseDiagnosisImages, collectDiagnosisImages, } from './multi-image-diagnosis.service.js';
+import { logger } from '../../lib/logger.js';
+function whatsappFarmerAnswers(input) {
+    const answers = [];
+    for (const qa of input.investigationPattern?.qa ?? []) {
+        answers.push({ questionText: qa.question, answer: qa.answer });
+    }
+    if (input.fieldInvestigation?.trim()) {
+        answers.push({
+            questionText: 'Field investigation notes',
+            answer: input.fieldInvestigation.trim(),
+        });
+    }
+    return answers.length ? answers : undefined;
+}
 async function getFarmerHistory(farmerId) {
     const { data } = await supabase
         .from('disease_history')
@@ -149,7 +167,54 @@ export const cropDoctorService = {
         }
         let plantIdResult = null;
         const farmerHistory = input.compactHistory ?? (await getFarmerHistory(input.farmerId));
-        if (input.imageBase64 && env.PLANT_ID_API_KEY) {
+        const allImages = collectDiagnosisImages(input);
+        const multiFusion = allImages.length > 1
+            ? await analyzeAndFuseDiagnosisImages(allImages, {
+                cropType: input.cropType,
+                cropStage: input.cropStage,
+                dap: input.contextPack?.dap ?? null,
+            }).catch((err) => {
+                logger.warn({ err, farmerId: input.farmerId }, 'Multi-image per-photo analysis failed');
+                return null;
+            })
+            : null;
+        if (multiFusion) {
+            const priorMeta = session.metadata && typeof session.metadata === 'object'
+                ? session.metadata
+                : {};
+            if (multiFusion.primaryPlantIdResult) {
+                plantIdResult = multiFusion.primaryPlantIdResult;
+                await aiLogService.logRequest({
+                    sessionId,
+                    provider: 'plantid',
+                    endpoint: 'health_assessment_multi',
+                    latencyMs: 0,
+                    success: true,
+                });
+            }
+            await supabase
+                .from('ai_advisory_sessions')
+                .update({
+                ...(plantIdResult ? { plant_id_result: plantIdResult.raw } : {}),
+                metadata: {
+                    ...priorMeta,
+                    multiImageFusion: {
+                        analyzedCount: multiFusion.analyzedCount,
+                        totalCount: multiFusion.totalCount,
+                        fusedLabel: multiFusion.fusedLabel,
+                        fusedConfidence: multiFusion.fusedConfidence,
+                        perImage: multiFusion.perImage.map((s) => ({
+                            index: s.index,
+                            label: s.label,
+                            confidence: s.confidence,
+                            source: s.source,
+                        })),
+                    },
+                },
+            })
+                .eq('id', sessionId);
+        }
+        else if (input.imageBase64 && env.PLANT_ID_API_KEY) {
             const started = Date.now();
             try {
                 plantIdResult = await plantIdProvider.assessHealth({ imageBase64: input.imageBase64 });
@@ -176,7 +241,11 @@ export const cropDoctorService = {
                 });
             }
         }
-        const plantIdSummary = plantIdResult ? formatPlantIdSummary(plantIdResult) : undefined;
+        const plantIdSummary = multiFusion?.plantIdSummary
+            ? multiFusion.plantIdSummary
+            : plantIdResult
+                ? formatPlantIdSummary(plantIdResult)
+                : undefined;
         const verifiedRegionalHints = await farmerExperienceLearningService
             .getVerifiedRegionalHints(input.farmerId, input.cropType)
             .catch(() => null);
@@ -188,6 +257,9 @@ export const cropDoctorService = {
                 issueName: input.issueLabelHint ?? input.symptomsText?.slice(0, 80) ?? 'field issue',
                 observation: input.symptomsText ?? input.voiceTranscript,
             }));
+        const photoCountForPrompt = input.diagnosisImages?.length ??
+            allImages.length ??
+            (input.imageBase64 ? 1 : 0);
         const fullUserPrompt = buildUserPrompt({
             cropType: input.cropType,
             cropStage: input.cropStage,
@@ -200,17 +272,21 @@ export const cropDoctorService = {
             environmentalContext: input.environmentalContext,
             morbeezFieldContext: morbeezFieldContext ?? undefined,
             fieldInvestigation: input.fieldInvestigation,
-            issueLabelHint: input.issueLabelHint,
+            issueLabelHint: multiFusion?.fusedLabel
+                ? [input.issueLabelHint, `Multi-image fused signal: ${multiFusion.fusedLabel}`]
+                    .filter(Boolean)
+                    .join(' | ')
+                : input.issueLabelHint,
             language: input.language,
-            photoCount: input.diagnosisImages?.length ?? (input.imageBase64 ? 1 : 0),
+            photoCount: photoCountForPrompt,
+            multiImageEvidence: multiFusion?.evidenceBlock,
         });
         let advisory;
         const visionStarted = Date.now();
         try {
             if (input.imageBase64 && input.imageMimeType) {
-                const additionalImages = (input.diagnosisImages ?? [])
+                const additionalImages = allImages
                     .slice(1)
-                    .filter((img) => img.imageBase64)
                     .map((img) => ({
                     imageBase64: img.imageBase64,
                     mimeType: img.imageMimeType,
@@ -225,7 +301,7 @@ export const cropDoctorService = {
                 advisory = normalizeStructuredAdvisory(advisory);
                 if (!whatsappDiagnosisRendererService.hasImageEvidence(advisory) &&
                     !whatsappDiagnosisRendererService.hasRichSections(advisory)) {
-                    const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from the attached photo (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
+                    const retryPrompt = `${fullUserPrompt}\n\nCRITICAL: You MUST populate imageObservations with specific visible features from ALL attached photos (colour, pattern, leaf age, spread). Do not answer from memory or generic templates alone. Populate differentialDiagnosis and dosageGuidance when treatment applies.`;
                     advisory = await openaiVisionProvider.analyzeVision({
                         imageBase64: input.imageBase64,
                         mimeType: input.imageMimeType,
@@ -233,6 +309,34 @@ export const cropDoctorService = {
                         userPrompt: retryPrompt,
                         additionalImages: additionalImages.length ? additionalImages : undefined,
                     });
+                }
+                // Merge per-photo observations into the final advisory when the model under-reports.
+                if (multiFusion?.perImage.length) {
+                    const existing = new Set((advisory.imageObservations ?? []).map((o) => o.trim().toLowerCase()));
+                    const extras = [];
+                    for (const s of multiFusion.perImage) {
+                        const header = `Photo ${s.index + 1}: ${s.label}`;
+                        if (!existing.has(header.toLowerCase()))
+                            extras.push(header);
+                        for (const obs of s.observations) {
+                            const key = obs.trim().toLowerCase();
+                            if (key && !existing.has(key)) {
+                                existing.add(key);
+                                extras.push(`Photo ${s.index + 1}: ${obs}`);
+                            }
+                        }
+                    }
+                    if (extras.length) {
+                        advisory.imageObservations = [...(advisory.imageObservations ?? []), ...extras].slice(0, 12);
+                    }
+                    if (multiFusion.fusedLabel &&
+                        (!advisory.probableIssue?.trim() || advisory.confidence < multiFusion.fusedConfidence - 0.15)) {
+                        // Keep model label if present; only fill when empty
+                        if (!advisory.probableIssue?.trim()) {
+                            advisory.probableIssue = multiFusion.fusedLabel;
+                            advisory.confidence = multiFusion.fusedConfidence;
+                        }
+                    }
                 }
             }
             else {
@@ -293,50 +397,69 @@ export const cropDoctorService = {
         let maiosCase = null;
         const photoCount = input.maiosPhotoCount ??
             input.gingerSopPhotoCount ??
+            input.diagnosisImages?.length ??
+            allImages.length ??
             (input.imageBase64 ? 1 : 0);
         const photoPaths = input.maiosPhotoPaths ?? input.gingerSopPhotoPaths;
         const intakeConf = input.maiosIntakeConfidence ?? input.gingerSopIntakeConfidence;
         const hasSoil = input.maiosHasSoilReport ?? input.gingerSopHasSoilReport;
+        const visionObservations = cropDoctorReasoningBridgeService.buildVisionObservations({
+            advisory,
+            plantIdResult,
+            cropType: input.cropType,
+        });
+        const plantIdTopConfidence = plantIdResult?.diseases?.[0]?.probability;
+        const sharedCaseInput = {
+            farmerId: input.farmerId,
+            blockId: input.activePlotId,
+            channel: (input.channel === 'telecaller' ? 'telecaller' : input.channel),
+            sessionId,
+            symptomsText: input.symptomsText,
+            photoCount,
+            photoStoragePaths: photoPaths,
+            hasSoilReport: hasSoil,
+            hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
+            intakeMatchConfidence: intakeConf,
+            contextPack: ctxPack
+                ? {
+                    soilPh: ctxPack.soilPh,
+                    soilEc: ctxPack.soilEc,
+                    weatherRiskScore: ctxPack.weatherRiskScore,
+                    heavyRainLikely: ctxPack.heavyRainLikely,
+                    highHeatLikely: ctxPack.highHeatLikely,
+                    highHumidityLikely: ctxPack.highHumidityLikely,
+                    drainageRisk: ctxPack.drainageRisk,
+                    dap: ctxPack.dap,
+                }
+                : undefined,
+            advisory: {
+                probableIssue: advisory.probableIssue,
+                confidence: advisory.confidence,
+                severity: advisory.severity,
+                uncertain: advisory.uncertain,
+                escalationRecommended: advisory.escalationRecommended,
+                differentialDiagnosis: advisory.differentialDiagnosis,
+                causalChain: advisory.causalChain,
+                explanation: advisory.explanation,
+                rejectedHypotheses: advisory.rejectedHypotheses,
+                recommendedProductTags: advisory.recommendedProductTags,
+            },
+            farmerAnswers: whatsappFarmerAnswers(input),
+            visionObservations,
+            plantIdConfidence: plantIdTopConfidence,
+        };
         if (env.ENABLE_MAIOS_V12 !== false) {
             maiosCase = await caseBuilderService.buildCase({
-                farmerId: input.farmerId,
-                blockId: input.activePlotId,
+                ...sharedCaseInput,
                 cropType: input.cropType,
-                channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
-                sessionId,
-                symptomsText: input.symptomsText,
-                photoCount,
-                photoStoragePaths: photoPaths,
-                hasSoilReport: hasSoil,
-                hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
-                intakeMatchConfidence: intakeConf,
-                contextPack: ctxPack
-                    ? {
-                        soilPh: ctxPack.soilPh,
-                        soilEc: ctxPack.soilEc,
-                        weatherRiskScore: ctxPack.weatherRiskScore,
-                        heavyRainLikely: ctxPack.heavyRainLikely,
-                        highHeatLikely: ctxPack.highHeatLikely,
-                        highHumidityLikely: ctxPack.highHumidityLikely,
-                        drainageRisk: ctxPack.drainageRisk,
-                        dap: ctxPack.dap,
-                    }
-                    : undefined,
-                advisory: {
-                    probableIssue: advisory.probableIssue,
-                    confidence: advisory.confidence,
-                    severity: advisory.severity,
-                    uncertain: advisory.uncertain,
-                    escalationRecommended: advisory.escalationRecommended,
-                    differentialDiagnosis: advisory.differentialDiagnosis,
-                    causalChain: advisory.causalChain,
-                    explanation: advisory.explanation,
-                    rejectedHypotheses: advisory.rejectedHypotheses,
-                    recommendedProductTags: advisory.recommendedProductTags,
-                },
             });
             if (maiosCase) {
-                advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+                if (maiosCase.reasoning && !maiosCase.reasoning.shadowMode) {
+                    advisory = cropDoctorReasoningBridgeService.applyBayesianDiagnosis(advisory, maiosCase);
+                }
+                else {
+                    advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+                }
                 if (maiosCase.route === 'field_visit' ||
                     maiosCase.route === 'emergency_callback') {
                     advisory.escalationRecommended = true;
@@ -348,46 +471,34 @@ export const cropDoctorService = {
         }
         else {
             maiosCase = await caseBuilderService.buildCase({
-                farmerId: input.farmerId,
-                blockId: input.activePlotId,
+                ...sharedCaseInput,
                 cropType: input.cropType || '_default',
-                channel: input.channel === 'telecaller' ? 'telecaller' : input.channel,
-                sessionId,
-                symptomsText: input.symptomsText,
-                photoCount,
-                photoStoragePaths: photoPaths,
-                hasSoilReport: hasSoil,
-                hasFieldInvestigation: Boolean(input.fieldInvestigation?.trim()),
-                intakeMatchConfidence: intakeConf,
-                contextPack: ctxPack
-                    ? {
-                        soilPh: ctxPack.soilPh,
-                        soilEc: ctxPack.soilEc,
-                        weatherRiskScore: ctxPack.weatherRiskScore,
-                        heavyRainLikely: ctxPack.heavyRainLikely,
-                        highHeatLikely: ctxPack.highHeatLikely,
-                        highHumidityLikely: ctxPack.highHumidityLikely,
-                        drainageRisk: ctxPack.drainageRisk,
-                        dap: ctxPack.dap,
-                    }
-                    : undefined,
-                advisory: {
-                    probableIssue: advisory.probableIssue,
-                    confidence: advisory.confidence,
-                    severity: advisory.severity,
-                    uncertain: advisory.uncertain,
-                    escalationRecommended: advisory.escalationRecommended,
-                    differentialDiagnosis: advisory.differentialDiagnosis,
-                    causalChain: advisory.causalChain,
-                    explanation: advisory.explanation,
-                    rejectedHypotheses: advisory.rejectedHypotheses,
-                    recommendedProductTags: advisory.recommendedProductTags,
-                },
             });
             if (maiosCase) {
-                advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+                if (maiosCase.reasoning && !maiosCase.reasoning.shadowMode) {
+                    advisory = cropDoctorReasoningBridgeService.applyBayesianDiagnosis(advisory, maiosCase);
+                }
+                else {
+                    advisory.confidence = maiosCase.diagnostics.fusedConfidence;
+                }
             }
         }
+        const reportLocation = ctxPack
+            ? [ctxPack.village, ctxPack.district].filter(Boolean).join(', ')
+            : undefined;
+        const reportContext = await cropDoctorReportContextService.build({
+            farmerId: input.farmerId,
+            blockId: input.activePlotId,
+            cropType: input.cropType,
+            cropStage: input.cropStage,
+            contextPack: ctxPack,
+            currentIssue: advisory.probableIssue,
+        });
+        advisory = cropDoctorFarmerReportService.attachReports(advisory, {
+            ...reportContext,
+            location: reportContext.location ?? reportLocation,
+            reasoning: maiosCase?.reasoning ?? null,
+        });
         await persistOutput(sessionId, advisory, 'openai', input.language);
         const productRecommendations = recommendationService.recommend(input.cropType, advisory);
         await persistRecommendations(sessionId, productRecommendations);

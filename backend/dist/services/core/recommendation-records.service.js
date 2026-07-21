@@ -4,6 +4,8 @@ import { AppError } from '../../lib/errors.js';
 import { blockService } from './block.service.js';
 import { productGapService } from './product-gap.service.js';
 import { appendAuditEntry } from './recommendation-audit.util.js';
+import { env } from '../../config/env.js';
+import { recommendationSafetyGateService } from '../safety/recommendation-safety-gate.service.js';
 async function districtForFarmer(farmerId, blockId) {
     if (blockId) {
         const block = await blockService.getById(blockId, farmerId);
@@ -107,9 +109,36 @@ export const recommendationRecordsService = {
     async submitForApproval(id, reviewedBy) {
         const { data: existing } = await supabase
             .from('recommendation_records')
-            .select('metadata')
+            .select('metadata, farmer_id, block_id, recommendation_text, dosage, application_type, dap_at_recommendation')
             .eq('id', id)
             .maybeSingle();
+        if (env.ENFORCE_SERVER_RECOMMENDATION_SAFETY) {
+            if (!existing)
+                throw new AppError('Recommendation not found', 404, 'NOT_FOUND');
+            await recommendationSafetyGateService.evaluate({
+                aggregateType: 'recommendation_record',
+                aggregateId: id,
+                recommendationRevision: String(existing.metadata?.version ?? existing.metadata?.updated_at ?? '1'),
+                actorEmail: reviewedBy ?? null,
+                validation: {
+                    farmerId: String(existing.farmer_id),
+                    blockId: String(existing.block_id ?? existing.farmer_id),
+                    recommendationGroups: [],
+                    dap: existing.dap_at_recommendation == null
+                        ? null
+                        : Number(existing.dap_at_recommendation),
+                },
+                unstructured: {
+                    recommendationText: existing.recommendation_text,
+                    dosage: existing.dosage,
+                    applicationType: existing.application_type,
+                },
+            }).then((decision) => {
+                if (!decision.allowsApproval) {
+                    throw new AppError(`Recommendation safety is ${decision.decision}`, 409, 'SAFETY_GATE_BLOCKED');
+                }
+            });
+        }
         const metadata = appendAuditEntry(existing?.metadata, {
             action: 'submitted',
             by: reviewedBy ?? 'agronomist',

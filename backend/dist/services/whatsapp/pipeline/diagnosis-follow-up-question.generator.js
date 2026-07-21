@@ -9,7 +9,7 @@ Your job: decide the SINGLE best next follow-up question OR mark intake complete
 RULES:
 - ONLY structured response types: yes_no (2 choices), multiple_choice (2–8 options), or photo (image request).
 - NEVER use open text / free typing questions.
-- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume thrips, fungal spots, blast lesions, etc. unless the farmer stated them OR imageObservations list them.
+- Similar-case / learned patterns are TEXT history only — NOT what is visible in the farmer's current photo. Never assume specific pests or diseases unless the farmer stated them OR imageObservations list them.
 - When imageObservations are provided, they are AUTHORITATIVE for what the photo shows. NEVER ask the farmer to confirm a sign that observations say is absent (e.g. "no spots", "no lesions", "yellowing only" → do not ask about leaf spots).
 - Prefer questions about field context NOT visible in photos: irrigation timing, soil moisture, symptom spread, recent spray/fertilizer, pests on leaf undersides.
 - Do NOT repeat what the farmer already stated in initial symptoms or prior answers.
@@ -140,6 +140,9 @@ function buildUserPrompt(input) {
         input.evidenceGaps?.length
             ? `MAIOS evidence gaps (prioritize closing these): ${input.evidenceGaps.join(', ')}`
             : null,
+        input.evsiHint
+            ? `\nEvidence priority (write your own farmer-friendly question from imageObservations — do NOT copy a fixed script): close slot "${input.evsiHint.evidenceSlot}" (use questionId "${input.evsiHint.questionId}", kind ${input.evsiHint.kind}).`
+            : null,
         '',
         questionsAsked >= maxQuestions
             ? 'Question budget exhausted — set intakeComplete true.'
@@ -192,6 +195,9 @@ function buildPostDiagnosisUserPrompt(input) {
         questionsAsked >= maxQuestions
             ? 'Question budget exhausted — set intakeComplete true.'
             : 'Plan the next single structured question using imageObservations + differentials — field facts not visible in the photo.',
+        input.evsiHint
+            ? `\nEvidence priority (write your own farmer-friendly question from imageObservations — do NOT copy a fixed script): close slot "${input.evsiHint.evidenceSlot}" (use questionId "${input.evsiHint.questionId}", kind ${input.evsiHint.kind}).`
+            : null,
     ]
         .filter(Boolean)
         .join('\n');
@@ -222,6 +228,9 @@ async function planStructuredQuestion(systemPrompt, userPrompt, input) {
         }
         const kind = normalizeFollowUpKind(q.kind);
         const choices = normalizeChoiceOptions(q.choices, kind);
+        if (kind === 'multiple_choice' && choices.length < 2) {
+            return { intakeComplete: true, rationale: 'invalid_multiple_choice_options' };
+        }
         const text = localizeQuestion({ textEn: String(q.textEn ?? ''), textMl: String(q.textMl ?? '') }, input.language);
         if (!text || text.length < 8) {
             return { intakeComplete: true, rationale: 'empty_question_text' };

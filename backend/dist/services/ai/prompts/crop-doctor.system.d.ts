@@ -1,4 +1,4 @@
-/** System prompt — Morbeez field intelligence diagnosis */
+/** System prompt — Morbeez Crop Doctor field intelligence diagnosis */
 export declare const CROP_DOCTOR_SYSTEM_PROMPT: string;
 export declare function buildUserPrompt(params: {
     cropType: string;
@@ -16,5 +16,7 @@ export declare function buildUserPrompt(params: {
     language: string;
     /** When farmer sent multiple photos in one burst. */
     photoCount?: number;
+    /** Per-photo analysis fused into one evidence block (multi-image albums). */
+    multiImageEvidence?: string;
 }): string;
 //# sourceMappingURL=crop-doctor.system.d.ts.map

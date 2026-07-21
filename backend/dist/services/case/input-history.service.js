@@ -38,6 +38,21 @@ function analyzeWarnings(entries) {
     return [...new Set(warnings)].slice(0, 5);
 }
 export const inputHistoryService = {
+    daysSinceLastFertilizer(summary) {
+        if (!summary)
+            return null;
+        const fertTypes = new Set(['fertigation', 'fertilizer_applied', 'fertilizer']);
+        const fertEntries = summary.entries.filter((e) => fertTypes.has(e.activityType));
+        if (fertEntries.length === 0)
+            return summary.days;
+        const latestMs = fertEntries.reduce((max, e) => {
+            const t = new Date(e.appliedAt).getTime();
+            return Number.isFinite(t) && t > max ? t : max;
+        }, 0);
+        if (!latestMs)
+            return summary.days;
+        return Math.max(0, Math.floor((Date.now() - latestMs) / 86_400_000));
+    },
     async load21Day(farmerId, blockId) {
         const since = sinceDate();
         let q = supabase

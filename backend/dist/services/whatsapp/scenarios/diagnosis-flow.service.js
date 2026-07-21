@@ -3,6 +3,7 @@ import { conversationSessionService } from '../conversation-session.service.js';
 import { dosageCalculatorService } from './dosage-calculator.service.js';
 import { shopifyLinksService } from '../../shopify/shopify-links.service.js';
 import { t } from './whatsapp-flow-copy.js';
+import { diagnosisSessionEvidenceService } from '../pipeline/diagnosis-session-evidence.service.js';
 export const diagnosisFlowService = {
     async recordImageReceived(farmerId) {
         const ctx = await conversationSessionService.getContext(farmerId);
@@ -19,18 +20,14 @@ export const diagnosisFlowService = {
     analyzingPrompt(language) {
         return t('sendMorePhotos', language);
     },
-    async storeDiagnosisResult(farmerId, sessionId, advisory, summary) {
-        const ctx = await conversationSessionService.getContext(farmerId);
+    async storeDiagnosisResult(farmerId, sessionId, advisory, summary, options) {
         const dosageItems = advisory.dosageGuidance ?? [];
-        await conversationSessionService.patchContext(farmerId, {
-            diagnosis: {
-                ...ctx.diagnosis,
-                lastSessionId: sessionId,
-                lastAdvisorySummary: summary.slice(0, 800),
-                dosageItems,
-                imageCount: ctx.diagnosis?.imageCount ?? 1,
-            },
+        await diagnosisSessionEvidenceService.bindSession(farmerId, sessionId, {
+            photoPaths: options?.photoPaths,
+            summary,
+            dosageItems,
         });
+        await diagnosisSessionEvidenceService.appendTranscript(farmerId, 'assistant', `Diagnosis delivered: ${advisory.probableIssue} (${Math.round((advisory.confidence ?? 0) * 100)}%). ${summary.slice(0, 280)}`);
         if (dosageItems.length > 0) {
             await conversationSessionService.setState(farmerId, 'diagnosis_water_volume');
         }
