@@ -16,6 +16,8 @@ import {
   isFarmerSuggestionButtonId,
   mapFarmerSuggestionInput,
 } from '../../../domain/learning/farmer-nutrient-suggestions.js';
+import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
+import { looksLikeFarmActivityMessage } from '../../farm-activity/farm-activity-message-intent.service.js';
 
 export type FarmerFeedbackCaptureStep =
   | 'diagnosis'
@@ -81,6 +83,85 @@ function askProduct(lang: AdvisoryLanguage): string {
 function askOutcome(lang: AdvisoryLanguage): string {
   if (lang === 'ml') return 'ഫലം എങ്ങനെയായിരുന്നു? (മെച്ചം / ഭാഗികം / ഇല്ല)';
   return 'What was the outcome? (improved / partial / no change)';
+}
+
+function askOutcomeRetry(lang: AdvisoryLanguage): string {
+  if (lang === 'ml') {
+    return 'ഫലം മാത്രം പറയുക: മെച്ചം / ഭാഗികം / ഇല്ല.\n\n(വളം/തൊഴിലാളി രേഖപ്പെടുത്താൻ വേണ്ടിയുള്ള വിവരങ്ങൾ ഞാൻ വേറെ സേവ് ചെയ്യും.)';
+  }
+  return 'Please reply with crop outcome only: improved, partial, or no change.';
+}
+
+function askOutcomeAfterActivity(lang: AdvisoryLanguage): string {
+  if (lang === 'ml') {
+    return 'വളം/തൊഴിലാളി വിവരങ്ങൾ രേഖപ്പെടുത്തി. ചികിത്സയ്ക്ക് ശേഷം വിളയുടെ ഫലം എങ്ങനെയായിരുന്നു?\n\nമെച്ചം / ഭാഗികം / ഇല്ല';
+  }
+  return 'I noted the fertilizer and labour details. How was the crop after treatment?\n\nReply: improved / partial / no change';
+}
+
+export function parseFarmerOutcomeAnswer(
+  text: string
+): 'improved' | 'partial' | 'no_change' | null {
+  const t = text.trim();
+  if (!t || looksLikeFarmActivityMessage(t)) return null;
+  if (t.length > 60 && /\b(applied|fertiliz|spray|labou?r|kg|paid|per acre)\b/i.test(t)) {
+    return null;
+  }
+  if (/^(improved|better|good|recovered|fine)\b|മെച്ചം|சரி|हो गया|recover/i.test(t)) {
+    return 'improved';
+  }
+  if (/^(partial|partially|some improvement)\b|ഭാഗിക|कुछ हद/i.test(t)) {
+    return 'partial';
+  }
+  if (/^(no change|same|not improved|worse|no improvement)\b|ഇല്ല|नहीं|same/i.test(t)) {
+    return 'no_change';
+  }
+  if (/^[1１]$/.test(t)) return 'improved';
+  if (/^[2２]$/.test(t)) return 'partial';
+  if (/^[3３]$/.test(t)) return 'no_change';
+  return null;
+}
+
+async function recordAppliedTreatmentDuringFeedback(params: {
+  farmerId: string;
+  phone: string;
+  lang: AdvisoryLanguage;
+  text: string;
+  feedbackId: string;
+  step: FarmerFeedbackCaptureStep;
+  send: ScenarioSenders;
+  messageId?: string;
+}): Promise<void> {
+  await farmerExperienceLearningService.updateCapture(params.feedbackId, {
+    farmer_prior_product: params.text.slice(0, 500),
+    farmer_prior_experience: params.text.slice(0, 1000),
+  });
+
+  await conversationSessionService.patchContext(params.farmerId, {
+    farmerFeedbackResume: {
+      feedbackId: params.feedbackId,
+      step: params.step,
+    },
+  });
+
+  if (farmActivityAssistantService.enabled()) {
+    const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
+    const handled = await farmActivityAssistantService.tryHandleInbound({
+      farmerId: params.farmerId,
+      phone: params.phone,
+      language: params.lang,
+      text: params.text,
+      messageId: params.messageId ?? `feedback:${params.feedbackId}`,
+      sessionState: session.state,
+      send: params.send,
+      modality: 'text',
+      conversationSessionId: session.id,
+      blockId: session.active_block_id ?? null,
+    });
+    if (handled) return;
+  }
+
+  await params.send.text(params.phone, askOutcomeAfterActivity(params.lang));
 }
 
 function submittedReply(lang: AdvisoryLanguage): string {
@@ -191,6 +272,38 @@ async function nextStepAfterDiagnosis(
 
 export const farmerFeedbackFlowService = {
   isDisagreementIntent: isFarmerDisagreementIntent,
+  parseOutcomeAnswer: parseFarmerOutcomeAnswer,
+
+  async resumeAfterActivityCommit(params: {
+    farmerId: string;
+    phone: string;
+    lang: AdvisoryLanguage;
+    send: ScenarioSenders;
+  }): Promise<boolean> {
+    const ctx = await conversationSessionService.getContext(params.farmerId);
+    const resume = ctx.farmerFeedbackResume;
+    if (!resume?.feedbackId) return false;
+
+    await conversationSessionService.patchContext(params.farmerId, {
+      farmerFeedbackResume: undefined,
+      farmerFeedbackId: resume.feedbackId,
+      farmerFeedbackStep: resume.step,
+    });
+    await conversationSessionService.setState(params.farmerId, 'farmer_feedback_capture');
+
+    if (resume.step === 'outcome') {
+      await params.send.text(params.phone, askOutcomeAfterActivity(params.lang));
+    } else if (resume.step === 'experience') {
+      await params.send.text(params.phone, askExperience(params.lang));
+    } else if (resume.step === 'product') {
+      await params.send.text(params.phone, askProduct(params.lang));
+    } else if (resume.step === 'experience_years') {
+      await params.send.text(params.phone, askExperienceYears(params.lang));
+    } else {
+      await params.send.text(params.phone, askFreeTextDiagnosis(params.lang));
+    }
+    return true;
+  },
 
   async canStartDisagreement(farmerId: string): Promise<{
     sessionId: string | null;
@@ -300,6 +413,7 @@ export const farmerFeedbackFlowService = {
     lang: AdvisoryLanguage;
     text: string;
     send: ScenarioSenders;
+    messageId?: string;
   }): Promise<boolean> {
     const ctx = await conversationSessionService.getContext(params.farmerId);
     const feedbackId = ctx.farmerFeedbackId;
@@ -397,10 +511,25 @@ export const farmerFeedbackFlowService = {
     }
 
     if (step === 'outcome') {
-      let outcome = text.slice(0, 200);
-      if (/improved|better|മെച്ചം|சரி/i.test(text)) outcome = 'improved';
-      else if (/partial|ഭാഗിക/i.test(text)) outcome = 'partial';
-      else if (/no|not|ഇല്ല/i.test(text)) outcome = 'no_change';
+      if (looksLikeFarmActivityMessage(text)) {
+        await recordAppliedTreatmentDuringFeedback({
+          farmerId: params.farmerId,
+          phone: params.phone,
+          lang: params.lang,
+          text,
+          feedbackId,
+          step: 'outcome',
+          send: params.send,
+          messageId: params.messageId,
+        });
+        return true;
+      }
+
+      const outcome = parseFarmerOutcomeAnswer(text);
+      if (!outcome) {
+        await params.send.text(params.phone, askOutcomeRetry(params.lang));
+        return true;
+      }
 
       await farmerExperienceLearningService.updateCapture(feedbackId, {
         farmer_prior_outcome: outcome,

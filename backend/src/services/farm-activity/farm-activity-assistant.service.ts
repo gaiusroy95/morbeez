@@ -400,10 +400,21 @@ export const farmActivityAssistantService = {
         reason: 'farmer_cancelled',
       });
       await clearAssistantPointer(input.farmerId);
-      await input.send.text(
-        input.phone,
-        input.language === 'ml' ? 'ഡ്രാഫ്റ്റ് റദ്ദാക്കി.' : 'Draft cancelled.'
+      const { farmerFeedbackFlowService } = await import(
+        '../whatsapp/scenarios/farmer-feedback-flow.service.js'
       );
+      const resumed = await farmerFeedbackFlowService.resumeAfterActivityCommit({
+        farmerId: input.farmerId,
+        phone: input.phone,
+        lang: input.language,
+        send: input.send,
+      });
+      if (!resumed) {
+        await input.send.text(
+          input.phone,
+          input.language === 'ml' ? 'ഡ്രാഫ്റ്റ് റദ്ദാക്കി.' : 'Draft cancelled.'
+        );
+      }
       return true;
     }
 
@@ -445,6 +456,15 @@ export const farmActivityAssistantService = {
             ? `സേവ് ചെയ്തു. ${count} റെക്കോർഡ്(കൾ) സ്ഥിരീകരിച്ചു.`
             : `Saved. Confirmed ${count} record(s).`
         );
+        const { farmerFeedbackFlowService } = await import(
+          '../whatsapp/scenarios/farmer-feedback-flow.service.js'
+        );
+        await farmerFeedbackFlowService.resumeAfterActivityCommit({
+          farmerId: input.farmerId,
+          phone: input.phone,
+          lang: input.language,
+          send: input.send,
+        });
       } catch (err) {
         logger.warn({ err, draftId: draftRow.id }, 'Farm activity confirm failed');
         await input.send.text(

@@ -461,6 +461,7 @@ export const whatsappScenarioRouter = {
         lang,
         text,
         send,
+        messageId: msg.messageId,
       });
       if (capturedFb) return { handled: true };
     }

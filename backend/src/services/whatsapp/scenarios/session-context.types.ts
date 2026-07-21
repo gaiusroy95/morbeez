@@ -70,6 +70,11 @@ export interface SessionContext {
   /** Farmer Experience Learning — correction after AI diagnosis */
   farmerFeedbackId?: string;
   farmerFeedbackStep?: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+  /** Resume farmer experience feedback after farm-activity confirm. */
+  farmerFeedbackResume?: {
+    feedbackId: string;
+    step: 'diagnosis' | 'experience_years' | 'experience' | 'product' | 'outcome';
+  };
   /** Photo uploaded at start of diagnosis intake (kept after intake completes). */
   pendingDiagnosisImagePath?: string;
   pendingDiagnosisImageMime?: string;

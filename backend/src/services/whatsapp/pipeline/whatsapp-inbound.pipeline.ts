@@ -929,6 +929,7 @@ export const whatsappInboundPipeline = {
         lang: captured.language,
         text: transcript.trim(),
         send,
+        messageId: msg.messageId,
       });
       if (handled) return;
     }
