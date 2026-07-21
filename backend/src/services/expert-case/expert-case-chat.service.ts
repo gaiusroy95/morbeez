@@ -1,5 +1,5 @@
 import type { ExpertCaseReviewDraft } from '@morbeez/shared/expert-case';
-import { draftNeedsDilutionClarification, emptyExpertCaseDraft } from '@morbeez/shared/expert-case';
+import { draftCommitBlockers, draftNeedsDilutionClarification, emptyExpertCaseDraft } from '@morbeez/shared/expert-case';
 import { env } from '../../config/env.js';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../../lib/errors.js';
 import { supabase } from '../../lib/supabase.js';
@@ -540,6 +540,7 @@ export const expertCaseChatService = {
       const metadata = (turn.metadata as { clarification?: unknown } | null) ?? null;
       return turn.role === 'assistant' && Boolean(metadata?.clarification);
     }).length;
+    const maxClarifications = 8;
 
     const extraction = await this.extractDraft({
       caseId: input.caseId,
@@ -547,7 +548,8 @@ export const expertCaseChatService = {
       history: history.map((t) => ({ role: String(t.role), content: String(t.content) })),
       currentRevision: Number(owned.current_revision ?? 0),
       currentDraft,
-      clarificationAlreadyAsked: clarificationCount > 0,
+      clarificationCount,
+      maxClarifications,
       briefing,
       uiLocale: locale,
     });
@@ -564,7 +566,8 @@ export const expertCaseChatService = {
       draft = mergeExpertCaseDraft(draft, { farmerAnswers });
     }
 
-    let clarification = clarificationCount > 0 ? null : extraction.clarification;
+    let clarification =
+      clarificationCount < maxClarifications ? extraction.clarification : null;
     if (
       draft.validations?.dosage?.askLabelDose &&
       draft.dosageSource !== 'label' &&
@@ -625,6 +628,8 @@ export const expertCaseChatService = {
     currentRevision: number;
     currentDraft?: ExpertCaseDraftPayload | null;
     clarificationAlreadyAsked?: boolean;
+    clarificationCount?: number;
+    maxClarifications?: number;
     briefing?: Awaited<ReturnType<typeof loadExpertCaseBriefing>> | null;
     uiLocale?: string | null;
   }): Promise<{
@@ -659,7 +664,7 @@ export const expertCaseChatService = {
           'For foliar sprays, capture spray tank / dilution water volume in liters (dilutionVolumeL, sprayVolumeL, dilutionNotes) when stated.',
           'Preserve explicit fields; never invent products, doses, IDs, or approvals.',
           'Unknown fields are null and listed in unresolvedFields.',
-          'Ask at most one clarification for the whole case; when clarificationAlreadyAsked is true, clarification must be null.',
+          'Ask one targeted clarification per turn while unresolvedFields remain (up to maxClarifications).',
           `Write assistantMessage and clarification in language code "${locale}" (simple spoken style for Indian agronomists).`,
           'Keep structured field values (diagnosis names, product names, doses, evidence) in English so forms/tables stay consistent.',
           'assistantMessage should briefly confirm extraction.',
@@ -673,7 +678,10 @@ export const expertCaseChatService = {
           history: params.history.slice(-12),
           latestMessage: params.message,
           currentDraft: params.currentDraft ?? null,
-          clarificationAlreadyAsked: params.clarificationAlreadyAsked ?? false,
+          clarificationCount: params.clarificationCount ?? 0,
+          maxClarifications: params.maxClarifications ?? 8,
+          clarificationAlreadyAsked:
+            (params.clarificationCount ?? 0) >= (params.maxClarifications ?? 8),
         }),
         validate: validateDraftExtraction,
       });
@@ -717,6 +725,10 @@ export const expertCaseChatService = {
       pending.draft_json as ExpertCaseDraftPayload,
       params.draftPatch ?? {}
     );
+    const blockers = draftCommitBlockers(merged);
+    if (blockers.length) {
+      throw new ConflictError(`draft_incomplete:${blockers.join(',')}`);
+    }
 
     await supabase
       .from('expert_case_drafts')

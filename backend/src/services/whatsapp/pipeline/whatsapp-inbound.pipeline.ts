@@ -507,6 +507,18 @@ export const whatsappInboundPipeline = {
       return;
     }
 
+    if (msg.text?.trim()) {
+      const { expertCaseInboundService } = await import(
+        '../../expert-case/expert-case-inbound.service.js'
+      );
+      const handled = await expertCaseInboundService.tryHandleFarmerReply({
+        farmerId: captured.farmerId,
+        text: msg.text,
+        phone: msg.phone,
+      });
+      if (handled) return;
+    }
+
     await supabase.from('interaction_logs').insert({
       farmer_id: captured.farmerId,
       channel: 'whatsapp',

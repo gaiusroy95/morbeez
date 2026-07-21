@@ -1,8 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { draftCommitBlockers } from '@morbeez/shared/expert-case';
 import { env } from '../../config/env.js';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../../lib/errors.js';
 import { supabase } from '../../lib/supabase.js';
 import { expertCaseLifecycleService } from './expert-case-lifecycle.service.js';
+import { expertCaseCommitMapperService } from './expert-case-commit-mapper.service.js';
 import { recommendationSafetyGateService } from '../safety/recommendation-safety-gate.service.js';
 import { learningGovernanceService } from '../learning/learning-governance.service.js';
 import { governanceAuditService } from '../governance/governance-audit.service.js';
@@ -135,6 +137,11 @@ export const expertCaseCommitService = {
         });
       }
 
+      const blockers = draftCommitBlockers(input.draft as import('@morbeez/shared/expert-case').ExpertCaseReviewDraft);
+      if (blockers.length) {
+        throw new ConflictError(`draft_incomplete:${blockers.join(',')}`);
+      }
+
       const revision = await expertCaseLifecycleService.appendRevision({
         caseId: input.caseId,
         source: 'expert_draft',
@@ -150,6 +157,21 @@ export const expertCaseCommitService = {
         owner_email: input.actorEmail.toLowerCase(),
         draft_json: input.draft,
       });
+
+      await expertCaseCommitMapperService.persistStructuredOutputs({
+        caseId: input.caseId,
+        farmerId: String(caseRow.farmer_id),
+        blockId: caseRow.block_id ? String(caseRow.block_id) : null,
+        actorEmail: input.actorEmail,
+        commandId,
+        draft: input.draft as import('@morbeez/shared/expert-case').ExpertCaseReviewDraft,
+      });
+
+      await supabase
+        .from('expert_case_extractions')
+        .update({ status: 'applied' })
+        .eq('case_id', input.caseId)
+        .eq('status', 'proposed');
 
       // Ledger event
       const { data: lastLedger } = await supabase
@@ -174,15 +196,38 @@ export const expertCaseCommitService = {
       });
 
       let communicationIntentId: string | null = null;
-      if (env.ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX && input.draft.recommendationText) {
+      const draftExtra = input.draft as Record<string, unknown>;
+      const recommendationBody =
+        input.draft.recommendationText ||
+        String(draftExtra.treatmentProduct ?? '') ||
+        ((draftExtra.treatmentActivities as unknown[])?.length ?? 0) > 0;
+      if (env.ENABLE_RECOMMENDATION_COMMUNICATION_OUTBOX && recommendationBody) {
         const contentHash = requestHash(input.draft);
-        const draftExtra = input.draft as Record<string, unknown>;
         const { data: farmer } = await supabase
           .from('farmers')
           .select('preferred_language, phone')
           .eq('id', caseRow.farmer_id)
           .maybeSingle();
         const farmerLanguage = String(farmer?.preferred_language ?? 'en');
+        const payload = {
+          recommendationText: input.draft.recommendationText,
+          dosage: input.draft.dosage,
+          diagnosis: input.draft.diagnosis,
+          treatmentProduct: draftExtra.treatmentProduct ?? null,
+          applicationMethod: draftExtra.applicationMethod ?? null,
+          applicationTiming: draftExtra.applicationTiming ?? null,
+          treatmentActivities: draftExtra.treatmentActivities ?? [],
+          sprayVolumeL: draftExtra.sprayVolumeL ?? null,
+          dilutionNotes: draftExtra.dilutionNotes ?? null,
+          precautions: draftExtra.precautions ?? [],
+          culturalPractices: draftExtra.culturalPractices ?? [],
+          farmerTasks: draftExtra.farmerTasks ?? [],
+          followUpDays: input.draft.followUpDays ?? 7,
+          language: farmerLanguage,
+          draft: input.draft,
+          revision,
+          farmerConfirmed: false,
+        };
         const { data: intent, error: intentErr } = await supabase
           .from('communication_intents')
           .upsert(
@@ -191,7 +236,7 @@ export const expertCaseCommitService = {
               aggregate_id: input.caseId,
               case_id: input.caseId,
               channel: 'whatsapp',
-              purpose: 'recommendation',
+              purpose: 'recommendation_preview',
               content_version: revision,
               content_hash: contentHash,
               recipient_snapshot: {
@@ -199,24 +244,7 @@ export const expertCaseCommitService = {
                 phone: farmer?.phone ?? null,
                 language: farmerLanguage,
               },
-              payload: {
-                recommendationText: input.draft.recommendationText,
-                dosage: input.draft.dosage,
-                diagnosis: input.draft.diagnosis,
-                treatmentProduct: draftExtra.treatmentProduct ?? null,
-                applicationMethod: draftExtra.applicationMethod ?? null,
-                applicationTiming: draftExtra.applicationTiming ?? null,
-                treatmentActivities: draftExtra.treatmentActivities ?? [],
-                sprayVolumeL: draftExtra.sprayVolumeL ?? null,
-                dilutionNotes: draftExtra.dilutionNotes ?? null,
-                nutritionProduct: draftExtra.nutritionProduct ?? null,
-                nutritionDose: draftExtra.nutritionDose ?? null,
-                precautions: draftExtra.precautions ?? [],
-                culturalPractices: draftExtra.culturalPractices ?? [],
-                farmerTasks: draftExtra.farmerTasks ?? [],
-                followUpDays: input.draft.followUpDays ?? 7,
-                language: farmerLanguage,
-              },
+              payload,
               status: 'queued',
               updated_at: new Date().toISOString(),
             },
@@ -230,8 +258,8 @@ export const expertCaseCommitService = {
         await supabase.from('event_outbox').insert({
           event_type: 'expert.communication.queued',
           source: 'expert_case_commit',
-          payload: { intentId: communicationIntentId, caseId: input.caseId },
-          idempotency_key: `comm:${communicationIntentId}`,
+          payload: { intentId: communicationIntentId, caseId: input.caseId, purpose: 'recommendation_preview' },
+          idempotency_key: `comm-preview:${communicationIntentId}`,
           status: 'pending',
         });
       }

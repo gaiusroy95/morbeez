@@ -6,7 +6,7 @@ import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { farmerReplyPolishService } from '../whatsapp/pipeline/farmer-reply-polish.service.js';
 import { expertCaseOwnershipService } from './expert-case-ownership.service.js';
 import { expertCaseQueueService } from './expert-case-queue.service.js';
-import { toAdvisoryLanguage } from './expert-case-copilot-i18n.js';
+import { toAdvisoryLanguage, copilotMsg } from './expert-case-copilot-i18n.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 
 const INTERVAL_MS = 30_000;
@@ -188,7 +188,8 @@ export class ExpertCopilotWorker {
         if (!phone) throw new Error('recipient_phone_missing');
 
         const draftText = communicationText((intent.payload as Record<string, unknown>) ?? {});
-        const localized =
+        const purpose = String(intent.purpose ?? 'recommendation');
+        const baseLocalized =
           language === 'en'
             ? draftText
             : await farmerReplyPolishService.polish({
@@ -197,6 +198,10 @@ export class ExpertCopilotWorker {
                 task: 'agronomy',
                 lockedFacts: draftText,
               });
+        const localized =
+          purpose === 'recommendation_preview'
+            ? `${baseLocalized}${copilotMsg(language, 'farmerPreviewConfirmPrompt')}`
+            : baseLocalized;
 
         await whatsappService.sendText(phone, localized);
         await supabase.from('communication_attempts').insert({

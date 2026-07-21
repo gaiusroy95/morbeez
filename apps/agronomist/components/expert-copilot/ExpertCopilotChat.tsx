@@ -16,8 +16,10 @@ import {
 import { useRouter } from 'expo-router';
 import {
   agronomistClient,
+  draftCommitBlockers,
   draftValidationChecklist,
   formatDate,
+  mergeExpertCaseDraft,
   shadow,
   tokens,
   type ExpertCaseBriefing,
@@ -37,6 +39,7 @@ type ChatListItem =
   | { kind: 'image_analysis'; id: string }
   | { kind: 'turn'; id: string; turnId: string }
   | { kind: 'preview'; id: string }
+  | { kind: 'blockers'; id: string }
   | { kind: 'validations'; id: string }
   | { kind: 'missing'; id: string }
   | { kind: 'safety'; id: string }
@@ -99,6 +102,31 @@ function PreviewRow({ label, value, wide }: { label: string; value: string; wide
     <View style={[styles.previewCell, wide && styles.previewCellWide]}>
       <Text style={styles.previewLabel}>{label}</Text>
       <Text style={styles.previewValue}>{value}</Text>
+    </View>
+  );
+}
+
+function DraftField({
+  label,
+  value,
+  onChangeText,
+  multiline,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  multiline?: boolean;
+}) {
+  return (
+    <View style={styles.draftField}>
+      <Text style={styles.previewLabel}>{label}</Text>
+      <TextInput
+        style={[styles.draftInput, multiline && styles.draftInputMulti]}
+        value={value}
+        onChangeText={onChangeText}
+        multiline={multiline}
+        placeholderTextColor={tokens.textMuted}
+      />
     </View>
   );
 }
@@ -298,6 +326,19 @@ export function ExpertCopilotChat({
   const hasMissingQs =
     (draft.farmerQuestions?.length ?? 0) > 0 &&
     (!draft.farmerQuestionsSent || !draft.farmerAnswers);
+  const commitBlockers = useMemo(() => draftCommitBlockers(draft), [draft]);
+
+  function patchDraft(patch: Partial<ExpertCaseDraft>) {
+    setDraft((current) => {
+      const next = mergeExpertCaseDraft(current, patch);
+      if (patch.sprayVolumeL != null || patch.dilutionNotes) {
+        next.unresolvedFields = (next.unresolvedFields ?? []).filter((f) => f !== 'dilutionVolume');
+      }
+      return next;
+    });
+    setSafety(null);
+    setSafetyConfirmed(false);
+  }
 
   const listItems = useMemo<ChatListItem[]>(() => {
     const items: ChatListItem[] = [
@@ -311,6 +352,7 @@ export function ExpertCopilotChat({
       items.push({ kind: 'turn', id: `turn:${turn.id}`, turnId: turn.id });
     }
     if (hasPreview) items.push({ kind: 'preview', id: 'preview' });
+    if (commitBlockers.length) items.push({ kind: 'blockers', id: 'blockers' });
     if (hasValidations) items.push({ kind: 'validations', id: 'validations' });
     if (hasMissingQs) items.push({ kind: 'missing', id: 'missing' });
     if (safety) items.push({ kind: 'safety', id: 'safety' });
@@ -319,6 +361,7 @@ export function ExpertCopilotChat({
   }, [
     approvedActions,
     draft.imageAnalysis?.findings?.length,
+    commitBlockers.length,
     hasMissingQs,
     hasPreview,
     hasValidations,
@@ -572,7 +615,7 @@ export function ExpertCopilotChat({
   }
 
   async function commit() {
-    if (!safety || !canCommitExpertDraft(safety.decision, safetyConfirmed) || busy || !canWrite) {
+    if (!safety || !canCommitExpertDraft(safety.decision, safetyConfirmed, draft) || busy || !canWrite) {
       return;
     }
     setBusy('commit');
@@ -838,20 +881,62 @@ export function ExpertCopilotChat({
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
           <Text style={styles.cardTitle}>📋 {t('ecStructuredPreview')}</Text>
+          <Text style={styles.cardHint}>{t('ecEditFieldsHint')}</Text>
 
-          <SectionTitle>{t('ecDiagnosis')}</SectionTitle>
-          <PreviewRow
-            label={t('ecPrimary')}
-            value={`${draft.diagnosis || '—'} ${confidencePct(draft.confidence) ?? ''}`.trim()}
+          <DraftField
+            label={t('ecDiagnosis')}
+            value={draft.diagnosis ?? ''}
+            onChangeText={(text) => patchDraft({ diagnosis: text })}
           />
-          {draft.secondaryDiagnosis ? (
-            <PreviewRow
-              label={t('ecSecondary')}
-              value={`${draft.secondaryDiagnosis} ${confidencePct(draft.secondaryConfidence) ?? ''}`.trim()}
-            />
-          ) : null}
-          {draft.severity ? (
-            <PreviewRow label={t('ecSeverity')} value={draft.severity} />
+          <DraftField
+            label={t('ecProduct')}
+            value={draft.treatmentProduct || draft.recommendationText || ''}
+            onChangeText={(text) =>
+              patchDraft({ treatmentProduct: text, recommendationText: text })
+            }
+            multiline
+          />
+          <DraftField
+            label={t('ecDose')}
+            value={draft.dosage ?? ''}
+            onChangeText={(text) => patchDraft({ dosage: text, dosageSource: 'manual' })}
+          />
+          <DraftField
+            label={t('ecSprayVolume')}
+            value={draft.sprayVolumeL != null ? String(draft.sprayVolumeL) : ''}
+            onChangeText={(text) => {
+              const n = Number(text.replace(/[^\d.]/g, ''));
+              patchDraft({
+                sprayVolumeL: Number.isFinite(n) && n > 0 ? n : null,
+                dilutionNotes: Number.isFinite(n) && n > 0 ? `${n} L spray volume` : draft.dilutionNotes,
+              });
+            }}
+          />
+          <DraftField
+            label={t('ecMethod')}
+            value={draft.applicationMethod ?? ''}
+            onChangeText={(text) => patchDraft({ applicationMethod: text })}
+          />
+          <DraftField
+            label={t('ecTiming')}
+            value={draft.applicationTiming ?? ''}
+            onChangeText={(text) => patchDraft({ applicationTiming: text })}
+          />
+
+          {(draft.treatmentActivities?.length ?? 0) > 0 ? (
+            <>
+              <SectionTitle>{t('ecActivities')}</SectionTitle>
+              {draft.treatmentActivities!.map((activity, index) => (
+                <View key={`${activity.method}-${index}`} style={styles.activityCard}>
+                  <PreviewRow label={t('ecMethod')} value={activity.method || '—'} />
+                  <PreviewRow label={t('ecProduct')} value={activity.product || '—'} wide />
+                  <PreviewRow label={t('ecDose')} value={activity.dose || '—'} />
+                  {activity.dilutionVolumeL != null ? (
+                    <PreviewRow label={t('ecSprayVolume')} value={`${activity.dilutionVolumeL} L`} />
+                  ) : null}
+                </View>
+              ))}
+            </>
           ) : null}
 
           {(draft.evidence?.length ?? 0) > 0 ? (
@@ -863,129 +948,24 @@ export function ExpertCopilotChat({
             </>
           ) : null}
 
-          {(draft.rootCauses?.length ?? 0) > 0 ? (
-            <>
-              <SectionTitle>{t('ecRootCause')}</SectionTitle>
-              {draft.rootCauses!.map((r) => (
-                <Text key={r} style={styles.contextLine}>
-                  • {r}
-                </Text>
-              ))}
-            </>
-          ) : null}
+          <SectionTitle>{t('ecChecklist')}</SectionTitle>
+          {checklist.map((line) => (
+            <CheckLine key={line} text={line} />
+          ))}
+        </View>
+      );
+    }
 
-          <SectionTitle>{t('ecTreatment')}</SectionTitle>
-          {(draft.treatmentActivities?.length ?? 0) > 0 ? (
-            <>
-              <SectionTitle>{t('ecActivities')}</SectionTitle>
-              {draft.treatmentActivities!.map((activity, index) => (
-                <View key={`${activity.method}-${activity.product}-${index}`} style={styles.activityCard}>
-                  <PreviewRow label={t('ecMethod')} value={activity.method || '—'} />
-                  <PreviewRow label={t('ecProduct')} value={activity.product || '—'} wide />
-                  <PreviewRow label={t('ecDose')} value={activity.dose || '—'} />
-                  {activity.dilutionVolumeL != null ? (
-                    <PreviewRow
-                      label={t('ecSprayVolume')}
-                      value={`${activity.dilutionVolumeL} L`}
-                    />
-                  ) : null}
-                  {activity.interval ? (
-                    <PreviewRow label={t('ecTiming')} value={`Every ${activity.interval}`} />
-                  ) : null}
-                </View>
-              ))}
-            </>
-          ) : null}
-          <PreviewRow
-            label={t('ecProduct')}
-            value={draft.treatmentProduct || draft.recommendationText || '—'}
-            wide
-          />
-          <PreviewRow
-            label={t('ecDose')}
-            value={
-              draft.dosageSource === 'label'
-                ? `${t('ecRegistered')} · ${draft.dosage || 'label dose'}`
-                : draft.dosage || `⚠ ${t('ecLabelDosePending')}`
-            }
-          />
-          {draft.sprayVolumeL != null || draft.dilutionNotes ? (
-            <PreviewRow
-              label={t('ecDilution')}
-              value={
-                draft.sprayVolumeL != null
-                  ? `${draft.sprayVolumeL} L`
-                  : draft.dilutionNotes || '—'
-              }
-            />
-          ) : null}
-          <PreviewRow label={t('ecMethod')} value={draft.applicationMethod || '—'} />
-          <PreviewRow label={t('ecTiming')} value={draft.applicationTiming || '—'} />
-
-          {draft.nutritionProduct ? (
-            <>
-              <SectionTitle>{t('ecNutrition')}</SectionTitle>
-              <PreviewRow label={t('ecProduct')} value={draft.nutritionProduct} />
-              <PreviewRow label={t('ecDose')} value={draft.nutritionDose || '—'} />
-              <PreviewRow label={t('ecTiming')} value={draft.nutritionTiming || '—'} />
-            </>
-          ) : null}
-
-          {(draft.culturalPractices?.length ?? 0) > 0 ? (
-            <>
-              <SectionTitle>{t('ecCulturalPractice')}</SectionTitle>
-              {draft.culturalPractices!.map((c) => (
-                <Text key={c} style={styles.contextLine}>
-                  • {c}
-                </Text>
-              ))}
-            </>
-          ) : null}
-
-          <SectionTitle>{t('ecFollowUp')}</SectionTitle>
-          <PreviewRow
-            label={t('ecDays')}
-            value={draft.followUpDays != null ? `${draft.followUpDays}` : '—'}
-          />
-          {(draft.farmerTasks?.length ?? 0) > 0 ? (
-            <>
-              {draft.farmerTasks!.map((task) => (
-                <Text key={task} style={styles.contextLine}>
-                  • {task}
-                </Text>
-              ))}
-            </>
-          ) : null}
-
-          {(draft.precautions?.length ?? 0) > 0 ? (
-            <>
-              <SectionTitle>{t('ecPrecaution')}</SectionTitle>
-              {draft.precautions!.map((p) => (
-                <Text key={p} style={styles.contextLine}>
-                  • {p}
-                </Text>
-              ))}
-            </>
-          ) : null}
-
-          {draft.knowledgeCandidate ? (
-            <>
-              <SectionTitle>{t('ecKnowledgeCandidate')}</SectionTitle>
-              <Text style={styles.contextLine}>{t('ecYes')}</Text>
-              {draft.knowledgeCandidateReason ? (
-                <Text style={styles.cardMeta}>{draft.knowledgeCandidateReason}</Text>
-              ) : null}
-            </>
-          ) : null}
-
-          {checklist.length ? (
-            <>
-              <SectionTitle>{t('ecAiValidation')}</SectionTitle>
-              {checklist.map((c) => (
-                <CheckLine key={c} text={c} />
-              ))}
-            </>
-          ) : null}
+    if (item.kind === 'blockers') {
+      return (
+        <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble, styles.blockerCard]}>
+          <SectionTitle>{t('ecDraftIncomplete')}</SectionTitle>
+          <Text style={styles.contextLine}>{t('ecResolveBeforeApprove')}</Text>
+          {commitBlockers.map((code) => (
+            <Text key={code} style={styles.contextLine}>
+              • {code.replace(/^unresolved:/, '')}
+            </Text>
+          ))}
         </View>
       );
     }
@@ -1458,9 +1438,12 @@ export function ExpertCopilotChat({
             </View>
 
             <Pressable
-              style={[styles.approveBtn, Boolean(busy) && styles.approveBtnDisabled]}
+              style={[
+                styles.approveBtn,
+                (Boolean(busy) || commitBlockers.length > 0) && styles.approveBtnDisabled,
+              ]}
               onPress={() => void approve()}
-              disabled={Boolean(busy)}
+              disabled={Boolean(busy) || commitBlockers.length > 0}
             >
               {busy === 'commit' || busy === 'safety' ? (
                 <ActivityIndicator color={tokens.textOnPrimary} />
@@ -1602,6 +1585,19 @@ const styles = StyleSheet.create({
   previewCellWide: { width: '100%' },
   previewLabel: { fontSize: 11, color: tokens.textMuted, marginBottom: 2 },
   previewValue: { fontSize: 13, color: tokens.text, fontWeight: '600' },
+  draftField: { marginBottom: 8 },
+  draftInput: {
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 13,
+    color: tokens.text,
+    backgroundColor: tokens.bg,
+  },
+  draftInputMulti: { minHeight: 56, textAlignVertical: 'top' },
+  blockerCard: { borderWidth: 1, borderColor: tokens.danger },
   safetyPass: { borderWidth: 1, borderColor: tokens.success },
   safetyStop: { borderWidth: 1, borderColor: tokens.warning },
   confirmRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 10 },

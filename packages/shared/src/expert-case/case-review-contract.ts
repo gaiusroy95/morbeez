@@ -230,6 +230,33 @@ export function draftNeedsDilutionClarification(
   return !/\b\d+(?:\.\d+)?\s*(?:l|liter|litre|ltr)\b/i.test(dilutionText);
 }
 
+/** Human-readable blockers that must be cleared before agronomist commit. */
+export function draftCommitBlockers(draft: ExpertCaseReviewDraft | null | undefined): string[] {
+  const blockers: string[] = [];
+  if (!draft) return ['draft_missing'];
+  if (!String(draft.diagnosis ?? '').trim()) blockers.push('diagnosis');
+  if (!draftHasTreatment(draft)) blockers.push('treatment');
+  for (const field of draft.unresolvedFields ?? []) {
+    blockers.push(`unresolved:${field}`);
+  }
+  if (draft.validations?.dosage?.askLabelDose && draft.dosageSource !== 'label') {
+    blockers.push('label_dose_pending');
+  }
+  if (draftNeedsDilutionClarification(draft)) blockers.push('dilution_volume');
+  if (
+    (draft.farmerQuestions?.length ?? 0) > 0 &&
+    draft.farmerQuestionsSent &&
+    !draft.farmerAnswers
+  ) {
+    blockers.push('farmer_answers_pending');
+  }
+  return blockers;
+}
+
+export function draftReadyForCommit(draft: ExpertCaseReviewDraft | null | undefined): boolean {
+  return draftCommitBlockers(draft).length === 0;
+}
+
 export function draftValidationChecklist(draft: ExpertCaseReviewDraft | null | undefined): string[] {
   const v = draft?.validations;
   const items: string[] = [];

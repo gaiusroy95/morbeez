@@ -41,7 +41,10 @@ type MsgKey =
   | 'navNoNext'
   | 'navNoPrevious'
   | 'navAtFirst'
-  | 'navAtLast';
+  | 'navAtLast'
+  | 'farmerConfirmThanks'
+  | 'farmerAnswersRecorded'
+  | 'farmerPreviewConfirmPrompt';
 
 const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
   en: {
@@ -81,6 +84,10 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     navNoPrevious: 'No previous case — you are on the first case.',
     navAtFirst: 'You are on the first case.',
     navAtLast: 'You are on the last case.',
+    farmerConfirmThanks: 'Thank you — your recommendation is confirmed. Our team will follow up as planned.',
+    farmerAnswersRecorded: 'Thank you. Your answers were recorded for the expert review.',
+    farmerPreviewConfirmPrompt:
+      '\n\nReply YES to confirm this advice, or reply EDIT if something needs to change.',
   },
   hi: {
     imagesLoaded: 'तस्वीरें लोड हो गईं।',
@@ -117,6 +124,10 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     navNoPrevious: 'पिछला केस नहीं — आप पहले केस पर हैं।',
     navAtFirst: 'आप पहले केस पर हैं।',
     navAtLast: 'आप आखिरी केस पर हैं।',
+    farmerConfirmThanks: 'धन्यवाद — आपकी सलाह पुष्टि हो गई। टीम नियोजित अनुसार फॉलो-अप करेगी।',
+    farmerAnswersRecorded: 'धन्यवाद। आपके जवाब विशेषज्ञ समीक्षा में दर्ज हो गए।',
+    farmerPreviewConfirmPrompt:
+      '\n\nपुष्टि के लिए YES भेजें, या बदलाव के लिए EDIT लिखें।',
   },
   ml: {
     imagesLoaded: 'ഫോട്ടോകൾ ലോഡ് ആയി.',
@@ -153,6 +164,10 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     navNoPrevious: 'മുമ്പത്തെ കേസ് ഇല്ല — ആദ്യ കേസിലാണ്.',
     navAtFirst: 'നിങ്ങൾ ആദ്യ കേസിലാണ്.',
     navAtLast: 'നിങ്ങൾ അവസാന കേസിലാണ്.',
+    farmerConfirmThanks: 'നന്ദി — നിങ്ങളുടെ ഉപദേശം സ്ഥിരീകരിച്ചു.',
+    farmerAnswersRecorded: 'നന്ദി. നിങ്ങളുടെ ഉത്തരങ്ങൾ രേഖപ്പെടുത്തി.',
+    farmerPreviewConfirmPrompt:
+      '\n\nസ്ഥിരീകരിക്കാൻ YES അയയ്ക്കുക, മാറ്റം വേണമെങ്കിൽ EDIT എഴുതുക.',
   },
   ta: {
     imagesLoaded: 'படங்கள் ஏற்றப்பட்டன.',
@@ -189,6 +204,10 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     navNoPrevious: 'முந்தைய கேஸ் இல்லை — முதல் கேஸில்.',
     navAtFirst: 'நீங்கள் முதல் கேஸில்.',
     navAtLast: 'நீங்கள் கடைசி கேஸில்.',
+    farmerConfirmThanks: 'நன்றி — உங்கள் பரிந்துரை உறுதிப்படுத்தப்பட்டது.',
+    farmerAnswersRecorded: 'நன்றி. உங்கள் பதில்கள் பதிவு செய்யப்பட்டன.',
+    farmerPreviewConfirmPrompt:
+      '\n\nஉறுதிப்படுத்த YES அனுப்புங்கள், மாற்றம் வேண்டுமானால் EDIT எழுதுங்கள்.',
   },
   kn: {
     imagesLoaded: 'ಚಿತ್ರಗಳು ಲೋಡ್ ಆಯಿತು.',
@@ -225,6 +244,10 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     navNoPrevious: 'ಹಿಂದಿನ ಕೇಸ್ ಇಲ್ಲ — ಮೊದಲ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
     navAtFirst: 'ನೀವು ಮೊದಲ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
     navAtLast: 'ನೀವು ಕೊನೆಯ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
+    farmerConfirmThanks: 'ಧನ್ಯವಾದ — ನಿಮ್ಮ ಸಲಹೆ ದೃಢೀಕರಿಸಲಾಗಿದೆ.',
+    farmerAnswersRecorded: 'ಧನ್ಯವಾದ. ನಿಮ್ಮ ಉತ್ತರಗಳನ್ನು ದಾಖಲಿಸಲಾಗಿದೆ.',
+    farmerPreviewConfirmPrompt:
+      '\n\nದೃಢೀಕರಿಸಲು YES ಕಳುಹಿಸಿ, ಬದಲಾವಣೆ ಬೇಕಾದರೆ EDIT ಬರೆಯಿರಿ.',
   },
 };
 
