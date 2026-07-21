@@ -7,7 +7,7 @@ import { whatsappInboundPipeline } from './pipeline/whatsapp-inbound.pipeline.js
 import { whatsappOutboundService } from './whatsapp-outbound.service.js';
 import { logger } from '../../lib/logger.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
-import { extractInteractiveReplyText, resolveInboundUserText, } from './inbound-reply-text.util.js';
+import { deepFindLanguageButtonId, extractInteractiveReplyText, resolveInboundUserText, } from './inbound-reply-text.util.js';
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -53,8 +53,12 @@ export function parseAdsGyaniWebhook(payload) {
     const buttonObj = message?.button;
     const interactive = message?.interactive;
     const interactiveReply = extractInteractiveReplyText(interactive);
+    const deepLang = deepFindLanguageButtonId(payload) ?? deepFindLanguageButtonId(message ?? undefined);
     let text = '';
-    if (interactiveReply) {
+    if (deepLang) {
+        text = deepLang;
+    }
+    else if (interactiveReply) {
         text = interactiveReply;
     }
     else if (typeof message?.message_body === 'string' && message.message_body.trim()) {

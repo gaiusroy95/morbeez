@@ -47,25 +47,82 @@ function extractInteractiveFromBlob(blob: Record<string, unknown>): string | nul
   return extractLegacyButtonText(blob);
 }
 
+/** Walk entire webhook JSON — BSPs nest button_reply in non-standard places. */
+export function deepFindLanguageButtonId(payload: unknown): string | null {
+  const seen = new Set<unknown>();
+
+  const walk = (node: unknown): string | null => {
+    if (node == null) return null;
+    if (typeof node === 'string') {
+      const match = node.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
+      return match ? `lang.${match[1].toLowerCase()}` : null;
+    }
+    if (typeof node !== 'object') return null;
+    if (seen.has(node)) return null;
+    seen.add(node);
+
+    const rec = node as Record<string, unknown>;
+    for (const key of ['id', 'button_id', 'payload', 'button_payload'] as const) {
+      const val = rec[key];
+      if (typeof val === 'string') {
+        const match = val.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
+        if (match) return `lang.${match[1].toLowerCase()}`;
+      }
+    }
+
+    for (const val of Object.values(rec)) {
+      const found = walk(val);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  return walk(payload);
+}
+
+export function isLanguageMenuEcho(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  return (
+    t.includes('welcome to morbeez agriculture assistant') &&
+    t.includes('please select your language')
+  );
+}
+
+export function hasInteractiveUserReply(msg: InboundMessage): boolean {
+  const blob = messageBlob(msg.messageObject, msg.rawPayload);
+  if (extractInteractiveFromBlob(blob)) return true;
+  if (deepFindLanguageButtonId(msg.rawPayload)) return true;
+  if (deepFindLanguageButtonId(msg.messageObject)) return true;
+  return false;
+}
+
 /**
  * Best-effort user intent from webhook payload.
  * Prefer interactive ids over visible labels / echoed bot body text.
  */
 export function resolveInboundUserText(msg: InboundMessage): string {
-  const trimmed = msg.text?.trim();
   const blob = messageBlob(msg.messageObject, msg.rawPayload);
+
+  const deepLang =
+    deepFindLanguageButtonId(msg.rawPayload) ?? deepFindLanguageButtonId(msg.messageObject);
+  if (deepLang) return deepLang;
 
   const interactiveText = extractInteractiveFromBlob(blob);
   if (interactiveText) return interactiveText;
 
-  if (trimmed) return trimmed;
+  const trimmed = msg.text?.trim() ?? '';
+  if (trimmed && !isLanguageMenuEcho(trimmed)) return trimmed;
 
   const textObj = blob.text as Record<string, string> | undefined;
-  if (textObj?.body?.trim()) return textObj.body.trim();
+  if (textObj?.body?.trim() && !isLanguageMenuEcho(textObj.body)) return textObj.body.trim();
   if (typeof blob.message_body === 'string' && blob.message_body.trim()) {
-    return blob.message_body.trim();
+    const body = blob.message_body.trim();
+    if (!isLanguageMenuEcho(body)) return body;
   }
-  if (typeof blob.body === 'string' && blob.body.trim()) return blob.body.trim();
+  if (typeof blob.body === 'string' && blob.body.trim()) {
+    const body = blob.body.trim();
+    if (!isLanguageMenuEcho(body)) return body;
+  }
 
-  return '';
+  return trimmed;
 }

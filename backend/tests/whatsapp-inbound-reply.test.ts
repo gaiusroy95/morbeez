@@ -2,7 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseAdsGyaniWebhook } from '../src/services/whatsapp/whatsapp.service.js';
 import {
+  deepFindLanguageButtonId,
   extractInteractiveReplyText,
+  isLanguageMenuEcho,
   resolveInboundUserText,
 } from '../src/services/whatsapp/inbound-reply-text.util.js';
 import type { InboundMessage } from '../src/services/whatsapp/pipeline/types.js';
@@ -59,6 +61,27 @@ describe('resolveInboundUserText', () => {
       },
     };
     assert.equal(resolveInboundUserText(msg), 'lang.en');
+  });
+
+  it('deep-scans nested BSP payload for lang.* id', () => {
+    const payload = {
+      contact: { phone_number: '919876543210' },
+      message: {
+        message_body: 'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.',
+        data: { nested: { reply: { button_payload: 'lang.ml' } } },
+      },
+    };
+    assert.equal(deepFindLanguageButtonId(payload), 'lang.ml');
+  });
+
+  it('detects echoed language menu body', () => {
+    assert.equal(
+      isLanguageMenuEcho(
+        'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.'
+      ),
+      true
+    );
+    assert.equal(isLanguageMenuEcho('English'), false);
   });
 });
 

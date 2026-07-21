@@ -10,6 +10,7 @@ import type { InboundMessage } from './pipeline/types.js';
 import type { WhatsAppProvider } from './whatsapp-outbound.types.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
 import {
+  deepFindLanguageButtonId,
   extractInteractiveReplyText,
   resolveInboundUserText,
 } from './inbound-reply-text.util.js';
@@ -71,9 +72,13 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   const buttonObj = message?.button as Record<string, string> | undefined;
   const interactive = message?.interactive as Record<string, unknown> | undefined;
   const interactiveReply = extractInteractiveReplyText(interactive);
+  const deepLang =
+    deepFindLanguageButtonId(payload) ?? deepFindLanguageButtonId(message ?? undefined);
 
   let text = '';
-  if (interactiveReply) {
+  if (deepLang) {
+    text = deepLang;
+  } else if (interactiveReply) {
     text = interactiveReply;
   } else if (typeof message?.message_body === 'string' && message.message_body.trim()) {
     text = message.message_body;

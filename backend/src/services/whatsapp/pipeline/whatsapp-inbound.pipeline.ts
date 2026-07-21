@@ -3,6 +3,10 @@ import { eventBus } from '../../../events/bus.js';
 import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
 import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
+import {
+  hasInteractiveUserReply,
+  isLanguageMenuEcho,
+} from '../inbound-reply-text.util.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
 import type { AdvisoryLanguage, DiagnoseInput, StructuredAdvisory } from '../../ai/types.js';
@@ -516,7 +520,23 @@ export const whatsappInboundPipeline = {
 
     // Conversation state + ownership (human takeover / pause AI)
     let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
-    const isLanguagePick = Boolean(languageCodeFromInboundText(msg.text ?? ''));
+
+    // Step 2 — language button tap must win before any reset/echo handling (Hi → menu → lang → pincode).
+    const languageTap = languageCodeFromInboundText(msg.text ?? '');
+    if (
+      languageTap &&
+      (!session.preferred_language || session.state === 'language_select')
+    ) {
+      await applyLanguageSelection({
+        farmerId: captured.farmerId,
+        phone: msg.phone,
+        text: msg.text ?? '',
+        send,
+      });
+      return;
+    }
+
+    const isLanguagePick = Boolean(languageTap);
     const isGreeting = Boolean(msg.text?.trim() && isMainMenuGreeting(msg.text));
     // Bootstrap brand-new farmers once on first Hi — never reset mid-flow (e.g. after language tap).
     if (
@@ -616,12 +636,12 @@ export const whatsappInboundPipeline = {
 
     // New farmer flow: Hi → language select → pincode → acreage → crop → planting date → main menu
     if (!session.preferred_language) {
-      if (await applyLanguageSelection({
-        farmerId: captured.farmerId,
-        phone: msg.phone,
-        text: msg.text ?? '',
-        send,
-      })) {
+      // BSP/Meta sometimes replays our outbound menu body as a fake inbound — never re-show menu for that.
+      if (isLanguageMenuEcho(msg.text ?? '') && !hasInteractiveUserReply(msg)) {
+        logger.info(
+          { farmerId: captured.farmerId, messageId: msg.messageId },
+          'Ignored echoed language-menu webhook (no interactive reply)'
+        );
         return;
       }
 
