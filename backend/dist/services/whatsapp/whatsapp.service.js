@@ -178,7 +178,9 @@ export const whatsappService = {
         if (!parsed)
             return;
         const inbound = toInboundFromAdsGyani(payload, parsed);
-        inbound.text = resolveInboundUserText(inbound) || inbound.text;
+        const resolved = resolveInboundUserText(inbound);
+        if (resolved)
+            inbound.text = resolved;
         await whatsappInboundPipeline.process(inbound, {
             text: (phone, text) => this.sendText(phone, text),
             list: (p) => this.sendList({
@@ -241,13 +243,23 @@ export const whatsappService = {
                     continue;
                 const msgType = String(msg.type ?? 'text');
                 const interactive = msg.interactive;
-                const interactiveReply = extractInteractiveReplyText(interactive);
+                const flatReply = msg.button_reply ??
+                    msg.list_reply;
+                const interactiveReply = extractInteractiveReplyText(interactive) ??
+                    (flatReply
+                        ? extractInteractiveReplyText({
+                            button_reply: msg.button_reply,
+                            list_reply: msg.list_reply,
+                        })
+                        : null);
                 let text = interactiveReply ?? '';
                 if (!text) {
+                    const button = msg.button;
+                    text = button?.payload ?? button?.text ?? '';
+                }
+                if (!text) {
                     text =
-                        msg.text?.body ??
-                            msg.button?.text ??
-                            '';
+                        msg.text?.body ?? '';
                 }
                 if (!text) {
                     text = msg.image?.caption ?? '';
@@ -262,14 +274,16 @@ export const whatsappService = {
                     msgType,
                     text: text ?? '',
                     profileName: profile?.name,
-                    rawPayload: msg,
+                    rawPayload: { webhook: payload, message: msg },
                     messageObject: msg,
                     attribution: {
                         referralSource: 'whatsapp',
                         campaignSource: value?.metadata?.campaign_id,
                     },
                 };
-                inbound.text = resolveInboundUserText(inbound) || inbound.text;
+                const resolved = resolveInboundUserText(inbound);
+                if (resolved)
+                    inbound.text = resolved;
                 await whatsappInboundPipeline.process(inbound, {
                     text: (phone, t) => this.sendText(phone, t),
                     list: (p) => this.sendList({

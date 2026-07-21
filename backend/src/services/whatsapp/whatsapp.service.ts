@@ -227,7 +227,8 @@ export const whatsappService = {
     if (!parsed) return;
 
     const inbound = toInboundFromAdsGyani(payload, parsed);
-    inbound.text = resolveInboundUserText(inbound) || inbound.text;
+    const resolved = resolveInboundUserText(inbound);
+    if (resolved) inbound.text = resolved;
 
     await whatsappInboundPipeline.process(
       inbound,
@@ -303,13 +304,25 @@ export const whatsappService = {
 
         const msgType = String(msg.type ?? 'text');
         const interactive = msg.interactive as Record<string, unknown> | undefined;
-        const interactiveReply = extractInteractiveReplyText(interactive);
+        const flatReply =
+          (msg.button_reply as Record<string, string> | undefined) ??
+          (msg.list_reply as Record<string, string> | undefined);
+        const interactiveReply =
+          extractInteractiveReplyText(interactive) ??
+          (flatReply
+            ? extractInteractiveReplyText({
+                button_reply: msg.button_reply,
+                list_reply: msg.list_reply,
+              } as Record<string, unknown>)
+            : null);
         let text = interactiveReply ?? '';
         if (!text) {
+          const button = msg.button as Record<string, string> | undefined;
+          text = button?.payload ?? button?.text ?? '';
+        }
+        if (!text) {
           text =
-            (msg.text as Record<string, string> | undefined)?.body ??
-            (msg.button as Record<string, string> | undefined)?.text ??
-            '';
+            (msg.text as Record<string, string> | undefined)?.body ?? '';
         }
         if (!text) {
           text = (msg.image as Record<string, string> | undefined)?.caption ?? '';
@@ -327,14 +340,15 @@ export const whatsappService = {
           msgType,
           text: text ?? '',
           profileName: profile?.name,
-          rawPayload: msg as Record<string, unknown>,
+          rawPayload: { webhook: payload, message: msg },
           messageObject: msg as Record<string, unknown>,
           attribution: {
             referralSource: 'whatsapp',
             campaignSource: (value?.metadata as Record<string, string> | undefined)?.campaign_id,
           },
         };
-        inbound.text = resolveInboundUserText(inbound) || inbound.text;
+        const resolved = resolveInboundUserText(inbound);
+        if (resolved) inbound.text = resolved;
 
         await whatsappInboundPipeline.process(
           inbound,

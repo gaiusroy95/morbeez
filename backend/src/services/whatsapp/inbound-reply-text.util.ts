@@ -1,4 +1,20 @@
 import type { InboundMessage } from './pipeline/types.js';
+import type { AdvisoryLanguage } from '../ai/types.js';
+
+const LANGUAGE_CODES = new Set(['en', 'ml', 'ta', 'kn', 'hi']);
+
+const LANGUAGE_TITLE_TO_CODE: Record<string, AdvisoryLanguage> = {
+  english: 'en',
+  en: 'en',
+  malayalam: 'ml',
+  ml: 'ml',
+  tamil: 'ta',
+  ta: 'ta',
+  kannada: 'kn',
+  kn: 'kn',
+  hindi: 'hi',
+  hi: 'hi',
+};
 
 function messageBlob(
   msg?: Record<string, unknown>,
@@ -6,6 +22,19 @@ function messageBlob(
 ): Record<string, unknown> {
   const message = (raw?.message ?? msg) as Record<string, unknown> | undefined;
   return { ...(raw ?? {}), ...(message ?? {}), ...(msg ?? {}) };
+}
+
+function languageFromLabel(label: string): AdvisoryLanguage | null {
+  const key = label.trim().toLowerCase();
+  if (key === 'hi' || key === 'hello') return null;
+  return LANGUAGE_TITLE_TO_CODE[key] ?? null;
+}
+
+function languageFromButtonId(id: string): AdvisoryLanguage | null {
+  const match = id.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
+  if (!match) return null;
+  const code = match[1].toLowerCase() as AdvisoryLanguage;
+  return LANGUAGE_CODES.has(code) ? code : null;
 }
 
 /** Button / list reply from WhatsApp interactive messages — prefer stable ids (e.g. lang.en). */
@@ -21,6 +50,16 @@ export function extractInteractiveReplyText(
   return title?.trim() ? title.trim() : null;
 }
 
+function extractFlatReply(blob: Record<string, unknown>): string | null {
+  const btn = blob.button_reply as Record<string, string> | undefined;
+  const list = blob.list_reply as Record<string, string> | undefined;
+  if (btn?.id?.trim()) return btn.id.trim();
+  if (list?.id?.trim()) return list.id.trim();
+  if (btn?.title?.trim()) return btn.title.trim();
+  if (list?.title?.trim()) return list.title.trim();
+  return null;
+}
+
 /** Meta quick-reply / template button (type "button", not interactive). */
 function extractLegacyButtonText(blob: Record<string, unknown>): string | null {
   const button = blob.button as Record<string, string> | undefined;
@@ -31,11 +70,16 @@ function extractLegacyButtonText(blob: Record<string, unknown>): string | null {
 }
 
 function extractInteractiveFromBlob(blob: Record<string, unknown>): string | null {
+  const flat = extractFlatReply(blob);
+  if (flat) return flat;
+
   const direct = extractInteractiveReplyText(blob.interactive as Record<string, unknown> | undefined);
   if (direct) return direct;
 
   const nestedMessage = blob.message as Record<string, unknown> | undefined;
   if (nestedMessage) {
+    const nestedFlat = extractFlatReply(nestedMessage);
+    if (nestedFlat) return nestedFlat;
     const fromNested = extractInteractiveReplyText(
       nestedMessage.interactive as Record<string, unknown> | undefined
     );
@@ -45,6 +89,10 @@ function extractInteractiveFromBlob(blob: Record<string, unknown>): string | nul
   }
 
   return extractLegacyButtonText(blob);
+}
+
+function languageFromReplyValue(value: string): AdvisoryLanguage | null {
+  return languageFromButtonId(value) ?? languageFromLabel(value);
 }
 
 /** Walk entire webhook JSON — BSPs nest button_reply in non-standard places. */
@@ -62,11 +110,20 @@ export function deepFindLanguageButtonId(payload: unknown): string | null {
     seen.add(node);
 
     const rec = node as Record<string, unknown>;
+
+    const titleReply = extractFlatReply(rec);
+    if (titleReply) {
+      const fromReply = languageFromReplyValue(titleReply);
+      if (fromReply) return `lang.${fromReply}`;
+    }
+
     for (const key of ['id', 'button_id', 'payload', 'button_payload'] as const) {
       const val = rec[key];
       if (typeof val === 'string') {
         const match = val.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
         if (match) return `lang.${match[1].toLowerCase()}`;
+        const fromLabel = languageFromLabel(val);
+        if (fromLabel) return `lang.${fromLabel}`;
       }
     }
 
@@ -97,18 +154,43 @@ export function hasInteractiveUserReply(msg: InboundMessage): boolean {
 }
 
 /**
+ * Detect language choice from any webhook shape (Cloud, AdsGyani, flattened button_reply).
+ */
+export function detectInboundLanguageChoice(msg: InboundMessage): AdvisoryLanguage | null {
+  const deepId =
+    deepFindLanguageButtonId(msg.rawPayload) ?? deepFindLanguageButtonId(msg.messageObject);
+  if (deepId) {
+    const code = languageFromButtonId(deepId);
+    if (code) return code;
+  }
+
+  const blob = messageBlob(msg.messageObject, msg.rawPayload);
+  const reply = extractInteractiveFromBlob(blob);
+  if (reply) {
+    const fromReply = languageFromReplyValue(reply);
+    if (fromReply) return fromReply;
+  }
+
+  const trimmed = msg.text?.trim() ?? '';
+  if (trimmed && !isLanguageMenuEcho(trimmed)) {
+    const fromText = languageFromReplyValue(trimmed);
+    if (fromText) return fromText;
+  }
+
+  return null;
+}
+
+/**
  * Best-effort user intent from webhook payload.
  * Prefer interactive ids over visible labels / echoed bot body text.
  */
 export function resolveInboundUserText(msg: InboundMessage): string {
+  const choice = detectInboundLanguageChoice(msg);
+  if (choice) return `lang.${choice}`;
+
   const blob = messageBlob(msg.messageObject, msg.rawPayload);
-
-  const deepLang =
-    deepFindLanguageButtonId(msg.rawPayload) ?? deepFindLanguageButtonId(msg.messageObject);
-  if (deepLang) return deepLang;
-
   const interactiveText = extractInteractiveFromBlob(blob);
-  if (interactiveText) return interactiveText;
+  if (interactiveText && !isLanguageMenuEcho(interactiveText)) return interactiveText;
 
   const trimmed = msg.text?.trim() ?? '';
   if (trimmed && !isLanguageMenuEcho(trimmed)) return trimmed;
@@ -124,5 +206,5 @@ export function resolveInboundUserText(msg: InboundMessage): string {
     if (!isLanguageMenuEcho(body)) return body;
   }
 
-  return trimmed;
+  return '';
 }

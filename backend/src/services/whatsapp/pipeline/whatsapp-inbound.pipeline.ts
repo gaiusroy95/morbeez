@@ -4,6 +4,7 @@ import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
 import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
 import {
+  detectInboundLanguageChoice,
   hasInteractiveUserReply,
   isLanguageMenuEcho,
 } from '../inbound-reply-text.util.js';
@@ -251,43 +252,19 @@ function buildDiagnosisReply(params: {
   });
 }
 
-function languageCodeFromInboundText(text: string): AdvisoryLanguage | null {
-  const trimmed = text.trim();
-  if (trimmed.startsWith('lang.')) {
-    const code = trimmed.replace('lang.', '') as AdvisoryLanguage;
-    return ['en', 'ml', 'ta', 'kn', 'hi'].includes(code) ? code : null;
-  }
-  return languageFromSelection(trimmed);
-}
-
 async function applyLanguageSelection(params: {
   farmerId: string;
   phone: string;
-  text: string;
+  language: AdvisoryLanguage;
   send: Senders;
-}): Promise<boolean> {
-  const selected = languageCodeFromInboundText(params.text);
-  if (!selected) return false;
-  await conversationSessionService.setLanguageForOnboarding(params.farmerId, selected);
+}): Promise<void> {
+  await conversationSessionService.setLanguageForOnboarding(params.farmerId, params.language);
   await whatsappScenarioRouter.startMinimalOnboarding(
     params.phone,
     params.farmerId,
-    selected,
+    params.language,
     params.send
   );
-  return true;
-}
-
-function languageFromSelection(text: string): AdvisoryLanguage | null {
-  const t = text.trim().toLowerCase();
-  // "hi" / "hello" are greetings — never treat as Hindi (use lang.hi button or "hindi" text).
-  if (isMainMenuGreeting(t)) return null;
-  if (t === 'english' || t === 'en') return 'en';
-  if (t === 'malayalam' || t === 'ml') return 'ml';
-  if (t === 'tamil' || t === 'ta') return 'ta';
-  if (t === 'kannada' || t === 'kn') return 'kn';
-  if (t === 'hindi') return 'hi';
-  return null;
 }
 
 async function tryAssessmentPlaybook(params: {
@@ -522,21 +499,33 @@ export const whatsappInboundPipeline = {
     let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
 
     // Step 2 — language button tap must win before any reset/echo handling (Hi → menu → lang → pincode).
-    const languageTap = languageCodeFromInboundText(msg.text ?? '');
+    const languageChoice = detectInboundLanguageChoice(msg);
     if (
-      languageTap &&
-      (!session.preferred_language || session.state === 'language_select')
+      languageChoice &&
+      (!session.preferred_language ||
+        session.state === 'language_select' ||
+        session.state === 'onboarding_minimal')
     ) {
+      logger.info(
+        {
+          farmerId: captured.farmerId,
+          messageId: msg.messageId,
+          language: languageChoice,
+          msgType: msg.msgType,
+          text: msg.text?.slice(0, 80),
+        },
+        'WhatsApp language selected — starting pincode onboarding'
+      );
       await applyLanguageSelection({
         farmerId: captured.farmerId,
         phone: msg.phone,
-        text: msg.text ?? '',
+        language: languageChoice,
         send,
       });
       return;
     }
 
-    const isLanguagePick = Boolean(languageTap);
+    const isLanguagePick = Boolean(languageChoice);
     const isGreeting = Boolean(msg.text?.trim() && isMainMenuGreeting(msg.text));
     // Bootstrap brand-new farmers once on first Hi — never reset mid-flow (e.g. after language tap).
     if (
@@ -667,6 +656,17 @@ export const whatsappInboundPipeline = {
         }
         return;
       }
+
+      logger.warn(
+        {
+          farmerId: captured.farmerId,
+          messageId: msg.messageId,
+          msgType: msg.msgType,
+          text: msg.text?.slice(0, 120),
+          hasInteractive: hasInteractiveUserReply(msg),
+        },
+        'Re-sending WhatsApp language menu (language choice not detected)'
+      );
 
       const copy = languageSelectCopy();
       if (send.list) {

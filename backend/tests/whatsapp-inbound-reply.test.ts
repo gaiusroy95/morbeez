@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { parseAdsGyaniWebhook } from '../src/services/whatsapp/whatsapp.service.js';
 import {
   deepFindLanguageButtonId,
+  detectInboundLanguageChoice,
   extractInteractiveReplyText,
   isLanguageMenuEcho,
   resolveInboundUserText,
@@ -74,14 +75,44 @@ describe('resolveInboundUserText', () => {
     assert.equal(deepFindLanguageButtonId(payload), 'lang.ml');
   });
 
-  it('detects echoed language menu body', () => {
-    assert.equal(
-      isLanguageMenuEcho(
-        'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.'
-      ),
-      true
-    );
-    assert.equal(isLanguageMenuEcho('English'), false);
+  it('detects language from flattened button_reply on message root (BSP format)', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_adsgyani',
+      phone: '919876543210',
+      messageId: 'wamid.flat',
+      msgType: 'interactive',
+      text: 'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.',
+      rawPayload: {
+        contact: { phone_number: '919876543210' },
+        message: {
+          message_body:
+            'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.',
+          button_reply: { id: 'lang.en', title: 'English' },
+        },
+      },
+      messageObject: {
+        message_body:
+          'Welcome to Morbeez Agriculture Assistant.\n\nPlease select your language.',
+        button_reply: { id: 'lang.en', title: 'English' },
+      },
+    };
+    assert.equal(detectInboundLanguageChoice(msg), 'en');
+    assert.equal(resolveInboundUserText(msg), 'lang.en');
+  });
+
+  it('detects language from button title only when id missing', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_cloud',
+      phone: '919876543210',
+      messageId: 'wamid.title',
+      msgType: 'interactive',
+      text: 'English',
+      messageObject: {
+        type: 'interactive',
+        button_reply: { title: 'English' },
+      },
+    };
+    assert.equal(detectInboundLanguageChoice(msg), 'en');
   });
 });
 
