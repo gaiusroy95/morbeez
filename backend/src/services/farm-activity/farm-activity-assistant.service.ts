@@ -10,6 +10,7 @@ import { conversationSessionService } from '../whatsapp/conversation-session.ser
 import { farmActivityCommitService } from './farm-activity-commit.service.js';
 import { farmActivityDraftService } from './farm-activity-draft.service.js';
 import { farmActivityExtractionService } from './farm-activity-extraction.service.js';
+import { looksLikeFarmActivityMessage } from './farm-activity-message-intent.service.js';
 import type { InvoiceEvidenceExtractOk } from './farm-activity-invoice-evidence.service.js';
 
 export type FarmActivitySenders = {
@@ -32,12 +33,10 @@ const EDIT_ID = 'fa.edit';
 const CANCEL_ID = 'fa.cancel';
 
 const ACTIVITY_INTENT_RE =
-  /\b(spray|sprayed|fertiliz|fertilis|labour|labor|harvest|harvested|bought|purchase|purchased|expense|irrigat|weeded|plough|plow|applied|drench|scouting|workers?|wage|cost|spent|income)\b|സ്പ്രേ|വളം|തൊഴിലാളി|വിളവെടുപ്പ്|വാങ്ങി|ചെലവ്|தொழிலாளர்|அறுவடை|வாங்கி|खरीदा|खर्च|मजदूर|ಕೊಂಡು|ಕೂಲಿ|ಸಿಂಪಡಣೆ/i;
+  /\b(spray|sprayed|fertiliz|fertilis|labour|labor|harvest|harvested|bought|purchase|purchased|expense|irrigat|weeded|plough|plow|applied|drench|scouting|workers?|wage|cost|spent|income|paid)\b|സ്പ്രേ|വളം|തൊഴിലാളി|വിളവെടുപ്പ്|വാങ്ങി|ചെലവ്|തൊழிலாளர்|அறுவடை|வாங்கி|खरीदा|खर्च|मजदूर|ಕೊಂಡು|ಕೂಲಿ|ಸಿಂಪಡಣೆ/i;
 
 function looksLikeFarmActivityIntent(text: string): boolean {
-  const normalized = text.trim();
-  if (normalized.length < 4) return false;
-  return ACTIVITY_INTENT_RE.test(normalized);
+  return looksLikeFarmActivityMessage(text) || ACTIVITY_INTENT_RE.test(text.trim().replace(/^["']+|["']+$/g, ''));
 }
 
 function isConfirmButton(text: string): boolean {
@@ -246,8 +245,13 @@ export const farmActivityAssistantService = {
       }
 
       if (!draft.subEvents.length) {
-        await clearAssistantPointer(input.farmerId);
-        return false;
+        await input.send.text(
+          input.phone,
+          input.language === 'ml'
+            ? 'വിള പ്രവർത്തനം രേഖപ്പെടുത്താൻ കൂടുതൽ വിവരം ആവശ്യമാണ് — പ്ലോട്ട്, തീയതി, അളവ്, ചെലവ്.'
+            : 'I need a bit more detail to record this — plot/block, date, quantity, and cost.'
+        );
+        return true;
       }
 
       await setAssistantPointer(input.farmerId, draft, nextAttempts, 'farm_activity_confirm');
@@ -260,7 +264,13 @@ export const farmActivityAssistantService = {
       return true;
     } catch (err) {
       logger.warn({ err, farmerId: input.farmerId }, 'Farm activity assistant utterance failed');
-      return false;
+      await input.send.text(
+        input.phone,
+        input.language === 'ml'
+          ? 'റെക്കോർഡ് സേവ് ചെയ്യാൻ കഴിഞ്ഞില്ല. വീണ്ടും പ്ലോട്ട്, അളവ്, ചെലവ് ഉൾപ്പെടെ അയയ്ക്കുക.'
+          : 'Could not record that yet. Please send again with plot, quantities, and costs.'
+      );
+      return true;
     }
   },
 

@@ -166,6 +166,7 @@ export function ExpertCopilotChat({
     initialDetail.caseNavigation ?? null
   );
   const [showCaseList, setShowCaseList] = useState(false);
+  const [navLoading, setNavLoading] = useState(false);
   const [showImageGallery, setShowImageGallery] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [safety, setSafety] = useState<{
@@ -196,6 +197,29 @@ export function ExpertCopilotChat({
     if (initialDetail.briefing) setBriefing(initialDetail.briefing);
     if (initialDetail.caseNavigation) setCaseNavigation(initialDetail.caseNavigation);
   }, [initialDetail]);
+
+  async function refreshCaseNavigation(): Promise<ExpertCaseNavigation | null> {
+    setNavLoading(true);
+    try {
+      const nav = await agronomistClient.getExpertCaseNavigation(caseId);
+      setCaseNavigation(nav);
+      setDetail((current) => ({
+        ...current,
+        caseNavigation: nav,
+        nextCaseId: nav.nextCaseId,
+        previousCaseId: nav.previousCaseId,
+      }));
+      return nav;
+    } catch {
+      return caseNavigation;
+    } finally {
+      setNavLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshCaseNavigation();
+  }, [caseId]);
 
   useEffect(() => {
     if (!hasActiveLease || !leaseToken) return;
@@ -572,46 +596,56 @@ export function ExpertCopilotChat({
   }
 
   async function openPreviousCase() {
-    const target = caseNavigation?.previousCaseId ?? detail.previousCaseId;
+    let target = caseNavigation?.previousCaseId ?? detail.previousCaseId ?? null;
+    if (!target) {
+      const nav = await refreshCaseNavigation();
+      target = nav?.previousCaseId ?? null;
+    }
     if (target) {
       await openCase(target);
       return;
     }
-    await sendNavMessage('previous case');
+    if (canWrite && !busy) {
+      await sendNavMessage('previous case');
+    }
   }
 
   async function openNextCase(preferredId?: string | null) {
-    const target =
+    let target =
       preferredId ?? caseNavigation?.nextCaseId ?? detail.nextCaseId ?? null;
+    if (!target) {
+      const nav = await refreshCaseNavigation();
+      target = preferredId ?? nav?.nextCaseId ?? null;
+    }
     if (target) {
       await openCase(target);
       return;
     }
-    if (!preferredId) {
+    if (!preferredId && canWrite && !busy) {
       await sendNavMessage('next case');
       return;
     }
-    try {
-      const queue = await agronomistClient.getExpertCaseQueue();
-      const next =
-        queue.buckets.my_work.find((row) => row.id !== caseId) ??
-        queue.buckets.available.find((row) => row.id !== caseId) ??
-        null;
-      if (next) {
-        await openCase(next.id);
-        return;
+    if (!preferredId) {
+      try {
+        const queue = await agronomistClient.getExpertCaseQueue();
+        const next =
+          queue.buckets.my_work.find((row) => row.id !== caseId) ??
+          queue.buckets.available.find((row) => row.id !== caseId) ??
+          null;
+        if (next) {
+          await openCase(next.id);
+          return;
+        }
+        router.back();
+      } catch {
+        router.back();
       }
-      router.back();
-    } catch {
-      router.back();
     }
   }
 
   async function listCases() {
     setShowCaseList(true);
-    if (canWrite && !busy) {
-      await sendNavMessage('list cases');
-    }
+    await refreshCaseNavigation();
   }
 
   async function commit() {
@@ -1157,12 +1191,13 @@ export function ExpertCopilotChat({
     ? formatDate(detail.expertCase.opened_at)
     : '—';
   const priority = detail.expertCase.priority;
-  const navLabel =
-    caseNavigation && caseNavigation.total > 0
-      ? t('ecCaseNav')
-          .replace('{current}', String(caseNavigation.currentIndex || '—'))
-          .replace('{total}', String(caseNavigation.total))
-      : null;
+  const navTotal = caseNavigation?.total ?? 0;
+  const navCurrent = caseNavigation?.currentIndex ?? 0;
+  const navLabel = t('ecCaseNav')
+    .replace('{current}', navCurrent > 0 ? String(navCurrent) : '—')
+    .replace('{total}', navTotal > 0 ? String(navTotal) : '—');
+  const hasPreviousCase = Boolean(caseNavigation?.previousCaseId ?? detail.previousCaseId);
+  const hasNextCase = Boolean(caseNavigation?.nextCaseId ?? detail.nextCaseId);
 
   return (
     <KeyboardAvoidingView
@@ -1184,28 +1219,25 @@ export function ExpertCopilotChat({
         <Text style={styles.headerMeta}>
           {t('ecCreated')}: {createdLabel}
         </Text>
-        {navLabel ? (
-          <View style={styles.navRow}>
-            <Pressable
-              style={[
-                styles.navBtn,
-                !caseNavigation?.previousCaseId && styles.navBtnDisabled,
-              ]}
-              onPress={() => void openPreviousCase()}
-              disabled={Boolean(busy)}
-            >
-              <Text style={styles.navBtnText}>‹ {t('ecPrevCase')}</Text>
-            </Pressable>
-            <Text style={styles.navCounter}>{navLabel}</Text>
-            <Pressable
-              style={[styles.navBtn, !caseNavigation?.nextCaseId && styles.navBtnDisabled]}
-              onPress={() => void openNextCase()}
-              disabled={Boolean(busy)}
-            >
-              <Text style={styles.navBtnText}>{t('ecNextCase')} ›</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        <View style={styles.navRow}>
+          <Pressable
+            style={[styles.navBtn, !hasPreviousCase && styles.navBtnDisabled]}
+            onPress={() => void openPreviousCase()}
+            disabled={Boolean(busy) || navLoading}
+          >
+            <Text style={styles.navBtnText}>‹ {t('ecPrevCase')}</Text>
+          </Pressable>
+          <Text style={styles.navCounter}>
+            {navLoading ? '…' : navLabel}
+          </Text>
+          <Pressable
+            style={[styles.navBtn, !hasNextCase && styles.navBtnDisabled]}
+            onPress={() => void openNextCase()}
+            disabled={Boolean(busy) || navLoading}
+          >
+            <Text style={styles.navBtnText}>{t('ecNextCase')} ›</Text>
+          </Pressable>
+        </View>
         <Pressable style={styles.listCasesBtn} onPress={() => void listCases()}>
           <Text style={styles.listCasesBtnText}>📋 {t('ecListCases')}</Text>
         </Pressable>
@@ -1220,7 +1252,7 @@ export function ExpertCopilotChat({
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>📋 {t('ecListCases')}</Text>
-            {navLabel ? <Text style={styles.modalMeta}>{navLabel}</Text> : null}
+            <Text style={styles.modalMeta}>{navLoading ? '…' : navLabel}</Text>
             <ScrollView style={styles.modalList}>
               {(caseNavigation?.items ?? []).length === 0 ? (
                 <Text style={styles.contextLine}>{t('ecNoCasesInQueue')}</Text>

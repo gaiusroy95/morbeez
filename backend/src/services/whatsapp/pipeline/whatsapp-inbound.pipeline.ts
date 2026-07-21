@@ -51,6 +51,7 @@ import { conversationSessionService } from '../conversation-session.service.js';
 import { whatsappScenarioRouter } from '../scenarios/whatsapp-scenario-router.service.js';
 import { farmerFeedbackFlowService } from '../scenarios/farmer-feedback-flow.service.js';
 import { farmActivityAssistantService } from '../../farm-activity/farm-activity-assistant.service.js';
+import { looksLikeFarmActivityMessage } from '../../farm-activity/farm-activity-message-intent.service.js';
 import { farmActivityInvoiceEvidenceService } from '../../farm-activity/farm-activity-invoice-evidence.service.js';
 import {
   nutrientSoilGateService,
@@ -1306,6 +1307,33 @@ export const whatsappInboundPipeline = {
     }
 
     await classifyCommercialLead(captured.farmerId, msg.text);
+
+    if (looksLikeFarmActivityMessage(msg.text)) {
+      const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+      if (farmActivityAssistantService.enabled()) {
+        const farmHandled = await farmActivityAssistantService.tryHandleInbound({
+          farmerId: captured.farmerId,
+          phone: captured.phone,
+          language: captured.language,
+          text: msg.text,
+          messageId: msg.messageId,
+          sessionState: session.state,
+          send: { text: sendText },
+          modality: 'text',
+          conversationSessionId: session.id,
+          blockId: session.active_block_id ?? null,
+        });
+        if (farmHandled) return;
+      } else {
+        await sendText(
+          captured.phone,
+          captured.language === 'ml'
+            ? 'ഇത് വളം/തൊഴിലാളി രേഖയാണെന്ന് തോന്നുന്നു — രോഗനിർണയ അല്ല. ഏത് പ്ലോട്ട്/ബ്ലോക്ക് ആണെന്ന് വ്യക്തമാക്കി വീണ്ടും അയയ്ക്കുക.'
+            : 'That looks like fertilizer or labour details to record — not a crop disease question. Please say which plot/block it was for, or contact your agronomist to log it.'
+        );
+        return;
+      }
+    }
 
     const sessCtxEarly = await conversationSessionService.getContext(captured.farmerId);
     const batchPending = whatsappImageBatchPendingCount(captured.farmerId);

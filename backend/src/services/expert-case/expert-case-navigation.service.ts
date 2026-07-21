@@ -1,3 +1,4 @@
+import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
 import { expertCaseQueueService } from './expert-case-queue.service.js';
 
@@ -54,7 +55,7 @@ export async function buildExpertCaseNavigation(params: {
     items: [],
   };
 
-  if (!expertCaseQueueService.enabled()) return empty;
+  if (env.ENABLE_EXPERT_CASES !== true) return empty;
 
   const buckets = await expertCaseQueueService.listBuckets(params.ownerEmail);
   const ordered: Array<{ row: Record<string, unknown>; bucket: ExpertCaseNavItem['bucket'] }> = [];
@@ -92,13 +93,23 @@ export async function buildExpertCaseNavigation(params: {
 
   const items = ordered.map((item) => toNavItem(item.row, item.bucket, farmerNames));
   const index = items.findIndex((item) => item.id === params.caseId);
-  const currentIndex = index >= 0 ? index + 1 : 0;
 
+  if (index >= 0) {
+    return {
+      currentIndex: index + 1,
+      total: items.length,
+      previousCaseId: index > 0 ? items[index - 1].id : null,
+      nextCaseId: index < items.length - 1 ? items[index + 1].id : null,
+      items,
+    };
+  }
+
+  // Viewing a case outside the queue — still expose queue navigation.
   return {
-    currentIndex,
+    currentIndex: 0,
     total: items.length,
-    previousCaseId: index > 0 ? items[index - 1].id : null,
-    nextCaseId: index >= 0 && index < items.length - 1 ? items[index + 1].id : null,
+    previousCaseId: null,
+    nextCaseId: items[0]?.id ?? null,
     items,
   };
 }

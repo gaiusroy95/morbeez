@@ -20,6 +20,8 @@ import { blockDisplayName, blockService } from '../core/block.service.js';
 import { farmActivityDraftService } from './farm-activity-draft.service.js';
 import { detectFarmActivityLanguage } from './farm-activity-language.service.js';
 import { loadFarmActivityTerminologyExpansion } from './farm-activity-terminology.service.js';
+import { parseDeterministicFarmActivityUtterance } from './farm-activity-utterance-parser.service.js';
+import { looksLikeFarmActivityMessage } from './farm-activity-message-intent.service.js';
 
 type ExtractionPayload = {
   subEvents: FarmActivityAssistantSubEvent[];
@@ -346,9 +348,15 @@ export const farmActivityExtractionService = {
     const clarificationAttempts = input.clarificationAttempts ?? 0;
     const draftId = input.existingDraft?.draftId ?? randomUUID();
     const revision = (input.existingDraft?.revision ?? 0) + 1;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const deterministicEvents =
+      sourceText && looksLikeFarmActivityMessage(sourceText)
+        ? parseDeterministicFarmActivityUtterance(sourceText, input.messageId)
+        : [];
 
     const promptContext = {
-      today: new Date().toISOString().slice(0, 10),
+      today,
       language,
       storedLanguageHint: preferredLanguage,
       farmer: { id: input.farmerId, district: farmer?.district ?? null },
@@ -382,8 +390,38 @@ export const farmActivityExtractionService = {
     ].join(' ');
 
     let draft: FarmActivityAssistantDraftV1;
-    try {
-      const extracted = await openaiStrictJsonSchemaCompletion({
+
+    if (deterministicEvents.length > 0) {
+      const needsBlock = deterministicEvents.some((event) => {
+        if (event.kind === 'activity') return event.blockRef.value == null;
+        if (event.kind === 'harvest') return event.blockRef.value == null;
+        return false;
+      });
+      const clarifications =
+        needsBlock && clarificationAttempts < 2
+          ? [{
+            id: randomUUID(),
+            question:
+              language.detectedLanguage === 'ml'
+                ? 'ഏത് പ്ലോട്ട് / ബ്ലോക്ക് ആണ്?'
+                : 'Which plot / block is this for?',
+            subEventId: deterministicEvents[0]!.id,
+            field: 'blockRef',
+            required: true,
+          }]
+          : [];
+
+      draft = {
+        contractVersion: FARM_ACTIVITY_ASSISTANT_CONTRACT_VERSION,
+        draftId,
+        revision,
+        source,
+        subEvents: dedupeIndependentSubEvents(deterministicEvents),
+        clarifications,
+      };
+    } else {
+      try {
+        const extracted = await openaiStrictJsonSchemaCompletion({
         schemaName: 'farm_activity_extraction_v1',
         schema: FARM_ACTIVITY_EXTRACTION_SCHEMA,
         systemPrompt,
@@ -411,17 +449,18 @@ export const farmActivityExtractionService = {
         },
         maxTokens: 4_000,
       });
-      draft = extracted;
-    } catch (error) {
-      logger.warn({ err: error, farmerId: input.farmerId }, 'Farm activity extraction unavailable');
-      draft = buildFallbackDraft({
-        draftId,
-        revision,
-        source,
-        language: language.detectedLanguage,
-        clarificationAttempts,
-        sourceText,
-      });
+        draft = extracted;
+      } catch (error) {
+        logger.warn({ err: error, farmerId: input.farmerId }, 'Farm activity extraction unavailable');
+        draft = buildFallbackDraft({
+          draftId,
+          revision,
+          source,
+          language: language.detectedLanguage,
+          clarificationAttempts,
+          sourceText,
+        });
+      }
     }
 
     if (input.existingDraft) {

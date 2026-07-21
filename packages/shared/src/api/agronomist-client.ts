@@ -407,6 +407,22 @@ export const agronomistClient = {
     );
   },
 
+  async getExpertCaseNavigation(id: string): Promise<ExpertCaseNavigation> {
+    const r = await staffApi<{
+      ok: boolean;
+      caseNavigation: ExpertCaseNavigation | null;
+    }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/navigation`);
+    return (
+      r.caseNavigation ?? {
+        currentIndex: 0,
+        total: 0,
+        previousCaseId: null,
+        nextCaseId: null,
+        items: [],
+      }
+    );
+  },
+
   async claimExpertCase(id: string, reason?: string) {
     const r = await staffApi<{
       ok: boolean;

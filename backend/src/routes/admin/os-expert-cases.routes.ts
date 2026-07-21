@@ -65,7 +65,7 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(`${api}/queue`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
-    if (!expertCaseQueueService.enabled()) {
+    if (env.ENABLE_EXPERT_CASES !== true) {
       return reply.send({
         ok: true,
         enabled: false,
@@ -73,8 +73,38 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       });
     }
     const buckets = await expertCaseQueueService.listBuckets(admin.email);
-    const capacity = await expertCaseOwnershipService.ensureCapacity(admin.email);
-    return reply.send({ ok: true, enabled: true, buckets, capacity });
+    const capacity = expertCaseQueueService.enabled()
+      ? await expertCaseOwnershipService.ensureCapacity(admin.email)
+      : null;
+    return reply.send({
+      ok: true,
+      enabled: expertCaseQueueService.enabled(),
+      buckets,
+      capacity,
+    });
+  });
+
+  app.get(`${api}/:id/navigation`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const { id } = uuidParam.parse(request.params);
+    if (env.ENABLE_EXPERT_CASES !== true) {
+      return reply.send({
+        ok: true,
+        caseNavigation: null,
+        nextCaseId: null,
+        previousCaseId: null,
+      });
+    }
+    const caseNavigation = await buildExpertCaseNavigation({
+      ownerEmail: admin.email,
+      caseId: id,
+    });
+    return reply.send({
+      ok: true,
+      caseNavigation,
+      nextCaseId: caseNavigation.nextCaseId,
+      previousCaseId: caseNavigation.previousCaseId,
+    });
   });
 
   app.patch(`${api}/capacity`, async (request, reply) => {
@@ -173,7 +203,7 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
 
     let caseNavigation = null;
     try {
-      if (expertCaseQueueService.enabled()) {
+      if (env.ENABLE_EXPERT_CASES === true) {
         caseNavigation = await buildExpertCaseNavigation({
           ownerEmail: admin.email,
           caseId: id,
