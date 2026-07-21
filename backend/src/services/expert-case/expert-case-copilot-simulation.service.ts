@@ -5,10 +5,12 @@ import type {
 } from '@morbeez/shared/expert-case';
 import {
   draftHasTreatment,
+  draftNeedsDilutionClarification,
   draftValidationChecklist,
   emptyExpertCaseDraft,
   mergeExpertCaseDraft,
 } from '@morbeez/shared/expert-case';
+import { supplementTreatmentDraft } from './expert-case-treatment-extraction.service.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import {
@@ -18,11 +20,18 @@ import {
   type CopilotUiLocale,
 } from './expert-case-copilot-i18n.js';
 
-const IMAGE_OPEN_RE = /\b(open|show|view|load)\b.*\b(image|photo|picture)s?\b|\ball images\b/i;
+const IMAGE_OPEN_RE =
+  /\b(open|show|view|load)\b.*\b(image|photo|picture)s?\b|\b(image|photo|picture)s?\b.*\b(open|show|view|load)\b|\ball images\b/i;
 const YES_RE = /^(yes|y|ok|okay|sure|do it|send|apply|proceed|approve)\b/i;
 const ANNOTATE_AFFIRM_RE = /\b(annotat|overlay|highlight|yes)\b/i;
 const FARMER_Q_AFFIRM_RE = /\b(send|yes|ask farmer|farmer)\b/i;
 const LABEL_DOSE_AFFIRM_RE = /\b(yes|label|registered|use label)\b/i;
+const NEXT_CASE_RE =
+  /^(next case|next\s+case|open next case|अगला केस|अगला\s+केस|അടുത്ത കേസ്|அடுத்த கேஸ்|ಮುಂದಿನ ಕೇಸ್)\.?$/i;
+const PREV_CASE_RE =
+  /^(previous case|prev case|prior case|पिछला केस|पिछला\s+केस|മുമ്പത്തെ കേസ്|முந்தைய கேஸ்|ಹಿಂದಿನ ಕೇಸ್)\.?$/i;
+const LIST_CASE_RE =
+  /^(list cases|list case|case list|show cases|केस सूची|केस\s+सूची|കേസ് ലിസ്റ്റ്|கேஸ் பட்டியல்|ಕೇಸ್ ಪಟ್ಟಿ)\.?$/i;
 
 export type CopilotIntent =
   | 'open_images'
@@ -30,13 +39,29 @@ export type CopilotIntent =
   | 'apply_label_dose'
   | 'send_farmer_questions'
   | 'approve'
+  | 'nav_next_case'
+  | 'nav_previous_case'
+  | 'nav_list_cases'
   | 'free_text';
+
+export function detectCaseNavIntent(message: string): 'next' | 'previous' | 'list' | null {
+  const text = message.trim();
+  if (NEXT_CASE_RE.test(text)) return 'next';
+  if (PREV_CASE_RE.test(text)) return 'previous';
+  if (LIST_CASE_RE.test(text)) return 'list';
+  return null;
+}
 
 export function detectCopilotIntent(
   message: string,
   draft: ExpertCaseReviewDraft | null | undefined
 ): CopilotIntent {
   const text = message.trim();
+  const nav = detectCaseNavIntent(text);
+  if (nav === 'next') return 'nav_next_case';
+  if (nav === 'previous') return 'nav_previous_case';
+  if (nav === 'list') return 'nav_list_cases';
+
   if (IMAGE_OPEN_RE.test(text)) return 'open_images';
 
   const isAffirm = YES_RE.test(text) || /^(y|ok|okay|sure)\.?$/i.test(text);
@@ -273,11 +298,14 @@ export function applyOpenImagesIntent(
     draft.imageAnalysis?.findings?.length
       ? draft.imageAnalysis.findings
       : DEFAULT_FINDINGS;
+  const images = briefing?.images?.length ? briefing.images : [];
   const next = mergeExpertCaseDraft(draft, {
     imageAnalysis: {
       findings,
       annotated: false,
       offerAnnotate: true,
+      images,
+      imagesOpened: true,
     },
     evidence: draft.evidence?.length ? draft.evidence : findings.slice(0, 5),
   });
@@ -438,6 +466,7 @@ export function buildCopilotValidations(
     !draft.dosage ||
     /label|manufacturer/i.test(String(draft.dosage)) ||
     draft.dosageSource === 'pending';
+  const askDilution = draftNeedsDilutionClarification(draft);
 
   const compatibility = [
     {
@@ -478,13 +507,24 @@ export function buildCopilotValidations(
     compatibility,
     weather,
     dosage: {
-      status: askLabel && draft.dosageSource !== 'label' ? 'needs_label' : 'validated',
+      status:
+        askLabel && draft.dosageSource !== 'label'
+          ? 'needs_label'
+          : askDilution
+            ? 'needs_dilution'
+            : 'validated',
       message:
         askLabel && draft.dosageSource !== 'label'
           ? 'Manufacturer label dose detected. Use registered label dosage?'
-          : 'Dosage validated',
+          : askDilution
+            ? 'Spray dilution volume (liters of water) not recorded.'
+            : 'Dosage validated',
       labelDoseApplied: draft.dosageSource === 'label',
       askLabelDose: askLabel && draft.dosageSource !== 'label',
+      askDilution,
+      dilutionMessage: askDilution
+        ? 'Spray dilution volume (liters of water) not recorded.'
+        : null,
     },
     frac: {
       previousSpray: 'Mancozeb',
@@ -534,9 +574,13 @@ export function enrichDraftAfterExtraction(params: {
   briefing?: ExpertCaseBriefing | null;
   runValidations: boolean;
   locale?: CopilotUiLocale | string;
+  latestMessage?: string;
 }): ExpertCaseReviewDraft {
   const locale = params.locale ?? 'en';
   let draft = mergeExpertCaseDraft(emptyExpertCaseDraft(), params.draft);
+  if (params.latestMessage) {
+    draft = supplementTreatmentDraft(draft, params.latestMessage);
+  }
   if (params.runValidations && draftHasTreatment(draft)) {
     draft = ensureMissingFarmerQuestions(draft, params.briefing, locale);
     const validations = buildCopilotValidations(draft, params.briefing);

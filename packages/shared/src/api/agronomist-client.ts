@@ -154,6 +154,25 @@ export type ExpertCaseSafetyDecision = {
   created_at: string;
 };
 
+export type ExpertCaseNavItem = {
+  id: string;
+  caseCode: string;
+  farmerName: string | null;
+  cropType: string | null;
+  priority: string | null;
+  primaryIssue: string | null;
+  assignmentStatus: string | null;
+  bucket: 'my_work' | 'available' | 'at_risk';
+};
+
+export type ExpertCaseNavigation = {
+  currentIndex: number;
+  total: number;
+  previousCaseId: string | null;
+  nextCaseId: string | null;
+  items: ExpertCaseNavItem[];
+};
+
 export type ExpertCaseDetail = {
   enabled: boolean;
   expertCase: ExpertCaseQueueItem;
@@ -164,6 +183,8 @@ export type ExpertCaseDetail = {
   safety: ExpertCaseSafetyDecision | null;
   briefing?: ExpertCaseBriefing | null;
   nextCaseId?: string | null;
+  previousCaseId?: string | null;
+  caseNavigation?: ExpertCaseNavigation | null;
 };
 
 export const agronomistClient = {
@@ -440,6 +461,11 @@ export const agronomistClient = {
       draft: ExpertCaseDraft;
       clarification: string | null;
       baseRevision: number;
+      navigation?: {
+        action: 'next' | 'previous' | 'list';
+        targetCaseId: string | null;
+        caseNavigation?: ExpertCaseNavigation;
+      };
     }>(`${EXPERT_CASES}/${encodeURIComponent(id)}/chat`, {
       method: 'POST',
       body: JSON.stringify({ content, leaseToken, uiLocale: uiLocale ?? undefined }),

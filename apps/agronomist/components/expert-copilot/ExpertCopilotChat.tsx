@@ -4,8 +4,10 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +23,7 @@ import {
   type ExpertCaseBriefing,
   type ExpertCaseDetail,
   type ExpertCaseDraft,
+  type ExpertCaseNavigation,
   type ExpertCaseSafetyDecision,
 } from '@morbeez/shared';
 import { AlertBox } from '@morbeez/ui-native';
@@ -118,6 +121,11 @@ export function ExpertCopilotChat({
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [approvedActions, setApprovedActions] = useState<string[] | null>(null);
+  const [caseNavigation, setCaseNavigation] = useState<ExpertCaseNavigation | null>(
+    initialDetail.caseNavigation ?? null
+  );
+  const [showCaseList, setShowCaseList] = useState(false);
+  const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [safety, setSafety] = useState<{
     decision: ExpertCaseSafetyDecision['decision'];
     decisionId: string;
@@ -142,6 +150,7 @@ export function ExpertCopilotChat({
     setDetail(initialDetail);
     if (initialDetail.draft?.draft_json) setDraft(initialDetail.draft.draft_json);
     if (initialDetail.briefing) setBriefing(initialDetail.briefing);
+    if (initialDetail.caseNavigation) setCaseNavigation(initialDetail.caseNavigation);
   }, [initialDetail]);
 
   useEffect(() => {
@@ -223,11 +232,18 @@ export function ExpertCopilotChat({
     };
   }, [briefing, detail.expertCase.crop_type, detail.expertCase.farmer_id, detail.expertCase.primary_issue_label, detail.links]);
 
+  const caseImages = useMemo(() => {
+    if (draft.imageAnalysis?.images?.length) return draft.imageAnalysis.images;
+    if (draft.imageAnalysis?.imagesOpened && briefing?.images?.length) return briefing.images;
+    return [];
+  }, [briefing?.images, draft.imageAnalysis?.images, draft.imageAnalysis?.imagesOpened]);
+
   const hasPreview = Boolean(
     draft.diagnosis ||
       draft.treatmentProduct ||
       draft.recommendationText ||
       draft.dosage ||
+      (draft.treatmentActivities?.length ?? 0) > 0 ||
       (draft.evidence?.length ?? 0) > 0
   );
   const hasValidations = Boolean(draft.validations);
@@ -279,6 +295,7 @@ export function ExpertCopilotChat({
       setDetail(next);
       if (next.draft?.draft_json) setDraft(next.draft.draft_json);
       if (next.briefing) setBriefing(next.briefing);
+      if (next.caseNavigation) setCaseNavigation(next.caseNavigation);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not claim case');
     } finally {
@@ -316,6 +333,14 @@ export function ExpertCopilotChat({
       setMessage('');
       setSafety(null);
       setSafetyConfirmed(false);
+      if (result.navigation?.caseNavigation) {
+        setCaseNavigation(result.navigation.caseNavigation);
+      }
+      if (result.navigation?.targetCaseId) {
+        setTimeout(() => {
+          void openCase(result.navigation!.targetCaseId!);
+        }, 600);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not send message');
     } finally {
@@ -354,24 +379,85 @@ export function ExpertCopilotChat({
     }
   }
 
-  async function openNextCase(preferredId?: string | null) {
+  async function openCase(targetId: string) {
+    if (!targetId || targetId === caseId) return;
+    router.replace(`/case/${targetId}`);
+  }
+
+  async function sendNavMessage(text: string) {
+    if (!leaseToken || busy) {
+      setMessage(text);
+      return;
+    }
+    setBusy('chat');
+    setError('');
     try {
-      if (preferredId) {
-        router.replace(`/case/${preferredId}`);
-        return;
+      const result = await agronomistClient.postExpertCaseChat(
+        caseId,
+        text,
+        leaseToken,
+        locale
+      );
+      setDetail((current) => ({
+        ...current,
+        turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
+      }));
+      setMessage('');
+      if (result.navigation?.caseNavigation) {
+        setCaseNavigation(result.navigation.caseNavigation);
       }
+      if (result.navigation?.targetCaseId) {
+        setTimeout(() => {
+          void openCase(result.navigation!.targetCaseId!);
+        }, 600);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not send message');
+    } finally {
+      setBusy('');
+    }
+  }
+
+  async function openPreviousCase() {
+    const target = caseNavigation?.previousCaseId ?? detail.previousCaseId;
+    if (target) {
+      await openCase(target);
+      return;
+    }
+    await sendNavMessage('previous case');
+  }
+
+  async function openNextCase(preferredId?: string | null) {
+    const target =
+      preferredId ?? caseNavigation?.nextCaseId ?? detail.nextCaseId ?? null;
+    if (target) {
+      await openCase(target);
+      return;
+    }
+    if (!preferredId) {
+      await sendNavMessage('next case');
+      return;
+    }
+    try {
       const queue = await agronomistClient.getExpertCaseQueue();
       const next =
         queue.buckets.my_work.find((row) => row.id !== caseId) ??
         queue.buckets.available.find((row) => row.id !== caseId) ??
         null;
       if (next) {
-        router.replace(`/case/${next.id}`);
+        await openCase(next.id);
         return;
       }
       router.back();
     } catch {
       router.back();
+    }
+  }
+
+  async function listCases() {
+    setShowCaseList(true);
+    if (leaseToken && !busy) {
+      await sendNavMessage('list cases');
     }
   }
 
@@ -416,7 +502,9 @@ export function ExpertCopilotChat({
       ]);
       await onReload();
       setTimeout(() => {
-        void openNextCase(detail.nextCaseId);
+        void openNextCase(
+          caseNavigation?.nextCaseId ?? detail.nextCaseId ?? detail.caseNavigation?.nextCaseId
+        );
       }, 1600);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not commit review');
@@ -563,6 +651,25 @@ export function ExpertCopilotChat({
       return (
         <View style={[styles.bubble, styles.assistantBubble, styles.cardBubble]}>
           <SectionTitle>{t('ecAiImageAnalysis')}</SectionTitle>
+          {caseImages.length > 0 ? (
+            <>
+              <Text style={styles.cardMeta}>
+                {caseImages.length} {t('ecImages')} · {t('ecTapToView')}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.imageStrip}>
+                {caseImages.map((img) => (
+                  <Pressable
+                    key={img.url}
+                    onPress={() => setSelectedImageUrl(img.url)}
+                    style={styles.imageThumbWrap}
+                  >
+                    <Image source={{ uri: img.url }} style={styles.imageThumb} resizeMode="cover" />
+                    {img.label ? <Text style={styles.imageThumbLabel}>{img.label}</Text> : null}
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </>
+          ) : null}
           <Text style={styles.contextLine}>{t('ecDetected')}</Text>
           {(draft.imageAnalysis.findings ?? []).map((f) => (
             <CheckLine key={f} text={f} />
@@ -644,6 +751,27 @@ export function ExpertCopilotChat({
           ) : null}
 
           <SectionTitle>{t('ecTreatment')}</SectionTitle>
+          {(draft.treatmentActivities?.length ?? 0) > 0 ? (
+            <>
+              <SectionTitle>{t('ecActivities')}</SectionTitle>
+              {draft.treatmentActivities!.map((activity, index) => (
+                <View key={`${activity.method}-${activity.product}-${index}`} style={styles.activityCard}>
+                  <PreviewRow label={t('ecMethod')} value={activity.method || '—'} />
+                  <PreviewRow label={t('ecProduct')} value={activity.product || '—'} wide />
+                  <PreviewRow label={t('ecDose')} value={activity.dose || '—'} />
+                  {activity.dilutionVolumeL != null ? (
+                    <PreviewRow
+                      label={t('ecSprayVolume')}
+                      value={`${activity.dilutionVolumeL} L`}
+                    />
+                  ) : null}
+                  {activity.interval ? (
+                    <PreviewRow label={t('ecTiming')} value={`Every ${activity.interval}`} />
+                  ) : null}
+                </View>
+              ))}
+            </>
+          ) : null}
           <PreviewRow
             label={t('ecProduct')}
             value={draft.treatmentProduct || draft.recommendationText || '—'}
@@ -657,6 +785,16 @@ export function ExpertCopilotChat({
                 : draft.dosage || `⚠ ${t('ecLabelDosePending')}`
             }
           />
+          {draft.sprayVolumeL != null || draft.dilutionNotes ? (
+            <PreviewRow
+              label={t('ecDilution')}
+              value={
+                draft.sprayVolumeL != null
+                  ? `${draft.sprayVolumeL} L`
+                  : draft.dilutionNotes || '—'
+              }
+            />
+          ) : null}
           <PreviewRow label={t('ecMethod')} value={draft.applicationMethod || '—'} />
           <PreviewRow label={t('ecTiming')} value={draft.applicationTiming || '—'} />
 
@@ -915,6 +1053,12 @@ export function ExpertCopilotChat({
     ? formatDate(detail.expertCase.opened_at)
     : '—';
   const priority = detail.expertCase.priority;
+  const navLabel =
+    caseNavigation && caseNavigation.total > 0
+      ? t('ecCaseNav')
+          .replace('{current}', String(caseNavigation.currentIndex || '—'))
+          .replace('{total}', String(caseNavigation.total))
+      : null;
 
   return (
     <KeyboardAvoidingView
@@ -936,7 +1080,96 @@ export function ExpertCopilotChat({
         <Text style={styles.headerMeta}>
           {t('ecCreated')}: {createdLabel}
         </Text>
+        {navLabel ? (
+          <View style={styles.navRow}>
+            <Pressable
+              style={[
+                styles.navBtn,
+                !caseNavigation?.previousCaseId && styles.navBtnDisabled,
+              ]}
+              onPress={() => void openPreviousCase()}
+              disabled={Boolean(busy)}
+            >
+              <Text style={styles.navBtnText}>‹ {t('ecPrevCase')}</Text>
+            </Pressable>
+            <Text style={styles.navCounter}>{navLabel}</Text>
+            <Pressable
+              style={[styles.navBtn, !caseNavigation?.nextCaseId && styles.navBtnDisabled]}
+              onPress={() => void openNextCase()}
+              disabled={Boolean(busy)}
+            >
+              <Text style={styles.navBtnText}>{t('ecNextCase')} ›</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        <Pressable style={styles.listCasesBtn} onPress={() => void listCases()}>
+          <Text style={styles.listCasesBtnText}>📋 {t('ecListCases')}</Text>
+        </Pressable>
       </View>
+
+      <Modal
+        visible={showCaseList}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowCaseList(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>📋 {t('ecListCases')}</Text>
+            {navLabel ? <Text style={styles.modalMeta}>{navLabel}</Text> : null}
+            <ScrollView style={styles.modalList}>
+              {(caseNavigation?.items ?? []).length === 0 ? (
+                <Text style={styles.contextLine}>{t('ecNoCasesInQueue')}</Text>
+              ) : (
+                caseNavigation!.items.map((item, index) => {
+                  const active = item.id === caseId;
+                  return (
+                    <Pressable
+                      key={item.id}
+                      style={[styles.caseListRow, active && styles.caseListRowActive]}
+                      onPress={() => {
+                        setShowCaseList(false);
+                        void openCase(item.id);
+                      }}
+                    >
+                      <Text style={styles.caseListIndex}>{active ? '▶' : `${index + 1}.`}</Text>
+                      <View style={styles.caseListBody}>
+                        <Text style={styles.caseListTitle}>
+                          {item.caseCode} · {item.farmerName || t('ecFarmer')}
+                        </Text>
+                        <Text style={styles.caseListMeta} numberOfLines={2}>
+                          {[item.cropType, item.primaryIssue, item.priority]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Text>
+                      </View>
+                      {!active ? (
+                        <Text style={styles.caseListOpen}>{t('ecOpenCase')}</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })
+              )}
+            </ScrollView>
+            <Pressable style={styles.modalClose} onPress={() => setShowCaseList(false)}>
+              <Text style={styles.modalCloseText}>{t('cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={Boolean(selectedImageUrl)}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setSelectedImageUrl(null)}
+      >
+        <Pressable style={styles.imageModalBackdrop} onPress={() => setSelectedImageUrl(null)}>
+          {selectedImageUrl ? (
+            <Image source={{ uri: selectedImageUrl }} style={styles.imageModalFull} resizeMode="contain" />
+          ) : null}
+        </Pressable>
+      </Modal>
 
       {error ? (
         <View style={styles.errorWrap}>
@@ -981,6 +1214,27 @@ export function ExpertCopilotChat({
             }}
           >
             <Text style={styles.quickChipText}>{t('ecImagesChip')}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.quickChip}
+            onPress={() => void openPreviousCase()}
+            disabled={Boolean(busy)}
+          >
+            <Text style={styles.quickChipText}>‹ {t('ecPrevCase')}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.quickChip}
+            onPress={() => void listCases()}
+            disabled={Boolean(busy)}
+          >
+            <Text style={styles.quickChipText}>{t('ecListCases')}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.quickChip}
+            onPress={() => void openNextCase()}
+            disabled={Boolean(busy)}
+          >
+            <Text style={styles.quickChipText}>{t('ecNextCase')} ›</Text>
           </Pressable>
           {leaseToken && canWrite ? (
             <Pressable
@@ -1140,6 +1394,26 @@ const styles = StyleSheet.create({
   mediaThumbWrap: { width: 72 },
   mediaThumb: { width: 72, height: 72, borderRadius: 8, backgroundColor: tokens.bgSubtle },
   mediaLabel: { fontSize: 9, color: tokens.textMuted, marginTop: 3 },
+  imageStrip: { marginBottom: 8 },
+  imageThumbWrap: { width: 88, marginRight: 8 },
+  imageThumb: { width: 88, height: 88, borderRadius: 10, backgroundColor: tokens.bgSubtle },
+  imageThumbLabel: { fontSize: 9, color: tokens.textMuted, marginTop: 4 },
+  imageModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+  },
+  imageModalFull: { width: '100%', height: '80%' },
+  activityCard: {
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: tokens.bgSubtle,
+  },
   contextLine: { fontSize: 13, color: tokens.textSecondary, lineHeight: 20, marginBottom: 2 },
   checkLine: { fontSize: 13, color: tokens.text, lineHeight: 20, marginBottom: 2 },
   previewCell: { marginBottom: 6 },
@@ -1215,4 +1489,79 @@ const styles = StyleSheet.create({
   },
   approveBtnDisabled: { opacity: 0.55 },
   approveBtnText: { color: tokens.textOnPrimary, fontSize: 15, fontWeight: '700' },
+  navRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    gap: 6,
+  },
+  navBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: tokens.border,
+    borderRadius: tokens.radiusSm,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: tokens.cardMuted,
+  },
+  navBtnDisabled: { opacity: 0.45 },
+  navBtnText: { fontSize: 11, fontWeight: '600', color: tokens.green800, textAlign: 'center' },
+  navCounter: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: tokens.textSecondary,
+    minWidth: 72,
+    textAlign: 'center',
+  },
+  listCasesBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: tokens.green200,
+    borderRadius: tokens.radiusFull,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: tokens.green50,
+  },
+  listCasesBtnText: { fontSize: 12, fontWeight: '700', color: tokens.green800 },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    maxHeight: '78%',
+    backgroundColor: tokens.card,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 16,
+  },
+  modalTitle: { fontSize: 16, fontWeight: '700', color: tokens.text, marginBottom: 4 },
+  modalMeta: { fontSize: 12, color: tokens.textMuted, marginBottom: 12 },
+  modalList: { maxHeight: 420 },
+  caseListRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: tokens.border,
+  },
+  caseListRowActive: { backgroundColor: tokens.green50, borderRadius: tokens.radiusSm },
+  caseListIndex: { width: 22, fontSize: 12, fontWeight: '700', color: tokens.green800 },
+  caseListBody: { flex: 1 },
+  caseListTitle: { fontSize: 14, fontWeight: '700', color: tokens.text },
+  caseListMeta: { fontSize: 12, color: tokens.textSecondary, marginTop: 2 },
+  caseListOpen: { fontSize: 12, fontWeight: '700', color: tokens.green700 },
+  modalClose: {
+    marginTop: 12,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: tokens.radiusSm,
+    backgroundColor: tokens.cardMuted,
+  },
+  modalCloseText: { fontSize: 14, fontWeight: '600', color: tokens.textSecondary },
 });

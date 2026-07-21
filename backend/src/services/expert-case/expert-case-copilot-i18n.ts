@@ -28,12 +28,20 @@ type MsgKey =
   | 'validationsAttached'
   | 'clarifyDiagnosis'
   | 'askLabelDose'
+  | 'askDilution'
+  | 'dilutionAsk'
   | 'askSendFarmerQs'
   | 'farmerQIntro'
   | 'farmerQPh'
   | 'farmerQEc'
   | 'farmerQFungicide'
-  | 'farmerQRain';
+  | 'farmerQRain'
+  | 'navOpeningNext'
+  | 'navOpeningPrevious'
+  | 'navNoNext'
+  | 'navNoPrevious'
+  | 'navAtFirst'
+  | 'navAtLast';
 
 const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
   en: {
@@ -58,12 +66,21 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
     clarifyDiagnosis: 'Which diagnosis and treatment should I apply to the draft?',
     askLabelDose:
       'Manufacturer label dose detected. Use the registered label dosage for this formulation?',
+    askDilution:
+      'What spray tank / dilution volume should I record (liters of water)?',
+    dilutionAsk: 'Dilution: {message}',
     askSendFarmerQs: 'Send these missing-field questions to the farmer?',
     farmerQIntro: 'Morbeez expert follow-up — please reply with:',
     farmerQPh: 'Current soil pH?',
     farmerQEc: 'Current soil EC?',
     farmerQFungicide: 'Any fungicide sprayed during the last 7 days?',
     farmerQRain: 'Did symptoms start after continuous rainfall?',
+    navOpeningNext: 'Opening next pending case…',
+    navOpeningPrevious: 'Opening previous case…',
+    navNoNext: 'No more cases in your queue. You are on the last case.',
+    navNoPrevious: 'No previous case — you are on the first case.',
+    navAtFirst: 'You are on the first case.',
+    navAtLast: 'You are on the last case.',
   },
   hi: {
     imagesLoaded: 'तस्वीरें लोड हो गईं।',
@@ -86,12 +103,20 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
       'मिक्स, मौसम, FRAC, फाइटोtoxicity और सुरक्षा जाँच संरचित पूर्वावलोकन में जुड़ी हैं।',
     clarifyDiagnosis: 'ड्राफ्ट में कौन सा निदान और उपचार लगाऊँ?',
     askLabelDose: 'निर्माता लेबल खुराक मिली। पंजीकृत लेबल खुराक लगाएँ?',
+    askDilution: 'स्प्रे टैंक / पतला करने के लिए कितने लीटर पानी दर्ज करूँ?',
+    dilutionAsk: 'पतला करना: {message}',
     askSendFarmerQs: 'ये अधूरे-फ़ील्ड सवाल किसान को भेजें?',
     farmerQIntro: 'Morbeez विशेषज्ञ फॉलो-अप — कृपया जवाब दें:',
     farmerQPh: 'वर्तमान मिट्टी pH?',
     farmerQEc: 'वर्तमान मिट्टी EC?',
     farmerQFungicide: 'पिछले 7 दिनों में कोई फफूंदनाशक छिड़का?',
     farmerQRain: 'लगातार बारिश के बाद लक्षण शुरू हुए?',
+    navOpeningNext: 'अगला लंबित केस खोल रहे हैं…',
+    navOpeningPrevious: 'पिछला केस खोल रहे हैं…',
+    navNoNext: 'और केस नहीं — आप आखिरी केस पर हैं।',
+    navNoPrevious: 'पिछला केस नहीं — आप पहले केस पर हैं।',
+    navAtFirst: 'आप पहले केस पर हैं।',
+    navAtLast: 'आप आखिरी केस पर हैं।',
   },
   ml: {
     imagesLoaded: 'ഫോട്ടോകൾ ലോഡ് ആയി.',
@@ -114,12 +139,20 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
       'മിക്സ്, കാലാവസ്ഥ, FRAC, ഫൈറ്റോടോക്സിസിറ്റി, സുരക്ഷാ പരിശോധനകൾ പ്രിവ്യൂവിൽ ചേർത്തു.',
     clarifyDiagnosis: 'ഡ്രാഫ്റ്റിൽ ഏത് നിർണയവും ചികിത്സയും ഇടണം?',
     askLabelDose: 'നിർമ്മാതാവിന്റെ ലേബൽ ഡോസ് കണ്ടു. രജിസ്റ്റർ ലേബൽ ഡോസ് ഇടട്ടെ?',
+    askDilution: 'സ്പ്രേ ടാങ്ക് / തളർത്താൻ എത്ര ലിറ്റർ വെള്ളം രേഖപ്പെടുത്തണം?',
+    dilutionAsk: 'തളർത്തൽ: {message}',
     askSendFarmerQs: 'ഈ ചോദ്യങ്ങൾ കർഷകന് അയയ്ക്കട്ടെ?',
     farmerQIntro: 'Morbeez വിദഗ്ധ ഫോളോ-അപ്പ് — ദയവായി മറുപടി തരൂ:',
     farmerQPh: 'ഇപ്പോഴത്തെ മണ്ണ് pH?',
     farmerQEc: 'ഇപ്പോഴത്തെ മണ്ണ് EC?',
     farmerQFungicide: 'കഴിഞ്ഞ 7 ദിവസം ഫംഗിസൈഡ് തളിച്ചോ?',
     farmerQRain: 'തുടർച്ചയായ മഴയ്ക്ക് ശേഷം ലക്ഷണങ്ങൾ തുടങ്ങിയോ?',
+    navOpeningNext: 'അടുത്ത കാത്തിരിക്കുന്ന കേസ് തുറക്കുന്നു…',
+    navOpeningPrevious: 'മുമ്പത്തെ കേസ് തുറക്കുന്നു…',
+    navNoNext: 'കൂടുതൽ കേസുകൾ ഇല്ല — അവസാന കേസിലാണ്.',
+    navNoPrevious: 'മുമ്പത്തെ കേസ് ഇല്ല — ആദ്യ കേസിലാണ്.',
+    navAtFirst: 'നിങ്ങൾ ആദ്യ കേസിലാണ്.',
+    navAtLast: 'നിങ്ങൾ അവസാന കേസിലാണ്.',
   },
   ta: {
     imagesLoaded: 'படங்கள் ஏற்றப்பட்டன.',
@@ -142,12 +175,20 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
       'கலவை, வானிலை, FRAC, பைட்டோடாக்சிசிட்டி, பாதுகாப்பு சரிபார்ப்புகள் முன்னோட்டத்தில் இணைக்கப்பட்டன.',
     clarifyDiagnosis: 'வரைவில் எந்த நோயறிதல் மற்றும் சிகிச்சை போட வேண்டும்?',
     askLabelDose: 'உற்பத்தியாளர் லேபிள் அளவு கண்டறியப்பட்டது. பதிவு லேபிள் அளவு பயன்படுத்தவா?',
+    askDilution: 'ஸ்ப்ரே டேங்க் / தண்ணீர் கலப்பு எத்தனை லிட்டர் பதிவு செய்ய வேண்டும்?',
+    dilutionAsk: 'தண்ணீர் கலப்பு: {message}',
     askSendFarmerQs: 'இந்த கேள்விகளை விவசாயிக்கு அனுப்பவா?',
     farmerQIntro: 'Morbeez நிபுணர் பின்தொடர்வு — பதிலளிக்கவும்:',
     farmerQPh: 'தற்போதைய மண் pH?',
     farmerQEc: 'தற்போதைய மண் EC?',
     farmerQFungicide: 'கடந்த 7 நாட்களில் பூஞ்சைக்கொல்லி தெளித்தீர்களா?',
     farmerQRain: 'தொடர் மழைக்குப் பிறகு அறிகுறிகள் தொடங்கினவா?',
+    navOpeningNext: 'அடுத்த நிலுவை கேஸைத் திறக்கிறது…',
+    navOpeningPrevious: 'முந்தைய கேஸைத் திறக்கிறது…',
+    navNoNext: 'மேலும் கேஸ்கள் இல்லை — கடைசி கேஸில்.',
+    navNoPrevious: 'முந்தைய கேஸ் இல்லை — முதல் கேஸில்.',
+    navAtFirst: 'நீங்கள் முதல் கேஸில்.',
+    navAtLast: 'நீங்கள் கடைசி கேஸில்.',
   },
   kn: {
     imagesLoaded: 'ಚಿತ್ರಗಳು ಲೋಡ್ ಆಯಿತು.',
@@ -170,12 +211,20 @@ const CATALOG: Record<CopilotUiLocale, Record<MsgKey, string>> = {
       'ಮಿಶ್ರಣ, ಹವಾಮಾನ, FRAC, ಫೈಟೊಟಾಕ್ಸಿಸಿಟಿ ಮತ್ತು ಸುರಕ್ಷತಾ ಪರಿಶೀಲನೆಗಳು ಪೂರ್ವವೀಕ್ಷಣೆಯಲ್ಲಿ ಸೇರಿವೆ.',
     clarifyDiagnosis: 'ಡ್ರಾಫ್ಟ್‌ಗೆ ಯಾವ ನಿರ್ಣಯ ಮತ್ತು ಚಿಕಿತ್ಸೆ ಅನ್ವಯಿಸಲಿ?',
     askLabelDose: 'ತಯಾರಕರ ಲೇಬಲ್ ಡೋಸ್ ಕಂಡುಬಂದಿದೆ. ನೋಂದಾಯಿತ ಲೇಬಲ್ ಡೋಸ್ ಬಳಸುವುದೇ?',
+    askDilution: 'ಸ್ಪ್ರೇ ಟ್ಯಾಂಕ್ / ನೀರಿನ ಪ್ರಮಾಣ ಎಷ್ಟು ಲೀಟರ್ ದಾಖಲಿಸಬೇಕು?',
+    dilutionAsk: 'ನೀರಿನ ಪ್ರಮಾಣ: {message}',
     askSendFarmerQs: 'ಈ ಪ್ರಶ್ನೆಗಳನ್ನು ರೈತರಿಗೆ ಕಳುಹಿಸುವುದೇ?',
     farmerQIntro: 'Morbeez ತಜ್ಞ ಫಾಲೋ-ಅಪ್ — ದಯವಿಟ್ಟು ಉತ್ತರಿಸಿ:',
     farmerQPh: 'ಪ್ರಸ್ತುತ ಮಣ್ಣು pH?',
     farmerQEc: 'ಪ್ರಸ್ತುತ ಮಣ್ಣು EC?',
     farmerQFungicide: 'ಕಳೆದ 7 ದಿನಗಳಲ್ಲಿ ಯಾವುದೇ ಶಿಲೀಂಧ್ರನಾಶಕ ಸಿಂಪಡಿಸಿದ್ದೀರಾ?',
     farmerQRain: 'ನಿರಂತರ ಮಳೆಯ ನಂತರ ಲಕ್ಷಣಗಳು ಪ್ರಾರಂಭವಾದವೇ?',
+    navOpeningNext: 'ಮುಂದಿನ ಬಾಕಿ ಕೇಸ್ ತೆರೆಯುತ್ತಿದೆ…',
+    navOpeningPrevious: 'ಹಿಂದಿನ ಕೇಸ್ ತೆರೆಯುತ್ತಿದೆ…',
+    navNoNext: 'ಇನ್ನೂ ಕೇಸ್‌ಗಳಿಲ್ಲ — ಕೊನೆಯ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
+    navNoPrevious: 'ಹಿಂದಿನ ಕೇಸ್ ಇಲ್ಲ — ಮೊದಲ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
+    navAtFirst: 'ನೀವು ಮೊದಲ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
+    navAtLast: 'ನೀವು ಕೊನೆಯ ಕೇಸ್‌ನಲ್ಲಿದ್ದೀರಿ.',
   },
 };
 

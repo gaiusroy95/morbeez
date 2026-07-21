@@ -18,6 +18,16 @@ export type ExpertCompatibilityRow = {
   note?: string | null;
 };
 
+export type ExpertTreatmentActivity = {
+  method?: string | null;
+  product?: string | null;
+  dose?: string | null;
+  dilutionVolumeL?: number | null;
+  dilutionNotes?: string | null;
+  interval?: string | null;
+  notes?: string | null;
+};
+
 export type ExpertCaseValidations = {
   compatibility?: ExpertCompatibilityRow[];
   weather?: {
@@ -32,6 +42,8 @@ export type ExpertCaseValidations = {
     message?: string | null;
     labelDoseApplied?: boolean | null;
     askLabelDose?: boolean | null;
+    askDilution?: boolean | null;
+    dilutionMessage?: string | null;
   } | null;
   frac?: {
     previousSpray?: string | null;
@@ -79,10 +91,15 @@ export type ExpertCaseReviewDraft = {
   farmerQuestions?: string[];
   farmerQuestionsSent?: boolean;
   farmerAnswers?: Record<string, string> | null;
+  treatmentActivities?: ExpertTreatmentActivity[];
+  sprayVolumeL?: number | null;
+  dilutionNotes?: string | null;
   imageAnalysis?: {
     findings?: string[];
     annotated?: boolean;
     offerAnnotate?: boolean;
+    images?: Array<{ url: string; label?: string }>;
+    imagesOpened?: boolean;
   } | null;
   validations?: ExpertCaseValidations | null;
 };
@@ -151,6 +168,9 @@ export function emptyExpertCaseDraft(): ExpertCaseReviewDraft {
     farmerQuestions: [],
     farmerQuestionsSent: false,
     farmerAnswers: null,
+    treatmentActivities: [],
+    sprayVolumeL: null,
+    dilutionNotes: null,
     imageAnalysis: null,
     validations: null,
   };
@@ -182,11 +202,32 @@ export function mergeExpertCaseDraft(
 
 export function draftHasTreatment(draft: ExpertCaseReviewDraft | null | undefined): boolean {
   if (!draft) return false;
+  if ((draft.treatmentActivities?.length ?? 0) > 0) return true;
   return Boolean(
     String(draft.treatmentProduct ?? '').trim() ||
       String(draft.recommendationText ?? '').trim() ||
       String(draft.dosage ?? '').trim()
   );
+}
+
+export function draftNeedsDilutionClarification(
+  draft: ExpertCaseReviewDraft | null | undefined
+): boolean {
+  if (!draft || !draftHasTreatment(draft)) return false;
+  const foliar = (draft.treatmentActivities ?? []).filter((row) =>
+    /spray|foliar/i.test(String(row.method ?? ''))
+  );
+  if (foliar.length) {
+    return foliar.some(
+      (row) => Boolean(String(row.product ?? row.dose ?? '').trim()) && row.dilutionVolumeL == null
+    );
+  }
+  if (!/spray|foliar/i.test(String(draft.applicationMethod ?? ''))) return false;
+  if (draft.sprayVolumeL != null) return false;
+  const dilutionText = [draft.dosage, draft.dilutionNotes, draft.recommendationText]
+    .filter(Boolean)
+    .join(' ');
+  return !/\b\d+(?:\.\d+)?\s*(?:l|liter|litre|ltr)\b/i.test(dilutionText);
 }
 
 export function draftValidationChecklist(draft: ExpertCaseReviewDraft | null | undefined): string[] {
@@ -197,7 +238,7 @@ export function draftValidationChecklist(draft: ExpertCaseReviewDraft | null | u
   if (draftHasTreatment(draft)) items.push('Treatment Generated');
   if (v?.compatibility?.length) items.push('Compatibility Passed');
   if (v?.weather) items.push('Weather Checked');
-  if (v?.dosage && !v.dosage.askLabelDose) items.push('Dosage Validated');
+  if (v?.dosage && !v.dosage.askLabelDose && !v.dosage.askDilution) items.push('Dosage Validated');
   if (v?.frac) items.push('FRAC Rotation Checked');
   if (v?.phytotoxicity) items.push('Phytotoxicity Low');
   if (v?.safety) items.push('Safety Passed');

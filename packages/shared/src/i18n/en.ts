@@ -417,6 +417,10 @@ export const en = {
   ecLabelDosePending: 'Label dose pending',
   ecMethod: 'Method',
   ecTiming: 'Timing',
+  ecActivities: 'Application activities',
+  ecDilution: 'Dilution',
+  ecSprayVolume: 'Spray volume',
+  ecTapToView: 'Tap to view',
   ecNutrition: 'Nutrition',
   ecCulturalPractice: 'Cultural Practice',
   ecFollowUp: 'Follow-up',
@@ -475,6 +479,12 @@ export const en = {
   ecActionLearning: 'Learning candidate queued.',
   ecActionAnalytics: 'Case analytics updated.',
   ecActionNextCase: 'Opening next pending case…',
+  ecCaseNav: 'Case {current} of {total}',
+  ecPrevCase: 'Previous case',
+  ecNextCase: 'Next case',
+  ecListCases: 'List cases',
+  ecOpenCase: 'Open',
+  ecNoCasesInQueue: 'No open cases in your queue.',
 } as const;
 
 export type I18nKey = keyof typeof en;

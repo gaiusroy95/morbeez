@@ -1,5 +1,5 @@
 import type { ExpertCaseReviewDraft } from '@morbeez/shared/expert-case';
-import { emptyExpertCaseDraft } from '@morbeez/shared/expert-case';
+import { draftNeedsDilutionClarification, emptyExpertCaseDraft } from '@morbeez/shared/expert-case';
 import { env } from '../../config/env.js';
 import { ConflictError, NotFoundError, UnauthorizedError } from '../../lib/errors.js';
 import { supabase } from '../../lib/supabase.js';
@@ -16,7 +16,12 @@ import {
   mergeExpertCaseDraft,
   parseFarmerAnswerMessage,
 } from './expert-case-copilot-simulation.service.js';
+import { parseDilutionVolumeL } from './expert-case-treatment-extraction.service.js';
 import { copilotMsg, normalizeCopilotLocale } from './expert-case-copilot-i18n.js';
+import {
+  buildExpertCaseNavigation,
+  formatCaseListMessage,
+} from './expert-case-navigation.service.js';
 
 export type ExpertChatMessageInput = {
   caseId: string;
@@ -33,6 +38,29 @@ const numberOrNull = { type: ['number', 'null'] as const };
 const intOrNull = { type: ['integer', 'null'] as const };
 const boolOrNull = { type: ['boolean', 'null'] as const };
 const stringArray = { type: 'array' as const, items: { type: 'string' } };
+
+const treatmentActivitySchema = {
+  type: 'object' as const,
+  additionalProperties: false,
+  properties: {
+    method: stringOrNull,
+    product: stringOrNull,
+    dose: stringOrNull,
+    dilutionVolumeL: numberOrNull,
+    dilutionNotes: stringOrNull,
+    interval: stringOrNull,
+    notes: stringOrNull,
+  },
+  required: [
+    'method',
+    'product',
+    'dose',
+    'dilutionVolumeL',
+    'dilutionNotes',
+    'interval',
+    'notes',
+  ],
+};
 
 const draftSchema = {
   type: 'object',
@@ -71,6 +99,12 @@ const draftSchema = {
         unresolvedFields: stringArray,
         farmerQuestions: stringArray,
         farmerQuestionsSent: boolOrNull,
+        treatmentActivities: {
+          type: 'array' as const,
+          items: treatmentActivitySchema,
+        },
+        sprayVolumeL: numberOrNull,
+        dilutionNotes: stringOrNull,
       },
       required: [
         'diagnosis',
@@ -100,6 +134,9 @@ const draftSchema = {
         'unresolvedFields',
         'farmerQuestions',
         'farmerQuestionsSent',
+        'treatmentActivities',
+        'sprayVolumeL',
+        'dilutionNotes',
       ],
     },
   },
@@ -253,7 +290,7 @@ export const expertCaseChatService = {
       draft_json: params.draft,
     });
 
-    await supabase.from('expert_case_extracted').insert({
+    await supabase.from('expert_case_extractions').insert({
       case_id: params.caseId,
       chat_turn_id: agronomistTurn.id,
       proposal_json: {
@@ -282,6 +319,11 @@ export const expertCaseChatService = {
     draft: ExpertCaseDraftPayload;
     clarification: string | null;
     baseRevision: number;
+    navigation?: {
+      action: 'next' | 'previous' | 'list';
+      targetCaseId: string | null;
+      caseNavigation?: Awaited<ReturnType<typeof buildExpertCaseNavigation>>;
+    };
   }> {
     if (!this.enabled()) throw new UnauthorizedError('Expert Copilot chat is disabled');
     const owned = await this.assertOwner(input);
@@ -311,6 +353,7 @@ export const expertCaseChatService = {
     );
 
     const farmerAnswers = parseFarmerAnswerMessage(content);
+    const dilutionVolumeL = parseDilutionVolumeL(content);
     if (farmerAnswers) {
       currentDraft = mergeExpertCaseDraft(currentDraft, {
         farmerAnswers: { ...(currentDraft.farmerAnswers ?? {}), ...farmerAnswers },
@@ -325,7 +368,86 @@ export const expertCaseChatService = {
       }
     }
 
+    if (dilutionVolumeL != null) {
+      const activities = (currentDraft.treatmentActivities ?? []).map((row) =>
+        /spray|foliar/i.test(String(row.method ?? '')) && row.dilutionVolumeL == null
+          ? {
+              ...row,
+              dilutionVolumeL,
+              dilutionNotes: `${dilutionVolumeL} L spray volume`,
+            }
+          : row
+      );
+      currentDraft = mergeExpertCaseDraft(currentDraft, {
+        sprayVolumeL: dilutionVolumeL,
+        dilutionNotes: `${dilutionVolumeL} L spray volume`,
+        treatmentActivities: activities.length ? activities : currentDraft.treatmentActivities,
+        unresolvedFields: (currentDraft.unresolvedFields ?? []).filter(
+          (field) => field !== 'dilutionVolume'
+        ),
+      });
+    }
+
     const intent = detectCopilotIntent(content, currentDraft);
+
+    if (
+      intent === 'nav_next_case' ||
+      intent === 'nav_previous_case' ||
+      intent === 'nav_list_cases'
+    ) {
+      const caseNavigation = await buildExpertCaseNavigation({
+        ownerEmail: input.ownerEmail,
+        caseId: input.caseId,
+      });
+
+      if (intent === 'nav_list_cases') {
+        const result = await this.persistDraftResult({
+          caseId: input.caseId,
+          ownerEmail: input.ownerEmail,
+          leaseToken: input.leaseToken,
+          owned,
+          agronomistContent: content,
+          assistantMessage: formatCaseListMessage(caseNavigation, locale),
+          clarification: null,
+          draft: currentDraft,
+          metadata: { intent, caseNavigation },
+        });
+        return {
+          ...result,
+          navigation: { action: 'list', targetCaseId: null, caseNavigation },
+        };
+      }
+
+      const isNext = intent === 'nav_next_case';
+      const targetCaseId = isNext ? caseNavigation.nextCaseId : caseNavigation.previousCaseId;
+      const assistantMessage = isNext
+        ? targetCaseId
+          ? copilotMsg(locale, 'navOpeningNext')
+          : copilotMsg(locale, 'navNoNext')
+        : targetCaseId
+          ? copilotMsg(locale, 'navOpeningPrevious')
+          : copilotMsg(locale, 'navNoPrevious');
+
+      const result = await this.persistDraftResult({
+        caseId: input.caseId,
+        ownerEmail: input.ownerEmail,
+        leaseToken: input.leaseToken,
+        owned,
+        agronomistContent: content,
+        assistantMessage,
+        clarification: null,
+        draft: currentDraft,
+        metadata: { intent, caseNavigation, targetCaseId },
+      });
+      return {
+        ...result,
+        navigation: {
+          action: isNext ? 'next' : 'previous',
+          targetCaseId,
+          caseNavigation,
+        },
+      };
+    }
 
     if (intent === 'open_images') {
       const result = applyOpenImagesIntent(currentDraft, briefing, locale);
@@ -436,6 +558,7 @@ export const expertCaseChatService = {
       briefing,
       runValidations: true,
       locale: farmerLocale,
+      latestMessage: content,
     });
     if (farmerAnswers) {
       draft = mergeExpertCaseDraft(draft, { farmerAnswers });
@@ -448,6 +571,8 @@ export const expertCaseChatService = {
       !clarification
     ) {
       clarification = copilotMsg(locale, 'askLabelDose');
+    } else if (draftNeedsDilutionClarification(draft) && !clarification) {
+      clarification = copilotMsg(locale, 'askDilution');
     } else if (
       (draft.farmerQuestions?.length ?? 0) > 0 &&
       !draft.farmerQuestionsSent &&
@@ -466,7 +591,11 @@ export const expertCaseChatService = {
               ? copilotMsg(locale, 'dosageAsk', {
                   message: draft.validations.dosage.message || '',
                 })
-              : copilotMsg(locale, 'dosageOk'),
+              : draft.validations.dosage?.askDilution
+                ? copilotMsg(locale, 'dilutionAsk', {
+                    message: draft.validations.dosage.dilutionMessage || '',
+                  })
+                : copilotMsg(locale, 'dosageOk'),
             copilotMsg(locale, 'validationsAttached'),
           ].join('\n')
         : '',
@@ -526,6 +655,8 @@ export const expertCaseChatService = {
           'You are Morbeez Expert Copilot for agronomists.',
           'Convert expert chat into a structured case review draft that fills forms/tables.',
           'Extract: primary + secondary diagnosis, evidence bullets, root causes, treatment product, dosage, application method/timing, nutrition, cultural practices, precautions, follow-up days, farmer tasks, farmer clarification questions, knowledge candidate.',
+          'When the expert gives multiple application activities (e.g. foliar spray AND soil drench), populate treatmentActivities with one row per activity (method, product, dose, dilutionVolumeL, interval).',
+          'For foliar sprays, capture spray tank / dilution water volume in liters (dilutionVolumeL, sprayVolumeL, dilutionNotes) when stated.',
           'Preserve explicit fields; never invent products, doses, IDs, or approvals.',
           'Unknown fields are null and listed in unresolvedFields.',
           'Ask at most one clarification for the whole case; when clarificationAlreadyAsked is true, clarification must be null.',

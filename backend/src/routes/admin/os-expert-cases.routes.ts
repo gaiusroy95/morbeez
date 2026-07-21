@@ -8,6 +8,7 @@ import { expertCaseBackfillService } from '../../services/expert-case/expert-cas
 import { expertCaseChatService } from '../../services/expert-case/expert-case-chat.service.js';
 import { expertCaseCommitService } from '../../services/expert-case/expert-case-commit.service.js';
 import { loadExpertCaseBriefing } from '../../services/expert-case/expert-case-copilot-simulation.service.js';
+import { buildExpertCaseNavigation } from '../../services/expert-case/expert-case-navigation.service.js';
 import { expertCaseLifecycleService } from '../../services/expert-case/expert-case-lifecycle.service.js';
 import { expertCaseOwnershipService } from '../../services/expert-case/expert-case-ownership.service.js';
 import { expertCaseQueueService } from '../../services/expert-case/expert-case-queue.service.js';
@@ -170,15 +171,13 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       links: links.data ?? [],
     });
 
-    let nextCaseId: string | null = null;
+    let caseNavigation = null;
     try {
       if (expertCaseQueueService.enabled()) {
-        const buckets = await expertCaseQueueService.listBuckets(admin.email);
-        const next =
-          buckets.my_work.find((row) => String(row.id ?? '') !== id) ??
-          buckets.available.find((row) => String(row.id ?? '') !== id) ??
-          null;
-        nextCaseId = typeof next?.id === 'string' ? next.id : null;
+        caseNavigation = await buildExpertCaseNavigation({
+          ownerEmail: admin.email,
+          caseId: id,
+        });
       }
     } catch {
       /* optional */
@@ -194,7 +193,9 @@ export async function osExpertCasesRoutes(app: FastifyInstance): Promise<void> {
       draft,
       safety: safety.data ?? null,
       briefing,
-      nextCaseId,
+      nextCaseId: caseNavigation?.nextCaseId ?? null,
+      previousCaseId: caseNavigation?.previousCaseId ?? null,
+      caseNavigation,
     });
   });
 
