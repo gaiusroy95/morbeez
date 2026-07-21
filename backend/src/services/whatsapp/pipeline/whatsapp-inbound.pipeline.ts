@@ -480,7 +480,17 @@ export const whatsappInboundPipeline = {
 
     // Conversation state + ownership (human takeover / pause AI)
     let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
-    if (!captured.hadHistoricalLead) {
+    const isLanguagePick =
+      Boolean(msg.text?.trim().startsWith('lang.')) ||
+      Boolean(msg.text && languageFromSelection(msg.text));
+    const isGreeting = Boolean(msg.text?.trim() && isMainMenuGreeting(msg.text));
+    // Bootstrap brand-new farmers once on first Hi — never reset mid-flow (e.g. after language tap).
+    if (
+      !captured.hadHistoricalLead &&
+      isGreeting &&
+      !isLanguagePick &&
+      !session.preferred_language
+    ) {
       const now = new Date().toISOString();
       await supabase
         .from('conversation_sessions')

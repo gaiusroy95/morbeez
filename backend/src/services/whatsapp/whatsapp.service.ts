@@ -76,7 +76,7 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   else if (interactive) {
     const btnReply = interactive.button_reply as Record<string, string> | undefined;
     const listReply = interactive.list_reply as Record<string, string> | undefined;
-    text = btnReply?.title ?? listReply?.title ?? '';
+    text = btnReply?.id ?? listReply?.id ?? btnReply?.title ?? listReply?.title ?? '';
   } else if (typeof payload.text === 'string') text = payload.text;
   else if (typeof payload.message === 'string') text = payload.message;
   else if (typeof payload.body === 'string') text = payload.body;
@@ -295,11 +295,10 @@ export const whatsappService = {
           (msg.button as Record<string, string> | undefined)?.text ??
           '';
         const interactive = msg.interactive as Record<string, unknown> | undefined;
-        if (!text && interactive) {
+        if (interactive) {
           const btn = interactive.button_reply as Record<string, string> | undefined;
           const list = interactive.list_reply as Record<string, string> | undefined;
-          // Prefer stable IDs for state machines (language/menu), fallback to title.
-          text = btn?.id ?? list?.id ?? btn?.title ?? list?.title ?? '';
+          text = btn?.id ?? list?.id ?? btn?.title ?? list?.title ?? text;
         }
         if (!text) {
           text = (msg.image as Record<string, string> | undefined)?.caption ?? '';
