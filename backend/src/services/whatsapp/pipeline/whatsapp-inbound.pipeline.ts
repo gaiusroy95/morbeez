@@ -2,6 +2,7 @@ import { env } from '../../../config/env.js';
 import { eventBus } from '../../../events/bus.js';
 import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
+import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
 import type { AdvisoryLanguage, DiagnoseInput, StructuredAdvisory } from '../../ai/types.js';
@@ -462,6 +463,14 @@ export const whatsappInboundPipeline = {
       sendWelcomeTemplate?: (phone: string, farmerId: string, profileName?: string) => Promise<boolean>;
     }
   ): Promise<void> {
+    if (msg.messageId?.trim()) {
+      const claimed = await claimInboundWhatsAppMessage(msg.messageId);
+      if (!claimed) {
+        logger.info({ messageId: msg.messageId, phone: msg.phone }, 'Duplicate WhatsApp inbound skipped');
+        return;
+      }
+    }
+
     if (msg.text?.trim() && isFarmerResetCommand(msg.text)) {
       const phone = orderWhatsappService.normalizePhone(msg.phone);
       await farmerPurgeService.purgeByPhone(phone);

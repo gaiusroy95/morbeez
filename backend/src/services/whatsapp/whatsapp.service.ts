@@ -9,6 +9,7 @@ import { logger } from '../../lib/logger.js';
 import type { InboundMessage } from './pipeline/types.js';
 import type { WhatsAppProvider } from './whatsapp-outbound.types.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
+import { extractInteractiveReplyText } from './inbound-reply-text.util.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -66,18 +67,18 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   const textObj = message?.text as Record<string, string> | undefined;
   const buttonObj = message?.button as Record<string, string> | undefined;
   const interactive = message?.interactive as Record<string, unknown> | undefined;
+  const interactiveReply = extractInteractiveReplyText(interactive);
 
   let text = '';
-  if (typeof message?.message_body === 'string') text = message.message_body;
-  else if (textObj?.body) text = textObj.body;
+  if (interactiveReply) {
+    text = interactiveReply;
+  } else if (typeof message?.message_body === 'string' && message.message_body.trim()) {
+    text = message.message_body;
+  } else if (textObj?.body) text = textObj.body;
   else if (typeof message?.body === 'string') text = message.body;
   else if (buttonObj?.text) text = buttonObj.text;
   else if (typeof message?.caption === 'string') text = message.caption;
-  else if (interactive) {
-    const btnReply = interactive.button_reply as Record<string, string> | undefined;
-    const listReply = interactive.list_reply as Record<string, string> | undefined;
-    text = btnReply?.id ?? listReply?.id ?? btnReply?.title ?? listReply?.title ?? '';
-  } else if (typeof payload.text === 'string') text = payload.text;
+  else if (typeof payload.text === 'string') text = payload.text;
   else if (typeof payload.message === 'string') text = payload.message;
   else if (typeof payload.body === 'string') text = payload.body;
 
@@ -290,15 +291,14 @@ export const whatsappService = {
         if (!from) continue;
 
         const msgType = String(msg.type ?? 'text');
-        let text =
-          (msg.text as Record<string, string> | undefined)?.body ??
-          (msg.button as Record<string, string> | undefined)?.text ??
-          '';
         const interactive = msg.interactive as Record<string, unknown> | undefined;
-        if (interactive) {
-          const btn = interactive.button_reply as Record<string, string> | undefined;
-          const list = interactive.list_reply as Record<string, string> | undefined;
-          text = btn?.id ?? list?.id ?? btn?.title ?? list?.title ?? text;
+        const interactiveReply = extractInteractiveReplyText(interactive);
+        let text = interactiveReply ?? '';
+        if (!text) {
+          text =
+            (msg.text as Record<string, string> | undefined)?.body ??
+            (msg.button as Record<string, string> | undefined)?.text ??
+            '';
         }
         if (!text) {
           text = (msg.image as Record<string, string> | undefined)?.caption ?? '';

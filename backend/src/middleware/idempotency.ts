@@ -47,6 +47,13 @@ export async function claimWebhook(
   return true;
 }
 
+/** Dedupe the same farmer message when Meta + BSP webhooks both fire. */
+export async function claimInboundWhatsAppMessage(messageId: string): Promise<boolean> {
+  const key = messageId.trim();
+  if (!key) return true;
+  return claimWebhook('whatsapp_inbound', `msg:${key}`, { messageId: key });
+}
+
 export async function finalizeWebhookClaim(
   provider: string,
   idempotencyKey: string,
