@@ -3,7 +3,7 @@ import { eventBus } from '../../../events/bus.js';
 import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
 import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
-import { detectInboundLanguageChoice, hasInteractiveUserReply, isLanguageMenuEcho, } from '../inbound-reply-text.util.js';
+import { detectInboundLanguageChoice, hasInteractiveUserReply, isLanguageMenuEcho, parseMetaCloudMessageObject, } from '../inbound-reply-text.util.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
 import { leadCaptureService } from './lead-capture.service.js';
@@ -334,6 +334,12 @@ export const whatsappInboundPipeline = {
             return;
         }
         msg = withNormalizedMediaFields(msg);
+        if (msg.msgType === 'interactive' && msg.messageObject && !detectInboundLanguageChoice(msg)) {
+            const reparsed = parseMetaCloudMessageObject(msg.messageObject);
+            if (reparsed.trim()) {
+                msg = { ...msg, text: reparsed };
+            }
+        }
         const captured = await leadCaptureService.captureAndIdentify(msg, 'en');
         // Conversation state + ownership (human takeover / pause AI)
         let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
@@ -480,7 +486,10 @@ export const whatsappInboundPipeline = {
                 msgType: msg.msgType,
                 text: msg.text?.slice(0, 120),
                 hasInteractive: hasInteractiveUserReply(msg),
-            }, 'Re-sending WhatsApp language menu (language choice not detected)');
+                languageChoice: detectInboundLanguageChoice(msg),
+                interactive: msg.messageObject?.interactive,
+                buttonReply: msg.messageObject?.button_reply,
+            }, 'Sending WhatsApp language menu (no language choice detected yet)');
             const copy = languageSelectCopy();
             if (send.list) {
                 await send.list({

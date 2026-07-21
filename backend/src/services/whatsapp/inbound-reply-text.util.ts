@@ -51,6 +51,11 @@ export function extractInteractiveReplyText(
 }
 
 function extractFlatReply(blob: Record<string, unknown>): string | null {
+  const directId = blob.id;
+  const directTitle = blob.title;
+  if (typeof directId === 'string' && directId.trim()) return directId.trim();
+  if (typeof directTitle === 'string' && directTitle.trim()) return directTitle.trim();
+
   const btn = blob.button_reply as Record<string, string> | undefined;
   const list = blob.list_reply as Record<string, string> | undefined;
   if (btn?.id?.trim()) return btn.id.trim();
@@ -103,7 +108,9 @@ export function deepFindLanguageButtonId(payload: unknown): string | null {
     if (node == null) return null;
     if (typeof node === 'string') {
       const match = node.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
-      return match ? `lang.${match[1].toLowerCase()}` : null;
+      if (match) return `lang.${match[1].toLowerCase()}`;
+      const fromLabel = languageFromLabel(node);
+      return fromLabel ? `lang.${fromLabel}` : null;
     }
     if (typeof node !== 'object') return null;
     if (seen.has(node)) return null;
@@ -117,7 +124,7 @@ export function deepFindLanguageButtonId(payload: unknown): string | null {
       if (fromReply) return `lang.${fromReply}`;
     }
 
-    for (const key of ['id', 'button_id', 'payload', 'button_payload'] as const) {
+    for (const key of ['id', 'button_id', 'payload', 'button_payload', 'title'] as const) {
       const val = rec[key];
       if (typeof val === 'string') {
         const match = val.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
@@ -146,11 +153,41 @@ export function isLanguageMenuEcho(text: string): boolean {
 }
 
 export function hasInteractiveUserReply(msg: InboundMessage): boolean {
+  if (msg.msgType === 'interactive' || msg.msgType === 'button') return true;
   const blob = messageBlob(msg.messageObject, msg.rawPayload);
   if (extractInteractiveFromBlob(blob)) return true;
   if (deepFindLanguageButtonId(msg.rawPayload)) return true;
   if (deepFindLanguageButtonId(msg.messageObject)) return true;
   return false;
+}
+
+/** Parse Meta Cloud API message object (messages[0]) for farmer reply text. */
+export function parseMetaCloudMessageObject(msg: Record<string, unknown>): string {
+  const interactive = msg.interactive as Record<string, unknown> | undefined;
+
+  const fromInteractive = extractInteractiveReplyText(interactive);
+  if (fromInteractive) return fromInteractive;
+
+  const fromFlat = extractFlatReply(msg);
+  if (fromFlat) return fromFlat;
+
+  const button = msg.button as Record<string, string> | undefined;
+  if (button?.payload?.trim()) return button.payload.trim();
+  if (button?.text?.trim()) return button.text.trim();
+
+  const textBody = (msg.text as Record<string, string> | undefined)?.body?.trim();
+  if (textBody) return textBody;
+
+  const inbound: InboundMessage = {
+    channel: 'whatsapp_cloud',
+    phone: String(msg.from ?? ''),
+    messageId: String(msg.id ?? ''),
+    msgType: String(msg.type ?? 'text'),
+    text: '',
+    rawPayload: { message: msg },
+    messageObject: msg,
+  };
+  return resolveInboundUserText(inbound);
 }
 
 /**

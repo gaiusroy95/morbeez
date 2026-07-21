@@ -11,7 +11,9 @@ import type { WhatsAppProvider } from './whatsapp-outbound.types.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
 import {
   deepFindLanguageButtonId,
+  detectInboundLanguageChoice,
   extractInteractiveReplyText,
+  parseMetaCloudMessageObject,
   resolveInboundUserText,
 } from './inbound-reply-text.util.js';
 
@@ -303,35 +305,29 @@ export const whatsappService = {
         if (!from) continue;
 
         const msgType = String(msg.type ?? 'text');
-        const interactive = msg.interactive as Record<string, unknown> | undefined;
-        const flatReply =
-          (msg.button_reply as Record<string, string> | undefined) ??
-          (msg.list_reply as Record<string, string> | undefined);
-        const interactiveReply =
-          extractInteractiveReplyText(interactive) ??
-          (flatReply
-            ? extractInteractiveReplyText({
-                button_reply: msg.button_reply,
-                list_reply: msg.list_reply,
-              } as Record<string, unknown>)
-            : null);
-        let text = interactiveReply ?? '';
-        if (!text) {
-          const button = msg.button as Record<string, string> | undefined;
-          text = button?.payload ?? button?.text ?? '';
-        }
-        if (!text) {
-          text =
-            (msg.text as Record<string, string> | undefined)?.body ?? '';
-        }
-        if (!text) {
-          text = (msg.image as Record<string, string> | undefined)?.caption ?? '';
-        }
+        let text = parseMetaCloudMessageObject(msg);
 
         const contact = contacts?.find((c) => String(c.wa_id) === from);
         const profile = contact?.profile as Record<string, string> | undefined;
 
-        logger.info({ from, msgType, hasText: Boolean(text) }, 'WhatsApp Cloud inbound message');
+        if (msgType === 'interactive' && !text.trim()) {
+          logger.warn(
+            {
+              from,
+              msgType,
+              messageId: msg.id,
+              interactive: msg.interactive,
+              buttonReply: msg.button_reply,
+              messageKeys: Object.keys(msg),
+            },
+            'Interactive WhatsApp inbound had no parseable reply text'
+          );
+        }
+
+        logger.info(
+          { from, msgType, hasText: Boolean(text), textPreview: text.slice(0, 40) },
+          'WhatsApp Cloud inbound message'
+        );
 
         const inbound: InboundMessage = {
           channel: 'whatsapp_cloud',
@@ -349,6 +345,9 @@ export const whatsappService = {
         };
         const resolved = resolveInboundUserText(inbound);
         if (resolved) inbound.text = resolved;
+
+        const languageChoice = detectInboundLanguageChoice(inbound);
+        if (languageChoice) inbound.text = `lang.${languageChoice}`;
 
         await whatsappInboundPipeline.process(
           inbound,

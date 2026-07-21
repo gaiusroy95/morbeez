@@ -7,6 +7,7 @@ import {
   detectInboundLanguageChoice,
   hasInteractiveUserReply,
   isLanguageMenuEcho,
+  parseMetaCloudMessageObject,
 } from '../inbound-reply-text.util.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
@@ -493,6 +494,13 @@ export const whatsappInboundPipeline = {
 
     msg = withNormalizedMediaFields(msg);
 
+    if (msg.msgType === 'interactive' && msg.messageObject && !detectInboundLanguageChoice(msg)) {
+      const reparsed = parseMetaCloudMessageObject(msg.messageObject);
+      if (reparsed.trim()) {
+        msg = { ...msg, text: reparsed };
+      }
+    }
+
     const captured = await leadCaptureService.captureAndIdentify(msg, 'en');
 
     // Conversation state + ownership (human takeover / pause AI)
@@ -664,8 +672,11 @@ export const whatsappInboundPipeline = {
           msgType: msg.msgType,
           text: msg.text?.slice(0, 120),
           hasInteractive: hasInteractiveUserReply(msg),
+          languageChoice: detectInboundLanguageChoice(msg),
+          interactive: msg.messageObject?.interactive,
+          buttonReply: msg.messageObject?.button_reply,
         },
-        'Re-sending WhatsApp language menu (language choice not detected)'
+        'Sending WhatsApp language menu (no language choice detected yet)'
       );
 
       const copy = languageSelectCopy();

@@ -41,6 +41,12 @@ export function extractInteractiveReplyText(interactive) {
     return title?.trim() ? title.trim() : null;
 }
 function extractFlatReply(blob) {
+    const directId = blob.id;
+    const directTitle = blob.title;
+    if (typeof directId === 'string' && directId.trim())
+        return directId.trim();
+    if (typeof directTitle === 'string' && directTitle.trim())
+        return directTitle.trim();
     const btn = blob.button_reply;
     const list = blob.list_reply;
     if (btn?.id?.trim())
@@ -94,7 +100,10 @@ export function deepFindLanguageButtonId(payload) {
             return null;
         if (typeof node === 'string') {
             const match = node.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
-            return match ? `lang.${match[1].toLowerCase()}` : null;
+            if (match)
+                return `lang.${match[1].toLowerCase()}`;
+            const fromLabel = languageFromLabel(node);
+            return fromLabel ? `lang.${fromLabel}` : null;
         }
         if (typeof node !== 'object')
             return null;
@@ -108,7 +117,7 @@ export function deepFindLanguageButtonId(payload) {
             if (fromReply)
                 return `lang.${fromReply}`;
         }
-        for (const key of ['id', 'button_id', 'payload', 'button_payload']) {
+        for (const key of ['id', 'button_id', 'payload', 'button_payload', 'title']) {
             const val = rec[key];
             if (typeof val === 'string') {
                 const match = val.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
@@ -134,6 +143,8 @@ export function isLanguageMenuEcho(text) {
         t.includes('please select your language'));
 }
 export function hasInteractiveUserReply(msg) {
+    if (msg.msgType === 'interactive' || msg.msgType === 'button')
+        return true;
     const blob = messageBlob(msg.messageObject, msg.rawPayload);
     if (extractInteractiveFromBlob(blob))
         return true;
@@ -142,6 +153,34 @@ export function hasInteractiveUserReply(msg) {
     if (deepFindLanguageButtonId(msg.messageObject))
         return true;
     return false;
+}
+/** Parse Meta Cloud API message object (messages[0]) for farmer reply text. */
+export function parseMetaCloudMessageObject(msg) {
+    const interactive = msg.interactive;
+    const fromInteractive = extractInteractiveReplyText(interactive);
+    if (fromInteractive)
+        return fromInteractive;
+    const fromFlat = extractFlatReply(msg);
+    if (fromFlat)
+        return fromFlat;
+    const button = msg.button;
+    if (button?.payload?.trim())
+        return button.payload.trim();
+    if (button?.text?.trim())
+        return button.text.trim();
+    const textBody = msg.text?.body?.trim();
+    if (textBody)
+        return textBody;
+    const inbound = {
+        channel: 'whatsapp_cloud',
+        phone: String(msg.from ?? ''),
+        messageId: String(msg.id ?? ''),
+        msgType: String(msg.type ?? 'text'),
+        text: '',
+        rawPayload: { message: msg },
+        messageObject: msg,
+    };
+    return resolveInboundUserText(inbound);
 }
 /**
  * Detect language choice from any webhook shape (Cloud, AdsGyani, flattened button_reply).

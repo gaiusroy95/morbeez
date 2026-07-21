@@ -6,6 +6,8 @@ export declare function extractInteractiveReplyText(interactive: Record<string, 
 export declare function deepFindLanguageButtonId(payload: unknown): string | null;
 export declare function isLanguageMenuEcho(text: string): boolean;
 export declare function hasInteractiveUserReply(msg: InboundMessage): boolean;
+/** Parse Meta Cloud API message object (messages[0]) for farmer reply text. */
+export declare function parseMetaCloudMessageObject(msg: Record<string, unknown>): string;
 /**
  * Detect language choice from any webhook shape (Cloud, AdsGyani, flattened button_reply).
  */

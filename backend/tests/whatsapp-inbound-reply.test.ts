@@ -6,6 +6,7 @@ import {
   detectInboundLanguageChoice,
   extractInteractiveReplyText,
   isLanguageMenuEcho,
+  parseMetaCloudMessageObject,
   resolveInboundUserText,
 } from '../src/services/whatsapp/inbound-reply-text.util.js';
 import type { InboundMessage } from '../src/services/whatsapp/pipeline/types.js';
@@ -113,6 +114,32 @@ describe('resolveInboundUserText', () => {
       },
     };
     assert.equal(detectInboundLanguageChoice(msg), 'en');
+  });
+});
+
+describe('parseMetaCloudMessageObject', () => {
+  it('reads standard Meta interactive.button_reply', () => {
+    const msg = {
+      from: '420771542941',
+      id: 'wamid.test',
+      type: 'interactive',
+      interactive: {
+        type: 'button_reply',
+        button_reply: { id: 'lang.en', title: 'English' },
+      },
+    };
+    assert.equal(parseMetaCloudMessageObject(msg), 'lang.en');
+  });
+
+  it('reads button_reply title when id is absent', () => {
+    const msg = {
+      type: 'interactive',
+      interactive: {
+        type: 'button_reply',
+        button_reply: { title: 'English' },
+      },
+    };
+    assert.equal(parseMetaCloudMessageObject(msg), 'English');
   });
 });
 

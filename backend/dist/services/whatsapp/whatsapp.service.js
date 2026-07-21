@@ -7,7 +7,7 @@ import { whatsappInboundPipeline } from './pipeline/whatsapp-inbound.pipeline.js
 import { whatsappOutboundService } from './whatsapp-outbound.service.js';
 import { logger } from '../../lib/logger.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
-import { deepFindLanguageButtonId, extractInteractiveReplyText, resolveInboundUserText, } from './inbound-reply-text.util.js';
+import { deepFindLanguageButtonId, detectInboundLanguageChoice, extractInteractiveReplyText, parseMetaCloudMessageObject, resolveInboundUserText, } from './inbound-reply-text.util.js';
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -242,31 +242,20 @@ export const whatsappService = {
                 if (!from)
                     continue;
                 const msgType = String(msg.type ?? 'text');
-                const interactive = msg.interactive;
-                const flatReply = msg.button_reply ??
-                    msg.list_reply;
-                const interactiveReply = extractInteractiveReplyText(interactive) ??
-                    (flatReply
-                        ? extractInteractiveReplyText({
-                            button_reply: msg.button_reply,
-                            list_reply: msg.list_reply,
-                        })
-                        : null);
-                let text = interactiveReply ?? '';
-                if (!text) {
-                    const button = msg.button;
-                    text = button?.payload ?? button?.text ?? '';
-                }
-                if (!text) {
-                    text =
-                        msg.text?.body ?? '';
-                }
-                if (!text) {
-                    text = msg.image?.caption ?? '';
-                }
+                let text = parseMetaCloudMessageObject(msg);
                 const contact = contacts?.find((c) => String(c.wa_id) === from);
                 const profile = contact?.profile;
-                logger.info({ from, msgType, hasText: Boolean(text) }, 'WhatsApp Cloud inbound message');
+                if (msgType === 'interactive' && !text.trim()) {
+                    logger.warn({
+                        from,
+                        msgType,
+                        messageId: msg.id,
+                        interactive: msg.interactive,
+                        buttonReply: msg.button_reply,
+                        messageKeys: Object.keys(msg),
+                    }, 'Interactive WhatsApp inbound had no parseable reply text');
+                }
+                logger.info({ from, msgType, hasText: Boolean(text), textPreview: text.slice(0, 40) }, 'WhatsApp Cloud inbound message');
                 const inbound = {
                     channel: 'whatsapp_cloud',
                     phone: from,
@@ -284,6 +273,9 @@ export const whatsappService = {
                 const resolved = resolveInboundUserText(inbound);
                 if (resolved)
                     inbound.text = resolved;
+                const languageChoice = detectInboundLanguageChoice(inbound);
+                if (languageChoice)
+                    inbound.text = `lang.${languageChoice}`;
                 await whatsappInboundPipeline.process(inbound, {
                     text: (phone, t) => this.sendText(phone, t),
                     list: (p) => this.sendList({
