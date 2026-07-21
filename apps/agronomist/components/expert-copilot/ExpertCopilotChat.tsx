@@ -69,6 +69,19 @@ function confidencePct(value?: number | null): string | null {
   return `${pct}%`;
 }
 
+function isLeaseActive(caseRow: {
+  lease_token?: string | null;
+  lease_expires_at?: string | null;
+}): boolean {
+  if (!caseRow.lease_token) return false;
+  if (!caseRow.lease_expires_at) return true;
+  return new Date(String(caseRow.lease_expires_at)).getTime() > Date.now();
+}
+
+function isLeaseErrorMessage(message: string): boolean {
+  return /lease expired|reclaim the case|lease_token/i.test(message);
+}
+
 function CheckLine({ text, ok = true }: { text: string; ok?: boolean }) {
   return (
     <Text style={styles.checkLine}>
@@ -125,6 +138,7 @@ export function ExpertCopilotChat({
     initialDetail.caseNavigation ?? null
   );
   const [showCaseList, setShowCaseList] = useState(false);
+  const [showImageGallery, setShowImageGallery] = useState(false);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
   const [safety, setSafety] = useState<{
     decision: ExpertCaseSafetyDecision['decision'];
@@ -144,6 +158,8 @@ export function ExpertCopilotChat({
   const [safetyConfirmed, setSafetyConfirmed] = useState(false);
 
   const leaseToken = detail.expertCase.lease_token ?? undefined;
+  const hasActiveLease = isLeaseActive(detail.expertCase);
+  const leaseExpired = Boolean(leaseToken) && !hasActiveLease;
   const turns = detail.turns;
 
   useEffect(() => {
@@ -154,12 +170,37 @@ export function ExpertCopilotChat({
   }, [initialDetail]);
 
   useEffect(() => {
-    if (!leaseToken) return;
+    if (!hasActiveLease || !leaseToken) return;
+    const runHeartbeat = async () => {
+      try {
+        const lease = await agronomistClient.heartbeatExpertCase(caseId, leaseToken);
+        setDetail((current) => ({
+          ...current,
+          expertCase: {
+            ...current.expertCase,
+            lease_expires_at: lease.leaseExpiresAt,
+          },
+        }));
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '';
+        if (isLeaseErrorMessage(msg)) {
+          setError(t('ecLeaseExpired'));
+        }
+      }
+    };
+    void runHeartbeat();
     const timer = setInterval(() => {
-      void agronomistClient.heartbeatExpertCase(caseId, leaseToken).catch(() => undefined);
+      void runHeartbeat();
     }, 5 * 60_000);
     return () => clearInterval(timer);
-  }, [caseId, leaseToken]);
+  }, [caseId, hasActiveLease, leaseToken, t]);
+
+  useEffect(() => {
+    if (leaseExpired) {
+      setSafety(null);
+      setSafetyConfirmed(false);
+    }
+  }, [leaseExpired]);
 
   useEffect(() => {
     if (briefing) return;
@@ -238,6 +279,13 @@ export function ExpertCopilotChat({
     return [];
   }, [briefing?.images, draft.imageAnalysis?.images, draft.imageAnalysis?.imagesOpened]);
 
+  const galleryImages = useMemo(() => {
+    const fromBriefing = briefing?.images ?? [];
+    if (fromBriefing.length) return fromBriefing;
+    if (draft.imageAnalysis?.images?.length) return draft.imageAnalysis.images;
+    return [];
+  }, [briefing?.images, draft.imageAnalysis?.images]);
+
   const hasPreview = Boolean(
     draft.diagnosis ||
       draft.treatmentProduct ||
@@ -285,17 +333,101 @@ export function ExpertCopilotChat({
     return () => clearTimeout(timer);
   }, [listItems.length, busy]);
 
+  async function ensureActiveLease(reason: string): Promise<string | null> {
+    if (isLeaseActive(detail.expertCase) && detail.expertCase.lease_token) {
+      return detail.expertCase.lease_token;
+    }
+    if (!canWrite) return null;
+    const ownership = await agronomistClient.claimExpertCase(caseId, reason);
+    const next = await agronomistClient.getExpertCase(caseId);
+    setDetail(next);
+    if (next.draft?.draft_json) setDraft(next.draft.draft_json);
+    if (next.briefing) setBriefing(next.briefing);
+    if (next.caseNavigation) setCaseNavigation(next.caseNavigation);
+    return next.expertCase.lease_token ?? ownership.leaseToken;
+  }
+
+  async function applyChatResult(
+    result: Awaited<ReturnType<typeof agronomistClient.postExpertCaseChat>>
+  ) {
+    setDetail((current) => ({
+      ...current,
+      turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
+      draft: {
+        id: current.draft?.id ?? `pending:${caseId}`,
+        case_id: caseId,
+        base_revision: result.baseRevision,
+        draft_revision: result.baseRevision + 1,
+        status: 'pending',
+        draft_json: result.draft,
+        created_at: current.draft?.created_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    }));
+    setDraft(result.draft);
+    setSafety(null);
+    setSafetyConfirmed(false);
+    if (result.navigation?.caseNavigation) {
+      setCaseNavigation(result.navigation.caseNavigation);
+    }
+    if (result.navigation?.targetCaseId) {
+      setTimeout(() => {
+        void openCase(result.navigation!.targetCaseId!);
+      }, 600);
+    }
+  }
+
+  async function postChatWithLease(content: string, reason: string) {
+    let token = await ensureActiveLease(reason);
+    if (!token) throw new Error(t('ecClaimToChat'));
+    try {
+      return await agronomistClient.postExpertCaseChat(caseId, content, token, locale);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (!isLeaseErrorMessage(msg)) throw e;
+      token = await ensureActiveLease(`${reason}_retry`);
+      if (!token) throw e;
+      return agronomistClient.postExpertCaseChat(caseId, content, token, locale);
+    }
+  }
+
+  function openImagesGallery() {
+    if (!galleryImages.length) {
+      setError(t('ecNoImages'));
+      return;
+    }
+    setError('');
+    setShowImageGallery(true);
+
+    if (hasActiveLease && leaseToken && !draft.imageAnalysis?.imagesOpened) {
+      void postChatWithLease('Open all images', 'mobile_open_images')
+        .then((result) => {
+          setDetail((current) => ({
+            ...current,
+            turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
+            draft: {
+              id: current.draft?.id ?? `pending:${caseId}`,
+              case_id: caseId,
+              base_revision: result.baseRevision,
+              draft_revision: result.baseRevision + 1,
+              status: 'pending',
+              draft_json: result.draft,
+              created_at: current.draft?.created_at ?? new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          }));
+          setDraft(result.draft);
+        })
+        .catch(() => undefined);
+    }
+  }
+
   async function claim() {
     if (!canWrite || busy) return;
     setBusy('claim');
     setError('');
     try {
-      await agronomistClient.claimExpertCase(caseId, 'mobile_case_detail');
-      const next = await agronomistClient.getExpertCase(caseId);
-      setDetail(next);
-      if (next.draft?.draft_json) setDraft(next.draft.draft_json);
-      if (next.briefing) setBriefing(next.briefing);
-      if (next.caseNavigation) setCaseNavigation(next.caseNavigation);
+      await ensureActiveLease('mobile_case_detail');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not claim case');
     } finally {
@@ -305,54 +437,31 @@ export function ExpertCopilotChat({
 
   async function sendMessage() {
     const content = message.trim();
-    if (!content || !leaseToken || busy) return;
+    if (!content || busy || !canWrite) return;
     setBusy('chat');
     setError('');
     try {
-      const result = await agronomistClient.postExpertCaseChat(
-        caseId,
-        content,
-        leaseToken,
-        locale
-      );
-      setDetail((current) => ({
-        ...current,
-        turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
-        draft: {
-          id: current.draft?.id ?? `pending:${caseId}`,
-          case_id: caseId,
-          base_revision: result.baseRevision,
-          draft_revision: result.baseRevision + 1,
-          status: 'pending',
-          draft_json: result.draft,
-          created_at: current.draft?.created_at ?? new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      }));
-      setDraft(result.draft);
+      const result = await postChatWithLease(content, 'mobile_chat_send');
+      await applyChatResult(result);
       setMessage('');
-      setSafety(null);
-      setSafetyConfirmed(false);
-      if (result.navigation?.caseNavigation) {
-        setCaseNavigation(result.navigation.caseNavigation);
-      }
-      if (result.navigation?.targetCaseId) {
-        setTimeout(() => {
-          void openCase(result.navigation!.targetCaseId!);
-        }, 600);
-      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send message');
+      const msg = e instanceof Error ? e.message : 'Could not send message';
+      setError(isLeaseErrorMessage(msg) ? t('ecLeaseExpired') : msg);
     } finally {
       setBusy('');
     }
   }
 
   async function runSafetyCheck() {
-    if (!leaseToken || busy) return;
+    if (busy || !canWrite) return;
     setBusy('safety');
     setError('');
     try {
+      const token = await ensureActiveLease('mobile_safety');
+      if (!token) {
+        setError(t('ecClaimToChat'));
+        return;
+      }
       const result = await agronomistClient.evaluateExpertCaseSafety(caseId, {
         recommendationRevision: String(detail.expertCase.current_revision),
         validation: {
@@ -373,7 +482,8 @@ export function ExpertCopilotChat({
       setSafety(result.result);
       setSafetyConfirmed(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Safety check failed');
+      const msg = e instanceof Error ? e.message : 'Safety check failed';
+      setError(isLeaseErrorMessage(msg) ? t('ecLeaseExpired') : msg);
     } finally {
       setBusy('');
     }
@@ -385,19 +495,18 @@ export function ExpertCopilotChat({
   }
 
   async function sendNavMessage(text: string) {
-    if (!leaseToken || busy) {
+    if (busy) {
+      setMessage(text);
+      return;
+    }
+    if (!canWrite) {
       setMessage(text);
       return;
     }
     setBusy('chat');
     setError('');
     try {
-      const result = await agronomistClient.postExpertCaseChat(
-        caseId,
-        text,
-        leaseToken,
-        locale
-      );
+      const result = await postChatWithLease(text, 'mobile_nav');
       setDetail((current) => ({
         ...current,
         turns: [...current.turns, result.agronomistTurn, result.assistantTurn],
@@ -412,7 +521,8 @@ export function ExpertCopilotChat({
         }, 600);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send message');
+      const msg = e instanceof Error ? e.message : 'Could not send message';
+      setError(isLeaseErrorMessage(msg) ? t('ecLeaseExpired') : msg);
     } finally {
       setBusy('');
     }
@@ -456,28 +566,33 @@ export function ExpertCopilotChat({
 
   async function listCases() {
     setShowCaseList(true);
-    if (leaseToken && !busy) {
+    if (canWrite && !busy) {
       await sendNavMessage('list cases');
     }
   }
 
   async function commit() {
-    if (!leaseToken || !safety || !canCommitExpertDraft(safety.decision, safetyConfirmed) || busy) {
+    if (!safety || !canCommitExpertDraft(safety.decision, safetyConfirmed) || busy || !canWrite) {
       return;
     }
     setBusy('commit');
     setError('');
     try {
+      const token = await ensureActiveLease('mobile_commit');
+      if (!token) {
+        setError(t('ecClaimToChat'));
+        return;
+      }
       if (detail.draft?.status === 'pending') {
         await agronomistClient.approveExpertCaseDraft(caseId, {
-          leaseToken,
+          leaseToken: token,
           expectedBaseRevision: detail.draft.base_revision,
           draftPatch: draft,
         });
       }
       const commitResult = await agronomistClient.commitExpertCase(caseId, {
         idempotencyKey: `mobile:${caseId}:${detail.expertCase.current_revision}:${Date.now()}`,
-        leaseToken,
+        leaseToken: token,
         expectedRevision: detail.expertCase.current_revision,
         draft,
         safetyDecisionId: safety.decisionId,
@@ -507,14 +622,19 @@ export function ExpertCopilotChat({
         );
       }, 1600);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not commit review');
+      const msg = e instanceof Error ? e.message : 'Could not commit review';
+      setError(isLeaseErrorMessage(msg) ? t('ecLeaseExpired') : msg);
     } finally {
       setBusy('');
     }
   }
 
   const approve = async () => {
-    if (!leaseToken || busy) return;
+    if (busy || !canWrite) return;
+    if (!hasActiveLease) {
+      await claim();
+      return;
+    }
     if (!safety || safety.decision !== 'PASS') {
       await runSafetyCheck();
       return;
@@ -565,10 +685,14 @@ export function ExpertCopilotChat({
           {images.length ? (
             <View style={styles.mediaRow}>
               {images.slice(0, 6).map((img) => (
-                <View key={img.url} style={styles.mediaThumbWrap}>
+                <Pressable
+                  key={img.url}
+                  style={styles.mediaThumbWrap}
+                  onPress={() => setSelectedImageUrl(img.url)}
+                >
                   <Image source={{ uri: img.url }} style={styles.mediaThumb} />
                   {img.label ? <Text style={styles.mediaLabel}>{img.label}</Text> : null}
-                </View>
+                </Pressable>
               ))}
             </View>
           ) : null}
@@ -1159,6 +1283,42 @@ export function ExpertCopilotChat({
       </Modal>
 
       <Modal
+        visible={showImageGallery}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setShowImageGallery(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              📷 {t('ecImages')} ({galleryImages.length})
+            </Text>
+            <Text style={styles.modalMeta}>{t('ecTapToView')}</Text>
+            <ScrollView style={styles.modalList}>
+              <View style={styles.galleryGrid}>
+                {galleryImages.map((img) => (
+                  <Pressable
+                    key={img.url}
+                    style={styles.galleryTile}
+                    onPress={() => {
+                      setShowImageGallery(false);
+                      setSelectedImageUrl(img.url);
+                    }}
+                  >
+                    <Image source={{ uri: img.url }} style={styles.galleryThumb} resizeMode="cover" />
+                    {img.label ? <Text style={styles.galleryLabel}>{img.label}</Text> : null}
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+            <Pressable style={styles.modalClose} onPress={() => setShowImageGallery(false)}>
+              <Text style={styles.modalCloseText}>{t('cancel')}</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={Boolean(selectedImageUrl)}
         animationType="fade"
         transparent
@@ -1209,9 +1369,7 @@ export function ExpertCopilotChat({
           ) : null}
           <Pressable
             style={styles.quickChip}
-            onPress={() => {
-              setMessage('Open all images');
-            }}
+            onPress={() => openImagesGallery()}
           >
             <Text style={styles.quickChipText}>{t('ecImagesChip')}</Text>
           </Pressable>
@@ -1236,7 +1394,7 @@ export function ExpertCopilotChat({
           >
             <Text style={styles.quickChipText}>{t('ecNextCase')} ›</Text>
           </Pressable>
-          {leaseToken && canWrite ? (
+          {hasActiveLease && canWrite ? (
             <Pressable
               style={styles.quickChip}
               onPress={() => void runSafetyCheck()}
@@ -1249,7 +1407,13 @@ export function ExpertCopilotChat({
           ) : null}
         </View>
 
-        {!leaseToken && canWrite ? (
+        {leaseExpired && canWrite ? (
+          <View style={styles.leaseBanner}>
+            <Text style={styles.leaseBannerText}>{t('ecLeaseExpired')}</Text>
+          </View>
+        ) : null}
+
+        {(!leaseToken || leaseExpired) && canWrite ? (
           <Pressable
             style={[styles.approveBtn, busy === 'claim' && styles.approveBtnDisabled]}
             onPress={() => void claim()}
@@ -1258,12 +1422,14 @@ export function ExpertCopilotChat({
             {busy === 'claim' ? (
               <ActivityIndicator color={tokens.textOnPrimary} />
             ) : (
-              <Text style={styles.approveBtnText}>{t('ecClaimToChat')}</Text>
+              <Text style={styles.approveBtnText}>
+                {leaseExpired ? t('ecReclaimToChat') : t('ecClaimToChat')}
+              </Text>
             )}
           </Pressable>
         ) : null}
 
-        {leaseToken && canWrite && !approvedActions ? (
+        {hasActiveLease && canWrite && !approvedActions ? (
           <>
             <View style={styles.composerRow}>
               <TextInput
@@ -1398,6 +1564,22 @@ const styles = StyleSheet.create({
   imageThumbWrap: { width: 88, marginRight: 8 },
   imageThumb: { width: 88, height: 88, borderRadius: 10, backgroundColor: tokens.bgSubtle },
   imageThumbLabel: { fontSize: 9, color: tokens.textMuted, marginTop: 4 },
+  leaseBanner: {
+    backgroundColor: '#fde8e8',
+    borderRadius: tokens.radiusSm,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  leaseBannerText: { fontSize: 12, color: tokens.danger, fontWeight: '600' },
+  galleryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  galleryTile: { width: '47%' },
+  galleryThumb: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    backgroundColor: tokens.bgSubtle,
+  },
+  galleryLabel: { fontSize: 10, color: tokens.textMuted, marginTop: 4 },
   imageModalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.92)',
