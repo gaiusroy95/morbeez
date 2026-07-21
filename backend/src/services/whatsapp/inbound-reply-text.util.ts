@@ -13,15 +13,62 @@ const LANGUAGE_TITLE_TO_CODE: Record<string, AdvisoryLanguage> = {
   kannada: 'kn',
   kn: 'kn',
   hindi: 'hi',
-  hi: 'hi',
 };
+
+/** Map visible button labels → stable reply ids used by scenario routers. */
+const TITLE_TO_SELECTION_ID: Record<string, string> = {
+  english: 'lang.en',
+  malayalam: 'lang.ml',
+  tamil: 'lang.ta',
+  kannada: 'lang.kn',
+  hindi: 'lang.hi',
+  '0-1 acre': 'acreage.0_1',
+  '2-5 acre': 'acreage.2_5',
+  '5+ acre': 'acreage.5_plus',
+  'crop assessment': 'menu.crop_assessment',
+  'roi tracker': 'menu.roi_tracker',
+  'call back': 'menu.expert',
+  more: 'menu.more',
+  'track order': 'menu.track_order',
+  weather: 'menu.weather',
+  'market price': 'menu.prices',
+  'soil test': 'menu.soil',
+  'previous advice': 'menu.prev_recommendations',
+  'farm ledger': 'menu.ledger',
+  others: 'crop.other',
+  labour: 'roi.labour',
+  purchase: 'roi.purchase',
+  misc: 'roi.misc',
+  harvest: 'roi.harvest',
+  finish: 'roi.finish',
+};
+
+const SELECTION_ID_PATTERN =
+  /^(lang|acreage|crop|menu|roi|dfq|plot|acreage|farm)\.[a-z0-9_]+$/i;
+
+function isWhatsAppMessageId(value: string): boolean {
+  const trimmed = value.trim();
+  return /^wamid\./i.test(trimmed) || /^[a-f0-9-]{24,}$/i.test(trimmed);
+}
+
+function selectionFromReplyValue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed || isWhatsAppMessageId(trimmed)) return null;
+  if (SELECTION_ID_PATTERN.test(trimmed)) return trimmed;
+  const mapped = mapTitleToSelectionId(trimmed);
+  if (mapped) return mapped;
+  const langMatch = trimmed.match(/^lang\.(en|ml|ta|kn|hi)$/i);
+  if (langMatch) return `lang.${langMatch[1].toLowerCase()}`;
+  return null;
+}
 
 function messageBlob(
   msg?: Record<string, unknown>,
   raw?: Record<string, unknown>
 ): Record<string, unknown> {
   const message = (raw?.message ?? msg) as Record<string, unknown> | undefined;
-  return { ...(raw ?? {}), ...(message ?? {}), ...(msg ?? {}) };
+  const nested = (raw?.webhook as Record<string, unknown> | undefined)?.entry;
+  return { ...(raw ?? {}), ...(message ?? {}), ...(msg ?? {}), ...(nested ? { entry: nested } : {}) };
 }
 
 function languageFromLabel(label: string): AdvisoryLanguage | null {
@@ -37,11 +84,29 @@ function languageFromButtonId(id: string): AdvisoryLanguage | null {
   return LANGUAGE_CODES.has(code) ? code : null;
 }
 
-/** Button / list reply from WhatsApp interactive messages — prefer stable ids (e.g. lang.en). */
+function mapTitleToSelectionId(label: string): string | null {
+  const key = label.trim().toLowerCase();
+  if (TITLE_TO_SELECTION_ID[key]) return TITLE_TO_SELECTION_ID[key];
+  if (SELECTION_ID_PATTERN.test(label.trim())) return label.trim();
+  const lang = languageFromLabel(label);
+  return lang ? `lang.${lang}` : null;
+}
+
+function normalizeSelectionValue(raw: string): string {
+  const trimmed = raw.trim();
+  const mapped = mapTitleToSelectionId(trimmed);
+  return mapped ?? trimmed;
+}
+
+/** Button / list reply — prefer stable ids (lang.en, acreage.0_1, menu.crop_assessment, …). */
 export function extractInteractiveReplyText(
   interactive: Record<string, unknown> | undefined
 ): string | null {
   if (!interactive) return null;
+
+  const asFlat = extractFlatReply(interactive);
+  if (asFlat) return asFlat;
+
   const btn = interactive.button_reply as Record<string, string> | undefined;
   const list = interactive.list_reply as Record<string, string> | undefined;
   const id = btn?.id ?? list?.id;
@@ -51,21 +116,40 @@ export function extractInteractiveReplyText(
 }
 
 function extractFlatReply(blob: Record<string, unknown>): string | null {
-  const directId = blob.id;
-  const directTitle = blob.title;
-  if (typeof directId === 'string' && directId.trim()) return directId.trim();
-  if (typeof directTitle === 'string' && directTitle.trim()) return directTitle.trim();
-
   const btn = blob.button_reply as Record<string, string> | undefined;
   const list = blob.list_reply as Record<string, string> | undefined;
-  if (btn?.id?.trim()) return btn.id.trim();
-  if (list?.id?.trim()) return list.id.trim();
-  if (btn?.title?.trim()) return btn.title.trim();
-  if (list?.title?.trim()) return list.title.trim();
+  if (btn?.id?.trim()) {
+    const fromId = selectionFromReplyValue(btn.id);
+    if (fromId) return fromId;
+    return btn.id.trim();
+  }
+  if (list?.id?.trim()) {
+    const fromId = selectionFromReplyValue(list.id);
+    if (fromId) return fromId;
+    return list.id.trim();
+  }
+  if (btn?.title?.trim()) {
+    const mapped = mapTitleToSelectionId(btn.title) ?? btn.title.trim();
+    return mapped;
+  }
+  if (list?.title?.trim()) {
+    const mapped = mapTitleToSelectionId(list.title) ?? list.title.trim();
+    return mapped;
+  }
+
+  const directId = blob.id;
+  const directTitle = blob.title;
+  if (typeof directId === 'string') {
+    const fromId = selectionFromReplyValue(directId);
+    if (fromId) return fromId;
+  }
+  if (typeof directTitle === 'string' && directTitle.trim()) {
+    const mapped = mapTitleToSelectionId(directTitle);
+    if (mapped) return mapped;
+  }
   return null;
 }
 
-/** Meta quick-reply / template button (type "button", not interactive). */
 function extractLegacyButtonText(blob: Record<string, unknown>): string | null {
   const button = blob.button as Record<string, string> | undefined;
   const payload = button?.payload?.trim();
@@ -100,17 +184,20 @@ function languageFromReplyValue(value: string): AdvisoryLanguage | null {
   return languageFromButtonId(value) ?? languageFromLabel(value);
 }
 
-/** Walk entire webhook JSON — BSPs nest button_reply in non-standard places. */
-export function deepFindLanguageButtonId(payload: unknown): string | null {
+/** Walk webhook JSON for any known selection id or mappable button title. */
+export function deepFindSelectionReply(payload: unknown): string | null {
   const seen = new Set<unknown>();
 
   const walk = (node: unknown): string | null => {
     if (node == null) return null;
     if (typeof node === 'string') {
-      const match = node.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
-      if (match) return `lang.${match[1].toLowerCase()}`;
-      const fromLabel = languageFromLabel(node);
-      return fromLabel ? `lang.${fromLabel}` : null;
+      const trimmed = node.trim();
+      if (SELECTION_ID_PATTERN.test(trimmed)) return trimmed;
+      const mapped = mapTitleToSelectionId(trimmed);
+      if (mapped) return mapped;
+      const langOnly = trimmed.match(/^lang\.(en|ml|ta|kn|hi)$/i);
+      if (langOnly) return `lang.${langOnly[1].toLowerCase()}`;
+      return null;
     }
     if (typeof node !== 'object') return null;
     if (seen.has(node)) return null;
@@ -118,19 +205,21 @@ export function deepFindLanguageButtonId(payload: unknown): string | null {
 
     const rec = node as Record<string, unknown>;
 
-    const titleReply = extractFlatReply(rec);
-    if (titleReply) {
-      const fromReply = languageFromReplyValue(titleReply);
-      if (fromReply) return `lang.${fromReply}`;
+    const flat = extractFlatReply(rec);
+    if (flat) {
+      const normalized = normalizeSelectionValue(flat);
+      if (normalized && !isLanguageMenuEcho(normalized)) return normalized;
     }
 
-    for (const key of ['id', 'button_id', 'payload', 'button_payload', 'title'] as const) {
+    for (const key of ['id', 'button_id', 'payload', 'button_payload', 'title', 'description'] as const) {
       const val = rec[key];
       if (typeof val === 'string') {
-        const match = val.trim().match(/^lang\.(en|ml|ta|kn|hi)$/i);
-        if (match) return `lang.${match[1].toLowerCase()}`;
-        const fromLabel = languageFromLabel(val);
-        if (fromLabel) return `lang.${fromLabel}`;
+        const selection = selectionFromReplyValue(val);
+        if (selection) return selection;
+        if (key === 'title' || key === 'description') {
+          const mapped = mapTitleToSelectionId(val);
+          if (mapped) return mapped;
+        }
       }
     }
 
@@ -144,6 +233,13 @@ export function deepFindLanguageButtonId(payload: unknown): string | null {
   return walk(payload);
 }
 
+/** @deprecated use deepFindSelectionReply */
+export function deepFindLanguageButtonId(payload: unknown): string | null {
+  const found = deepFindSelectionReply(payload);
+  if (!found?.startsWith('lang.')) return null;
+  return found;
+}
+
 export function isLanguageMenuEcho(text: string): boolean {
   const t = text.trim().toLowerCase();
   return (
@@ -152,60 +248,72 @@ export function isLanguageMenuEcho(text: string): boolean {
   );
 }
 
+export function isInteractiveInbound(msg: InboundMessage): boolean {
+  const t = String(msg.msgType ?? '').toLowerCase();
+  return t === 'interactive' || t === 'button' || t === 'list';
+}
+
 export function hasInteractiveUserReply(msg: InboundMessage): boolean {
-  if (msg.msgType === 'interactive' || msg.msgType === 'button') return true;
-  const blob = messageBlob(msg.messageObject, msg.rawPayload);
-  if (extractInteractiveFromBlob(blob)) return true;
-  if (deepFindLanguageButtonId(msg.rawPayload)) return true;
-  if (deepFindLanguageButtonId(msg.messageObject)) return true;
+  if (isInteractiveInbound(msg)) return true;
+  if (extractInboundSelectionReply(msg)) return true;
   return false;
 }
 
-/** Parse Meta Cloud API message object (messages[0]) for farmer reply text. */
+/**
+ * Extract farmer selection from button/list tap (preferred over typed text).
+ * Returns stable id string e.g. lang.en, acreage.2_5, menu.crop_assessment.
+ */
+export function extractInboundSelectionReply(msg: InboundMessage): string | null {
+  if (msg.messageObject) {
+    const fromCloud = parseMetaCloudMessageObject(msg.messageObject);
+    if (fromCloud.trim()) {
+      const normalized = normalizeSelectionValue(fromCloud);
+      if (!isLanguageMenuEcho(normalized)) return normalized;
+    }
+  }
+
+  const blob = messageBlob(msg.messageObject, msg.rawPayload);
+  const fromBlob = extractInteractiveFromBlob(blob);
+  if (fromBlob) {
+    const normalized = normalizeSelectionValue(fromBlob);
+    if (!isLanguageMenuEcho(normalized)) return normalized;
+  }
+
+  const deep =
+    deepFindSelectionReply(msg.rawPayload) ?? deepFindSelectionReply(msg.messageObject);
+  if (deep) return deep;
+
+  return null;
+}
+
+/** Parse Meta Cloud API message object (messages[0]). */
 export function parseMetaCloudMessageObject(msg: Record<string, unknown>): string {
   const interactive = msg.interactive as Record<string, unknown> | undefined;
 
   const fromInteractive = extractInteractiveReplyText(interactive);
-  if (fromInteractive) return fromInteractive;
+  if (fromInteractive) return normalizeSelectionValue(fromInteractive);
 
   const fromFlat = extractFlatReply(msg);
-  if (fromFlat) return fromFlat;
+  if (fromFlat) return normalizeSelectionValue(fromFlat);
 
   const button = msg.button as Record<string, string> | undefined;
-  if (button?.payload?.trim()) return button.payload.trim();
-  if (button?.text?.trim()) return button.text.trim();
+  if (button?.payload?.trim()) return normalizeSelectionValue(button.payload);
+  if (button?.text?.trim()) return normalizeSelectionValue(button.text);
 
   const textBody = (msg.text as Record<string, string> | undefined)?.body?.trim();
-  if (textBody) return textBody;
+  if (textBody && !isLanguageMenuEcho(textBody)) return textBody;
 
-  const inbound: InboundMessage = {
-    channel: 'whatsapp_cloud',
-    phone: String(msg.from ?? ''),
-    messageId: String(msg.id ?? ''),
-    msgType: String(msg.type ?? 'text'),
-    text: '',
-    rawPayload: { message: msg },
-    messageObject: msg,
-  };
-  return resolveInboundUserText(inbound);
+  const deep = deepFindSelectionReply(msg);
+  return deep ?? '';
+
+  // Note: do not fall back to echoed bot menu body for interactive-only payloads.
 }
 
-/**
- * Detect language choice from any webhook shape (Cloud, AdsGyani, flattened button_reply).
- */
 export function detectInboundLanguageChoice(msg: InboundMessage): AdvisoryLanguage | null {
-  const deepId =
-    deepFindLanguageButtonId(msg.rawPayload) ?? deepFindLanguageButtonId(msg.messageObject);
-  if (deepId) {
-    const code = languageFromButtonId(deepId);
-    if (code) return code;
-  }
-
-  const blob = messageBlob(msg.messageObject, msg.rawPayload);
-  const reply = extractInteractiveFromBlob(blob);
-  if (reply) {
-    const fromReply = languageFromReplyValue(reply);
-    if (fromReply) return fromReply;
+  const selection = extractInboundSelectionReply(msg);
+  if (selection) {
+    const fromSelection = languageFromReplyValue(selection);
+    if (fromSelection) return fromSelection;
   }
 
   const trimmed = msg.text?.trim() ?? '';
@@ -218,30 +326,31 @@ export function detectInboundLanguageChoice(msg: InboundMessage): AdvisoryLangua
 }
 
 /**
- * Best-effort user intent from webhook payload.
- * Prefer interactive ids over visible labels / echoed bot body text.
+ * Resolve farmer intent: button/list selection first, then typed text.
  */
 export function resolveInboundUserText(msg: InboundMessage): string {
-  const choice = detectInboundLanguageChoice(msg);
-  if (choice) return `lang.${choice}`;
-
-  const blob = messageBlob(msg.messageObject, msg.rawPayload);
-  const interactiveText = extractInteractiveFromBlob(blob);
-  if (interactiveText && !isLanguageMenuEcho(interactiveText)) return interactiveText;
+  const selection = extractInboundSelectionReply(msg);
+  if (selection) return selection;
 
   const trimmed = msg.text?.trim() ?? '';
   if (trimmed && !isLanguageMenuEcho(trimmed)) return trimmed;
 
-  const textObj = blob.text as Record<string, string> | undefined;
-  if (textObj?.body?.trim() && !isLanguageMenuEcho(textObj.body)) return textObj.body.trim();
-  if (typeof blob.message_body === 'string' && blob.message_body.trim()) {
-    const body = blob.message_body.trim();
-    if (!isLanguageMenuEcho(body)) return body;
-  }
-  if (typeof blob.body === 'string' && blob.body.trim()) {
-    const body = blob.body.trim();
-    if (!isLanguageMenuEcho(body)) return body;
+  const blob = messageBlob(msg.messageObject, msg.rawPayload);
+  if (!isInteractiveInbound(msg)) {
+    const textObj = blob.text as Record<string, string> | undefined;
+    if (textObj?.body?.trim() && !isLanguageMenuEcho(textObj.body)) return textObj.body.trim();
+    if (typeof blob.message_body === 'string' && blob.message_body.trim()) {
+      const body = blob.message_body.trim();
+      if (!isLanguageMenuEcho(body)) return body;
+    }
   }
 
   return '';
+}
+
+/** Apply button/list selection onto inbound message before routing. */
+export function withInboundSelectionText(msg: InboundMessage): InboundMessage {
+  const resolved = resolveInboundUserText(msg);
+  if (!resolved) return msg;
+  return { ...msg, text: resolved };
 }

@@ -10,11 +10,10 @@ import type { InboundMessage } from './pipeline/types.js';
 import type { WhatsAppProvider } from './whatsapp-outbound.types.js';
 import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
 import {
-  deepFindLanguageButtonId,
-  detectInboundLanguageChoice,
   extractInteractiveReplyText,
+  deepFindSelectionReply,
   parseMetaCloudMessageObject,
-  resolveInboundUserText,
+  withInboundSelectionText,
 } from './inbound-reply-text.util.js';
 
 function sleep(ms: number): Promise<void> {
@@ -74,23 +73,34 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   const buttonObj = message?.button as Record<string, string> | undefined;
   const interactive = message?.interactive as Record<string, unknown> | undefined;
   const interactiveReply = extractInteractiveReplyText(interactive);
-  const deepLang =
-    deepFindLanguageButtonId(payload) ?? deepFindLanguageButtonId(message ?? undefined);
+  const flatReply =
+    (message?.button_reply as Record<string, string> | undefined)?.id?.trim() ||
+    (message?.button_reply as Record<string, string> | undefined)?.title?.trim() ||
+    null;
+  const deepSelection =
+    deepFindSelectionReply(payload) ?? deepFindSelectionReply(message ?? undefined);
 
   let text = '';
-  if (deepLang) {
-    text = deepLang;
+  if (deepSelection) {
+    text = deepSelection;
+  } else if (flatReply) {
+    text = flatReply;
   } else if (interactiveReply) {
     text = interactiveReply;
-  } else if (typeof message?.message_body === 'string' && message.message_body.trim()) {
-    text = message.message_body;
-  } else if (textObj?.body) text = textObj.body;
-  else if (typeof message?.body === 'string') text = message.body;
-  else if (buttonObj?.text) text = buttonObj.text;
-  else if (typeof message?.caption === 'string') text = message.caption;
-  else if (typeof payload.text === 'string') text = payload.text;
-  else if (typeof payload.message === 'string') text = payload.message;
-  else if (typeof payload.body === 'string') text = payload.body;
+  } else if (message) {
+    const fromMeta = parseMetaCloudMessageObject(message);
+    if (fromMeta.trim()) text = fromMeta;
+  }
+
+  if (!text && typeof message?.message_body === 'string' && message.message_body.trim()) {
+    text = message.message_body.trim();
+  } else if (!text && textObj?.body) text = textObj.body;
+  else if (!text && typeof message?.body === 'string') text = message.body;
+  else if (!text && buttonObj?.text) text = buttonObj.text;
+  else if (!text && typeof message?.caption === 'string') text = message.caption;
+  else if (!text && typeof payload.text === 'string') text = payload.text;
+  else if (!text && typeof payload.message === 'string') text = payload.message;
+  else if (!text && typeof payload.body === 'string') text = payload.body;
 
   const messageId = String(
     message?.id ?? message?.wamid ?? message?.message_id ?? payload.id ?? payload.message_id ?? ''
@@ -229,8 +239,8 @@ export const whatsappService = {
     if (!parsed) return;
 
     const inbound = toInboundFromAdsGyani(payload, parsed);
-    const resolved = resolveInboundUserText(inbound);
-    if (resolved) inbound.text = resolved;
+    const normalized = withInboundSelectionText(inbound);
+    Object.assign(inbound, normalized);
 
     await whatsappInboundPipeline.process(
       inbound,
@@ -343,11 +353,8 @@ export const whatsappService = {
             campaignSource: (value?.metadata as Record<string, string> | undefined)?.campaign_id,
           },
         };
-        const resolved = resolveInboundUserText(inbound);
-        if (resolved) inbound.text = resolved;
-
-        const languageChoice = detectInboundLanguageChoice(inbound);
-        if (languageChoice) inbound.text = `lang.${languageChoice}`;
+        const normalized = withInboundSelectionText(inbound);
+        Object.assign(inbound, normalized);
 
         await whatsappInboundPipeline.process(
           inbound,

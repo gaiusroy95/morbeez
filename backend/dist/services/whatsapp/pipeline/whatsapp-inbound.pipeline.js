@@ -3,7 +3,7 @@ import { eventBus } from '../../../events/bus.js';
 import { supabase } from '../../../lib/supabase.js';
 import { logger } from '../../../lib/logger.js';
 import { claimInboundWhatsAppMessage } from '../../../middleware/idempotency.js';
-import { detectInboundLanguageChoice, hasInteractiveUserReply, isLanguageMenuEcho, parseMetaCloudMessageObject, } from '../inbound-reply-text.util.js';
+import { detectInboundLanguageChoice, extractInboundSelectionReply, hasInteractiveUserReply, isLanguageMenuEcho, withInboundSelectionText, } from '../inbound-reply-text.util.js';
 import { cropDoctorService } from '../../ai/crop-doctor.service.js';
 import { transcriptionService } from '../../ai/transcription.service.js';
 import { leadCaptureService } from './lead-capture.service.js';
@@ -334,12 +334,7 @@ export const whatsappInboundPipeline = {
             return;
         }
         msg = withNormalizedMediaFields(msg);
-        if (msg.msgType === 'interactive' && msg.messageObject && !detectInboundLanguageChoice(msg)) {
-            const reparsed = parseMetaCloudMessageObject(msg.messageObject);
-            if (reparsed.trim()) {
-                msg = { ...msg, text: reparsed };
-            }
-        }
+        msg = withInboundSelectionText(msg);
         const captured = await leadCaptureService.captureAndIdentify(msg, 'en');
         // Conversation state + ownership (human takeover / pause AI)
         let session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
@@ -485,6 +480,7 @@ export const whatsappInboundPipeline = {
                 messageId: msg.messageId,
                 msgType: msg.msgType,
                 text: msg.text?.slice(0, 120),
+                selection: extractInboundSelectionReply(msg),
                 hasInteractive: hasInteractiveUserReply(msg),
                 languageChoice: detectInboundLanguageChoice(msg),
                 interactive: msg.messageObject?.interactive,

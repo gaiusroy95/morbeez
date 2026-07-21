@@ -1,20 +1,26 @@
 import type { InboundMessage } from './pipeline/types.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
-/** Button / list reply from WhatsApp interactive messages — prefer stable ids (e.g. lang.en). */
+/** Button / list reply — prefer stable ids (lang.en, acreage.0_1, menu.crop_assessment, …). */
 export declare function extractInteractiveReplyText(interactive: Record<string, unknown> | undefined): string | null;
-/** Walk entire webhook JSON — BSPs nest button_reply in non-standard places. */
+/** Walk webhook JSON for any known selection id or mappable button title. */
+export declare function deepFindSelectionReply(payload: unknown): string | null;
+/** @deprecated use deepFindSelectionReply */
 export declare function deepFindLanguageButtonId(payload: unknown): string | null;
 export declare function isLanguageMenuEcho(text: string): boolean;
+export declare function isInteractiveInbound(msg: InboundMessage): boolean;
 export declare function hasInteractiveUserReply(msg: InboundMessage): boolean;
-/** Parse Meta Cloud API message object (messages[0]) for farmer reply text. */
-export declare function parseMetaCloudMessageObject(msg: Record<string, unknown>): string;
 /**
- * Detect language choice from any webhook shape (Cloud, AdsGyani, flattened button_reply).
+ * Extract farmer selection from button/list tap (preferred over typed text).
+ * Returns stable id string e.g. lang.en, acreage.2_5, menu.crop_assessment.
  */
+export declare function extractInboundSelectionReply(msg: InboundMessage): string | null;
+/** Parse Meta Cloud API message object (messages[0]). */
+export declare function parseMetaCloudMessageObject(msg: Record<string, unknown>): string;
 export declare function detectInboundLanguageChoice(msg: InboundMessage): AdvisoryLanguage | null;
 /**
- * Best-effort user intent from webhook payload.
- * Prefer interactive ids over visible labels / echoed bot body text.
+ * Resolve farmer intent: button/list selection first, then typed text.
  */
 export declare function resolveInboundUserText(msg: InboundMessage): string;
+/** Apply button/list selection onto inbound message before routing. */
+export declare function withInboundSelectionText(msg: InboundMessage): InboundMessage;
 //# sourceMappingURL=inbound-reply-text.util.d.ts.map

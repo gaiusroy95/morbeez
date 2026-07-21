@@ -26,7 +26,7 @@ describe('extractInteractiveReplyText', () => {
       extractInteractiveReplyText({
         list_reply: { title: 'Tamil' },
       }),
-      'Tamil'
+      'lang.ta'
     );
   });
 });
@@ -139,7 +139,43 @@ describe('parseMetaCloudMessageObject', () => {
         button_reply: { title: 'English' },
       },
     };
-    assert.equal(parseMetaCloudMessageObject(msg), 'English');
+    assert.equal(parseMetaCloudMessageObject(msg), 'lang.en');
+  });
+
+  it('maps acreage button title to stable id', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_cloud',
+      phone: '919876543210',
+      messageId: 'wamid.acre',
+      msgType: 'interactive',
+      text: '',
+      messageObject: {
+        type: 'interactive',
+        interactive: {
+          type: 'button_reply',
+          button_reply: { id: 'acreage.2_5', title: '2-5 acre' },
+        },
+      },
+    };
+    assert.equal(resolveInboundUserText(msg), 'acreage.2_5');
+  });
+
+  it('maps menu button title to stable id', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_cloud',
+      phone: '919876543210',
+      messageId: 'wamid.menu',
+      msgType: 'interactive',
+      text: '',
+      messageObject: {
+        type: 'interactive',
+        interactive: {
+          type: 'button_reply',
+          button_reply: { title: 'Crop Assessment' },
+        },
+      },
+    };
+    assert.equal(resolveInboundUserText(msg), 'menu.crop_assessment');
   });
 });
 

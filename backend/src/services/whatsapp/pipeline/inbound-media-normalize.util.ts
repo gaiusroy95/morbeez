@@ -1,5 +1,9 @@
 import type { InboundMessage } from './types.js';
-import { resolveInboundUserText } from '../inbound-reply-text.util.js';
+import {
+  extractInboundSelectionReply,
+  isInteractiveInbound,
+  resolveInboundUserText,
+} from '../inbound-reply-text.util.js';
 
 const IMAGE_MSG_TYPES = new Set([
   'image',
@@ -48,8 +52,12 @@ export function normalizeInboundMsgType(msg: InboundMessage): string {
   return rawType || 'text';
 }
 
-/** Caption / symptom text sent together with an image. */
+/** Caption / symptom text sent together with an image (not button taps). */
 export function extractInboundCaption(msg: InboundMessage): string {
+  if (isInteractiveInbound(msg)) {
+    return extractInboundSelectionReply(msg) ?? '';
+  }
+
   const existing = msg.text?.trim();
   if (existing) return existing;
 
@@ -57,10 +65,6 @@ export function extractInboundCaption(msg: InboundMessage): string {
   const image = blob.image as Record<string, string> | undefined;
   if (image?.caption?.trim()) return image.caption.trim();
   if (typeof blob.caption === 'string' && blob.caption.trim()) return blob.caption.trim();
-  if (typeof blob.message_body === 'string' && blob.message_body.trim()) {
-    return blob.message_body.trim();
-  }
-  if (typeof blob.body === 'string' && blob.body.trim()) return blob.body.trim();
   const text = blob.text as Record<string, string> | undefined;
   if (text?.body?.trim()) return text.body.trim();
 
@@ -69,6 +73,7 @@ export function extractInboundCaption(msg: InboundMessage): string {
 
 export function withNormalizedMediaFields(msg: InboundMessage): InboundMessage {
   const msgType = normalizeInboundMsgType(msg);
-  const text = resolveInboundUserText(msg) || extractInboundCaption(msg) || msg.text;
+  const selection = extractInboundSelectionReply(msg);
+  const text = selection || resolveInboundUserText(msg) || extractInboundCaption(msg) || msg.text;
   return { ...msg, msgType, text };
 }
