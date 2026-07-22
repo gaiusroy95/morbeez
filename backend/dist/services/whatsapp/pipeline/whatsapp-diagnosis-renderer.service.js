@@ -1,0 +1,272 @@
+import { diagnosisLabelsMatch } from '../../maios-reasoning/diagnosis-fusion.service.js';
+import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
+const LABELS = {
+    en: {
+        whatISee: '🔍 What I see',
+        primaryIssue: '🎯 Primary issue',
+        mostLikely: '🎯 Most likely cause',
+        rankedCauses: '📊 Ranked possibilities',
+        diseaseWatch: '⚠️ Disease watch',
+        lessLikely: '❌ Less likely',
+        immediateAction: '💊 Immediate action',
+        tableHeader: 'Item · Dose · Method',
+        sprayTiming: '⏰ Spray timing',
+        rootCorrection: '🌱 Root / soil correction',
+        cost: '💰 Approximate cost',
+        assessment: '📋 Morbeez assessment',
+        dataUsed: '📊 Based on your field data',
+        precautions: '⚠️ Precautions',
+    },
+    ml: {
+        whatISee: '🔍 എന്താണ് കാണുന്നത്',
+        primaryIssue: '🎯 പ്രധാന പ്രശ്നം',
+        mostLikely: '🎯 ഏറ്റവും സാധ്യതയുള്ള കാരണം',
+        rankedCauses: '📊 സാധ്യതാ ക്രമം',
+        diseaseWatch: '⚠️ രോഗ നിരീക്ഷണം',
+        lessLikely: '❌ കുറവ് സാധ്യത',
+        immediateAction: '💊 ഉടനടി നടപടി',
+        tableHeader: 'ഉൽപ്പന്നം · ഡോസ് · രീതി',
+        sprayTiming: '⏰ സ്പ്രേ സമയം',
+        rootCorrection: '🌱 വേര് / മണ്ണ് ശരിയാക്കൽ',
+        cost: '💰 ഏകദേശ ചെലവ്',
+        assessment: '📋 മോർബീസ് വിലയിരുത്തൽ',
+        dataUsed: '📊 നിങ്ങളുടെ ഫീൽഡ് ഡാറ്റ',
+        precautions: '⚠️ മുൻകരുതി',
+    },
+    ta: {
+        whatISee: '🔍 நான் காண்பது',
+        primaryIssue: '🎯 முதன்மை பிரச்சனை',
+        mostLikely: '🎯 மிகவும் சாத்தியமான காரணம்',
+        rankedCauses: '📊 வாய்ப்பு வரிசை',
+        diseaseWatch: '⚠️ நோய் கண்காணிப்பு',
+        lessLikely: '❌ குறைந்த சாத்தியம்',
+        immediateAction: '💊 உடனடி நடவடிக்கை',
+        tableHeader: 'பொருள் · அளவு · முறை',
+        sprayTiming: '⏰ தெளிப்பு நேரம்',
+        rootCorrection: '🌱 வேர் / மண் திருத்தம்',
+        cost: '💰 தோராய செலவு',
+        assessment: '📋 Morbeez மதிப்பீடு',
+        dataUsed: '📊 உங்கள் வயல் தரவு',
+        precautions: '⚠️ முன்னெச்சரிக்கை',
+    },
+    kn: {
+        whatISee: '🔍 ನಾನು ನೋಡುವುದು',
+        primaryIssue: '🎯 ಪ್ರಮುಖ ಸಮಸ್ಯೆ',
+        mostLikely: '🎯 ಅತ್ಯಂತ ಸಾಧ್ಯ ಕಾರಣ',
+        rankedCauses: '📊 ಸಾಧ್ಯತೆ ಕ್ರಮ',
+        diseaseWatch: '⚠️ ರೋಗ ವೀಕ್ಷಣೆ',
+        lessLikely: '❌ ಕಡಿಮೆ ಸಾಧ್ಯತೆ',
+        immediateAction: '💊 ತಕ್ಷಣ ಕ್ರಮ',
+        tableHeader: 'ವಸ್ತು · ಡೋಸ್ · ವಿಧಾನ',
+        sprayTiming: '⏰ ಸಿಂಪಡಣೆ ಸಮಯ',
+        rootCorrection: '🌱 ಬೇರು / ಮಣ್ಣು ಸರಿಪಡಿಸುವಿಕೆ',
+        cost: '💰 ಅಂದಾಜು ವೆಚ್ಚ',
+        assessment: '📋 Morbeez ಮೌಲ್ಯಮಾಪನ',
+        dataUsed: '📊 ನಿಮ್ಮ ಹೊಲದ ಡೇಟಾ',
+        precautions: '⚠️ ಎಚ್ಚರಿಕೆ',
+    },
+    hi: {
+        whatISee: '🔍 मैं क्या देख रहा हूँ',
+        primaryIssue: '🎯 मुख्य समस्या',
+        mostLikely: '🎯 सबसे संभावित कारण',
+        rankedCauses: '📊 संभावना क्रम',
+        diseaseWatch: '⚠️ रोग निगरानी',
+        lessLikely: '❌ कम संभावना',
+        immediateAction: '💊 तुरंत कार्रवाई',
+        tableHeader: 'वस्तु · मात्रा · तरीका',
+        sprayTiming: '⏰ छिड़काव का समय',
+        rootCorrection: '🌱 जड़ / मिट्टी सुधार',
+        cost: '💰 अनुमानित लागत',
+        assessment: '📋 Morbeez मूल्यांकन',
+        dataUsed: '📊 आपके खेत का डेटा',
+        precautions: '⚠️ सावधानी',
+    },
+};
+function hasImageEvidence(advisory) {
+    return Boolean(advisory.imageObservations?.length);
+}
+function hasRichSections(advisory) {
+    return Boolean(advisory.farmerReport?.trim() ||
+        advisory.imageObservations?.length ||
+        advisory.differentialDiagnosis?.length ||
+        advisory.dosageGuidance?.length ||
+        advisory.agronomistAssessment?.trim() ||
+        advisory.sprayTiming?.trim());
+}
+function severityLabel(severity, language) {
+    const map = {
+        mild: { en: 'Mild', ml: 'ലഘു', ta: 'லேசான', kn: 'ಸೌಮ್ಯ', hi: 'हल्का' },
+        moderate: { en: 'Moderate', ml: 'മിതം', ta: 'மிதமான', kn: 'ಮಧ್ಯಮ', hi: 'मध्यम' },
+        severe: { en: 'Severe', ml: 'ഗുരുതരം', ta: 'கடுமையான', kn: 'ತೀವ್ರ', hi: 'गंभीर' },
+    };
+    const s = severity ?? 'moderate';
+    return map[s]?.[language] ?? map.moderate[language];
+}
+export const whatsappDiagnosisRendererService = {
+    hasRichSections,
+    hasImageEvidence,
+    render(input) {
+        const { advisory, language } = input;
+        if (input.requiresImageEvidence &&
+            !hasImageEvidence(advisory) &&
+            !hasRichSections(advisory)) {
+            return imageEvidenceFallback(input);
+        }
+        if (!hasRichSections(advisory)) {
+            return legacyFallback(input);
+        }
+        if (advisory.farmerReport?.trim()) {
+            const sections = [];
+            if (input.plotLabel?.trim() && !advisory.farmerReport.includes(input.plotLabel.trim())) {
+                sections.push(`📍 ${input.plotLabel.trim()}`);
+            }
+            sections.push(advisory.farmerReport.trim());
+            if (input.reuseNote)
+                sections.push('', input.reuseNote);
+            if (input.safetyNote)
+                sections.push('', input.safetyNote);
+            if (input.escalateNote)
+                sections.push('', input.escalateNote);
+            return sections.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+        }
+        const t = LABELS[language] ?? LABELS.en;
+        const sections = [];
+        if (input.plotLabel?.trim()) {
+            sections.push(`📍 ${input.plotLabel.trim()}`);
+        }
+        const observations = advisory.imageObservations?.length
+            ? advisory.imageObservations
+            : advisory.stressAnalysis?.slice(0, 4) ?? [];
+        if (observations.length) {
+            sections.push(t.whatISee, ...observations.map((o) => `• ${o}`));
+        }
+        const confPct = Math.round(advisory.confidence * 100);
+        const usePresentation = Boolean(advisory.diagnosisHeadline || advisory.diagnosisRanked?.length);
+        if (usePresentation && advisory.diagnosisHeadline?.trim()) {
+            sections.push('', `${t.mostLikely}: ${advisory.diagnosisHeadline.trim()}`);
+        }
+        else {
+            const primaryLine = confPct < 50
+                ? `${t.mostLikely}: ${advisory.probableIssue} (${confPct}% — several factors possible)`
+                : `${t.primaryIssue}: ${advisory.probableIssue} — ${severityLabel(advisory.severity, language)} (${confPct}%)`;
+            sections.push('', primaryLine);
+        }
+        if (advisory.diagnosisRanked?.length) {
+            const primaryRows = advisory.diagnosisRanked.filter((r) => r.role === 'primary');
+            const otherRows = advisory.diagnosisRanked.filter((r) => r.role !== 'primary');
+            if (primaryRows.length) {
+                sections.push('', t.rankedCauses);
+                for (const r of primaryRows) {
+                    const pct = Math.round(r.probability * 100);
+                    const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+                    sections.push(`${r.label} — ${pct}% ${stars}`);
+                }
+            }
+            const lessLikelyRows = otherRows.filter((r) => r.role === 'alternative' || r.role === 'disease_watch');
+            const contributingRows = otherRows.filter((r) => r.role === 'contributing');
+            if (contributingRows.length) {
+                if (!primaryRows.length)
+                    sections.push('', t.rankedCauses);
+                for (const r of contributingRows) {
+                    const pct = Math.round(r.probability * 100);
+                    sections.push(`• ${r.label} — ${pct}% (contributing)`);
+                }
+            }
+            if (lessLikelyRows.length) {
+                sections.push('', t.lessLikely);
+                for (const r of lessLikelyRows) {
+                    const pct = Math.round(r.probability * 100);
+                    sections.push(`• ${r.label} — ${pct}%`);
+                }
+            }
+        }
+        else if (advisory.differentialDiagnosis?.length) {
+            const alternatives = advisory.differentialDiagnosis
+                .filter((d) => !diagnosisLabelsMatch(d.label, advisory.probableIssue))
+                .sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0))
+                .slice(0, 4);
+            if (alternatives.length) {
+                sections.push('', t.lessLikely);
+                for (const d of alternatives) {
+                    const pct = d.probability != null ? ` (${Math.round(d.probability * 100)}%)` : '';
+                    sections.push(`• ${d.label}${pct} — ${d.reason}`);
+                }
+            }
+        }
+        if (advisory.diseaseWatchNote?.trim()) {
+            sections.push('', t.diseaseWatch, advisory.diseaseWatchNote.trim());
+        }
+        if (advisory.treatmentAlignmentNote?.trim()) {
+            sections.push('', `ℹ️ ${advisory.treatmentAlignmentNote.trim()}`);
+        }
+        if (advisory.dosageGuidance?.length) {
+            sections.push('', t.immediateAction, t.tableHeader);
+            for (const d of advisory.dosageGuidance) {
+                const parts = [d.product, d.rate, d.method].filter(Boolean);
+                sections.push(parts.join(' · '));
+            }
+        }
+        else if (advisory.treatments?.length) {
+            sections.push('', t.immediateAction);
+            for (const tr of advisory.treatments.slice(0, 4)) {
+                sections.push(`• ${tr.action}${tr.timing ? ` (${tr.timing})` : ''}`);
+            }
+        }
+        if (advisory.sprayTiming?.trim()) {
+            sections.push('', t.sprayTiming, advisory.sprayTiming.trim());
+        }
+        if (advisory.rootCorrection?.trim()) {
+            sections.push('', t.rootCorrection, advisory.rootCorrection.trim());
+        }
+        if (advisory.costEstimate?.length) {
+            sections.push('', t.cost);
+            for (const c of advisory.costEstimate.slice(0, 5)) {
+                sections.push(`• ${c.item}: ${c.note}`);
+            }
+        }
+        if (advisory.morbeezDataUsed?.length) {
+            sections.push('', t.dataUsed, ...advisory.morbeezDataUsed.map((d) => `• ${d}`));
+        }
+        if (advisory.agronomistAssessment?.trim()) {
+            sections.push('', t.assessment, advisory.agronomistAssessment.trim());
+        }
+        if (advisory.precautions?.length) {
+            sections.push('', t.precautions, ...advisory.precautions.map((p) => `• ${p}`));
+        }
+        if (input.reuseNote)
+            sections.push('', input.reuseNote);
+        if (input.safetyNote)
+            sections.push('', input.safetyNote);
+        if (input.escalateNote)
+            sections.push('', input.escalateNote);
+        return sections.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    },
+};
+function legacyFallback(input) {
+    const summary = pickLocalizedFarmerSummary(input.advisory, input.language);
+    const parts = [input.plotLabel ? `📍 ${input.plotLabel}` : null, summary].filter(Boolean);
+    if (input.reuseNote)
+        parts.push(input.reuseNote);
+    if (input.safetyNote)
+        parts.push(input.safetyNote);
+    if (input.escalateNote)
+        parts.push(input.escalateNote);
+    return parts.join('\n\n');
+}
+function imageEvidenceFallback(input) {
+    const t = LABELS[input.language] ?? LABELS.en;
+    const issue = input.advisory.probableIssue?.trim();
+    const ask = input.language === 'ml'
+        ? 'വ്യക്തമായ ഇലയുടെ അടുത്ത ഫോട്ടോ വീണ്ടും അയയ്ക്കുക — ഈ ചിത്രത്തിൽ നിർദ്ദിഷ്ട ചികിത്സ നൽകാൻ കഴിഞ്ഞില്ല.'
+        : 'Please send a closer photo of the affected leaves — we could not give specific treatment advice from this image alone.';
+    const parts = [];
+    if (input.plotLabel?.trim())
+        parts.push(`📍 ${input.plotLabel.trim()}`);
+    if (issue)
+        parts.push(`${t.primaryIssue}: ${issue}`);
+    parts.push(ask);
+    if (input.escalateNote)
+        parts.push(input.escalateNote);
+    return parts.join('\n\n');
+}
+//# sourceMappingURL=whatsapp-diagnosis-renderer.service.js.map

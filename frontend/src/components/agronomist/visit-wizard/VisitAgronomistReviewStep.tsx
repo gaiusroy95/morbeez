@@ -11,7 +11,7 @@ import {
 } from '@morbeez/shared';
 import { VisitIssuesStep } from './VisitIssuesStep';
 import { VisitReviewStep } from './VisitReviewStep';
-import { VisitCopilotPanel } from '../VisitCopilotPanel';
+import { VisitCopilotWorkflowChat } from '../visit-copilot/VisitCopilotWorkflowChat';
 import { VisitExplainPanel } from '../VisitExplainPanel';
 import { newIssueDraft } from './types';
 import type { IssueMasterRow } from '@morbeez/shared';
@@ -151,13 +151,7 @@ export function VisitAgronomistReviewStep({
       />
       <VisitReviewStep issues={issues} farmerFeedback={feedback} onChange={onChange} />
       <VisitExplainPanel issues={issues} />
-      <VisitCopilotPanel
-        farmerId={farmerId}
-        blockId={blockId}
-        cropType={cropType}
-        issueName={issues[0]?.finalDiagnosis ?? issues[0]?.issueName}
-        aiCaseId={issues[0]?.aiCaseId}
-      />
+      <VisitCopilotWorkflowChat farmerId={farmerId} blockId={blockId} />
     </div>
   );
 }

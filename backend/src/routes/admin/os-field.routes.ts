@@ -21,6 +21,7 @@ import { visitPhotoValidationService } from '../../services/core/visit-photo-val
 import { visitEnvironmentService } from '../../services/core/visit-environment.service.js';
 import { visitAssistantService } from '../../services/agronomist/visit-assistant.service.js';
 import { visitAssistantRecommendationSafetyService } from '../../services/agronomist/visit-assistant-recommendation-safety.service.js';
+import { visitCopilotWorkflowService } from '../../services/agronomist/visit-copilot-workflow.service.js';
 import { recommendationSafetyGateService } from '../../services/safety/recommendation-safety-gate.service.js';
 import { plotDigitalTwinService } from '../../services/intelligence/plot-digital-twin.service.js';
 import { recommendationOptimizerService } from '../../services/diagnosis/recommendation-optimizer.service.js';
@@ -365,6 +366,52 @@ export async function osFieldRoutes(app: FastifyInstance): Promise<void> {
       snapshot: body.snapshot as VisitAssistantSnapshot,
     });
     return reply.send({ ok: true, proposal });
+  });
+
+  app.post(`${api}/visits/copilot/chat`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'agronomist', 'read');
+    const body = z
+      .object({
+        farmerId: z.string().uuid(),
+        blockId: z.string().uuid(),
+        sessionId: z.string().uuid().optional(),
+        snapshot: z
+          .object({
+            contractVersion: z.literal('visit-assistant/v1'),
+            revision: z.number().int().min(0),
+            messages: z.array(z.unknown()).max(100),
+            history: z.array(z.unknown()).max(100),
+            draft: z.object({
+              assessments: z.record(z.unknown()),
+              measurements: z.record(z.unknown()),
+              issues: z.array(z.unknown()).max(100),
+              recommendationGroups: z.array(z.unknown()).max(100),
+              monitoring: z.array(z.unknown()).max(100),
+              followUps: z.array(z.unknown()).max(100),
+              safetyConfirmation: z.unknown().nullable(),
+            }).passthrough(),
+          })
+          .passthrough(),
+        message: z.object({
+          id: z.string().trim().min(1).max(200),
+          content: z.string().trim().min(1).max(8_000),
+          createdAt: z.string().datetime(),
+        }),
+        workflow: z.unknown().optional(),
+      })
+      .strict()
+      .parse(request.body);
+    if (body.sessionId) {
+      await visitWizardDraftService.assertSessionOwner(body.sessionId, admin.email);
+    }
+    const result = await visitCopilotWorkflowService.chat({
+      farmerId: body.farmerId,
+      blockId: body.blockId,
+      snapshot: body.snapshot as VisitAssistantSnapshot,
+      message: body.message,
+      workflow: body.workflow as import('@morbeez/shared/visit-copilot/v1').VisitCopilotWorkflowState | null,
+    });
+    return reply.send({ ok: true, ...result });
   });
 
   app.post(`${api}/visits/assistant/validate-recommendations`, async (request, reply) => {

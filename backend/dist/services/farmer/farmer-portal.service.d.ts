@@ -1,0 +1,330 @@
+export declare const farmerPortalService: {
+    getProfile(farmerId: string): Promise<{
+        id: unknown;
+        email: unknown;
+        firstName: unknown;
+        lastName: unknown;
+        name: unknown;
+        phone: unknown;
+        village: unknown;
+        district: {} | null;
+        state: {} | null;
+        pincode: {} | null;
+        shippingAddress: {} | null;
+        deliveryPincode: {} | null;
+        newsletterSubscribed: unknown;
+        hasPassword: boolean;
+        preferredLanguage: string;
+        createdAt: unknown;
+    }>;
+    updatePreferredLanguage(farmerId: string, preferredLanguage: string): Promise<{
+        id: unknown;
+        email: unknown;
+        firstName: unknown;
+        lastName: unknown;
+        name: unknown;
+        phone: unknown;
+        village: unknown;
+        district: {} | null;
+        state: {} | null;
+        pincode: {} | null;
+        shippingAddress: {} | null;
+        deliveryPincode: {} | null;
+        newsletterSubscribed: unknown;
+        hasPassword: boolean;
+        preferredLanguage: string;
+        createdAt: unknown;
+    }>;
+    getSummary(farmerId: string): Promise<{
+        greetingName: {};
+        crop: {
+            name: string;
+            variety: string | null;
+            fieldSize: string | null;
+            blockName: string;
+            blockId: string;
+            stage: string;
+            daysAfterPlanting: number | null;
+            cycleDays: number;
+        } | null;
+        shippingAddress: {
+            name: unknown;
+            phone: unknown;
+            lines: unknown[];
+            verified: boolean;
+        };
+        atAGlance: {
+            activeOrders: number;
+            nextAdvisory: string;
+            nextAdvisoryHint: string | null;
+            newReports: number;
+            estimatedProfitInr: number;
+        };
+        quickAccess: {
+            ordersCount: number;
+            hasAdvisory: boolean;
+            reportsCount: number;
+            roiBalance: number;
+        };
+        latestRecommendation: {
+            id: string;
+            cropName: any;
+            stage: string | null;
+            dateLabel: string;
+            dayLabel: string | null;
+            bullets: string[];
+            summary: string | null;
+        } | null;
+        recentOrder: {
+            id: string;
+            orderNumber: string;
+            productTitle: string;
+            productImageUrl: string | null;
+            quantity: number;
+            amountInr: number;
+            status: string;
+            statusLabel: string;
+            statusTone: string;
+            orderedOn: string;
+            deliveredOn: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null;
+            lineItems: {
+                title: string;
+                quantity: number;
+                imageUrl: string | null;
+            }[];
+        } | null;
+        notifications: {
+            id: string;
+            type: string;
+            message: string;
+            atLabel: string;
+            tone: string;
+        }[];
+        todayMarket: {
+            crop: string;
+            pricePerKg: number;
+            marketName: string;
+            trend: "flat" | "up" | "down" | null;
+            date: string;
+        } | null;
+        finance: {
+            todayExpenseInr: number;
+            monthExpenseInr: number;
+            projectedProfitInr: number;
+        };
+        tasks: {
+            id: string;
+            label: string;
+            dueLabel: string;
+            href: string;
+        }[];
+    }>;
+    listOrders(farmerId: string): Promise<{
+        orders: {
+            id: string;
+            orderNumber: string;
+            productTitle: string;
+            productImageUrl: string | null;
+            quantity: number;
+            amountInr: number;
+            status: string;
+            statusLabel: string;
+            statusTone: string;
+            orderedOn: string;
+            deliveredOn: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null;
+            lineItems: {
+                title: string;
+                quantity: number;
+                imageUrl: string | null;
+            }[];
+        }[];
+    }>;
+    getOrderTracking(farmerId: string, orderId: string): Promise<{
+        order: {
+            id: string;
+            orderNumber: string;
+            productTitle: string;
+            productImageUrl: string | null;
+            quantity: number;
+            amountInr: number;
+            status: string;
+            statusLabel: string;
+            statusTone: string;
+            orderedOn: string;
+            deliveredOn: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null;
+            lineItems: {
+                title: string;
+                quantity: number;
+                imageUrl: string | null;
+            }[];
+        };
+        tracking: {
+            courier: string;
+            trackingAwb: string | null;
+            trackingUrl: string | null | undefined;
+            expectedDelivery: string | null;
+            deliveryBy: string;
+            paymentLabel: string;
+            paymentSubtext: string;
+            deliveryAddress: string | null;
+            shiprocketNote: string | null;
+            omsStatus: string | null;
+        };
+        timeline: {
+            key: string;
+            label: string;
+            at: string | null;
+            done: boolean;
+            pending?: boolean;
+        }[];
+        lineItems: import("../admin/telecaller-farmer-orders.service.js").TelecallerOrderLine[];
+        canReview: boolean;
+        reviewLines: import("./farmer-product-review.service.js").ReviewableLineItem[];
+    }>;
+    submitOrderReview(farmerId: string, orderId: string, input: {
+        productKey: string;
+        rating: number;
+        reviewText?: string;
+    }): Promise<{
+        id: string;
+        rating: number;
+        reviewText: string | null;
+        createdAt: string;
+        productKey: string;
+        productTitle: string;
+    }>;
+    getAdvisory(farmerId: string): Promise<{
+        crop: {
+            name: string;
+            fieldSize: string | null;
+            stage: string;
+            daysAfterPlanting: number | null;
+        } | null;
+        recommendations: {
+            id: string;
+            dateLabel: string;
+            cropName: any;
+            blockName: string | null;
+            stage: string | null;
+            dayLabel: string | null;
+            title: string;
+            bullets: string[];
+            applicationMethod: string | null;
+            followUpLabel: string | null;
+            status: string;
+        }[];
+        schedule: {
+            id: string;
+            dueLabel: string;
+            type: string;
+            notes: string | null;
+        }[];
+        alerts: {
+            message: string;
+            dueLabel: string;
+        }[];
+    }>;
+    listSoilReports(farmerId: string): Promise<{
+        reports: {
+            id: string;
+            blockId: string | null;
+            blockName: string;
+            dateLabel: string;
+            dapLabel: string | null;
+            health: "good" | "critical" | "monitor";
+            healthLabel: string;
+            pdfUrl: string | null;
+            metrics: {
+                label: string;
+                value: string;
+            }[];
+            highlights: string[];
+        }[];
+    }>;
+    createSoilReport(farmerId: string, input: {
+        blockId: string;
+        reportedAt?: string;
+        macro?: Record<string, string>;
+        micro?: Record<string, string>;
+        remarks?: string;
+        imageData?: string;
+        mimeType?: string;
+    }): Promise<{
+        id: string;
+        blockId: string;
+    }>;
+    getRoi(farmerId: string): Promise<{
+        summary: {
+            inputCostInr: number;
+            estimatedYieldIncomeInr: number;
+            estimatedProfitInr: number;
+            acreage: number | null;
+            marketNote: string;
+        };
+        recentEntries: {
+            id: string;
+            dateLabel: string;
+            category: string;
+            amountInr: number;
+            type: string;
+            note: string | null;
+        }[];
+    }>;
+    listNotifications(farmerId: string, limit?: number): Promise<{
+        id: string;
+        type: string;
+        message: string;
+        atLabel: string;
+        tone: string;
+    }[]>;
+    listFieldPhotos(farmerId: string): Promise<{
+        photos: {
+            id: string;
+            uploadedAt: string;
+            crop: string | null;
+            status: string;
+            previewUrl: string | null;
+        }[];
+    }>;
+    uploadFieldPhoto(farmerId: string, input: {
+        photoType: "field" | "leaf" | "rhizome";
+        imageData: string;
+        mimeType?: string;
+        notes?: string;
+    }): Promise<{
+        ok: boolean;
+        imageId: string | null;
+        message: string;
+    }>;
+    updateShippingAddress(farmerId: string, input: {
+        address1?: string;
+        address2?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+    }): Promise<{
+        id: unknown;
+        email: unknown;
+        firstName: unknown;
+        lastName: unknown;
+        name: unknown;
+        phone: unknown;
+        village: unknown;
+        district: {} | null;
+        state: {} | null;
+        pincode: {} | null;
+        shippingAddress: {} | null;
+        deliveryPincode: {} | null;
+        newsletterSubscribed: unknown;
+        hasPassword: boolean;
+        preferredLanguage: string;
+        createdAt: unknown;
+    }>;
+};
+//# sourceMappingURL=farmer-portal.service.d.ts.map

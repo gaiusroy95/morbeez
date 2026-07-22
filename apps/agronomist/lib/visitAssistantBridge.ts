@@ -26,6 +26,8 @@ import type {
   VisitFollowupOutcome,
   VisitIssueDraft,
 } from '@morbeez/shared';
+import type { VisitCopilotWorkflowState } from '@morbeez/shared/visit-copilot';
+import { emptyVisitCopilotWorkflow } from '@morbeez/shared/visit-copilot';
 
 /** Wizard issue shape used by the bridge (keeps RN component imports out of unit tests). */
 export type BridgeIssueDraft = VisitIssueDraft & {
@@ -61,6 +63,7 @@ export type VisitAssistantPersistedState = {
   filledKeys: string[];
   safetyConfirmation: VisitAssistantSafetyConfirmation | null;
   recommendationValidation: VisitAssistantRecommendationValidationResult | null;
+  workflow: VisitCopilotWorkflowState | null;
 };
 
 export type WizardAssistantSource = {
@@ -110,6 +113,7 @@ export function emptyVisitAssistantState(): VisitAssistantPersistedState {
     filledKeys: [],
     safetyConfirmation: null,
     recommendationValidation: null,
+    workflow: emptyVisitCopilotWorkflow(),
   };
 }
 
@@ -134,6 +138,7 @@ export function parseVisitAssistantState(raw: unknown): VisitAssistantPersistedS
     safetyConfirmation: (value.safetyConfirmation as VisitAssistantSafetyConfirmation | null) ?? null,
     recommendationValidation:
       (value.recommendationValidation as VisitAssistantRecommendationValidationResult | null) ?? null,
+    workflow: (value.workflow as VisitCopilotWorkflowState | null) ?? emptyVisitCopilotWorkflow(),
   };
 }
 

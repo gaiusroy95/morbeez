@@ -1,0 +1,16 @@
+export declare const shopifyInventoryService: {
+    getVariantStock(variantId: number): Promise<number>;
+    adjustVariantStock(variantId: number, adjustment: number): Promise<number>;
+    setVariantStock(variantId: number, stock: number): Promise<void>;
+    /**
+     * Apply stock quantities after product wizard save.
+     * Matches input rows to saved Shopify variants by variant id, then by index.
+     */
+    syncWizardVariantStocks(inputVariants: Array<{
+        id?: string;
+        stock: number;
+    }>, savedVariants: Array<{
+        id: number;
+    }>): Promise<void>;
+};
+//# sourceMappingURL=shopify.inventory.service.d.ts.map

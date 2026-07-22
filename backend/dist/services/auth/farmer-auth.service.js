@@ -1,0 +1,233 @@
+import { supabase } from '../../lib/supabase.js';
+import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
+import { ConflictError, UnauthorizedError, ValidationError } from '../../lib/errors.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { createFarmerToken } from '../../lib/jwt.js';
+import { eventBus } from '../../events/bus.js';
+import { logger } from '../../lib/logger.js';
+import { isValidIndianPhone, normalizePhone } from '../../lib/phone.js';
+import { leadService } from '../crm/lead.service.js';
+import { leadChannelFromUtm } from '../../domain/marketing/lead-attribution.js';
+import { partnerEnrollmentService } from '../partner/partner-enrollment.service.js';
+import { farmerOwnershipService } from '../partner/farmer-ownership.service.js';
+function normalizeEmail(email) {
+    return email.trim().toLowerCase();
+}
+function publicFarmer(row) {
+    const pincodeRow = row.pincode_master;
+    return {
+        id: row.id,
+        email: row.email,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        name: row.name,
+        phone: row.phone,
+        village: row.village,
+        district: row.district ?? pincodeRow?.district ?? null,
+        state: row.state ?? pincodeRow?.state ?? null,
+        pincode: pincodeRow?.pincode ?? row.delivery_pincode ?? null,
+        shippingAddress: row.shipping_address ?? null,
+        deliveryPincode: row.delivery_pincode ?? null,
+        newsletterSubscribed: row.newsletter_subscribed,
+        hasPassword: Boolean(row.password_hash),
+        preferredLanguage: row.preferred_language ? String(row.preferred_language) : 'en',
+        createdAt: row.created_at,
+    };
+}
+export const farmerAuthService = {
+    async signup(input) {
+        const email = input.email?.trim() ? normalizeEmail(input.email) : null;
+        if (!input.acceptTerms) {
+            throw new ValidationError('You must accept the Terms of Service and Privacy Policy');
+        }
+        if (input.password.length < 8) {
+            throw new ValidationError('Password must be at least 8 characters');
+        }
+        if (!isValidIndianPhone(input.phone)) {
+            throw new ValidationError('Enter a valid 10-digit Indian WhatsApp mobile number');
+        }
+        const phone = normalizePhone(input.phone);
+        const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+        const now = new Date().toISOString();
+        if (email) {
+            const { data: existingEmail, error: existingEmailErr } = await supabase
+                .from('farmers')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+            throwIfSupabaseError(existingEmailErr, 'Could not check existing account');
+            if (existingEmail)
+                throw new ConflictError('An account with this email already exists');
+        }
+        const { data: existingPhone, error: existingPhoneErr } = await supabase
+            .from('farmers')
+            .select('*')
+            .eq('phone', phone)
+            .maybeSingle();
+        throwIfSupabaseError(existingPhoneErr, 'Could not check WhatsApp number');
+        const signupPayload = {
+            email,
+            phone,
+            first_name: input.firstName.trim(),
+            last_name: input.lastName.trim(),
+            name: fullName,
+            password_hash: hashPassword(input.password),
+            terms_accepted_at: now,
+            newsletter_subscribed: input.newsletter,
+            preferred_language: 'en',
+            source: 'website',
+            metadata: {
+                signup_channel: 'website',
+                whatsapp_opt_in: true,
+            },
+            last_login_at: now,
+            updated_at: now,
+        };
+        let data;
+        if (existingPhone) {
+            if (email && existingPhone.email && existingPhone.email !== email) {
+                throw new ConflictError('This WhatsApp number is already linked to another account');
+            }
+            if (existingPhone.password_hash) {
+                throw new ConflictError('This WhatsApp number already has a website account. Please log in.');
+            }
+            const { data: merged, error: mergeErr } = await supabase
+                .from('farmers')
+                .update({
+                ...signupPayload,
+                metadata: {
+                    ...(typeof existingPhone.metadata === 'object' && existingPhone.metadata !== null
+                        ? existingPhone.metadata
+                        : {}),
+                    signup_channel: 'website',
+                    whatsapp_opt_in: true,
+                    website_linked_at: now,
+                },
+            })
+                .eq('id', existingPhone.id)
+                .select()
+                .single();
+            throwIfSupabaseError(mergeErr, 'Could not link WhatsApp number to your account');
+            data = merged;
+        }
+        else {
+            const { data: created, error } = await supabase.from('farmers').insert(signupPayload).select().single();
+            throwIfSupabaseError(error, 'Could not create farmer account');
+            data = created;
+        }
+        try {
+            await eventBus.publish('farmer.upserted', { farmerId: data.id, email, phone, source: 'website' }, 'farmer-auth');
+        }
+        catch {
+            /* signup succeeds even if outbox write fails */
+        }
+        try {
+            const leadResult = await leadService.upsertSignupLead({
+                farmerId: String(data.id),
+                phone,
+                name: fullName,
+                email: email ?? undefined,
+                channel: input.channel ?? 'website',
+                leadChannel: leadChannelFromUtm(input.utmSource, input.utmMedium),
+                campaignSource: input.utmCampaign ?? null,
+                utmCampaign: input.utmCampaign ?? null,
+                utmSource: input.utmSource ?? null,
+                utmMedium: input.utmMedium ?? null,
+                partnerCode: input.partnerCode ?? null,
+            });
+            logger.info({
+                farmerId: data.id,
+                phone,
+                leadId: leadResult.lead.id,
+                created: leadResult.created,
+                merged: leadResult.merged,
+            }, 'Signup telecaller lead upserted');
+        }
+        catch (err) {
+            logger.error({ err, farmerId: data.id, phone }, 'Signup telecaller lead failed');
+        }
+        try {
+            const partnerEnroll = await partnerEnrollmentService.enrollFarmerWithPartner({
+                farmerId: String(data.id),
+                phone,
+                name: fullName,
+                partnerCode: input.partnerCode,
+                qrToken: input.qrToken,
+                enrollmentSource: input.qrToken ? 'partner_qr' : input.partnerCode ? 'partner_referral' : undefined,
+            });
+            if (!partnerEnroll.enrolled) {
+                await farmerOwnershipService.setEnrollmentOwnership({
+                    farmerId: String(data.id),
+                    enrollmentOwnerType: 'morbeez',
+                    enrollmentSource: input.channel === 'mobile' ? 'mobile_app' : 'website',
+                    serviceModel: 'remote_advisory',
+                    customerOwnerType: 'morbeez',
+                });
+            }
+        }
+        catch (err) {
+            logger.error({ err, farmerId: data.id }, 'Signup ownership assignment failed');
+        }
+        const token = createFarmerToken(data.id, email ?? phone);
+        return { token, farmer: publicFarmer(data) };
+    },
+    async login(input) {
+        const email = normalizeEmail(input.email);
+        const { data, error } = await supabase.from('farmers').select('*').eq('email', email).maybeSingle();
+        throwIfSupabaseError(error, 'Could not load account');
+        if (!data?.password_hash)
+            throw new UnauthorizedError('Invalid email or password');
+        if (!verifyPassword(input.password, data.password_hash)) {
+            throw new UnauthorizedError('Invalid email or password');
+        }
+        const now = new Date().toISOString();
+        await supabase.from('farmers').update({ last_login_at: now, updated_at: now }).eq('id', data.id);
+        const token = createFarmerToken(data.id, email);
+        return { token, farmer: publicFarmer({ ...data, last_login_at: now }) };
+    },
+    async me(farmerId) {
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('*, pincode_master(pincode, district, state)')
+            .eq('id', farmerId)
+            .single();
+        if (error || !data)
+            throw new UnauthorizedError('Session invalid');
+        if (!data.email && !data.phone)
+            throw new UnauthorizedError('Session invalid');
+        return publicFarmer(data);
+    },
+    async changePassword(input) {
+        if (input.newPassword.length < 8) {
+            throw new ValidationError('Password must be at least 8 characters');
+        }
+        if (input.newPassword !== input.confirmPassword) {
+            throw new ValidationError('Passwords do not match');
+        }
+        const { data, error } = await supabase
+            .from('farmers')
+            .select('password_hash')
+            .eq('id', input.farmerId)
+            .maybeSingle();
+        throwIfSupabaseError(error, 'Could not load account');
+        if (!data)
+            throw new UnauthorizedError('Session invalid');
+        const hasPassword = Boolean(data.password_hash);
+        if (hasPassword) {
+            if (!input.currentPassword?.trim()) {
+                throw new ValidationError('Current password is required');
+            }
+            if (!verifyPassword(input.currentPassword, String(data.password_hash))) {
+                throw new UnauthorizedError('Current password is incorrect');
+            }
+        }
+        const now = new Date().toISOString();
+        const { error: updateErr } = await supabase
+            .from('farmers')
+            .update({ password_hash: hashPassword(input.newPassword), updated_at: now })
+            .eq('id', input.farmerId);
+        throwIfSupabaseError(updateErr, 'Could not update password');
+        return { ok: true, hasPassword: true };
+    },
+};
+//# sourceMappingURL=farmer-auth.service.js.map

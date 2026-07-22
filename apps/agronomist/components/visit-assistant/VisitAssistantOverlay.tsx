@@ -118,27 +118,47 @@ export function VisitAssistantOverlay({
 
     try {
       const liveSnapshot = buildVisitAssistantSnapshot(wizard, withUserMessage);
-      const proposal = await agronomistClient.extractVisitAssistantProposal({
+      const copilot = await agronomistClient.postVisitCopilotChat({
         farmerId,
         blockId,
         sessionId: sessionId ?? undefined,
         snapshot: liveSnapshot,
         message: { id: messageId, content, createdAt },
+        workflow: withUserMessage.workflow,
       });
 
       const mergedMessages = [
         ...withUserMessage.messages,
-        ...proposal.messages.filter(
+        ...copilot.assistantMessages.filter(
+          (message) => !withUserMessage.messages.some((existing) => existing.id === message.id)
+        ),
+        ...copilot.proposal.messages.filter(
           (message) => !withUserMessage.messages.some((existing) => existing.id === message.id)
         ),
       ];
 
-      onAssistantStateChange({
+      const nextState: VisitAssistantPersistedState = {
         ...withUserMessage,
         messages: mergedMessages,
-        pendingProposal: proposal,
+        pendingProposal: copilot.proposal,
         rejectedOperationIds: [],
-      });
+        workflow: copilot.workflow,
+      };
+      onAssistantStateChange(nextState);
+
+      if (copilot.workflow.phase === 'approved' && copilot.proposal.operations.length) {
+        const operationIds = standardPendingOperationIds(copilot.proposal);
+        const { applyResult, patch, nextAssistant } = applyAcceptedOperationsToWizard(
+          wizard,
+          nextState,
+          copilot.proposal,
+          { acceptedOperationIds: operationIds, explicitCriticalConfirmation: true }
+        );
+        if (applyResult.ok) {
+          if (patch) onApplyPatch(patch);
+          onAssistantStateChange({ ...nextAssistant, workflow: copilot.workflow });
+        }
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Assistant request failed';
       setError(message);

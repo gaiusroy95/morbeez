@@ -18,6 +18,8 @@
     "./expert-case": "./src/expert-case/index.ts",
     "./visit-assistant": "./src/visit-assistant/index.ts",
     "./visit-assistant/v1": "./src/visit-assistant/v1.ts",
+    "./visit-copilot": "./src/visit-copilot/index.ts",
+    "./visit-copilot/v1": "./src/visit-copilot/v1.ts",
     "./fulfillment/fulfillment-gates": "./src/fulfillment/fulfillment-gates.ts",
     "./print/tax-invoice-html": "./src/print/tax-invoice-html.ts"
   },

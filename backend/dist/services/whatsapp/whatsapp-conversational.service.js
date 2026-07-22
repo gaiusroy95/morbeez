@@ -1,0 +1,143 @@
+import { env } from '../../config/env.js';
+import { openaiTokenLimitBody } from '../ai/providers/openai-chat-params.js';
+import { logOpenAiQuotaInsufficient, parseOpenAiHttpError, } from '../ai/openai-quota.service.js';
+import { logger } from '../../lib/logger.js';
+import { knowledgeFallbackService } from './pipeline/knowledge-fallback.service.js';
+import { farmerMemoryService } from './pipeline/farmer-memory.service.js';
+import { contextPackService } from './pipeline/context-pack.service.js';
+import { FARMER_WHATSAPP_LANGUAGE_RULES } from '../ai/prompts/farmer-language-style.js';
+const OPENAI_BASE = 'https://api.openai.com/v1';
+const SYSTEM_PROMPT = `You are Morbeez Crop Doctor on WhatsApp — a helpful agriculture assistant for Indian farmers.
+
+${FARMER_WHATSAPP_LANGUAGE_RULES}
+
+Rules:
+- Reply in the farmer's preferred language (see below).
+- Keep replies under 600 characters, friendly and practical — like a field agronomist texting, not a corporate bot or textbook.
+- Never open with "Welcome to Morbeez" or generic menus when the farmer asked a specific farming question.
+- Use the farmer memory block: if crop is already known, do NOT ask "what crop?" — answer in context of that crop.
+- If ACTIVE DIAGNOSIS EVIDENCE is present, treat original crop photos + diagnosis-thread chat as ground truth for this conversation. Do not invent a new disease label that contradicts the photo-based diagnosis unless the farmer clearly reports new symptoms or a new photo.
+- If the farmer sent or is sending a crop photo (symptoms on leaves, spots, yellowing, etc.), do NOT produce a disease diagnosis — Crop Doctor analyzes photos separately. Reply briefly that you are analyzing their photo, or ask them to wait for the diagnosis message.
+- Never give generic dual-hypothesis disease advice ("could be deficiency or fungus") without photo analysis — that is Crop Doctor's job.
+- Morbeez sells bio fertilizers, bio pesticides, and crop advisory.
+- Morbeez Calcium Nitrate chart: compatible with urea, potassium nitrate, boron (Solubor), amino acids, protein hydrolysate, light seaweed (low dose), fulvic acid (low dose), EDTA chelates. NOT compatible with MAP, MKP, DAP, phosphoric/phosphite/phosphonic acids, magnesium sulphate, ammonium sulphate, SOP, Zn/Fe/Mn sulphates, humic flakes, lime/bicarbonates, oil pesticides. Never mix Ca nitrate + MgSO₄ + MKP/phosphonic in one tank (precipitation/clogging).
+- For crop disease on photos: ask for a clear photo if none sent; do not give vague deflection.
+- For orders, prices, or dealer enquiries: tell them to type "quote" or visit the Morbeez website.
+- For urgent human help: tell them to type "call".
+- Do not claim guaranteed cures. Say advice is AI-assisted with agronomist support when needed.
+- Never discuss crypto, politics, or non-agriculture topics — politely redirect to farming.
+- Converse naturally; one short follow-up question at most.`;
+async function fallbackWithoutOpenAi(params) {
+    const memory = params.memory ??
+        (await farmerMemoryService.build(params.farmerId, { symptomsText: params.userMessage }));
+    const knowledge = await knowledgeFallbackService.tryReply({
+        farmerId: params.farmerId,
+        text: params.userMessage,
+        language: params.language,
+        memory,
+        followUp: params.followUp,
+    });
+    if (knowledge)
+        return knowledge;
+    return farmerMemoryService.memoryAwareFallback(memory, params.language);
+}
+/**
+ * Lightweight OpenAI chat reply for WhatsApp (greetings, general chat).
+ * Full crop diagnosis still uses cropDoctorService when symptoms/media warrant it.
+ */
+export const whatsappConversationalService = {
+    isEnabled() {
+        return (env.ENABLE_WHATSAPP_OPENAI_REPLY &&
+            Boolean(env.OPENAI_API_KEY?.trim()));
+    },
+    async generateReply(params) {
+        if (!env.OPENAI_API_KEY) {
+            return fallbackWithoutOpenAi(params);
+        }
+        const name = params.farmerName?.split(' ')[0] ?? 'Farmer';
+        const memory = params.memory ??
+            (await farmerMemoryService.build(params.farmerId, { symptomsText: params.userMessage }));
+        const memoryBlock = farmerMemoryService.formatConversationBlock(memory, 10);
+        let environmentalBlock = '';
+        try {
+            const pack = await contextPackService.build(params.farmerId, {
+                cropType: memory.cropType,
+                symptomsText: params.userMessage,
+                dap: memory.dap,
+                blockId: memory.activePlotId,
+            });
+            environmentalBlock = contextPackService.formatForPrompt(pack);
+        }
+        catch {
+            environmentalBlock = '';
+        }
+        const languageLabel = {
+            en: 'English',
+            ml: 'Malayalam',
+            ta: 'Tamil',
+            kn: 'Kannada',
+            hi: 'Hindi',
+        };
+        const userPrompt = `Farmer name: ${name}
+Preferred language: ${languageLabel[params.language] ?? 'English'}
+
+Farmer memory (trust this — do not contradict without reason):
+${memoryBlock}
+${environmentalBlock
+            ? `\nEnvironmental / regional context (use for disease timing, blast in humid monsoon, spray weather):\n${environmentalBlock}\n`
+            : ''}
+
+Farmer message: ${params.userMessage.trim() || '(empty)'}
+${params.followUp
+            ? `
+IMPORTANT: This is a FOLLOW-UP. The farmer wants MORE DETAIL on your previous advice (mix, drench, disease, etc.).
+- Expand step-by-step: what each product does, order of mixing, what NOT to combine, jar test, timing.
+- Reference the last Assistant message in the conversation log.
+- Do NOT say welcome, do NOT ask which crop if crop is already known in memory.
+- Be specific and practical for their ginger/field context.`
+            : ''}
+
+Write a helpful WhatsApp reply.`;
+        try {
+            const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${env.OPENAI_API_KEY}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: env.OPENAI_TEXT_MODEL,
+                    ...openaiTokenLimitBody(env.OPENAI_TEXT_MODEL, 500),
+                    temperature: 0.65,
+                    messages: [
+                        { role: 'system', content: SYSTEM_PROMPT },
+                        { role: 'user', content: userPrompt },
+                    ],
+                }),
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                const quota = parseOpenAiHttpError(res.status, errText);
+                if (quota.isQuotaIssue) {
+                    logOpenAiQuotaInsufficient('whatsapp-conversational', quota, {
+                        farmerId: params.farmerId,
+                    });
+                }
+                else {
+                    logger.error({ status: res.status, errText }, 'WhatsApp OpenAI chat failed');
+                }
+                return fallbackWithoutOpenAi(params);
+            }
+            const data = (await res.json());
+            const text = data.choices?.[0]?.message?.content?.trim();
+            if (!text)
+                return fallbackWithoutOpenAi(params);
+            return text.slice(0, 3500);
+        }
+        catch (err) {
+            logger.error({ err, farmerId: params.farmerId }, 'WhatsApp OpenAI chat error');
+            return fallbackWithoutOpenAi(params);
+        }
+    },
+};
+//# sourceMappingURL=whatsapp-conversational.service.js.map

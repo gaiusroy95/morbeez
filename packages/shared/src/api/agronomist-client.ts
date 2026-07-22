@@ -46,6 +46,7 @@ import type {
   VisitAssistantRecommendationValidationResult,
   VisitAssistantSnapshot,
 } from '../visit-assistant/v1';
+import type { VisitCopilotChatResponse, VisitCopilotWorkflowState } from '../visit-copilot/v1';
 
 const FIELD = `${STAFF_API_V1}/os/field`;
 const AGRO = `${STAFF_API_V1}/os/agronomist`;
@@ -812,6 +813,20 @@ export const agronomistClient = {
       { method: 'POST', body: JSON.stringify(body) }
     );
     return r.proposal;
+  },
+
+  async postVisitCopilotChat(body: {
+    farmerId: string;
+    blockId: string;
+    sessionId?: string;
+    snapshot: VisitAssistantSnapshot;
+    message: { id: string; content: string; createdAt: string };
+    workflow?: VisitCopilotWorkflowState | null;
+  }): Promise<VisitCopilotChatResponse> {
+    return staffApi<VisitCopilotChatResponse>(`${FIELD}/visits/copilot/chat`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
   },
 
   async validateVisitAssistantRecommendations(
