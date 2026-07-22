@@ -470,7 +470,16 @@ export const farmActivityExtractionService = {
       });
       draft = {
         ...draft,
-        clarifications: draft.clarifications.slice(0, 1),
+        clarifications: draft.clarifications
+          .filter((item) => {
+            const event = draft.subEvents.find((sub) => sub.id === item.subEventId);
+            if (!event) return true;
+            const field = (event as Record<string, unknown>)[item.field] as
+              | { value?: unknown }
+              | undefined;
+            return field?.value == null;
+          })
+          .slice(0, 1),
         revision,
         source,
       };

@@ -1,1 +1,0 @@
-{"version":3,"file":"case-builder.service.d.ts","sourceRoot":"","sources":["../../../src/services/case/case-builder.service.ts"],"names":[],"mappings":"AAuBA,OAAO,KAAK,EAAE,eAAe,EAAE,SAAS,EAAmB,MAAM,4BAA4B,CAAC;AAqE9F,eAAO,MAAM,kBAAkB;8BACG,MAAM,YAAY,MAAM,GAAG,IAAI,aAAa,MAAM;;;;;;;;;;;;;qBA8B3D,eAAe,GAAG,OAAO,CAAC,SAAS,GAAG,IAAI,CAAC;qCAiTjC,SAAS,GAAG,MAAM;CAcpD,CAAC"}

@@ -9,9 +9,14 @@ import type { AdvisoryLanguage } from '../ai/types.js';
 import { conversationSessionService } from '../whatsapp/conversation-session.service.js';
 import { farmActivityCommitService } from './farm-activity-commit.service.js';
 import { farmActivityDraftService } from './farm-activity-draft.service.js';
+import {
+  applyClarificationAnswer,
+  resolveBlockRefFromBlocks,
+} from './farm-activity-clarification.service.js';
 import { farmActivityExtractionService } from './farm-activity-extraction.service.js';
 import { looksLikeFarmActivityMessage } from './farm-activity-message-intent.service.js';
 import type { InvoiceEvidenceExtractOk } from './farm-activity-invoice-evidence.service.js';
+import { blockService } from '../core/block.service.js';
 
 export type FarmActivitySenders = {
   text: (phone: string, text: string) => Promise<void>;
@@ -185,6 +190,7 @@ export const farmActivityAssistantService = {
       transcript: input.transcript ?? null,
       conversationSessionId: input.conversationSessionId ?? null,
       blockId: input.blockId ?? null,
+      sessionState: input.sessionState,
     });
   },
 
@@ -199,6 +205,7 @@ export const farmActivityAssistantService = {
     transcript?: string | null;
     conversationSessionId?: string | null;
     blockId?: string | null;
+    sessionState?: string;
   }): Promise<boolean> {
     if (!this.enabled()) return false;
     if (input.modality === 'voice' && !this.voiceEnabled()) return false;
@@ -215,6 +222,77 @@ export const farmActivityAssistantService = {
           ?? (existing?.metadata?.clarificationAttempts as number | undefined)
           ?? 0
       );
+
+      const pendingClarification = existing?.draft_json?.clarifications?.[0];
+      const inClarify =
+        input.sessionState === 'farm_activity_clarify' || Boolean(pendingClarification);
+
+      if (inClarify && pendingClarification && existing?.draft_json) {
+        let blockRef: string | null = null;
+        if (pendingClarification.field === 'blockRef') {
+          const blocks = await blockService.listByFarmer(input.farmerId);
+          blockRef = resolveBlockRefFromBlocks(blocks, input.text);
+          if (!blockRef) {
+            await input.send.text(
+              input.phone,
+              input.language === 'ml'
+                ? 'ആ പ്ലോട്ട് കണ്ടെത്താനായില്ല. ഉദാ: Ginger Plot എന്ന് അയയ്ക്കുക.'
+                : 'Could not match that plot. Please reply with your plot name (e.g. Ginger Plot).'
+            );
+            return true;
+          }
+        }
+
+        const clarified = applyClarificationAnswer({
+          draft: existing.draft_json,
+          clarification: pendingClarification,
+          answerText: input.text,
+          messageId: input.messageId,
+          blockRef,
+        });
+
+        if (clarified) {
+          await farmActivityDraftService.persistExtraction({
+            farmerId: input.farmerId,
+            conversationSessionId: input.conversationSessionId ?? null,
+            preferredLanguageHint: input.language,
+            detectedLanguage: input.language,
+            codeMixed: false,
+            clarificationAttempts,
+            draft: clarified,
+            transcript: input.modality === 'voice' ? input.text : null,
+          });
+
+          if (clarified.clarifications.length > 0) {
+            await setAssistantPointer(
+              input.farmerId,
+              clarified,
+              clarificationAttempts + 1,
+              'farm_activity_clarify'
+            );
+            await input.send.text(
+              input.phone,
+              clarified.clarifications[0]?.question
+                ?? (input.language === 'ml' ? 'കൂടുതൽ വിവരം ആവശ്യമാണ്.' : 'I need one more detail.')
+            );
+            return true;
+          }
+
+          await setAssistantPointer(
+            input.farmerId,
+            clarified,
+            clarificationAttempts,
+            'farm_activity_confirm'
+          );
+          await this.sendConfirmPrompt({
+            phone: input.phone,
+            language: input.language,
+            draft: clarified,
+            send: input.send,
+          });
+          return true;
+        }
+      }
 
       const draft = await farmActivityExtractionService.extract({
         farmerId: input.farmerId,
