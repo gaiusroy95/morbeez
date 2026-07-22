@@ -12,7 +12,9 @@ import { sendReplyButtonMenu } from './whatsapp-interactive-menu.service.js';
 import {
   extractInteractiveReplyText,
   deepFindSelectionReply,
+  isBotPromptEcho,
   parseMetaCloudMessageObject,
+  selectionFromMultilineText,
   withInboundSelectionText,
 } from './inbound-reply-text.util.js';
 
@@ -93,7 +95,14 @@ export function parseAdsGyaniWebhook(payload: Record<string, unknown>): {
   }
 
   if (!text && typeof message?.message_body === 'string' && message.message_body.trim()) {
-    text = message.message_body.trim();
+    const body = message.message_body.trim();
+    const fromBody =
+      deepFindSelectionReply({ message_body: body }) ?? selectionFromMultilineText(body);
+    if (fromBody) {
+      text = fromBody;
+    } else if (!isBotPromptEcho(body)) {
+      text = body;
+    }
   } else if (!text && textObj?.body) text = textObj.body;
   else if (!text && typeof message?.body === 'string') text = message.body;
   else if (!text && buttonObj?.text) text = buttonObj.text;

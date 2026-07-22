@@ -8,6 +8,7 @@ import {
   isLanguageMenuEcho,
   parseMetaCloudMessageObject,
   resolveInboundUserText,
+  selectionFromMultilineText,
 } from '../src/services/whatsapp/inbound-reply-text.util.js';
 import type { InboundMessage } from '../src/services/whatsapp/pipeline/types.js';
 
@@ -114,6 +115,40 @@ describe('resolveInboundUserText', () => {
       },
     };
     assert.equal(detectInboundLanguageChoice(msg), 'en');
+  });
+
+  it('extracts acreage from quoted multi-line BSP message_body', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_adsgyani',
+      phone: '919876543210',
+      messageId: 'wamid.acre.quote',
+      msgType: 'interactive',
+      text: 'How many acres are under cultivation?\n2-5 acre',
+      rawPayload: {
+        contact: { phone_number: '919876543210' },
+        message: {
+          type: 'interactive',
+          message_body: 'How many acres are under cultivation?\n2-5 acre',
+        },
+      },
+    };
+    assert.equal(resolveInboundUserText(msg), 'acreage.2_5');
+    assert.equal(selectionFromMultilineText(msg.text!), 'acreage.2_5');
+  });
+
+  it('extracts crop from quoted multi-line button tap', () => {
+    const msg: InboundMessage = {
+      channel: 'whatsapp_adsgyani',
+      phone: '919876543210',
+      messageId: 'wamid.crop.quote',
+      msgType: 'interactive',
+      text: 'Which plot (crop) do you cultivate?\nGinger Plot',
+      messageObject: {
+        type: 'interactive',
+        message_body: 'Which plot (crop) do you cultivate?\nGinger Plot',
+      },
+    };
+    assert.equal(resolveInboundUserText(msg), 'crop.ginger');
   });
 });
 

@@ -1,5 +1,13 @@
 import type { InboundMessage } from './pipeline/types.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
+/** Bot menu / prompt text echoed in quoted reply payloads — not the farmer's choice. */
+export declare function isBotPromptEcho(text: string): boolean;
+/**
+ * BSPs often send button taps as multi-line quoted text:
+ *   "How many acres are under cultivation?\n2-5 acre"
+ * Prefer the last non-prompt line that maps to a known selection.
+ */
+export declare function selectionFromMultilineText(raw: string): string | null;
 /** Button / list reply — prefer stable ids (lang.en, acreage.0_1, menu.crop_assessment, …). */
 export declare function extractInteractiveReplyText(interactive: Record<string, unknown> | undefined): string | null;
 /** Walk webhook JSON for any known selection id or mappable button title. */

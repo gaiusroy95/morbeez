@@ -20,6 +20,14 @@ const TITLE_TO_SELECTION_ID = {
     '0-1 acre': 'acreage.0_1',
     '2-5 acre': 'acreage.2_5',
     '5+ acre': 'acreage.5_plus',
+    'ginger plot': 'crop.ginger',
+    'banana plot': 'crop.banana',
+    'cardamom plot': 'crop.cardamom',
+    'pepper plot': 'crop.pepper',
+    ginger: 'crop.ginger',
+    banana: 'crop.banana',
+    cardamom: 'crop.cardamom',
+    pepper: 'crop.pepper',
     'crop assessment': 'menu.crop_assessment',
     'roi tracker': 'menu.roi_tracker',
     'call back': 'menu.expert',
@@ -88,6 +96,54 @@ function normalizeSelectionValue(raw) {
     const mapped = mapTitleToSelectionId(trimmed);
     return mapped ?? trimmed;
 }
+const BOT_PROMPT_MARKERS = [
+    'how many acres',
+    'which plot',
+    'which plot is this for',
+    'please choose',
+    'please select your language',
+    'welcome to morbeez',
+    'more options',
+    'tap a button',
+    'enter your 6-digit',
+    '6-digit pincode',
+    'planting date',
+    'ddmmyyyy',
+];
+/** Bot menu / prompt text echoed in quoted reply payloads — not the farmer's choice. */
+export function isBotPromptEcho(text) {
+    const t = text.trim().toLowerCase();
+    if (!t)
+        return false;
+    if (isLanguageMenuEcho(text))
+        return true;
+    return BOT_PROMPT_MARKERS.some((m) => t.includes(m));
+}
+/**
+ * BSPs often send button taps as multi-line quoted text:
+ *   "How many acres are under cultivation?\n2-5 acre"
+ * Prefer the last non-prompt line that maps to a known selection.
+ */
+export function selectionFromMultilineText(raw) {
+    const trimmed = raw.trim();
+    if (!trimmed)
+        return null;
+    const wholeMapped = selectionFromReplyValue(trimmed) ?? mapTitleToSelectionId(trimmed);
+    if (wholeMapped && !isBotPromptEcho(wholeMapped))
+        return wholeMapped;
+    const lines = trimmed.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i];
+        if (isBotPromptEcho(line))
+            continue;
+        const mapped = selectionFromReplyValue(line) ?? mapTitleToSelectionId(line);
+        if (mapped)
+            return mapped;
+        if (SELECTION_ID_PATTERN.test(line))
+            return line;
+    }
+    return null;
+}
 /** Button / list reply — prefer stable ids (lang.en, acreage.0_1, menu.crop_assessment, …). */
 export function extractInteractiveReplyText(interactive) {
     if (!interactive)
@@ -106,6 +162,7 @@ export function extractInteractiveReplyText(interactive) {
 function extractFlatReply(blob) {
     const btn = blob.button_reply;
     const list = blob.list_reply;
+    const reply = blob.reply;
     if (btn?.id?.trim()) {
         const fromId = selectionFromReplyValue(btn.id);
         if (fromId)
@@ -124,6 +181,16 @@ function extractFlatReply(blob) {
     }
     if (list?.title?.trim()) {
         const mapped = mapTitleToSelectionId(list.title) ?? list.title.trim();
+        return mapped;
+    }
+    if (reply?.id?.trim()) {
+        const fromId = selectionFromReplyValue(reply.id);
+        if (fromId)
+            return fromId;
+        return reply.id.trim();
+    }
+    if (reply?.title?.trim()) {
+        const mapped = mapTitleToSelectionId(reply.title) ?? reply.title.trim();
         return mapped;
     }
     const directId = blob.id;
@@ -155,6 +222,26 @@ function extractInteractiveFromBlob(blob) {
     const direct = extractInteractiveReplyText(blob.interactive);
     if (direct)
         return direct;
+    for (const key of [
+        'selected_button',
+        'button_response',
+        'button_text',
+        'selected_reply',
+        'selected_id',
+        'button_payload',
+    ]) {
+        const val = blob[key];
+        if (typeof val === 'string' && val.trim()) {
+            const mapped = selectionFromReplyValue(val) ?? mapTitleToSelectionId(val);
+            if (mapped)
+                return mapped;
+        }
+        if (val && typeof val === 'object') {
+            const nested = extractFlatReply(val);
+            if (nested)
+                return nested;
+        }
+    }
     const nestedMessage = blob.message;
     if (nestedMessage) {
         const nestedFlat = extractFlatReply(nestedMessage);
@@ -316,18 +403,28 @@ export function resolveInboundUserText(msg) {
     if (selection)
         return selection;
     const trimmed = msg.text?.trim() ?? '';
-    if (trimmed && !isLanguageMenuEcho(trimmed))
-        return trimmed;
+    if (trimmed) {
+        const fromLines = selectionFromMultilineText(trimmed);
+        if (fromLines)
+            return fromLines;
+        if (!isBotPromptEcho(trimmed))
+            return trimmed;
+    }
     const blob = messageBlob(msg.messageObject, msg.rawPayload);
+    const body = typeof blob.message_body === 'string'
+        ? blob.message_body.trim()
+        : blob.text?.body?.trim() ?? '';
+    if (body) {
+        const fromBody = selectionFromMultilineText(body);
+        if (fromBody)
+            return fromBody;
+        if (!isInteractiveInbound(msg) && !isBotPromptEcho(body))
+            return body;
+    }
     if (!isInteractiveInbound(msg)) {
         const textObj = blob.text;
-        if (textObj?.body?.trim() && !isLanguageMenuEcho(textObj.body))
+        if (textObj?.body?.trim() && !isBotPromptEcho(textObj.body))
             return textObj.body.trim();
-        if (typeof blob.message_body === 'string' && blob.message_body.trim()) {
-            const body = blob.message_body.trim();
-            if (!isLanguageMenuEcho(body))
-                return body;
-        }
     }
     return '';
 }

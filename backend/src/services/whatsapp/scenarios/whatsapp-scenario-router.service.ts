@@ -34,6 +34,7 @@ import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { accuracyMetricsService } from '../../ai/accuracy-metrics.service.js';
 import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
 import { cropSelectionService } from './crop-selection.service.js';
+import { resolveInboundUserText } from '../inbound-reply-text.util.js';
 import { farmerPurgeService } from '../../farmer/farmer-purge.service.js';
 import { blockService } from '../../core/block.service.js';
 import {
@@ -355,7 +356,7 @@ export const whatsappScenarioRouter = {
   ): Promise<ScenarioRouterResult> {
     const lang = normalizeLanguage(null, session.preferred_language ?? captured.language);
     captured.language = lang;
-    const text = (msg.text ?? '').trim();
+    const text = resolveInboundUserText(msg).trim();
 
     if (!session.preferred_language) {
       return { handled: false };
@@ -773,6 +774,16 @@ export const whatsappScenarioRouter = {
       if (ctx.onboardingStep === 'acreage' || ACREAGE_IDS.has(text)) {
         const bucket = parseAcreageBucket(text);
         if (!bucket) {
+          logger.warn(
+            {
+              farmerId: captured.farmerId,
+              messageId: msg.messageId,
+              msgType: msg.msgType,
+              text: text.slice(0, 120),
+              resolvedText: resolveInboundUserText(msg).slice(0, 120),
+            },
+            'WhatsApp acreage selection not recognized'
+          );
           await send.text(
             msg.phone,
             lang === 'ml'
