@@ -5,7 +5,7 @@ import {
   type VisitAssistantMessage,
   type VisitCopilotWorkflowState,
 } from '@morbeez/shared';
-import { Btn, Field, Input, Panel } from '../ui';
+import { Btn, Field, Input, Panel } from '../../ui';
 
 type Props = {
   farmerId: string;
