@@ -1,6 +1,7 @@
 {%- liquid
   assign campaign = section.settings.campaign
   assign banner_image = section.settings.image
+  assign banner_image_url = section.settings.image_url
   assign banner_badge = section.settings.badge
   assign banner_heading = section.settings.heading
   assign banner_text = section.settings.text
@@ -10,6 +11,7 @@
   if campaign != blank
     if campaign.image.value != blank
       assign banner_image = campaign.image.value
+      assign banner_image_url = blank
     endif
     assign banner_badge = campaign.badge.value | default: banner_badge
     assign banner_heading = campaign.title.value | default: banner_heading
@@ -21,7 +23,14 @@
 <section class="morbeez-section" id="MorbeezSeasonal-{{ section.id }}">
   <div class="morbeez-container">
     <div class="relative overflow-hidden rounded-2xl">
-      {%- if banner_image != blank -%}
+      {%- if banner_image_url != blank -%}
+        <img
+          src="{{ banner_image_url | escape }}"
+          alt="{{ banner_heading | escape }}"
+          class="absolute inset-0 h-full w-full object-cover"
+          loading="lazy"
+        >
+      {%- elsif banner_image != blank -%}
         {%- render 'morbeez-lazy-image',
           image: banner_image,
           alt: banner_heading,
@@ -68,6 +77,7 @@
       "metaobject_type": "morbeez_campaign_banner"
     },
     { "type": "image_picker", "id": "image", "label": "t:sections.seasonal_campaign.settings.image" },
+    { "type": "text", "id": "image_url", "label": "Image URL (staff sync)" },
     { "type": "text", "id": "badge", "label": "t:sections.seasonal_campaign.settings.badge", "default": "Monsoon ready" },
     { "type": "text", "id": "heading", "label": "t:sections.seasonal_campaign.settings.heading", "default": "Monsoon crop protection essentials" },
     { "type": "textarea", "id": "text", "label": "t:sections.seasonal_campaign.settings.text" },

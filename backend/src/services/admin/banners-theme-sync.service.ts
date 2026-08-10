@@ -2,6 +2,7 @@ import { env } from '../../config/env.js';
 import { AppError } from '../../lib/errors.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { supabase } from '../../lib/supabase.js';
+import { parseHeroTitle, relativeStorefrontPath } from './banners-hero-title.util.js';
 import { shopifyAdmin } from '../shopify/shopify.client.js';
 
 type IndexTemplate = {
@@ -14,6 +15,7 @@ type IndexTemplate = {
       settings?: Record<string, unknown>;
     }
   >;
+  order?: string[];
 };
 
 type ImportRow = {
@@ -27,6 +29,22 @@ type ImportRow = {
   startsAt: string;
   endsAt: string;
   sortOrder: number;
+};
+
+type BannerRow = {
+  id: string;
+  title: string;
+  badge: string | null;
+  description: string | null;
+  image_url: string | null;
+  cta_label: string | null;
+  cta_url: string | null;
+  placement: string;
+  starts_at: string;
+  ends_at: string;
+  sort_order: number;
+  active: boolean;
+  source_ref: string | null;
 };
 
 function storefrontUrl(path: string): string {
@@ -50,7 +68,19 @@ function slideTitle(settings: Record<string, unknown>): string {
   return String(settings.eyebrow ?? 'Homepage hero');
 }
 
-async function getMainThemeId(): Promise<number> {
+function isActiveBanner(row: BannerRow): boolean {
+  if (!row.active) return false;
+  const now = Date.now();
+  return now >= new Date(row.starts_at).getTime() && now <= new Date(row.ends_at).getTime();
+}
+
+async function getTargetThemeId(): Promise<number> {
+  const configured = env.SHOPIFY_THEME_ID?.trim();
+  if (configured) {
+    const id = Number(configured);
+    if (Number.isFinite(id) && id > 0) return id;
+  }
+
   const res = await shopifyAdmin<{ themes: Array<{ id: number; role: string }> }>('/themes.json');
   const main = res.themes.find((t) => t.role === 'main') ?? res.themes[0];
   if (!main) throw new AppError('No Shopify theme found', 404, 'THEME_NOT_FOUND');
@@ -62,6 +92,18 @@ async function fetchIndexTemplate(themeId: number): Promise<IndexTemplate> {
     `/themes/${themeId}/assets.json?asset[key]=${encodeURIComponent('templates/index.json')}`
   );
   return JSON.parse(res.asset.value) as IndexTemplate;
+}
+
+async function saveIndexTemplate(themeId: number, template: IndexTemplate): Promise<void> {
+  await shopifyAdmin(`/themes/${themeId}/assets.json`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      asset: {
+        key: 'templates/index.json',
+        value: JSON.stringify(template, null, 2),
+      },
+    }),
+  });
 }
 
 function collectImports(template: IndexTemplate): ImportRow[] {
@@ -145,9 +187,52 @@ async function upsertImport(row: ImportRow): Promise<'created' | 'updated'> {
   return 'created';
 }
 
+async function listActiveBanners(): Promise<BannerRow[]> {
+  const { data, error } = await supabase
+    .from('commerce_banners')
+    .select('*')
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('starts_at', { ascending: false });
+  throwIfSupabaseError(error, 'Could not load banners');
+  return (data ?? []).filter((row) => isActiveBanner(row as BannerRow)) as BannerRow[];
+}
+
+function buildHeroSlideSettings(banner: BannerRow): Record<string, unknown> {
+  const headings = parseHeroTitle(banner.title);
+  const settings: Record<string, unknown> = {
+    eyebrow: banner.badge?.trim() || undefined,
+    ...headings,
+    highlight_color: '#34B35E',
+    overlay: 45,
+    button_label: banner.cta_label?.trim() || 'Shop now',
+    button_url: relativeStorefrontPath(banner.cta_url),
+  };
+
+  const image = banner.image_url?.trim();
+  if (image) settings.image_url = image;
+  return settings;
+}
+
+function findHeroSectionId(template: IndexTemplate): string | null {
+  const sections = template.sections ?? {};
+  for (const [sectionId, section] of Object.entries(sections)) {
+    if (section.type === 'hero-carousel') return sectionId;
+  }
+  return null;
+}
+
+function findSeasonalSectionId(template: IndexTemplate): string | null {
+  const sections = template.sections ?? {};
+  for (const [sectionId, section] of Object.entries(sections)) {
+    if (section.type === 'seasonal-campaign') return sectionId;
+  }
+  return null;
+}
+
 export const bannersThemeSyncService = {
   async syncFromShopifyTheme() {
-    const themeId = await getMainThemeId();
+    const themeId = await getTargetThemeId();
     const template = await fetchIndexTemplate(themeId);
     const imports = collectImports(template);
 
@@ -164,5 +249,63 @@ export const bannersThemeSyncService = {
     }
 
     return { imported: imports.length, created, updated, themeId };
+  },
+
+  async syncToShopifyTheme() {
+    const themeId = await getTargetThemeId();
+    const template = await fetchIndexTemplate(themeId);
+    const banners = await listActiveBanners();
+    const heroBanners = banners.filter((b) => b.placement === 'home_hero');
+    const promoBanner = banners.find((b) => b.placement === 'promo_strip');
+
+    const heroSectionId = findHeroSectionId(template);
+    if (heroSectionId && template.sections?.[heroSectionId]) {
+      const blocks: Record<string, { type: string; settings: Record<string, unknown> }> = {};
+      const blockOrder: string[] = [];
+
+      for (let i = 0; i < heroBanners.length; i++) {
+        const banner = heroBanners[i];
+        const blockId = `staff_slide_${i + 1}`;
+        blocks[blockId] = {
+          type: 'slide',
+          settings: buildHeroSlideSettings(banner),
+        };
+        blockOrder.push(blockId);
+      }
+
+      template.sections[heroSectionId] = {
+        ...template.sections[heroSectionId],
+        blocks,
+        block_order: blockOrder,
+      };
+    }
+
+    const seasonalSectionId = findSeasonalSectionId(template);
+    if (promoBanner && seasonalSectionId && template.sections?.[seasonalSectionId]) {
+      const seasonalSettings: Record<string, unknown> = {
+        ...(template.sections[seasonalSectionId].settings ?? {}),
+        badge: promoBanner.badge?.trim() || undefined,
+        heading: promoBanner.title.trim(),
+        text: promoBanner.description?.trim() || undefined,
+        cta_label: promoBanner.cta_label?.trim() || 'Shop now',
+        cta_url: relativeStorefrontPath(promoBanner.cta_url),
+      };
+
+      const image = promoBanner.image_url?.trim();
+      if (image) seasonalSettings.image_url = image;
+
+      template.sections[seasonalSectionId] = {
+        ...template.sections[seasonalSectionId],
+        settings: seasonalSettings,
+      };
+    }
+
+    await saveIndexTemplate(themeId, template);
+
+    return {
+      themeId,
+      heroSlides: heroBanners.length,
+      promoUpdated: Boolean(promoBanner && seasonalSectionId),
+    };
   },
 };

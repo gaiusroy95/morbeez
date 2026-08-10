@@ -15,7 +15,16 @@
           data-index="{{ forloop.index0 }}"
           {{ block.shopify_attributes }}
         >
-          {%- if block.settings.image != blank -%}
+          {%- assign slide_image_url = block.settings.image_url -%}
+          {%- if slide_image_url != blank -%}
+            <img
+              src="{{ slide_image_url | escape }}"
+              alt="{{ block.settings.heading_line_2 | escape }}"
+              class="h-full w-full object-cover"
+              {% if forloop.first %}loading="eager" fetchpriority="high"{% else %}loading="lazy"{% endif %}
+              sizes="100vw"
+            >
+          {%- elsif block.settings.image != blank -%}
             {%- if forloop.first -%}
               {{
                 block.settings.image
@@ -109,6 +118,7 @@
       "name": "t:sections.hero_carousel.blocks.slide.name",
       "settings": [
         { "type": "image_picker", "id": "image", "label": "t:sections.hero_carousel.blocks.slide.settings.image" },
+        { "type": "text", "id": "image_url", "label": "Image URL (staff sync)" },
         { "type": "text", "id": "eyebrow", "label": "t:sections.hero_carousel.blocks.slide.settings.eyebrow", "default": "Proven success by serving" },
         { "type": "text", "id": "heading_line_1", "label": "t:sections.hero_carousel.blocks.slide.settings.heading_line_1" },
         { "type": "text", "id": "heading_highlight", "label": "t:sections.hero_carousel.blocks.slide.settings.heading_highlight", "default": "1 MILLION" },

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../lib/api';
+import { readFileAsBase64 } from '../../lib/readFileAsBase64';
 import { Modal } from '../Modal';
 import { CommerceShopifySyncBanner } from './CommerceShopifySyncBanner';
 import {
@@ -83,6 +84,9 @@ export function CommerceBannersPanel({ canWrite }: Props) {
   const [form, setForm] = useState(emptyForm);
 
   const [syncing, setSyncing] = useState(false);
+  const [pushing, setPushing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -146,6 +150,37 @@ export function CommerceBannersPanel({ canWrite }: Props) {
     setModalOpen(true);
   }
 
+  async function uploadBannerImage(file: File) {
+    setUploadingImage(true);
+    setError('');
+    try {
+      const dataBase64 = await readFileAsBase64(file);
+      const res = await api<{ ok: boolean; url: string }>('/morbeez-staff/api/v1/banners/media/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: file.name,
+          mimeType: file.type || 'image/jpeg',
+          dataBase64,
+          bannerId: editing?.id,
+        }),
+      });
+      setForm((f) => ({ ...f, imageUrl: res.url }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not upload image');
+    } finally {
+      setUploadingImage(false);
+    }
+  }
+
+  function formatShopifySync(sync?: { ok?: boolean; error?: string; heroSlides?: number }) {
+    if (!sync) return '';
+    if (sync.ok) {
+      const slides = sync.heroSlides ?? 0;
+      return `Shopify theme updated (${slides} hero slide${slides === 1 ? '' : 's'}).`;
+    }
+    return sync.error ? `Banner saved, but Shopify sync failed: ${sync.error}` : '';
+  }
+
   async function saveBanner() {
     setSaving(true);
     setError('');
@@ -162,17 +197,27 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       sortOrder: Number(form.sortOrder) || 0,
     };
     try {
+      let shopifySync: { ok?: boolean; error?: string; heroSlides?: number } | undefined;
       if (editing) {
-        await api(`/morbeez-staff/api/v1/banners/${editing.id}`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        });
+        const d = await api<{ ok: boolean; shopifySync?: typeof shopifySync }>(
+          `/morbeez-staff/api/v1/banners/${editing.id}`,
+          {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+          }
+        );
+        shopifySync = d.shopifySync;
       } else {
-        await api('/morbeez-staff/api/v1/banners', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        const d = await api<{ ok: boolean; shopifySync?: typeof shopifySync }>(
+          '/morbeez-staff/api/v1/banners',
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          }
+        );
+        shopifySync = d.shopifySync;
       }
+      setSyncMessage(formatShopifySync(shopifySync));
       setModalOpen(false);
       await load();
     } catch (e) {
@@ -185,13 +230,35 @@ export function CommerceBannersPanel({ canWrite }: Props) {
   async function toggleActive(b: Banner) {
     if (!canWrite) return;
     try {
-      await api(`/morbeez-staff/api/v1/banners/${b.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ active: !b.active }),
-      });
+      const d = await api<{ ok: boolean; shopifySync?: { ok?: boolean; error?: string; heroSlides?: number } }>(
+        `/morbeez-staff/api/v1/banners/${b.id}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ active: !b.active }),
+        }
+      );
+      setSyncMessage(formatShopifySync(d.shopifySync));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update banner');
+    }
+  }
+
+  async function pushToShopify() {
+    if (!canWrite) return;
+    setPushing(true);
+    setError('');
+    setSyncMessage('');
+    try {
+      const d = await api<{ ok: boolean; heroSlides?: number; error?: string }>(
+        '/morbeez-staff/api/v1/banners/sync-to-theme',
+        { method: 'POST' }
+      );
+      setSyncMessage(`Shopify theme updated (${d.heroSlides ?? 0} hero slides).`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not sync banners to Shopify');
+    } finally {
+      setPushing(false);
     }
   }
 
@@ -223,6 +290,7 @@ export function CommerceBannersPanel({ canWrite }: Props) {
   return (
     <div className="commerce-banners route-offers">
       <CommerceShopifySyncBanner label="Banners" />
+      {syncMessage ? <Alert tone="success">{syncMessage}</Alert> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       {loading ? <Loading /> : null}
 
@@ -232,8 +300,11 @@ export function CommerceBannersPanel({ canWrite }: Props) {
           actions={
             canWrite ? (
               <div className="flex flex-wrap gap-2 justify-end">
-                <Btn variant="secondary" onClick={() => void importFromTheme()} disabled={syncing}>
+                <Btn variant="secondary" onClick={() => void importFromTheme()} disabled={syncing || pushing}>
                   {syncing ? 'Importing…' : 'Import from Shopify theme'}
+                </Btn>
+                <Btn variant="secondary" onClick={() => void pushToShopify()} disabled={syncing || pushing}>
+                  {pushing ? 'Syncing…' : 'Sync to Shopify'}
                 </Btn>
                 <Btn variant="primary" onClick={openCreate}>
                   + New banner
@@ -243,9 +314,9 @@ export function CommerceBannersPanel({ canWrite }: Props) {
           }
         >
           <p className="text-sm text-slate-600 mb-3">
-            Banners here power the farmer app shop and API storefront promos. Homepage hero slides in the Shopify
-            theme editor are not listed automatically — use <strong>Import from Shopify theme</strong> to pull hero
-            carousel and seasonal campaign sections from your live theme.
+            Active banners here are pushed to your live Shopify homepage automatically when you save.
+            <strong> Homepage hero</strong> banners become hero carousel slides; <strong>Promo strip</strong>{' '}
+            banners update the seasonal campaign section. Use <strong>Sync to Shopify</strong> to retry manually.
           </p>
           <div className="commerce-subtabs offers-tabs">
             {TABS.map((t) => (
@@ -387,12 +458,36 @@ export function CommerceBannersPanel({ canWrite }: Props) {
               />
             </label>
             <label className="text-sm font-medium text-slate-700 sm:col-span-2">
-              Image URL
-              <input
-                className={inputClass}
-                value={form.imageUrl}
-                onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
-              />
+              Banner image
+              <div className="mt-1 flex flex-col gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                  {uploadingImage ? 'Uploading…' : 'Upload image'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void uploadBannerImage(file);
+                    }}
+                  />
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder="Or paste image URL"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
+                />
+                {form.imageUrl ? (
+                  <img
+                    src={form.imageUrl}
+                    alt="Banner preview"
+                    className="max-h-40 w-full rounded-lg border border-slate-200 object-cover"
+                  />
+                ) : null}
+              </div>
             </label>
             <label className="text-sm font-medium text-slate-700">
               CTA label

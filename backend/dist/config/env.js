@@ -72,6 +72,8 @@ const envSchema = z.object({
     /** Debounce window (ms) to batch simultaneous WhatsApp photo uploads into one diagnosis. */
     WHATSAPP_IMAGE_BATCH_MS: z.coerce.number().default(2500),
     SHOPIFY_STOREFRONT_URL: z.string().url().optional(),
+    /** Optional theme ID for banner sync (defaults to published/main theme). */
+    SHOPIFY_THEME_ID: z.string().optional(),
     OPENAI_API_KEY: z.string().optional(),
     OPENAI_VISION_MODEL: z.string().default('gpt-4o'),
     OPENAI_TEXT_MODEL: z.string().default('gpt-4o'),

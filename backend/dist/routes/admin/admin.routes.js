@@ -12,6 +12,7 @@ import { offersAdminService } from '../../services/admin/offers-admin.service.js
 import { combosAdminService } from '../../services/admin/combos-admin.service.js';
 import { flashSalesAdminService } from '../../services/admin/flash-sales-admin.service.js';
 import { shiprocketAdminService } from '../../services/admin/shiprocket-admin.service.js';
+import { bannerMediaStorageService } from '../../services/admin/banner-media-storage.service.js';
 import { bannersAdminService } from '../../services/admin/banners-admin.service.js';
 import { bannersThemeSyncService } from '../../services/admin/banners-theme-sync.service.js';
 import { aiAdvisoryAdminService } from '../../services/admin/ai-advisory-admin.service.js';
@@ -116,6 +117,12 @@ const productMediaUploadSchema = z.object({
     productId: z.string().max(50).optional(),
     folder: z.enum(['images', 'video', 'label', 'sds', 'brochure']).optional(),
 });
+const bannerMediaUploadSchema = z.object({
+    fileName: z.string().min(1).max(255),
+    mimeType: z.string().min(1).max(100),
+    dataBase64: z.string().min(20).max(12_000_000),
+    bannerId: z.string().uuid().optional(),
+});
 const jsonSection = z.record(z.unknown()).optional();
 const intelligenceSchema = z.object({
     basic: jsonSection,
@@ -197,7 +204,7 @@ const bannerCreateSchema = z.object({
     title: z.string().min(1).max(160),
     badge: z.string().max(80).optional(),
     description: z.string().max(600).optional(),
-    imageUrl: z.string().max(500).optional(),
+    imageUrl: z.string().max(2000).optional(),
     ctaLabel: z.string().max(60).optional(),
     ctaUrl: z.string().max(500).optional(),
     placement: z.enum(['home_hero', 'collection_top', 'promo_strip']).optional(),
@@ -207,6 +214,18 @@ const bannerCreateSchema = z.object({
     active: z.boolean().optional(),
 });
 const bannerUpdateSchema = bannerCreateSchema.partial();
+async function syncBannersToShopify() {
+    try {
+        const result = await bannersThemeSyncService.syncToShopifyTheme();
+        return { ok: true, ...result };
+    }
+    catch (err) {
+        return {
+            ok: false,
+            error: err instanceof Error ? err.message : 'Could not sync banners to Shopify theme',
+        };
+    }
+}
 async function assertCanDeactivateSuperAdmin(userId) {
     const { data, error } = await supabase
         .from('admin_users')
@@ -710,6 +729,25 @@ export async function adminRoutes(app) {
         const listed = await bannersAdminService.list({ tab: 'all' });
         return reply.send({ ok: true, ...result, tabCounts: listed.tabCounts, banners: listed.banners });
     });
+    app.post(`${api}/banners/sync-to-theme`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const sync = await syncBannersToShopify();
+        if (!sync.ok) {
+            return reply.status(502).send({ ok: false, error: sync.error });
+        }
+        return reply.send({ ...sync, ok: true });
+    });
+    app.post(`${api}/banners/media/upload`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager');
+        const body = bannerMediaUploadSchema.parse(request.body);
+        const result = await bannerMediaStorageService.upload({
+            fileName: body.fileName,
+            mimeType: body.mimeType,
+            dataBase64: body.dataBase64,
+            bannerId: body.bannerId,
+        });
+        return reply.send({ ok: true, url: result.url, path: result.path });
+    });
     app.get(`${api}/banners/:id`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
@@ -724,7 +762,8 @@ export async function adminRoutes(app) {
             imageUrl: body.imageUrl || undefined,
             ctaUrl: body.ctaUrl || undefined,
         });
-        return reply.status(201).send({ ok: true, banner });
+        const shopifySync = await syncBannersToShopify();
+        return reply.status(201).send({ ok: true, banner, shopifySync });
     });
     app.patch(`${api}/banners/:id`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
@@ -735,7 +774,8 @@ export async function adminRoutes(app) {
             imageUrl: body.imageUrl || undefined,
             ctaUrl: body.ctaUrl || undefined,
         });
-        return reply.send({ ok: true, banner });
+        const shopifySync = await syncBannersToShopify();
+        return reply.send({ ok: true, banner, shopifySync });
     });
     app.get(`${api}/ai-advisory/overview`, async (request, reply) => {
         requireAdmin(request);

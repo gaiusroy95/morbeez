@@ -57,6 +57,8 @@ declare const envSchema: z.ZodObject<{
     /** Debounce window (ms) to batch simultaneous WhatsApp photo uploads into one diagnosis. */
     WHATSAPP_IMAGE_BATCH_MS: z.ZodDefault<z.ZodNumber>;
     SHOPIFY_STOREFRONT_URL: z.ZodOptional<z.ZodString>;
+    /** Optional theme ID for banner sync (defaults to published/main theme). */
+    SHOPIFY_THEME_ID: z.ZodOptional<z.ZodString>;
     OPENAI_API_KEY: z.ZodOptional<z.ZodString>;
     OPENAI_VISION_MODEL: z.ZodDefault<z.ZodString>;
     OPENAI_TEXT_MODEL: z.ZodDefault<z.ZodString>;
@@ -359,6 +361,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_OTP_TEMPLATE?: string | undefined;
     WHATSAPP_OTP_TEMPLATE_LANGUAGE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
+    SHOPIFY_THEME_ID?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;
     ADMIN_UI_ORIGIN?: string | undefined;
@@ -433,6 +436,7 @@ declare const envSchema: z.ZodObject<{
     WHATSAPP_TYPING_MAX_MS?: number | undefined;
     WHATSAPP_IMAGE_BATCH_MS?: number | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
+    SHOPIFY_THEME_ID?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     OPENAI_VISION_MODEL?: string | undefined;
     OPENAI_TEXT_MODEL?: string | undefined;
@@ -705,6 +709,7 @@ export declare const env: {
     WHATSAPP_OTP_TEMPLATE?: string | undefined;
     WHATSAPP_OTP_TEMPLATE_LANGUAGE?: string | undefined;
     SHOPIFY_STOREFRONT_URL?: string | undefined;
+    SHOPIFY_THEME_ID?: string | undefined;
     OPENAI_API_KEY?: string | undefined;
     PLANT_ID_API_KEY?: string | undefined;
     ADMIN_UI_ORIGIN?: string | undefined;

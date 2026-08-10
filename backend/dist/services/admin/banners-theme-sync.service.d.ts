@@ -5,5 +5,10 @@ export declare const bannersThemeSyncService: {
         updated: number;
         themeId: number;
     }>;
+    syncToShopifyTheme(): Promise<{
+        themeId: number;
+        heroSlides: number;
+        promoUpdated: boolean;
+    }>;
 };
 //# sourceMappingURL=banners-theme-sync.service.d.ts.map
