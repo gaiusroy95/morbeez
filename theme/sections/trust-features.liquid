@@ -1,6 +1,6 @@
 <section class="morbeez-trust" id="MorbeezTrust-{{ section.id }}">
   <div class="morbeez-container">
-    <div class="morbeez-trust__card">
+    <div class="morbeez-trust__card" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));">
       {%- for block in section.blocks -%}
         <div class="morbeez-trust__item" {{ block.shopify_attributes }}>
           <span class="morbeez-trust__icon" aria-hidden="true">
