@@ -103,6 +103,8 @@
     var plusBtn = productForm.querySelector('[data-qty-plus]');
     var mainImg = document.querySelector('#MorbeezProduct-main-image, #MorbeezProduct-main img');
     var addBtn = productForm.querySelector('[type="submit"][name="add"]');
+    var buyNowBtn = productForm.querySelector('[data-buy-now]');
+    var totalEl = productForm.querySelector('[data-product-total]');
     var cards = variantPicker
       ? variantPicker.querySelectorAll('[data-variant-picker-card]')
       : productForm.querySelectorAll('[data-variant-picker-card]');
@@ -192,7 +194,7 @@
 
       if (badge) {
         if (item.pct > 0) {
-          badge.textContent = item.pct + '% off';
+          badge.textContent = item.pct + '% OFF';
           badge.classList.remove('hidden');
         } else {
           badge.classList.add('hidden');
@@ -232,11 +234,13 @@
       var compareTotal = selection.compareUnit > selection.unitPrice ? selection.compareUnit * qty : 0;
       var saveTotal = selection.savePerUnit > 0 ? selection.savePerUnit * qty : 0;
 
-      if (priceEl) priceEl.textContent = formatInr(total);
+      if (priceEl) priceEl.textContent = formatInr(selection.unitPrice);
+
+      if (totalEl) totalEl.textContent = formatInr(total);
 
       if (compareEl) {
-        if (compareTotal > total) {
-          compareEl.textContent = formatInr(compareTotal);
+        if (selection.compareUnit > selection.unitPrice) {
+          compareEl.textContent = formatInr(selection.compareUnit);
           compareEl.classList.remove('hidden');
         } else {
           compareEl.classList.add('hidden');
@@ -318,6 +322,11 @@
         addBtn.classList.toggle('opacity-50', !available);
         addBtn.classList.toggle('cursor-not-allowed', !available);
       }
+      if (buyNowBtn) {
+        buyNowBtn.disabled = !available;
+        buyNowBtn.classList.toggle('opacity-50', !available);
+        buyNowBtn.classList.toggle('cursor-not-allowed', !available);
+      }
     }
 
     function setQty(n) {
@@ -351,6 +360,31 @@
       }
     });
 
+    if (buyNowBtn) {
+      buyNowBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (buyNowBtn.disabled) return;
+        buyNowBtn.disabled = true;
+        var fd = new FormData(productForm);
+        var addUrl = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root
+          ? window.Shopify.routes.root
+          : '/') + 'cart/add.js';
+        fetch(addUrl, {
+          method: 'POST',
+          body: fd,
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error('add failed');
+            window.location.href = '/checkout';
+          })
+          .catch(function () {
+            buyNowBtn.disabled = false;
+            productForm.submit();
+          });
+      });
+    }
+
     var initial = variantPicker
       ? variantPicker.querySelector('[data-variant-picker-card].is-selected')
       : cards[0];
@@ -361,11 +395,21 @@
   var mainImg = document.querySelector('#MorbeezProduct-main img, .section-main-product img');
   document.querySelectorAll('[data-product-thumb]').forEach(function (btn) {
     btn.addEventListener('click', function () {
+      var fullSrc = btn.getAttribute('data-full-src');
       var img = btn.querySelector('img');
-      if (mainImg && img) {
-        mainImg.src = img.src.replace(/width=\d+/, 'width=1080');
-        mainImg.srcset = img.srcset || '';
+      if (mainImg && (fullSrc || img)) {
+        mainImg.src = fullSrc || img.src.replace(/width=\d+/, 'width=1400');
+        mainImg.srcset = '';
+        mainImg.alt = img ? img.alt : mainImg.alt;
       }
+      document.querySelectorAll('[data-product-thumb]').forEach(function (other) {
+        other.classList.remove('border-[var(--color-primary)]');
+        other.classList.add('border-transparent');
+        other.removeAttribute('aria-current');
+      });
+      btn.classList.add('border-[var(--color-primary)]');
+      btn.classList.remove('border-transparent');
+      btn.setAttribute('aria-current', 'true');
     });
   });
 

@@ -10,7 +10,7 @@
   <section class="morbeez-section border-t border-gray-100 bg-[var(--color-surface)]" id="MorbeezRelated-{{ section.id }}">
     <div class="morbeez-container">
       {%- render 'morbeez-section-header', heading: section.settings.heading, subheading: section.settings.subheading -%}
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div class="morbeez-product-grid">
         {%- assign shown = 0 -%}
         {%- for related_product in rec_collection.products -%}
           {%- if related_product.id != product.id and shown < products_to_show -%}

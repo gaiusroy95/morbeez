@@ -111,6 +111,85 @@
     box-shadow: var(--shadow-sm);
   }
 
+  .morbeez-product-grid {
+    @apply grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-6;
+  }
+
+  .morbeez-product-card {
+    @apply h-full;
+  }
+
+  .morbeez-product-card__link {
+    @apply flex h-full flex-col;
+  }
+
+  .morbeez-product-card__media {
+    position: relative;
+    aspect-ratio: 1 / 1;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12%;
+    background: #f7f8f6;
+    overflow: hidden;
+  }
+
+  .morbeez-product-card__img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: center;
+  }
+
+  .morbeez-product-card__badge {
+    position: absolute;
+    left: 0.65rem;
+    top: 0.65rem;
+    z-index: 1;
+  }
+
+  .morbeez-product-card__body {
+    @apply flex flex-1 flex-col px-3 pb-3 pt-2.5 sm:px-4 sm:pb-4 sm:pt-3;
+  }
+
+  .morbeez-product-card__title {
+    @apply text-sm font-semibold leading-snug text-[var(--color-trust)] transition group-hover:text-[var(--color-primary)] sm:text-[0.95rem];
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: 2.5em;
+  }
+
+  .morbeez-product-card__benefit {
+    @apply mt-0.5 text-xs leading-snug text-[var(--color-muted)];
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: 2.4em;
+  }
+
+  .morbeez-product-card__pack {
+    @apply mt-1 text-[11px] text-[var(--color-muted)];
+  }
+
+  .morbeez-product-card__price {
+    @apply mt-auto flex items-baseline gap-2 pt-2;
+  }
+
+  .morbeez-product-card__price-now {
+    @apply text-base font-bold text-[var(--color-primary)] sm:text-lg;
+  }
+
+  .morbeez-product-card__price-was {
+    @apply text-xs text-[var(--color-muted)] sm:text-sm;
+  }
+
   .morbeez-card:hover {
     box-shadow: var(--shadow-lg);
     @apply -translate-y-1;
@@ -427,57 +506,81 @@
     pointer-events: auto;
   }
 
-  /* PDP — column variant picker + quantity stepper */
+  /* PDP — buy box, pack cards, quantity */
+  .morbeez-product-buy__price-row {
+    @apply flex flex-wrap items-end justify-between gap-4;
+  }
+
+  .morbeez-product-buy__total {
+    @apply mt-6 flex items-center justify-between border-t border-[var(--color-border)] pt-4 text-base font-semibold text-[var(--color-trust)];
+  }
+
+  .morbeez-product-buy__total-price {
+    @apply text-lg font-extrabold text-[var(--color-primary)];
+  }
+
+  .morbeez-product-buy__actions {
+    @apply mt-4 flex flex-col gap-2.5;
+  }
+
+  .morbeez-product-buy__add {
+    @apply !min-h-[48px] !rounded-xl;
+  }
+
+  .morbeez-product-buy__buy {
+    @apply !min-h-[48px] !rounded-xl bg-white;
+  }
+
+  .morbeez-product-buy__secure {
+    @apply mt-1 flex items-center justify-center gap-1.5 text-xs text-[var(--color-muted)];
+  }
+
   .morbeez-variant-picker__label {
-    @apply mb-1 text-sm font-bold text-[var(--color-trust)];
+    @apply mb-1 text-[15px] font-bold text-[var(--color-trust)];
   }
 
   .morbeez-variant-picker__hint {
-    @apply mb-3 text-xs text-[var(--color-muted)];
+    @apply mb-3 text-xs leading-snug text-[var(--color-muted)];
   }
 
   .morbeez-variant-picker__badge {
-    @apply mb-1 rounded-md bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950;
-  }
-
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__badge {
-    @apply bg-white text-amber-800;
+    @apply absolute -top-2 left-2 z-10 rounded bg-[var(--color-primary)] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white;
   }
 
   .morbeez-variant-picker__card.is-best-value {
-    @apply ring-2 ring-amber-400 ring-offset-1;
+    @apply ring-0;
   }
 
   .morbeez-variant-picker__prices {
-    @apply mt-1 flex flex-wrap items-baseline gap-1.5;
+    @apply mt-1 flex flex-col items-start gap-0.5;
   }
 
   .morbeez-variant-picker__was {
-    @apply text-xs text-[var(--color-muted)] line-through;
-  }
-
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__was {
-    @apply text-white/70;
+    @apply text-[11px] text-[var(--color-muted)] line-through;
   }
 
   .morbeez-variant-picker__unit {
-    @apply mt-0.5 text-[11px] font-medium text-[var(--color-muted)];
-  }
-
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__unit {
-    @apply text-white/80;
+    @apply mt-0.5 min-h-[1rem] text-[11px] font-medium text-[var(--color-muted)];
   }
 
   .morbeez-pack-savings {
-    @apply inline-block rounded-lg bg-amber-100 px-2.5 py-1 text-sm font-bold text-amber-900;
+    @apply inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-950;
   }
 
   .morbeez-variant-picker__grid {
-    @apply grid grid-cols-2 gap-2.5 sm:grid-cols-3 sm:gap-3;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  @media (min-width: 640px) {
+    .morbeez-variant-picker__grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
   }
 
   .morbeez-variant-picker__card {
-    @apply flex min-h-[4.5rem] flex-col items-start justify-center rounded-xl border-2 border-[var(--color-border)] bg-white px-3 py-2.5 text-left transition;
+    @apply relative flex min-h-[7.75rem] flex-col items-start justify-start rounded-xl border border-[#d9ddd9] bg-white px-2.5 pb-2.5 pt-4 text-left transition;
   }
 
   .morbeez-variant-picker__card:hover:not(:disabled) {
@@ -485,7 +588,7 @@
   }
 
   .morbeez-variant-picker__card.is-selected {
-    @apply border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-md;
+    @apply border-2 border-[var(--color-primary)] bg-white text-[var(--color-trust)] shadow-none;
   }
 
   .morbeez-variant-picker__card.is-unavailable {
@@ -493,20 +596,11 @@
   }
 
   .morbeez-variant-picker__size {
-    @apply text-sm font-bold leading-tight;
-  }
-
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__size,
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__price {
-    @apply text-white;
+    @apply text-sm font-bold leading-tight text-[var(--color-trust)];
   }
 
   .morbeez-variant-picker__price {
-    @apply mt-1 text-sm font-semibold text-[var(--color-primary)];
-  }
-
-  .morbeez-variant-picker__card.is-selected .morbeez-variant-picker__price {
-    @apply text-white/95;
+    @apply text-sm font-bold text-[var(--color-primary)];
   }
 
   .morbeez-variant-picker__sold {
@@ -514,7 +608,7 @@
   }
 
   .morbeez-qty-stepper {
-    @apply flex flex-col items-end gap-1.5;
+    @apply flex flex-col items-end gap-1;
   }
 
   .morbeez-qty-stepper__label {
@@ -526,11 +620,19 @@
   }
 
   .morbeez-qty-stepper__btn {
-    @apply flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-lg font-bold leading-none text-white transition hover:brightness-105;
+    @apply flex h-8 w-8 items-center justify-center rounded-full text-lg font-bold leading-none transition;
+  }
+
+  .morbeez-qty-stepper__btn--minus {
+    @apply bg-[#e8ebe8] text-[var(--color-trust)] hover:bg-[#dce0dc];
+  }
+
+  .morbeez-qty-stepper__btn--plus {
+    @apply bg-[var(--color-primary)] text-white hover:brightness-105;
   }
 
   .morbeez-qty-stepper__input {
-    @apply w-10 border-0 bg-transparent text-center text-base font-bold text-[var(--color-trust)] outline-none;
+    @apply w-8 border-0 bg-transparent text-center text-base font-bold text-[var(--color-trust)] outline-none;
     -moz-appearance: textfield;
   }
 
@@ -586,7 +688,7 @@
     background: transparent !important;
   }
 
-  .morbeez-hero-carousel__slide--image-only .morbeez-hero-carousel__text-layer {
+  .morbeez-hero-carousel__slide--image-only .morbeez-hero-carousel__copy {
     @apply hidden;
   }
 
@@ -598,19 +700,96 @@
   .morbeez-hero-carousel__line1,
   .morbeez-hero-carousel__line2,
   .morbeez-hero-carousel__description {
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+    color: var(--hero-heading, #fff);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.45);
   }
 
-  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line1 {
-    color: var(--color-primary);
-    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  .morbeez-hero-carousel__highlight {
+    color: var(--hero-highlight, #34b35e);
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.4);
   }
 
-  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__description,
   .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__eyebrow,
-  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line2 {
-    color: var(--color-trust);
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line1,
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line2,
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__description {
+    color: var(--hero-heading, var(--color-trust));
     text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  }
+
+  .morbeez-hero-carousel__line1 {
+    font-size: 1.05rem;
+  }
+  .morbeez-hero-carousel__highlight {
+    font-size: 1.35rem;
+  }
+  .morbeez-hero-carousel__line2 {
+    font-size: 0.8rem;
+  }
+  .morbeez-hero-carousel__description {
+    font-size: 0.7rem;
+  }
+
+  .morbeez-hero-carousel__slide--size-sm .morbeez-hero-carousel__line1 {
+    font-size: 0.9rem;
+  }
+  .morbeez-hero-carousel__slide--size-sm .morbeez-hero-carousel__highlight {
+    font-size: 1.15rem;
+  }
+  .morbeez-hero-carousel__slide--size-sm .morbeez-hero-carousel__line2 {
+    font-size: 0.7rem;
+  }
+
+  .morbeez-hero-carousel__slide--size-lg .morbeez-hero-carousel__line1 {
+    font-size: 1.25rem;
+  }
+  .morbeez-hero-carousel__slide--size-lg .morbeez-hero-carousel__highlight {
+    font-size: 1.65rem;
+  }
+  .morbeez-hero-carousel__slide--size-lg .morbeez-hero-carousel__line2 {
+    font-size: 0.9rem;
+  }
+
+  @media (min-width: 640px) {
+    .morbeez-hero-carousel__line1 {
+      font-size: 1.5rem;
+    }
+    .morbeez-hero-carousel__highlight {
+      font-size: 2.25rem;
+    }
+    .morbeez-hero-carousel__line2 {
+      font-size: 1.25rem;
+    }
+    .morbeez-hero-carousel__description {
+      font-size: 0.875rem;
+    }
+    .morbeez-hero-carousel__slide--size-sm .morbeez-hero-carousel__line1 {
+      font-size: 1.25rem;
+    }
+    .morbeez-hero-carousel__slide--size-sm .morbeez-hero-carousel__highlight {
+      font-size: 1.75rem;
+    }
+    .morbeez-hero-carousel__slide--size-lg .morbeez-hero-carousel__line1 {
+      font-size: 1.875rem;
+    }
+    .morbeez-hero-carousel__slide--size-lg .morbeez-hero-carousel__highlight {
+      font-size: 3rem;
+    }
+  }
+
+  @media (min-width: 768px) {
+    .morbeez-hero-carousel__line1 {
+      font-size: 1.875rem;
+    }
+    .morbeez-hero-carousel__highlight {
+      font-size: 3rem;
+    }
+    .morbeez-hero-carousel__line2 {
+      font-size: 1.875rem;
+    }
+    .morbeez-hero-carousel__description {
+      font-size: 1rem;
+    }
   }
 
   .morbeez-hero-carousel__content {
@@ -619,7 +798,7 @@
 
   .morbeez-hero-carousel__actions .morbeez-btn-primary,
   .morbeez-hero-carousel__actions .morbeez-btn-secondary {
-    @apply inline-flex w-[11.25rem] max-w-full shrink-0 justify-center !min-h-[40px] !px-4 !py-2 !text-xs sm:w-auto sm:!min-h-[44px] sm:!px-5 sm:!text-sm;
+    @apply inline-flex w-auto max-w-[10.5rem] shrink-0 justify-center !min-h-[32px] !rounded-full !px-3.5 !py-1.5 !text-[11px] leading-tight sm:max-w-none sm:!min-h-[40px] sm:!px-5 sm:!text-sm;
   }
 
   .morbeez-hero-carousel__actions .morbeez-btn-secondary {

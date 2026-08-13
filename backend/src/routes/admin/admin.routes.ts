@@ -246,6 +246,10 @@ const bannerCreateSchema = z.object({
   endsAt: z.string().min(1),
   sortOrder: z.number().int().min(0).max(999).optional(),
   active: z.boolean().optional(),
+  imageOnly: z.boolean().optional(),
+  headingColor: z.string().max(20).optional(),
+  highlightColor: z.string().max(20).optional(),
+  textSize: z.enum(['sm', 'md', 'lg']).optional(),
 });
 
 const bannerUpdateSchema = bannerCreateSchema.partial();

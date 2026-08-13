@@ -16,19 +16,18 @@
           if block.settings.image != blank or block.settings.image_url != blank or block.settings.image_mobile != blank or block.settings.image_url_mobile != blank
             assign has_image = true
           endif
-          assign show_text_overlay = true
-          if image_only
-            assign show_text_overlay = false
-          endif
           assign text_layer_classes = 'morbeez-hero-carousel__text-layer pointer-events-none absolute inset-0 z-10 flex'
-          if has_image
-            unless image_only
-              assign text_layer_classes = text_layer_classes | append: ' morbeez-hero-carousel__text-layer--on-image items-start justify-start pt-5 pb-14 md:items-center md:justify-center md:pt-0 md:pb-0'
-            endunless
+          if image_only
+            assign text_layer_classes = text_layer_classes | append: ' items-end justify-start px-0 pb-10 pt-0 md:pb-12'
+          elsif has_image
+            assign text_layer_classes = text_layer_classes | append: ' morbeez-hero-carousel__text-layer--on-image items-start justify-start pt-5 pb-14 md:items-center md:justify-center md:pt-0 md:pb-0'
           else
             assign text_layer_classes = text_layer_classes | append: ' items-start justify-start pt-8 pb-14 md:items-center md:justify-center md:pt-0 md:pb-0'
           endif
-          assign slide_classes = 'morbeez-hero-carousel__slide w-full'
+          assign heading_color = block.settings.heading_color | default: '#ffffff'
+          assign highlight_color = block.settings.highlight_color | default: '#34B35E'
+          assign text_size = block.settings.text_size | default: 'md'
+          assign slide_classes = 'morbeez-hero-carousel__slide w-full morbeez-hero-carousel__slide--size-' | append: text_size
           if forloop.first
             assign slide_classes = slide_classes | append: ' morbeez-hero-carousel__slide--active'
           endif
@@ -44,6 +43,7 @@
         -%}
         <div
           class="{{ slide_classes }}"
+          style="--hero-heading: {{ heading_color }}; --hero-highlight: {{ highlight_color }};"
           data-hero-slide
           data-index="{{ forloop.index0 }}"
           {{ block.shopify_attributes }}
@@ -64,89 +64,86 @@
             aria-hidden="true"
           ></div>
 
-          {%- unless image_only -%}
-            <div class="{{ text_layer_classes }}">
-              <div class="morbeez-hero-carousel__content morbeez-container w-full max-w-full text-left text-white lg:text-left">
+          <div class="{{ text_layer_classes }}">
+            <div class="morbeez-hero-carousel__content morbeez-container w-full max-w-full text-left lg:text-left">
+              <div class="morbeez-hero-carousel__copy">
                 {%- if block.settings.eyebrow != blank -%}
-                  <p class="morbeez-hero-carousel__eyebrow text-[10px] font-semibold uppercase tracking-[0.12em] text-white/90 sm:text-xs sm:tracking-[0.18em] md:text-sm">
+                  <p class="morbeez-hero-carousel__eyebrow text-[10px] font-semibold uppercase tracking-[0.12em] sm:text-xs sm:tracking-[0.18em] md:text-sm">
                     {{ block.settings.eyebrow }}
                   </p>
                 {%- endif -%}
 
                 {%- if block.settings.heading_line_1 != blank -%}
-                  <p class="morbeez-hero-carousel__line1 mt-1.5 text-lg font-extrabold leading-tight text-white sm:mt-2 sm:text-2xl md:text-3xl lg:text-4xl">
+                  <p class="morbeez-hero-carousel__line1 mt-1.5 font-extrabold leading-tight sm:mt-2">
                     {{ block.settings.heading_line_1 }}
                   </p>
                 {%- endif -%}
 
                 {%- if block.settings.heading_highlight != blank -%}
-                  <p
-                    class="morbeez-hero-carousel__highlight {% if block.settings.heading_line_1 == blank %}mt-1.5{% else %}mt-0.5{% endif %} text-2xl font-extrabold leading-[1.08] sm:mt-1 sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl"
-                    style="color: {{ block.settings.highlight_color }}; text-shadow: 1px 1px 0 #fff, -1px -1px 0 rgba(0,0,0,0.15);"
-                  >
+                  <p class="morbeez-hero-carousel__highlight {% if block.settings.heading_line_1 == blank %}mt-1.5{% else %}mt-0.5{% endif %} font-extrabold leading-[1.08] sm:mt-1">
                     {{ block.settings.heading_highlight }}
                   </p>
                 {%- endif -%}
 
                 {%- if block.settings.heading_line_2 != blank -%}
-                  <p class="morbeez-hero-carousel__line2 mt-1 max-w-[18rem] text-sm font-bold leading-snug text-white sm:max-w-none sm:text-xl sm:uppercase sm:tracking-wide md:text-3xl lg:text-5xl xl:text-6xl">
+                  <p class="morbeez-hero-carousel__line2 mt-1 max-w-[16rem] font-bold leading-snug sm:max-w-none sm:uppercase sm:tracking-wide">
                     {{ block.settings.heading_line_2 }}
                   </p>
                 {%- endif -%}
 
                 {%- if block.settings.description != blank -%}
-                  <p class="morbeez-hero-carousel__description mt-2 max-w-[17rem] text-xs leading-relaxed text-white/90 sm:max-w-md sm:text-sm md:mt-3 md:text-base">
+                  <p class="morbeez-hero-carousel__description mt-2 max-w-[16rem] leading-relaxed sm:max-w-md md:mt-3">
                     {{ block.settings.description }}
                   </p>
                 {%- endif -%}
-
-                {%- liquid
-                  assign has_primary_cta = false
-                  if block.settings.button_label != blank and block.settings.button_url != blank
-                    assign has_primary_cta = true
-                  endif
-                  assign has_secondary_cta = false
-                  if block.settings.button_secondary_label != blank
-                    assign has_secondary_cta = true
-                  endif
-                -%}
-                {%- if has_primary_cta or has_secondary_cta -%}
-                  <div class="morbeez-hero-carousel__actions mt-3 flex flex-col items-start gap-2 sm:mt-5 sm:flex-row sm:flex-wrap sm:gap-3 md:mt-8">
-                    {%- if block.settings.button_label != blank and block.settings.button_url != blank -%}
-                      {%- render 'morbeez-button',
-                        url: block.settings.button_url,
-                        label: block.settings.button_label,
-                        style: 'primary',
-                        class: 'morbeez-hero-carousel__cta pointer-events-auto'
-                      -%}
-                    {%- endif -%}
-                    {%- if block.settings.button_secondary_label != blank -%}
-                      {%- assign secondary_href = block.settings.button_secondary_url -%}
-                      {%- assign show_wa_icon = false -%}
-                      {%- if secondary_href == blank -%}
-                        {%- capture secondary_href -%}
-                          {%- render 'morbeez-whatsapp-url' -%}
-                        {%- endcapture -%}
-                        {%- assign secondary_href = secondary_href | strip -%}
-                        {%- assign show_wa_icon = true -%}
-                      {%- endif -%}
-                      {%- assign secondary_url_down = secondary_href | downcase -%}
-                      {%- if secondary_url_down contains 'whatsapp' or secondary_url_down contains 'wa.me' -%}
-                        {%- assign show_wa_icon = true -%}
-                      {%- endif -%}
-                      {%- render 'morbeez-button',
-                        url: secondary_href,
-                        label: block.settings.button_secondary_label,
-                        style: 'secondary',
-                        show_whatsapp: show_wa_icon,
-                        class: 'morbeez-hero-carousel__cta-secondary pointer-events-auto'
-                      -%}
-                    {%- endif -%}
-                  </div>
-                {%- endif -%}
               </div>
+
+              {%- liquid
+                assign has_primary_cta = false
+                if block.settings.button_label != blank and block.settings.button_url != blank
+                  assign has_primary_cta = true
+                endif
+                assign has_secondary_cta = false
+                if block.settings.button_secondary_label != blank
+                  assign has_secondary_cta = true
+                endif
+              -%}
+              {%- if has_primary_cta or has_secondary_cta -%}
+                <div class="morbeez-hero-carousel__actions mt-3 flex flex-row flex-wrap items-center gap-2 sm:mt-5 sm:gap-3 md:mt-8">
+                  {%- if block.settings.button_label != blank and block.settings.button_url != blank -%}
+                    {%- render 'morbeez-button',
+                      url: block.settings.button_url,
+                      label: block.settings.button_label,
+                      style: 'primary',
+                      class: 'morbeez-hero-carousel__cta pointer-events-auto'
+                    -%}
+                  {%- endif -%}
+                  {%- if block.settings.button_secondary_label != blank -%}
+                    {%- assign secondary_href = block.settings.button_secondary_url -%}
+                    {%- assign show_wa_icon = false -%}
+                    {%- if secondary_href == blank -%}
+                      {%- capture secondary_href -%}
+                        {%- render 'morbeez-whatsapp-url' -%}
+                      {%- endcapture -%}
+                      {%- assign secondary_href = secondary_href | strip -%}
+                      {%- assign show_wa_icon = true -%}
+                    {%- endif -%}
+                    {%- assign secondary_url_down = secondary_href | downcase -%}
+                    {%- if secondary_url_down contains 'whatsapp' or secondary_url_down contains 'wa.me' -%}
+                      {%- assign show_wa_icon = true -%}
+                    {%- endif -%}
+                    {%- render 'morbeez-button',
+                      url: secondary_href,
+                      label: block.settings.button_secondary_label,
+                      style: 'secondary',
+                      show_whatsapp: show_wa_icon,
+                      class: 'morbeez-hero-carousel__cta-secondary pointer-events-auto'
+                    -%}
+                  {%- endif -%}
+                </div>
+              {%- endif -%}
             </div>
-          {%- endunless -%}
+          </div>
         </div>
       {%- endfor -%}
     </div>
@@ -204,14 +201,25 @@
           "id": "image_only",
           "label": "Designed banner (text is inside image)",
           "default": false,
-          "info": "Hide HTML headline overlay. Use when your banner image already contains the text."
+          "info": "Hide HTML headlines. Keep a small Shop button. Use for offer art made in Canva."
         },
         {
           "type": "checkbox",
           "id": "light_foreground",
-          "label": "Light overlay (dark / green text)",
-          "default": false,
-          "info": "Use when the banner sky is light, like the homepage mock."
+          "label": "Dark text (light sky / pale banner)",
+          "default": false
+        },
+        { "type": "color", "id": "heading_color", "label": "Headline color", "default": "#ffffff" },
+        {
+          "type": "select",
+          "id": "text_size",
+          "label": "Headline size",
+          "options": [
+            { "value": "sm", "label": "Small" },
+            { "value": "md", "label": "Medium" },
+            { "value": "lg", "label": "Large" }
+          ],
+          "default": "md"
         },
         { "type": "text", "id": "eyebrow", "label": "t:sections.hero_carousel.blocks.slide.settings.eyebrow", "default": "Proven success by serving" },
         { "type": "text", "id": "heading_line_1", "label": "t:sections.hero_carousel.blocks.slide.settings.heading_line_1" },

@@ -11,7 +11,7 @@
     -%}
 
     {%- if collection != blank and collection.products_count > 0 -%}
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+      <div class="morbeez-product-grid">
         {%- for product in collection.products limit: section.settings.products_to_show -%}
           {%- render 'morbeez-product-card', product: product -%}
         {%- endfor -%}

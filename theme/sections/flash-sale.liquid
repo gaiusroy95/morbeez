@@ -21,7 +21,7 @@
     </div>
 
     {%- if sale_collection != blank -%}
-      <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <div class="morbeez-product-grid">
         {%- for product in sale_collection.products limit: section.settings.products_to_show -%}
           {%- render 'morbeez-product-card', product: product -%}
         {%- endfor -%}

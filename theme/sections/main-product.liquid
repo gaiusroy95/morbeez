@@ -4,39 +4,65 @@
     <div class="grid gap-8 lg:grid-cols-2 lg:gap-12">
       <div class="space-y-4">
         {%- liquid
-          assign product_image = product.featured_image
-          if product.selected_or_first_available_variant.featured_image
-            assign product_image = product.selected_or_first_available_variant.featured_image
+          assign hero_image = product.featured_image
+          if product.images.size > 1
+            assign hero_image = product.images[1]
+          endif
+          assign variant_img = product.selected_or_first_available_variant.featured_image
+          if variant_img != blank and product.images.size > 0 and variant_img.src != product.images.first.src
+            assign hero_image = variant_img
           endif
         -%}
-        {%- if product_image -%}
-          <div class="overflow-hidden rounded-xl border border-gray-100" id="MorbeezProduct-main">
+        {%- if hero_image -%}
+          <div class="morbeez-product-card__media overflow-hidden rounded-xl border border-gray-100" id="MorbeezProduct-main">
             {%- render 'morbeez-lazy-image',
-              image: product_image,
+              image: hero_image,
               alt: product.title,
               loading: 'eager',
               fetchpriority: 'high',
-              class: 'w-full aspect-square object-cover',
+              widths: '600,800,1000,1400',
+              sizes: '(min-width: 1024px) 50vw, 100vw',
+              class: 'morbeez-product-card__img',
               id: 'MorbeezProduct-main-image'
             -%}
           </div>
         {%- endif -%}
         {%- if product.images.size > 1 -%}
-          <div class="flex gap-2 overflow-x-auto">
-            {%- for image in product.images limit: 5 -%}
-              <button type="button" class="shrink-0 overflow-hidden rounded-lg border-2 border-transparent hover:border-[var(--color-primary)]" data-product-thumb>
-                {{ image | image_url: width: 80 | image_tag: class: 'h-16 w-16 object-cover' }}
-              </button>
+          <div class="morbeez-product-thumbs flex gap-2 overflow-x-auto" data-product-thumbs>
+            {%- for image in product.images -%}
+              {%- if forloop.index0 == 1 -%}
+                {%- render 'morbeez-product-thumb', image: image, alt: product.title, active: true -%}
+              {%- endif -%}
+            {%- endfor -%}
+            {%- for image in product.images -%}
+              {%- if forloop.index0 != 1 -%}
+                {%- render 'morbeez-product-thumb', image: image, alt: product.title, active: false -%}
+              {%- endif -%}
             {%- endfor -%}
           </div>
         {%- endif -%}
       </div>
 
-      <div>
-        {%- if product.vendor != blank -%}
-          <p class="text-sm font-medium text-[var(--color-muted)]">{{ product.vendor }}</p>
+      <div class="morbeez-product-buy">
+        {%- liquid
+          assign pdp_name = product.metafields.morbeez.card_title | strip
+          assign pdp_benefit = product.metafields.morbeez.short_benefit | strip
+          if pdp_name == blank
+            assign title_parts = product.title | split: '|'
+            if title_parts.size > 1
+              assign pdp_name = title_parts.first | strip
+              if pdp_benefit == blank
+                assign pdp_benefit = title_parts[1] | strip
+              endif
+            else
+              assign pdp_name = product.title
+            endif
+          endif
+        -%}
+        <h1 class="font-heading text-2xl font-bold tracking-tight text-[var(--color-trust)] md:text-[1.75rem]">{{ pdp_name }}</h1>
+        {%- if pdp_benefit != blank -%}
+          <p class="mt-1 text-sm text-[var(--color-muted)]">{{ pdp_benefit }}</p>
         {%- endif -%}
-        <h1 class="mt-1 font-heading text-2xl font-bold md:text-3xl">{{ product.title }}</h1>
         {%- render 'morbeez-rating-stars', product: product, class: 'mt-2' -%}
 
         {%- if product.metafields.morbeez.target_crops.value.size > 0 -%}
@@ -47,24 +73,22 @@
           </div>
         {%- endif -%}
 
-        {%- form 'product', product, id: 'product-form', class: 'mt-6', data-product-form: '' -%}
-          <div class="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-border)] pb-5">
+        {%- form 'product', product, id: 'product-form', class: 'mt-5', data-product-form: '' -%}
+          <div class="morbeez-product-buy__price-row">
             <div data-product-price-wrap>
-              <div class="flex flex-wrap items-baseline gap-3">
-                <span class="text-2xl font-bold text-[var(--color-primary)]" data-product-price>
+              <div class="flex flex-wrap items-center gap-2.5">
+                <span class="text-[1.75rem] font-extrabold leading-none text-[var(--color-primary)]" data-product-price>
                   {%- render 'morbeez-money', amount: product.selected_or_first_available_variant.price -%}
                 </span>
-                <s class="text-lg text-[var(--color-muted)] hidden" data-product-compare-price></s>
+                <s class="text-base text-[var(--color-muted)] hidden" data-product-compare-price></s>
                 <span class="morbeez-pack-savings hidden" data-product-savings></span>
               </div>
-              <p class="mt-1 hidden text-sm text-[var(--color-muted)]" data-product-unit-rate></p>
-              <p class="mt-1 hidden text-xs font-medium text-[var(--color-trust)]" data-product-qty-line></p>
             </div>
 
             <div class="morbeez-qty-stepper" data-qty-stepper>
               <span class="morbeez-qty-stepper__label">{{ 'products.quantity' | t }}</span>
               <div class="morbeez-qty-stepper__controls">
-                <button type="button" class="morbeez-qty-stepper__btn" data-qty-minus aria-label="Decrease quantity">−</button>
+                <button type="button" class="morbeez-qty-stepper__btn morbeez-qty-stepper__btn--minus" data-qty-minus aria-label="Decrease quantity">−</button>
                 <input
                   type="number"
                   name="quantity"
@@ -74,13 +98,13 @@
                   data-qty-input
                   aria-label="{{ 'products.quantity' | t }}"
                 >
-                <button type="button" class="morbeez-qty-stepper__btn" data-qty-plus aria-label="Increase quantity">+</button>
+                <button type="button" class="morbeez-qty-stepper__btn morbeez-qty-stepper__btn--plus" data-qty-plus aria-label="Increase quantity">+</button>
               </div>
             </div>
           </div>
 
           {%- unless product.has_only_default_variant -%}
-            <div class="mt-5">
+            <div class="mt-6">
               {%- render 'morbeez-variant-picker', product: product, section_id: section.id -%}
             </div>
           {%- else -%}
@@ -97,18 +121,42 @@
             >
           {%- endunless -%}
 
-          <button
-            type="submit"
-            name="add"
-            class="morbeez-btn-primary w-full border-0 {% unless product.available %}opacity-50 cursor-not-allowed{% endunless %}"
-            {% unless product.available %}disabled{% endunless %}
-          >
-            {%- if product.available -%}
-              {{ 'products.add_to_cart' | t }}
-            {%- else -%}
-              {{ 'products.sold_out' | t }}
-            {%- endif -%}
-          </button>
+          <div class="morbeez-product-buy__total">
+            <span>{{ 'products.total' | t }}</span>
+            <span class="morbeez-product-buy__total-price" data-product-total>
+              {%- render 'morbeez-money', amount: product.selected_or_first_available_variant.price -%}
+            </span>
+          </div>
+
+          <div class="morbeez-product-buy__actions">
+            <button
+              type="submit"
+              name="add"
+              class="morbeez-btn-primary morbeez-product-buy__add w-full border-0 {% unless product.available %}opacity-50 cursor-not-allowed{% endunless %}"
+              {% unless product.available %}disabled{% endunless %}
+            >
+              {%- render 'morbeez-icon', name: 'cart', class: 'h-5 w-5' -%}
+              <span>
+                {%- if product.available -%}
+                  {{ 'products.add_to_cart' | t }}
+                {%- else -%}
+                  {{ 'products.sold_out' | t }}
+                {%- endif -%}
+              </span>
+            </button>
+            <button
+              type="button"
+              class="morbeez-btn-secondary morbeez-product-buy__buy w-full {% unless product.available %}opacity-50 cursor-not-allowed{% endunless %}"
+              data-buy-now
+              {% unless product.available %}disabled{% endunless %}
+            >
+              {{ 'products.buy_now' | t }}
+            </button>
+            <p class="morbeez-product-buy__secure">
+              {%- render 'morbeez-icon', name: 'shield', class: 'h-4 w-4' -%}
+              <span>{{ 'products.safe_payments' | t }}</span>
+            </p>
+          </div>
         {%- endform -%}
 
         {%- if product.metafields.morbeez.waiting_period_days != blank -%}

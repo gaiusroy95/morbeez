@@ -37,7 +37,7 @@
             {%- render 'morbeez-money', amount: variant.price, plain: true -%}
           </span>
         </span>
-        <span class="morbeez-variant-picker__unit hidden" data-unit-price></span>
+        <span class="morbeez-variant-picker__unit" data-unit-price></span>
         {%- unless variant.available -%}
           <span class="morbeez-variant-picker__sold">{{ 'products.sold_out' | t }}</span>
         {%- endunless -%}

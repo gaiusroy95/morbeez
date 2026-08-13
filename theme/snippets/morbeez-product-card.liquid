@@ -1,37 +1,66 @@
-{% comment %} Product card — homepage & collection grids {% endcomment %}
+{% comment %}
+  Product card — 1:1 image canvas, contain (never crop), short name + benefit, even card height.
+{% endcomment %}
 {%- if product != blank -%}
-  <article class="morbeez-card group">
-    <a href="{{ product.url }}" class="block">
-      <div class="relative aspect-square overflow-hidden bg-[var(--color-surface)]">
-        {%- render 'morbeez-lazy-image',
-          image: product.featured_image,
-          alt: product.title,
-          class: 'h-full w-full object-cover transition duration-500 group-hover:scale-105'
-        -%}
-        <div class="absolute left-3 top-3 flex flex-col gap-1">
-          {%- if product.compare_at_price > product.price -%}
-            <span class="morbeez-badge--sale">Sale</span>
-          {%- endif -%}
-        </div>
-      </div>
-      <div class="p-5">
-        <h3 class="font-medium leading-snug text-[var(--color-trust)] transition group-hover:text-[var(--color-primary)]">
-          {{ product.title }}
-        </h3>
-        {%- render 'morbeez-rating-stars', product: product, class: 'mt-1.5' -%}
-        {%- if product.metafields.morbeez.pack_size_label != blank -%}
-          <p class="mt-1 text-xs text-[var(--color-muted)]">{{ product.metafields.morbeez.pack_size_label }}</p>
+  {%- liquid
+    assign card_name = product.metafields.morbeez.card_title | strip
+    assign card_benefit = product.metafields.morbeez.short_benefit | strip
+    if card_name == blank
+      assign title_parts = product.title | split: '|'
+      if title_parts.size > 1
+        assign card_name = title_parts.first | strip
+        if card_benefit == blank
+          assign card_benefit = title_parts[1] | strip
+          if title_parts.size > 2
+            assign last_part = title_parts.last | strip
+            assign last_down = last_part | downcase
+            if last_down contains ' for '
+              assign for_bits = last_part | split: ' for '
+              if for_bits.size < 2
+                assign for_bits = last_part | split: ' For '
+              endif
+              if for_bits.size > 1
+                assign card_benefit = card_benefit | append: ' for ' | append: for_bits.last | strip
+              endif
+            endif
+          endif
+        endif
+      else
+        assign card_name = product.title
+      endif
+    endif
+  -%}
+  <article class="morbeez-card morbeez-product-card group">
+    <a href="{{ product.url }}" class="morbeez-product-card__link">
+      <div class="morbeez-product-card__media">
+        {%- if product.featured_image != blank -%}
+          {%- render 'morbeez-lazy-image',
+            image: product.featured_image,
+            alt: card_name,
+            widths: '400,600,800,1000',
+            sizes: '(min-width: 1024px) 25vw, (min-width: 768px) 33vw, 50vw',
+            class: 'morbeez-product-card__img'
+          -%}
         {%- endif -%}
-        <div class="mt-3 flex items-baseline gap-2">
-          <span class="text-lg font-bold text-[var(--color-primary)]">{%- render 'morbeez-money', amount: product.price -%}</span>
+        {%- if product.compare_at_price > product.price -%}
+          <span class="morbeez-badge--sale morbeez-product-card__badge">Sale</span>
+        {%- endif -%}
+      </div>
+      <div class="morbeez-product-card__body">
+        <h3 class="morbeez-product-card__title">{{ card_name }}</h3>
+        {%- if card_benefit != blank -%}
+          <p class="morbeez-product-card__benefit">{{ card_benefit }}</p>
+        {%- endif -%}
+        {%- render 'morbeez-rating-stars', product: product, class: 'mt-1' -%}
+        {%- if product.metafields.morbeez.pack_size_label != blank -%}
+          <p class="morbeez-product-card__pack">{{ product.metafields.morbeez.pack_size_label }}</p>
+        {%- endif -%}
+        <div class="morbeez-product-card__price">
+          <span class="morbeez-product-card__price-now">{%- render 'morbeez-money', amount: product.price -%}</span>
           {%- if product.compare_at_price > product.price -%}
-            <s class="text-sm text-[var(--color-muted)]">{%- render 'morbeez-money', amount: product.compare_at_price -%}</s>
+            <s class="morbeez-product-card__price-was">{%- render 'morbeez-money', amount: product.compare_at_price -%}</s>
           {%- endif -%}
         </div>
-        <span class="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[var(--color-primary)] opacity-0 transition group-hover:opacity-100">
-          View product
-          {%- render 'morbeez-icon', name: 'arrow-right', class: 'h-3.5 w-3.5' -%}
-        </span>
       </div>
     </a>
   </article>

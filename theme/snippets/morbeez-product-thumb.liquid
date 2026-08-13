@@ -1,0 +1,13 @@
+{% comment %}
+  PDP gallery thumbnail. Pass: image, alt, active
+{% endcomment %}
+<button
+  type="button"
+  class="morbeez-product-thumb shrink-0 overflow-hidden rounded-lg border-2 {% if active %}border-[var(--color-primary)]{% else %}border-transparent hover:border-[var(--color-primary)]{% endif %}"
+  data-product-thumb
+  data-full-src="{{ image | image_url: width: 1400 }}"
+  aria-label="{{ alt | escape }}"
+  {% if active %}aria-current="true"{% endif %}
+>
+  {{ image | image_url: width: 160 | image_tag: class: 'h-16 w-16 object-contain bg-[#f7f8f6]', alt: alt, loading: 'lazy' }}
+</button>

@@ -24,7 +24,7 @@
 
       {%- assign product_results = search.results | where: 'object_type', 'product' -%}
       {%- if product_results.size > 0 -%}
-        <div class="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+        <div class="morbeez-product-grid mt-8">
           {%- for item in search.results -%}
             {%- if item.object_type == 'product' -%}
               {%- render 'morbeez-product-card', product: item -%}

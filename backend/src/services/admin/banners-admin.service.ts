@@ -23,6 +23,10 @@ export interface CreateBannerInput {
   endsAt: string;
   sortOrder?: number;
   active?: boolean;
+  imageOnly?: boolean;
+  headingColor?: string;
+  highlightColor?: string;
+  textSize?: 'sm' | 'md' | 'lg';
 }
 
 type BannerRow = {
@@ -39,6 +43,10 @@ type BannerRow = {
   ends_at: string;
   sort_order: number;
   active: boolean;
+  image_only?: boolean | null;
+  heading_color?: string | null;
+  highlight_color?: string | null;
+  text_size?: string | null;
 };
 
 function resolveStatus(startsAt: string, endsAt: string, active: boolean): BannerTab | 'inactive' {
@@ -88,6 +96,10 @@ function mapBanner(row: BannerRow) {
     schedule: formatSchedule(row.starts_at, row.ends_at),
     sortOrder: row.sort_order,
     active: row.active,
+    imageOnly: Boolean(row.image_only),
+    headingColor: row.heading_color ?? '#ffffff',
+    highlightColor: row.highlight_color ?? '#34B35E',
+    textSize: (row.text_size === 'sm' || row.text_size === 'lg' ? row.text_size : 'md') as 'sm' | 'md' | 'lg',
     status,
   };
 }
@@ -156,6 +168,10 @@ export const bannersAdminService = {
         ends_at: input.endsAt,
         sort_order: input.sortOrder ?? 0,
         active: input.active ?? true,
+        image_only: input.imageOnly ?? false,
+        heading_color: input.headingColor?.trim() || '#ffffff',
+        highlight_color: input.highlightColor?.trim() || '#34B35E',
+        text_size: input.textSize ?? 'md',
       })
       .select('*')
       .single();
@@ -184,6 +200,10 @@ export const bannersAdminService = {
     if (input.endsAt != null) patch.ends_at = input.endsAt;
     if (input.sortOrder != null) patch.sort_order = input.sortOrder;
     if (input.active != null) patch.active = input.active;
+    if (input.imageOnly != null) patch.image_only = input.imageOnly;
+    if (input.headingColor != null) patch.heading_color = input.headingColor.trim() || '#ffffff';
+    if (input.highlightColor != null) patch.highlight_color = input.highlightColor.trim() || '#34B35E';
+    if (input.textSize != null) patch.text_size = input.textSize;
 
     const { data, error } = await supabase
       .from('commerce_banners')

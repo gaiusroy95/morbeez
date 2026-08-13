@@ -31,6 +31,10 @@ type Banner = {
   status: string;
   active: boolean;
   sortOrder: number;
+  imageOnly?: boolean;
+  headingColor?: string;
+  highlightColor?: string;
+  textSize?: 'sm' | 'md' | 'lg';
 };
 
 const TABS: Array<{ id: BannerTab; label: string }> = [
@@ -72,6 +76,10 @@ const emptyForm = {
   startsAt: '',
   endsAt: '',
   sortOrder: 0,
+  imageOnly: false,
+  headingColor: '#ffffff',
+  highlightColor: '#34B35E',
+  textSize: 'md' as 'sm' | 'md' | 'lg',
 };
 
 export function CommerceBannersPanel({ canWrite }: Props) {
@@ -132,6 +140,10 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       startsAt: '',
       endsAt: '',
       sortOrder: b.sortOrder,
+      imageOnly: Boolean(b.imageOnly),
+      headingColor: b.headingColor ?? '#ffffff',
+      highlightColor: b.highlightColor ?? '#34B35E',
+      textSize: b.textSize === 'sm' || b.textSize === 'lg' ? b.textSize : 'md',
     });
     void api<{ ok: boolean; banner: Banner & { startsAt: string; endsAt: string; description?: string } }>(
       `/morbeez-staff/api/v1/banners/${b.id}`
@@ -148,6 +160,10 @@ export function CommerceBannersPanel({ canWrite }: Props) {
         description: row.description ?? '',
         imageUrl: row.imageUrl ?? f.imageUrl,
         imageUrlMobile: row.imageUrlMobile ?? f.imageUrlMobile,
+        imageOnly: row.imageOnly ?? f.imageOnly,
+        headingColor: row.headingColor ?? f.headingColor,
+        highlightColor: row.highlightColor ?? f.highlightColor,
+        textSize: row.textSize === 'sm' || row.textSize === 'lg' ? row.textSize : f.textSize,
         startsAt: toLocal(row.startsAt),
         endsAt: toLocal(row.endsAt),
       }));
@@ -203,6 +219,10 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       startsAt: toIsoFromLocal(form.startsAt),
       endsAt: toIsoFromLocal(form.endsAt),
       sortOrder: Number(form.sortOrder) || 0,
+      imageOnly: form.imageOnly,
+      headingColor: form.headingColor,
+      highlightColor: form.highlightColor,
+      textSize: form.textSize,
     };
     try {
       let shopifySync: { ok?: boolean; error?: string; heroSlides?: number } | undefined;
@@ -534,6 +554,57 @@ export function CommerceBannersPanel({ canWrite }: Props) {
                 ) : null}
               </div>
             </label>
+            <label className="flex items-start gap-2 text-sm font-medium text-slate-700 sm:col-span-2">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={form.imageOnly}
+                onChange={(e) => setForm((f) => ({ ...f, imageOnly: e.target.checked }))}
+              />
+              <span>
+                Text is already in the banner image
+                <span className="mt-0.5 block font-normal text-xs text-slate-500">
+                  For designed offer art (Canva). Hides HTML headlines. Shop button stays small.
+                </span>
+              </span>
+            </label>
+            {form.imageOnly ? null : (
+              <>
+                <label className="text-sm font-medium text-slate-700">
+                  Headline color
+                  <input
+                    type="color"
+                    className="mt-1 h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+                    value={form.headingColor}
+                    onChange={(e) => setForm((f) => ({ ...f, headingColor: e.target.value }))}
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700">
+                  Highlight color
+                  <input
+                    type="color"
+                    className="mt-1 h-10 w-full cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+                    value={form.highlightColor}
+                    onChange={(e) => setForm((f) => ({ ...f, highlightColor: e.target.value }))}
+                  />
+                </label>
+                <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+                  Headline size
+                  <StaticSelect
+                    className={inputClass}
+                    value={form.textSize}
+                    onChange={(value) =>
+                      setForm((f) => ({ ...f, textSize: value as typeof f.textSize }))
+                    }
+                    options={[
+                      { value: 'sm', label: 'Small' },
+                      { value: 'md', label: 'Medium' },
+                      { value: 'lg', label: 'Large' },
+                    ]}
+                  />
+                </label>
+              </>
+            )}
             <label className="text-sm font-medium text-slate-700">
               CTA label
               <input

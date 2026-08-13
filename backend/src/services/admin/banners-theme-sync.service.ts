@@ -31,6 +31,10 @@ type ImportRow = {
   startsAt: string;
   endsAt: string;
   sortOrder: number;
+  imageOnly?: boolean;
+  headingColor?: string;
+  highlightColor?: string;
+  textSize?: string;
 };
 
 type BannerRow = {
@@ -48,6 +52,10 @@ type BannerRow = {
   sort_order: number;
   active: boolean;
   source_ref: string | null;
+  image_only?: boolean | null;
+  heading_color?: string | null;
+  highlight_color?: string | null;
+  text_size?: string | null;
 };
 
 function storefrontUrl(path: string): string {
@@ -134,6 +142,10 @@ function collectImports(template: IndexTemplate): ImportRow[] {
           placement: 'home_hero',
           ...schedule,
           sortOrder: sortOrder++,
+          imageOnly: Boolean(settings.image_only),
+          headingColor: settings.heading_color ? String(settings.heading_color) : undefined,
+          highlightColor: settings.highlight_color ? String(settings.highlight_color) : undefined,
+          textSize: settings.text_size ? String(settings.text_size) : undefined,
         });
       }
     }
@@ -182,6 +194,10 @@ async function upsertImport(row: ImportRow): Promise<'created' | 'updated'> {
   };
   if (row.imageUrl?.trim()) payload.image_url = row.imageUrl.trim();
   if (row.imageUrlMobile?.trim()) payload.image_url_mobile = row.imageUrlMobile.trim();
+  if (row.imageOnly != null) payload.image_only = row.imageOnly;
+  if (row.headingColor?.trim()) payload.heading_color = row.headingColor.trim();
+  if (row.highlightColor?.trim()) payload.highlight_color = row.highlightColor.trim();
+  if (row.textSize?.trim()) payload.text_size = row.textSize.trim();
 
   if (existing?.id) {
     const { error } = await supabase.from('commerce_banners').update(payload).eq('id', existing.id);
@@ -210,8 +226,11 @@ function buildHeroSlideSettings(banner: BannerRow): Record<string, unknown> {
   const settings: Record<string, unknown> = {
     eyebrow: banner.badge?.trim() || undefined,
     ...headings,
-    highlight_color: '#34B35E',
-    overlay: 45,
+    image_only: Boolean(banner.image_only),
+    heading_color: banner.heading_color?.trim() || '#ffffff',
+    highlight_color: banner.highlight_color?.trim() || '#34B35E',
+    text_size: banner.text_size === 'sm' || banner.text_size === 'lg' ? banner.text_size : 'md',
+    overlay: 20,
     button_label: banner.cta_label?.trim() || 'Shop now',
     button_url: relativeStorefrontPath(banner.cta_url),
   };
