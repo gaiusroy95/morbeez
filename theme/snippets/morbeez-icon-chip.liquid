@@ -1,0 +1,26 @@
+{% comment %}
+  Compact circular icon chip for Shop by crop / Shop by problem.
+  Prefer image when set; otherwise emoji (icon) text.
+{% endcomment %}
+<a
+  href="{{ url | default: '#' }}"
+  class="morbeez-icon-chip group {{ class }}"
+  {% if url == blank %}aria-disabled="true"{% endif %}
+>
+  <span class="morbeez-icon-chip__circle" aria-hidden="true">
+    {%- if image != blank -%}
+      {%- render 'morbeez-lazy-image',
+        image: image,
+        alt: title,
+        class: 'h-full w-full object-cover'
+      -%}
+    {%- elsif icon != blank -%}
+      <span class="morbeez-icon-chip__emoji">{{ icon }}</span>
+    {%- else -%}
+      <span class="morbeez-icon-chip__fallback">
+        {%- render 'morbeez-icon', name: 'leaf', class: 'h-7 w-7' -%}
+      </span>
+    {%- endif -%}
+  </span>
+  <span class="morbeez-icon-chip__label">{{ title }}</span>
+</a>

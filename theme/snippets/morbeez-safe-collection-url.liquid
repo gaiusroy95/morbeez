@@ -1,0 +1,38 @@
+{% comment %}
+  Resolve a category chip URL safely.
+  Prefer linked collection; validate /collections/{handle}; else search or all products.
+  @param collection {collection}
+  @param url {string}
+  @param label {string}
+  @param fallback {'search'|'all'} default search
+{% endcomment %}
+{%- liquid
+  assign resolved_url = blank
+  assign fallback_mode = fallback | default: 'search'
+
+  if collection != blank
+    assign resolved_url = collection.url
+  elsif url != blank
+    if url == '/collections/all' or url == routes.all_products_collection_url
+      assign resolved_url = routes.all_products_collection_url
+    elsif url contains '/collections/'
+      assign handle = url | split: '/collections/' | last | split: '?' | first | split: '/' | first | split: '#' | first
+      if handle == 'all'
+        assign resolved_url = routes.all_products_collection_url
+      elsif collections[handle] != blank
+        assign resolved_url = collections[handle].url
+      endif
+    else
+      assign resolved_url = url
+    endif
+  endif
+
+  if resolved_url == blank
+    if fallback_mode == 'all' or label == blank
+      assign resolved_url = routes.all_products_collection_url
+    else
+      assign resolved_url = routes.search_url | append: '?q=' | append: label | url_encode
+    endif
+  endif
+-%}
+{{- resolved_url -}}

@@ -153,6 +153,152 @@
     @apply snap-start;
   }
 
+  /* WhatsApp announcement bar */
+  .morbeez-announce {
+    @apply px-3 py-2 text-white sm:px-4;
+    background: var(--color-primary-dark);
+  }
+
+  .morbeez-announce__inner {
+    @apply mx-auto flex max-w-7xl items-center gap-2 sm:gap-3;
+  }
+
+  .morbeez-announce__icon {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/15;
+  }
+
+  .morbeez-announce__copy {
+    @apply min-w-0 flex-1;
+  }
+
+  .morbeez-announce__title {
+    @apply truncate text-[13px] font-semibold leading-tight sm:text-sm;
+  }
+
+  .morbeez-announce__sub {
+    @apply mt-0.5 truncate text-[10px] leading-tight text-white/80 sm:text-xs;
+  }
+
+  .morbeez-announce__cta {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[11px] font-bold text-[var(--color-primary)] no-underline sm:px-3.5 sm:text-xs;
+  }
+
+  /* Trust features — floating white card */
+  .morbeez-trust {
+    @apply relative z-10 -mt-6 pb-2 sm:-mt-8;
+  }
+
+  .morbeez-trust__card {
+    @apply grid grid-cols-4 items-start gap-1.5 rounded-2xl border border-[var(--color-border)] bg-white px-2 py-3 shadow-md sm:gap-4 sm:px-5 sm:py-5;
+  }
+
+  .morbeez-trust__item {
+    @apply flex min-w-0 flex-col items-center text-center;
+  }
+
+  .morbeez-trust__icon {
+    @apply mb-1 flex h-7 w-7 items-center justify-center text-[var(--color-primary)] sm:mb-2 sm:h-11 sm:w-11;
+  }
+
+  .morbeez-trust__icon svg {
+    @apply h-5 w-5 sm:h-6 sm:w-6;
+  }
+
+  .morbeez-trust__title {
+    @apply text-[10px] font-bold leading-tight text-[var(--color-trust)] sm:text-sm;
+  }
+
+  .morbeez-trust__text {
+    @apply mt-0.5 text-[8px] leading-snug text-[var(--color-muted)] sm:text-xs;
+  }
+
+  /* Shop by crop / problem — heading + View all, 6-up row */
+  .morbeez-browse-section__header {
+    @apply mb-3 flex items-center justify-between gap-3;
+  }
+
+  .morbeez-browse-section__title {
+    @apply font-heading text-lg font-bold tracking-tight text-[var(--color-trust)] sm:text-xl md:text-2xl;
+  }
+
+  .morbeez-browse-section__view-all {
+    @apply shrink-0 text-sm font-semibold text-[var(--color-primary)] no-underline hover:underline;
+  }
+
+  .morbeez-icon-chip-grid {
+    @apply grid w-full grid-cols-6 gap-x-1.5 gap-y-3 overflow-x-visible sm:gap-x-3 sm:gap-y-4;
+  }
+
+  .morbeez-icon-chip-grid__item {
+    @apply flex min-w-0 w-full justify-center;
+  }
+
+  .morbeez-icon-chip {
+    @apply flex w-full min-w-0 max-w-full flex-col items-center gap-1.5 text-center no-underline sm:gap-2;
+  }
+
+  .morbeez-icon-chip__circle {
+    @apply flex h-12 w-12 max-w-full items-center justify-center overflow-hidden rounded-full border border-gray-200 bg-white shadow-sm transition duration-200 sm:h-16 sm:w-16 md:h-[4.5rem] md:w-[4.5rem];
+  }
+
+  .morbeez-icon-chip:hover .morbeez-icon-chip__circle {
+    @apply -translate-y-0.5 border-[var(--color-primary)] shadow-md;
+  }
+
+  .morbeez-icon-chip__emoji {
+    @apply text-xl leading-none sm:text-2xl md:text-[1.75rem];
+  }
+
+  .morbeez-icon-chip__fallback {
+    @apply text-[var(--color-primary)];
+  }
+
+  .morbeez-icon-chip__label {
+    @apply w-full px-0.5 text-[10px] font-semibold leading-tight text-[var(--color-trust)] sm:text-xs;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .morbeez-icon-chip--more .morbeez-icon-chip__label {
+    @apply text-[var(--color-primary)];
+  }
+
+  .morbeez-icon-chip__circle--more {
+    @apply border-dashed border-[var(--color-primary)] bg-white;
+  }
+
+  .morbeez-icon-chip__plus {
+    @apply text-2xl font-light leading-none text-[var(--color-primary)] sm:text-3xl;
+  }
+
+  /* WhatsApp help banner */
+  .morbeez-wa-help {
+    @apply flex items-center gap-3 rounded-2xl px-4 py-4 text-white sm:gap-4 sm:px-5;
+    background: var(--color-primary-dark);
+  }
+
+  .morbeez-wa-help__icon {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15;
+  }
+
+  .morbeez-wa-help__copy {
+    @apply min-w-0 flex-1;
+  }
+
+  .morbeez-wa-help__title {
+    @apply font-heading text-base font-bold leading-tight sm:text-lg;
+  }
+
+  .morbeez-wa-help__body {
+    @apply mt-0.5 text-xs leading-snug text-white/80 sm:text-sm;
+  }
+
+  .morbeez-wa-help__cta {
+    @apply inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-bold text-[var(--color-primary)] no-underline sm:px-4 sm:text-sm;
+  }
+
   .morbeez-tab {
     @apply shrink-0 border-b-2 border-transparent px-4 py-3 text-sm font-medium text-[var(--color-muted)] transition;
   }
@@ -216,7 +362,47 @@
   }
 
   .morbeez-header-nav {
-    @apply flex flex-nowrap items-center overflow-visible;
+    @apply flex flex-nowrap items-center gap-0 overflow-x-auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .morbeez-header-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .morbeez-header__top {
+    @apply min-w-0;
+  }
+
+  .morbeez-header__utilities {
+    @apply relative z-10 bg-white;
+  }
+
+  .morbeez-header__account {
+    @apply leading-none;
+  }
+
+  .morbeez-header__cart {
+    @apply shrink-0;
+  }
+
+  /* Keep announcement + nav + search pinned while scrolling */
+  #shopify-section-group-header-group,
+  .shopify-section-group-header-group {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: #fff;
+  }
+
+  #shopify-section-group-header-group .shopify-section,
+  .shopify-section-group-header-group .shopify-section {
+    position: relative;
+  }
+
+  .morbeez-site-header {
+    background: #fff;
   }
 
   .morbeez-site-header .morbeez-container {
@@ -352,8 +538,94 @@
     margin: 0;
   }
 
+  .morbeez-hero-carousel__track {
+    @apply relative w-full;
+  }
+
+  .morbeez-hero-carousel__slide {
+    @apply relative w-full transition-opacity duration-700;
+  }
+
+  /* Banner: full width, natural image height — never squeeze. Use a dedicated mobile upload (1200×950) for phones. */
+  .morbeez-hero-carousel__frame {
+    @apply relative block w-full leading-none;
+  }
+
+  .morbeez-hero-carousel__media {
+    @apply block w-full leading-none;
+  }
+
+  .morbeez-hero-carousel__img {
+    @apply block h-auto w-full max-w-full;
+  }
+
+  .morbeez-hero-carousel__fallback {
+    @apply w-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-trust)];
+    aspect-ratio: 8 / 3;
+  }
+
+  @media (max-width: 767px) {
+    .morbeez-hero-carousel__fallback {
+      aspect-ratio: 1200 / 950;
+    }
+  }
+
+  .morbeez-hero-carousel__slide--active {
+    @apply relative z-10 opacity-100;
+  }
+
+  .morbeez-hero-carousel__slide:not(.morbeez-hero-carousel__slide--active) {
+    @apply pointer-events-none absolute left-0 right-0 top-0 z-0 opacity-0;
+  }
+
+  .morbeez-hero-carousel__overlay,
+  .morbeez-hero-carousel__overlay--text,
+  .morbeez-hero-carousel__overlay--image-only {
+    background: transparent !important;
+  }
+
+  .morbeez-hero-carousel__slide--image-only .morbeez-hero-carousel__text-layer {
+    @apply hidden;
+  }
+
+  .morbeez-hero-carousel__text-layer--on-image .morbeez-hero-carousel__content {
+    @apply max-w-[88%] px-4 pb-0 sm:max-w-full sm:px-6;
+  }
+
+  .morbeez-hero-carousel__eyebrow,
+  .morbeez-hero-carousel__line1,
+  .morbeez-hero-carousel__line2,
+  .morbeez-hero-carousel__description {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  }
+
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line1 {
+    color: var(--color-primary);
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  }
+
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__description,
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__eyebrow,
+  .morbeez-hero-carousel__slide--light .morbeez-hero-carousel__line2 {
+    color: var(--color-trust);
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+  }
+
+  .morbeez-hero-carousel__content {
+    @apply max-w-full pr-4 sm:pr-4 lg:pr-8;
+  }
+
+  .morbeez-hero-carousel__actions .morbeez-btn-primary,
+  .morbeez-hero-carousel__actions .morbeez-btn-secondary {
+    @apply inline-flex w-[11.25rem] max-w-full shrink-0 justify-center !min-h-[40px] !px-4 !py-2 !text-xs sm:w-auto sm:!min-h-[44px] sm:!px-5 sm:!text-sm;
+  }
+
+  .morbeez-hero-carousel__actions .morbeez-btn-secondary {
+    @apply bg-white;
+  }
+
   .morbeez-hero-carousel__arrow {
-    @apply absolute top-1/2 z-20 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/30;
+    @apply absolute top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/30 md:h-12 md:w-12;
   }
 
   .morbeez-hero-carousel__arrow--prev {

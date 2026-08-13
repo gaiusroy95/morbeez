@@ -15,6 +15,7 @@ export interface CreateBannerInput {
   badge?: string;
   description?: string;
   imageUrl?: string;
+  imageUrlMobile?: string;
   ctaLabel?: string;
   ctaUrl?: string;
   placement?: BannerPlacement;
@@ -30,6 +31,7 @@ type BannerRow = {
   badge: string | null;
   description: string | null;
   image_url: string | null;
+  image_url_mobile: string | null;
   cta_label: string | null;
   cta_url: string | null;
   placement: string;
@@ -76,6 +78,7 @@ function mapBanner(row: BannerRow) {
     badge: row.badge,
     description: row.description,
     imageUrl: row.image_url,
+    imageUrlMobile: row.image_url_mobile,
     ctaLabel: row.cta_label ?? 'Shop now',
     ctaUrl: row.cta_url,
     placement: row.placement as BannerPlacement,
@@ -145,6 +148,7 @@ export const bannersAdminService = {
         badge: input.badge?.trim() || null,
         description: input.description?.trim() || null,
         image_url: input.imageUrl?.trim() || null,
+        image_url_mobile: input.imageUrlMobile?.trim() || null,
         cta_label: input.ctaLabel?.trim() || 'Shop now',
         cta_url: input.ctaUrl?.trim() || null,
         placement: input.placement ?? 'home_hero',
@@ -172,6 +176,7 @@ export const bannersAdminService = {
     if (input.badge != null) patch.badge = input.badge.trim() || null;
     if (input.description != null) patch.description = input.description.trim() || null;
     if (input.imageUrl != null) patch.image_url = input.imageUrl.trim() || null;
+    if (input.imageUrlMobile != null) patch.image_url_mobile = input.imageUrlMobile.trim() || null;
     if (input.ctaLabel != null) patch.cta_label = input.ctaLabel.trim() || 'Shop now';
     if (input.ctaUrl != null) patch.cta_url = input.ctaUrl.trim() || null;
     if (input.placement != null) patch.placement = input.placement;

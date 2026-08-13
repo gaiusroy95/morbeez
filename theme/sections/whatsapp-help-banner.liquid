@@ -1,0 +1,63 @@
+{%- liquid
+  assign wa_phone = section.settings.phone | default: settings.whatsapp_phone | default: '917676026318'
+  assign wa_msg = section.settings.default_message | default: settings.whatsapp_message
+-%}
+{%- if section.settings.heading != blank -%}
+  {%- capture wa_href -%}
+    {%- render 'morbeez-whatsapp-url', phone_raw: wa_phone, message_raw: wa_msg -%}
+  {%- endcapture -%}
+  {%- assign wa_href = wa_href | strip -%}
+  <section class="morbeez-section morbeez-section--tight !py-4" id="MorbeezWhatsappHelp-{{ section.id }}">
+    <div class="morbeez-container">
+      <div class="morbeez-wa-help">
+        <span class="morbeez-wa-help__icon" aria-hidden="true">
+          {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-7 w-7' -%}
+        </span>
+        <div class="morbeez-wa-help__copy">
+          <h2 class="morbeez-wa-help__title">{{ section.settings.heading }}</h2>
+          {%- if section.settings.body != blank -%}
+            <p class="morbeez-wa-help__body">{{ section.settings.body }}</p>
+          {%- endif -%}
+        </div>
+        <a
+          href="{{ wa_href }}"
+          class="morbeez-wa-help__cta"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ section.settings.cta_label | default: 'Chat Now' }}
+          {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-4 w-4' -%}
+        </a>
+      </div>
+    </div>
+  </section>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "WhatsApp help banner",
+  "tag": "section",
+  "settings": [
+    { "type": "text", "id": "heading", "label": "Heading", "default": "Need help with your crop?" },
+    {
+      "type": "textarea",
+      "id": "body",
+      "label": "Body",
+      "default": "Chat with our agronomists on WhatsApp."
+    },
+    { "type": "text", "id": "cta_label", "label": "Button label", "default": "Chat Now" },
+    {
+      "type": "text",
+      "id": "phone",
+      "label": "WhatsApp phone",
+      "info": "Leave blank to use theme WhatsApp number."
+    },
+    {
+      "type": "textarea",
+      "id": "default_message",
+      "label": "Default message"
+    }
+  ],
+  "presets": [{ "name": "WhatsApp help banner" }]
+}
+{% endschema %}

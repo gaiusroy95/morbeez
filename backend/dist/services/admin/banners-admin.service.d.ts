@@ -12,6 +12,9 @@ export interface CreateBannerInput {
     ctaLabel?: string;
     ctaUrl?: string;
     placement?: BannerPlacement;
+    size?: string;
+    sizeWidth?: number;
+    sizeHeight?: number;
     startsAt: string;
     endsAt: string;
     sortOrder?: number;
@@ -29,6 +32,9 @@ export declare const bannersAdminService: {
             ctaUrl: string | null;
             placement: BannerPlacement;
             placementLabel: string;
+            size: string;
+            sizeWidth: number;
+            sizeHeight: number;
             startsAt: string;
             endsAt: string;
             schedule: string;
@@ -53,6 +59,9 @@ export declare const bannersAdminService: {
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
+        size: string;
+        sizeWidth: number;
+        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;
@@ -70,6 +79,9 @@ export declare const bannersAdminService: {
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
+        size: string;
+        sizeWidth: number;
+        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;
@@ -87,6 +99,9 @@ export declare const bannersAdminService: {
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
+        size: string;
+        sizeWidth: number;
+        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;

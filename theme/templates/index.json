@@ -6,13 +6,14 @@
         "slide_1": {
           "type": "slide",
           "settings": {
-            "eyebrow": "Morbeez — Grow with Experts",
-            "heading_line_1": "Science-backed",
-            "heading_highlight": "CROP CARE",
-            "heading_line_2": "for every Indian farmer",
+            "light_foreground": true,
+            "heading_line_1": "Grow Better with Experts",
+            "description": "Science-backed solutions for healthier crops and higher yields.",
             "highlight_color": "#34B35E",
-            "button_label": "Shop products",
-            "button_url": "/collections/all"
+            "overlay": 20,
+            "button_label": "Shop Now",
+            "button_url": "/collections/all",
+            "button_secondary_label": "Get Free Advice"
           }
         },
         "slide_2": {
@@ -36,36 +37,114 @@
     "trust": {
       "type": "trust-features",
       "blocks": {
-        "t1": { "type": "feature", "settings": { "icon": "truck", "title": "Fast delivery", "text": "Reliable shipping across India" } },
-        "t2": { "type": "feature", "settings": { "icon": "shield", "title": "Quality assured", "text": "Science-backed formulations" } },
-        "t3": { "type": "feature", "settings": { "icon": "support", "title": "Expert support", "text": "Crop advisory on WhatsApp" } },
-        "t4": { "type": "feature", "settings": { "icon": "leaf", "title": "Farmer-first", "text": "Trusted by growers nationwide" } }
+        "t1": { "type": "feature", "settings": { "icon": "truck", "title": "Fast Delivery", "text": "Reliable shipping across India" } },
+        "t2": { "type": "feature", "settings": { "icon": "shield", "title": "Quality Assured", "text": "Tested & science-backed products" } },
+        "t3": { "type": "feature", "settings": { "icon": "support", "title": "Expert Support", "text": "WhatsApp advisory by agronomists" } },
+        "t4": { "type": "feature", "settings": { "icon": "leaf", "title": "Farmer First", "text": "Solutions designed for real field results" } }
       },
       "block_order": ["t1", "t2", "t3", "t4"]
     },
     "quick_categories": {
       "type": "quick-category-bar",
       "blocks": {
-        "c1": { "type": "chip", "settings": { "label": "Bio Fertilizers", "url": "/collections/bio-fertilizers" } },
-        "c2": { "type": "chip", "settings": { "label": "Bio Pesticides", "url": "/collections/bio-pesticides" } },
-        "c3": { "type": "chip", "settings": { "label": "Organic Inputs", "url": "/collections/organic-inputs" } },
-        "c4": { "type": "chip", "settings": { "label": "Micronutrients", "url": "/collections/micronutrients" } },
+        "c1": { "type": "chip", "settings": { "label": "Bio Fertilizers", "emoji": "🌱", "url": "/collections/bio-fertilizers" } },
+        "c2": { "type": "chip", "settings": { "label": "Bio Pesticides", "emoji": "🛡️", "url": "/collections/bio-pesticides" } },
+        "c3": { "type": "chip", "settings": { "label": "Organic Inputs", "emoji": "🍃", "url": "/collections/organic-inputs" } },
+        "c4": { "type": "chip", "settings": { "label": "Micronutrients", "emoji": "⚗️", "url": "/collections/micronutrients" } },
         "c5": { "type": "chip", "settings": { "label": "Shop All", "url": "/collections/all" } }
       },
       "block_order": ["c1", "c2", "c3", "c4", "c5"]
     },
     "crops": {
       "type": "crop-categories",
+      "blocks": {
+        "crop_ginger": {
+          "type": "category_tile",
+          "settings": { "icon": "🫚", "title": "Ginger", "link": "/collections/all" }
+        },
+        "crop_banana": {
+          "type": "category_tile",
+          "settings": { "icon": "🍌", "title": "Banana", "link": "/collections/all" }
+        },
+        "crop_pepper": {
+          "type": "category_tile",
+          "settings": { "icon": "🌶️", "title": "Pepper", "link": "/collections/all" }
+        },
+        "crop_cardamom": {
+          "type": "category_tile",
+          "settings": { "icon": "🌿", "title": "Cardamom", "link": "/collections/all" }
+        },
+        "crop_coconut": {
+          "type": "category_tile",
+          "settings": { "icon": "🥥", "title": "Coconut", "link": "/collections/all" }
+        },
+        "crop_paddy": {
+          "type": "category_tile",
+          "settings": { "icon": "🌴", "title": "Arecanut", "link": "/collections/all" }
+        }
+      },
+      "block_order": [
+        "crop_ginger",
+        "crop_banana",
+        "crop_pepper",
+        "crop_cardamom",
+        "crop_coconut",
+        "crop_paddy"
+      ],
       "settings": {
         "heading": "Shop by crop",
-        "subheading": "Ginger, banana, pepper, cardamom & more"
+        "more_label": "View all",
+        "more_url": "/collections"
       }
     },
     "problems": {
       "type": "shop-by-problem",
+      "blocks": {
+        "prob_disease": {
+          "type": "problem_tile",
+          "settings": { "icon": "🦠", "title": "Disease", "link": "/collections/all" }
+        },
+        "prob_nematodes": {
+          "type": "problem_tile",
+          "settings": { "icon": "🪱", "title": "Nematodes", "link": "/collections/all" }
+        },
+        "prob_pests": {
+          "type": "problem_tile",
+          "settings": { "icon": "🐛", "title": "Pests", "link": "/collections/all" }
+        },
+        "prob_deficiency": {
+          "type": "problem_tile",
+          "settings": { "icon": "🟡", "title": "Nutrient Deficiency", "link": "/collections/all" }
+        },
+        "prob_stress": {
+          "type": "problem_tile",
+          "settings": { "icon": "💧", "title": "Water Stress", "link": "/collections/all" }
+        },
+        "prob_root": {
+          "type": "problem_tile",
+          "settings": { "icon": "🌱", "title": "Root Rot", "link": "/collections/all" }
+        }
+      },
+      "block_order": [
+        "prob_disease",
+        "prob_nematodes",
+        "prob_pests",
+        "prob_deficiency",
+        "prob_stress",
+        "prob_root"
+      ],
       "settings": {
         "heading": "Shop by problem",
-        "subheading": "Nematodes, fungal disease, nutrient deficiency & stress"
+        "more_label": "View all",
+        "more_url": "/collections"
+      }
+    },
+    "whatsapp_help": {
+      "type": "whatsapp-help-banner",
+      "settings": {
+        "heading": "Need help with your crop?",
+        "body": "Chat with our agronomists on WhatsApp.",
+        "cta_label": "Chat Now"
       }
     },
     "bestsellers": {
@@ -172,9 +251,9 @@
   "order": [
     "hero_carousel",
     "trust",
-    "quick_categories",
     "crops",
     "problems",
+    "whatsapp_help",
     "bestsellers",
     "featured",
     "combos",

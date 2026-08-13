@@ -406,10 +406,10 @@
     });
   }
 
-  /* Hero carousel */
+  /* Hero carousel — active slide sets height from image natural aspect ratio */
   document.querySelectorAll('[data-hero-carousel]').forEach(function (root) {
     var slides = root.querySelectorAll('[data-hero-slide]');
-    if (slides.length < 2) return;
+    if (!slides.length) return;
 
     var index = 0;
     var autoplay = root.getAttribute('data-autoplay') === 'true';
@@ -419,11 +419,7 @@
     function show(i) {
       index = (i + slides.length) % slides.length;
       slides.forEach(function (slide, n) {
-        var active = n === index;
-        slide.classList.toggle('opacity-100', active);
-        slide.classList.toggle('z-10', active);
-        slide.classList.toggle('opacity-0', !active);
-        slide.classList.toggle('z-0', !active);
+        slide.classList.toggle('morbeez-hero-carousel__slide--active', n === index);
       });
       root.querySelectorAll('[data-hero-dot]').forEach(function (dot, n) {
         dot.classList.toggle('!w-8', n === index);
@@ -449,6 +445,8 @@
         show(parseInt(dot.getAttribute('data-hero-dot'), 10));
       });
     });
+
+    if (slides.length < 2) return;
 
     function startAutoplay() {
       if (!autoplay) return;

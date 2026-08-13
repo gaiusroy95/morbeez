@@ -24,7 +24,7 @@ export async function storeRoutes(app) {
         const now = new Date().toISOString();
         const { data, error } = await supabase
             .from('commerce_banners')
-            .select('id, title, description, image_url, cta_label, cta_url, placement')
+            .select('id, title, description, image_url, cta_label, cta_url, placement, size_width, size_height')
             .eq('active', true)
             .eq('placement', placement)
             .lte('starts_at', now)
@@ -41,6 +41,9 @@ export async function storeRoutes(app) {
                 imageUrl: b.image_url,
                 linkUrl: b.cta_url,
                 ctaLabel: b.cta_label,
+                sizeWidth: b.size_width ?? 1920,
+                sizeHeight: b.size_height ?? 720,
+                size: `${b.size_width ?? 1920}x${b.size_height ?? 720}`,
             })),
         });
     });

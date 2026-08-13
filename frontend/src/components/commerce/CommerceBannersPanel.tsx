@@ -27,6 +27,7 @@ type Banner = {
   ctaLabel: string;
   ctaUrl: string | null;
   imageUrl: string | null;
+  imageUrlMobile: string | null;
   status: string;
   active: boolean;
   sortOrder: number;
@@ -64,6 +65,7 @@ const emptyForm = {
   badge: '',
   description: '',
   imageUrl: '',
+  imageUrlMobile: '',
   ctaLabel: 'Shop now',
   ctaUrl: '',
   placement: 'home_hero' as (typeof PLACEMENTS)[number]['value'],
@@ -123,6 +125,7 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       badge: b.badge ?? '',
       description: '',
       imageUrl: b.imageUrl ?? '',
+      imageUrlMobile: b.imageUrlMobile ?? '',
       ctaLabel: b.ctaLabel,
       ctaUrl: b.ctaUrl ?? '',
       placement: b.placement as typeof emptyForm.placement,
@@ -143,6 +146,8 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       setForm((f) => ({
         ...f,
         description: row.description ?? '',
+        imageUrl: row.imageUrl ?? f.imageUrl,
+        imageUrlMobile: row.imageUrlMobile ?? f.imageUrlMobile,
         startsAt: toLocal(row.startsAt),
         endsAt: toLocal(row.endsAt),
       }));
@@ -150,7 +155,7 @@ export function CommerceBannersPanel({ canWrite }: Props) {
     setModalOpen(true);
   }
 
-  async function uploadBannerImage(file: File) {
+  async function uploadBannerImage(file: File, slot: 'desktop' | 'mobile') {
     setUploadingImage(true);
     setError('');
     try {
@@ -158,13 +163,15 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       const res = await api<{ ok: boolean; url: string }>('/morbeez-staff/api/v1/banners/media/upload', {
         method: 'POST',
         body: JSON.stringify({
-          fileName: file.name,
+          fileName: `${slot}-${file.name}`,
           mimeType: file.type || 'image/jpeg',
           dataBase64,
           bannerId: editing?.id,
         }),
       });
-      setForm((f) => ({ ...f, imageUrl: res.url }));
+      setForm((f) =>
+        slot === 'mobile' ? { ...f, imageUrlMobile: res.url } : { ...f, imageUrl: res.url }
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not upload image');
     } finally {
@@ -188,7 +195,8 @@ export function CommerceBannersPanel({ canWrite }: Props) {
       title: form.title.trim(),
       badge: form.badge.trim() || undefined,
       description: form.description.trim() || undefined,
-      imageUrl: form.imageUrl.trim() || undefined,
+      imageUrl: form.imageUrl.trim(),
+      imageUrlMobile: form.imageUrlMobile.trim(),
       ctaLabel: form.ctaLabel.trim() || undefined,
       ctaUrl: form.ctaUrl.trim() || undefined,
       placement: form.placement,
@@ -316,7 +324,9 @@ export function CommerceBannersPanel({ canWrite }: Props) {
           <p className="text-sm text-slate-600 mb-3">
             Active banners here are pushed to your live Shopify homepage automatically when you save.
             <strong> Homepage hero</strong> banners become hero carousel slides; <strong>Promo strip</strong>{' '}
-            banners update the seasonal campaign section. Use <strong>Sync to Shopify</strong> to retry manually.
+            banners update the seasonal campaign section. Upload a <strong>desktop</strong> image and a separate{' '}
+            <strong>mobile</strong> image (recommended 1200 × 950) — Shopify phones use the mobile file and will not
+            squeeze the desktop art. Use <strong>Sync to Shopify</strong> to retry manually.
           </p>
           <div className="commerce-subtabs offers-tabs">
             {TABS.map((t) => (
@@ -458,10 +468,10 @@ export function CommerceBannersPanel({ canWrite }: Props) {
               />
             </label>
             <label className="text-sm font-medium text-slate-700 sm:col-span-2">
-              Banner image
+              Desktop banner image
               <div className="mt-1 flex flex-col gap-2">
                 <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
-                  {uploadingImage ? 'Uploading…' : 'Upload image'}
+                  {uploadingImage ? 'Uploading…' : 'Upload desktop image'}
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp,image/gif"
@@ -470,21 +480,56 @@ export function CommerceBannersPanel({ canWrite }: Props) {
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       e.target.value = '';
-                      if (file) void uploadBannerImage(file);
+                      if (file) void uploadBannerImage(file, 'desktop');
                     }}
                   />
                 </label>
                 <input
                   className={inputClass}
-                  placeholder="Or paste image URL"
+                  placeholder="Or paste desktop image URL"
                   value={form.imageUrl}
                   onChange={(e) => setForm((f) => ({ ...f, imageUrl: e.target.value }))}
                 />
                 {form.imageUrl ? (
                   <img
                     src={form.imageUrl}
-                    alt="Banner preview"
-                    className="max-h-40 w-full rounded-lg border border-slate-200 object-cover"
+                    alt="Desktop banner preview"
+                    className="max-h-40 w-full rounded-lg border border-slate-200 object-contain bg-slate-50"
+                  />
+                ) : null}
+              </div>
+            </label>
+            <label className="text-sm font-medium text-slate-700 sm:col-span-2">
+              Mobile banner image
+              <p className="mt-0.5 font-normal text-xs text-slate-500">
+                Shown only on phones. Use 1200 × 950 (or 1600 × 1267). Do not reuse the wide desktop file.
+              </p>
+              <div className="mt-1 flex flex-col gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+                  {uploadingImage ? 'Uploading…' : 'Upload mobile image'}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void uploadBannerImage(file, 'mobile');
+                    }}
+                  />
+                </label>
+                <input
+                  className={inputClass}
+                  placeholder="Or paste mobile image URL"
+                  value={form.imageUrlMobile}
+                  onChange={(e) => setForm((f) => ({ ...f, imageUrlMobile: e.target.value }))}
+                />
+                {form.imageUrlMobile ? (
+                  <img
+                    src={form.imageUrlMobile}
+                    alt="Mobile banner preview"
+                    className="max-h-56 w-full max-w-xs rounded-lg border border-slate-200 object-contain bg-slate-50"
                   />
                 ) : null}
               </div>

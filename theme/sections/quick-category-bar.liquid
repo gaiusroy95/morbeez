@@ -1,35 +1,71 @@
-<section class="border-b border-[var(--color-border)] bg-white py-3 shadow-sm" aria-label="{{ 'sections.quick_category_bar.name' | t }}">
+<section class="morbeez-section morbeez-section--tight !py-4" id="MorbeezQuickCategories-{{ section.id }}" aria-label="{{ 'sections.quick_category_bar.name' | t }}">
   <div class="morbeez-container">
-    <div class="flex gap-2 overflow-x-auto pb-1 scrollbar-thin" role="list">
+    <div class="morbeez-icon-chip-grid" role="list">
       {%- if section.blocks.size > 0 -%}
         {%- for block in section.blocks -%}
-          <a
-            href="{{ block.settings.url | default: '#' }}"
-            class="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-xs font-semibold text-[var(--color-trust)] transition hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] sm:text-sm"
-            {{ block.shopify_attributes }}
-          >
-            {%- if block.settings.icon != blank -%}
-              {{ block.settings.icon | image_url: width: 32 | image_tag: class: 'h-6 w-6 rounded-full object-cover' }}
+          {%- capture chip_url -%}
+            {%- render 'morbeez-safe-collection-url',
+              collection: block.settings.collection,
+              url: block.settings.url,
+              label: block.settings.label,
+              fallback: 'search'
+            -%}
+          {%- endcapture -%}
+          {%- assign chip_url = chip_url | strip -%}
+          {%- assign chip_label = block.settings.label -%}
+          {%- if block.settings.collection != blank and chip_label == blank -%}
+            {%- assign chip_label = block.settings.collection.title -%}
+          {%- endif -%}
+          {%- assign chip_image = block.settings.icon -%}
+          {%- assign chip_emoji = block.settings.emoji -%}
+          {%- assign is_more = false -%}
+          {%- assign label_down = chip_label | downcase -%}
+          {%- if label_down contains 'shop all' or label_down contains 'view all' or label_down contains 'more' -%}
+            {%- assign is_more = true -%}
+          {%- endif -%}
+
+          <div class="morbeez-icon-chip-grid__item" role="listitem" {{ block.shopify_attributes }}>
+            {%- if is_more -%}
+              <a href="{{ chip_url }}" class="morbeez-icon-chip morbeez-icon-chip--more group">
+                <span class="morbeez-icon-chip__circle morbeez-icon-chip__circle--more" aria-hidden="true">
+                  <span class="morbeez-icon-chip__plus">+</span>
+                </span>
+                <span class="morbeez-icon-chip__label">{{ chip_label }}</span>
+              </a>
             {%- else -%}
-              {%- render 'morbeez-icon', name: 'leaf', class: 'h-4 w-4 text-[var(--color-primary)]' -%}
+              {%- render 'morbeez-icon-chip',
+                image: chip_image,
+                icon: chip_emoji,
+                title: chip_label,
+                url: chip_url
+              -%}
             {%- endif -%}
-            {{ block.settings.label }}
-          </a>
+          </div>
         {%- endfor -%}
       {%- else -%}
-        {%- assign quick_collections = 'bio-fertilizers,bio-pesticides,organic-inputs,plant-growth-regulators,micronutrients' | split: ',' -%}
+        {%- assign quick_collections = 'bio-fertilizers,bio-pesticides,organic-inputs,micronutrients' | split: ',' -%}
+        {%- assign quick_emojis = '🌱,🛡️,🍃,⚗️' | split: ',' -%}
         {%- for handle in quick_collections -%}
           {%- assign coll = collections[handle] -%}
           {%- if coll != blank -%}
-            <a href="{{ coll.url }}" class="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-border)] px-4 py-2 text-xs font-semibold hover:border-[var(--color-primary)] sm:text-sm">
-              {%- render 'morbeez-icon', name: 'leaf', class: 'h-4 w-4 text-[var(--color-primary)]' -%}
-              {{ coll.title }}
-            </a>
+            <div class="morbeez-icon-chip-grid__item" role="listitem">
+              {%- render 'morbeez-icon-chip',
+                image: coll.image,
+                icon: quick_emojis[forloop.index0],
+                title: coll.title,
+                url: coll.url
+              -%}
+            </div>
           {%- endif -%}
         {%- endfor -%}
-        <a href="{{ routes.all_products_collection_url }}" class="inline-flex shrink-0 items-center rounded-full bg-[var(--color-primary)] px-4 py-2 text-xs font-semibold text-white sm:text-sm">
-          {{ 'general.view_all' | t }} →
-        </a>
+        <div class="morbeez-icon-chip-grid__item" role="listitem">
+          <a href="{{ routes.all_products_collection_url }}" class="morbeez-icon-chip morbeez-icon-chip--more group">
+            <span class="morbeez-icon-chip__circle morbeez-icon-chip__circle--more" aria-hidden="true">
+              <span class="morbeez-icon-chip__plus">+</span>
+            </span>
+            <span class="morbeez-icon-chip__label">Shop All</span>
+          </a>
+        </div>
       {%- endif -%}
     </div>
   </div>
@@ -38,6 +74,8 @@
 {% schema %}
 {
   "name": "t:sections.quick_category_bar.name",
+  "tag": "section",
+  "max_blocks": 12,
   "settings": [],
   "blocks": [
     {
@@ -45,7 +83,9 @@
       "name": "t:sections.quick_category_bar.blocks.chip.name",
       "settings": [
         { "type": "text", "id": "label", "label": "t:sections.quick_category_bar.blocks.chip.settings.label", "default": "Category" },
-        { "type": "url", "id": "url", "label": "t:sections.quick_category_bar.blocks.chip.settings.url" },
+        { "type": "text", "id": "emoji", "label": "Emoji icon", "default": "🌿" },
+        { "type": "collection", "id": "collection", "label": "Collection" },
+        { "type": "url", "id": "url", "label": "t:sections.quick_category_bar.blocks.chip.settings.url", "info": "Used only if no collection is selected. Missing collections fall back to product search." },
         { "type": "image_picker", "id": "icon", "label": "t:sections.quick_category_bar.blocks.chip.settings.icon" }
       ]
     }
@@ -54,9 +94,10 @@
     {
       "name": "t:sections.quick_category_bar.presets.default",
       "blocks": [
-        { "type": "chip", "settings": { "label": "Bio Fertilizers", "url": "/collections/bio-fertilizers" } },
-        { "type": "chip", "settings": { "label": "Bio Pesticides", "url": "/collections/bio-pesticides" } },
-        { "type": "chip", "settings": { "label": "Organic Inputs", "url": "/collections/organic-inputs" } },
+        { "type": "chip", "settings": { "label": "Bio Fertilizers", "emoji": "🌱", "url": "/collections/bio-fertilizers" } },
+        { "type": "chip", "settings": { "label": "Bio Pesticides", "emoji": "🛡️", "url": "/collections/bio-pesticides" } },
+        { "type": "chip", "settings": { "label": "Organic Inputs", "emoji": "🍃", "url": "/collections/organic-inputs" } },
+        { "type": "chip", "settings": { "label": "Micronutrients", "emoji": "⚗️", "url": "/collections/micronutrients" } },
         { "type": "chip", "settings": { "label": "Shop All", "url": "/collections/all" } }
       ]
     }

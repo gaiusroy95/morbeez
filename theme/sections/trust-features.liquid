@@ -1,9 +1,9 @@
-<section class="border-y border-[var(--color-border)] bg-white" id="MorbeezTrust-{{ section.id }}">
-  <div class="morbeez-container py-6 md:py-8">
-    <div class="grid grid-cols-2 gap-6 md:grid-cols-4 md:gap-8">
+<section class="morbeez-trust" id="MorbeezTrust-{{ section.id }}">
+  <div class="morbeez-container">
+    <div class="morbeez-trust__card">
       {%- for block in section.blocks -%}
-        <div class="flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left md:flex-col md:items-center md:text-center lg:flex-row lg:items-start lg:text-left" {{ block.shopify_attributes }}>
-          <span class="mb-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--color-primary)]/10 text-[var(--color-primary)] sm:mb-0 sm:mr-3 md:mb-3 md:mr-0 lg:mb-0 lg:mr-3">
+        <div class="morbeez-trust__item" {{ block.shopify_attributes }}>
+          <span class="morbeez-trust__icon" aria-hidden="true">
             {%- case block.settings.icon -%}
               {%- when 'truck' -%}
                 {%- render 'morbeez-icon', name: 'truck', class: 'h-6 w-6' -%}
@@ -15,10 +15,8 @@
                 {%- render 'morbeez-icon', name: 'leaf', class: 'h-6 w-6' -%}
             {%- endcase -%}
           </span>
-          <div>
-            <p class="text-sm font-bold text-[var(--color-trust)]">{{ block.settings.title }}</p>
-            <p class="mt-1 text-xs leading-relaxed text-[var(--color-muted)]">{{ block.settings.text }}</p>
-          </div>
+          <p class="morbeez-trust__title">{{ block.settings.title }}</p>
+          <p class="morbeez-trust__text">{{ block.settings.text }}</p>
         </div>
       {%- endfor -%}
     </div>
@@ -56,10 +54,10 @@
     {
       "name": "t:sections.trust_features.presets.default",
       "blocks": [
-        { "type": "feature", "settings": { "icon": "truck", "title": "Fast delivery", "text": "Reliable shipping across India" } },
-        { "type": "feature", "settings": { "icon": "shield", "title": "Quality assured", "text": "Science-backed formulations" } },
-        { "type": "feature", "settings": { "icon": "support", "title": "Expert support", "text": "Crop advisory on WhatsApp" } },
-        { "type": "feature", "settings": { "icon": "leaf", "title": "Farmer-first", "text": "Trusted by growers nationwide" } }
+        { "type": "feature", "settings": { "icon": "truck", "title": "Fast Delivery", "text": "Reliable shipping across India" } },
+        { "type": "feature", "settings": { "icon": "shield", "title": "Quality Assured", "text": "Tested & science-backed products" } },
+        { "type": "feature", "settings": { "icon": "support", "title": "Expert Support", "text": "WhatsApp advisory by agronomists" } },
+        { "type": "feature", "settings": { "icon": "leaf", "title": "Farmer First", "text": "Solutions designed for real field results" } }
       ]
     }
   ]

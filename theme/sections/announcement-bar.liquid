@@ -1,19 +1,38 @@
-{%- if section.settings.message != blank -%}
+{%- liquid
+  assign heading = section.settings.heading | default: section.settings.message
+  assign subheading = section.settings.subheading
+  assign cta_label = section.settings.cta_label | default: 'Chat Now'
+  assign wa_phone = settings.whatsapp_phone | default: '917676026318'
+-%}
+{%- if heading != blank -%}
+  {%- capture wa_href -%}
+    {%- render 'morbeez-whatsapp-url', phone_raw: wa_phone, message_raw: settings.whatsapp_message -%}
+  {%- endcapture -%}
+  {%- assign cta_href = section.settings.link | default: wa_href | strip -%}
   <div
-    class="relative overflow-hidden px-4 py-2.5 text-center text-sm font-medium text-white"
-    style="background: var(--gradient-brand);"
+    class="morbeez-announce"
     role="region"
     aria-label="{{ 'sections.announcement.name' | t }}"
   >
-    <div class="pointer-events-none absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=\"60\" height=\"60\" viewBox=\"0 0 60 60\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cg fill=\"none\" fill-rule=\"evenodd\"%3E%3Cg fill=\"%23ffffff\" fill-opacity=\"0.04\"%3E%3Cpath d=\"M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-50" aria-hidden="true"></div>
-    <div class="relative">
-      {%- if section.settings.link != blank -%}
-        <a href="{{ section.settings.link }}" class="inline-flex items-center justify-center gap-2 hover:underline">
-          {{ section.settings.message }}
-          {%- render 'morbeez-icon', name: 'arrow-right', class: 'h-4 w-4' -%}
+    <div class="morbeez-announce__inner">
+      <span class="morbeez-announce__icon" aria-hidden="true">
+        {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-5 w-5' -%}
+      </span>
+      <div class="morbeez-announce__copy">
+        <p class="morbeez-announce__title">{{ heading }}</p>
+        {%- if subheading != blank -%}
+          <p class="morbeez-announce__sub">{{ subheading }}</p>
+        {%- endif -%}
+      </div>
+      {%- if cta_href != blank -%}
+        <a
+          href="{{ cta_href }}"
+          class="morbeez-announce__cta"
+          {%- if cta_href contains 'wa.me' %} target="_blank" rel="noopener noreferrer"{% endif -%}
+        >
+          {{ cta_label }}
+          {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-3.5 w-3.5' -%}
         </a>
-      {%- else -%}
-        {{ section.settings.message }}
       {%- endif -%}
     </div>
   </div>
@@ -25,11 +44,24 @@
   "settings": [
     {
       "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Free crop advisory on WhatsApp"
+    },
+    {
+      "type": "text",
+      "id": "subheading",
+      "label": "Subheading",
+      "default": "Send crop photo • Get expert advice"
+    },
+    {
+      "type": "text",
       "id": "message",
       "label": "t:sections.announcement.settings.message",
-      "default": "Free crop advisory on WhatsApp — expert-backed support for every farmer"
+      "info": "Fallback if heading is empty."
     },
-    { "type": "url", "id": "link", "label": "t:sections.announcement.settings.link" }
+    { "type": "text", "id": "cta_label", "label": "Button label", "default": "Chat Now" },
+    { "type": "url", "id": "link", "label": "t:sections.announcement.settings.link", "info": "Leave blank to open WhatsApp." }
   ]
 }
 {% endschema %}

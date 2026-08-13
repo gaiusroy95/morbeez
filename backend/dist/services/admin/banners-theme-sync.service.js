@@ -3,6 +3,7 @@ import { AppError } from '../../lib/errors.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { supabase } from '../../lib/supabase.js';
 import { parseHeroTitle, relativeStorefrontPath } from './banners-hero-title.util.js';
+import { resolveBannerSize } from './banners-size.util.js';
 import { shopifyAdmin } from '../shopify/shopify.client.js';
 function storefrontUrl(path) {
     const base = (env.SHOPIFY_STOREFRONT_URL ?? `https://${env.SHOPIFY_STORE_DOMAIN}`).replace(/\/$/, '');
@@ -144,6 +145,10 @@ async function listActiveBanners() {
 }
 function buildHeroSlideSettings(banner) {
     const headings = parseHeroTitle(banner.title);
+    const size = resolveBannerSize({
+        sizeWidth: banner.size_width ?? undefined,
+        sizeHeight: banner.size_height ?? undefined,
+    });
     const settings = {
         eyebrow: banner.badge?.trim() || undefined,
         ...headings,
@@ -151,6 +156,8 @@ function buildHeroSlideSettings(banner) {
         overlay: 45,
         button_label: banner.cta_label?.trim() || 'Shop now',
         button_url: relativeStorefrontPath(banner.cta_url),
+        banner_width: size.width,
+        banner_height: size.height,
     };
     const image = banner.image_url?.trim();
     if (image)
@@ -202,6 +209,10 @@ export const bannersThemeSyncService = {
         if (heroSectionId && template.sections?.[heroSectionId]) {
             const blocks = {};
             const blockOrder = [];
+            const sectionSize = resolveBannerSize({
+                sizeWidth: heroBanners[0]?.size_width ?? undefined,
+                sizeHeight: heroBanners[0]?.size_height ?? undefined,
+            });
             for (let i = 0; i < heroBanners.length; i++) {
                 const banner = heroBanners[i];
                 const blockId = `staff_slide_${i + 1}`;
@@ -215,10 +226,19 @@ export const bannersThemeSyncService = {
                 ...template.sections[heroSectionId],
                 blocks,
                 block_order: blockOrder,
+                settings: {
+                    ...(template.sections[heroSectionId].settings ?? {}),
+                    banner_width: sectionSize.width,
+                    banner_height: sectionSize.height,
+                },
             };
         }
         const seasonalSectionId = findSeasonalSectionId(template);
         if (promoBanner && seasonalSectionId && template.sections?.[seasonalSectionId]) {
+            const promoSize = resolveBannerSize({
+                sizeWidth: promoBanner.size_width ?? undefined,
+                sizeHeight: promoBanner.size_height ?? undefined,
+            });
             const seasonalSettings = {
                 ...(template.sections[seasonalSectionId].settings ?? {}),
                 badge: promoBanner.badge?.trim() || undefined,
@@ -226,6 +246,8 @@ export const bannersThemeSyncService = {
                 text: promoBanner.description?.trim() || undefined,
                 cta_label: promoBanner.cta_label?.trim() || 'Shop now',
                 cta_url: relativeStorefrontPath(promoBanner.cta_url),
+                banner_width: promoSize.width,
+                banner_height: promoSize.height,
             };
             const image = promoBanner.image_url?.trim();
             if (image)

@@ -208,6 +208,9 @@ const bannerCreateSchema = z.object({
     ctaLabel: z.string().max(60).optional(),
     ctaUrl: z.string().max(500).optional(),
     placement: z.enum(['home_hero', 'collection_top', 'promo_strip']).optional(),
+    size: z.string().regex(/^\d{3,4}x\d{2,4}$/).optional(),
+    sizeWidth: z.number().int().min(320).max(3840).optional(),
+    sizeHeight: z.number().int().min(120).max(2160).optional(),
     startsAt: z.string().min(1),
     endsAt: z.string().min(1),
     sortOrder: z.number().int().min(0).max(999).optional(),
@@ -761,6 +764,7 @@ export async function adminRoutes(app) {
             ...body,
             imageUrl: body.imageUrl || undefined,
             ctaUrl: body.ctaUrl || undefined,
+            size: body.size || undefined,
         });
         const shopifySync = await syncBannersToShopify();
         return reply.status(201).send({ ok: true, banner, shopifySync });
@@ -773,6 +777,7 @@ export async function adminRoutes(app) {
             ...body,
             imageUrl: body.imageUrl || undefined,
             ctaUrl: body.ctaUrl || undefined,
+            size: body.size || undefined,
         });
         const shopifySync = await syncBannersToShopify();
         return reply.send({ ok: true, banner, shopifySync });

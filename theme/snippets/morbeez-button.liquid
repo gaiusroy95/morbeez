@@ -13,8 +13,8 @@
   endif
 -%}
 <a href="{{ url }}" class="{{ btn_class }} {{ class }}" {{ attributes }}>
-  {%- if btn_style == 'whatsapp' -%}
-    {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-5 w-5' -%}
+  {%- if btn_style == 'whatsapp' or show_whatsapp -%}
+    {%- render 'morbeez-icon', name: 'whatsapp', class: 'h-4 w-4 sm:h-5 sm:w-5' -%}
   {%- endif -%}
   <span>{{ label }}</span>
   {%- if show_arrow -%}

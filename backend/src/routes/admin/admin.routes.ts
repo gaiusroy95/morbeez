@@ -238,6 +238,7 @@ const bannerCreateSchema = z.object({
   badge: z.string().max(80).optional(),
   description: z.string().max(600).optional(),
   imageUrl: z.string().max(2000).optional(),
+  imageUrlMobile: z.string().max(2000).optional(),
   ctaLabel: z.string().max(60).optional(),
   ctaUrl: z.string().max(500).optional(),
   placement: z.enum(['home_hero', 'collection_top', 'promo_strip']).optional(),
@@ -876,7 +877,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const body = bannerCreateSchema.parse(request.body);
     const banner = await bannersAdminService.create({
       ...body,
-      imageUrl: body.imageUrl || undefined,
+      imageUrl: body.imageUrl,
+      imageUrlMobile: body.imageUrlMobile,
       ctaUrl: body.ctaUrl || undefined,
     });
     const shopifySync = await syncBannersToShopify();
@@ -889,7 +891,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     const body = bannerUpdateSchema.parse(request.body);
     const banner = await bannersAdminService.update(id, {
       ...body,
-      imageUrl: body.imageUrl || undefined,
+      imageUrl: body.imageUrl,
+      imageUrlMobile: body.imageUrlMobile,
       ctaUrl: body.ctaUrl || undefined,
     });
     const shopifySync = await syncBannersToShopify();

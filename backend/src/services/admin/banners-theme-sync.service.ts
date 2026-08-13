@@ -23,6 +23,8 @@ type ImportRow = {
   title: string;
   badge?: string;
   description?: string;
+  imageUrl?: string;
+  imageUrlMobile?: string;
   ctaLabel: string;
   ctaUrl?: string;
   placement: 'home_hero' | 'collection_top' | 'promo_strip';
@@ -37,6 +39,7 @@ type BannerRow = {
   badge: string | null;
   description: string | null;
   image_url: string | null;
+  image_url_mobile: string | null;
   cta_label: string | null;
   cta_url: string | null;
   placement: string;
@@ -124,6 +127,8 @@ function collectImports(template: IndexTemplate): ImportRow[] {
           title: slideTitle(settings),
           badge: settings.eyebrow ? String(settings.eyebrow) : undefined,
           description: settings.subheading ? String(settings.subheading) : undefined,
+          imageUrl: settings.image_url ? String(settings.image_url) : undefined,
+          imageUrlMobile: settings.image_url_mobile ? String(settings.image_url_mobile) : undefined,
           ctaLabel: String(settings.button_label ?? 'Shop now'),
           ctaUrl: settings.button_url ? storefrontUrl(String(settings.button_url)) : undefined,
           placement: 'home_hero',
@@ -161,7 +166,7 @@ async function upsertImport(row: ImportRow): Promise<'created' | 'updated'> {
     .maybeSingle();
   throwIfSupabaseError(findErr, 'Could not look up banner');
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     title: row.title.trim(),
     badge: row.badge?.trim() || null,
     description: row.description?.trim() || null,
@@ -175,6 +180,8 @@ async function upsertImport(row: ImportRow): Promise<'created' | 'updated'> {
     source_ref: row.sourceRef,
     updated_at: new Date().toISOString(),
   };
+  if (row.imageUrl?.trim()) payload.image_url = row.imageUrl.trim();
+  if (row.imageUrlMobile?.trim()) payload.image_url_mobile = row.imageUrlMobile.trim();
 
   if (existing?.id) {
     const { error } = await supabase.from('commerce_banners').update(payload).eq('id', existing.id);
@@ -210,7 +217,13 @@ function buildHeroSlideSettings(banner: BannerRow): Record<string, unknown> {
   };
 
   const image = banner.image_url?.trim();
-  if (image) settings.image_url = image;
+  if (image) {
+    settings.image_url = image;
+  }
+  const mobile = banner.image_url_mobile?.trim();
+  if (mobile) {
+    settings.image_url_mobile = mobile;
+  }
   return settings;
 }
 

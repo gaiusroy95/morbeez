@@ -19,7 +19,9 @@
           "announcement": {
             "type": "announcement-bar",
             "settings": {
-              "message": "Free crop advisory on WhatsApp — connect with Morbeez experts"
+              "heading": "Free crop advisory on WhatsApp",
+              "subheading": "Send crop photo • Get expert advice",
+              "cta_label": "Chat Now"
             }
           },
           "header": {

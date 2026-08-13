@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
+import { formatBannerSize, resolveBannerSize } from './banners-size.util.js';
 function resolveStatus(startsAt, endsAt, active) {
     if (!active)
         return 'inactive';
@@ -31,6 +32,10 @@ function placementLabel(p) {
 }
 function mapBanner(row) {
     const status = resolveStatus(row.starts_at, row.ends_at, row.active);
+    const size = resolveBannerSize({
+        sizeWidth: row.size_width ?? undefined,
+        sizeHeight: row.size_height ?? undefined,
+    });
     return {
         id: row.id,
         title: row.title,
@@ -41,6 +46,9 @@ function mapBanner(row) {
         ctaUrl: row.cta_url,
         placement: row.placement,
         placementLabel: placementLabel(row.placement),
+        size: size.size,
+        sizeWidth: size.width,
+        sizeHeight: size.height,
         startsAt: row.starts_at,
         endsAt: row.ends_at,
         schedule: formatSchedule(row.starts_at, row.ends_at),
@@ -91,6 +99,11 @@ export const bannersAdminService = {
         if (new Date(input.endsAt) <= new Date(input.startsAt)) {
             throw new ValidationError('End date must be after start date');
         }
+        const size = resolveBannerSize({
+            size: input.size,
+            sizeWidth: input.sizeWidth,
+            sizeHeight: input.sizeHeight,
+        });
         const { data, error } = await supabase
             .from('commerce_banners')
             .insert({
@@ -101,6 +114,8 @@ export const bannersAdminService = {
             cta_label: input.ctaLabel?.trim() || 'Shop now',
             cta_url: input.ctaUrl?.trim() || null,
             placement: input.placement ?? 'home_hero',
+            size_width: size.width,
+            size_height: size.height,
             starts_at: input.startsAt,
             ends_at: input.endsAt,
             sort_order: input.sortOrder ?? 0,
@@ -141,6 +156,15 @@ export const bannersAdminService = {
             patch.sort_order = input.sortOrder;
         if (input.active != null)
             patch.active = input.active;
+        if (input.size != null || input.sizeWidth != null || input.sizeHeight != null) {
+            const size = resolveBannerSize({
+                size: input.size ?? formatBannerSize(existing.sizeWidth, existing.sizeHeight),
+                sizeWidth: input.sizeWidth,
+                sizeHeight: input.sizeHeight,
+            });
+            patch.size_width = size.width;
+            patch.size_height = size.height;
+        }
         const { data, error } = await supabase
             .from('commerce_banners')
             .update(patch)

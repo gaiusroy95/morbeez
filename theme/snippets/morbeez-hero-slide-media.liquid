@@ -1,0 +1,64 @@
+{% comment %}
+  Hero slide image — desktop and optional dedicated mobile art (never squeeze desktop on phones).
+{% endcomment %}
+{%- liquid
+  assign alt_text = alt | default: 'Hero banner'
+  assign desktop_url = image_url | strip
+  assign mobile_url = image_url_mobile | strip
+  assign eager_attr = 'lazy'
+  if eager
+    assign eager_attr = 'eager'
+  endif
+
+  assign desktop_w = image.width | default: 0
+  assign desktop_h = image.height | default: 0
+  assign mobile_w = image_mobile.width | default: 0
+  assign mobile_h = image_mobile.height | default: 0
+
+  if image != blank and desktop_url == blank
+    assign desktop_url = image | image_url: width: 3840
+  endif
+  if image_mobile != blank and mobile_url == blank
+    assign mobile_url = image_mobile | image_url: width: 1600
+  endif
+
+  assign has_separate_mobile = false
+  if mobile_url != blank and mobile_url != desktop_url
+    assign has_separate_mobile = true
+  endif
+-%}
+
+{%- if desktop_url != blank or mobile_url != blank -%}
+  <picture class="morbeez-hero-carousel__media block w-full leading-none{% if has_separate_mobile %} morbeez-hero-carousel__media--split{% endif %}">
+    {%- if has_separate_mobile -%}
+      <source
+        media="(max-width: 767px)"
+        srcset="{{ mobile_url | escape }}"
+        {% if mobile_w > 0 and mobile_h > 0 %}data-width="{{ mobile_w }}" data-height="{{ mobile_h }}"{% endif %}
+      >
+    {%- endif -%}
+    <img
+      src="{{ desktop_url | default: mobile_url | escape }}"
+      alt="{{ alt_text | escape }}"
+      class="morbeez-hero-carousel__img block h-auto w-full max-w-full"
+      loading="{{ eager_attr }}"
+      {% if eager %}fetchpriority="high"{% endif %}
+      {% if desktop_w > 0 and desktop_h > 0 %}width="{{ desktop_w }}" height="{{ desktop_h }}"{% endif %}
+      sizes="100vw"
+      decoding="async"
+    >
+  </picture>
+{%- elsif image != blank -%}
+  <img
+    src="{{ image | image_url: width: 3840 }}"
+    alt="{{ alt_text | escape }}"
+    class="morbeez-hero-carousel__img block h-auto w-full max-w-full"
+    loading="{{ eager_attr }}"
+    {% if eager %}fetchpriority="high"{% endif %}
+    {% if desktop_w > 0 and desktop_h > 0 %}width="{{ desktop_w }}" height="{{ desktop_h }}"{% endif %}
+    sizes="100vw"
+    decoding="async"
+  >
+{%- else -%}
+  <div class="morbeez-hero-carousel__fallback" aria-hidden="true"></div>
+{%- endif -%}

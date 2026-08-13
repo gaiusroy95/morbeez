@@ -650,6 +650,12 @@
   }
 }
 
+@media (min-width: 640px) {
+  .morbeez-hero-carousel__img {
+    aspect-ratio: 1.8;
+  }
+}
+
 .fa-modal-header {
   display: flex;
   align-items: center;
