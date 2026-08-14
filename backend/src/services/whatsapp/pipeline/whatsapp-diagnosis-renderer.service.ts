@@ -1,6 +1,7 @@
 import type { AdvisoryLanguage, StructuredAdvisory } from '../../ai/types.js';
 import { diagnosisLabelsMatch } from '../../maios-reasoning/diagnosis-fusion.service.js';
 import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
+import { hasUsableCropPhotoEvidence } from './crop-photo-evidence.util.js';
 
 type SectionLabels = {
   whatISee: string;
@@ -114,7 +115,7 @@ export type RenderDiagnosisInput = {
 };
 
 function hasImageEvidence(advisory: StructuredAdvisory): boolean {
-  return Boolean(advisory.imageObservations?.length);
+  return hasUsableCropPhotoEvidence(advisory.imageObservations);
 }
 
 function hasRichSections(advisory: StructuredAdvisory): boolean {

@@ -22,6 +22,8 @@ type Rule = {
   phases?: SeasonPhase[];
   requiresHeavyRain?: boolean;
   requiresHighHumidity?: boolean;
+  /** When true, weather alone must not fire this prior — farmer/photo symptoms required. */
+  requiresSymptomMatch?: boolean;
   symptomHints?: RegExp;
   reasoningEn: string;
 };
@@ -65,13 +67,19 @@ const RULES: Rule[] = [
     spreadMode: 'airborne',
     minScore: 48,
     requiresHighHumidity: true,
-    symptomHints: /spot|anthracnose|fungus|blight|circular/i,
+    // Never invent anthracnose from humidity alone — needs lesion wording from farmer/photo.
+    requiresSymptomMatch: true,
+    symptomHints: /\banthracnose\b|\bcolletotrichum\b|\bcircular\s+spot|\bdark\s+margin|\bspore\s+mass/i,
     reasoningEn:
-      'Warm humid weather supports airborne fungal leaf spots.',
+      'Warm humid weather can support fungal leaf spots when discrete lesions are present.',
   },
 ];
 
 function scoreRule(rule: Rule, ctx: EnvSignals, symptomsText?: string): number {
+  const text = symptomsText?.trim() ?? '';
+  const symptomHit = Boolean(text && rule.symptomHints?.test(text));
+  if (rule.requiresSymptomMatch && !symptomHit) return 0;
+
   let score = 0;
   if (rule.phases?.length && ctx.seasonPhase && rule.phases.includes(ctx.seasonPhase)) {
     score += 25;
@@ -79,7 +87,7 @@ function scoreRule(rule: Rule, ctx: EnvSignals, symptomsText?: string): number {
   if (rule.requiresHeavyRain && ctx.heavyRainLikely) score += 30;
   if (rule.requiresHighHumidity && ctx.highHumidityLikely) score += 28;
   if (ctx.weatherRiskScore >= 60) score += 15;
-  if (symptomsText && rule.symptomHints?.test(symptomsText)) score += 35;
+  if (symptomHit) score += 35;
   if (!rule.phases && ctx.seasonPhase === 'monsoon') score += 10;
   return score;
 }

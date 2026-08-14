@@ -63,7 +63,7 @@
         {%- if pdp_benefit != blank -%}
           <p class="mt-1 text-sm text-[var(--color-muted)]">{{ pdp_benefit }}</p>
         {%- endif -%}
-        {%- render 'morbeez-rating-stars', product: product, class: 'mt-2' -%}
+        {%- render 'morbeez-rating-stars', product: product, class: 'mt-2', show_link: true -%}
 
         {%- if product.metafields.morbeez.target_crops.value.size > 0 -%}
           <div class="mt-3 flex flex-wrap gap-2">

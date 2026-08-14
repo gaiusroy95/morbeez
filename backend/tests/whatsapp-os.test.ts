@@ -20,9 +20,10 @@ describe('input classifier', () => {
     assert.equal(r.category, 'weed');
   });
 
-  it('defaults media-only to disease_stress', () => {
+  it('defaults media-only to unknown until vision confirms crop symptoms', () => {
     const r = inputClassifierService.classifyText('', { hasCropMedia: true });
-    assert.equal(r.category, 'disease_stress');
+    assert.equal(r.category, 'unknown_low_conf');
+    assert.ok(r.signals.includes('media_only'));
   });
 });
 
@@ -66,6 +67,30 @@ describe('assessment playbook', () => {
     const classification = inputClassifierService.classifyText('leaf blight fungal spots on ginger');
     const result = assessmentPlaybookService.resolve(classification, 'en', { hasCropMedia: true });
     assert.equal(result.action, 'continue_diagnosis');
+  });
+
+  it('refuses diagnosis for unknown / non-crop photos', () => {
+    const result = assessmentPlaybookService.resolve(
+      { category: 'unknown_low_conf', confidence: 0.7, signals: ['vision'] },
+      'en',
+      { hasCropMedia: true }
+    );
+    assert.equal(result.action, 'reply');
+    if (result.action === 'reply') {
+      assert.match(result.message, /crop|leaf|photo/i);
+    }
+  });
+
+  it('refuses diagnosis for fertilizer / cultivation bag photos', () => {
+    const result = assessmentPlaybookService.resolve(
+      { category: 'cultivation', confidence: 0.8, signals: ['vision'] },
+      'en',
+      { hasCropMedia: true }
+    );
+    assert.equal(result.action, 'reply');
+    if (result.action === 'reply') {
+      assert.match(result.message, /bag|product|fertilizer|leaf/i);
+    }
   });
 });
 

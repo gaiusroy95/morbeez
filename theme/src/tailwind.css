@@ -190,6 +190,34 @@
     @apply text-xs text-[var(--color-muted)] sm:text-sm;
   }
 
+  .morbeez-rating {
+    @apply flex items-center gap-1.5;
+  }
+
+  .morbeez-rating__stars {
+    @apply flex items-center gap-0.5 text-amber-400;
+  }
+
+  .morbeez-rating__star {
+    @apply h-4 w-4 text-gray-200;
+  }
+
+  .morbeez-rating__star.is-filled {
+    @apply text-amber-400;
+  }
+
+  .morbeez-rating__star.is-muted {
+    @apply text-amber-300;
+  }
+
+  .morbeez-rating__count {
+    @apply text-xs font-medium text-[var(--color-primary)] no-underline;
+  }
+
+  .morbeez-rating__count:hover {
+    @apply underline;
+  }
+
   .morbeez-card:hover {
     box-shadow: var(--shadow-lg);
     @apply -translate-y-1;

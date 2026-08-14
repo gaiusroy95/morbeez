@@ -46,6 +46,23 @@ describe('disease–weather rules', () => {
     assert.ok(priors.some((p) => /pyricularia|blast/i.test(p.issueLabel)));
   });
 
+  it('does not invent anthracnose from humidity alone', () => {
+    const priors = diseaseWeatherRulesService.evaluate({
+      cropType: 'ginger',
+      env: {
+        seasonPhase: 'monsoon',
+        heavyRainLikely: false,
+        highHumidityLikely: true,
+        weatherRiskScore: 70,
+      },
+      symptomsText: 'leaves yellowing after fertilizer',
+    });
+    assert.equal(
+      priors.some((p) => /anthracnose/i.test(p.issueLabel)),
+      false
+    );
+  });
+
   it('monsoon detected in July', () => {
     const july = new Date('2026-07-15T12:00:00+05:30');
     assert.equal(seasonalPriorityService.currentPhase(july), 'monsoon');

@@ -504,4 +504,81 @@
     root.addEventListener('mouseleave', startAutoplay);
     startAutoplay();
   });
+
+  /* Product rating — hydrate from farmer reviews API when metafields are empty */
+  function paintRating(root, average, count) {
+    if (!root) return;
+    var stars = root.querySelector('[data-rating-stars]');
+    var countEl = root.querySelector('[data-rating-count]');
+    var filled = Math.round(Number(average) || 0);
+    if (stars) {
+      var icons = stars.querySelectorAll('.morbeez-rating__star');
+      icons.forEach(function (star, i) {
+        star.classList.toggle('is-filled', i < filled);
+        star.classList.remove('is-muted');
+      });
+    }
+    if (countEl) {
+      var n = Number(count) || 0;
+      if (root.getAttribute('data-link-reviews') === 'true') {
+        countEl.textContent = n > 0 ? '(' + n + ' reviews)' : '(Be the first to review)';
+      } else {
+        countEl.textContent = n > 0 ? '(' + n + ')' : '';
+      }
+    }
+    root.setAttribute(
+      'aria-label',
+      (Number(average) || 0) + ' out of 5' + (count ? ', ' + count + ' reviews' : '')
+    );
+  }
+
+  function loadProductRatings() {
+    var roots = document.querySelectorAll('[data-morbeez-rating]');
+    if (!roots.length) return;
+    var apiBase =
+      (window.MORBEEZ_AUTH && window.MORBEEZ_AUTH.apiBase) ||
+      (window.MORBEEZ_PORTAL && window.MORBEEZ_PORTAL.apiBase) ||
+      '';
+    if (!apiBase) return;
+
+    var byProduct = {};
+    roots.forEach(function (root) {
+      var id = root.getAttribute('data-product-id');
+      if (!id) return;
+      if (!byProduct[id]) byProduct[id] = [];
+      byProduct[id].push(root);
+    });
+
+    Object.keys(byProduct).forEach(function (productId) {
+      var targets = byProduct[productId].filter(function (root) {
+        return root.getAttribute('data-has-meta') !== 'true';
+      });
+      if (!targets.length) return;
+      fetch(
+        apiBase.replace(/\/$/, '') +
+          '/api/v1/store/product-reviews?productId=' +
+          encodeURIComponent(productId)
+      )
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          var avg = data.averageRating || 0;
+          var count = data.reviewCount || 0;
+          if (count < 1) {
+            targets.forEach(function (root) {
+              paintRating(root, 0, 0);
+            });
+            return;
+          }
+          targets.forEach(function (root) {
+            paintRating(root, avg, count);
+          });
+        })
+        .catch(function () {});
+    });
+  }
+
+  loadProductRatings();
 })();

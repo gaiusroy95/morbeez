@@ -65,33 +65,63 @@ function formatField(value: unknown): string {
   return String(value);
 }
 
+/** Omit empty / unresolved placeholders so WhatsApp never shows `| — | block —`. */
+function draftParts(...parts: Array<string | null | undefined>): string {
+  return parts
+    .map((p) => (p == null ? '' : String(p).trim()))
+    .filter((p) => p && p !== '—' && !/^block\s*—$/i.test(p))
+    .join(' | ');
+}
+
 function summarizeDraft(draft: FarmActivityAssistantDraftV1, lang: AdvisoryLanguage): string {
   const lines: string[] = [];
   for (const event of draft.subEvents) {
     if (event.kind === 'activity') {
-      lines.push(
-        `• Activity: ${formatField(event.activityType.value)} | ${formatField(event.occurredOn.value)} | block ${formatField(event.blockRef.value)}`
+      const body = draftParts(
+        formatField(event.activityType.value),
+        formatField(event.description.value),
+        formatField(event.occurredOn.value),
+        event.blockRef.value != null && String(event.blockRef.value).trim()
+          ? `block ${formatField(event.blockRef.value)}`
+          : null
       );
+      if (body) lines.push(`• Activity: ${body}`);
     } else if (event.kind === 'labour') {
-      lines.push(
-        `• Labour: ${formatField(event.workType.value)} | ${formatField(event.totalCost.value)} | ${formatField(event.occurredOn.value)}`
+      const body = draftParts(
+        formatField(event.workType.value),
+        formatField(event.totalCost.value),
+        formatField(event.occurredOn.value)
       );
+      if (body) lines.push(`• Labour: ${body}`);
     } else if (event.kind === 'purchase') {
-      lines.push(
-        `• Purchase: ${formatField(event.itemName.value)} | ${formatField(event.totalCost.value)} | ${formatField(event.occurredOn.value)}`
+      const body = draftParts(
+        formatField(event.itemName.value),
+        formatField(event.totalCost.value),
+        formatField(event.occurredOn.value)
       );
+      if (body) lines.push(`• Purchase: ${body}`);
     } else if (event.kind === 'expense') {
-      lines.push(
-        `• Expense: ${formatField(event.category.value)} | ${formatField(event.amount.value)} | ${formatField(event.occurredOn.value)}`
+      const body = draftParts(
+        formatField(event.category.value),
+        formatField(event.description.value),
+        formatField(event.amount.value),
+        formatField(event.occurredOn.value)
       );
+      if (body) lines.push(`• Expense: ${body}`);
     } else if (event.kind === 'harvest') {
-      lines.push(
-        `• Harvest: ${formatField(event.cropName.value)} | qty ${formatField(event.quantity.value)} | ${formatField(event.saleAmount.value)}`
+      const body = draftParts(
+        formatField(event.cropName.value),
+        event.quantity.value != null ? `qty ${formatField(event.quantity.value)}` : null,
+        formatField(event.saleAmount.value)
       );
+      if (body) lines.push(`• Harvest: ${body}`);
     } else if (event.kind === 'inventory_movement') {
-      lines.push(
-        `• Inventory: ${formatField(event.movementType.value)} | ${formatField(event.itemName.value)} | ${formatField(event.quantity.value)}`
+      const body = draftParts(
+        formatField(event.movementType.value),
+        formatField(event.itemName.value),
+        formatField(event.quantity.value)
       );
+      if (body) lines.push(`• Inventory: ${body}`);
     }
   }
   const header =
@@ -100,6 +130,9 @@ function summarizeDraft(draft: FarmActivityAssistantDraftV1, lang: AdvisoryLangu
       : 'Draft ready to save:';
   return `${header}\n${lines.join('\n') || (lang === 'ml' ? '(ഇനങ്ങളൊന്നുമില്ല)' : '(no items)')}`;
 }
+
+/** Exported for unit tests. */
+export const farmActivityDraftSummaryForTest = { summarizeDraft, draftParts };
 
 async function clearAssistantPointer(farmerId: string): Promise<void> {
   await conversationSessionService.patchContext(farmerId, {

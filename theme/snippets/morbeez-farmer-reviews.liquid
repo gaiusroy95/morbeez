@@ -1,15 +1,17 @@
 {% comment %}
   Morbeez farmer reviews on product page (from delivered-order reviews API).
+  Also updates the buy-box rating row when present.
   @param {product} product
 {% endcomment %}
 <div
   id="morbeez-farmer-reviews"
   class="morbeez-farmer-reviews mt-8 rounded-xl border border-gray-100 bg-[var(--color-surface)] p-6"
   data-product-id="{{ product.id }}"
-  hidden
 >
   <h2 class="font-heading text-xl font-bold text-[var(--color-trust)]">Farmer reviews</h2>
-  <div id="morbeez-farmer-reviews-summary" class="mt-2 flex items-center gap-2 text-sm text-[var(--color-muted)]"></div>
+  <div id="morbeez-farmer-reviews-summary" class="mt-2 flex items-center gap-2 text-sm text-[var(--color-muted)]">
+    Loading reviews…
+  </div>
   <ul id="morbeez-farmer-reviews-list" class="mt-4 space-y-4"></ul>
 </div>
 <script>
@@ -19,16 +21,65 @@
   var productId = root.getAttribute('data-product-id');
   if (!productId) return;
   var apiBase = (window.MORBEEZ_AUTH && window.MORBEEZ_AUTH.apiBase) || (window.MORBEEZ_PORTAL && window.MORBEEZ_PORTAL.apiBase) || '';
-  if (!apiBase) return;
+  var summary = document.getElementById('morbeez-farmer-reviews-summary');
+  var list = document.getElementById('morbeez-farmer-reviews-list');
+
+  function paintTopRating(average, count) {
+    document.querySelectorAll('[data-morbeez-rating][data-product-id="' + productId + '"]').forEach(function (el) {
+      if (el.getAttribute('data-has-meta') === 'true') return;
+      var stars = el.querySelector('[data-rating-stars]');
+      var countEl = el.querySelector('[data-rating-count]');
+      var filled = Math.round(Number(average) || 0);
+      if (stars) {
+        stars.querySelectorAll('.morbeez-rating__star').forEach(function (star, i) {
+          star.classList.toggle('is-filled', i < filled);
+          star.classList.remove('is-muted');
+        });
+      }
+      if (countEl) {
+        countEl.textContent = count > 0 ? '(' + count + ' reviews)' : '(Be the first to review)';
+      }
+      el.setAttribute('aria-label', (average || 0) + ' out of 5' + (count ? ', ' + count + ' reviews' : ''));
+    });
+  }
+
+  function renderEmpty() {
+    if (summary) summary.textContent = 'No farmer reviews yet. Be the first after your order is delivered.';
+    if (list) list.innerHTML = '';
+    paintTopRating(0, 0);
+  }
+
+  if (!apiBase) {
+    renderEmpty();
+    return;
+  }
+
   fetch(apiBase.replace(/\/$/, '') + '/api/v1/store/product-reviews?productId=' + encodeURIComponent(productId))
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      if (!data.ok || !data.reviewCount) return;
-      root.hidden = false;
-      var summary = document.getElementById('morbeez-farmer-reviews-summary');
-      var list = document.getElementById('morbeez-farmer-reviews-list');
+      if (!data.ok) {
+        renderEmpty();
+        return;
+      }
+      var count = data.reviewCount || 0;
+      var average = data.averageRating || 0;
+      paintTopRating(average, count);
+      if (!count) {
+        renderEmpty();
+        return;
+      }
       if (summary) {
-        summary.textContent = data.averageRating + ' out of 5 · ' + data.reviewCount + ' farmer review' + (data.reviewCount === 1 ? '' : 's');
+        summary.innerHTML =
+          '<span class="text-amber-500 tracking-wider" aria-hidden="true">' +
+          '★★★★★'.slice(0, Math.round(average)) +
+          '☆☆☆☆☆'.slice(Math.round(average)) +
+          '</span><span>' +
+          average +
+          ' out of 5 · ' +
+          count +
+          ' farmer review' +
+          (count === 1 ? '' : 's') +
+          '</span>';
       }
       if (list && data.reviews) {
         list.innerHTML = data.reviews.slice(0, 8).map(function (rev) {
@@ -38,6 +89,8 @@
         }).join('');
       }
     })
-    .catch(function () {});
+    .catch(function () {
+      renderEmpty();
+    });
 })();
 </script>
