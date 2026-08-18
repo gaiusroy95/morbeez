@@ -55,6 +55,20 @@ export const partnerEnrollmentService = {
       input.enrollmentSource ?? 'partner_qr'
     );
 
+    try {
+      const { farmerIntroductionService } = await import(
+        '../remuneration/farmer-introduction.service.js'
+      );
+      await farmerIntroductionService.createFromEnrollment({
+        farmerId: input.farmerId,
+        partnerId: partner.id,
+        mobile: input.phone,
+        source: input.enrollmentSource ?? 'partner_qr',
+      });
+    } catch (err) {
+      logger.warn({ err, farmerId: input.farmerId }, 'Farmer introduction record skipped');
+    }
+
     await partnerService.incrementActiveFarmers(partner.id, 1);
 
     try {

@@ -276,6 +276,17 @@ export type PartnerEarningsSummary = {
   approvedPayout: number;
   paidPayout: number;
   reliabilityHoldPct: number;
+  farmersIntroduced?: number;
+  farmersVerified?: number;
+  eligibleIntroductions?: number;
+  cashRewardEarned?: number;
+  cashRewards?: number;
+  productRewardAvailable?: number;
+  productRewardUsed?: number;
+  productRewardBalance?: number;
+  heldPayout?: number;
+  duePayout?: number;
+  months?: Array<{ month: string; earned: number; held: number; due: number; paid: number }>;
 };
 
 export type PartnerEarningsLedgerRow = {

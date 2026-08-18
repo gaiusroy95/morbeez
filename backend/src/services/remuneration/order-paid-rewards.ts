@@ -1,8 +1,8 @@
-import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
 import { agronomistEarningsTriggers } from './agronomist-earnings-triggers.js';
+import { eligibleSaleEngine } from './eligible-sale.engine.js';
 
-/** Credit agronomist retention + partner commission for a paid commerce order. Idempotent. */
+/** Retention on paid; sales incentives wait until eligible. Product wallet consumes on paid purchase. */
 export async function creditOrderPaidRewards(input: {
   farmerId?: string | null;
   orderId?: string | null;
@@ -13,21 +13,19 @@ export async function creditOrderPaidRewards(input: {
   if (!farmerId || !orderId) return;
 
   agronomistEarningsTriggers.onOrderPaidForAssignedFarmer({ farmerId, orderId });
-
-  if (!env.ENABLE_PARTNER_PROGRAM || !env.ENABLE_PARTNER_COMMISSION) return;
+  await eligibleSaleEngine.onOrderPaid({
+    orderId,
+    farmerId,
+    grossInr: input.grossInr,
+  });
   try {
-    const { farmerOwnershipService } = await import('../partner/farmer-ownership.service.js');
-    const ownership = await farmerOwnershipService.getOwnership(farmerId);
-    const partnerId = ownership?.customerOwnerPartnerId ?? ownership?.assignedPartnerId;
-    if (!partnerId) return;
-    const { commissionEngineService } = await import('../partner/commission-engine.service.js');
-    await commissionEngineService.computeForOrder({
-      partnerId,
-      farmerId,
+    const { productRewardService } = await import('./product-reward.service.js');
+    await productRewardService.applyToOrder({
       orderId,
-      grossInr: Number(input.grossInr) || 0,
+      farmerId,
+      grossInr: input.grossInr,
     });
   } catch (err) {
-    logger.warn({ err, farmerId, orderId }, 'Partner commission on paid order skipped');
+    logger.warn({ err, orderId, farmerId }, 'Product reward apply skipped');
   }
 }

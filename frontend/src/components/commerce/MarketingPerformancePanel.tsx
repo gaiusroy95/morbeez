@@ -12,10 +12,13 @@ type FunnelRow = {
   booked: number;
   paid: number;
   revenueInr: number;
+  eligibleOrders?: number;
+  eligibleRevenueInr?: number;
   conversionPct: number;
   suggestedBonusInr?: number;
   spendInr?: number;
   roi?: number | null;
+  cacInr?: number | null;
 };
 
 type MarketerRow = FunnelRow & {
@@ -246,8 +249,8 @@ export function MarketingPerformancePanel({ canWrite }: Props) {
             ['Connected', funnel.connected],
             ['Interested', funnel.interested],
             ['Booked', funnel.booked],
-            ['Paid', funnel.paid],
-            ['Revenue', inr(funnel.revenueInr)],
+            ['Eligible orders', funnel.eligibleOrders ?? funnel.paid],
+            ['Eligible sales', inr(funnel.eligibleRevenueInr ?? funnel.revenueInr)],
             ['Conv %', `${funnel.conversionPct}%`],
             ['Suggested bonus', inr(funnel.suggestedBonusInr ?? 0)],
           ].map(([label, value]) => (
@@ -262,7 +265,8 @@ export function MarketingPerformancePanel({ canWrite }: Props) {
       {funnel?.spendInr != null && funnel.spendInr > 0 ? (
         <p className="text-sm text-slate-600">
           Meta spend (period): {inr(funnel.spendInr)}
-          {funnel.roi != null ? ` · ROI (gross profit ÷ spend): ${funnel.roi}x` : null}
+          {funnel.cacInr != null ? ` · CAC (spend ÷ eligible sales): ${inr(funnel.cacInr)}` : null}
+          {funnel.roi != null ? ` · ROI (eligible sales ÷ spend): ${funnel.roi}x` : null}
         </p>
       ) : null}
 
@@ -324,9 +328,10 @@ export function MarketingPerformancePanel({ canWrite }: Props) {
                 <th>Campaign</th>
                 <th>Channel</th>
                 <th>Leads</th>
-                <th>Paid</th>
-                <th>Revenue</th>
+                <th>Eligible orders</th>
+                <th>Eligible ₹</th>
                 <th>Spend</th>
+                <th>CAC</th>
                 <th>ROI</th>
               </tr>
             </thead>
@@ -337,9 +342,10 @@ export function MarketingPerformancePanel({ canWrite }: Props) {
                     <td>{c.campaign}</td>
                     <td>{c.channel ?? '—'}</td>
                     <td>{c.leads}</td>
-                    <td>{c.paid}</td>
-                    <td>{inr(c.revenueInr)}</td>
+                    <td>{c.eligibleOrders ?? c.paid}</td>
+                    <td>{inr(c.eligibleRevenueInr ?? c.revenueInr)}</td>
                     <td>{c.spendInr ? inr(c.spendInr) : '—'}</td>
+                    <td>{c.cacInr != null ? inr(c.cacInr) : '—'}</td>
                     <td>{c.roi != null ? `${c.roi}x` : '—'}</td>
                   </tr>
                 ))

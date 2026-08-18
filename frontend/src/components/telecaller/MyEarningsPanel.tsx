@@ -67,6 +67,11 @@ type EarningsData = {
     bonusTotal: number;
   };
   agronomistEvents?: AgronomistEvent[];
+  lastThreeMonths?: {
+    dueNow: number;
+    heldNow: number;
+    months: Array<{ month: string; earned: number; held: number; due: number; paid: number }>;
+  };
 };
 
 function formatInr(n: number) {
@@ -227,6 +232,38 @@ export function MyEarningsPanel() {
                         </td>
                         <td>{formatInr(e.amount_inr)}</td>
                         <td>{e.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DataTable>
+              </TableWrap>
+            </Panel>
+          ) : null}
+
+          {data.lastThreeMonths ? (
+            <Panel title="Last 3 months (due vs held vs paid)" className="tc-earnings-panel-inner">
+              <p className="muted text-xs mb-2">
+                Due now {formatInr(data.lastThreeMonths.dueNow)} · held {formatInr(data.lastThreeMonths.heldNow)}
+              </p>
+              <TableWrap>
+                <DataTable>
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th>Earned</th>
+                      <th>Held</th>
+                      <th>Due</th>
+                      <th>Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.lastThreeMonths.months.map((m) => (
+                      <tr key={m.month}>
+                        <td>{formatMonth(m.month)}</td>
+                        <td>{formatInr(m.earned)}</td>
+                        <td>{formatInr(m.held)}</td>
+                        <td>{formatInr(m.due)}</td>
+                        <td>{formatInr(m.paid)}</td>
                       </tr>
                     ))}
                   </tbody>

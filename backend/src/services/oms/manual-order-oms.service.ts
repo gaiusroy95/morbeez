@@ -121,10 +121,7 @@ export const manualOrderOmsService = {
         unit_price: unitPrice,
         hsn_code: line.hsnCode ?? item.hsn_code,
         gst_percent: line.gstPercent ?? item.gst_percent,
-        channel_pool_pct: pool.channelPoolPct,
-        channel_pool_version_id: pool.channelPoolVersionId,
-        channel_pool_version_label: pool.channelPoolVersionLabel,
-        channel_pool_effective_from: pool.channelPoolEffectiveFrom,
+        ...((await import('../pricing/channel-pool.util.js')).poolColumnsFromSnapshot(pool)),
       });
       throwIfSupabaseError(lineErr, 'Manual order line sync');
     }

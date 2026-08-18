@@ -316,6 +316,16 @@ export async function partnerApiRoutes(app: FastifyInstance): Promise<void> {
       return reply.send(result);
     });
 
+    partnerApp.get(`${api}/introductions`, async (request, reply) => {
+      const partner = await requirePartner(request);
+      const { farmerIntroductionService } = await import(
+        '../../services/remuneration/farmer-introduction.service.js'
+      );
+      const introductions = await farmerIntroductionService.list({ partnerId: partner.id });
+      const summary = await farmerIntroductionService.summaryForPartner(partner.id);
+      return reply.send({ ok: true, summary, introductions });
+    });
+
     partnerApp.get(`${api}/earnings/summary`, async (request, reply) => {
       const partner = await requirePartner(request);
       const q = z

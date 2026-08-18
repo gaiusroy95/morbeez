@@ -19,6 +19,10 @@ export const agronomistEarningsTriggers = {
     check_out_lng?: number | null;
   }): void {
     fire('visit_checkout', () => agronomistEarningsService.creditVisitCheckout(session));
+    fire('intro_refresh_visit', async () => {
+      const { farmerIntroductionService } = await import('./farmer-introduction.service.js');
+      await farmerIntroductionService.refreshForFarmer(session.farmer_id);
+    });
   },
 
   onStructuredVisitSubmitted(params: {
@@ -35,6 +39,10 @@ export const agronomistEarningsTriggers = {
         notes: 'Structured field visit submitted',
       })
     );
+    fire('intro_refresh_finding', async () => {
+      const { farmerIntroductionService } = await import('./farmer-introduction.service.js');
+      await farmerIntroductionService.refreshForFarmer(params.farmerId);
+    });
   },
 
   onRecommendationApplied(recommendationRecordId: string): void {

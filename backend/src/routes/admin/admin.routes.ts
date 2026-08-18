@@ -44,6 +44,7 @@ import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
 import { osChannelPoolRoutes } from './os-channel-pool.routes.js';
+import { osKpiControlRoutes } from './os-kpi-control.routes.js';
 import { osAiCallingRoutes } from './os-ai-calling.routes.js';
 import { osPartnerRoutes } from './os-partner.routes.js';
 import { osMarketingRoutes } from './os-marketing.routes.js';
@@ -2889,6 +2890,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   await app.register(osWarehouseRoutes);
   await app.register(osPricingRoutes);
   await app.register(osChannelPoolRoutes);
+  await app.register(osKpiControlRoutes);
   await app.register(osAiCallingRoutes);
   await app.register(osMarketingRoutes);
   await app.register(osPartnerRoutes);

@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { ValidationError } from '../../lib/errors.js';
+import { resolvePoolSplit, validatePoolSplit } from '../../domain/remuneration/pool-split.js';
 import {
   addCalendarDays,
   currentAndPrevious,
@@ -26,6 +27,8 @@ function mapRow(row: DbRow): ChannelPoolVersionRow {
     sku: row.sku ? String(row.sku) : null,
     versionNumber: Number(row.version_number) || 1,
     poolPct: Number(row.pool_pct) || 0,
+    agronomistMaxPct: row.agronomist_max_pct == null ? null : Number(row.agronomist_max_pct),
+    partnerMaxPct: row.partner_max_pct == null ? null : Number(row.partner_max_pct),
     previousPoolPct: row.previous_pool_pct == null ? null : Number(row.previous_pool_pct),
     effectiveFrom: String(row.effective_from).slice(0, 10),
     effectiveTo: row.effective_to ? String(row.effective_to).slice(0, 10) : null,
@@ -159,32 +162,39 @@ export const channelPoolService = {
     existing?: Partial<ChannelPoolSnapshot> | null;
   }): Promise<ChannelPoolSnapshot> {
     if (input.existing?.channelPoolVersionId && input.existing.channelPoolPct != null) {
+      const stub: ChannelPoolVersionRow = {
+        id: String(input.existing.channelPoolVersionId),
+        productId: '',
+        variantId: String(input.variantId ?? ''),
+        sku: input.sku ?? null,
+        versionNumber: 0,
+        poolPct: Number(input.existing.channelPoolPct),
+        agronomistMaxPct:
+          input.existing.channelPoolAgronomistPct == null
+            ? null
+            : Number(input.existing.channelPoolAgronomistPct),
+        partnerMaxPct:
+          input.existing.channelPoolPartnerPct == null
+            ? null
+            : Number(input.existing.channelPoolPartnerPct),
+        previousPoolPct: null,
+        effectiveFrom: input.existing.channelPoolEffectiveFrom ?? indiaToday(),
+        effectiveTo: null,
+        status: 'active',
+        changeReason: '',
+        editedByAdminId: null,
+        editedByName: null,
+        editedAt: '',
+      };
+      const snap = snapshotFromVersion(stub, input.salesInr);
       return {
-        channelPoolPct: Number(input.existing.channelPoolPct),
-        channelPoolVersionId: String(input.existing.channelPoolVersionId),
-        channelPoolVersionLabel: input.existing.channelPoolVersionLabel ?? null,
-        channelPoolEffectiveFrom: input.existing.channelPoolEffectiveFrom ?? null,
-        channelPoolAmount:
-          input.existing.channelPoolAmount ??
-          snapshotFromVersion(
-            {
-              id: String(input.existing.channelPoolVersionId),
-              productId: '',
-              variantId: String(input.variantId ?? ''),
-              sku: input.sku ?? null,
-              versionNumber: 0,
-              poolPct: Number(input.existing.channelPoolPct),
-              previousPoolPct: null,
-              effectiveFrom: input.existing.channelPoolEffectiveFrom ?? indiaToday(),
-              effectiveTo: null,
-              status: 'active',
-              changeReason: '',
-              editedByAdminId: null,
-              editedByName: null,
-              editedAt: '',
-            },
-            input.salesInr
-          ).channelPoolAmount,
+        ...snap,
+        channelPoolVersionLabel: input.existing.channelPoolVersionLabel ?? snap.channelPoolVersionLabel,
+        channelPoolAmount: input.existing.channelPoolAmount ?? snap.channelPoolAmount,
+        channelPoolAgronomistAmount:
+          input.existing.channelPoolAgronomistAmount ?? snap.channelPoolAgronomistAmount,
+        channelPoolPartnerAmount:
+          input.existing.channelPoolPartnerAmount ?? snap.channelPoolPartnerAmount,
       };
     }
     const version = await this.resolve({
@@ -200,6 +210,8 @@ export const channelPoolService = {
     variantId: string;
     sku?: string | null;
     poolPct: unknown;
+    agronomistMaxPct?: unknown;
+    partnerMaxPct?: unknown;
     effectiveFrom: string;
     reason: string;
     adminId: string;
@@ -216,6 +228,22 @@ export const channelPoolService = {
       poolPct = validatePoolPct(input.poolPct);
     } catch (err) {
       throw new ValidationError(err instanceof Error ? err.message : 'Invalid Channel Pool');
+    }
+
+    const optionalPct = (raw: unknown): number | null => {
+      if (raw == null || raw === '') return null;
+      try {
+        return validatePoolPct(raw);
+      } catch (err) {
+        throw new ValidationError(err instanceof Error ? err.message : 'Invalid pool split %');
+      }
+    };
+    const agronomistMaxPct = optionalPct(input.agronomistMaxPct);
+    const partnerMaxPct = optionalPct(input.partnerMaxPct);
+    try {
+      validatePoolSplit(resolvePoolSplit({ poolPct, agronomistMaxPct, partnerMaxPct }));
+    } catch (err) {
+      throw new ValidationError(err instanceof Error ? err.message : 'Invalid Channel Pool split');
     }
 
     const reason = input.reason.trim();
@@ -236,7 +264,7 @@ export const channelPoolService = {
 
     const existing = await loadVariantVersions(variantId);
     const { current } = currentAndPrevious(existing, today);
-    if (isNoOpPoolChange(current, poolPct, effectiveFrom)) {
+    if (isNoOpPoolChange(current, poolPct, effectiveFrom, agronomistMaxPct, partnerMaxPct)) {
       throw new ValidationError('Channel Pool is unchanged — no new version created');
     }
 
@@ -269,6 +297,8 @@ export const channelPoolService = {
         sku: input.sku?.trim() || null,
         version_number: nextNumber,
         pool_pct: poolPct,
+        agronomist_max_pct: agronomistMaxPct,
+        partner_max_pct: partnerMaxPct,
         previous_pool_pct: current?.poolPct ?? null,
         effective_from: effectiveFrom,
         effective_to: null,

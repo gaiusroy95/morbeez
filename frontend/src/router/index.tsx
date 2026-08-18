@@ -22,6 +22,7 @@ import { BroadcastAdminPage } from '../pages/broadcasts/BroadcastAdminPage';
 import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { PartnerProgramHubPage } from '../pages/PartnerProgramHubPage';
+import { KpiControlCenterPage } from '../pages/KpiControlCenterPage';
 import { OutcomeIntelligencePage } from '../pages/agronomist/OutcomeIntelligencePage';
 import { RegionalThreatRadarPage } from '../pages/RegionalThreatRadarPage';
 import { AgronomistHubPage } from '../pages/AgronomistHubPage';
@@ -111,6 +112,11 @@ function OpportunityRoute() {
 function PartnerProgramRoute() {
   const { can } = useAuth();
   return <PartnerProgramHubPage canWrite={can('partner_program', 'write')} />;
+}
+
+function KpiControlRoute() {
+  const { can } = useAuth();
+  return <KpiControlCenterPage canWrite={can('partner_program', 'write')} />;
 }
 
 function AgronomistRoute() {
@@ -308,6 +314,14 @@ export const appRouter = createBrowserRouter(
               element: (
                 <ProtectedPage module="partner_program">
                   <PartnerProgramRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.kpiControl,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <KpiControlRoute />
                 </ProtectedPage>
               ),
             },

@@ -23,6 +23,8 @@ type QuoteLine = {
   sgst?: number;
   igst?: number;
   channelPoolPct?: number | null;
+  channelPoolAgronomistPct?: number | null;
+  channelPoolPartnerPct?: number | null;
   channelPoolVersionId?: string | null;
   channelPoolVersionLabel?: string | null;
   channelPoolEffectiveFrom?: string | null;
@@ -219,6 +221,8 @@ export const quoteOmsBridgeService = {
         hsn_code: line.hsnCode ?? item.hsn_code,
         gst_percent: line.gstPercent ?? item.gst_percent,
         channel_pool_pct: line.channelPoolPct ?? null,
+        channel_pool_agronomist_pct: line.channelPoolAgronomistPct ?? null,
+        channel_pool_partner_pct: line.channelPoolPartnerPct ?? null,
         channel_pool_version_id: line.channelPoolVersionId ?? null,
         channel_pool_version_label: line.channelPoolVersionLabel ?? null,
         channel_pool_effective_from: line.channelPoolEffectiveFrom ?? null,

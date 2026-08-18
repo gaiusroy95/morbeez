@@ -10,6 +10,7 @@ type Tab =
   | 'settings'
   | 'commission'
   | 'payouts'
+  | 'introductions'
   | 'events'
   | 'onboarding'
   | 'controlTower';
@@ -43,6 +44,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
   const [settings, setSettings] = useState<Array<Record<string, unknown>>>([]);
   const [commissionRules, setCommissionRules] = useState<Array<Record<string, unknown>>>([]);
   const [payouts, setPayouts] = useState<Array<Record<string, unknown>>>([]);
+  const [introductions, setIntroductions] = useState<Array<Record<string, unknown>>>([]);
   const [events, setEvents] = useState<Array<Record<string, unknown>>>([]);
   const [trainingModules, setTrainingModules] = useState<Array<Record<string, unknown>>>([]);
   const [towerFarmerId, setTowerFarmerId] = useState('');
@@ -88,6 +90,11 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
           `${base}/payouts`
         );
         setPayouts(r.batches ?? []);
+      } else if (tab === 'introductions') {
+        const r = await api<{ ok: boolean; introductions: Array<Record<string, unknown>> }>(
+          `${base}/introductions`
+        );
+        setIntroductions(r.introductions ?? []);
       } else if (tab === 'events') {
         const r = await api<{ ok: boolean; events: Array<Record<string, unknown>> }>(
           `${base}/events/list`
@@ -170,7 +177,18 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
-  async function generatePayouts() {
+  async function refreshIntroduction(id: string) {
+    if (!canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${base}/introductions/${id}/refresh`, { method: 'POST', body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Refresh failed');
+    } finally {
+      setBusy(false);
+    }
+  }
     if (!canWrite) return;
     setBusy(true);
     try {
@@ -259,6 +277,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
           { id: 'onboarding', label: 'Onboarding' },
           { id: 'commission', label: 'Commission' },
           { id: 'payouts', label: 'Payouts' },
+          { id: 'introductions', label: 'Introductions' },
           { id: 'events', label: 'Events' },
           { id: 'controlTower', label: 'Control tower' },
           { id: 'settings', label: 'Settings' },
@@ -465,6 +484,65 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                       {canWrite && b.status === 'approved' ? (
                         <Btn size="sm" disabled={busy} onClick={() => void markPayoutPaid(String(b.id))}>
                           Mark paid
+                        </Btn>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        </Panel>
+      ) : null}
+
+      {tab === 'introductions' ? (
+        <Panel title="Farmer introductions">
+          <p className="mb-3 text-sm text-ink-muted">
+            ₹100 cash and ₹400 product wallet are separate from sales incentive. Leftover product
+            value is never paid as cash. Returns restore wallet usage.
+          </p>
+          <TableWrap>
+            <table>
+              <thead>
+                <tr>
+                  <th>Farmer</th>
+                  <th>Partner</th>
+                  <th>Status</th>
+                  <th>Acres</th>
+                  <th>₹100</th>
+                  <th>₹400 used / max</th>
+                  <th>Pending</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {introductions.map((row) => (
+                  <tr key={String(row.id)}>
+                    <td>
+                      {String(row.farmer_mobile ?? row.farmer_id ?? '—')}
+                      <div className="text-xs text-ink-muted">{String(row.location ?? '')}</div>
+                    </td>
+                    <td className="text-xs">{String(row.partner_id ?? '').slice(0, 8)}</td>
+                    <td>{String(row.qualification_status)}</td>
+                    <td>{Number(row.acreage ?? 0)}</td>
+                    <td>₹{Number(row.cash_reward_amount ?? 0)}</td>
+                    <td>
+                      ₹{Number(row.product_reward_used ?? 0)} / ₹
+                      {Number(row.product_reward_max ?? 0)}
+                    </td>
+                    <td className="text-xs">
+                      {Array.isArray(row.pending_reasons)
+                        ? (row.pending_reasons as string[]).join(', ')
+                        : '—'}
+                    </td>
+                    <td>
+                      {canWrite ? (
+                        <Btn
+                          size="sm"
+                          disabled={busy}
+                          onClick={() => void refreshIntroduction(String(row.id))}
+                        >
+                          Recheck
                         </Btn>
                       ) : null}
                     </td>

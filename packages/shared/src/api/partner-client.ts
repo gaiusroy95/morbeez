@@ -517,6 +517,15 @@ export const partnerClient = {
     return r.ledger ?? [];
   },
 
+  async getIntroductions() {
+    const r = await partnerApi<{
+      ok: boolean;
+      summary: Record<string, unknown>;
+      introductions: Record<string, unknown>[];
+    }>('/introductions');
+    return { summary: r.summary ?? {}, introductions: r.introductions ?? [] };
+  },
+
   async listRoutes(date?: string): Promise<AgentRouteSummary[]> {
     const q = date ? `?date=${encodeURIComponent(date)}` : '';
     const r = await partnerApi<{ ok: boolean; routes: AgentRouteSummary[] }>(`/routes${q}`);

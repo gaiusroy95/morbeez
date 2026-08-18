@@ -16,6 +16,7 @@ type CreditInput = {
   sourceId: string;
   km?: number | null;
   notes?: string;
+  amountInr?: number;
 };
 
 async function resolveProfile(email: string) {
@@ -62,6 +63,11 @@ async function loadComp(employeeProfileId: string): Promise<AgronomistCompSnapsh
 }
 
 export const agronomistEarningsService = {
+  async resolveEmployeeId(email: string): Promise<string | null> {
+    const profile = await resolveProfile(email);
+    return profile?.id ? String(profile.id) : null;
+  },
+
   async credit(input: CreditInput): Promise<{ id: string; amountInr: number } | null> {
     const profile = await resolveProfile(input.agronomistEmail);
     if (!profile?.id) {
@@ -80,8 +86,11 @@ export const agronomistEarningsService = {
     }
 
     const comp = await loadComp(String(profile.id));
-    const amount = amountForEvent(input.eventType, comp, { km: input.km ?? 0 });
-    if (amount <= 0) return null;
+    const amount =
+      input.amountInr != null
+        ? Math.round(input.amountInr * 100) / 100
+        : amountForEvent(input.eventType, comp, { km: input.km ?? 0 });
+    if (input.amountInr == null && amount <= 0) return null;
 
     const { data, error } = await supabase
       .from('agronomist_earnings_ledger')
@@ -177,6 +186,9 @@ export const agronomistEarningsService = {
     const kmInr = kmRows.reduce((s, r) => s + Number(r.amount_inr), 0);
     const kmTotal = kmRows.reduce((s, r) => s + Number(r.km ?? 0), 0);
     const bonusTotal = visitBonus + recBonus + escalationBonus + retentionBonus;
+    const salesIncentive = rows
+      .filter((r) => r.event_type === 'sales_incentive' || r.event_type === 'sales_adjustment')
+      .reduce((s, r) => s + Number(r.amount_inr), 0);
     return {
       visitBonus,
       recBonus,
@@ -185,6 +197,7 @@ export const agronomistEarningsService = {
       kmInr,
       kmTotal: Math.round(kmTotal * 100) / 100,
       bonusTotal: Math.round(bonusTotal * 100) / 100,
+      salesIncentive: Math.round(salesIncentive * 100) / 100,
       eventCount: rows.length,
     };
   },
@@ -195,7 +208,14 @@ export const agronomistEarningsService = {
       .update({ status: 'included_in_payroll', payroll_entry_id: payrollEntryId })
       .eq('employee_profile_id', employeeProfileId)
       .eq('period_month', period)
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .in('event_type', [
+        'field_visit',
+        'km_allowance',
+        'recommendation_success',
+        'escalation_resolved',
+        'retention',
+      ]);
   },
 
   async listForEmployee(employeeProfileId: string, limit = 40) {

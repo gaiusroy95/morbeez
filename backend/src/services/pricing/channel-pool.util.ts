@@ -1,5 +1,7 @@
 /** Date-only Channel Pool helpers (Asia/Kolkata calendar). */
 
+import { resolvePoolSplit } from '../../domain/remuneration/pool-split.js';
+
 export const CHANNEL_POOL_PRESETS = [0, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30] as const;
 
 export type ChannelPoolStatus = 'pending' | 'active' | 'closed';
@@ -11,6 +13,8 @@ export type ChannelPoolVersionRow = {
   sku: string | null;
   versionNumber: number;
   poolPct: number;
+  agronomistMaxPct: number | null;
+  partnerMaxPct: number | null;
   previousPoolPct: number | null;
   effectiveFrom: string;
   effectiveTo: string | null;
@@ -23,10 +27,14 @@ export type ChannelPoolVersionRow = {
 
 export type ChannelPoolSnapshot = {
   channelPoolPct: number | null;
+  channelPoolAgronomistPct: number | null;
+  channelPoolPartnerPct: number | null;
   channelPoolVersionId: string | null;
   channelPoolVersionLabel: string | null;
   channelPoolEffectiveFrom: string | null;
   channelPoolAmount: number | null;
+  channelPoolAgronomistAmount: number | null;
+  channelPoolPartnerAmount: number | null;
 };
 
 function round2(n: number): number {
@@ -74,10 +82,14 @@ export function channelPoolAmount(salesInr: number, poolPct: number | null | und
 export function emptyChannelPoolSnapshot(): ChannelPoolSnapshot {
   return {
     channelPoolPct: null,
+    channelPoolAgronomistPct: null,
+    channelPoolPartnerPct: null,
     channelPoolVersionId: null,
     channelPoolVersionLabel: null,
     channelPoolEffectiveFrom: null,
     channelPoolAmount: null,
+    channelPoolAgronomistAmount: null,
+    channelPoolPartnerAmount: null,
   };
 }
 
@@ -86,12 +98,33 @@ export function snapshotFromVersion(
   salesInr?: number
 ): ChannelPoolSnapshot {
   if (!version) return emptyChannelPoolSnapshot();
+  const split = resolvePoolSplit({
+    poolPct: version.poolPct,
+    agronomistMaxPct: version.agronomistMaxPct,
+    partnerMaxPct: version.partnerMaxPct,
+  });
+  const sales = salesInr ?? 0;
   return {
-    channelPoolPct: version.poolPct,
+    channelPoolPct: split.poolPct,
+    channelPoolAgronomistPct: split.agronomistMaxPct,
+    channelPoolPartnerPct: split.partnerMaxPct,
     channelPoolVersionId: version.id,
     channelPoolVersionLabel: versionLabel(version.versionNumber),
     channelPoolEffectiveFrom: version.effectiveFrom,
-    channelPoolAmount: channelPoolAmount(salesInr ?? 0, version.poolPct),
+    channelPoolAmount: channelPoolAmount(sales, split.poolPct),
+    channelPoolAgronomistAmount: channelPoolAmount(sales, split.agronomistMaxPct),
+    channelPoolPartnerAmount: channelPoolAmount(sales, split.partnerMaxPct),
+  };
+}
+
+export function poolColumnsFromSnapshot(pool: ChannelPoolSnapshot) {
+  return {
+    channel_pool_pct: pool.channelPoolPct,
+    channel_pool_agronomist_pct: pool.channelPoolAgronomistPct,
+    channel_pool_partner_pct: pool.channelPoolPartnerPct,
+    channel_pool_version_id: pool.channelPoolVersionId,
+    channel_pool_version_label: pool.channelPoolVersionLabel,
+    channel_pool_effective_from: pool.channelPoolEffectiveFrom,
   };
 }
 
@@ -128,8 +161,25 @@ export function currentAndPrevious(
 export function isNoOpPoolChange(
   current: ChannelPoolVersionRow | null,
   nextPct: number,
-  nextFrom: string
+  nextFrom: string,
+  nextAgronomistMaxPct?: number | null,
+  nextPartnerMaxPct?: number | null
 ): boolean {
   if (!current) return false;
-  return current.poolPct === nextPct && current.effectiveFrom === nextFrom;
+  if (current.effectiveFrom !== nextFrom) return false;
+  const currentSplit = resolvePoolSplit({
+    poolPct: current.poolPct,
+    agronomistMaxPct: current.agronomistMaxPct,
+    partnerMaxPct: current.partnerMaxPct,
+  });
+  const nextSplit = resolvePoolSplit({
+    poolPct: nextPct,
+    agronomistMaxPct: nextAgronomistMaxPct,
+    partnerMaxPct: nextPartnerMaxPct,
+  });
+  return (
+    currentSplit.poolPct === nextSplit.poolPct &&
+    currentSplit.agronomistMaxPct === nextSplit.agronomistMaxPct &&
+    currentSplit.partnerMaxPct === nextSplit.partnerMaxPct
+  );
 }

@@ -30,6 +30,8 @@ export type QuoteLineItem = {
   igst: number;
   amountInclGst: number;
   channelPoolPct?: number | null;
+  channelPoolAgronomistPct?: number | null;
+  channelPoolPartnerPct?: number | null;
   channelPoolVersionId?: string | null;
   channelPoolVersionLabel?: string | null;
   channelPoolEffectiveFrom?: string | null;
@@ -319,6 +321,8 @@ async function persistQuoteLines(
     return {
       ...line,
       channelPoolPct: prior?.channelPoolPct,
+      channelPoolAgronomistPct: prior?.channelPoolAgronomistPct,
+      channelPoolPartnerPct: prior?.channelPoolPartnerPct,
       channelPoolVersionId: prior?.channelPoolVersionId,
       channelPoolVersionLabel: prior?.channelPoolVersionLabel,
       channelPoolEffectiveFrom: prior?.channelPoolEffectiveFrom,
@@ -385,6 +389,8 @@ async function computeLines(
     unitPrice: number;
     gstPercent?: number;
     channelPoolPct?: number | null;
+    channelPoolAgronomistPct?: number | null;
+    channelPoolPartnerPct?: number | null;
     channelPoolVersionId?: string | null;
     channelPoolVersionLabel?: string | null;
     channelPoolEffectiveFrom?: string | null;
@@ -432,6 +438,8 @@ async function computeLines(
       salesInr: taxable,
       existing: {
         channelPoolPct: line.channelPoolPct,
+        channelPoolAgronomistPct: line.channelPoolAgronomistPct,
+        channelPoolPartnerPct: line.channelPoolPartnerPct,
         channelPoolVersionId: line.channelPoolVersionId,
         channelPoolVersionLabel: line.channelPoolVersionLabel,
         channelPoolEffectiveFrom: line.channelPoolEffectiveFrom,
@@ -454,6 +462,8 @@ async function computeLines(
       igst: breakup.igst,
       amountInclGst: Math.round((taxable + tax) * 100) / 100,
       channelPoolPct: pool.channelPoolPct,
+      channelPoolAgronomistPct: pool.channelPoolAgronomistPct,
+      channelPoolPartnerPct: pool.channelPoolPartnerPct,
       channelPoolVersionId: pool.channelPoolVersionId,
       channelPoolVersionLabel: pool.channelPoolVersionLabel,
       channelPoolEffectiveFrom: pool.channelPoolEffectiveFrom,

@@ -30,6 +30,8 @@ export type IncentiveLineResult = {
   warningMessage: string | null;
   allowed: boolean;
   channelPoolPct?: number | null;
+  channelPoolAgronomistPct?: number | null;
+  channelPoolPartnerPct?: number | null;
   channelPoolVersionId?: string | null;
   channelPoolVersionLabel?: string | null;
   channelPoolEffectiveFrom?: string | null;
@@ -365,6 +367,8 @@ export const incentiveEngineService = {
         effective_cost: round2(line.sellingPrice - line.grossProfitPerUnit),
         incentive_amount: line.incentiveTotal,
         channel_pool_pct: line.channelPoolPct,
+        channel_pool_agronomist_pct: line.channelPoolAgronomistPct,
+        channel_pool_partner_pct: line.channelPoolPartnerPct,
         channel_pool_version_id: line.channelPoolVersionId,
         channel_pool_version_label: line.channelPoolVersionLabel,
         channel_pool_effective_from: line.channelPoolEffectiveFrom,
@@ -404,6 +408,8 @@ export const incentiveEngineService = {
             sku: l.sku,
             variantId: l.variantId,
             channelPoolPct: l.channelPoolPct,
+            channelPoolAgronomistPct: l.channelPoolAgronomistPct,
+            channelPoolPartnerPct: l.channelPoolPartnerPct,
             channelPoolVersionId: l.channelPoolVersionId,
             channelPoolVersionLabel: l.channelPoolVersionLabel,
             channelPoolEffectiveFrom: l.channelPoolEffectiveFrom,

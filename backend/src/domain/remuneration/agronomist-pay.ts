@@ -3,7 +3,9 @@ export type AgronomistEventType =
   | 'km_allowance'
   | 'recommendation_success'
   | 'escalation_resolved'
-  | 'retention';
+  | 'retention'
+  | 'sales_incentive'
+  | 'sales_adjustment';
 
 export type AgronomistCompSnapshot = {
   incentiveEnabled: boolean;

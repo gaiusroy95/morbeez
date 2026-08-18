@@ -28,6 +28,46 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, partners });
   });
 
+  app.get(`${api}/earning-rules`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const { earningRulesService } = await import('../../services/remuneration/earning-rules.service.js');
+    const rules = await earningRulesService.list();
+    return reply.send({ ok: true, rules });
+  });
+
+  app.get(`${api}/settlements`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const q = request.query as { partyId?: string; partyType?: string };
+    let query = supabase.from('earning_settlements').select('*').order('payable_on', { ascending: true }).limit(200);
+    if (q.partyType === 'partner' || q.partyType === 'employee') query = query.eq('party_type', q.partyType);
+    if (q.partyId) query = query.eq('party_id', q.partyId);
+    const { data } = await query;
+    return reply.send({ ok: true, settlements: data ?? [] });
+  });
+
+  app.get(`${api}/introductions`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const q = request.query as { partnerId?: string; status?: string };
+    const { farmerIntroductionService } = await import(
+      '../../services/remuneration/farmer-introduction.service.js'
+    );
+    const introductions = await farmerIntroductionService.list({
+      partnerId: q.partnerId,
+      status: q.status,
+    });
+    return reply.send({ ok: true, introductions });
+  });
+
+  app.post(`${api}/introductions/:id/refresh`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'write');
+    const { id } = request.params as { id: string };
+    const { farmerIntroductionService } = await import(
+      '../../services/remuneration/farmer-introduction.service.js'
+    );
+    const row = await farmerIntroductionService.refresh(id);
+    return reply.send({ ok: true, introduction: row });
+  });
+
   app.get(`${api}/payouts`, async (request, reply) => {
     await assertModuleAccess(request, 'partner_program', 'read');
     const q = request.query as { month?: string };
@@ -203,6 +243,14 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
       partnerId: body.partnerId,
       attributionType: 'enrollment',
       metadata: { source: 'admin_assign', changedBy: admin.email },
+    });
+    const { farmerIntroductionService } = await import(
+      '../../services/remuneration/farmer-introduction.service.js'
+    );
+    await farmerIntroductionService.createFromEnrollment({
+      farmerId,
+      partnerId: body.partnerId,
+      source: 'admin_assign',
     });
     const attributions = await partnerAttributionCaptureService.listForFarmer(farmerId);
     return reply.send({ ok: true, ownership, attributions });

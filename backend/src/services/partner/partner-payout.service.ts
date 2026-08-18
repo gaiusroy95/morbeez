@@ -2,31 +2,20 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { ValidationError } from '../../lib/errors.js';
 import { periodMonth } from '../../domain/remuneration/agronomist-pay.js';
-
-function payableAmount(row: { commission_inr?: unknown; bonus_inr?: unknown; reliability_hold_pct?: unknown }) {
-  const gross = Number(row.commission_inr ?? 0) + Number(row.bonus_inr ?? 0);
-  const hold = Number(row.reliability_hold_pct ?? 0);
-  return Math.round(gross * (1 - Math.min(100, Math.max(0, hold)) / 100) * 100) / 100;
-}
+import { settlementService } from '../remuneration/settlement.service.js';
 
 export const partnerPayoutService = {
   async generateMonth(month?: string) {
     const period = month ?? periodMonth();
-    const { data: rows, error } = await supabase
-      .from('partner_earnings_ledger')
-      .select('id, partner_id, commission_inr, bonus_inr, reliability_hold_pct, status')
-      .eq('period_month', period)
-      .in('status', ['pending', 'held'])
-      .is('payout_batch_id', null);
-    throwIfSupabaseError(error, 'Could not load pending partner earnings');
-
-    const byPartner = new Map<string, { ids: string[]; total: number }>();
-    for (const row of rows ?? []) {
-      const payable = payableAmount(row);
+    const due = await settlementService.dueUnattached('partner');
+    const byPartner = new Map<string, { ids: string[]; earningIds: string[]; total: number }>();
+    for (const row of due) {
+      const payable = Number(row.final_payable_inr ?? row.amount_inr ?? 0);
       if (payable <= 0) continue;
-      const partnerId = String(row.partner_id);
-      const cur = byPartner.get(partnerId) ?? { ids: [], total: 0 };
+      const partnerId = String(row.party_id);
+      const cur = byPartner.get(partnerId) ?? { ids: [], earningIds: [], total: 0 };
       cur.ids.push(String(row.id));
+      if (row.earning_id) cur.earningIds.push(String(row.earning_id));
       cur.total += payable;
       byPartner.set(partnerId, cur);
     }
@@ -68,10 +57,14 @@ export const partnerPayoutService = {
           .eq('id', batchId);
       }
 
-      await supabase
-        .from('partner_earnings_ledger')
-        .update({ payout_batch_id: batchId, updated_at: new Date().toISOString() })
-        .in('id', group.ids);
+      await settlementService.attachPayoutBatch(group.ids, batchId);
+      if (group.earningIds.length) {
+        await supabase
+          .from('partner_earnings_ledger')
+          .update({ payout_batch_id: batchId, updated_at: new Date().toISOString() })
+          .in('id', group.earningIds)
+          .is('payout_batch_id', null);
+      }
 
       batches.push({
         id: batchId,
@@ -123,6 +116,11 @@ export const partnerPayoutService = {
       .update({ status: 'approved', updated_at: new Date().toISOString() })
       .eq('payout_batch_id', batchId)
       .in('status', ['pending', 'held']);
+    await supabase
+      .from('earning_settlements')
+      .update({ status: 'approved' })
+      .eq('payout_batch_id', batchId)
+      .eq('status', 'pending');
 
     const { data, error: updErr } = await supabase
       .from('partner_payout_batches')
@@ -149,6 +147,15 @@ export const partnerPayoutService = {
       .update({ status: 'paid', updated_at: new Date().toISOString() })
       .eq('payout_batch_id', batchId)
       .eq('status', 'approved');
+    const { data: settlements } = await supabase
+      .from('earning_settlements')
+      .select('id')
+      .eq('payout_batch_id', batchId)
+      .in('status', ['pending', 'approved']);
+    await settlementService.markPaid(
+      (settlements ?? []).map((s) => String(s.id)),
+      `payout-batch:${batchId}`
+    );
 
     const { data, error: updErr } = await supabase
       .from('partner_payout_batches')
@@ -185,5 +192,46 @@ export const partnerPayoutService = {
         .eq('id', row.id);
     }
     return { reversed: rows.length };
+  },
+
+  async adjustOrder(orderId: string, reason: string) {
+    const { data: rows, error } = await supabase
+      .from('partner_earnings_ledger')
+      .select('id, partner_id, commission_inr, bonus_inr, earning_kind, status, period_month')
+      .eq('order_id', orderId)
+      .neq('status', 'reversed')
+      .neq('earning_kind', 'adjustment');
+    throwIfSupabaseError(error, 'Could not load partner earnings for adjustment');
+    if (!rows?.length) return { adjusted: 0 };
+
+    let n = 0;
+    for (const row of rows) {
+      const amount = Math.round((Number(row.commission_inr ?? 0) + Number(row.bonus_inr ?? 0)) * 100) / 100;
+      if (amount <= 0) continue;
+      const { data: already } = await supabase
+        .from('partner_earnings_ledger')
+        .select('id')
+        .eq('parent_earning_id', row.id)
+        .eq('earning_kind', 'adjustment')
+        .maybeSingle();
+      if (already?.id) continue;
+      await supabase.from('partner_earnings_ledger').insert({
+        partner_id: row.partner_id,
+        order_id: orderId,
+        category_key: 'adjustment',
+        gross_inr: 0,
+        commission_inr: -amount,
+        bonus_inr: 0,
+        reliability_hold_pct: 0,
+        earning_kind: 'adjustment',
+        parent_earning_id: row.id,
+        status: 'pending',
+        period_month: row.period_month ?? periodMonth(),
+        metadata: { reason, originalEarningId: row.id },
+      });
+      await settlementService.applyReturnRecovery('partner_ledger', String(row.id), amount);
+      n += 1;
+    }
+    return { adjusted: n };
   },
 };

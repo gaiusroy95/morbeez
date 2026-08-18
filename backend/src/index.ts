@@ -12,6 +12,7 @@ import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-pro
 import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
 import { startRegionalThreatRadarWorker } from './services/intelligence/regional-threat-radar.worker.js';
 import { startExpertCopilotWorker } from './services/expert-case/expert-copilot.worker.js';
+import { startEligibleSaleWorker } from './services/remuneration/eligible-sale.worker.js';
 import { startSensorMqttConsumer } from './workers/sensor-mqtt.worker.js';
 
 async function main() {
@@ -32,6 +33,7 @@ async function main() {
   startFarmerOpportunityScoreWorker();
   startRegionalThreatRadarWorker();
   startExpertCopilotWorker();
+  startEligibleSaleWorker();
   void startSensorMqttConsumer();
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });

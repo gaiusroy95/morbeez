@@ -158,9 +158,11 @@ export const employeeEarningsService = {
     const { agronomistEarningsService } = await import('../remuneration/agronomist-earnings.service.js');
     const agro = await agronomistEarningsService.monthTotals(employeeProfileId, currentMonth);
     const agronomistEvents = await agronomistEarningsService.listForEmployee(employeeProfileId, 30);
+    const { settlementService } = await import('../remuneration/settlement.service.js');
+    const salesDueInr = await settlementService.dueTotalInr('employee', employeeProfileId);
     if (current && !current.fromPayroll) {
       current.quarterlyBonusInr += agro.bonusTotal;
-      current.totalEarningsInr += agro.bonusTotal + agro.kmInr;
+      current.totalEarningsInr += agro.bonusTotal + agro.kmInr + salesDueInr;
     }
 
     const { data: ledger, error: ledErr } = await supabase
@@ -206,8 +208,12 @@ export const employeeEarningsService = {
       currentMonth: current ?? null,
       monthlyHistory,
       recentSales,
-      agronomist: agro,
+      agronomist: { ...agro, salesDueInr },
       agronomistEvents,
+      lastThreeMonths: await (async () => {
+        const { earningDrilldownService } = await import('../remuneration/earning-drilldown.service.js');
+        return earningDrilldownService.forParty('employee', employeeProfileId);
+      })(),
       config: {
         monthlySalesTargetInr: config.monthlySalesTargetInr,
         bulkOrderThresholdInr: config.bulkOrderThresholdInr,

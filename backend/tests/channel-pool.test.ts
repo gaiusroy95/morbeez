@@ -22,6 +22,8 @@ function version(
     variantId: 'v1',
     sku: 'MTRICHO-1L',
     previousPoolPct: null,
+    agronomistMaxPct: null,
+    partnerMaxPct: null,
     effectiveTo: null,
     status: 'active',
     changeReason: 'test',
@@ -109,6 +111,8 @@ describe('channel pool versioning', () => {
     assert.equal(snap.channelPoolPct, 12);
     assert.equal(snap.channelPoolVersionLabel, 'V2');
     assert.equal(snap.channelPoolAmount, 1200);
+    assert.equal(snap.channelPoolPartnerPct, 12);
+    assert.equal(snap.channelPoolAgronomistPct, 0);
     assert.equal(resolveVersionOnDate(history, '2026-08-17')?.poolPct, 16);
   });
 
@@ -132,6 +136,7 @@ describe('channel pool versioning', () => {
     assert.equal(isNoOpPoolChange(current, 16, '2026-08-01'), true);
     assert.equal(isNoOpPoolChange(current, 18, '2026-08-01'), false);
     assert.equal(isNoOpPoolChange(null, 16, '2026-08-01'), false);
+    assert.equal(isNoOpPoolChange(current, 16, '2026-08-01', 6, 10), false);
   });
 
   it('exposes previous pool from history', () => {

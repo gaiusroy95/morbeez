@@ -12,6 +12,8 @@ type PoolVersion = {
   version: string;
   versionNumber: number;
   poolPct: number;
+  agronomistMaxPct: number | null;
+  partnerMaxPct: number | null;
   previousPoolPct: number | null;
   effectiveFrom: string;
   effectiveTo: string | null;
@@ -73,6 +75,8 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
   const [notice, setNotice] = useState('');
   const [selectedId, setSelectedId] = useState('');
   const [poolPct, setPoolPct] = useState('16');
+  const [agronomistMaxPct, setAgronomistMaxPct] = useState('');
+  const [partnerMaxPct, setPartnerMaxPct] = useState('');
   const [effectiveFrom, setEffectiveFrom] = useState(indiaToday);
   const [reason, setReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -112,9 +116,17 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
   useEffect(() => {
     if (selectedPool?.current) {
       setPoolPct(String(selectedPool.current.poolPct));
+      setAgronomistMaxPct(
+        selectedPool.current.agronomistMaxPct == null ? '' : String(selectedPool.current.agronomistMaxPct)
+      );
+      setPartnerMaxPct(
+        selectedPool.current.partnerMaxPct == null ? '' : String(selectedPool.current.partnerMaxPct)
+      );
       setEffectiveFrom(selectedPool.current.effectiveFrom);
     } else {
       setPoolPct('16');
+      setAgronomistMaxPct('');
+      setPartnerMaxPct('');
       setEffectiveFrom(indiaToday());
     }
     setReason('');
@@ -145,6 +157,20 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
       setError('Channel Pool must be between 0 and 100');
       return;
     }
+    const agro = agronomistMaxPct.trim() === '' ? null : Number(agronomistMaxPct);
+    const partner = partnerMaxPct.trim() === '' ? null : Number(partnerMaxPct);
+    if (agro != null && (!Number.isFinite(agro) || agro < 0 || agro > 100)) {
+      setError('Agronomist max % must be between 0 and 100');
+      return;
+    }
+    if (partner != null && (!Number.isFinite(partner) || partner < 0 || partner > 100)) {
+      setError('Partner max % must be between 0 and 100');
+      return;
+    }
+    if ((agro ?? 0) + (partner ?? pct) - pct > 0.001) {
+      setError('Agronomist % + Partner % cannot exceed Channel Pool %');
+      return;
+    }
     if (reason.trim().length < 3) {
       setError('Reason for change is required');
       return;
@@ -159,6 +185,8 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
           variantId: selectedVariant.id,
           sku: selectedVariant.sku,
           poolPct: pct,
+          agronomistMaxPct: agro,
+          partnerMaxPct: partner,
           effectiveFrom,
           reason: reason.trim(),
         }),
@@ -214,6 +242,14 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
             <dd className="pw-channel-pool__pct">
               {current ? `${current.poolPct}%` : 'Not set'}
             </dd>
+          </div>
+          <div>
+            <dt>Agronomist max</dt>
+            <dd>{current?.agronomistMaxPct != null ? `${current.agronomistMaxPct}%` : '—'}</dd>
+          </div>
+          <div>
+            <dt>Partner max</dt>
+            <dd>{current?.partnerMaxPct != null ? `${current.partnerMaxPct}%` : 'full pool'}</dd>
           </div>
           <div>
             <dt>Pool Status</dt>
@@ -294,6 +330,32 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
               />
             </WizardField>
           ) : null}
+          <div className="pw-grid pw-grid--2">
+            <WizardField label="Agronomist max %">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                className={pwInputClass()}
+                value={agronomistMaxPct}
+                onChange={(e) => setAgronomistMaxPct(e.target.value)}
+                placeholder="Leave blank = 0"
+              />
+            </WizardField>
+            <WizardField label="Partner max %">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="0.01"
+                className={pwInputClass()}
+                value={partnerMaxPct}
+                onChange={(e) => setPartnerMaxPct(e.target.value)}
+                placeholder="Leave blank = full pool"
+              />
+            </WizardField>
+          </div>
           <WizardField label="Reason for Change" required>
             <textarea
               className={pwTextareaClass()}
@@ -339,6 +401,8 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
               <tr>
                 <th>Version</th>
                 <th>Pool</th>
+                <th>Agronomist</th>
+                <th>Partner</th>
                 <th>Effective From</th>
                 <th>Effective To</th>
                 <th>Edited By</th>
@@ -352,6 +416,8 @@ export function ChannelPoolSection({ productId, productName, variants, canView, 
                 <tr key={row.id}>
                   <td>{row.version}</td>
                   <td>{row.poolPct}%</td>
+                  <td>{row.agronomistMaxPct != null ? `${row.agronomistMaxPct}%` : '—'}</td>
+                  <td>{row.partnerMaxPct != null ? `${row.partnerMaxPct}%` : '—'}</td>
                   <td>{formatDate(row.effectiveFrom)}</td>
                   <td>{formatDate(row.effectiveTo)}</td>
                   <td>{row.editedBy || '—'}</td>

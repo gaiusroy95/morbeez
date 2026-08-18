@@ -46,7 +46,12 @@ export const payrollGeneratorService = {
       const salesIncentive = sales.incentiveEarnedInr;
       const quarterlyBonus = sales.quarterlyBonusInr;
       const agronomistBonus = agro.bonusTotal;
-      const totalIncentive = salesIncentive + quarterlyBonus + agronomistBonus;
+      const { settlementService } = await import('../remuneration/settlement.service.js');
+      const dueSettlements = await settlementService.dueForParty('employee', employeeId);
+      const agronomistSalesDue = Math.round(
+        dueSettlements.reduce((s, r) => s + Number(r.final_payable_inr ?? r.amount_inr ?? 0), 0) * 100
+      ) / 100;
+      const totalIncentive = salesIncentive + quarterlyBonus + agronomistBonus + agronomistSalesDue;
 
       const deductions = summary.salary_eligibility ? 0 : fixedSalary * 0.15;
       const finalSalary = fixedSalary + allowances + totalIncentive - deductions;
@@ -56,7 +61,7 @@ export const payrollGeneratorService = {
         employee_profile_id: employeeId,
         fixed_salary: fixedSalary,
         estimated_incentive: salesIncentive,
-        bonuses: quarterlyBonus + agronomistBonus,
+        bonuses: quarterlyBonus + agronomistBonus + agronomistSalesDue,
         km_allowance: allowances,
         deductions,
         final_salary: finalSalary,
@@ -81,6 +86,7 @@ export const payrollGeneratorService = {
             salesIncentiveInr: salesIncentive,
             quarterlyBonusInr: quarterlyBonus,
             agronomistBonusInr: agronomistBonus,
+            agronomistSalesDueInr: agronomistSalesDue,
             visitBonusInr: agro.visitBonus,
             recSuccessBonusInr: agro.recBonus,
             escalationBonusInr: agro.escalationBonus,
@@ -97,6 +103,10 @@ export const payrollGeneratorService = {
       throwIfSupabaseError(entryErr, 'Could not upsert payroll entry');
       if (entry?.id) {
         await agronomistEarningsService.markIncludedInPayroll(employeeId, monthKey, String(entry.id));
+        await settlementService.attachPayrollEntry(
+          dueSettlements.map((r) => String(r.id)),
+          String(entry.id)
+        );
       }
     }
 

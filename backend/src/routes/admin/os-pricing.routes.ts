@@ -84,6 +84,8 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
           warningMessage: l.warningMessage,
           allowed: l.allowed,
           channelPoolPct: l.channelPoolPct,
+          channelPoolAgronomistPct: l.channelPoolAgronomistPct,
+          channelPoolPartnerPct: l.channelPoolPartnerPct,
           channelPoolVersionLabel: l.channelPoolVersionLabel,
           channelPoolEffectiveFrom: l.channelPoolEffectiveFrom,
           channelPoolAmount: l.channelPoolAmount,

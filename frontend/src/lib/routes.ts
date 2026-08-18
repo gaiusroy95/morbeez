@@ -20,6 +20,7 @@ export const paths = {
   intelligence: 'intelligence',
   opportunity: 'opportunity',
   partnerProgram: 'partners',
+  kpiControl: 'kpi-control',
   productGaps: 'product-gaps',
   farmer360: 'farmers/:farmerId/360',
   communicationHub: 'communication',
@@ -141,6 +142,11 @@ export const ROUTE_META: Record<
     title: 'Partner Program',
     module: 'partner_program',
     pageKey: 'partners',
+  },
+  [toPath(paths.kpiControl)]: {
+    title: 'KPI Control Center',
+    module: 'partner_program',
+    pageKey: 'kpi-control',
   },
   [toPath(paths.productGaps)]: {
     title: 'Product Gaps',

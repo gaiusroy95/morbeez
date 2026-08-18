@@ -85,10 +85,7 @@ export const orderSyncService = {
         unit_price: unitPrice,
         hsn_code: hsn,
         gst_percent: gst,
-        channel_pool_pct: pool.channelPoolPct,
-        channel_pool_version_id: pool.channelPoolVersionId,
-        channel_pool_version_label: pool.channelPoolVersionLabel,
-        channel_pool_effective_from: pool.channelPoolEffectiveFrom,
+        ...((await import('../pricing/channel-pool.util.js')).poolColumnsFromSnapshot(pool)),
       });
       throwIfSupabaseError(lineErr, 'Sync order line');
     }

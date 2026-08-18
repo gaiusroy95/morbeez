@@ -6,16 +6,18 @@ function monthKey(d = new Date()) {
 }
 
 function aggregateRows(
-  rows: Array<{
+    rows: Array<{
     commission_inr?: unknown;
     bonus_inr?: unknown;
     status?: unknown;
     category_key?: unknown;
+    earning_kind?: unknown;
   }> | null
 ) {
   let productCommission = 0;
   let successBonus = 0;
   let serviceRevenue = 0;
+  let cashRewards = 0;
   let pendingPayout = 0;
   let approvedPayout = 0;
   let paidPayout = 0;
@@ -23,14 +25,18 @@ function aggregateRows(
   for (const row of rows ?? []) {
     const commission = Number(row.commission_inr ?? 0);
     const bonus = Number(row.bonus_inr ?? 0);
-    if (String(row.category_key).includes('testing') || String(row.category_key).includes('package')) {
+    const kind = String(row.earning_kind ?? '');
+    const category = String(row.category_key ?? '');
+    if (kind === 'intro_cash' || category === 'farmer_introduction') {
+      cashRewards += bonus;
+    } else if (category.includes('testing') || category.includes('package')) {
       serviceRevenue += commission + bonus;
-    } else if (row.category_key === 'success_bonus') {
+    } else if (category === 'success_bonus') {
       successBonus += bonus;
     } else {
       productCommission += commission;
     }
-    if (row.status === 'pending' || row.status === 'held') pendingPayout += commission + bonus;
+    if (row.status === 'pending') pendingPayout += commission + bonus;
     if (row.status === 'approved') approvedPayout += commission + bonus;
     if (row.status === 'paid') paidPayout += commission + bonus;
   }
@@ -38,6 +44,7 @@ function aggregateRows(
   return {
     productCommission: Math.round(productCommission),
     successBonus: Math.round(successBonus),
+    cashRewards: Math.round(cashRewards),
     serviceRevenue: Math.round(serviceRevenue),
     pendingPayout: Math.round(pendingPayout),
     approvedPayout: Math.round(approvedPayout),
@@ -52,7 +59,7 @@ export const partnerEarningsService = {
   ) {
     let q = supabase
       .from('partner_earnings_ledger')
-      .select('commission_inr, bonus_inr, status, category_key')
+      .select('commission_inr, bonus_inr, status, category_key, earning_kind')
       .eq('partner_id', partnerId);
 
     if (filter.from && filter.to) {
@@ -68,6 +75,10 @@ export const partnerEarningsService = {
     throwIfSupabaseError(error, 'Could not load earnings');
 
     const totals = aggregateRows(data);
+    const { farmerIntroductionService } = await import(
+      '../remuneration/farmer-introduction.service.js'
+    );
+    const intro = await farmerIntroductionService.summaryForPartner(partnerId);
 
     const { data: partner } = await supabase
       .from('partners')
@@ -78,13 +89,27 @@ export const partnerEarningsService = {
     const rel = Number(partner?.reliability_score ?? 70);
     const reliabilityHoldPct = rel < 50 ? 100 : rel < 70 ? 20 : 0;
 
+    const { earningDrilldownService } = await import('../remuneration/earning-drilldown.service.js');
+    const drilldown = await earningDrilldownService.forParty('partner', partnerId);
+
     return {
       month: filter.month ?? (filter.from ? null : monthKey()),
       fromDate: filter.from ?? null,
       toDate: filter.to ?? null,
       ...totals,
       leadBonus: 0,
+      cashRewards: totals.cashRewards,
       reliabilityHoldPct,
+      farmersIntroduced: intro.farmersIntroduced,
+      farmersVerified: intro.farmersVerified,
+      eligibleIntroductions: intro.eligibleIntroductions,
+      cashRewardEarned: intro.cashRewardEarned,
+      productRewardAvailable: intro.productRewardMax,
+      productRewardUsed: intro.productRewardUsed,
+      productRewardBalance: intro.productRewardBalance,
+      heldPayout: drilldown.heldNow,
+      duePayout: drilldown.dueNow,
+      months: drilldown.months,
     };
   },
 
