@@ -189,6 +189,8 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
       setBusy(false);
     }
   }
+
+  async function generatePayouts() {
     if (!canWrite) return;
     setBusy(true);
     try {
