@@ -197,6 +197,10 @@ export const recommendationFollowUpService = {
         })
         .eq('id', recommendationRecordId);
       await this.upsertLearningSample(rec, { applicationConfirmed: true });
+      const { agronomistEarningsTriggers } = await import(
+        '../remuneration/agronomist-earnings-triggers.js'
+      );
+      agronomistEarningsTriggers.onRecommendationApplied(recommendationRecordId);
       await clearConversationPending(farmerId);
       return copy.appliedThanks;
     }
@@ -228,10 +232,17 @@ export const recommendationFollowUpService = {
 
   /** Stage 1 — recommendation communicated; schedule Day-1 application check. */
   async onRecommendationCommunicated(recommendationRecordId: string): Promise<void> {
-    if (!env.ENABLE_ADVISORY_FOLLOW_UPS) return;
-
     const rec = await this.loadRecord(recommendationRecordId);
     if (!rec) return;
+
+    const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+    aiCallingTriggers.onRecommendationCommunicated({
+      farmerId: rec.farmer_id,
+      recommendationRecordId,
+      language: rec.language,
+    });
+
+    if (!env.ENABLE_ADVISORY_FOLLOW_UPS) return;
 
     const now = new Date().toISOString();
     await supabase
@@ -1109,6 +1120,10 @@ export const recommendationFollowUpService = {
         farmerId,
         recommendationRecordId,
       });
+      const { agronomistEarningsTriggers } = await import(
+        '../remuneration/agronomist-earnings-triggers.js'
+      );
+      agronomistEarningsTriggers.onRecommendationApplied(recommendationRecordId);
       await clearConversationPending(farmerId);
       return copy.appliedThanks;
     }

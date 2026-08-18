@@ -16,4 +16,9 @@ describe('farmer feedback outcome parsing', () => {
     assert.equal(parseFarmerOutcomeAnswer('no change'), 'no_change');
     assert.equal(parseFarmerOutcomeAnswer('2'), 'partial');
   });
+
+  it('does not treat recover/same as a substring in a long farm note', () => {
+    assert.equal(parseFarmerOutcomeAnswer('we will recover bags from the store same day'), null);
+    assert.equal(parseFarmerOutcomeAnswer('labour paid 700 same as last week per acre'), null);
+  });
 });

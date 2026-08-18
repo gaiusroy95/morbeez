@@ -54,6 +54,13 @@ export const gingerSopFollowUpService = {
         },
       });
     }
+
+    const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+    aiCallingTriggers.onHealthSopScheduled({
+      farmerId: params.farmerId,
+      language: params.language,
+      days: [1, 3, 7],
+    });
   },
 
   async processRecoveryJob(job: {
@@ -137,6 +144,12 @@ export const gingerSopFollowUpService = {
         title: 'Ginger SOP — no recovery',
         notes: `Day ${params.day} recovery check: farmer reported WORSE. Session ${params.sessionId ?? 'n/a'}`,
         priority: 'urgent',
+      });
+      const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+      aiCallingTriggers.onCropWorsened({
+        farmerId: params.farmerId,
+        reason: `Ginger SOP day ${params.day}: farmer reported worse`,
+        sessionId: params.sessionId,
       });
       return 'Thank you. We marked this as urgent — our agronomist team will contact you soon.';
     }

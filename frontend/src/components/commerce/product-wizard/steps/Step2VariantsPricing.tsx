@@ -1,14 +1,22 @@
 import { emptyVariant } from '../state';
 import { WizardField, pwInputClass } from '../WizardField';
 import { WizardMasterPicker } from '../WizardMasterPicker';
+import { ChannelPoolSection } from '../ChannelPoolSection';
 import type { WizardFormState, WizardVariant } from '../types';
 
 type Props = {
   state: WizardFormState;
   onChange: (next: WizardFormState) => void;
+  canViewPool?: boolean;
+  canEditPool?: boolean;
 };
 
-export function Step2VariantsPricing({ state, onChange }: Props) {
+export function Step2VariantsPricing({
+  state,
+  onChange,
+  canViewPool = false,
+  canEditPool = false,
+}: Props) {
   const variants = state.basic.variants;
 
   function setVariants(next: WizardVariant[]) {
@@ -119,6 +127,14 @@ export function Step2VariantsPricing({ state, onChange }: Props) {
           + Add Variant
         </button>
       </div>
+
+      <ChannelPoolSection
+        productId={state.productId}
+        productName={state.basic.tradeName || state.basic.technicalName}
+        variants={variants}
+        canView={canViewPool}
+        canEdit={canEditPool}
+      />
 
       <h3 className="pw-subtitle">Other Details</h3>
       <div className="pw-grid pw-grid--2">

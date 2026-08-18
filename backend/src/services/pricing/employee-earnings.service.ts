@@ -155,6 +155,14 @@ export const employeeEarningsService = {
 
     const current = monthlyHistory.find((m) => m.monthYear === currentMonth) ?? monthlyHistory[0];
 
+    const { agronomistEarningsService } = await import('../remuneration/agronomist-earnings.service.js');
+    const agro = await agronomistEarningsService.monthTotals(employeeProfileId, currentMonth);
+    const agronomistEvents = await agronomistEarningsService.listForEmployee(employeeProfileId, 30);
+    if (current && !current.fromPayroll) {
+      current.quarterlyBonusInr += agro.bonusTotal;
+      current.totalEarningsInr += agro.bonusTotal + agro.kmInr;
+    }
+
     const { data: ledger, error: ledErr } = await supabase
       .from('employee_sales_ledger')
       .select('*, commerce_quotes(quote_number)')
@@ -198,6 +206,8 @@ export const employeeEarningsService = {
       currentMonth: current ?? null,
       monthlyHistory,
       recentSales,
+      agronomist: agro,
+      agronomistEvents,
       config: {
         monthlySalesTargetInr: config.monthlySalesTargetInr,
         bulkOrderThresholdInr: config.bulkOrderThresholdInr,

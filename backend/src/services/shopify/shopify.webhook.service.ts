@@ -1,6 +1,5 @@
 import { eventBus } from '../../events/bus.js';
 import { supabase } from '../../lib/supabase.js';
-import { env } from '../../config/env.js';
 import { farmerService } from '../farmer/farmer.service.js';
 import { orderWhatsappService } from '../whatsapp/orders/order-whatsapp.service.js';
 import { logger } from '../../lib/logger.js';
@@ -94,27 +93,19 @@ export const shopifyWebhookService = {
       'shopify'
     );
 
-    if (env.ENABLE_PARTNER_PROGRAM && env.ENABLE_PARTNER_COMMISSION) {
-      const { data: orderRow } = await supabase
-        .from('commerce_orders')
-        .select('id, farmer_id, total_amount')
-        .eq('shopify_order_id', String(order.id))
-        .maybeSingle();
-      if (orderRow?.farmer_id) {
-        const { farmerOwnershipService } = await import('../partner/farmer-ownership.service.js');
-        const ownership = await farmerOwnershipService.getOwnership(String(orderRow.farmer_id));
-        const partnerId = ownership?.customerOwnerPartnerId ?? ownership?.assignedPartnerId;
-        if (partnerId) {
-          const { commissionEngineService } = await import('../partner/commission-engine.service.js');
-          await commissionEngineService.computeForOrder({
-            partnerId,
-            farmerId: String(orderRow.farmer_id),
-            orderId: String(orderRow.id),
-            categoryKey: 'biologicals',
-            grossInr: Number(orderRow.total_amount ?? order.total_price ?? 0),
-          });
-        }
-      }
+    const { data: orderRow } = await supabase
+      .from('commerce_orders')
+      .select('id, farmer_id, total_amount')
+      .eq('shopify_order_id', String(order.id))
+      .maybeSingle();
+
+    if (orderRow?.id) {
+      const { creditOrderPaidRewards } = await import('../remuneration/order-paid-rewards.js');
+      await creditOrderPaidRewards({
+        farmerId: orderRow.farmer_id ? String(orderRow.farmer_id) : null,
+        orderId: String(orderRow.id),
+        grossInr: Number(orderRow.total_amount ?? order.total_price ?? 0),
+      });
     }
   },
 

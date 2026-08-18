@@ -190,8 +190,10 @@ export const farmActivityAssistantService = {
     transcript?: string | null;
     conversationSessionId?: string | null;
     blockId?: string | null;
+    /** Crop Doctor feedback handoff — open a draft even if the global flag is off. */
+    force?: boolean;
   }): Promise<boolean> {
-    if (!this.enabled()) return false;
+    if (!this.enabled() && !input.force) return false;
 
     const text = input.text.trim();
     if (!text) return false;
@@ -224,6 +226,7 @@ export const farmActivityAssistantService = {
       conversationSessionId: input.conversationSessionId ?? null,
       blockId: input.blockId ?? null,
       sessionState: input.sessionState,
+      force: input.force,
     });
   },
 
@@ -239,12 +242,21 @@ export const farmActivityAssistantService = {
     conversationSessionId?: string | null;
     blockId?: string | null;
     sessionState?: string;
+    force?: boolean;
   }): Promise<boolean> {
-    if (!this.enabled()) return false;
-    if (input.modality === 'voice' && !this.voiceEnabled()) return false;
+    if (!this.enabled() && !input.force) return false;
+    if (input.modality === 'voice' && !this.voiceEnabled() && !input.force) return false;
 
     try {
       const ctx = await conversationSessionService.getContext(input.farmerId);
+      if (ctx.farmerFeedbackId && ctx.farmerFeedbackStep && !ctx.farmerFeedbackResume) {
+        await conversationSessionService.patchContext(input.farmerId, {
+          farmerFeedbackResume: {
+            feedbackId: ctx.farmerFeedbackId,
+            step: ctx.farmerFeedbackStep,
+          },
+        });
+      }
       const pointer = ctx.farmActivityAssistant;
       const existing =
         (pointer?.draftId ? await farmActivityDraftService.getById(pointer.draftId) : null)

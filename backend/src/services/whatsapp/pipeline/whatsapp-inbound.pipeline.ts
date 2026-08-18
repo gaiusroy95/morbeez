@@ -972,13 +972,17 @@ export const whatsappInboundPipeline = {
     );
 
     const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+    const farmVoiceInFlow =
+      farmActivityAssistantService.isFarmActivityState(session.state) ||
+      farmActivityAssistantService.isActionButton(transcript?.trim() ?? '');
     if (
       farmActivityAssistantService.voiceEnabled() &&
       send &&
       transcript?.trim() &&
       (
-        farmActivityAssistantService.isFarmActivityState(session.state) ||
-        farmActivityAssistantService.looksLikeIntent(transcript)
+        farmVoiceInFlow ||
+        (farmActivityAssistantService.looksLikeIntent(transcript) &&
+          session.state !== 'farmer_feedback_capture')
       )
     ) {
       const farmHandled = await farmActivityAssistantService.tryHandleInbound({
@@ -1385,6 +1389,17 @@ export const whatsappInboundPipeline = {
 
     if (looksLikeFarmActivityMessage(msg.text)) {
       const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+      if (session.state === 'farmer_feedback_capture') {
+        const handled = await farmerFeedbackFlowService.tryHandleCapture({
+          farmerId: captured.farmerId,
+          phone: captured.phone,
+          lang: captured.language,
+          text: msg.text,
+          send: { text: sendText },
+          messageId: msg.messageId,
+        });
+        if (handled) return;
+      }
       if (farmActivityAssistantService.enabled()) {
         const farmHandled = await farmActivityAssistantService.tryHandleInbound({
           farmerId: captured.farmerId,

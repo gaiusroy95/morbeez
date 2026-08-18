@@ -3,6 +3,7 @@ import { logger } from './lib/logger.js';
 import { buildApp } from './app.js';
 import { startOutboxWorkerIfEnabled } from './services/events/outbox.worker.js';
 import { startAdvisoryAutomationWorker } from './services/automation/advisory-automation.worker.js';
+import { startAiCallingWorker } from './services/ai-calling/ai-calling.worker.js';
 import { startRetentionCleanupWorker } from './services/retention/retention-cleanup.worker.js';
 import { startWhatsAppBroadcastWorker } from './services/whatsapp/broadcasts/whatsapp-broadcast.worker.js';
 import { startBroadcastCampaignWorker } from './services/whatsapp/broadcasts/broadcast-campaign.worker.js';
@@ -22,6 +23,7 @@ async function main() {
   const app = await buildApp();
   startOutboxWorkerIfEnabled();
   startAdvisoryAutomationWorker();
+  startAiCallingWorker();
   startRetentionCleanupWorker();
   startWhatsAppBroadcastWorker();
   startBroadcastCampaignWorker();

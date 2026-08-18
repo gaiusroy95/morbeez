@@ -9,6 +9,7 @@ type Tab =
   | 'applications'
   | 'settings'
   | 'commission'
+  | 'payouts'
   | 'events'
   | 'onboarding'
   | 'controlTower';
@@ -41,6 +42,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
   const [applications, setApplications] = useState<Array<Record<string, unknown>>>([]);
   const [settings, setSettings] = useState<Array<Record<string, unknown>>>([]);
   const [commissionRules, setCommissionRules] = useState<Array<Record<string, unknown>>>([]);
+  const [payouts, setPayouts] = useState<Array<Record<string, unknown>>>([]);
   const [events, setEvents] = useState<Array<Record<string, unknown>>>([]);
   const [trainingModules, setTrainingModules] = useState<Array<Record<string, unknown>>>([]);
   const [towerFarmerId, setTowerFarmerId] = useState('');
@@ -81,6 +83,11 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
           `${base}/commission/list`
         );
         setCommissionRules(r.rules ?? []);
+      } else if (tab === 'payouts') {
+        const r = await api<{ ok: boolean; batches: Array<Record<string, unknown>> }>(
+          `${base}/payouts`
+        );
+        setPayouts(r.batches ?? []);
       } else if (tab === 'events') {
         const r = await api<{ ok: boolean; events: Array<Record<string, unknown>> }>(
           `${base}/events/list`
@@ -163,6 +170,45 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
     }
   }
 
+  async function generatePayouts() {
+    if (!canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${base}/payouts/generate`, { method: 'POST', body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Generate failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approvePayout(id: string) {
+    if (!canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${base}/payouts/${id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Approve payout failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function markPayoutPaid(id: string) {
+    if (!canWrite) return;
+    setBusy(true);
+    try {
+      await api(`${base}/payouts/${id}/mark-paid`, { method: 'POST', body: JSON.stringify({}) });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mark paid failed');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function loadControlTower() {
     if (!towerFarmerId.trim()) return;
     setBusy(true);
@@ -212,6 +258,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
           { id: 'applications', label: 'Applications' },
           { id: 'onboarding', label: 'Onboarding' },
           { id: 'commission', label: 'Commission' },
+          { id: 'payouts', label: 'Payouts' },
           { id: 'events', label: 'Events' },
           { id: 'controlTower', label: 'Control tower' },
           { id: 'settings', label: 'Settings' },
@@ -365,6 +412,62 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                       {r.fixed_inr != null ? `₹${r.fixed_inr}` : ''}
                     </td>
                     <td>{String(r.requires_reliability_min ?? '—')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        </Panel>
+      ) : null}
+
+      {tab === 'payouts' ? (
+        <Panel
+          title="Monthly partner payouts"
+          actions={
+            canWrite ? (
+              <Btn size="sm" disabled={busy} onClick={() => void generatePayouts()}>
+                Generate this month
+              </Btn>
+            ) : null
+          }
+        >
+          <p className="mb-3 text-sm text-ink-muted">
+            Draft batches from pending ledger lines (reliability hold applied). Approve, then mark paid.
+            Refunds reverse the original snapshot — they do not use today&apos;s Channel Pool %.
+          </p>
+          <TableWrap>
+            <table>
+              <thead>
+                <tr>
+                  <th>Partner</th>
+                  <th>Month</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {payouts.map((b) => (
+                  <tr key={String(b.id)}>
+                    <td>
+                      {String(b.partnerName ?? 'Partner')}
+                      <div className="text-xs text-ink-muted">{String(b.partnerCode ?? '')}</div>
+                    </td>
+                    <td>{String(b.period_month)}</td>
+                    <td>₹{Number(b.total_inr ?? 0).toLocaleString('en-IN')}</td>
+                    <td>{String(b.status)}</td>
+                    <td>
+                      {canWrite && b.status === 'pending' ? (
+                        <Btn size="sm" disabled={busy} onClick={() => void approvePayout(String(b.id))}>
+                          Approve
+                        </Btn>
+                      ) : null}
+                      {canWrite && b.status === 'approved' ? (
+                        <Btn size="sm" disabled={busy} onClick={() => void markPayoutPaid(String(b.id))}>
+                          Mark paid
+                        </Btn>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>

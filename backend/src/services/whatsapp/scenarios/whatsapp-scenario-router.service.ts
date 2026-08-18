@@ -378,13 +378,14 @@ export const whatsappScenarioRouter = {
       if (roiHandled) return { handled: true };
     }
 
+    const farmInFlow =
+      farmActivityAssistantService.isFarmActivityState(session.state) ||
+      farmActivityAssistantService.isActionButton(text);
     if (
-      farmActivityAssistantService.enabled() &&
-      (
-        farmActivityAssistantService.isFarmActivityState(session.state) ||
-        farmActivityAssistantService.isActionButton(text) ||
-        Boolean(text && farmActivityAssistantService.looksLikeIntent(text))
-      )
+      farmInFlow ||
+      (farmActivityAssistantService.enabled() &&
+        Boolean(text && farmActivityAssistantService.looksLikeIntent(text)) &&
+        session.state !== 'farmer_feedback_capture')
     ) {
       const farmHandled = await farmActivityAssistantService.tryHandleInbound({
         farmerId: captured.farmerId,
@@ -397,8 +398,18 @@ export const whatsappScenarioRouter = {
         modality: 'text',
         conversationSessionId: session.id,
         blockId: session.active_block_id ?? null,
+        force: farmInFlow,
       });
       if (farmHandled) return { handled: true };
+    }
+
+    if (text) {
+      const { aiCallingOrchestrator } = await import('../../ai-calling/ai-calling-orchestrator.service.js');
+      const calling = await aiCallingOrchestrator.tryConsumeInboundReply(captured.farmerId, text);
+      if (calling.handled) {
+        if (calling.reply) await send.text(msg.phone, calling.reply);
+        return { handled: true };
+      }
     }
 
     if (session.state === 'post_diagnosis_intake') {

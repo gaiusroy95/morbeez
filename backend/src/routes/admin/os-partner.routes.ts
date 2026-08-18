@@ -28,6 +28,38 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, partners });
   });
 
+  app.get(`${api}/payouts`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const q = request.query as { month?: string };
+    const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+    const batches = await partnerPayoutService.list(q.month);
+    return reply.send({ ok: true, batches });
+  });
+
+  app.post(`${api}/payouts/generate`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'partner_program', 'write');
+    const body = z.object({ month: z.string().optional() }).parse(request.body ?? {});
+    const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+    const result = await partnerPayoutService.generateMonth(body.month);
+    return reply.send({ ok: true, ...result, generatedBy: admin.email });
+  });
+
+  app.post(`${api}/payouts/:id/approve`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'partner_program', 'write');
+    const { id } = request.params as { id: string };
+    const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+    const batch = await partnerPayoutService.approve(id, admin.email);
+    return reply.send({ ok: true, batch });
+  });
+
+  app.post(`${api}/payouts/:id/mark-paid`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'write');
+    const { id } = request.params as { id: string };
+    const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+    const batch = await partnerPayoutService.markPaid(id);
+    return reply.send({ ok: true, batch });
+  });
+
   app.get(`${api}/:id`, async (request, reply) => {
     await assertModuleAccess(request, 'partner_program', 'read');
     const { id } = request.params as { id: string };

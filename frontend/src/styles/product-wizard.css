@@ -924,3 +924,123 @@ body.route-product-wizard .page-header {
 .pw-crop-mapping-remove {
   color: #b91c1c;
 }
+
+.pw-channel-pool {
+  margin-top: 32px;
+  padding-top: 8px;
+}
+
+.pw-channel-pool__sku {
+  max-width: 320px;
+  margin-bottom: 16px;
+}
+
+.pw-channel-pool__current {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+}
+
+.pw-channel-pool__current dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.pw-channel-pool__current dt {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.pw-channel-pool__current dd {
+  margin: 0;
+  font-weight: 600;
+  color: #111827;
+}
+
+.pw-channel-pool__pct {
+  font-size: 1.25rem;
+  color: #1b5e20;
+}
+
+.pw-channel-pool__form {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px 20px 20px;
+  margin-bottom: 24px;
+}
+
+.pw-channel-pool__form-title {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.pw-channel-pool__error {
+  color: #b91c1c;
+  margin: 8px 0;
+}
+
+.pw-channel-pool__ok {
+  color: #166534;
+  margin: 8px 0;
+}
+
+.pw-channel-pool__history {
+  overflow-x: auto;
+}
+
+.pw-channel-pool__status {
+  text-transform: capitalize;
+}
+
+.pw-channel-pool__status--active {
+  color: #166534;
+  font-weight: 700;
+}
+
+.pw-channel-pool__status--pending {
+  color: #b45309;
+}
+
+.pw-channel-pool__status--closed {
+  color: #6b7280;
+}
+
+.pw-channel-pool__modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 80;
+  padding: 16px;
+}
+
+.pw-channel-pool__modal-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 24px;
+  max-width: 440px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.pw-channel-pool__modal-card p {
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.pw-channel-pool__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { readFileAsBase64 } from '../lib/readFileAsBase64';
 import { paths, toPath } from '../lib/routes';
@@ -27,6 +28,10 @@ export function ProductWizardPage({ canWrite }: Props) {
   const { productId: routeProductId } = useParams<{ productId?: string }>();
   const navigate = useNavigate();
   const isEdit = Boolean(routeProductId);
+  const { can } = useAuth();
+  const canViewPool = can('channel_pool', 'read');
+  const canEditPool = can('channel_pool', 'write');
+  const canOpen = canWrite || canViewPool;
 
   const [step, setStep] = useState(1);
   const [state, setState] = useState<WizardFormState>(() => defaultWizardState());
@@ -263,10 +268,10 @@ export function ProductWizardPage({ canWrite }: Props) {
     }
   }
 
-  if (!canWrite) {
+  if (!canOpen) {
     return (
       <div className="pw-page">
-        <p className="pw-error">You do not have permission to edit products.</p>
+        <p className="pw-error">You do not have permission to view this product.</p>
       </div>
     );
   }
@@ -307,7 +312,14 @@ export function ProductWizardPage({ canWrite }: Props) {
             canWrite={canWrite}
           />
         ) : null}
-        {step === 2 ? <Step2VariantsPricing state={state} onChange={setState} /> : null}
+        {step === 2 ? (
+          <Step2VariantsPricing
+            state={state}
+            onChange={setState}
+            canViewPool={canViewPool}
+            canEditPool={canEditPool}
+          />
+        ) : null}
         {step === 3 ? <Step3UsageDetails state={state} onChange={setState} /> : null}
         {step === 4 ? (
           <Step4Media
@@ -338,7 +350,7 @@ export function ProductWizardPage({ canWrite }: Props) {
           >
             Next
           </button>
-        ) : (
+        ) : canWrite ? (
           <button
             type="button"
             className="pw-btn pw-btn--primary"
@@ -347,6 +359,8 @@ export function ProductWizardPage({ canWrite }: Props) {
           >
             Publish
           </button>
+        ) : (
+          <span />
         )}
       </footer>
     </div>

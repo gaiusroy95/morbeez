@@ -83,6 +83,10 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
           warningLevel: l.warningLevel,
           warningMessage: l.warningMessage,
           allowed: l.allowed,
+          channelPoolPct: l.channelPoolPct,
+          channelPoolVersionLabel: l.channelPoolVersionLabel,
+          channelPoolEffectiveFrom: l.channelPoolEffectiveFrom,
+          channelPoolAmount: l.channelPoolAmount,
         })),
         retailOrBulk: preview.retailOrBulk,
         orderTotal: preview.orderTotal,
@@ -145,7 +149,12 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get(`${api}/earnings/me`, async (request, reply) => {
-    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    let admin;
+    try {
+      admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    } catch {
+      admin = await assertModuleAccess(request, 'agronomist', 'read');
+    }
     const earnings = await employeeEarningsService.getMyEarnings(admin.id);
     if (!earnings) {
       return reply.status(404).send({ ok: false, error: 'No employee profile linked to this account' });

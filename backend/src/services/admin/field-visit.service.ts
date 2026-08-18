@@ -675,6 +675,17 @@ export const fieldVisitService = {
       }
     }
 
+    if (!partnerId) {
+      const { agronomistEarningsTriggers } = await import(
+        '../remuneration/agronomist-earnings-triggers.js'
+      );
+      agronomistEarningsTriggers.onStructuredVisitSubmitted({
+        findingId,
+        agronomistEmail: agentEmail,
+        farmerId: input.farmerId,
+      });
+    }
+
     return {
       findingId,
       finding: findingRow,

@@ -95,10 +95,6 @@ export const farmActivityCommitService = {
     actor?: string;
     fallbackBlockId?: string | null;
   }): Promise<FarmActivityCommitResult> {
-    if (!this.enabled()) {
-      throw new ValidationError('Farm Activity Assistant is disabled');
-    }
-
     const draftRow = await farmActivityDraftService.getById(input.draftId);
     if (!draftRow || draftRow.farmer_id !== input.farmerId) {
       throw new NotFoundError('Farm activity draft not found');

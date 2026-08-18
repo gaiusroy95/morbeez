@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTelecallerHeader } from '../context/TelecallerHeaderContext';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { LeadDetailPanel } from '../components/telecaller/LeadDetailPanel';
 import { LeadOperationsTable } from '../components/telecaller/lead-queue/LeadOperationsTable';
 import type { OperationalLead } from '../components/telecaller/lead-queue/lead-queue-types';
 import { EscalationsPanel } from '../components/telecaller/EscalationsPanel';
+import { AiCallingPanel } from '../components/telecaller/AiCallingPanel';
 import { TelecallerQcDashboard } from '../components/telecaller/TelecallerQcDashboard';
 import { TelecallerFollowUpsPanel } from '../components/telecaller/TelecallerFollowUpsPanel';
 import { TelecallerSalesOpportunitiesPanel } from '../components/telecaller/TelecallerSalesOpportunitiesPanel';
@@ -77,11 +79,11 @@ function isDueTodayIso(iso: string | undefined): boolean {
   );
 }
 
-type CrmView = 'workspace' | 'followUps' | 'escalations' | 'qc';
+type CrmView = 'workspace' | 'followUps' | 'escalations' | 'qc' | 'calling';
 type WorkspaceViewMode = 'list' | 'detail';
 type CrmNotification = { id: string; message: string; at: string };
 
-const CRM_VIEWS: CrmView[] = ['workspace', 'followUps', 'qc', 'escalations'];
+const CRM_VIEWS: CrmView[] = ['workspace', 'followUps', 'qc', 'escalations', 'calling'];
 
 function isCrmView(value: string | null): value is CrmView {
   return value != null && (CRM_VIEWS as string[]).includes(value);
@@ -98,6 +100,9 @@ function crmViewFromSearch(params: URLSearchParams): CrmView {
 export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { patchHeader } = useTelecallerHeader();
+  const { can } = useAuth();
+  const canCalling = can('ai_calling', 'read');
+  const canCallingWrite = can('ai_calling', 'write');
   const [crmView, setCrmView] = useState<CrmView>(() => crmViewFromSearch(searchParams));
   const [pendingEscalations, setPendingEscalations] = useState(0);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -472,6 +477,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
           { id: 'followUps' as const, label: 'Follow-ups' },
           { id: 'qc' as const, label: 'Call QC' },
           { id: 'escalations' as const, label: 'Escalations', badge: pendingEscalations },
+          ...(canCalling ? [{ id: 'calling' as const, label: 'AI Calling' }] : []),
         ]}
         active={crmView}
         onChange={onCrmViewChange}
@@ -484,6 +490,10 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
       {crmView === 'qc' ? <TelecallerQcDashboard /> : null}
       {crmView === 'escalations' ? (
         <EscalationsPanel canWrite={canWrite} onBadgeRefresh={() => void loadBadges()} />
+      ) : null}
+
+      {crmView === 'calling' && canCalling ? (
+        <AiCallingPanel canWrite={canCallingWrite} />
       ) : null}
 
       {crmView === 'workspace' && showNewLead && canWrite ? (

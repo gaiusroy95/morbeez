@@ -716,6 +716,14 @@ export const telecallerAdminService = {
       assignedTo: agentEmail,
     });
 
+    const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+    aiCallingTriggers.onNewLead({
+      farmerId: result.farmer.id,
+      leadId: String(result.lead.id),
+      language: input.language,
+      cropType: input.cropType ?? input.cropBlocks?.[0]?.cropName,
+    });
+
     return this.getLeadDetail(String(result.lead.id));
   },
 

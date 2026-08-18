@@ -268,6 +268,11 @@ export const returnWorkflowService = {
 
     await omsWorkflowService.updateStatus(String(row.commerce_order_id), 'returned');
 
+    const { partnerPayoutService } = await import('../partner/partner-payout.service.js');
+    await partnerPayoutService
+      .reverseOrder(String(row.commerce_order_id), `Return ${row.return_number}`)
+      .catch(() => {});
+
     if (actorEmail) {
       await employeeActionLogService.log({
         actorEmail,

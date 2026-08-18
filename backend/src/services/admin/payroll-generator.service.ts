@@ -33,24 +33,30 @@ export const payrollGeneratorService = {
         .eq('employee_profile_id', employeeId)
         .maybeSingle();
       const fixedSalary = Number(comp?.fixed_salary ?? 30000);
-      const kmAllowance = comp?.km_allowance_enabled ? Number(comp?.rate_per_km ?? 0) * 100 : 0;
       const travelAllowance = Number(comp?.travel_allowance ?? 0);
+      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+      const { agronomistEarningsService } = await import(
+        '../remuneration/agronomist-earnings.service.js'
+      );
+      const agro = await agronomistEarningsService.monthTotals(employeeId, monthKey);
+      const kmAllowance = agro.kmInr;
       const allowances = travelAllowance + kmAllowance;
 
       const sales = await salesPayrollService.getMonthlyTotals(employeeId, year, month);
       const salesIncentive = sales.incentiveEarnedInr;
       const quarterlyBonus = sales.quarterlyBonusInr;
-      const totalIncentive = salesIncentive + quarterlyBonus;
+      const agronomistBonus = agro.bonusTotal;
+      const totalIncentive = salesIncentive + quarterlyBonus + agronomistBonus;
 
       const deductions = summary.salary_eligibility ? 0 : fixedSalary * 0.15;
       const finalSalary = fixedSalary + allowances + totalIncentive - deductions;
 
-      const { error: entryErr } = await supabase.from('payroll_entries').upsert({
+      const { data: entry, error: entryErr } = await supabase.from('payroll_entries').upsert({
         payroll_cycle_id: cycle.id,
         employee_profile_id: employeeId,
         fixed_salary: fixedSalary,
         estimated_incentive: salesIncentive,
-        bonuses: quarterlyBonus,
+        bonuses: quarterlyBonus + agronomistBonus,
         km_allowance: allowances,
         deductions,
         final_salary: finalSalary,
@@ -74,12 +80,24 @@ export const payrollGeneratorService = {
           incentive: {
             salesIncentiveInr: salesIncentive,
             quarterlyBonusInr: quarterlyBonus,
+            agronomistBonusInr: agronomistBonus,
+            visitBonusInr: agro.visitBonus,
+            recSuccessBonusInr: agro.recBonus,
+            escalationBonusInr: agro.escalationBonus,
+            retentionBonusInr: agro.retentionBonus,
+            kmInr: agro.kmInr,
+            kmTotal: agro.kmTotal,
             totalIncentiveInr: totalIncentive,
           },
         },
         updated_at: new Date().toISOString(),
-      });
+      }, { onConflict: 'payroll_cycle_id,employee_profile_id' })
+        .select('id')
+        .maybeSingle();
       throwIfSupabaseError(entryErr, 'Could not upsert payroll entry');
+      if (entry?.id) {
+        await agronomistEarningsService.markIncludedInPayroll(employeeId, monthKey, String(entry.id));
+      }
     }
 
     return cycle;

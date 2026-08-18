@@ -38,6 +38,9 @@ export const callbackFlowService = {
       mergeNotes: true,
     });
 
+    const { aiCallingTriggers } = await import('../../ai-calling/ai-calling-triggers.js');
+    aiCallingTriggers.onCallbackRequested({ farmerId, notes });
+
     return t('callbackReceived', language);
   },
 };

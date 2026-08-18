@@ -19,6 +19,7 @@ import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIn
 import { OutcomeIntelligencePage } from './agronomist/OutcomeIntelligencePage';
 import { WeaknessDashboardPage } from './ai-ops/WeaknessDashboardPage';
 import { RetrainingOpsPage } from './ai-ops/RetrainingOpsPage';
+import { MyEarningsPanel } from '../components/telecaller/MyEarningsPanel';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 
@@ -33,7 +34,8 @@ type AgronomistHubTab =
   | 'case_library'
   | 'queue'
   | 'approvals'
-  | 'farmer_feedback';
+  | 'farmer_feedback'
+  | 'earnings';
 
 const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'case_review', label: 'Case review' },
@@ -47,6 +49,7 @@ const AGRONOMIST_HUB_TABS: Array<{ id: AgronomistHubTab; label: string }> = [
   { id: 'queue', label: 'Field findings' },
   { id: 'farmer_feedback', label: 'Farmer feedback' },
   { id: 'approvals', label: 'Approvals' },
+  { id: 'earnings', label: 'Earnings' },
 ];
 
 type QueueItem = {
@@ -292,6 +295,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
       {tab === 'weakness' ? <WeaknessDashboardPage /> : null}
       {tab === 'retraining' ? <RetrainingOpsPage /> : null}
       {tab === 'case_library' ? <CaseLibraryPanel canWrite={canWrite} /> : null}
+      {tab === 'earnings' ? <MyEarningsPanel /> : null}
 
       {tab === 'queue' && !loading ? (
         <div className="mt-6 grid gap-6 lg:grid-cols-2">

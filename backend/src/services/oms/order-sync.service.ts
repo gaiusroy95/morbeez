@@ -32,7 +32,7 @@ export const orderSyncService = {
   async syncOrderLines(shopifyOrderId: string, order?: ShopifyOrder) {
     const { data: commerceOrder, error: orderErr } = await supabase
       .from('commerce_orders')
-      .select('id, raw_payload')
+      .select('id, raw_payload, created_at')
       .eq('shopify_order_id', shopifyOrderId)
       .single();
     throwIfSupabaseError(orderErr, 'Commerce order');
@@ -67,6 +67,13 @@ export const orderSyncService = {
       const gst = basic.gstPercent != null ? Number(basic.gstPercent) : Number(item.gst_percent);
 
       const shopifyLineId = li.id != null ? String(li.id) : null;
+      const { channelPoolService } = await import('../pricing/channel-pool.service.js');
+      const pool = await channelPoolService.snapshotForLine({
+        variantId: li.variant_id,
+        sku,
+        asOf: commerceOrder.created_at ? String(commerceOrder.created_at).slice(0, 10) : undefined,
+        salesInr: unitPrice * qty,
+      });
       const { error: lineErr } = await supabase.from('commerce_order_lines').insert({
         commerce_order_id: commerceOrder.id,
         shopify_line_id: shopifyLineId,
@@ -78,6 +85,10 @@ export const orderSyncService = {
         unit_price: unitPrice,
         hsn_code: hsn,
         gst_percent: gst,
+        channel_pool_pct: pool.channelPoolPct,
+        channel_pool_version_id: pool.channelPoolVersionId,
+        channel_pool_version_label: pool.channelPoolVersionLabel,
+        channel_pool_effective_from: pool.channelPoolEffectiveFrom,
       });
       throwIfSupabaseError(lineErr, 'Sync order line');
     }

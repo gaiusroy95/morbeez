@@ -315,6 +315,18 @@ export const escalationAdminService = {
     throwIfSupabaseError(error, 'Could not update escalation');
     if (!data) throw new NotFoundError('Escalation not found');
 
+    if (String(data.status) === 'resolved' || String(data.status) === 'closed') {
+      const { agronomistEarningsTriggers } = await import(
+        '../remuneration/agronomist-earnings-triggers.js'
+      );
+      agronomistEarningsTriggers.onEscalationResolved({
+        escalationId: id,
+        assignedTo: data.assigned_to ? String(data.assigned_to) : null,
+        agentEmail,
+        farmerId: data.farmer_id ? String(data.farmer_id) : null,
+      });
+    }
+
     if (body.comment?.trim()) {
       await this.addEscalationComment(
         id,

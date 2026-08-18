@@ -995,6 +995,23 @@ export const agronomistMobileService = {
       .select('*')
       .single();
     throwIfSupabaseError(error, 'Could not check out');
+
+    if (String(data.agent_type ?? 'agronomist') !== 'partner') {
+      const { agronomistEarningsTriggers } = await import(
+        '../remuneration/agronomist-earnings-triggers.js'
+      );
+      agronomistEarningsTriggers.onVisitCheckout({
+        id: String(data.id),
+        agronomist_email: String(data.agronomist_email),
+        farmer_id: String(data.farmer_id),
+        field_finding_id: data.field_finding_id ? String(data.field_finding_id) : null,
+        check_in_lat: data.check_in_lat != null ? Number(data.check_in_lat) : null,
+        check_in_lng: data.check_in_lng != null ? Number(data.check_in_lng) : null,
+        check_out_lat: data.check_out_lat != null ? Number(data.check_out_lat) : null,
+        check_out_lng: data.check_out_lng != null ? Number(data.check_out_lng) : null,
+      });
+    }
+
     return data;
   },
 

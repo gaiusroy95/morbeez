@@ -22,6 +22,10 @@ type QuoteLine = {
   cgst?: number;
   sgst?: number;
   igst?: number;
+  channelPoolPct?: number | null;
+  channelPoolVersionId?: string | null;
+  channelPoolVersionLabel?: string | null;
+  channelPoolEffectiveFrom?: string | null;
 };
 
 function skuFromQuoteLine(line: QuoteLine, index: number): string {
@@ -214,6 +218,10 @@ export const quoteOmsBridgeService = {
         unit_price: line.unitPrice,
         hsn_code: line.hsnCode ?? item.hsn_code,
         gst_percent: line.gstPercent ?? item.gst_percent,
+        channel_pool_pct: line.channelPoolPct ?? null,
+        channel_pool_version_id: line.channelPoolVersionId ?? null,
+        channel_pool_version_label: line.channelPoolVersionLabel ?? null,
+        channel_pool_effective_from: line.channelPoolEffectiveFrom ?? null,
       });
     }
 

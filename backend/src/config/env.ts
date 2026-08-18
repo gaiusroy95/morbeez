@@ -400,11 +400,11 @@ const envSchema = z.object({
   EXPERT_CASE_RECURRENCE_DAYS: coerceEnvInt(14),
   EXPERT_CASE_INTERRUPTION_LIMIT: coerceEnvInt(2),
 
-  /** Multilingual WhatsApp Farm Activity Assistant — phased, default off. */
+  /** WhatsApp fertilizer / labour / harvest logging. Default on so Crop Doctor handoff can save. */
   ENABLE_FARM_ACTIVITY_ASSISTANT: z
     .string()
-    .transform((v) => v === 'true')
-    .default('false'),
+    .transform((v) => v !== 'false')
+    .default('true'),
   ENABLE_FARM_ACTIVITY_VOICE: z
     .string()
     .transform((v) => v === 'true')
@@ -434,6 +434,22 @@ const envSchema = z.object({
   EXOTEL_TOKEN: z.string().optional(),
   EXOTEL_CALLER_ID: z.string().optional(),
   EXOTEL_SUBDOMAIN: z.string().optional(),
+
+  /** AI farmer calling engine (jobs + WhatsApp/staff fallback). Voicebot is separate. */
+  ENABLE_AI_CALLING: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  /** Conversational outbound voice. Off until Sarvam TTS + Exotel applet exist. */
+  ENABLE_AI_CALLING_VOICE: z
+    .string()
+    .transform((v) => v === 'true')
+    .default('false'),
+  AI_CALLING_WHATSAPP_FALLBACK: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  SARVAM_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

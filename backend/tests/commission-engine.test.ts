@@ -1,12 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-
-function reliabilityHoldPct(score: number): number {
-  if (score >= 85) return 0;
-  if (score >= 70) return 0;
-  if (score >= 50) return 20;
-  return 100;
-}
+import { reliabilityHoldPct } from '../src/domain/remuneration/commission-category.js';
 
 describe('commission reliability holds', () => {
   it('holds 100% below score 50', () => {
@@ -17,7 +11,8 @@ describe('commission reliability holds', () => {
     assert.equal(reliabilityHoldPct(65), 20);
   });
 
-  it('no hold at 85+', () => {
+  it('no hold at 70+', () => {
+    assert.equal(reliabilityHoldPct(70), 0);
     assert.equal(reliabilityHoldPct(90), 0);
   });
 });

@@ -29,6 +29,11 @@ export type QuoteLineItem = {
   sgst: number;
   igst: number;
   amountInclGst: number;
+  channelPoolPct?: number | null;
+  channelPoolVersionId?: string | null;
+  channelPoolVersionLabel?: string | null;
+  channelPoolEffectiveFrom?: string | null;
+  channelPoolAmount?: number | null;
 };
 
 export type CommerceQuote = {
@@ -138,6 +143,16 @@ function mapRow(row: Record<string, unknown>): CommerceQuote {
       ? (String(row.bulk_margin_review_status) as 'pending' | 'approved' | 'rejected')
       : null,
   };
+}
+
+async function creditQuotePaidRewards(quote: CommerceQuote, commerceOrderId: string | null) {
+  if (!commerceOrderId) return;
+  const { creditOrderPaidRewards } = await import('../remuneration/order-paid-rewards.js');
+  await creditOrderPaidRewards({
+    farmerId: quote.farmerId,
+    orderId: commerceOrderId,
+    grossInr: quote.total,
+  });
 }
 
 function quoteViewUrl(quoteId: string): string {
@@ -286,7 +301,32 @@ async function persistQuoteLines(
 ): Promise<CommerceQuote> {
   if (!input.lines.length) throw new ValidationError('Add at least one product');
 
-  const totals = await computeLines(input.lines, customerState);
+  const { data: quoteRow } = await supabase
+    .from('commerce_quotes')
+    .select('created_at, line_items')
+    .eq('id', quoteId)
+    .maybeSingle();
+  const asOf = quoteRow?.created_at
+    ? String(quoteRow.created_at).slice(0, 10)
+    : undefined;
+  const existingLines = (quoteRow?.line_items as QuoteLineItem[] | undefined) ?? [];
+  const linesWithPriorSnapshot = input.lines.map((line) => {
+    const prior = existingLines.find(
+      (e) =>
+        (line.variantId && e.variantId === line.variantId) ||
+        (line.sku && e.sku && e.sku === line.sku)
+    );
+    return {
+      ...line,
+      channelPoolPct: prior?.channelPoolPct,
+      channelPoolVersionId: prior?.channelPoolVersionId,
+      channelPoolVersionLabel: prior?.channelPoolVersionLabel,
+      channelPoolEffectiveFrom: prior?.channelPoolEffectiveFrom,
+      channelPoolAmount: prior?.channelPoolAmount,
+    };
+  });
+
+  const totals = await computeLines(linesWithPriorSnapshot, customerState, asOf);
   const paymentType = input.paymentType ?? 'advance';
   const prepaidAmount = input.prepaidAmount ?? 0;
   const codAmount = Math.max(0, totals.total - prepaidAmount);
@@ -344,8 +384,14 @@ async function computeLines(
     qty: number;
     unitPrice: number;
     gstPercent?: number;
+    channelPoolPct?: number | null;
+    channelPoolVersionId?: string | null;
+    channelPoolVersionLabel?: string | null;
+    channelPoolEffectiveFrom?: string | null;
+    channelPoolAmount?: number | null;
   }>,
-  customerState: string
+  customerState: string,
+  asOf?: string
 ): Promise<{
   lineItems: QuoteLineItem[];
   subtotal: number;
@@ -357,6 +403,7 @@ async function computeLines(
   const company = await companySettingsService.get();
   const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
   const custState = normalizeIndianState(customerState);
+  const { channelPoolService } = await import('../pricing/channel-pool.service.js');
 
   let subtotal = 0;
   let cgst = 0;
@@ -378,6 +425,19 @@ async function computeLines(
     sgst += breakup.sgst;
     igst += breakup.igst;
     const tax = breakup.cgst + breakup.sgst + breakup.igst;
+    const pool = await channelPoolService.snapshotForLine({
+      variantId: line.variantId,
+      sku: line.sku,
+      asOf,
+      salesInr: taxable,
+      existing: {
+        channelPoolPct: line.channelPoolPct,
+        channelPoolVersionId: line.channelPoolVersionId,
+        channelPoolVersionLabel: line.channelPoolVersionLabel,
+        channelPoolEffectiveFrom: line.channelPoolEffectiveFrom,
+        channelPoolAmount: line.channelPoolAmount,
+      },
+    });
     lineItems.push({
       variantId: line.variantId,
       productId: line.productId,
@@ -393,6 +453,11 @@ async function computeLines(
       sgst: breakup.sgst,
       igst: breakup.igst,
       amountInclGst: Math.round((taxable + tax) * 100) / 100,
+      channelPoolPct: pool.channelPoolPct,
+      channelPoolVersionId: pool.channelPoolVersionId,
+      channelPoolVersionLabel: pool.channelPoolVersionLabel,
+      channelPoolEffectiveFrom: pool.channelPoolEffectiveFrom,
+      channelPoolAmount: pool.channelPoolAmount,
     });
   }
 
@@ -1147,6 +1212,8 @@ export const commerceQuoteService = {
       }
     }
 
+    await creditQuotePaidRewards(quote, warehouse.commerceOrderId);
+
     return {
       alreadyCompleted: false,
       shopifyOrderId: shopifyOrder.shopifyOrderId,
@@ -1267,6 +1334,8 @@ export const commerceQuoteService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', id);
+
+    await creditQuotePaidRewards(quote, warehouse.commerceOrderId);
 
     return {
       shopifyOrderId: shopifyOrder.shopifyOrderId,

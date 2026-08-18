@@ -31,6 +31,16 @@ type SalesRow = {
   quoteNumber: string | null;
 };
 
+type AgronomistEvent = {
+  id: string;
+  event_type: string;
+  amount_inr: number;
+  km: number | null;
+  status: string;
+  created_at: string;
+  notes: string | null;
+};
+
 type EarningsData = {
   profile: {
     fullName: string;
@@ -47,6 +57,16 @@ type EarningsData = {
   currentMonth: MonthlyRow | null;
   monthlyHistory: MonthlyRow[];
   recentSales: SalesRow[];
+  agronomist?: {
+    visitBonus: number;
+    recBonus: number;
+    escalationBonus: number;
+    retentionBonus: number;
+    kmInr: number;
+    kmTotal: number;
+    bonusTotal: number;
+  };
+  agronomistEvents?: AgronomistEvent[];
 };
 
 function formatInr(n: number) {
@@ -153,6 +173,66 @@ export function MyEarningsPanel() {
                 <strong>{cur.avgRealizationPct.toFixed(1)}%</strong>
               </div>
             </div>
+          ) : null}
+
+          {data.agronomist &&
+          (data.profile.role.toLowerCase().includes('agro') ||
+            data.agronomist.bonusTotal + data.agronomist.kmInr > 0 ||
+            (data.agronomistEvents?.length ?? 0) > 0) ? (
+            <div className="tc-earnings-kpis">
+              <div className="tc-intel-kpi">
+                <span className="tc-intel-kpi-label">Visit bonus</span>
+                <strong>{formatInr(data.agronomist.visitBonus)}</strong>
+              </div>
+              <div className="tc-intel-kpi">
+                <span className="tc-intel-kpi-label">Rec success</span>
+                <strong>{formatInr(data.agronomist.recBonus)}</strong>
+              </div>
+              <div className="tc-intel-kpi">
+                <span className="tc-intel-kpi-label">Escalations</span>
+                <strong>{formatInr(data.agronomist.escalationBonus)}</strong>
+              </div>
+              <div className="tc-intel-kpi">
+                <span className="tc-intel-kpi-label">Retention</span>
+                <strong>{formatInr(data.agronomist.retentionBonus)}</strong>
+              </div>
+              <div className="tc-intel-kpi">
+                <span className="tc-intel-kpi-label">KM allowance</span>
+                <strong>{formatInr(data.agronomist.kmInr)}</strong>
+                <span className="tc-intel-kpi-sub">{data.agronomist.kmTotal} km GPS</span>
+              </div>
+            </div>
+          ) : null}
+
+          {data.agronomistEvents && data.agronomistEvents.length > 0 ? (
+            <Panel title="Agronomist work log" className="tc-earnings-panel-inner">
+              <TableWrap>
+                <DataTable>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Event</th>
+                      <th>Amount</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.agronomistEvents.slice(0, 20).map((e) => (
+                      <tr key={e.id}>
+                        <td>{new Date(e.created_at).toLocaleDateString('en-IN')}</td>
+                        <td>
+                          {e.event_type.replace(/_/g, ' ')}
+                          {e.km != null ? <div className="muted text-xs">{e.km} km GPS</div> : null}
+                          {e.notes ? <div className="muted text-xs">{e.notes}</div> : null}
+                        </td>
+                        <td>{formatInr(e.amount_inr)}</td>
+                        <td>{e.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </DataTable>
+              </TableWrap>
+            </Panel>
           ) : null}
 
           <Panel title="Monthly history" className="tc-earnings-panel-inner">
