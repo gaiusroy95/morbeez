@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../../lib/api';
-import { WizardField, pwInputClass, pwSelectClass, pwTextareaClass } from '../WizardField';
-import type { WizardVariant } from '../types';
+import { WizardField, pwInputClass, pwSelectClass, pwTextareaClass } from './WizardField';
+import type { WizardVariant } from './types';
 
 const PRESETS = [0, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30];
 
