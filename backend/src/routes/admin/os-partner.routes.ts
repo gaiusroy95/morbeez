@@ -126,7 +126,12 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
         .limit(100);
       settlements = (data ?? []) as Array<Record<string, unknown>>;
     }
-    const kpiSnapshots = await partnerKpiService.listSnapshots?.(id) ?? [];
+    const { data: kpiSnapshots } = await supabase
+      .from('partner_kpi_snapshots')
+      .select('*')
+      .eq('partner_id', id)
+      .order('period_start', { ascending: false })
+      .limit(12);
     return reply.send({ ok: true, partner, introductions, settlements, kpiSnapshots });
   });
 
