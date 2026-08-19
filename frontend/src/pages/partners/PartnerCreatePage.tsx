@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
+import { readFileAsBase64 } from '../../lib/readFileAsBase64';
 import {
   Alert,
   Badge,
@@ -15,6 +16,12 @@ import {
 } from '../../components/ui';
 
 const base = '/morbeez-staff/api/v1/partners';
+const mediaUpload = '/morbeez-staff/api/v1/products/media/upload';
+
+type PendingFile = {
+  file: File;
+  previewUrl?: string;
+};
 
 interface FormData {
   fullName: string;
@@ -100,12 +107,122 @@ function FormField({
   );
 }
 
+function FileUploadZone({
+  accept,
+  label,
+  hint,
+  value,
+  onChange,
+  imagePreview,
+  disabled,
+  className,
+}: {
+  accept: string;
+  label: string;
+  hint?: string;
+  value: PendingFile | null;
+  onChange: (file: PendingFile | null) => void;
+  imagePreview?: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    return () => {
+      if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
+    };
+  }, [value?.previewUrl]);
+
+  function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
+    onChange({
+      file,
+      previewUrl:
+        imagePreview && file.type.startsWith('image/')
+          ? URL.createObjectURL(file)
+          : undefined,
+    });
+  }
+
+  function clear() {
+    if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
+    onChange(null);
+  }
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        disabled={disabled}
+        onChange={handleSelect}
+      />
+      {value?.previewUrl ? (
+        <div className={`relative overflow-hidden rounded-lg border border-border ${className ?? 'h-28 w-28'}`}>
+          <img src={value.previewUrl} alt="Upload preview" className="h-full w-full object-cover" />
+          <button
+            type="button"
+            className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white"
+            onClick={clear}
+            disabled={disabled}
+          >
+            Remove
+          </button>
+        </div>
+      ) : value ? (
+        <div className={`flex items-center justify-between rounded-lg border border-border bg-surface-subtle px-3 py-2 text-sm ${className ?? 'h-20'}`}>
+          <span className="truncate text-ink">{value.file.name}</span>
+          <button type="button" className="ml-2 shrink-0 text-xs text-brand-600 hover:underline" onClick={clear} disabled={disabled}>
+            Remove
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className={`flex w-full items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted transition hover:border-brand-400 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-60 ${className ?? 'h-20'}`}
+        >
+          {label}
+          {hint ? <span className="ml-2 hidden text-xs sm:inline">{hint}</span> : null}
+        </button>
+      )}
+    </div>
+  );
+}
+
+async function uploadPartnerFile(file: File, folder: string) {
+  const dataBase64 = await readFileAsBase64(file);
+  const res = await api<{ ok: boolean; url: string }>(mediaUpload, {
+    method: 'POST',
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      dataBase64,
+      productId: 'partners',
+      folder,
+    }),
+  });
+  return res.url;
+}
+
 export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
   const navigate = useNavigate();
   const [form, setForm] = useState<FormData>(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [partnerPhoto, setPartnerPhoto] = useState<PendingFile | null>(null);
+  const [panCard, setPanCard] = useState<PendingFile | null>(null);
+  const [addressProof, setAddressProof] = useState<PendingFile | null>(null);
+  const [bankProof, setBankProof] = useState<PendingFile | null>(null);
+  const [otherDocument, setOtherDocument] = useState<PendingFile | null>(null);
 
   const set =
     (key: keyof FormData) =>
@@ -125,6 +242,13 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
     setBusy(true);
     setError('');
     try {
+      const uploads: Record<string, string> = {};
+      if (partnerPhoto) uploads.photoUrl = await uploadPartnerFile(partnerPhoto.file, 'photos');
+      if (panCard) uploads.panCardUrl = await uploadPartnerFile(panCard.file, 'kyc');
+      if (addressProof) uploads.addressProofUrl = await uploadPartnerFile(addressProof.file, 'address');
+      if (bankProof) uploads.bankProofUrl = await uploadPartnerFile(bankProof.file, 'bank');
+      if (otherDocument) uploads.otherDocumentUrl = await uploadPartnerFile(otherDocument.file, 'documents');
+
       await api(`${base}/applications`, {
         method: 'POST',
         body: JSON.stringify({
@@ -134,6 +258,23 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
           state: form.state || undefined,
           district: form.district || undefined,
           village: form.city || undefined,
+          experienceNotes: form.notes || undefined,
+          metadata: {
+            partnerType: form.partnerType || undefined,
+            panNumber: form.panNumber || undefined,
+            panName: form.panName || undefined,
+            territory: form.territory || undefined,
+            cropAdvisor: form.cropAdvisor || undefined,
+            bankDetails: form.accountNumber
+              ? {
+                  accountHolder: form.bankAccountHolder,
+                  bankName: form.bankName,
+                  ifscCode: form.ifscCode,
+                  branchName: form.branchName || undefined,
+                }
+              : undefined,
+            uploads: Object.keys(uploads).length ? uploads : undefined,
+          },
         }),
       });
       setSuccess(true);
@@ -157,6 +298,11 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
           <Btn
             onClick={() => {
               setForm(initial);
+              setPartnerPhoto(null);
+              setPanCard(null);
+              setAddressProof(null);
+              setBankProof(null);
+              setOtherDocument(null);
               setSuccess(false);
             }}
           >
@@ -204,9 +350,15 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
             <Row>
               <div>
                 <p className="mb-2 text-sm font-medium text-ink-secondary">Partner Photo</p>
-                <div className="flex h-28 w-28 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
-                  + Upload Photo
-                </div>
+                <FileUploadZone
+                  accept="image/jpeg,image/png,image/webp"
+                  label="+ Upload Photo"
+                  value={partnerPhoto}
+                  onChange={setPartnerPhoto}
+                  imagePreview
+                  disabled={!canWrite || busy}
+                  className="h-28 w-28"
+                />
               </div>
               <div className="space-y-4">
                 <FormField label="Partner Name" required>
@@ -307,9 +459,14 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               </FormField>
             </Row>
             <FormField label="PAN Card" required>
-              <div className="flex h-20 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
-                ↑ Upload PAN Card &nbsp;&nbsp; PDF / JPG / PNG
-              </div>
+              <FileUploadZone
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                label="↑ Upload PAN Card"
+                hint="PDF / JPG / PNG"
+                value={panCard}
+                onChange={setPanCard}
+                disabled={!canWrite || busy}
+              />
             </FormField>
             <p className="text-xs text-ink-muted">
               KYC Status: <Badge tone="warn">Pending Verification</Badge>
@@ -364,9 +521,14 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               </FormField>
             </Row>
             <FormField label="Address Proof">
-              <div className="flex h-20 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
-                ↑ Upload Address Proof &nbsp;&nbsp; PDF / JPG / PNG
-              </div>
+              <FileUploadZone
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                label="↑ Upload Address Proof"
+                hint="PDF / JPG / PNG"
+                value={addressProof}
+                onChange={setAddressProof}
+                disabled={!canWrite || busy}
+              />
             </FormField>
           </div>
         </Panel>
@@ -411,9 +573,14 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               </FormField>
             </Row>
             <FormField label="Bank Proof / Cancelled Cheque" required>
-              <div className="flex h-20 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
-                ↑ Upload Bank Proof &nbsp;&nbsp; PDF / JPG / PNG
-              </div>
+              <FileUploadZone
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                label="↑ Upload Bank Proof"
+                hint="PDF / JPG / PNG"
+                value={bankProof}
+                onChange={setBankProof}
+                disabled={!canWrite || busy}
+              />
             </FormField>
             <p className="text-xs text-ink-muted">
               Bank Verification: <Badge tone="warn">Pending</Badge>
@@ -440,9 +607,13 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
         <Panel>
           <SectionTitle>Documents</SectionTitle>
           <FormField label="Other Document">
-            <div className="flex h-20 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
-              ↑ Upload Document
-            </div>
+            <FileUploadZone
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              label="↑ Upload Document"
+              value={otherDocument}
+              onChange={setOtherDocument}
+              disabled={!canWrite || busy}
+            />
           </FormField>
         </Panel>
 

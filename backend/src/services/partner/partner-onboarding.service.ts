@@ -13,6 +13,7 @@ export const partnerOnboardingService = {
     village?: string;
     languages?: string[];
     experienceNotes?: string;
+    metadata?: Record<string, unknown>;
   }) {
     const { data, error } = await supabase
       .from('partner_applications')
@@ -25,6 +26,7 @@ export const partnerOnboardingService = {
         village: input.village ?? null,
         languages: input.languages ?? [],
         experience_notes: input.experienceNotes ?? null,
+        metadata: input.metadata ?? {},
         status: 'pending',
       })
       .select('*')

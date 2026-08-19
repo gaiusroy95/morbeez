@@ -148,6 +148,7 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
         village: z.string().optional(),
         languages: z.array(z.string()).optional(),
         experienceNotes: z.string().optional(),
+        metadata: z.record(z.unknown()).optional(),
       })
       .parse(request.body);
     const application = await partnerOnboardingService.submitApplication(body);
