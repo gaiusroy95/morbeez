@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { PageHeader, Panel, TableWrap, DataTable, THead, TBody, Th, Td, EmptyState, Loading, Alert } from '../../components/ui';
-import api from '../../lib/api';
+import { api } from '../../lib/api';
 
 const base = '/morbeez-staff/api/v1/partners';
 
