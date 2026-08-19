@@ -28,6 +28,37 @@ function createMetroConfig(projectRoot) {
   // Shared packages use NodeNext-style `.js` import specifiers that point at `.ts`
   // sources. Resolve those for Metro so Expo apps and backend typecheck stay aligned.
   config.resolver.resolveRequest = (context, moduleName, platform) => {
+    // Partner (and other apps) import agronomist files via @agronomist/*. Those
+    // files use @/ which Expo maps to the *bundling* app, not agronomist.
+    if (
+      typeof moduleName === 'string' &&
+      moduleName.startsWith('@/') &&
+      typeof context.originModulePath === 'string' &&
+      /[\\/]apps[\\/]agronomist[\\/]/.test(context.originModulePath)
+    ) {
+      const agronomistRoot = path.resolve(workspaceRoot, 'apps', 'agronomist');
+      const base = path.resolve(agronomistRoot, moduleName.slice(2));
+      const candidates = [
+        base,
+        `${base}.ts`,
+        `${base}.tsx`,
+        `${base}.js`,
+        `${base}.jsx`,
+        path.join(base, 'index.ts'),
+        path.join(base, 'index.tsx'),
+        path.join(base, 'index.js'),
+      ];
+      for (const candidate of candidates) {
+        try {
+          if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+            return { type: 'sourceFile', filePath: candidate };
+          }
+        } catch {
+          // ignore race / permission on a candidate
+        }
+      }
+    }
+
     if (
       typeof moduleName === 'string' &&
       moduleName.startsWith('.') &&

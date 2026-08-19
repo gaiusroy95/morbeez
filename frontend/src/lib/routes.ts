@@ -20,6 +20,11 @@ export const paths = {
   intelligence: 'intelligence',
   opportunity: 'opportunity',
   partnerProgram: 'partners',
+  partnerCreate: 'partners/new',
+  partner360: 'partners/:partnerId',
+  partnerControlTower: 'partners/control-tower',
+  partnerReports: 'partners/reports',
+  partnerAuditLog: 'partners/audit-log',
   kpiControl: 'kpi-control',
   productGaps: 'product-gaps',
   farmer360: 'farmers/:farmerId/360',
@@ -143,6 +148,26 @@ export const ROUTE_META: Record<
     module: 'partner_program',
     pageKey: 'partners',
   },
+  [toPath(paths.partnerControlTower)]: {
+    title: 'Partner Control Tower',
+    module: 'partner_program',
+    pageKey: 'partner-control-tower',
+  },
+  [toPath(paths.partnerCreate)]: {
+    title: 'New Partner Application',
+    module: 'partner_program',
+    pageKey: 'partner-create',
+  },
+  [toPath(paths.partnerReports)]: {
+    title: 'Partner Reports',
+    module: 'partner_program',
+    pageKey: 'partner-reports',
+  },
+  [toPath(paths.partnerAuditLog)]: {
+    title: 'Audit Log',
+    module: 'partner_program',
+    pageKey: 'partner-audit',
+  },
   [toPath(paths.kpiControl)]: {
     title: 'KPI Control Center',
     module: 'partner_program',
@@ -223,6 +248,9 @@ export function matchRouteMeta(pathname: string): { title: string; module: strin
       module: 'agronomist',
       pageKey: 'agronomist-visit',
     };
+  }
+  if (key.startsWith('/partners/') && key !== '/partners' && !['control-tower', 'reports', 'audit-log', 'new'].some(s => key === `/partners/${s}`)) {
+    return { title: 'Partner 360', module: 'partner_program', pageKey: 'partner-360' };
   }
   if (key.startsWith('/broadcasts')) {
     return ROUTE_META[key] ?? { title: 'Broadcast Hub', module: 'operations', pageKey: 'broadcasts' };

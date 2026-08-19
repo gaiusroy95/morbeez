@@ -13,7 +13,7 @@ import {
 } from '@morbeez/shared';
 import { agronomistClient } from '@morbeez/shared';
 import { DynamicSelect, Panel } from '@morbeez/ui-native';
-import { imagePickerAssetToVisitPhotoDraft, withTimeout } from '@/lib/visitPhotoEncoding';
+import { imagePickerAssetToVisitPhotoDraft, withTimeout } from '../../../lib/visitPhotoEncoding';
 import type { VisitPhotoDraft } from './types';
 import {
   formatCropPhotoGuidance,

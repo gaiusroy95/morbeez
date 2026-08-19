@@ -107,6 +107,29 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, partner });
   });
 
+  app.get(`${api}/:id/360`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const { id } = request.params as { id: string };
+    const partner = await partnerService.getById(id);
+    const { farmerIntroductionService } = await import(
+      '../../services/remuneration/farmer-introduction.service.js'
+    );
+    const introductions = await farmerIntroductionService.list({ partnerId: id });
+    let settlements: Array<Record<string, unknown>> = [];
+    {
+      const { data } = await supabase
+        .from('earning_settlements')
+        .select('*')
+        .eq('party_type', 'partner')
+        .eq('party_id', id)
+        .order('payable_on', { ascending: false })
+        .limit(100);
+      settlements = (data ?? []) as Array<Record<string, unknown>>;
+    }
+    const kpiSnapshots = await partnerKpiService.listSnapshots?.(id) ?? [];
+    return reply.send({ ok: true, partner, introductions, settlements, kpiSnapshots });
+  });
+
   app.get(`${api}/applications/list`, async (request, reply) => {
     await assertModuleAccess(request, 'partner_program', 'read');
     const q = request.query as { status?: string };

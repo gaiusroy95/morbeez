@@ -21,7 +21,7 @@ import {
 } from '@morbeez/shared';
 import { AlertBox, Panel, TextField } from '@morbeez/ui-native';
 import type { IssueDraft } from '../IssueCard';
-import { runVisitScreening } from '@/lib/visitScreening';
+import { runVisitScreening } from '../../../lib/visitScreening';
 
 const YES_NO_CHIPS = ['yes', 'no'] as const;
 const YES_NO_UNKNOWN_CHIPS = ['yes', 'no', 'unknown'] as const;

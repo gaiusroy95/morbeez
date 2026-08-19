@@ -120,17 +120,17 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
     module: 'partner_program',
     children: [
       {
-        id: 'partner-program',
+        id: 'partner-dashboard',
         path: toPath(paths.partnerProgram),
-        label: 'Partners',
-        icon: 'partners',
+        label: 'Dashboard',
+        icon: 'dashboard',
         module: 'partner_program',
       },
       {
-        id: 'kpi-control',
-        path: toPath(paths.kpiControl),
-        label: 'KPI Control Center',
-        icon: 'analytics',
+        id: 'partner-list',
+        path: toPath(paths.partnerProgram) + '?tab=partners',
+        label: 'Partners',
+        icon: 'partners',
         module: 'partner_program',
       },
     ],
@@ -282,7 +282,7 @@ export function defaultExpandedGroups(pathname: string): string[] {
   if (pathname.startsWith(toPath(paths.warehouse))) base.push('more');
   if (pathname.startsWith(toPath(paths.seo))) base.push('more');
   if (pathname.startsWith(toPath(paths.employees))) base.push('more');
-  if (pathname.startsWith(toPath(paths.partnerProgram)) || pathname.startsWith(toPath(paths.kpiControl))) {
+  if (pathname.startsWith(toPath(paths.partnerProgram)) || pathname.startsWith(toPath(paths.kpiControl)) || pathname.startsWith('/partners')) {
     base.push('partners');
   }
   return base;

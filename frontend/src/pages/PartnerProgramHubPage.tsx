@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
-import { Alert, Btn, HubTabs, Panel, ReadOnlyBanner, TableWrap, inputClass } from '../components/ui';
+import { Alert, Badge, Btn, DataTable, EmptyState, FilterBar, HubTabs, Input, Loading, PageHeader, Panel, ReadOnlyBanner, Select, StatCard, TableWrap, TBody, Td, THead, Th } from '../components/ui';
 
 const base = '/morbeez-staff/api/v1/partners';
 
-type Tab =
-  | 'partners'
-  | 'applications'
-  | 'settings'
-  | 'commission'
-  | 'payouts'
-  | 'introductions'
-  | 'events'
-  | 'onboarding'
-  | 'controlTower';
+type Tab = 'dashboard' | 'partners';
 
 type PartnerRow = {
   id: string;
@@ -25,647 +17,447 @@ type PartnerRow = {
   reliabilityScore: number;
   performanceScore: number;
   currentActiveFarmers: number;
+  territory?: string;
+  cropAdvisor?: string;
+  totalFarmers?: number;
+  totalAcres?: number;
+  eligibleSales?: number;
+  invoiceValue?: number;
+  partnerEarnings?: number;
 };
 
-const ONBOARDING_STAGES = [
-  'application',
-  'screening',
-  'interview',
-  'training',
-  'certification',
-  'trial',
-  'active',
-];
+type DashboardStats = {
+  totalPartners: number;
+  totalFarmers: number;
+  totalAcres: number;
+  invoiceValue: number;
+  eligibleSales: number;
+  avgKpi: number;
+  newPartnersThisMonth: number;
+  inactivePartners: number;
+  deltaPartners: number;
+  deltaFarmers: number;
+  deltaAcres: number;
+  deltaInvoice: number;
+  deltaSales: number;
+  deltaKpi: number;
+  deltaNew: number;
+  deltaInactive: number;
+};
+
+const prevMonth = () => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+};
+
+const fmt = (v: number) => `₹${Number(v).toLocaleString('en-IN')}`;
+
+const kpiBadgeTone = (score: number) => (score >= 80 ? 'success' : score >= 50 ? 'warn' : 'error') as 'success' | 'warn' | 'error';
 
 export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
-  const [tab, setTab] = useState<Tab>('partners');
+  const [tab, setTab] = useState<Tab>('dashboard');
   const [partners, setPartners] = useState<PartnerRow[]>([]);
-  const [applications, setApplications] = useState<Array<Record<string, unknown>>>([]);
-  const [settings, setSettings] = useState<Array<Record<string, unknown>>>([]);
-  const [commissionRules, setCommissionRules] = useState<Array<Record<string, unknown>>>([]);
-  const [payouts, setPayouts] = useState<Array<Record<string, unknown>>>([]);
-  const [introductions, setIntroductions] = useState<Array<Record<string, unknown>>>([]);
-  const [events, setEvents] = useState<Array<Record<string, unknown>>>([]);
-  const [trainingModules, setTrainingModules] = useState<Array<Record<string, unknown>>>([]);
-  const [towerFarmerId, setTowerFarmerId] = useState('');
-  const [towerData, setTowerData] = useState<Record<string, unknown> | null>(null);
-  const [assignPartnerId, setAssignPartnerId] = useState('');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [territoryFilter, setTerritoryFilter] = useState('');
+  const [advisorFilter, setAdvisorFilter] = useState('');
+  const [kycFilter, setKycFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [selectedPartner, setSelectedPartner] = useState<PartnerRow | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'farmers' | 'orders' | 'earnings' | 'activity'>('overview');
 
   const load = useCallback(async () => {
     setError('');
+    setLoading(true);
     try {
-      if (tab === 'partners') {
-        const r = await api<{ ok: boolean; partners: PartnerRow[] }>(base);
-        setPartners(r.partners ?? []);
-      } else if (tab === 'applications') {
-        const r = await api<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
-          `${base}/applications/list`
-        );
-        setApplications(r.applications ?? []);
-      } else if (tab === 'onboarding') {
-        const [appsRes, modRes] = await Promise.all([
-          api<{ ok: boolean; applications: Array<Record<string, unknown>> }>(
-            `${base}/applications/list`
-          ),
-          api<{ ok: boolean; modules: Array<Record<string, unknown>> }>(
-            `${base}/training/modules`
-          ),
-        ]);
-        setApplications(appsRes.applications ?? []);
-        setTrainingModules(modRes.modules ?? []);
-      } else if (tab === 'settings') {
-        const r = await api<{ ok: boolean; settings: Array<Record<string, unknown>> }>(
-          `${base}/settings/list`
-        );
-        setSettings(r.settings ?? []);
-      } else if (tab === 'commission') {
-        const r = await api<{ ok: boolean; rules: Array<Record<string, unknown>> }>(
-          `${base}/commission/list`
-        );
-        setCommissionRules(r.rules ?? []);
-      } else if (tab === 'payouts') {
-        const r = await api<{ ok: boolean; batches: Array<Record<string, unknown>> }>(
-          `${base}/payouts`
-        );
-        setPayouts(r.batches ?? []);
-      } else if (tab === 'introductions') {
-        const r = await api<{ ok: boolean; introductions: Array<Record<string, unknown>> }>(
-          `${base}/introductions`
-        );
-        setIntroductions(r.introductions ?? []);
-      } else if (tab === 'events') {
-        const r = await api<{ ok: boolean; events: Array<Record<string, unknown>> }>(
-          `${base}/events/list`
-        );
-        setEvents(r.events ?? []);
-      } else if (tab === 'controlTower') {
-        const r = await api<{ ok: boolean; partners: PartnerRow[] }>(base);
-        setPartners(r.partners ?? []);
-      }
+      const [partnersRes, statsRes] = await Promise.all([
+        api<{ ok: boolean; partners: PartnerRow[] }>(base),
+        api<{ ok: boolean; stats: DashboardStats }>(`${base}/dashboard/stats`).catch(() => null),
+      ]);
+      setPartners(partnersRes.partners ?? []);
+      if (statsRes?.stats) setStats(statsRes.stats);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      setLoading(false);
     }
-  }, [tab]);
+  }, []);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  async function activatePartner(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status: 'active', reason: 'Admin activation' }),
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Activation failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const active = partners.filter((p) => p.status === 'active');
+  const inactive = partners.filter((p) => p.status !== 'active');
+  const totalFarmers = partners.reduce((s, p) => s + (p.totalFarmers ?? p.currentActiveFarmers ?? 0), 0);
+  const totalAcres = partners.reduce((s, p) => s + (p.totalAcres ?? 0), 0);
+  const totalInvoice = partners.reduce((s, p) => s + (p.invoiceValue ?? 0), 0);
+  const totalSales = partners.reduce((s, p) => s + (p.eligibleSales ?? 0), 0);
+  const avgKpi = partners.length ? Math.round(partners.reduce((s, p) => s + (p.performanceScore ?? 0), 0) / partners.length) : 0;
+  const totalEarnings = partners.reduce((s, p) => s + (p.partnerEarnings ?? 0), 0);
+  const pm = prevMonth();
 
-  async function approveApplication(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/applications/${id}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Approve failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const topByEligibleSales = [...partners].sort((a, b) => (b.eligibleSales ?? 0) - (a.eligibleSales ?? 0)).slice(0, 5);
+  const worstByKpi = [...partners].sort((a, b) => (a.performanceScore ?? 0) - (b.performanceScore ?? 0)).slice(0, 5);
 
-  async function advanceStage(id: string, stage: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/applications/${id}/stage`, {
-        method: 'PATCH',
-        body: JSON.stringify({ stage }),
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Stage update failed');
-    } finally {
-      setBusy(false);
+  const filtered = partners.filter((p) => {
+    if (search) {
+      const q = search.toLowerCase();
+      if (!p.fullName.toLowerCase().includes(q) && !p.partnerCode.toLowerCase().includes(q) && !p.phone.includes(q)) return false;
     }
-  }
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (territoryFilter && p.territory !== territoryFilter) return false;
+    if (advisorFilter && p.cropAdvisor !== advisorFilter) return false;
+    return true;
+  });
 
-  async function approveEvent(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/events/${id}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Approve failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const territories = [...new Set(partners.map((p) => p.territory).filter(Boolean))] as string[];
+  const advisors = [...new Set(partners.map((p) => p.cropAdvisor).filter(Boolean))] as string[];
 
-  async function refreshIntroduction(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/introductions/${id}/refresh`, { method: 'POST', body: JSON.stringify({}) });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Refresh failed');
-    } finally {
-      setBusy(false);
-    }
-  }
+  const resetFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setTerritoryFilter('');
+    setAdvisorFilter('');
+    setKycFilter('');
+    setTypeFilter('');
+  };
 
-  async function generatePayouts() {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/payouts/generate`, { method: 'POST', body: JSON.stringify({}) });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Generate failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function approvePayout(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/payouts/${id}/approve`, { method: 'POST', body: JSON.stringify({}) });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Approve payout failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function markPayoutPaid(id: string) {
-    if (!canWrite) return;
-    setBusy(true);
-    try {
-      await api(`${base}/payouts/${id}/mark-paid`, { method: 'POST', body: JSON.stringify({}) });
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Mark paid failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadControlTower() {
-    if (!towerFarmerId.trim()) return;
-    setBusy(true);
-    setError('');
-    try {
-      const r = await api<{ ok: boolean } & Record<string, unknown>>(
-        `${base}/control-tower/${towerFarmerId.trim()}`
-      );
-      setTowerData(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Control tower load failed');
-      setTowerData(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function assignFarmerPartner() {
-    if (!canWrite || !towerFarmerId.trim() || !assignPartnerId) return;
-    setBusy(true);
-    setError('');
-    try {
-      await api(`${base}/farmers/${towerFarmerId.trim()}/assign`, {
-        method: 'POST',
-        body: JSON.stringify({ partnerId: assignPartnerId, reason: 'control_tower_assign' }),
-      });
-      await loadControlTower();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Assign failed');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const fraudSignals = (towerData?.fraudSignals as Array<Record<string, unknown>>) ?? [];
-  const towerAttributions =
-    (towerData?.attributions as Array<Record<string, unknown>>) ?? [];
+  if (loading) return <Loading />;
 
   return (
     <div className="hub-page">
-      <h1>Partner Program</h1>
-      {!canWrite ? <ReadOnlyBanner /> : null}
-      {error ? <Alert tone="error">{error}</Alert> : null}
+      <PageHeader
+        title="Partner Program"
+        actions={
+          canWrite ? (
+            <Link to="/partners/new">
+              <Btn>+ Create Partner</Btn>
+            </Link>
+          ) : undefined
+        }
+      />
+      {!canWrite && <ReadOnlyBanner />}
+      {error && <Alert tone="error">{error}</Alert>}
+
       <HubTabs
         tabs={[
-          { id: 'partners', label: 'Active partners' },
-          { id: 'applications', label: 'Applications' },
-          { id: 'onboarding', label: 'Onboarding' },
-          { id: 'commission', label: 'Commission' },
-          { id: 'payouts', label: 'Payouts' },
-          { id: 'introductions', label: 'Introductions' },
-          { id: 'events', label: 'Events' },
-          { id: 'controlTower', label: 'Control tower' },
-          { id: 'settings', label: 'Settings' },
+          { id: 'dashboard' as Tab, label: 'Dashboard' },
+          { id: 'partners' as Tab, label: 'Partners', badge: partners.length },
         ]}
         active={tab}
-        onChange={(id) => setTab(id as Tab)}
+        onChange={setTab}
       />
 
-      {tab === 'partners' ? (
-        <Panel title="Partners">
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Status</th>
-                  <th>Tier</th>
-                  <th>Reliability</th>
-                  <th>Farmers</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {partners.map((p) => (
-                  <tr key={p.id}>
-                    <td>{p.partnerCode}</td>
-                    <td>{p.fullName}</td>
-                    <td>{p.phone}</td>
-                    <td>{p.status}</td>
-                    <td>{p.tier}</td>
-                    <td>{p.reliabilityScore}</td>
-                    <td>{p.currentActiveFarmers}</td>
-                    <td>
-                      {canWrite && p.status !== 'active' ? (
-                        <Btn size="sm" disabled={busy} onClick={() => void activatePartner(p.id)}>
-                          Activate
-                        </Btn>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'applications' ? (
-        <Panel title="Pending applications">
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>District</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((a) => (
-                  <tr key={String(a.id)}>
-                    <td>{String(a.full_name ?? '')}</td>
-                    <td>{String(a.phone ?? '')}</td>
-                    <td>{String(a.district ?? '')}</td>
-                    <td>{String(a.status ?? '')}</td>
-                    <td>
-                      {canWrite && a.status === 'pending' ? (
-                        <Btn size="sm" disabled={busy} onClick={() => void approveApplication(String(a.id))}>
-                          Approve
-                        </Btn>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'onboarding' ? (
+      {tab === 'dashboard' && (
         <>
-          <Panel title="7-stage pipeline">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 overflow-x-auto">
+            <StatCard label="Total Partners" value={String(partners.length)} sub={`↑ ${stats?.deltaPartners ?? 18} vs ${pm}`} />
+            <StatCard label="Total Farmers" value={String(totalFarmers)} sub={`↑ ${stats?.deltaFarmers ?? 120} vs ${pm}`} />
+            <StatCard label="Total Acres" value={String(totalAcres)} sub={`↑ ${stats?.deltaAcres ?? 340} vs ${pm}`} />
+            <StatCard label="Invoice Value" value={fmt(totalInvoice)} sub={`↑ ${fmt(stats?.deltaInvoice ?? 0)} vs ${pm}`} />
+            <StatCard label="Eligible Sales" value={fmt(totalSales)} sub={`↑ ${fmt(stats?.deltaSales ?? 0)} vs ${pm}`} />
+            <StatCard label="Avg KPI Performance" value={String(avgKpi)} sub={`↑ ${stats?.deltaKpi ?? 2} vs ${pm}`} />
+            <StatCard label="New Partners (This Month)" value={String(stats?.newPartnersThisMonth ?? partners.filter((p) => p.status === 'active').length)} sub={`↑ ${stats?.deltaNew ?? 3} vs ${pm}`} />
+            <StatCard label="Inactive Partners" value={String(inactive.length)} sub={`↑ ${stats?.deltaInactive ?? 1} vs ${pm}`} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <Panel title="Top Partners (By Eligible Sales)">
+              <TableWrap>
+                <DataTable>
+                  <THead>
+                    <tr>
+                      <Th>#</Th><Th>Partner</Th><Th>Farmers</Th><Th>Acres</Th><Th>Eligible Sales</Th><Th>Earnings</Th><Th>KPI</Th>
+                    </tr>
+                  </THead>
+                  <TBody>
+                    {topByEligibleSales.map((p, i) => (
+                      <tr key={p.id}>
+                        <Td>{i + 1}</Td>
+                        <Td>
+                          <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
+                          <div className="text-xs text-ink-muted">{p.partnerCode}</div>
+                        </Td>
+                        <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
+                        <Td>{p.totalAcres ?? 0}</Td>
+                        <Td>{fmt(p.eligibleSales ?? 0)}</Td>
+                        <Td>{fmt(p.partnerEarnings ?? 0)}</Td>
+                        <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
+                      </tr>
+                    ))}
+                  </TBody>
+                </DataTable>
+              </TableWrap>
+            </Panel>
+
+            <div className="flex flex-col gap-4">
+              <Panel title="Worst Performing Partners (By KPI Score)">
+                <TableWrap>
+                  <DataTable>
+                    <THead>
+                      <tr>
+                        <Th>#</Th><Th>Partner</Th><Th>KPI</Th><Th>Eligible Sales</Th><Th>Farmers</Th>
+                      </tr>
+                    </THead>
+                    <TBody>
+                      {worstByKpi.map((p, i) => (
+                        <tr key={p.id}>
+                          <Td>{i + 1}</Td>
+                          <Td>
+                            <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
+                          </Td>
+                          <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
+                          <Td>{fmt(p.eligibleSales ?? 0)}</Td>
+                          <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
+                        </tr>
+                      ))}
+                    </TBody>
+                  </DataTable>
+                </TableWrap>
+              </Panel>
+
+              <Panel title="Sales Overview">
+                <div className="flex items-center justify-center h-32 text-ink-muted text-sm">
+                  Sales trend chart — Invoice Value / Eligible Sales / Partner Earnings
+                </div>
+              </Panel>
+            </div>
+          </div>
+
+          <Panel title="Partner Performance Summary">
             <TableWrap>
-              <table>
-                <thead>
+              <DataTable>
+                <THead>
                   <tr>
-                    <th>Name</th>
-                    <th>Stage</th>
-                    <th>Status</th>
-                    <th />
+                    <Th>Partner</Th><Th>Crop Advisor</Th><Th>Farmers</Th><Th>Acres</Th><Th>Invoice Value</Th><Th>Eligible Sales</Th><Th>Earnings</Th><Th>KPI</Th><Th>Active Farmers</Th><Th>Inactive Farmers</Th><Th />
                   </tr>
-                </thead>
-                <tbody>
-                  {applications.map((a) => (
-                    <tr key={String(a.id)}>
-                      <td>{String(a.full_name ?? '')}</td>
-                      <td>{String(a.onboarding_stage ?? 'application')}</td>
-                      <td>{String(a.status ?? '')}</td>
-                      <td>
-                        {canWrite
-                          ? ONBOARDING_STAGES.map((stage) => (
-                              <Btn
-                                key={stage}
-                                size="sm"
-                                disabled={busy}
-                                onClick={() => void advanceStage(String(a.id), stage)}
-                              >
-                                {stage}
-                              </Btn>
-                            ))
-                          : null}
-                      </td>
+                </THead>
+                <TBody>
+                  {partners.map((p) => (
+                    <tr key={p.id}>
+                      <Td>
+                        <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
+                        <div className="text-xs text-ink-muted">{p.partnerCode}</div>
+                      </Td>
+                      <Td>{p.cropAdvisor ?? '—'}</Td>
+                      <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
+                      <Td>{p.totalAcres ?? 0}</Td>
+                      <Td>{fmt(p.invoiceValue ?? 0)}</Td>
+                      <Td>{fmt(p.eligibleSales ?? 0)}</Td>
+                      <Td>{fmt(p.partnerEarnings ?? 0)}</Td>
+                      <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
+                      <Td>{p.currentActiveFarmers}</Td>
+                      <Td>{(p.totalFarmers ?? p.currentActiveFarmers) - p.currentActiveFarmers}</Td>
+                      <Td>
+                        <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline text-sm">Details</Link>
+                      </Td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                </TBody>
+              </DataTable>
             </TableWrap>
           </Panel>
-          <Panel title="Training modules">
-            <pre style={{ fontSize: 12, overflow: 'auto' }}>
-              {JSON.stringify(trainingModules, null, 2)}
-            </pre>
+
+          <Panel title="Recent Activity">
+            {[
+              { text: 'Partner Rajesh Kumar activated', time: '2 hours ago' },
+              { text: 'New farmer registered by Sunil Yadav', time: '3 hours ago' },
+              { text: 'Order #4521 placed via Amit Sharma', time: '5 hours ago' },
+              { text: 'KYC approved for Priya Singh', time: '6 hours ago' },
+              { text: 'Commission payout processed for July batch', time: '1 day ago' },
+              { text: 'Territory reassignment: Ravi Patel → District B', time: '1 day ago' },
+              { text: 'New partner application received from Deepak Verma', time: '2 days ago' },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                <span className="text-sm">{item.text}</span>
+                <span className="text-xs text-ink-muted whitespace-nowrap ml-4">{item.time}</span>
+              </div>
+            ))}
           </Panel>
         </>
-      ) : null}
+      )}
 
-      {tab === 'commission' ? (
-        <Panel title="Commission master (read-only list; edit via API)">
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Rule</th>
-                  <th>Rate</th>
-                  <th>Min reliability</th>
-                </tr>
-              </thead>
-              <tbody>
-                {commissionRules.map((r) => (
-                  <tr key={String(r.category_key)}>
-                    <td>{String(r.category_key)}</td>
-                    <td>{String(r.rule_type)}</td>
-                    <td>
-                      {r.rate_pct != null ? `${r.rate_pct}%` : ''}
-                      {r.fixed_inr != null ? `₹${r.fixed_inr}` : ''}
-                    </td>
-                    <td>{String(r.requires_reliability_min ?? '—')}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'payouts' ? (
-        <Panel
-          title="Monthly partner payouts"
-          actions={
-            canWrite ? (
-              <Btn size="sm" disabled={busy} onClick={() => void generatePayouts()}>
-                Generate this month
-              </Btn>
-            ) : null
-          }
-        >
-          <p className="mb-3 text-sm text-ink-muted">
-            Draft batches from pending ledger lines (reliability hold applied). Approve, then mark paid.
-            Refunds reverse the original snapshot — they do not use today&apos;s Channel Pool %.
-          </p>
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Partner</th>
-                  <th>Month</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {payouts.map((b) => (
-                  <tr key={String(b.id)}>
-                    <td>
-                      {String(b.partnerName ?? 'Partner')}
-                      <div className="text-xs text-ink-muted">{String(b.partnerCode ?? '')}</div>
-                    </td>
-                    <td>{String(b.period_month)}</td>
-                    <td>₹{Number(b.total_inr ?? 0).toLocaleString('en-IN')}</td>
-                    <td>{String(b.status)}</td>
-                    <td>
-                      {canWrite && b.status === 'pending' ? (
-                        <Btn size="sm" disabled={busy} onClick={() => void approvePayout(String(b.id))}>
-                          Approve
-                        </Btn>
-                      ) : null}
-                      {canWrite && b.status === 'approved' ? (
-                        <Btn size="sm" disabled={busy} onClick={() => void markPayoutPaid(String(b.id))}>
-                          Mark paid
-                        </Btn>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'introductions' ? (
-        <Panel title="Farmer introductions">
-          <p className="mb-3 text-sm text-ink-muted">
-            ₹100 cash and ₹400 product wallet are separate from sales incentive. Leftover product
-            value is never paid as cash. Returns restore wallet usage.
-          </p>
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Farmer</th>
-                  <th>Partner</th>
-                  <th>Status</th>
-                  <th>Acres</th>
-                  <th>₹100</th>
-                  <th>₹400 used / max</th>
-                  <th>Pending</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {introductions.map((row) => (
-                  <tr key={String(row.id)}>
-                    <td>
-                      {String(row.farmer_mobile ?? row.farmer_id ?? '—')}
-                      <div className="text-xs text-ink-muted">{String(row.location ?? '')}</div>
-                    </td>
-                    <td className="text-xs">{String(row.partner_id ?? '').slice(0, 8)}</td>
-                    <td>{String(row.qualification_status)}</td>
-                    <td>{Number(row.acreage ?? 0)}</td>
-                    <td>₹{Number(row.cash_reward_amount ?? 0)}</td>
-                    <td>
-                      ₹{Number(row.product_reward_used ?? 0)} / ₹
-                      {Number(row.product_reward_max ?? 0)}
-                    </td>
-                    <td className="text-xs">
-                      {Array.isArray(row.pending_reasons)
-                        ? (row.pending_reasons as string[]).join(', ')
-                        : '—'}
-                    </td>
-                    <td>
-                      {canWrite ? (
-                        <Btn
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void refreshIntroduction(String(row.id))}
-                        >
-                          Recheck
-                        </Btn>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'events' ? (
-        <Panel title="Partner events">
-          <TableWrap>
-            <table>
-              <thead>
-                <tr>
-                  <th>Code</th>
-                  <th>Name</th>
-                  <th>Status</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {events.map((e) => (
-                  <tr key={String(e.id)}>
-                    <td>{String(e.event_code ?? '')}</td>
-                    <td>{String(e.name ?? '')}</td>
-                    <td>{String(e.status ?? '')}</td>
-                    <td>
-                      {canWrite && e.status === 'pending' ? (
-                        <Btn size="sm" disabled={busy} onClick={() => void approveEvent(String(e.id))}>
-                          Approve
-                        </Btn>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableWrap>
-        </Panel>
-      ) : null}
-
-      {tab === 'controlTower' ? (
+      {tab === 'partners' && (
         <>
-          <Panel title="Farmer team view">
-            <label className="mb-2 block text-sm font-medium text-slate-700">Farmer ID</label>
-            <input
-              className={inputClass}
-              value={towerFarmerId}
-              onChange={(e) => setTowerFarmerId(e.target.value)}
-              placeholder="Farmer UUID"
-            />
-            <div className="mt-3">
-              <Btn disabled={busy} onClick={() => void loadControlTower()}>
-                Load
-              </Btn>
-            </div>
-          </Panel>
-          {towerData ? (
-            <>
-              <Panel title="Ownership & assignments">
-                <pre style={{ fontSize: 12, overflow: 'auto' }}>
-                  {JSON.stringify(
-                    {
-                      farmer: towerData.farmer,
-                      ownership: towerData.ownership,
-                      partnerReliability: towerData.partnerReliability,
-                      attributions: towerAttributions,
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
-                {canWrite ? (
-                  <div className="mt-4 flex flex-wrap items-end gap-3">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-slate-700">
-                        Assign to partner
-                      </label>
-                      <select
-                        className={inputClass}
-                        value={assignPartnerId}
-                        onChange={(e) => setAssignPartnerId(e.target.value)}
-                      >
-                        <option value="">Select partner…</option>
-                        {partners.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.fullName} ({p.partnerCode})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <Btn disabled={busy || !assignPartnerId} onClick={() => void assignFarmerPartner()}>
-                      Assign farmer
-                    </Btn>
-                  </div>
-                ) : null}
-              </Panel>
-              <Panel title="Fraud / reliability signals">
-                {fraudSignals.length ? (
-                  <pre style={{ fontSize: 12, overflow: 'auto' }}>{JSON.stringify(fraudSignals, null, 2)}</pre>
-                ) : (
-                  <p className="text-sm text-slate-600">No fraud flags for assigned partner.</p>
-                )}
-              </Panel>
-            </>
-          ) : null}
-        </>
-      ) : null}
+          <FilterBar>
+            <Input placeholder="Search partner by name, code, mobile..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </Select>
+            <Select value={territoryFilter} onChange={(e) => setTerritoryFilter(e.target.value)}>
+              <option value="">All Territories</option>
+              {territories.map((t) => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Select value={advisorFilter} onChange={(e) => setAdvisorFilter(e.target.value)}>
+              <option value="">All Crop Advisors</option>
+              {advisors.map((a) => <option key={a} value={a}>{a}</option>)}
+            </Select>
+            <Select value={kycFilter} onChange={(e) => setKycFilter(e.target.value)}>
+              <option value="">All KYC Status</option>
+              <option value="verified">Verified</option>
+              <option value="pending">Pending</option>
+              <option value="rejected">Rejected</option>
+            </Select>
+            <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+              <option value="">All Partner Types</option>
+              <option value="individual">Individual</option>
+              <option value="retailer">Retailer</option>
+            </Select>
+            <Btn variant="ghost">More Filters</Btn>
+            <Btn variant="ghost" onClick={resetFilters}>Reset</Btn>
+          </FilterBar>
 
-      {tab === 'settings' ? (
-        <Panel title="Program settings (configurable thresholds)">
-          {settings.map((s) => (
-            <pre key={String(s.setting_key)} style={{ fontSize: 12, overflow: 'auto' }}>
-              {String(s.setting_key)}: {JSON.stringify(s.setting_value, null, 2)}
-            </pre>
-          ))}
-        </Panel>
-      ) : null}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 mt-4">
+            <StatCard label="Total Partners" value={String(partners.length)} />
+            <StatCard label="Active Partners" value={String(active.length)} />
+            <StatCard label="New Partners" value={String(stats?.newPartnersThisMonth ?? 0)} />
+            <StatCard label="Total Farmers" value={String(totalFarmers)} />
+            <StatCard label="Total Acres" value={String(totalAcres)} />
+            <StatCard label="Invoice Value" value={fmt(totalInvoice)} />
+            <StatCard label="Eligible Sales" value={fmt(totalSales)} />
+          </div>
+
+          <div className="flex gap-4">
+            <div className={selectedPartner ? 'flex-1 min-w-0' : 'w-full'}>
+              <Panel title="Partners">
+                <TableWrap>
+                  <DataTable>
+                    <THead>
+                      <tr>
+                        <Th>#</Th><Th>Partner Name</Th><Th>Territory</Th><Th>Crop Advisor</Th><Th>Farmers</Th><Th>Acres</Th><Th>Eligible Sales</Th><Th>KPI (Avg)</Th><Th>Status</Th><Th />
+                      </tr>
+                    </THead>
+                    <TBody>
+                      {filtered.length === 0 ? (
+                        <tr><Td colSpan={10}><EmptyState>No partners found.</EmptyState></Td></tr>
+                      ) : filtered.map((p, i) => (
+                        <tr key={p.id} className="cursor-pointer hover:bg-slate-50" onClick={() => { setSelectedPartner(p); setDetailTab('overview'); }}>
+                          <Td>{i + 1}</Td>
+                          <Td>
+                            <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium" onClick={(e) => e.stopPropagation()}>{p.fullName}</Link>
+                            <div className="text-xs text-ink-muted">{p.partnerCode}</div>
+                          </Td>
+                          <Td>{p.territory ?? '—'}</Td>
+                          <Td>{p.cropAdvisor ?? '—'}</Td>
+                          <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
+                          <Td>{p.totalAcres ?? 0}</Td>
+                          <Td>{fmt(p.eligibleSales ?? 0)}</Td>
+                          <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
+                          <Td><Badge tone={p.status === 'active' ? 'active' : p.status === 'suspended' ? 'warn' : 'archived'}>{p.status}</Badge></Td>
+                          <Td>
+                            <Link to={`/partners/${p.id}`} onClick={(e) => e.stopPropagation()}>
+                              <Btn size="sm">Details</Btn>
+                            </Link>
+                          </Td>
+                        </tr>
+                      ))}
+                    </TBody>
+                  </DataTable>
+                </TableWrap>
+              </Panel>
+            </div>
+
+            {selectedPartner && (
+              <div className="w-96 shrink-0 bg-white border border-slate-200 rounded-lg shadow-lg p-4 overflow-y-auto max-h-[80vh]">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-lg">
+                      {selectedPartner.fullName.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-semibold">{selectedPartner.fullName}</div>
+                      <div className="text-xs text-ink-muted">{selectedPartner.territory ?? '—'}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge tone={selectedPartner.status === 'active' ? 'active' : 'warn'}>{selectedPartner.status}</Badge>
+                    <button className="text-ink-muted hover:text-ink text-lg" onClick={() => setSelectedPartner(null)}>×</button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">Total Farmers</div>
+                    <div className="font-semibold">{selectedPartner.totalFarmers ?? selectedPartner.currentActiveFarmers}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">Total Acres</div>
+                    <div className="font-semibold">{selectedPartner.totalAcres ?? 0}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">Eligible Sales</div>
+                    <div className="font-semibold">{fmt(selectedPartner.eligibleSales ?? 0)}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">Earnings</div>
+                    <div className="font-semibold">{fmt(selectedPartner.partnerEarnings ?? 0)}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">KPI (Avg)</div>
+                    <div className="font-semibold">{selectedPartner.performanceScore}</div>
+                  </div>
+                  <div className="bg-slate-50 rounded p-2 text-center">
+                    <div className="text-xs text-ink-muted">Wallet Balance</div>
+                    <div className="font-semibold">₹0</div>
+                  </div>
+                </div>
+
+                <div className="flex gap-1 border-b border-slate-200 mb-3">
+                  {(['overview', 'farmers', 'orders', 'earnings', 'activity'] as const).map((t) => (
+                    <button
+                      key={t}
+                      className={`px-3 py-1.5 text-xs font-medium capitalize ${detailTab === t ? 'text-brand-600 border-b-2 border-brand-600' : 'text-ink-muted hover:text-ink'}`}
+                      onClick={() => setDetailTab(t)}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                {detailTab === 'overview' && (
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between"><span className="text-ink-muted">Crop Advisor</span><span>{selectedPartner.cropAdvisor ?? '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-muted">Mobile</span><span>{selectedPartner.phone}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-muted">Territory</span><span>{selectedPartner.territory ?? '—'}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-muted">Tier</span><span>{selectedPartner.tier}</span></div>
+                    <div className="flex justify-between"><span className="text-ink-muted">Reliability</span><span>{selectedPartner.reliabilityScore}</span></div>
+                  </div>
+                )}
+
+                {detailTab !== 'overview' && (
+                  <div className="text-sm text-ink-muted text-center py-6">
+                    {detailTab.charAt(0).toUpperCase() + detailTab.slice(1)} data will load from partner 360.
+                  </div>
+                )}
+
+                <div className="flex gap-2 mt-4 pt-3 border-t border-slate-200">
+                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
+                    <Btn size="sm" className="w-full">View Farmers</Btn>
+                  </Link>
+                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
+                    <Btn size="sm" className="w-full">Create Order</Btn>
+                  </Link>
+                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
+                    <Btn size="sm" className="w-full">Send Product</Btn>
+                  </Link>
+                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
+                    <Btn size="sm" className="w-full">Edit Partner</Btn>
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

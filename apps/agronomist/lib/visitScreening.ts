@@ -5,7 +5,7 @@ import {
   type VisitIssueDraft,
   type VisitScreeningParams,
 } from '@morbeez/shared';
-import type { IssueDraft } from '@/components/field-findings/IssueCard';
+import type { IssueDraft } from '../components/field-findings/IssueCard';
 
 export function mapAnalyzeVisitIssues(detected: VisitIssueDraft[]): IssueDraft[] {
   const mapped = detected.map((row, idx) => ({

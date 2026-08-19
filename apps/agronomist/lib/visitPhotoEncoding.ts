@@ -1,5 +1,5 @@
 import type * as ImagePicker from 'expo-image-picker';
-import type { VisitPhotoDraft } from '@/components/field-findings/wizard/types';
+import type { VisitPhotoDraft } from '../components/field-findings/wizard/types';
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);

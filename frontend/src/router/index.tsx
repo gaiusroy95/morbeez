@@ -22,6 +22,11 @@ import { BroadcastAdminPage } from '../pages/broadcasts/BroadcastAdminPage';
 import { IntelligenceHubPage } from '../pages/IntelligenceHubPage';
 import { ProductGapsPage } from '../pages/ProductGapsPage';
 import { PartnerProgramHubPage } from '../pages/PartnerProgramHubPage';
+import { Partner360Page } from '../pages/Partner360Page';
+import { PartnerControlTowerPage } from '../pages/partners/PartnerControlTowerPage';
+import { PartnerCreatePage } from '../pages/partners/PartnerCreatePage';
+import { PartnerReportsPage } from '../pages/partners/PartnerReportsPage';
+import { PartnerAuditLogPage } from '../pages/partners/PartnerAuditLogPage';
 import { KpiControlCenterPage } from '../pages/KpiControlCenterPage';
 import { OutcomeIntelligencePage } from '../pages/agronomist/OutcomeIntelligencePage';
 import { RegionalThreatRadarPage } from '../pages/RegionalThreatRadarPage';
@@ -112,6 +117,31 @@ function OpportunityRoute() {
 function PartnerProgramRoute() {
   const { can } = useAuth();
   return <PartnerProgramHubPage canWrite={can('partner_program', 'write')} />;
+}
+
+function Partner360Route() {
+  const { can } = useAuth();
+  return <Partner360Page canWrite={can('partner_program', 'write')} />;
+}
+
+function PartnerControlTowerRoute() {
+  const { can } = useAuth();
+  return <PartnerControlTowerPage canWrite={can('partner_program', 'write')} />;
+}
+
+function PartnerCreateRoute() {
+  const { can } = useAuth();
+  return <PartnerCreatePage canWrite={can('partner_program', 'write')} />;
+}
+
+function PartnerReportsRoute() {
+  const { can } = useAuth();
+  return <PartnerReportsPage canWrite={can('partner_program', 'write')} />;
+}
+
+function PartnerAuditLogRoute() {
+  const { can } = useAuth();
+  return <PartnerAuditLogPage canWrite={can('partner_program', 'write')} />;
 }
 
 function KpiControlRoute() {
@@ -310,10 +340,50 @@ export const appRouter = createBrowserRouter(
               ),
             },
             {
+              path: paths.partnerControlTower,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <PartnerControlTowerRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.partnerCreate,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <PartnerCreateRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
               path: paths.partnerProgram,
               element: (
                 <ProtectedPage module="partner_program">
                   <PartnerProgramRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.partner360,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <Partner360Route />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.partnerReports,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <PartnerReportsRoute />
+                </ProtectedPage>
+              ),
+            },
+            {
+              path: paths.partnerAuditLog,
+              element: (
+                <ProtectedPage module="partner_program">
+                  <PartnerAuditLogRoute />
                 </ProtectedPage>
               ),
             },
