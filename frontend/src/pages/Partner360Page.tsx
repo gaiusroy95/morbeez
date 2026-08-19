@@ -216,7 +216,7 @@ function OverviewTab({ partner, introductions }: { partner: Partner; introductio
                   </tr>
                 ))}
                 {introductions.length === 0 && (
-                  <tr><Td colSpan={8}><EmptyState>No recent farmers</EmptyState></Td></tr>
+                  <tr><td colSpan={8} className="px-4 py-3"><EmptyState>No recent farmers</EmptyState></td></tr>
                 )}
               </TBody>
             </DataTable>
@@ -297,7 +297,7 @@ function FarmersTab({ introductions, partnerId }: { introductions: Introduction[
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><Td colSpan={9}><EmptyState>No farmers found</EmptyState></Td></tr>
+              <tr><td colSpan={9} className="px-4 py-3"><EmptyState>No farmers found</EmptyState></td></tr>
             )}
           </TBody>
         </DataTable>
@@ -409,7 +409,7 @@ function EarningsTab({ settlements }: { settlements: Settlement[] }) {
                 </tr>
               ))}
               {settlements.length === 0 && (
-                <tr><Td colSpan={7}><EmptyState>No earnings data</EmptyState></Td></tr>
+                <tr><td colSpan={7} className="px-4 py-3"><EmptyState>No earnings data</EmptyState></td></tr>
               )}
             </TBody>
           </DataTable>
@@ -482,7 +482,7 @@ function PayoutsTab({ payouts }: { payouts: Payout[] }) {
                 </tr>
               ))}
               {payouts.length === 0 && (
-                <tr><Td colSpan={7}><EmptyState>No payout data</EmptyState></Td></tr>
+                <tr><td colSpan={7} className="px-4 py-3"><EmptyState>No payout data</EmptyState></td></tr>
               )}
             </TBody>
           </DataTable>
@@ -563,9 +563,9 @@ function DocumentsTab() {
             </THead>
             <TBody>
               <tr>
-                <Td colSpan={7}>
+                <td colSpan={7} className="px-4 py-3">
                   <EmptyState>Document management coming soon. KYC documents will be managed here.</EmptyState>
-                </Td>
+                </td>
               </tr>
             </TBody>
           </DataTable>

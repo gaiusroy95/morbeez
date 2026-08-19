@@ -24,6 +24,12 @@ type PartnerRow = {
   eligibleSales?: number;
   invoiceValue?: number;
   partnerEarnings?: number;
+  mzpCode?: string;
+  email?: string;
+  kycStatus?: string;
+  partnerType?: string;
+  partnerSince?: string;
+  lastActivity?: string;
 };
 
 type DashboardStats = {
@@ -53,7 +59,7 @@ const prevMonth = () => {
 
 const fmt = (v: number) => `₹${Number(v).toLocaleString('en-IN')}`;
 
-const kpiBadgeTone = (score: number) => (score >= 80 ? 'success' : score >= 50 ? 'warn' : 'error') as 'success' | 'warn' | 'error';
+const kpiBadgeTone = (score: number): 'success' | 'warn' | 'neutral' => score >= 80 ? 'success' : score >= 50 ? 'warn' : 'neutral';
 
 export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
   const [tab, setTab] = useState<Tab>('dashboard');
@@ -167,8 +173,11 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
             <StatCard label="Inactive Partners" value={String(inactive.length)} sub={`↑ ${stats?.deltaInactive ?? 1} vs ${pm}`} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <Panel title="Top Partners (By Eligible Sales)">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            <Panel
+              title="Top Partners (By Eligible Sales)"
+              actions={<Link to="/partners?tab=partners" className="text-xs text-brand-600 hover:underline font-medium">View All</Link>}
+            >
               <TableWrap>
                 <DataTable>
                   <THead>
@@ -182,13 +191,12 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                         <Td>{i + 1}</Td>
                         <Td>
                           <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
-                          <div className="text-xs text-ink-muted">{p.partnerCode}</div>
                         </Td>
                         <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
                         <Td>{p.totalAcres ?? 0}</Td>
                         <Td>{fmt(p.eligibleSales ?? 0)}</Td>
                         <Td>{fmt(p.partnerEarnings ?? 0)}</Td>
-                        <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
+                        <Td>{p.performanceScore}%</Td>
                       </tr>
                     ))}
                   </TBody>
@@ -197,7 +205,10 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
             </Panel>
 
             <div className="flex flex-col gap-4">
-              <Panel title="Worst Performing Partners (By KPI Score)">
+              <Panel
+                title="Worst Performing Partners (By KPI Score)"
+                actions={<Link to="/partners?tab=partners" className="text-xs text-brand-600 hover:underline font-medium">View All</Link>}
+              >
                 <TableWrap>
                   <DataTable>
                     <THead>
@@ -222,64 +233,139 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                 </TableWrap>
               </Panel>
 
-              <Panel title="Sales Overview">
-                <div className="flex items-center justify-center h-32 text-ink-muted text-sm">
-                  Sales trend chart — Invoice Value / Eligible Sales / Partner Earnings
+              <Panel title="Sales Overview (This Month)">
+                <div className="mb-3 flex gap-4 text-xs">
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-full bg-blue-500" /> Invoice Value</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-full bg-emerald-500" /> Eligible Sales</span>
+                  <span className="flex items-center gap-1"><span className="inline-block h-2 w-4 rounded-full bg-amber-500" /> Partner Earnings</span>
+                </div>
+                <div className="flex items-center justify-center h-24 rounded-lg bg-surface-subtle text-ink-muted text-xs">
+                  Chart placeholder
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <p className="text-xs text-ink-muted">Invoice Value</p>
+                    <p className="text-sm font-bold">{fmt(totalInvoice)}</p>
+                    <p className="text-xs text-emerald-600">↑ 18.6%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-muted">Eligible Sales</p>
+                    <p className="text-sm font-bold">{fmt(totalSales)}</p>
+                    <p className="text-xs text-emerald-600">↑ 17.5%</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-ink-muted">Partner Earnings</p>
+                    <p className="text-sm font-bold">{fmt(totalEarnings)}</p>
+                    <p className="text-xs text-emerald-600">↑ 16.8%</p>
+                  </div>
                 </div>
               </Panel>
             </div>
           </div>
 
-          <Panel title="Partner Performance Summary">
-            <TableWrap>
-              <DataTable>
-                <THead>
-                  <tr>
-                    <Th>Partner</Th><Th>Crop Advisor</Th><Th>Farmers</Th><Th>Acres</Th><Th>Invoice Value</Th><Th>Eligible Sales</Th><Th>Earnings</Th><Th>KPI</Th><Th>Active Farmers</Th><Th>Inactive Farmers</Th><Th />
-                  </tr>
-                </THead>
-                <TBody>
-                  {partners.map((p) => (
-                    <tr key={p.id}>
-                      <Td>
-                        <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
-                        <div className="text-xs text-ink-muted">{p.partnerCode}</div>
-                      </Td>
-                      <Td>{p.cropAdvisor ?? '—'}</Td>
-                      <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
-                      <Td>{p.totalAcres ?? 0}</Td>
-                      <Td>{fmt(p.invoiceValue ?? 0)}</Td>
-                      <Td>{fmt(p.eligibleSales ?? 0)}</Td>
-                      <Td>{fmt(p.partnerEarnings ?? 0)}</Td>
-                      <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}</Badge></Td>
-                      <Td>{p.currentActiveFarmers}</Td>
-                      <Td>{(p.totalFarmers ?? p.currentActiveFarmers) - p.currentActiveFarmers}</Td>
-                      <Td>
-                        <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline text-sm">Details</Link>
-                      </Td>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+            <Panel
+              title="Partner Performance Summary"
+              className="lg:col-span-2"
+              actions={<Link to="/partners?tab=partners" className="text-xs text-brand-600 hover:underline font-medium">View All</Link>}
+            >
+              <TableWrap>
+                <DataTable>
+                  <THead>
+                    <tr>
+                      <Th>Partner</Th><Th>Crop Advisor</Th><Th>Farmers</Th><Th>Acres</Th><Th>Invoice Value</Th><Th>Eligible Sales</Th><Th>Earnings</Th><Th>KPI</Th><Th>Active Farmers</Th><Th>Inactive Farmers</Th><Th />
                     </tr>
-                  ))}
-                </TBody>
-              </DataTable>
-            </TableWrap>
-          </Panel>
+                  </THead>
+                  <TBody>
+                    {partners.slice(0, 5).map((p) => (
+                      <tr key={p.id}>
+                        <Td>
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
+                              {p.fullName.split(' ').map(w => w[0]).join('').slice(0, 2)}
+                            </span>
+                            <div>
+                              <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline font-medium">{p.fullName}</Link>
+                              <div className="text-xs text-ink-muted">{p.partnerCode}</div>
+                            </div>
+                          </div>
+                        </Td>
+                        <Td>{p.cropAdvisor ?? '—'}</Td>
+                        <Td>{p.totalFarmers ?? p.currentActiveFarmers}</Td>
+                        <Td>{p.totalAcres ?? 0}</Td>
+                        <Td>{fmt(p.invoiceValue ?? 0)}</Td>
+                        <Td>{fmt(p.eligibleSales ?? 0)}</Td>
+                        <Td>{fmt(p.partnerEarnings ?? 0)}</Td>
+                        <Td><Badge tone={kpiBadgeTone(p.performanceScore)}>{p.performanceScore}%</Badge></Td>
+                        <Td>{p.currentActiveFarmers} ({Math.round((p.currentActiveFarmers / Math.max(p.totalFarmers ?? p.currentActiveFarmers, 1)) * 100)}%)</Td>
+                        <Td>{(p.totalFarmers ?? p.currentActiveFarmers) - p.currentActiveFarmers} ({Math.round(((p.totalFarmers ?? p.currentActiveFarmers) - p.currentActiveFarmers) / Math.max(p.totalFarmers ?? p.currentActiveFarmers, 1) * 100)}%)</Td>
+                        <Td>
+                          <Link to={`/partners/${p.id}`} className="text-brand-600 hover:underline text-sm">Details</Link>
+                        </Td>
+                      </tr>
+                    ))}
+                  </TBody>
+                </DataTable>
+              </TableWrap>
+            </Panel>
 
-          <Panel title="Recent Activity">
-            {[
-              { text: 'Partner Rajesh Kumar activated', time: '2 hours ago' },
-              { text: 'New farmer registered by Sunil Yadav', time: '3 hours ago' },
-              { text: 'Order #4521 placed via Amit Sharma', time: '5 hours ago' },
-              { text: 'KYC approved for Priya Singh', time: '6 hours ago' },
-              { text: 'Commission payout processed for July batch', time: '1 day ago' },
-              { text: 'Territory reassignment: Ravi Patel → District B', time: '1 day ago' },
-              { text: 'New partner application received from Deepak Verma', time: '2 days ago' },
-            ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-                <span className="text-sm">{item.text}</span>
-                <span className="text-xs text-ink-muted whitespace-nowrap ml-4">{item.time}</span>
+            <Panel
+              title="Recent Activity"
+              actions={<Link to="/partners/audit-log" className="text-xs text-brand-600 hover:underline font-medium">View All</Link>}
+            >
+              {[
+                { icon: '👤', text: 'New farmer added by Partner Prakash Kumar (F-1021)', time: '15m ago' },
+                { icon: '🌾', text: 'Crop Advisor (Advisor 01) contacted Farmer F-1021', time: '25m ago' },
+                { icon: '📦', text: 'Order ORD-2051 created for Farmer F-1021', time: '1h ago' },
+                { icon: '✅', text: 'Order ORD-2051 approved by Agronomist', time: '1h 30m ago' },
+                { icon: '🧾', text: 'Invoice INV-44821 generated', time: '2h ago' },
+                { icon: '💰', text: 'Payment received for INV-44820', time: '3h ago' },
+                { icon: '🚚', text: 'Product delivered to Farmer F-1015', time: '4h ago' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-start gap-3 py-2.5 border-b border-border/40 last:border-0">
+                  <span className="mt-0.5 text-base">{item.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-ink leading-snug">{item.text}</p>
+                  </div>
+                  <span className="text-xs text-ink-muted whitespace-nowrap">{item.time}</span>
+                </div>
+              ))}
+            </Panel>
+          </div>
+
+          <div className="mt-4 rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)] px-4 py-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Today&apos;s Invoice Value</p>
+                <p className="mt-1 text-lg font-bold text-ink">₹6,85,420</p>
+                <p className="text-xs text-ink-muted">12 Orders</p>
               </div>
-            ))}
-          </Panel>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Today&apos;s Eligible Sales</p>
+                <p className="mt-1 text-lg font-bold text-ink">₹6,32,110</p>
+                <p className="text-xs text-ink-muted">12 Orders</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Today&apos;s Earnings</p>
+                <p className="mt-1 text-lg font-bold text-ink">₹60,345</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Pending Orders</p>
+                <p className="mt-1 text-lg font-bold text-ink">32</p>
+                <p className="text-xs text-ink-muted">₹4,20,580</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Orders Awaiting Approval</p>
+                <p className="mt-1 text-lg font-bold text-ink">18</p>
+                <p className="text-xs text-ink-muted">₹2,35,450</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Pending Payout</p>
+                <p className="mt-1 text-lg font-bold text-ink">₹6,85,400</p>
+                <p className="text-xs text-ink-muted">16 Partners</p>
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -338,7 +424,7 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
                     </THead>
                     <TBody>
                       {filtered.length === 0 ? (
-                        <tr><Td colSpan={10}><EmptyState>No partners found.</EmptyState></Td></tr>
+                        <tr><td colSpan={10} className="px-4 py-3"><EmptyState>No partners found.</EmptyState></td></tr>
                       ) : filtered.map((p, i) => (
                         <tr key={p.id} className="cursor-pointer hover:bg-slate-50" onClick={() => { setSelectedPartner(p); setDetailTab('overview'); }}>
                           <Td>{i + 1}</Td>
@@ -367,90 +453,104 @@ export function PartnerProgramHubPage({ canWrite }: { canWrite: boolean }) {
             </div>
 
             {selectedPartner && (
-              <div className="w-96 shrink-0 bg-white border border-slate-200 rounded-lg shadow-lg p-4 overflow-y-auto max-h-[80vh]">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700 font-bold text-lg">
-                      {selectedPartner.fullName.charAt(0)}
+              <div className="w-96 shrink-0 bg-white border border-slate-200 rounded-lg shadow-lg overflow-y-auto max-h-[80vh]">
+                <div className="p-4 border-b border-slate-100">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-medium text-ink-muted">Partner Details</span>
+                    <button className="text-ink-muted hover:text-ink text-lg leading-none" onClick={() => setSelectedPartner(null)}>×</button>
+                  </div>
+                  <div className="flex items-center gap-3 mt-2">
+                    <div className="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center text-white font-bold text-lg">
+                      {selectedPartner.fullName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
                     </div>
                     <div>
-                      <div className="font-semibold">{selectedPartner.fullName}</div>
-                      <div className="text-xs text-ink-muted">{selectedPartner.territory ?? '—'}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-ink">{selectedPartner.fullName}</span>
+                        <Badge tone={selectedPartner.status === 'active' ? 'active' : 'warn'}>{selectedPartner.status}</Badge>
+                      </div>
+                      <div className="text-xs text-ink-muted">{selectedPartner.partnerCode}{selectedPartner.mzpCode ? ` | ${selectedPartner.mzpCode}` : ''} | {selectedPartner.territory ?? '—'}</div>
+                      <div className="text-xs text-ink-muted">Joined on {selectedPartner.partnerSince ?? '—'}</div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge tone={selectedPartner.status === 'active' ? 'active' : 'warn'}>{selectedPartner.status}</Badge>
-                    <button className="text-ink-muted hover:text-ink text-lg" onClick={() => setSelectedPartner(null)}>×</button>
-                  </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div className="bg-slate-50 rounded p-2 text-center">
+                <div className="grid grid-cols-3 gap-3 p-4 border-b border-slate-100">
+                  <div className="text-center">
                     <div className="text-xs text-ink-muted">Total Farmers</div>
-                    <div className="font-semibold">{selectedPartner.totalFarmers ?? selectedPartner.currentActiveFarmers}</div>
+                    <div className="font-bold text-lg">{selectedPartner.totalFarmers ?? selectedPartner.currentActiveFarmers}</div>
                   </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
+                  <div className="text-center">
                     <div className="text-xs text-ink-muted">Total Acres</div>
-                    <div className="font-semibold">{selectedPartner.totalAcres ?? 0}</div>
+                    <div className="font-bold text-lg">{selectedPartner.totalAcres ?? 0}</div>
                   </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
+                  <div className="text-center">
                     <div className="text-xs text-ink-muted">Eligible Sales</div>
-                    <div className="font-semibold">{fmt(selectedPartner.eligibleSales ?? 0)}</div>
+                    <div className="font-bold text-lg">{fmt(selectedPartner.eligibleSales ?? 0)}</div>
                   </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
-                    <div className="text-xs text-ink-muted">Earnings</div>
-                    <div className="font-semibold">{fmt(selectedPartner.partnerEarnings ?? 0)}</div>
+                  <div className="text-center">
+                    <div className="text-xs text-ink-muted">Earnings (This Month)</div>
+                    <div className="font-bold text-lg">{fmt(selectedPartner.partnerEarnings ?? 0)}</div>
                   </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
+                  <div className="text-center">
                     <div className="text-xs text-ink-muted">KPI (Avg)</div>
-                    <div className="font-semibold">{selectedPartner.performanceScore}</div>
+                    <div className="font-bold text-lg">{selectedPartner.performanceScore}%</div>
                   </div>
-                  <div className="bg-slate-50 rounded p-2 text-center">
+                  <div className="text-center">
                     <div className="text-xs text-ink-muted">Wallet Balance</div>
-                    <div className="font-semibold">₹0</div>
+                    <div className="font-bold text-lg">₹0</div>
                   </div>
                 </div>
 
-                <div className="flex gap-1 border-b border-slate-200 mb-3">
-                  {(['overview', 'farmers', 'orders', 'earnings', 'activity'] as const).map((t) => (
-                    <button
-                      key={t}
-                      className={`px-3 py-1.5 text-xs font-medium capitalize ${detailTab === t ? 'text-brand-600 border-b-2 border-brand-600' : 'text-ink-muted hover:text-ink'}`}
-                      onClick={() => setDetailTab(t)}
-                    >
-                      {t}
-                    </button>
-                  ))}
+                <div className="px-4 pt-3">
+                  <div className="flex gap-1 border-b border-slate-200 mb-3">
+                    {(['overview', 'farmers', 'orders', 'earnings', 'activity'] as const).map((t) => (
+                      <button
+                        key={t}
+                        className={`px-3 py-1.5 text-xs font-medium capitalize ${detailTab === t ? 'text-brand-600 border-b-2 border-brand-600' : 'text-ink-muted hover:text-ink'}`}
+                        onClick={() => setDetailTab(t)}
+                      >
+                        {t === 'overview' ? 'Overview' : t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {detailTab === 'overview' && (
+                    <div className="space-y-2 text-sm pb-3">
+                      <div className="flex justify-between"><span className="text-ink-muted">Crop Advisor</span><span>{selectedPartner.cropAdvisor ?? '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">Email</span><span className="text-xs">{selectedPartner.email ?? '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">Mobile</span><span>{selectedPartner.phone}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">Territory</span><span>{selectedPartner.territory ?? '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">KYC Status</span><span>{selectedPartner.kycStatus === 'verified' ? '✅ Verified' : selectedPartner.kycStatus ?? 'Pending'}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">Partner Type</span><span>{selectedPartner.partnerType ?? 'Individual'}</span></div>
+                      <div className="flex justify-between"><span className="text-ink-muted">Last Active</span><span>{selectedPartner.lastActivity ?? '—'}</span></div>
+                    </div>
+                  )}
+
+                  {detailTab !== 'overview' && (
+                    <div className="text-sm text-ink-muted text-center py-6">
+                      <Link to={`/partners/${selectedPartner.id}`} className="text-brand-600 hover:underline">
+                        View full {detailTab} in Partner 360 →
+                      </Link>
+                    </div>
+                  )}
                 </div>
 
-                {detailTab === 'overview' && (
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-ink-muted">Crop Advisor</span><span>{selectedPartner.cropAdvisor ?? '—'}</span></div>
-                    <div className="flex justify-between"><span className="text-ink-muted">Mobile</span><span>{selectedPartner.phone}</span></div>
-                    <div className="flex justify-between"><span className="text-ink-muted">Territory</span><span>{selectedPartner.territory ?? '—'}</span></div>
-                    <div className="flex justify-between"><span className="text-ink-muted">Tier</span><span>{selectedPartner.tier}</span></div>
-                    <div className="flex justify-between"><span className="text-ink-muted">Reliability</span><span>{selectedPartner.reliabilityScore}</span></div>
-                  </div>
-                )}
-
-                {detailTab !== 'overview' && (
-                  <div className="text-sm text-ink-muted text-center py-6">
-                    {detailTab.charAt(0).toUpperCase() + detailTab.slice(1)} data will load from partner 360.
-                  </div>
-                )}
-
-                <div className="flex gap-2 mt-4 pt-3 border-t border-slate-200">
-                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
-                    <Btn size="sm" className="w-full">View Farmers</Btn>
+                <div className="grid grid-cols-4 gap-1 p-3 border-t border-slate-200 bg-slate-50">
+                  <Link to={`/partners/${selectedPartner.id}?tab=farmers`} className="flex flex-col items-center gap-1 p-2 rounded hover:bg-white text-center">
+                    <span className="text-lg">👥</span>
+                    <span className="text-[10px] text-ink-muted leading-tight">View Farmers</span>
                   </Link>
-                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
-                    <Btn size="sm" className="w-full">Create Order</Btn>
+                  <Link to={`/partners/${selectedPartner.id}?tab=orders`} className="flex flex-col items-center gap-1 p-2 rounded hover:bg-white text-center">
+                    <span className="text-lg">📦</span>
+                    <span className="text-[10px] text-ink-muted leading-tight">Create Order</span>
                   </Link>
-                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
-                    <Btn size="sm" className="w-full">Send Product</Btn>
+                  <Link to={`/partners/${selectedPartner.id}?tab=earnings`} className="flex flex-col items-center gap-1 p-2 rounded hover:bg-white text-center">
+                    <span className="text-lg">🏪</span>
+                    <span className="text-[10px] text-ink-muted leading-tight">Send Product</span>
                   </Link>
-                  <Link to={`/partners/${selectedPartner.id}`} className="flex-1">
-                    <Btn size="sm" className="w-full">Edit Partner</Btn>
+                  <Link to={`/partners/${selectedPartner.id}`} className="flex flex-col items-center gap-1 p-2 rounded hover:bg-white text-center">
+                    <span className="text-lg">✏️</span>
+                    <span className="text-[10px] text-ink-muted leading-tight">Edit Partner</span>
                   </Link>
                 </div>
               </div>
