@@ -245,10 +245,10 @@ export function AnalyticsHubPage() {
   const k = data?.kpis;
 
   return (
-    <div className="analytics-hub">
-      <FilterBar className="mb-4">
-        <p className="m-0 flex-1 text-sm text-ink-muted">
-          Pincode-first geography, retention, broadcasts, recommendation outcomes
+    <div className="analytics-hub space-y-5">
+      <FilterBar className="mb-0">
+        <p className="m-0 flex-1 text-sm leading-relaxed text-ink-muted">
+          Pincode-first geography, retention, broadcasts, and recommendation outcomes.
         </p>
         <label className="flex items-center gap-2 text-sm text-ink-secondary">
           <span>Period</span>

@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
 import { matchesSearch } from '../lib/search-filter';
-import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner } from '../components/ui';
+import { Alert, Btn, HubTabs, Loading, PageHeader, ReadOnlyBanner } from '../components/ui';
 import { FarmerFeedbackPanel } from '../components/agronomist/FarmerFeedbackPanel';
 import { CaseReviewPanel } from '../components/agronomist/CaseReviewPanel';
 import { ImageReviewPanel } from '../components/agronomist/ImageReviewPanel';
@@ -253,19 +253,20 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
   const selected = filteredQueue.find((q) => q.finding.id === selectedId) ?? queue.find((q) => q.finding.id === selectedId);
 
   return (
-    <div className="agronomist-hub">
-      <div className="agro-ops-head" style={{ marginBottom: 12 }}>
-        <div>
-          <h1 className="page-title">AI Review Center</h1>
-          <p className="page-subtitle text-sm text-ink-secondary">
-            Image review, case review, training export — day-to-day farmer work lives in{' '}
-            <Link to={toPath(paths.agronomist)}>Agronomist Operations</Link>.
-          </p>
-        </div>
-      </div>
-      <p className="text-sm text-ink-muted" style={{ marginBottom: 12 }}>
-        Field findings → AI draft → review → Super Admin approval → WhatsApp
-      </p>
+    <div className="agronomist-hub space-y-5">
+      <PageHeader
+        title="AI Review Center"
+        description="Image review, case review, and training export — day-to-day farmer work lives in Agronomist Operations."
+        showTitleOnDesktop
+        actions={
+          <Link to={toPath(paths.agronomist)}>
+            <Btn variant="secondary" size="sm">
+              Agronomist Operations
+            </Btn>
+          </Link>
+        }
+      />
+      <p className="text-sm text-ink-muted">Field findings → AI draft → review → Super Admin approval → WhatsApp</p>
       <AgronomistIntelligenceBar />
       {!canWrite ? <ReadOnlyBanner /> : null}
       {error ? (
@@ -372,7 +373,7 @@ export function AgronomistHubPage({ canWrite }: { canWrite: boolean }) {
                       type="button"
                       disabled={aiLoading}
                       onClick={runAiSuggest}
-                      className="rounded-lg bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+                      className="rounded-[var(--radius-control)] bg-brand-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                     >
                       {aiLoading ? 'Running AI…' : 'Generate AI suggestion'}
                     </button>

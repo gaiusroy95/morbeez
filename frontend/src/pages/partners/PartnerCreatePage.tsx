@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { readFileAsBase64 } from '../../lib/readFileAsBase64';
@@ -6,22 +6,22 @@ import {
   Alert,
   Badge,
   Btn,
+  FileDropzone,
+  FormField,
+  FormRow,
+  FormSection,
   Input,
   Label,
+  PageHeader,
   Panel,
   ReadOnlyBanner,
   Select,
-  inputClass,
   textareaClass,
+  type PendingUpload,
 } from '../../components/ui';
 
 const base = '/morbeez-staff/api/v1/partners';
 const mediaUpload = '/morbeez-staff/api/v1/products/media/upload';
-
-type PendingFile = {
-  file: File;
-  previewUrl?: string;
-};
 
 interface FormData {
   fullName: string;
@@ -75,128 +75,6 @@ const initial: FormData = {
   notes: '',
 };
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <h3 className="mb-4 border-b border-border/60 pb-2 text-sm font-bold uppercase tracking-wider text-ink-muted">
-      {children}
-    </h3>
-  );
-}
-
-function Row({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>;
-}
-
-function FormField({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="block">
-      <Label>
-        {label}
-        {required ? <span className="ml-0.5 text-red-500">*</span> : null}
-      </Label>
-      {children}
-    </label>
-  );
-}
-
-function FileUploadZone({
-  accept,
-  label,
-  hint,
-  value,
-  onChange,
-  imagePreview,
-  disabled,
-  className,
-}: {
-  accept: string;
-  label: string;
-  hint?: string;
-  value: PendingFile | null;
-  onChange: (file: PendingFile | null) => void;
-  imagePreview?: boolean;
-  disabled?: boolean;
-  className?: string;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    return () => {
-      if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
-    };
-  }, [value?.previewUrl]);
-
-  function handleSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
-    onChange({
-      file,
-      previewUrl:
-        imagePreview && file.type.startsWith('image/')
-          ? URL.createObjectURL(file)
-          : undefined,
-    });
-  }
-
-  function clear() {
-    if (value?.previewUrl) URL.revokeObjectURL(value.previewUrl);
-    onChange(null);
-  }
-
-  return (
-    <div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        className="hidden"
-        disabled={disabled}
-        onChange={handleSelect}
-      />
-      {value?.previewUrl ? (
-        <div className={`relative overflow-hidden rounded-lg border border-border ${className ?? 'h-28 w-28'}`}>
-          <img src={value.previewUrl} alt="Upload preview" className="h-full w-full object-cover" />
-          <button
-            type="button"
-            className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-xs text-white"
-            onClick={clear}
-            disabled={disabled}
-          >
-            Remove
-          </button>
-        </div>
-      ) : value ? (
-        <div className={`flex items-center justify-between rounded-lg border border-border bg-surface-subtle px-3 py-2 text-sm ${className ?? 'h-20'}`}>
-          <span className="truncate text-ink">{value.file.name}</span>
-          <button type="button" className="ml-2 shrink-0 text-xs text-brand-600 hover:underline" onClick={clear} disabled={disabled}>
-            Remove
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={() => inputRef.current?.click()}
-          className={`flex w-full items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-subtle text-sm text-ink-muted transition hover:border-brand-400 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-60 ${className ?? 'h-20'}`}
-        >
-          {label}
-          {hint ? <span className="ml-2 hidden text-xs sm:inline">{hint}</span> : null}
-        </button>
-      )}
-    </div>
-  );
-}
-
 async function uploadPartnerFile(file: File, folder: string) {
   const dataBase64 = await readFileAsBase64(file);
   const res = await api<{ ok: boolean; url: string }>(mediaUpload, {
@@ -218,11 +96,17 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-  const [partnerPhoto, setPartnerPhoto] = useState<PendingFile | null>(null);
-  const [panCard, setPanCard] = useState<PendingFile | null>(null);
-  const [addressProof, setAddressProof] = useState<PendingFile | null>(null);
-  const [bankProof, setBankProof] = useState<PendingFile | null>(null);
-  const [otherDocument, setOtherDocument] = useState<PendingFile | null>(null);
+  const [createdPartnerId, setCreatedPartnerId] = useState<string | null>(null);
+  const [activationInfo, setActivationInfo] = useState<{
+    sent: boolean;
+    message: string;
+    deliveryError?: string | null;
+  } | null>(null);
+  const [partnerPhoto, setPartnerPhoto] = useState<PendingUpload | null>(null);
+  const [panCard, setPanCard] = useState<PendingUpload | null>(null);
+  const [addressProof, setAddressProof] = useState<PendingUpload | null>(null);
+  const [bankProof, setBankProof] = useState<PendingUpload | null>(null);
+  const [otherDocument, setOtherDocument] = useState<PendingUpload | null>(null);
 
   const set =
     (key: keyof FormData) =>
@@ -249,7 +133,11 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
       if (bankProof) uploads.bankProofUrl = await uploadPartnerFile(bankProof.file, 'bank');
       if (otherDocument) uploads.otherDocumentUrl = await uploadPartnerFile(otherDocument.file, 'documents');
 
-      await api(`${base}/applications`, {
+      const res = await api<{
+        ok: boolean;
+        partner?: { id: string; partnerCode?: string; fullName?: string };
+        activation?: { sent: boolean; message: string; deliveryError?: string | null };
+      }>(base, {
         method: 'POST',
         body: JSON.stringify({
           fullName: form.fullName,
@@ -259,12 +147,17 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
           district: form.district || undefined,
           village: form.city || undefined,
           experienceNotes: form.notes || undefined,
+          createAppAccount: form.createAppAccount,
+          sendActivation: form.createAppAccount,
           metadata: {
             partnerType: form.partnerType || undefined,
             panNumber: form.panNumber || undefined,
             panName: form.panName || undefined,
             territory: form.territory || undefined,
             cropAdvisor: form.cropAdvisor || undefined,
+            addressLine1: form.addressLine1 || undefined,
+            addressLine2: form.addressLine2 || undefined,
+            pincode: form.pincode || undefined,
             bankDetails: form.accountNumber
               ? {
                   accountHolder: form.bankAccountHolder,
@@ -277,6 +170,16 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
           },
         }),
       });
+      setCreatedPartnerId(res.partner?.id ?? null);
+      setActivationInfo(
+        res.activation
+          ? {
+              sent: res.activation.sent,
+              message: res.activation.message,
+              deliveryError: res.activation.deliveryError,
+            }
+          : null
+      );
       setSuccess(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to create partner');
@@ -287,13 +190,33 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
 
   if (success) {
     return (
-      <div className="hub-page">
+      <div className="space-y-4">
         <Alert tone="success">
-          Partner application created successfully! The partner will receive an activation link.
+          Partner created successfully and is now active in the Partners list.
+          {activationInfo?.sent
+            ? ' An activation message was sent on WhatsApp.'
+            : activationInfo
+              ? ' WhatsApp delivery failed — copy the invite message below and send it manually.'
+              : ''}
         </Alert>
-        <div className="mt-4 flex gap-3">
-          <Btn variant="primary" onClick={() => navigate('/partners')}>
-            Back to Partners
+        {activationInfo && !activationInfo.sent ? (
+          <Panel title="Activation message (send manually)">
+            {activationInfo.deliveryError ? (
+              <p className="mb-2 text-xs text-ink-muted">Delivery error: {activationInfo.deliveryError}</p>
+            ) : null}
+            <pre className="whitespace-pre-wrap rounded border border-border bg-surface-subtle p-3 text-sm text-ink">
+              {activationInfo.message}
+            </pre>
+          </Panel>
+        ) : null}
+        <div className="flex gap-3">
+          <Btn
+            variant="primary"
+            onClick={() =>
+              navigate(createdPartnerId ? `/partners/${createdPartnerId}` : '/partners?tab=partners')
+            }
+          >
+            {createdPartnerId ? 'Open Partner' : 'Back to Partners'}
           </Btn>
           <Btn
             onClick={() => {
@@ -303,6 +226,8 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               setAddressProof(null);
               setBankProof(null);
               setOtherDocument(null);
+              setCreatedPartnerId(null);
+              setActivationInfo(null);
               setSuccess(false);
             }}
           >
@@ -314,7 +239,7 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
   }
 
   return (
-    <div className="hub-page">
+    <div className="space-y-5 sm:space-y-6">
       <div className="mb-1 text-xs text-ink-muted">
         <Link to="/partners" className="hover:underline">
           Partner Program
@@ -327,30 +252,30 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
         <span className="text-ink">Create Partner</span>
       </div>
 
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight text-ink">Create Partner</h1>
-          <p className="text-sm text-ink-muted">Add a new partner to the program</p>
-        </div>
-        <div className="flex gap-2">
-          <Btn onClick={() => navigate('/partners')}>Cancel</Btn>
-          <Btn variant="primary" disabled={busy || !canWrite} onClick={() => void submit()}>
-            {busy ? 'Creating…' : 'Create Partner'}
-          </Btn>
-        </div>
-      </div>
+      <PageHeader
+        title="Create Partner"
+        description="Add a new partner to the program"
+        showTitleOnDesktop
+        actions={
+          <>
+            <Btn onClick={() => navigate('/partners')}>Cancel</Btn>
+            <Btn variant="primary" disabled={busy || !canWrite} onClick={() => void submit()}>
+              {busy ? 'Creating…' : 'Create Partner'}
+            </Btn>
+          </>
+        }
+      />
 
       {!canWrite ? <ReadOnlyBanner /> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
 
-      <div className="space-y-6">
-        <Panel>
-          <SectionTitle>Partner Details</SectionTitle>
+      <div className="space-y-5">
+        <FormSection title="Partner Details">
           <div className="space-y-4">
-            <Row>
+            <FormRow>
               <div>
                 <p className="mb-2 text-sm font-medium text-ink-secondary">Partner Photo</p>
-                <FileUploadZone
+                <FileDropzone
                   accept="image/jpeg,image/png,image/webp"
                   label="+ Upload Photo"
                   value={partnerPhoto}
@@ -373,28 +298,27 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                   </Select>
                 </FormField>
               </div>
-            </Row>
-            <Row>
+            </FormRow>
+            <FormRow>
               <FormField label="Mobile Number" required>
                 <Input value={form.phone} onChange={set('phone')} placeholder="+91 XXXXX XXXXX" />
               </FormField>
               <FormField label="Email ID" required>
                 <Input type="email" value={form.email} onChange={set('email')} placeholder="partner@email.com" />
               </FormField>
-            </Row>
-            <Row>
+            </FormRow>
+            <FormRow>
               <FormField label="Partner ID">
                 <Input value="" disabled placeholder="Auto-generated" />
               </FormField>
               <FormField label="Partner Reference Code">
                 <Input value="" disabled placeholder="Auto-generated" />
               </FormField>
-            </Row>
+            </FormRow>
           </div>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Login &amp; App Access</SectionTitle>
+        <FormSection title="Login & App Access">
           <div className="space-y-4">
             <div>
               <Label>Login ID</Label>
@@ -431,21 +355,19 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                 checked={form.createAppAccount}
                 onChange={setBool('createAppAccount')}
               />
-              Create Partner App Account
+              Create Partner App Account &amp; send activation WhatsApp
             </label>
-            <Btn size="sm" disabled>
-              Send Activation / Password Creation Link
-            </Btn>
             <p className="text-xs text-ink-muted">
-              Account Status: <Badge tone="neutral">Not Invited</Badge>
+              On create, the partner becomes <Badge tone="active">active</Badge> and can sign in to
+              the Partner app with their mobile number via OTP. Activation is sent automatically when
+              this box is checked.
             </p>
           </div>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>PAN / KYC</SectionTitle>
+        <FormSection title="PAN / KYC">
           <div className="space-y-4">
-            <Row>
+            <FormRow>
               <FormField label="PAN Number" required>
                 <Input
                   value={form.panNumber}
@@ -457,9 +379,9 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               <FormField label="Name as per PAN" required>
                 <Input value={form.panName} onChange={set('panName')} placeholder="Name" />
               </FormField>
-            </Row>
+            </FormRow>
             <FormField label="PAN Card" required>
-              <FileUploadZone
+              <FileDropzone
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 label="↑ Upload PAN Card"
                 hint="PDF / JPG / PNG"
@@ -472,10 +394,9 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               KYC Status: <Badge tone="warn">Pending Verification</Badge>
             </p>
           </div>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Address</SectionTitle>
+        <FormSection title="Address">
           <div className="space-y-4">
             <FormField label="Address Line 1" required>
               <Input
@@ -510,7 +431,7 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                 <Input value={form.city} onChange={set('city')} placeholder="City" />
               </FormField>
             </div>
-            <Row>
+            <FormRow>
               <FormField label="Pincode" required>
                 <Input value={form.pincode} onChange={set('pincode')} placeholder="673592" maxLength={6} />
               </FormField>
@@ -519,9 +440,9 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                   <option value="">Select territory</option>
                 </Select>
               </FormField>
-            </Row>
+            </FormRow>
             <FormField label="Address Proof">
-              <FileUploadZone
+              <FileDropzone
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 label="↑ Upload Address Proof"
                 hint="PDF / JPG / PNG"
@@ -531,12 +452,11 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               />
             </FormField>
           </div>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Bank Details</SectionTitle>
+        <FormSection title="Bank Details">
           <div className="space-y-4">
-            <Row>
+            <FormRow>
               <FormField label="Account Holder Name" required>
                 <Input
                   value={form.bankAccountHolder}
@@ -555,25 +475,25 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                   <option value="other">Other</option>
                 </Select>
               </FormField>
-            </Row>
-            <Row>
+            </FormRow>
+            <FormRow>
               <FormField label="Account Number" required>
                 <Input value={form.accountNumber} onChange={set('accountNumber')} />
               </FormField>
               <FormField label="Confirm Account Number" required>
                 <Input value={form.confirmAccountNumber} onChange={set('confirmAccountNumber')} />
               </FormField>
-            </Row>
-            <Row>
+            </FormRow>
+            <FormRow>
               <FormField label="IFSC Code" required>
                 <Input value={form.ifscCode} onChange={set('ifscCode')} />
               </FormField>
               <FormField label="Branch Name">
                 <Input value={form.branchName} onChange={set('branchName')} />
               </FormField>
-            </Row>
+            </FormRow>
             <FormField label="Bank Proof / Cancelled Cheque" required>
-              <FileUploadZone
+              <FileDropzone
                 accept="image/jpeg,image/png,image/webp,application/pdf"
                 label="↑ Upload Bank Proof"
                 hint="PDF / JPG / PNG"
@@ -586,11 +506,10 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               Bank Verification: <Badge tone="warn">Pending</Badge>
             </p>
           </div>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Assignment</SectionTitle>
-          <Row>
+        <FormSection title="Assignment">
+          <FormRow>
             <FormField label="Crop Advisor" required>
               <Select value={form.cropAdvisor} onChange={set('cropAdvisor')}>
                 <option value="">Select Crop Advisor</option>
@@ -601,13 +520,12 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
                 <option value="">Select territory</option>
               </Select>
             </FormField>
-          </Row>
-        </Panel>
+          </FormRow>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Documents</SectionTitle>
+        <FormSection title="Documents">
           <FormField label="Other Document">
-            <FileUploadZone
+            <FileDropzone
               accept="image/jpeg,image/png,image/webp,application/pdf"
               label="↑ Upload Document"
               value={otherDocument}
@@ -615,10 +533,9 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
               disabled={!canWrite || busy}
             />
           </FormField>
-        </Panel>
+        </FormSection>
 
-        <Panel>
-          <SectionTitle>Notes</SectionTitle>
+        <FormSection title="Notes">
           <textarea
             className={textareaClass}
             value={form.notes}
@@ -626,7 +543,7 @@ export function PartnerCreatePage({ canWrite }: { canWrite: boolean }) {
             placeholder="Add internal notes about this partner..."
             rows={3}
           />
-        </Panel>
+        </FormSection>
 
         <div className="flex justify-end gap-3 pb-8">
           <Btn disabled={busy}>Save Draft</Btn>

@@ -394,7 +394,7 @@ export function TelecallerCrmPage({ canWrite }: { canWrite: boolean }) {
   }
 
   return (
-    <div className="telecaller-page">
+    <div className="telecaller-page space-y-4">
       {showNotifications ? (
         <div className="tc-notification-panel">
           <h4>Notifications</h4>

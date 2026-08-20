@@ -34,27 +34,48 @@ export function PageShell({
   error,
   children,
   loadingLabel,
+  className,
+  description,
+  actions,
 }: {
   loading?: boolean;
   error?: string | null;
   children?: ReactNode;
   loadingLabel?: string;
+  className?: string;
+  description?: string;
+  actions?: ReactNode;
 }) {
   if (loading) {
     return (
-      <div className="rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)]">
+      <div
+        className={cn(
+          'rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)]',
+          className
+        )}
+      >
         <PageLoader label={loadingLabel} />
       </div>
     );
   }
   if (error) {
     return (
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      <div className={cn('space-y-4', className)}>
+        <div className="rounded-[var(--radius-control)] border border-red-200/80 bg-red-50 px-4 py-3 text-sm text-red-800">
           {error}
         </div>
       </div>
     );
   }
-  return children ? <>{children}</> : null;
+  return (
+    <div className={cn('space-y-5 sm:space-y-6', className)}>
+      {description || actions ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          {description ? <p className="max-w-3xl text-sm leading-relaxed text-ink-muted">{description}</p> : <span />}
+          {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  );
 }

@@ -135,14 +135,8 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, partner, introductions, settlements, kpiSnapshots });
   });
 
-  app.get(`${api}/applications/list`, async (request, reply) => {
-    await assertModuleAccess(request, 'partner_program', 'read');
-    const q = request.query as { status?: string };
-    const applications = await partnerOnboardingService.listApplications(q.status);
-    return reply.send({ ok: true, applications });
-  });
-
-  app.post(`${api}/applications`, async (request, reply) => {
+  app.post(`${api}`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'partner_program', 'write');
     const body = z
       .object({
         fullName: z.string().min(2),
@@ -154,17 +148,56 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
         languages: z.array(z.string()).optional(),
         experienceNotes: z.string().optional(),
         metadata: z.record(z.unknown()).optional(),
+        createAppAccount: z.boolean().optional(),
+        sendActivation: z.boolean().optional(),
       })
       .parse(request.body);
-    const application = await partnerOnboardingService.submitApplication(body);
-    return reply.code(201).send({ ok: true, application });
+    const result = await partnerOnboardingService.createPartnerByAdmin(body, admin.email);
+    return reply.code(201).send({ ok: true, ...result });
+  });
+
+  app.post(`${api}/:id/send-activation`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'write');
+    const { id } = request.params as { id: string };
+    const activation = await partnerOnboardingService.sendActivationInvite(id);
+    return reply.send({ ok: true, activation });
+  });
+
+  app.get(`${api}/applications/list`, async (request, reply) => {
+    await assertModuleAccess(request, 'partner_program', 'read');
+    const q = request.query as { status?: string };
+    const applications = await partnerOnboardingService.listApplications(q.status);
+    return reply.send({ ok: true, applications });
+  });
+
+  app.post(`${api}/applications`, async (request, reply) => {
+    const admin = await assertModuleAccess(request, 'partner_program', 'write');
+    const body = z
+      .object({
+        fullName: z.string().min(2),
+        phone: z.string().min(10),
+        email: z.string().email().optional(),
+        state: z.string().optional(),
+        district: z.string().optional(),
+        village: z.string().optional(),
+        languages: z.array(z.string()).optional(),
+        experienceNotes: z.string().optional(),
+        metadata: z.record(z.unknown()).optional(),
+        createAppAccount: z.boolean().optional(),
+        sendActivation: z.boolean().optional(),
+      })
+      .parse(request.body);
+    // Staff "Create Partner" must create a real partner row + send activation,
+    // not only a pending application (which never appears in Partners list).
+    const result = await partnerOnboardingService.createPartnerByAdmin(body, admin.email);
+    return reply.code(201).send({ ok: true, ...result });
   });
 
   app.post(`${api}/applications/:id/approve`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'partner_program', 'write');
     const { id } = request.params as { id: string };
-    const partner = await partnerOnboardingService.approveApplication(id, admin.email);
-    return reply.send({ ok: true, partner });
+    const result = await partnerOnboardingService.approveApplication(id, admin.email);
+    return reply.send({ ok: true, ...result });
   });
 
   app.post(`${api}/applications/:id/reject`, async (request, reply) => {

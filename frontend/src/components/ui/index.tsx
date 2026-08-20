@@ -238,9 +238,14 @@ export function DataTable({ children, className }: { children: ReactNode; classN
   );
 }
 
-export function THead({ children }: { children: ReactNode }) {
+export function THead({ children, sticky }: { children: ReactNode; sticky?: boolean }) {
   return (
-    <thead className="bg-surface-subtle/80 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+    <thead
+      className={cn(
+        'bg-surface-subtle/80 text-xs font-semibold uppercase tracking-wide text-ink-muted',
+        sticky && 'sticky top-0 z-10'
+      )}
+    >
       {children}
     </thead>
   );
@@ -309,18 +314,32 @@ export function PageHeader({
   title,
   description,
   actions,
+  showTitleOnDesktop,
 }: {
   title?: string;
   description?: string;
   actions?: ReactNode;
+  /** When true, show title on desktop too (default hides title — WorkspaceHeader owns it). */
+  showTitleOnDesktop?: boolean;
 }) {
   return (
-    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="mb-5 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        {title ? <h2 className="text-lg font-semibold tracking-tight text-ink sm:hidden">{title}</h2> : null}
-        {description ? <p className="mt-1 text-sm text-ink-muted">{description}</p> : null}
+        {title ? (
+          <h2
+            className={cn(
+              'text-lg font-semibold tracking-tight text-ink',
+              !showTitleOnDesktop && 'sm:hidden'
+            )}
+          >
+            {title}
+          </h2>
+        ) : null}
+        {description ? (
+          <p className={cn('text-sm leading-relaxed text-ink-muted', title && 'mt-1')}>{description}</p>
+        ) : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
     </div>
   );
 }
@@ -330,24 +349,33 @@ export function StatCard({
   value,
   sub,
   icon,
+  compact,
 }: {
   label: string;
   value: string;
   sub?: string;
   icon?: ReactNode;
+  compact?: boolean;
 }) {
   return (
-    <article className="rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated p-4 shadow-[var(--shadow-card)] sm:p-5">
+    <article
+      className={cn(
+        'rounded-[var(--radius-card)] border border-border/80 bg-surface-elevated shadow-[var(--shadow-card)]',
+        compact ? 'p-3 sm:p-3.5' : 'p-4 sm:p-5'
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">{label}</p>
         {icon ? (
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
             {icon}
           </span>
         ) : null}
       </div>
-      <p className="mt-2 text-2xl font-bold tracking-tight text-ink">{value}</p>
-      {sub ? <p className="mt-1 text-xs text-ink-muted">{sub}</p> : null}
+      <p className={cn('mt-1.5 font-bold tracking-tight text-ink', compact ? 'text-xl' : 'text-2xl')}>
+        {value}
+      </p>
+      {sub ? <p className="mt-1 text-xs leading-snug text-ink-muted">{sub}</p> : null}
     </article>
   );
 }
@@ -359,3 +387,14 @@ export function ReadOnlyBanner() {
     </Alert>
   );
 }
+
+export {
+  StatGrid,
+  EntityHeader,
+  SideDrawer,
+  FormSection,
+  FileDropzone,
+  FormField,
+  FormRow,
+} from './PortalChrome';
+export type { PendingUpload } from './PortalChrome';

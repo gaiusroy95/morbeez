@@ -31,10 +31,10 @@ export function OperationsHubShell({
   const sectionLabel = OPS_SECTIONS.find((s) => s.id === section)?.label ?? 'Operations';
 
   return (
-    <div className="operations-hub">
-      <header className="mb-4">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{sectionLabel}</h2>
-        <p className="mt-1 text-sm text-ink-muted">{SECTION_DESCRIPTIONS[section]}</p>
+    <div className="operations-hub space-y-1">
+      <header className="mb-5">
+        <h2 className="text-lg font-semibold tracking-tight text-ink sm:hidden">{sectionLabel}</h2>
+        <p className="text-sm leading-relaxed text-ink-muted">{SECTION_DESCRIPTIONS[section]}</p>
       </header>
       {!canWrite ? <ReadOnlyBanner /> : null}
       {showSubTabs ? (
@@ -44,7 +44,7 @@ export function OperationsHubShell({
           onChange={(id) => onSubTabChange(id as OpsSubTab)}
         />
       ) : null}
-      <div className={showSubTabs ? 'mt-6' : 'mt-2'}>{children}</div>
+      <div className={showSubTabs ? 'mt-2' : ''}>{children}</div>
     </div>
   );
 }

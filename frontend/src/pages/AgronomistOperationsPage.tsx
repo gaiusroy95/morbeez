@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { paths, toPath } from '../lib/routes';
 import { AgronomistFarmerWorkspacePanel } from '../components/agronomist/AgronomistFarmerWorkspacePanel';
 import { AgronomistTaskDetailModal, type AgronomistTaskRow } from '../components/agronomist/AgronomistTaskDetailModal';
-import { Alert, Btn, HubTabs, Loading, ReadOnlyBanner, StatCard } from '../components/ui';
+import { Alert, Btn, HubTabs, Loading, PageHeader, ReadOnlyBanner, StatCard } from '../components/ui';
 import '../styles/agronomist-ops.css';
 
 const agroBase = '/morbeez-staff/api/v1/os/agronomist';
@@ -122,27 +122,29 @@ export function AgronomistOperationsPage({ canWrite }: { canWrite: boolean }) {
   if (loading && !dashboard) return <Loading label="Loading agronomist operations…" />;
 
   return (
-    <div className="agro-ops-page">
-      {!canWrite ? <ReadOnlyBanner moduleLabel="Agronomist operations" /> : null}
-      {error ? <Alert>{error}</Alert> : null}
+    <div className="agro-ops-page space-y-5">
+      {!canWrite ? <ReadOnlyBanner /> : null}
+      {error ? <Alert tone="error">{error}</Alert> : null}
 
-      <div className="agro-ops-head">
-        <div>
-          <h1 className="page-title">Agronomist Operations</h1>
-          <p className="page-subtitle">
-            Farmer support, tasks, visits, and field cases — separate from{' '}
-            <Link to={toPath(paths.agronomistAiReview)}>AI Review Center</Link>.
-          </p>
-        </div>
-        <Btn label="Refresh" variant="secondary" onClick={bump} />
-      </div>
+      <PageHeader
+        title="Agronomist Operations"
+        description="Farmer support, tasks, visits, and field cases — separate from AI Review Center."
+        showTitleOnDesktop
+        actions={<Btn label="Refresh" variant="secondary" onClick={bump} />}
+      />
 
-      <div className="agro-ops-quick-links">
-        <Link to={toPath(paths.agronomistMap)}>Farmer map</Link>
-        <Link to={toPath(paths.agronomistRoutes)}>Route planner</Link>
-        <Link to={toPath(paths.agronomistAiReview)}>AI review center</Link>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link to={toPath(paths.agronomistMap)} className="font-medium text-brand-600 hover:underline">
+          Farmer map
+        </Link>
+        <Link to={toPath(paths.agronomistRoutes)} className="font-medium text-brand-600 hover:underline">
+          Route planner
+        </Link>
+        <Link to={toPath(paths.agronomistAiReview)} className="font-medium text-brand-600 hover:underline">
+          AI review center
+        </Link>
         {canWrite ? (
-          <button type="button" className="link-btn" onClick={() => setTab('farmers')}>
+          <button type="button" className="font-medium text-brand-600 hover:underline" onClick={() => setTab('farmers')}>
             Start visit from farmer workspace
           </button>
         ) : null}

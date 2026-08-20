@@ -15,7 +15,7 @@ export function RoutedPageOutlet() {
   }, [location.pathname]);
 
   return (
-    <div className="content console-page-content" id="main-content">
+    <div className="content console-page-content space-y-0" id="main-content">
       <Outlet key={location.pathname} />
     </div>
   );

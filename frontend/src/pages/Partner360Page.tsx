@@ -7,14 +7,15 @@ import {
   Btn,
   DataTable,
   EmptyState,
+  EntityHeader,
   FilterBar,
   HubTabs,
   Input,
   Loading,
-  PageHeader,
   Panel,
   Select,
   StatCard,
+  StatGrid,
   TableWrap,
   TBody,
   Td,
@@ -73,115 +74,123 @@ function initials(name: string) {
 
 function PartnerHeader({ partner, canWrite }: { partner: Partner; canWrite: boolean }) {
   return (
-    <div className="sticky top-0 z-20 border-b border-border bg-surface-elevated px-6 py-4">
-      <div className="mb-2">
-        <Link to="/partners" className="text-sm text-brand-600 hover:underline">
+    <EntityHeader
+      sticky
+      initials={initials(partner.fullName)}
+      title={partner.fullName}
+      badges={
+        <>
+          <Badge tone="neutral">{partner.partnerCode}</Badge>
+          {partner.mzpCode ? <Badge tone="neutral">{partner.mzpCode}</Badge> : null}
+          <Badge tone={partner.status === 'active' ? 'active' : 'archived'}>{partner.status}</Badge>
+        </>
+      }
+      subtitle={
+        <span className="flex flex-wrap gap-x-4 gap-y-1">
+          {partner.phone ? <span>{partner.phone}</span> : null}
+          {partner.email ? <span>{partner.email}</span> : null}
+        </span>
+      }
+      back={
+        <Link to="/partners?tab=partners" className="text-sm font-medium text-brand-600 hover:underline">
           ← Back to Partners
         </Link>
-      </div>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-600 text-lg font-bold text-white">
-            {initials(partner.fullName)}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-semibold text-ink">{partner.fullName}</h1>
-              <Badge tone="neutral">{partner.partnerCode}</Badge>
-              {partner.mzpCode && <Badge tone="neutral">{partner.mzpCode}</Badge>}
-              <Badge tone={partner.status === 'active' ? 'active' : 'archived'}>{partner.status}</Badge>
-            </div>
-            <div className="mt-1 flex items-center gap-4 text-sm text-ink-muted">
-              {partner.phone && <span>{partner.phone}</span>}
-              {partner.email && <span>{partner.email}</span>}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-start gap-6 text-sm">
-          <div>
-            <span className="text-xs text-ink-muted">Territory</span>
-            <p className="font-medium">{partner.territory || '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">Crop Advisor</span>
-            <p className="font-medium">{partner.cropAdvisor || '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">KYC Status</span>
-            <Badge tone={partner.kycStatus === 'verified' ? 'success' : 'warn'}>{partner.kycStatus || 'Pending'}</Badge>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">PAN</span>
-            <p className="font-medium">{partner.panNumber || '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">Address</span>
-            <p className="max-w-[200px] font-medium">{partner.address || '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">Partner Since</span>
-            <p className="font-medium">{partner.partnerSince || '—'}</p>
-          </div>
-          <div>
-            <span className="text-xs text-ink-muted">Last Activity</span>
-            <p className="font-medium">{partner.lastActivity || '—'}</p>
-          </div>
-        </div>
-
-        {canWrite && (
-          <div className="flex items-center gap-2">
-            <Btn variant="primary" size="sm">Edit Partner</Btn>
-            <Btn variant="secondary" size="sm">More Actions ▾</Btn>
-          </div>
-        )}
-      </div>
-    </div>
+      }
+      actions={
+        canWrite ? (
+          <>
+            <Btn variant="primary" size="sm">
+              Edit Partner
+            </Btn>
+            <Btn variant="secondary" size="sm">
+              More Actions
+            </Btn>
+          </>
+        ) : undefined
+      }
+      meta={[
+        { label: 'Territory', value: partner.territory || '—' },
+        { label: 'Crop Advisor', value: partner.cropAdvisor || '—' },
+        {
+          label: 'KYC',
+          value: (
+            <Badge tone={partner.kycStatus === 'verified' ? 'success' : 'warn'}>
+              {partner.kycStatus || 'Pending'}
+            </Badge>
+          ),
+        },
+        { label: 'PAN', value: partner.panNumber || '—' },
+        { label: 'Address', value: partner.address || '—' },
+        { label: 'Partner Since', value: partner.partnerSince || '—' },
+      ]}
+    />
   );
 }
 
 function OverviewTab({ partner, introductions }: { partner: Partner; introductions: Introduction[] }) {
+  const totalFarmers = partner.currentActiveFarmers + (partner.inactiveFarmers ?? 0);
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        <StatCard label="Total Farmers" value={String(partner.currentActiveFarmers + (partner.inactiveFarmers ?? 0))} />
-        <StatCard label="Total Acres" value={String(partner.totalAcres ?? 0)} />
-        <StatCard label="Invoice Value (MTD)" value={INR(partner.invoiceValueMtd)} />
-        <StatCard label="Eligible Sales (MTD)" value={INR(partner.eligibleSalesMtd)} />
-        <StatCard label="Earnings (MTD)" value={INR(partner.earningsMtd)} />
-        <StatCard label="KPI Performance" value={partner.kpiScore != null ? String(partner.kpiScore) : '—'} />
-      </div>
+    <div className="space-y-5">
+      <StatGrid compact>
+        <StatCard
+          compact
+          label="Total Farmers"
+          value={String(totalFarmers)}
+          sub={`Active ${partner.currentActiveFarmers}`}
+        />
+        <StatCard compact label="Total Acres" value={String(partner.totalAcres ?? 0)} />
+        <StatCard compact label="Invoice Value (MTD)" value={INR(partner.invoiceValueMtd)} />
+        <StatCard compact label="Eligible Sales (MTD)" value={INR(partner.eligibleSalesMtd)} />
+        <StatCard compact label="Earnings (MTD)" value={INR(partner.earningsMtd)} />
+        <StatCard
+          compact
+          label="KPI Performance"
+          value={partner.kpiScore != null ? `${partner.kpiScore}%` : String(partner.performanceScore)}
+        />
+      </StatGrid>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <Panel title="Performance">
+        <Panel title="Performance" description="This month">
           <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-ink-muted">Invoice Value</span><span>{INR(partner.invoiceValueMtd)}</span></div>
-            <div className="flex justify-between"><span className="text-ink-muted">Eligible Sales</span><span>{INR(partner.eligibleSalesMtd)}</span></div>
-            <div className="flex justify-between"><span className="text-ink-muted">Earnings</span><span>{INR(partner.earningsMtd)}</span></div>
-            <div className="mt-4 border-t border-border pt-4">
-              <span className="text-xs text-ink-muted">KPI Score</span>
-              <p className="text-3xl font-bold">{partner.kpiScore ?? '—'}</p>
+            <div className="flex justify-between">
+              <span className="text-ink-muted">KPI Score</span>
+              <span className="text-2xl font-bold text-ink">{partner.kpiScore ?? partner.performanceScore}%</span>
             </div>
-            <div className="flex gap-6 text-xs">
-              <span>Active Farmers: {partner.currentActiveFarmers}</span>
-              <span>Inactive: {partner.inactiveFarmers ?? 0}</span>
-              <span>Orders: {partner.totalOrders ?? 0}</span>
+            <div className="flex justify-between">
+              <span className="text-ink-muted">Active Farmers</span>
+              <span>{partner.currentActiveFarmers}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-muted">Inactive</span>
+              <span>{partner.inactiveFarmers ?? 0}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-ink-muted">Orders</span>
+              <span>{partner.totalOrders ?? 0}</span>
             </div>
           </div>
         </Panel>
 
-        <Panel title="Sales Overview">
-          <div className="flex h-48 items-center justify-center rounded border border-dashed border-border text-sm text-ink-muted">
-            Sales chart — Invoice Value / Eligible Sales / Earnings trend
+        <Panel title="Sales Overview" description="This month">
+          <div className="flex h-40 items-center justify-center rounded-[var(--radius-control)] border border-dashed border-border bg-surface-subtle text-sm text-ink-muted">
+            Sales trend chart coming soon
           </div>
         </Panel>
 
         <Panel title="Quick Actions">
           <div className="grid grid-cols-1 gap-2">
-            <Btn variant="secondary" size="sm" disabled>Create Order for Farmer</Btn>
-            <Btn variant="secondary" size="sm" disabled>Send Product (Wallet)</Btn>
-            <Btn variant="secondary" size="sm" disabled>Partner Earnings Statement</Btn>
-            <Btn variant="secondary" size="sm" disabled>Partner Monthly Report</Btn>
+            <Btn variant="secondary" size="sm" disabled>
+              Create Order for Farmer
+            </Btn>
+            <Btn variant="secondary" size="sm" disabled>
+              Send Product (Wallet)
+            </Btn>
+            <Btn variant="secondary" size="sm" disabled>
+              Partner Earnings Statement
+            </Btn>
+            <Btn variant="secondary" size="sm" disabled>
+              Partner Monthly Report
+            </Btn>
           </div>
         </Panel>
       </div>
@@ -195,10 +204,6 @@ function OverviewTab({ partner, introductions }: { partner: Partner; introductio
                   <Th>Farmer Name</Th>
                   <Th>Crop</Th>
                   <Th>Acres</Th>
-                  <Th>Crop Advisor</Th>
-                  <Th>Last Activity</Th>
-                  <Th>Orders</Th>
-                  <Th>Invoice Value</Th>
                   <Th>Status</Th>
                 </tr>
               </THead>
@@ -208,22 +213,26 @@ function OverviewTab({ partner, introductions }: { partner: Partner; introductio
                     <Td>{String(row.farmerName ?? row.farmer_name ?? '—')}</Td>
                     <Td>{String(row.crop ?? '—')}</Td>
                     <Td>{String(row.acreage ?? row.acres ?? '—')}</Td>
-                    <Td>{String(row.cropAdvisor ?? row.crop_advisor ?? '—')}</Td>
-                    <Td>{String(row.lastActivity ?? row.last_activity ?? '—')}</Td>
-                    <Td>{String(row.orders ?? row.order_count ?? 0)}</Td>
-                    <Td>{INR(row.invoiceValue ?? row.invoice_value ?? 0)}</Td>
-                    <Td><Badge tone={row.status === 'active' ? 'active' : 'archived'}>{String(row.status ?? '—')}</Badge></Td>
+                    <Td>
+                      <Badge tone={row.status === 'active' ? 'active' : 'archived'}>
+                        {String(row.status ?? '—')}
+                      </Badge>
+                    </Td>
                   </tr>
                 ))}
                 {introductions.length === 0 && (
-                  <tr><td colSpan={8} className="px-4 py-3"><EmptyState>No recent farmers</EmptyState></td></tr>
+                  <tr>
+                    <td colSpan={4} className="px-4 py-3">
+                      <EmptyState>No recent farmers</EmptyState>
+                    </td>
+                  </tr>
                 )}
               </TBody>
             </DataTable>
           </TableWrap>
         </Panel>
 
-        <Panel title="Recent Orders" noPadding>
+        <Panel title="Recent Orders">
           <EmptyState>Recent orders coming soon</EmptyState>
         </Panel>
       </div>

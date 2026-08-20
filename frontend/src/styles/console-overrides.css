@@ -1,7 +1,24 @@
 /* React console tweaks on top of legacy admin.css */
 
 .main-content {
-  background: linear-gradient(180deg, var(--bg) 0%, var(--bg-subtle) 48%, var(--green-50) 100%);
+  background: var(--color-surface, #f3f6f4);
+}
+
+.console-page-content {
+  padding: 1.25rem 1.25rem 2rem;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .console-page-content {
+    padding: 1.5rem 1.75rem 2.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .console-page-content {
+    padding: 1.75rem 2rem 2.75rem;
+  }
 }
 
 .page-header h1 {

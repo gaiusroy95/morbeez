@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { HubTabs, ReadOnlyBanner } from '../components/ui';
+import { HubTabs, PageShell, ReadOnlyBanner } from '../components/ui';
 import { WarehouseStockPanel } from '../components/warehouse/WarehouseStockPanel';
 import { WarehouseInboundPanel } from '../components/warehouse/WarehouseInboundPanel';
 import { WarehouseFulfillmentHub } from '../components/warehouse/WarehouseFulfillmentHub';
@@ -55,16 +55,18 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
   );
 
   return (
-    <div className="warehouse-hub">
+    <PageShell
+      className="warehouse-hub"
+      description="Fulfillment stock, inbound GRN, pick/pack, packaging, returns, and COD finance."
+    >
       {tab !== 'fulfillment' ? (
-        <p className="warehouse-hub-intro text-sm text-ink-secondary">
-          Warehouse fulfillment — auto AWB on confirm, pick + pack with scan verification, thermal
-          labels via Shiprocket.
+        <p className="mb-1 text-sm text-ink-secondary">
+          Auto AWB on confirm, pick + pack with scan verification, thermal labels via Shiprocket.
         </p>
       ) : null}
       {orderFromUrl ? (
-        <p className="warehouse-hub-focus text-sm text-ink-muted">
-          Focused order: <span className="mono">{orderFromUrl}</span>
+        <p className="mb-2 rounded-[var(--radius-control)] border border-border/70 bg-surface-subtle/50 px-3 py-2 text-sm text-ink-muted">
+          Focused order: <span className="font-mono text-ink">{orderFromUrl}</span>
         </p>
       ) : null}
       {!canWrite ? <ReadOnlyBanner /> : null}
@@ -78,6 +80,6 @@ export function WarehouseHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'packaging' ? <WarehousePackagingPanel canWrite={canWrite} /> : null}
       {tab === 'returns' ? <WarehouseReturnsPanel canWrite={canWrite} /> : null}
       {tab === 'finance' ? <WarehouseFinancePanel canWrite={canWrite} /> : null}
-    </div>
+    </PageShell>
   );
 }

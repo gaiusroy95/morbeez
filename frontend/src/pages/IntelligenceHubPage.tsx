@@ -216,19 +216,19 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
   }
 
   return (
-    <div className="intelligence-hub">
-      <p className="muted" style={{ marginBottom: 12 }}>
-        Masters for rules, cultivation schedules, templates, and spray programs
+    <div className="intelligence-hub space-y-5">
+      <p className="text-sm leading-relaxed text-ink-muted">
+        Masters for rules, cultivation schedules, templates, and spray programs.
       </p>
       {!canWrite ? <ReadOnlyBanner /> : null}
       {error ? <Alert tone="error">{error}</Alert> : null}
       <HubTabs tabs={TABS} active={tab} onChange={onTabChange} />
 
       {tab !== 'pincode' && tab !== 'spray' ? (
-        <div className="mt-4 flex items-center gap-2">
-          <label className="text-sm text-slate-600">Crop filter</label>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <label className="text-sm text-ink-muted">Crop filter</label>
           <StaticSelect
-            className="rounded border border-slate-200 px-2 py-1 text-sm"
+            className="rounded-[var(--radius-control)] border border-border px-2 py-1.5 text-sm"
             value={cropFilter}
             onChange={setCropFilter}
             options={[
@@ -243,7 +243,7 @@ export function IntelligenceHubPage({ canWrite }: { canWrite: boolean }) {
                 setEditRow(null);
                 setModal(tab);
               }}
-              className="ml-auto rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700"
+              className="ml-auto inline-flex h-9 items-center rounded-[var(--radius-control)] bg-brand-600 px-3 text-sm font-semibold text-white hover:bg-brand-700"
             >
               + Add
             </button>

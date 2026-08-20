@@ -4,7 +4,7 @@ import { useSyncConsoleSearch } from '../hooks/useSyncConsoleSearch';
 import { defaultsForPage } from '../lib/console-page-search';
 import { paths, toPath } from '../lib/routes';
 import { useAuth } from '../context/AuthContext';
-import { HubTabs } from '../components/ui';
+import { HubTabs, PageShell } from '../components/ui';
 import { CommerceAllProductsPanel } from '../components/commerce/CommerceAllProductsPanel';
 import {
   CommerceInventoryPanel,
@@ -105,20 +105,23 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
   );
 
   return (
-    <div className="commerce-hub">
+    <PageShell
+      className="commerce-hub"
+      description="Catalog, inventory, orders, offers, and storefront merchandising."
+    >
       {canSeo && tab === 'products' ? (
-        <p className="commerce-hub-warehouse-bridge text-sm text-ink-muted">
+        <p className="mb-3 rounded-[var(--radius-control)] border border-border/70 bg-surface-subtle/50 px-3 py-2 text-sm text-ink-muted">
           Product SEO, crop problem pages, and Google visibility live in{' '}
-          <Link to={toPath(paths.seo)} className="commerce-warehouse-link">
+          <Link to={toPath(paths.seo)} className="font-medium text-brand-600 hover:underline">
             SEO Control Panel
           </Link>
           .
         </p>
       ) : null}
       {canWarehouse && (tab === 'orders' || tab === 'logistics') ? (
-        <p className="commerce-hub-warehouse-bridge text-sm text-ink-muted">
+        <p className="mb-3 rounded-[var(--radius-control)] border border-border/70 bg-surface-subtle/50 px-3 py-2 text-sm text-ink-muted">
           Fulfillment (pick, pack, GST invoice, COD) lives in{' '}
-          <Link to={toPath(paths.warehouse)} className="commerce-warehouse-link">
+          <Link to={toPath(paths.warehouse)} className="font-medium text-brand-600 hover:underline">
             Warehouse & OMS
           </Link>
           . Order rows include a <strong>WMS</strong> shortcut when applicable.
@@ -142,6 +145,6 @@ export function CommerceHubPage({ canWrite = false }: { canWrite?: boolean }) {
       {tab === 'logistics' ? <CommerceLogisticsPanel canWrite={canWrite} /> : null}
       {tab === 'banners' ? <CommerceBannersPanel canWrite={canWrite} /> : null}
       {tab === 'marketing' ? <MarketingPerformancePanel canWrite={canWrite} /> : null}
-    </div>
+    </PageShell>
   );
 }
