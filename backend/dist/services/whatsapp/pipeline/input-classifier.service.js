@@ -18,8 +18,9 @@ export const inputClassifierService = {
         const t = text?.trim() ?? '';
         const signals = [];
         const hasMedia = options?.hasCropMedia ?? false;
+        // Photo-only: do not assume disease until vision confirms a crop symptom photo.
         if (!t && hasMedia) {
-            return { category: 'disease_stress', confidence: 0.55, signals: ['media_only'] };
+            return { category: 'unknown_low_conf', confidence: 0.4, signals: ['media_only'] };
         }
         if (!t) {
             return { category: 'unknown_low_conf', confidence: 0.2, signals: ['empty'] };
@@ -83,10 +84,15 @@ export const inputClassifierService = {
         return { category: best, confidence, signals };
     },
     shouldUsePlaybook(result) {
-        if (result.category === 'disease_stress' || result.category === 'cultivation')
-            return false;
+        // Always evaluate playbook for unclear / non-crop vision so we can refuse diagnosis.
         if (result.category === 'unknown_low_conf')
-            return result.confidence >= 0.45;
+            return true;
+        if (result.category === 'disease_stress')
+            return false;
+        if (result.category === 'cultivation') {
+            // Text cultivation Q → diagnosis path; product-bag photo is handled in playbook when hasCropMedia.
+            return result.signals.includes('vision');
+        }
         return result.confidence >= 0.5;
     },
     /** Merge text + vision; vision wins when clearly stronger. */
@@ -97,6 +103,16 @@ export const inputClassifierService = {
         if (vision.photoQuality && vision.photoQuality !== 'ok') {
             signals.push(`photo_${vision.photoQuality}`);
         }
+        // Photo-only messages default to disease_stress — never let that override a clear non-crop vision result.
+        if (textResult.signals.includes('media_only') &&
+            vision.confidence >= 0.55 &&
+            vision.category !== 'disease_stress') {
+            return {
+                category: vision.category,
+                confidence: vision.confidence,
+                signals,
+            };
+        }
         if (vision.confidence >= textResult.confidence + 0.12) {
             return {
                 category: vision.category,
@@ -104,8 +120,12 @@ export const inputClassifierService = {
                 signals,
             };
         }
-        if (textResult.category === 'disease_stress' && vision.confidence >= 0.65) {
+        if (textResult.category === 'disease_stress' && vision.confidence >= 0.55) {
             if (vision.category !== 'disease_stress' && vision.category !== 'cultivation') {
+                return { category: vision.category, confidence: vision.confidence, signals };
+            }
+            // fertilizer bag / product label → cultivation: still prefer vision over fake disease_stress
+            if (vision.category === 'cultivation' && vision.confidence >= 0.6) {
                 return { category: vision.category, confidence: vision.confidence, signals };
             }
         }

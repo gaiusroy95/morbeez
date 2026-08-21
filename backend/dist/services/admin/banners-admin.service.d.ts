@@ -9,16 +9,18 @@ export interface CreateBannerInput {
     badge?: string;
     description?: string;
     imageUrl?: string;
+    imageUrlMobile?: string;
     ctaLabel?: string;
     ctaUrl?: string;
     placement?: BannerPlacement;
-    size?: string;
-    sizeWidth?: number;
-    sizeHeight?: number;
     startsAt: string;
     endsAt: string;
     sortOrder?: number;
     active?: boolean;
+    imageOnly?: boolean;
+    headingColor?: string;
+    highlightColor?: string;
+    textSize?: 'sm' | 'md' | 'lg';
 }
 export declare const bannersAdminService: {
     list(query: BannerListQuery): Promise<{
@@ -28,18 +30,20 @@ export declare const bannersAdminService: {
             badge: string | null;
             description: string | null;
             imageUrl: string | null;
+            imageUrlMobile: string | null;
             ctaLabel: string;
             ctaUrl: string | null;
             placement: BannerPlacement;
             placementLabel: string;
-            size: string;
-            sizeWidth: number;
-            sizeHeight: number;
             startsAt: string;
             endsAt: string;
             schedule: string;
             sortOrder: number;
             active: boolean;
+            imageOnly: boolean;
+            headingColor: string;
+            highlightColor: string;
+            textSize: "sm" | "md" | "lg";
             status: "inactive" | BannerTab;
         }[];
         tabCounts: {
@@ -55,18 +59,20 @@ export declare const bannersAdminService: {
         badge: string | null;
         description: string | null;
         imageUrl: string | null;
+        imageUrlMobile: string | null;
         ctaLabel: string;
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
-        size: string;
-        sizeWidth: number;
-        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;
         sortOrder: number;
         active: boolean;
+        imageOnly: boolean;
+        headingColor: string;
+        highlightColor: string;
+        textSize: "sm" | "md" | "lg";
         status: "inactive" | BannerTab;
     }>;
     create(input: CreateBannerInput): Promise<{
@@ -75,18 +81,20 @@ export declare const bannersAdminService: {
         badge: string | null;
         description: string | null;
         imageUrl: string | null;
+        imageUrlMobile: string | null;
         ctaLabel: string;
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
-        size: string;
-        sizeWidth: number;
-        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;
         sortOrder: number;
         active: boolean;
+        imageOnly: boolean;
+        headingColor: string;
+        highlightColor: string;
+        textSize: "sm" | "md" | "lg";
         status: "inactive" | BannerTab;
     }>;
     update(id: string, input: Partial<CreateBannerInput>): Promise<{
@@ -95,18 +103,20 @@ export declare const bannersAdminService: {
         badge: string | null;
         description: string | null;
         imageUrl: string | null;
+        imageUrlMobile: string | null;
         ctaLabel: string;
         ctaUrl: string | null;
         placement: BannerPlacement;
         placementLabel: string;
-        size: string;
-        sizeWidth: number;
-        sizeHeight: number;
         startsAt: string;
         endsAt: string;
         schedule: string;
         sortOrder: number;
         active: boolean;
+        imageOnly: boolean;
+        headingColor: string;
+        highlightColor: string;
+        textSize: "sm" | "md" | "lg";
         status: "inactive" | BannerTab;
     }>;
 };

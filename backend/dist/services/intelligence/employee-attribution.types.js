@@ -1,13 +1,13 @@
 export const ATTRIBUTION_TYPES = [
     'first_engagement',
     'relationship_owner',
-    'telecaller_assigned',
+    'crop_advisor_assigned',
     'advisory',
     'conversion_assist',
     'reactivation',
 ];
 export const ATTRIBUTION_EMPLOYEE_ROLES = [
-    'telecaller',
+    'crop_advisor',
     'agronomist',
     'operations',
     'manager',
@@ -18,7 +18,7 @@ export const ATTRIBUTION_EMPLOYEE_ROLES = [
 export const DEFAULT_ATTRIBUTION_WEIGHTS = {
     first_engagement: 0.35,
     relationship_owner: 0.25,
-    telecaller_assigned: 0.2,
+    crop_advisor_assigned: 0.2,
     advisory: 0.4,
     conversion_assist: 0.3,
     reactivation: 0.25,

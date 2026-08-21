@@ -409,7 +409,7 @@ export declare const crmFarmerService: {
             pages: number;
         };
     }>;
-    /** Telecaller CRM tab — operational workflow sessions only (no merged micro-events). */
+    /** Crop Advisor CRM tab — operational workflow sessions only (no merged micro-events). */
     listHumanCrmInteractions(farmerId: string, leadId: string | null, page?: number, limit?: number): Promise<{
         interactions: {
             typeKey: string;
@@ -756,7 +756,7 @@ export declare const crmFarmerService: {
             };
         };
         orders: {
-            orders: import("./telecaller-farmer-orders.service.js").TelecallerOrderRow[];
+            orders: import("./crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow[];
         };
         internalNotes: {
             id: unknown;
@@ -772,9 +772,9 @@ export declare const crmFarmerService: {
         ownership: import("../partner/partner.types.js").FarmerOwnership | null;
     }>;
     listFarmerOrders(farmerId: string): Promise<{
-        orders: import("./telecaller-farmer-orders.service.js").TelecallerOrderRow[];
+        orders: import("./crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow[];
     }>;
-    getFarmerOrderDetail(farmerId: string, orderId: string): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
+    getFarmerOrderDetail(farmerId: string, orderId: string): Promise<import("./crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow>;
     ensureDemoBlocks(farmerId: string): Promise<{
         id: unknown;
         farmerId: unknown;
@@ -964,8 +964,8 @@ export declare const crmFarmerService: {
         deliveryAddress?: string;
         notes?: string;
         createdBy?: string;
-    }): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
-    convertRecommendationToOrder(recommendationId: string, farmerId: string, leadId: string | null, createdBy?: string): Promise<import("./telecaller-farmer-orders.service.js").TelecallerOrderRow>;
+    }): Promise<import("./crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow>;
+    convertRecommendationToOrder(recommendationId: string, farmerId: string, leadId: string | null, createdBy?: string): Promise<import("./crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow>;
     listManualOrders(farmerId: string): Promise<{
         id: unknown;
         orderRef: unknown;

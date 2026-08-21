@@ -34,11 +34,17 @@ const RULES = [
         spreadMode: 'airborne',
         minScore: 48,
         requiresHighHumidity: true,
-        symptomHints: /spot|anthracnose|fungus|blight|circular/i,
-        reasoningEn: 'Warm humid weather supports airborne fungal leaf spots.',
+        // Never invent anthracnose from humidity alone — needs lesion wording from farmer/photo.
+        requiresSymptomMatch: true,
+        symptomHints: /\banthracnose\b|\bcolletotrichum\b|\bcircular\s+spot|\bdark\s+margin|\bspore\s+mass/i,
+        reasoningEn: 'Warm humid weather can support fungal leaf spots when discrete lesions are present.',
     },
 ];
 function scoreRule(rule, ctx, symptomsText) {
+    const text = symptomsText?.trim() ?? '';
+    const symptomHit = Boolean(text && rule.symptomHints?.test(text));
+    if (rule.requiresSymptomMatch && !symptomHit)
+        return 0;
     let score = 0;
     if (rule.phases?.length && ctx.seasonPhase && rule.phases.includes(ctx.seasonPhase)) {
         score += 25;
@@ -49,7 +55,7 @@ function scoreRule(rule, ctx, symptomsText) {
         score += 28;
     if (ctx.weatherRiskScore >= 60)
         score += 15;
-    if (symptomsText && rule.symptomHints?.test(symptomsText))
+    if (symptomHit)
         score += 35;
     if (!rule.phases && ctx.seasonPhase === 'monsoon')
         score += 10;

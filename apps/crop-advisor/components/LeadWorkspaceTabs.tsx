@@ -1,0 +1,74 @@
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View } from 'react-native';
+import { tokens, type LeadWorkspaceTab, type CropAdvisorWorkspaceSummary } from '@morbeez/shared';
+import { ScrollableUnderlineTabs, useDeviceBottomInset } from '@morbeez/ui-native';
+import { LeadWorkspaceHeader } from '@/components/LeadWorkspaceHeader';
+import { LeadOverviewPanel } from '@/components/LeadOverviewPanel';
+import { LeadInteractionsPanel } from '@/components/LeadInteractionsPanel';
+import { LeadBlocksPanel } from '@/components/LeadBlocksPanel';
+import { LeadRecommendationsPanel } from '@/components/LeadRecommendationsPanel';
+import { LeadOrdersPanel } from '@/components/LeadOrdersPanel';
+import { LeadNotesPanel } from '@/components/LeadNotesPanel';
+import { LeadTeamPanel } from '@/components/LeadTeamPanel';
+
+const TABS: Array<{ id: LeadWorkspaceTab; label: string }> = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'team', label: 'Team' },
+  { id: 'interactions', label: 'Interactions' },
+  { id: 'blocks', label: 'Blocks' },
+  { id: 'recommendations', label: 'Recommendations' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'notes', label: 'Notes' },
+];
+
+type Props = {
+  summary: CropAdvisorWorkspaceSummary;
+};
+
+export function LeadWorkspaceTabs({ summary }: Props) {
+  const [tab, setTab] = useState<LeadWorkspaceTab>('overview');
+  const bottomInset = useDeviceBottomInset();
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.headerWrap}>
+        <LeadWorkspaceHeader summary={summary} />
+      </View>
+
+      {/* Keep tabs outside the vertical ScrollView — nested horizontal tabs
+          were collapsing to a thin green underline on some Android layouts. */}
+      <View style={styles.tabsWrap}>
+        <ScrollableUnderlineTabs tabs={TABS} active={tab} onChange={setTab} />
+      </View>
+
+      <ScrollView
+        style={styles.panelScroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 16 + bottomInset }]}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.panelWrap}>
+          {tab === 'overview' ? (
+            <LeadOverviewPanel leadId={summary.leadId} summary={summary} onNavigate={setTab} />
+          ) : null}
+          {tab === 'team' ? <LeadTeamPanel leadId={summary.leadId} /> : null}
+          {tab === 'interactions' ? (
+            <LeadInteractionsPanel leadId={summary.leadId} farmerId={summary.farmerId} />
+          ) : null}
+          {tab === 'blocks' ? <LeadBlocksPanel leadId={summary.leadId} /> : null}
+          {tab === 'recommendations' ? <LeadRecommendationsPanel leadId={summary.leadId} /> : null}
+          {tab === 'orders' ? <LeadOrdersPanel leadId={summary.leadId} /> : null}
+          {tab === 'notes' ? <LeadNotesPanel leadId={summary.leadId} /> : null}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: { flex: 1, backgroundColor: tokens.bg },
+  headerWrap: { paddingHorizontal: 16, paddingTop: 16 },
+  tabsWrap: { paddingHorizontal: 8, paddingTop: 4 },
+  panelScroll: { flex: 1 },
+  scrollContent: { flexGrow: 1 },
+  panelWrap: { paddingHorizontal: 16, paddingTop: 8 },
+});

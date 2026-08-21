@@ -31,7 +31,7 @@ WHERE id IN (
 )
 OR farmer_id IN (SELECT id FROM farmers WHERE source = 'demo_seed');
 
-DELETE FROM telecaller_notes
+DELETE FROM crop_advisor_notes
 WHERE farmer_id IN (SELECT id FROM farmers WHERE source = 'demo_seed');
 
 DELETE FROM agronomist_escalations

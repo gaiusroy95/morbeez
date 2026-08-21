@@ -4,7 +4,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { logger } from '../../lib/logger.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
 import { recommendationRecordsService } from './recommendation-records.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { cultivationLoggingService } from '../whatsapp/cultivation/cultivation-logging.service.js';
 import { accuracyMetricsService } from '../ai/accuracy-metrics.service.js';
 import { aiReuseService } from '../ai/ai-reuse.service.js';
@@ -132,11 +132,13 @@ export const recommendationFollowUpService = {
             })
                 .eq('id', recommendationRecordId);
             await this.upsertLearningSample(rec, { applicationConfirmed: true });
+            const { agronomistEarningsTriggers } = await import('../remuneration/agronomist-earnings-triggers.js');
+            agronomistEarningsTriggers.onRecommendationApplied(recommendationRecordId);
             await clearConversationPending(farmerId);
             return copy.appliedThanks;
         }
         if (noAction === 'review') {
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId,
                 title: 'Agronomist review — treatment not completed',
                 notes: `Farmer answered No to compliance check. Rec ${recommendationRecordId.slice(0, 8)}. Issue: ${rec.issue_detected ?? 'n/a'}`,
@@ -161,10 +163,16 @@ export const recommendationFollowUpService = {
     },
     /** Stage 1 — recommendation communicated; schedule Day-1 application check. */
     async onRecommendationCommunicated(recommendationRecordId) {
-        if (!env.ENABLE_ADVISORY_FOLLOW_UPS)
-            return;
         const rec = await this.loadRecord(recommendationRecordId);
         if (!rec)
+            return;
+        const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+        aiCallingTriggers.onRecommendationCommunicated({
+            farmerId: rec.farmer_id,
+            recommendationRecordId,
+            language: rec.language,
+        });
+        if (!env.ENABLE_ADVISORY_FOLLOW_UPS)
             return;
         const now = new Date().toISOString();
         await supabase
@@ -731,7 +739,7 @@ export const recommendationFollowUpService = {
             return;
         }
         if (reasons.includes('qa_random_sample') || reasons.includes('uncertain_ai_classification')) {
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId,
                 title: 'Outcome QA verification',
                 notes: `Verify WhatsApp KPI outcome for ${rec.issue_detected ?? 'crop case'}. Reasons: ${reasons.join(', ')}`,
@@ -883,6 +891,8 @@ export const recommendationFollowUpService = {
                 farmerId,
                 recommendationRecordId,
             });
+            const { agronomistEarningsTriggers } = await import('../remuneration/agronomist-earnings-triggers.js');
+            agronomistEarningsTriggers.onRecommendationApplied(recommendationRecordId);
             await clearConversationPending(farmerId);
             return copy.appliedThanks;
         }
@@ -918,9 +928,9 @@ export const recommendationFollowUpService = {
             .from('recommendation_records')
             .update({ application_status: 'need_clarification', updated_at: now })
             .eq('id', recommendationRecordId);
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId,
-            title: 'Telecaller Callback Required',
+            title: 'CropAdvisor Callback Required',
             notes: `Farmer needs clarification on recommendation ${recommendationRecordId.slice(0, 8)}`,
             priority: 'high',
         });
@@ -1080,7 +1090,7 @@ export const recommendationFollowUpService = {
         });
     },
     async escalateNoImprovement(farmerId, recommendationRecordId, rec) {
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId,
             title: 'Reassessment Required',
             notes: `No improvement after recommendation ${recommendationRecordId.slice(0, 8)}. Issue: ${rec.issue_detected ?? 'n/a'}`,
@@ -1153,7 +1163,7 @@ export const recommendationFollowUpService = {
             payload: {},
         });
     },
-    async getTelecallerFollowUpDetail(recommendationRecordId) {
+    async getCropAdvisorFollowUpDetail(recommendationRecordId) {
         const rec = await this.loadRecord(recommendationRecordId);
         if (!rec)
             return null;

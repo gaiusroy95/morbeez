@@ -55,10 +55,10 @@ export function EscalationCommandCenterPage() {
   const [draft, setDraft] = useState<SlaPolicy>(() => loadSlaPolicy());
 
   useEffect(() => {
-    void api<{ ok: boolean; telecallerEscalations: EscRow[]; aiReviewCases: AiCase[] }>(
+    void api<{ ok: boolean; cropAdvisorEscalations: EscRow[]; aiReviewCases: AiCase[] }>(
       '/morbeez-staff/api/v1/os/escalations/unified'
     ).then((r) => {
-      setTele((r.telecallerEscalations as EscRow[]) ?? []);
+      setTele((r.cropAdvisorEscalations as EscRow[]) ?? []);
       setAi((r.aiReviewCases as AiCase[]) ?? []);
     });
   }, []);
@@ -110,7 +110,7 @@ export function EscalationCommandCenterPage() {
         </p>
       </div>
 
-      <h3 className="font-semibold mb-2">Telecaller escalations ({tele.length})</h3>
+      <h3 className="font-semibold mb-2">CropAdvisor escalations ({tele.length})</h3>
       <table className="w-full text-sm mb-6">
         <thead>
           <tr>

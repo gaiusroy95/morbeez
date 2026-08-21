@@ -29,6 +29,10 @@ export declare const partnerAuthService: {
             leadAllocationWeight: number;
             commissionEligible: boolean;
             referralUrl: string;
+            territory: string | null;
+            cropAdvisor: string | null;
+            partnerType: string | null;
+            partnerSince: string | null;
         };
     }>;
     loginWithPassword(phoneRaw: string, password: string): Promise<{
@@ -56,6 +60,10 @@ export declare const partnerAuthService: {
             leadAllocationWeight: number;
             commissionEligible: boolean;
             referralUrl: string;
+            territory: string | null;
+            cropAdvisor: string | null;
+            partnerType: string | null;
+            partnerSince: string | null;
         };
     }>;
     setPassword(partnerId: string, password: string): Promise<{

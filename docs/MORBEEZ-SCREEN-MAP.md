@@ -17,7 +17,7 @@ Maps master-list screens to staff console routes (post enterprise plan).
 
 | Screen | Route |
 |--------|-------|
-| Telecaller CRM | `/telecaller` |
+| Crop Advisor CRM | `/cropAdvisor` |
 | Farmer 360 | `/farmers/:farmerId/360` |
 | Opportunity dashboard | `/opportunity` |
 
@@ -26,7 +26,7 @@ Maps master-list screens to staff console routes (post enterprise plan).
 | Screen | Route |
 |--------|-------|
 | Plot intelligence | `/plot-intelligence/:farmerId/:blockId` |
-| Block workspace (CRM) | `/telecaller` (block tab) |
+| Block workspace (CRM) | `/cropAdvisor` (block tab) |
 
 ## Module D/E — AI Diagnosis & Training
 

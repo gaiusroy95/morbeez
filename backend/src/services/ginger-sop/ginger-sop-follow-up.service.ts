@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import {
   buildGingerRecoveryCheckInBody,
@@ -139,7 +139,7 @@ export const gingerSopFollowUpService = {
     sessionId?: string;
   }): Promise<string> {
     if (params.outcome === 'worse') {
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: 'Ginger SOP — no recovery',
         notes: `Day ${params.day} recovery check: farmer reported WORSE. Session ${params.sessionId ?? 'n/a'}`,
@@ -154,7 +154,7 @@ export const gingerSopFollowUpService = {
       return 'Thank you. We marked this as urgent — our agronomist team will contact you soon.';
     }
     if (params.outcome === 'same' && params.day >= 7) {
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: 'Ginger SOP — stagnant recovery',
         notes: `Day ${params.day}: no improvement reported.`,

@@ -18,7 +18,7 @@ import {
   soilTypePrompt,
   type SoilLabMetrics,
 } from '../../soil/soil-lab-metrics.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 import { extractInboundMedia } from '../pipeline/media-extract.service.js';
 import type { InboundMessage } from '../pipeline/types.js';
 import { t } from './whatsapp-flow-copy.js';
@@ -92,7 +92,7 @@ export const soilFlowService = {
   },
 
   async requestSoilTesting(farmerId: string, language: AdvisoryLanguage): Promise<string> {
-    await createTelecallerTask({
+    await createCropAdvisorTask({
       farmerId,
       title: 'Soil testing request (WhatsApp)',
       notes: `Language: ${language}`,
@@ -102,7 +102,7 @@ export const soilFlowService = {
       farmer_id: farmerId,
       preferred_time: 'any',
       status: 'pending',
-      telecaller_notes: 'Soil testing — WhatsApp menu',
+      crop_advisor_notes: 'Soil testing — WhatsApp menu',
     });
     return 'Soil testing request received.\n\nOur team will contact you for sample collection.';
   },
@@ -121,7 +121,7 @@ export const soilFlowService = {
 
   /**
    * Download WhatsApp soil report (photo/PDF), store file, insert crm_soil_reports
-   * so telecaller portal + farmer/agronomist apps can display it on the block.
+   * so cropAdvisor portal + farmer/agronomist apps can display it on the block.
    */
   async saveUploadedReportFromWhatsApp(params: {
     farmerId: string;
@@ -185,7 +185,7 @@ export const soilFlowService = {
         uploadedBy: 'whatsapp',
       });
       await markMeta();
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: 'Soil report uploaded (WhatsApp)',
         notes: [

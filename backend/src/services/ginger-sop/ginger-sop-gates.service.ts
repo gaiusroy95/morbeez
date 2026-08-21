@@ -12,7 +12,7 @@ type GateInput = {
   fusedConfidence: number;
   hasSoilForNutrientRec: boolean;
   needsNutrientAdvice: boolean;
-  channel: 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+  channel: 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 };
 
 export const gingerSopGatesService = {
@@ -54,7 +54,7 @@ export const gingerSopGatesService = {
     let confRoute: GingerSopRoute | undefined;
     if (confPct >= 90 && input.evidenceTier >= 'T2') confRoute = 'auto_recommend';
     else if (confPct >= 75) confRoute = 'agronomist_review';
-    else if (confPct >= 50) confRoute = 'telecaller_validate';
+    else if (confPct >= 50) confRoute = 'crop_advisor_validate';
     else confRoute = 'field_visit';
 
     gates.push({
@@ -75,7 +75,7 @@ export const gingerSopGatesService = {
       });
     }
 
-    let route: GingerSopRoute = confRoute ?? 'telecaller_validate';
+    let route: GingerSopRoute = confRoute ?? 'crop_advisor_validate';
 
     if (!input.identityComplete && input.channel === 'whatsapp') {
       route = 'collect_evidence';

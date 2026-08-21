@@ -9,6 +9,12 @@ type QuoteLine = {
     cgst?: number;
     sgst?: number;
     igst?: number;
+    channelPoolPct?: number | null;
+    channelPoolAgronomistPct?: number | null;
+    channelPoolPartnerPct?: number | null;
+    channelPoolVersionId?: string | null;
+    channelPoolVersionLabel?: string | null;
+    channelPoolEffectiveFrom?: string | null;
 };
 export declare const quoteOmsBridgeService: {
     /** Sync a Shopify order into commerce_orders + lines and auto-confirm for warehouse picking. */

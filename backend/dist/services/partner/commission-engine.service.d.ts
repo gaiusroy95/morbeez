@@ -4,7 +4,7 @@ export declare const commissionEngineService: {
         partnerId: string;
         farmerId: string;
         orderId: string;
-        categoryKey: string;
+        categoryKey?: string;
         grossInr: number;
     }): Promise<any>;
     addSuccessBonus(partnerId: string, farmerId: string, bonusInr: number): Promise<any>;

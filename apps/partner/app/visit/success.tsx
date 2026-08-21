@@ -12,7 +12,7 @@ export default function VisitSuccessScreen() {
     <View style={styles.root}>
       <Panel title="Visit submitted">
         <Text style={styles.body}>
-          Field findings were saved and sent for expert review. The telecaller and partner team will
+          Field findings were saved and sent for expert review. the crop advisor and partner team will
           see updates on the shared timeline.
         </Text>
         {params.findingId ? (

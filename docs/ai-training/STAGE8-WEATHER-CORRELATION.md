@@ -10,9 +10,9 @@ Open-Meteo forecast is persisted to `weather_snapshots` when:
 
 | Event | `event_type` | Wired in |
 |-------|--------------|----------|
-| Field finding | `field_finding` | `telecaller-admin.createFieldFinding` (Stage 1) |
+| Field finding | `field_finding` | `crop-advisor-admin.createFieldFinding` (Stage 1) |
 | Crop image enqueue | `field_finding` | `crop-image-review.enqueue` (Stage 3) |
-| AI advisory session | `ai_session` | `crop-doctor.diagnose`, telecaller escalation |
+| AI advisory session | `ai_session` | `crop-doctor.diagnose`, cropAdvisor escalation |
 | CRM recommendation | `recommendation` | `crm-farmer.createRecommendation` |
 | Recommendation record | `recommendation` | `recommendation-records.create` |
 | Field activity | `field_activity` | `whatsapp-os-admin.createFieldActivity` |

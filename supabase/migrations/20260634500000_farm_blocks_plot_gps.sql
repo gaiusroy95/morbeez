@@ -1,11 +1,11 @@
--- Plot-level GPS on farm_blocks (field visit / telecaller capture).
+-- Plot-level GPS on farm_blocks (field visit / cropAdvisor capture).
 
 ALTER TABLE farm_blocks
   ADD COLUMN IF NOT EXISTS latitude DECIMAL(9, 6),
   ADD COLUMN IF NOT EXISTS longitude DECIMAL(9, 6),
   ADD COLUMN IF NOT EXISTS location_captured_at TIMESTAMPTZ,
   ADD COLUMN IF NOT EXISTS location_source TEXT CHECK (
-    location_source IS NULL OR location_source IN ('field_pwa', 'telecaller', 'whatsapp', 'api')
+    location_source IS NULL OR location_source IN ('field_pwa', 'crop_advisor', 'whatsapp', 'api')
   );
 
 CREATE INDEX IF NOT EXISTS idx_farm_blocks_has_gps

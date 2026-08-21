@@ -32,7 +32,7 @@ Morbeez connects Indian farmers to bio-inputs and expert guidance through a Shop
 | **Warehouse (WMS/OMS)** | Batch stock, FEFO pick lists, barcode pack verify, dispatch, label batches |
 | **Farmer CRM** | Profiles, blocks, soil reports, ROI cycles, call log, WhatsApp history, opportunity scores |
 | **AI advisory** | GPT-4o Vision + Plant.id, confidence scoring, visit wizard, Q&A, rec groups, training export |
-| **Field workforce** | Agronomist visits, partner program, telecaller CRM, route planning, callbacks |
+| **Field workforce** | Agronomist visits, partner program, crop advisor CRM, route planning, callbacks |
 | **Automation** | Event outbox, follow-up jobs, monitoring plans, escalation, nightly intelligence recalc |
 
 ---
@@ -46,7 +46,7 @@ Five Expo apps and one React staff console share `packages/shared` and `packages
 | **Farmer** | `apps/farmer` | `npm run dev:farmer` | Shop, AI scan, fields, ROI, recommendations |
 | **Pick & Pack** | `apps/warehouse` | `npm run dev:warehouse` | Picking, packing, dispatch, barcode workflows |
 | **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Field visits, AI advisory wizard, farmer workspace |
-| **Telecaller** | `apps/telecaller` | `npm run dev:telecaller` | CRM calls, leads, farmer intelligence panel |
+| **CropAdvisor** | `apps/cropAdvisor` | `npm run dev:crop-advisor` | CRM calls, leads, farmer intelligence panel |
 | **Partner** | `apps/partner` | `npm run dev:partner` | Farmer enrollment, assisted field visits |
 | **Staff console** | `frontend/` | `npm run dev:console` | Products, orders, CRM, partners, logistics |
 
@@ -78,7 +78,7 @@ Full app specs, API maps, and smoke checklists: [`docs/MOBILE-APPS.md`](docs/MOB
 - **Opportunity scoring** — engagement, trust, retention, acre potential — [`docs/opportunity-intelligence/COMPLETE-PROCESS-FLOW.md`](docs/opportunity-intelligence/COMPLETE-PROCESS-FLOW.md)
 
 ### CRM & workforce
-- Telecaller CRM with call intelligence, lead allocation, callbacks
+- Crop Advisor CRM with call intelligence, lead allocation, callbacks
 - Agronomist dashboard, route planner, farmer workspace (9 tabs)
 - **Partner program** — enrollment, ownership model, draft visits pending expert review — [`docs/partner-program/README.md`](docs/partner-program/README.md)
 - Staff RBAC console — [`docs/RBAC-CONSOLE.md`](docs/RBAC-CONSOLE.md) · [`docs/ADMIN-PORTAL.md`](docs/ADMIN-PORTAL.md)
@@ -97,7 +97,7 @@ Full app specs, API maps, and smoke checklists: [`docs/MOBILE-APPS.md`](docs/MOB
 | [`theme/`](theme/) | Shopify Online Store 2.0 theme (Liquid + Tailwind) |
 | [`backend/`](backend/) | Fastify API — commerce, CRM, warehouse, AI, WhatsApp, automation |
 | [`frontend/`](frontend/) | Staff operations console (Vite + React) |
-| [`apps/`](apps/) | Expo mobile apps (farmer, warehouse, agronomist, telecaller, partner) |
+| [`apps/`](apps/) | Expo mobile apps (farmer, warehouse, agronomist, cropAdvisor, partner) |
 | [`packages/shared/`](packages/shared/) | Shared types, API clients, visit wizard logic |
 | [`packages/ui-native/`](packages/ui-native/) | Shared React Native UI components |
 | [`supabase/migrations/`](supabase/migrations/) | PostgreSQL schema (100+ migrations) |
@@ -198,7 +198,7 @@ Store setup checklist: [`docs/CLIENT-SETUP-CHECKLIST.md`](docs/CLIENT-SETUP-CHEC
 
 ### CRM & intelligence
 - [Farmer ROI](docs/FARMER-ROI.md) · [Opportunity intelligence](docs/opportunity-intelligence/COMPLETE-PROCESS-FLOW.md)
-- [Partner program](docs/partner-program/README.md) · [Telecaller mobile](docs/telecaller-mobile/README.md)
+- [Partner program](docs/partner-program/README.md) · [CropAdvisor mobile](docs/crop-advisor-mobile/README.md)
 - [RBAC console](docs/RBAC-CONSOLE.md) · [Marketing attribution](docs/marketing-attribution.md)
 
 ### Theme (M1)
@@ -222,7 +222,7 @@ npm run catalog:export-shopify
 npm run dev:farmer
 npm run dev:warehouse
 npm run dev:agronomist
-npm run dev:telecaller
+npm run dev:crop-advisor
 npm run dev:partner
 
 # Backend

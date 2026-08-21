@@ -35,14 +35,14 @@ External partners enroll farmers, run field visits, and assist customer experien
 - Partner OTP login → dashboard loads
 - QR enrollment creates farmer with partner enrollment owner
 - Partner field visit → finding with `submitted_by_role=partner`, recs `pending_expert_review`
-- Telecaller CRM bundle includes `ownership`
+- Crop Advisor CRM bundle includes `ownership`
 - Lead allocation offers appear for active partners
 
 ## Feature flags
 
 - `ENABLE_PARTNER_PROGRAM` — master switch
 - `ENABLE_PARTNER_LEAD_ALLOCATION` — merit-based lead offers
-- `ENABLE_SALES_OPPORTUNITIES` — partner → telecaller interest handoffs
+- `ENABLE_SALES_OPPORTUNITIES` — partner → cropAdvisor interest handoffs
 - `ENABLE_PARTNER_COMMISSION` — order-paid commission ledger
 - `ENABLE_UNIFIED_TEAM_TIMELINE` — cross-role farmer team feed
 

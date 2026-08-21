@@ -51,8 +51,8 @@ async function processJob(job) {
         }
     }
     else if (job.job_type === 'callback_reminder') {
-        await farmerService.logInteraction(job.farmer_id, 'system', 'outbound', 'Callback reminder queued for telecaller', { sessionId: job.payload.sessionId });
-        logger.info({ farmerId: job.farmer_id }, 'Callback reminder — telecaller queue');
+        await farmerService.logInteraction(job.farmer_id, 'system', 'outbound', 'Callback reminder queued for cropAdvisor', { sessionId: job.payload.sessionId });
+        logger.info({ farmerId: job.farmer_id }, 'Callback reminder — cropAdvisor queue');
     }
     else if (job.job_type === 'cultivation_application_prompt') {
         await cultivationLoggingService.sendApplicationPrompt(farmer.phone, job.farmer_id, lang ?? 'en', {

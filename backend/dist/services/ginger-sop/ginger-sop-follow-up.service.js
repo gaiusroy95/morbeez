@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { buildGingerRecoveryCheckInBody, resolveRecoveryCheckInCondition, } from '../case/recovery-checkin-copy.js';
 function addDays(days) {
     const d = new Date();
@@ -38,6 +38,12 @@ export const gingerSopFollowUpService = {
                 },
             });
         }
+        const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+        aiCallingTriggers.onHealthSopScheduled({
+            farmerId: params.farmerId,
+            language: params.language,
+            days: [1, 3, 7],
+        });
     },
     async processRecoveryJob(job) {
         const day = Number(job.payload.day ?? 0);
@@ -99,16 +105,22 @@ export const gingerSopFollowUpService = {
     },
     async handleRecoveryReply(params) {
         if (params.outcome === 'worse') {
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId: params.farmerId,
                 title: 'Ginger SOP — no recovery',
                 notes: `Day ${params.day} recovery check: farmer reported WORSE. Session ${params.sessionId ?? 'n/a'}`,
                 priority: 'urgent',
             });
+            const { aiCallingTriggers } = await import('../ai-calling/ai-calling-triggers.js');
+            aiCallingTriggers.onCropWorsened({
+                farmerId: params.farmerId,
+                reason: `Ginger SOP day ${params.day}: farmer reported worse`,
+                sessionId: params.sessionId,
+            });
             return 'Thank you. We marked this as urgent — our agronomist team will contact you soon.';
         }
         if (params.outcome === 'same' && params.day >= 7) {
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId: params.farmerId,
                 title: 'Ginger SOP — stagnant recovery',
                 notes: `Day ${params.day}: no improvement reported.`,

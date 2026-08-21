@@ -12,6 +12,14 @@ export type FarmActivitySenders = {
         }>;
     }) => Promise<void>;
 };
+/** Omit empty / unresolved placeholders so WhatsApp never shows `| — | block —`. */
+declare function draftParts(...parts: Array<string | null | undefined>): string;
+declare function summarizeDraft(draft: FarmActivityAssistantDraftV1, lang: AdvisoryLanguage): string;
+/** Exported for unit tests. */
+export declare const farmActivityDraftSummaryForTest: {
+    summarizeDraft: typeof summarizeDraft;
+    draftParts: typeof draftParts;
+};
 export declare const farmActivityAssistantService: {
     enabled(): boolean;
     voiceEnabled(): boolean;
@@ -30,6 +38,8 @@ export declare const farmActivityAssistantService: {
         transcript?: string | null;
         conversationSessionId?: string | null;
         blockId?: string | null;
+        /** Crop Doctor feedback handoff — open a draft even if the global flag is off. */
+        force?: boolean;
     }): Promise<boolean>;
     processUtterance(input: {
         farmerId: string;
@@ -43,6 +53,7 @@ export declare const farmActivityAssistantService: {
         conversationSessionId?: string | null;
         blockId?: string | null;
         sessionState?: string;
+        force?: boolean;
     }): Promise<boolean>;
     sendConfirmPrompt(input: {
         phone: string;
@@ -68,4 +79,5 @@ export declare const farmActivityAssistantService: {
         blockId?: string | null;
     }): Promise<boolean>;
 };
+export {};
 //# sourceMappingURL=farm-activity-assistant.service.d.ts.map

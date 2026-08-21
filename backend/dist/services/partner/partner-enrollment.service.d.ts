@@ -22,6 +22,10 @@ export declare const partnerEnrollmentService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     } | null>;
     enrollFarmerWithPartner(input: {
         farmerId: string;
@@ -58,6 +62,10 @@ export declare const partnerEnrollmentService: {
             leadAllocationWeight: number;
             commissionEligible: boolean;
             referralUrl: string;
+            territory: string | null;
+            cropAdvisor: string | null;
+            partnerType: string | null;
+            partnerSince: string | null;
         };
     }>;
     enrollByPhone(input: {
@@ -99,6 +107,10 @@ export declare const partnerEnrollmentService: {
             leadAllocationWeight: number;
             commissionEligible: boolean;
             referralUrl: string;
+            territory: string | null;
+            cropAdvisor: string | null;
+            partnerType: string | null;
+            partnerSince: string | null;
         };
         farmerId: string;
         alreadyEnrolled: boolean;

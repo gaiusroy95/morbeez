@@ -57,10 +57,10 @@ function parseCommentRole(note, author) {
     if (n.startsWith('[Agronomist]')) {
         return { role: 'agronomist', body: n.slice('[Agronomist]'.length).trim() };
     }
-    if (n.startsWith('[Telecaller]')) {
-        return { role: 'telecaller', body: n.slice('[Telecaller]'.length).trim() };
+    if (n.startsWith('[CropAdvisor]')) {
+        return { role: 'crop_advisor', body: n.slice('[CropAdvisor]'.length).trim() };
     }
-    return { role: author.includes('agronomist') ? 'agronomist' : 'telecaller', body: n };
+    return { role: author.includes('agronomist') ? 'agronomist' : 'crop_advisor', body: n };
 }
 export const escalationAdminService = {
     workflowFromDbStatus,
@@ -93,7 +93,7 @@ export const escalationAdminService = {
     },
     async listEscalationComments(escalationId) {
         const { data, error } = await supabase
-            .from('telecaller_notes')
+            .from('crop_advisor_notes')
             .select('id, author, note, created_at')
             .eq('escalation_id', escalationId)
             .order('created_at', { ascending: true });
@@ -122,8 +122,8 @@ export const escalationAdminService = {
         throwIfSupabaseError(escErr, 'Could not load escalation');
         if (!esc)
             throw new NotFoundError('Escalation not found');
-        const prefix = role === 'agronomist' ? '[Agronomist]' : '[Telecaller]';
-        const { error } = await supabase.from('telecaller_notes').insert({
+        const prefix = role === 'agronomist' ? '[Agronomist]' : '[CropAdvisor]';
+        const { error } = await supabase.from('crop_advisor_notes').insert({
             farmer_id: esc.farmer_id,
             session_id: esc.session_id,
             escalation_id: escalationId,
@@ -278,8 +278,17 @@ export const escalationAdminService = {
         throwIfSupabaseError(error, 'Could not update escalation');
         if (!data)
             throw new NotFoundError('Escalation not found');
+        if (String(data.status) === 'resolved' || String(data.status) === 'closed') {
+            const { agronomistEarningsTriggers } = await import('../remuneration/agronomist-earnings-triggers.js');
+            agronomistEarningsTriggers.onEscalationResolved({
+                escalationId: id,
+                assignedTo: data.assigned_to ? String(data.assigned_to) : null,
+                agentEmail,
+                farmerId: data.farmer_id ? String(data.farmer_id) : null,
+            });
+        }
         if (body.comment?.trim()) {
-            await this.addEscalationComment(id, body.comment, agentEmail, body.commentRole ?? 'telecaller');
+            await this.addEscalationComment(id, body.comment, agentEmail, body.commentRole ?? 'crop_advisor');
         }
         else if (body.agronomistNotes?.trim()) {
             await this.addEscalationComment(id, body.agronomistNotes, agentEmail, 'agronomist');

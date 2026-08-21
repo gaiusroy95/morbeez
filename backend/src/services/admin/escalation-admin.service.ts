@@ -57,15 +57,15 @@ function dbStatusFromWorkflow(workflow: EscalationWorkflowStatus): string {
   return 'pending';
 }
 
-function parseCommentRole(note: string, author: string): { role: 'telecaller' | 'agronomist' | 'system'; body: string } {
+function parseCommentRole(note: string, author: string): { role: 'crop_advisor' | 'agronomist' | 'system'; body: string } {
   const n = String(note ?? '');
   if (n.startsWith('[Agronomist]')) {
     return { role: 'agronomist', body: n.slice('[Agronomist]'.length).trim() };
   }
-  if (n.startsWith('[Telecaller]')) {
-    return { role: 'telecaller', body: n.slice('[Telecaller]'.length).trim() };
+  if (n.startsWith('[CropAdvisor]')) {
+    return { role: 'crop_advisor', body: n.slice('[CropAdvisor]'.length).trim() };
   }
-  return { role: author.includes('agronomist') ? 'agronomist' : 'telecaller', body: n };
+  return { role: author.includes('agronomist') ? 'agronomist' : 'crop_advisor', body: n };
 }
 
 export const escalationAdminService = {
@@ -102,7 +102,7 @@ export const escalationAdminService = {
 
   async listEscalationComments(escalationId: string) {
     const { data, error } = await supabase
-      .from('telecaller_notes')
+      .from('crop_advisor_notes')
       .select('id, author, note, created_at')
       .eq('escalation_id', escalationId)
       .order('created_at', { ascending: true });
@@ -125,7 +125,7 @@ export const escalationAdminService = {
     escalationId: string,
     text: string,
     agentEmail: string,
-    role: 'telecaller' | 'agronomist'
+    role: 'crop_advisor' | 'agronomist'
   ) {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -138,8 +138,8 @@ export const escalationAdminService = {
     throwIfSupabaseError(escErr, 'Could not load escalation');
     if (!esc) throw new NotFoundError('Escalation not found');
 
-    const prefix = role === 'agronomist' ? '[Agronomist]' : '[Telecaller]';
-    const { error } = await supabase.from('telecaller_notes').insert({
+    const prefix = role === 'agronomist' ? '[Agronomist]' : '[CropAdvisor]';
+    const { error } = await supabase.from('crop_advisor_notes').insert({
       farmer_id: esc.farmer_id,
       session_id: esc.session_id,
       escalation_id: escalationId,
@@ -282,7 +282,7 @@ export const escalationAdminService = {
       assignedTo?: string;
       agronomistNotes?: string;
       comment?: string;
-      commentRole?: 'telecaller' | 'agronomist';
+      commentRole?: 'crop_advisor' | 'agronomist';
       resolution?: string;
       correction?: Record<string, unknown>;
     },
@@ -332,7 +332,7 @@ export const escalationAdminService = {
         id,
         body.comment,
         agentEmail,
-        body.commentRole ?? 'telecaller'
+        body.commentRole ?? 'crop_advisor'
       );
     } else if (body.agronomistNotes?.trim()) {
       await this.addEscalationComment(id, body.agronomistNotes, agentEmail, 'agronomist');

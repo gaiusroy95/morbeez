@@ -1,20 +1,20 @@
 import { icon } from './icons.js';
 
-/** Sidebar navigation — grouped like Telecaller CRM mockup */
+/** Sidebar navigation — grouped like Crop Advisor CRM mockup */
 export const NAV_GROUPS = [
   {
     id: 'main',
     items: [{ id: 'dashboard', label: 'Dashboard', hash: 'dashboard', icon: 'dashboard', live: true }],
   },
   {
-    id: 'telecaller',
-    label: 'Telecaller CRM',
+    id: 'crop_advisor',
+    label: 'Crop Advisor CRM',
     icon: 'phone',
     live: true,
     children: [
-      { id: 'telecaller', label: 'Workspace', hash: 'telecaller', live: true },
-      { id: 'telecaller/followups', label: 'Follow-up Tasks', hash: 'telecaller/followups', live: true, badgeKey: 'followUpTasks' },
-      { id: 'telecaller/calls', label: 'Calls', hash: 'telecaller/calls', live: true },
+      { id: 'crop_advisor', label: 'Workspace', hash: 'crop_advisor', live: true },
+      { id: 'cropAdvisor/followups', label: 'Follow-up Tasks', hash: 'cropAdvisor/followups', live: true, badgeKey: 'followUpTasks' },
+      { id: 'cropAdvisor/calls', label: 'Calls', hash: 'cropAdvisor/calls', live: true },
     ],
   },
   {
@@ -24,7 +24,7 @@ export const NAV_GROUPS = [
     live: true,
     children: [
       { id: 'ai-advisory', label: 'Overview', hash: 'ai-advisory', live: true },
-      { id: 'telecaller/escalations', label: 'Escalations', hash: 'telecaller/escalations', live: true, badgeKey: 'pendingEscalations' },
+      { id: 'cropAdvisor/escalations', label: 'Escalations', hash: 'cropAdvisor/escalations', live: true, badgeKey: 'pendingEscalations' },
       { id: 'ai-mapping', label: 'AI Mapping', hash: 'ai-mapping', live: true },
     ],
   },
@@ -72,11 +72,11 @@ export const NAV_ITEMS = [];
 
 export const ROUTE_TITLES = {
   dashboard: 'Dashboard',
-  telecaller: 'Telecaller CRM Workspace',
-  'telecaller/followups': 'Follow-up Tasks',
-  'telecaller/calls': 'Calls',
-  'telecaller/lead': 'Telecaller CRM Workspace',
-  'telecaller/escalations': 'Agronomist Escalations',
+  cropAdvisor: 'Crop Advisor CRM Workspace',
+  'cropAdvisor/followups': 'Follow-up Tasks',
+  'cropAdvisor/calls': 'Calls',
+  'cropAdvisor/lead': 'Crop Advisor CRM Workspace',
+  'cropAdvisor/escalations': 'Agronomist Escalations',
   products: 'Products',
   'products/new': 'Add Product',
   'products/edit': 'Edit Product',
@@ -101,7 +101,7 @@ function routeMatchesNav(route, itemId) {
   if (route === itemId) return true;
   if (itemId === 'products' && route.startsWith('products')) return true;
   if (itemId === 'orders' && route.startsWith('orders')) return true;
-  if (itemId === 'telecaller' && route.startsWith('telecaller')) return true;
+  if (itemId === 'crop_advisor' && route.startsWith('crop_advisor')) return true;
   if (itemId === 'ai-advisory' && (route === 'ai-advisory' || route === 'ai-mapping')) return true;
   return false;
 }
@@ -116,7 +116,7 @@ function isGroupActive(route, group) {
 export function renderSidebarNav(activeRoute) {
   const route = activeRoute || 'dashboard';
   const expanded = new Set(
-    JSON.parse(sessionStorage.getItem('nav-expanded') || '["telecaller","commerce","ai","farmers-crm"]')
+    JSON.parse(sessionStorage.getItem('nav-expanded') || '["crop_advisor","commerce","ai","farmers-crm"]')
   );
 
   const parts = [];
@@ -175,7 +175,7 @@ export function bindSidebarGroups(root) {
     btn.addEventListener('click', () => {
       const id = btn.dataset.navGroup;
       const expanded = new Set(
-        JSON.parse(sessionStorage.getItem('nav-expanded') || '["telecaller","commerce"]')
+        JSON.parse(sessionStorage.getItem('nav-expanded') || '["crop_advisor","commerce"]')
       );
       if (expanded.has(id)) expanded.delete(id);
       else expanded.add(id);

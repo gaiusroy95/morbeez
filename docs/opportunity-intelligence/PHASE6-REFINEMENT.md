@@ -55,7 +55,7 @@ PATCH `opportunity-config` with partial `farmerWeightOverrides` / `employeeWeigh
 
 ## CRM integration
 
-`createTelecallerTask` boosts priority when `farmer_retention_tracking` is `at_risk` or `churned` (before legacy health score).
+`createCropAdvisorTask` boosts priority when `farmer_retention_tracking` is `at_risk` or `churned` (before legacy health score).
 
 ## Fairness (from original plan)
 

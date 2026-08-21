@@ -3,7 +3,7 @@ import { logger } from '../../lib/logger.js';
 import type { AdvisoryLanguage } from '../ai/types.js';
 import type { SessionContext } from './scenarios/session-context.types.js';
 
-export type ConversationOwner = 'ai' | 'telecaller' | 'agronomist';
+export type ConversationOwner = 'ai' | 'crop_advisor' | 'agronomist';
 export type ConversationState =
   | 'language_select'
   | 'main_menu'

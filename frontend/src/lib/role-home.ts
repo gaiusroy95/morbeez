@@ -6,12 +6,12 @@ export function getRoleHomePath(role: string | undefined | null): string {
   switch (role) {
     case 'operations':
       return operationsHomePath(role);
-    case 'telecaller':
-      return toPath(paths.telecaller);
+    case 'crop_advisor':
+      return toPath(paths.cropAdvisor);
     case 'agronomist':
       return toPath(paths.agronomist);
     case 'manager':
-      return toPath(paths.telecaller);
+      return toPath(paths.cropAdvisor);
     case 'viewer':
       return toPath(paths.dashboard);
     case 'admin':
@@ -25,7 +25,7 @@ export const ASSIGNABLE_ROLES = [
   'super_admin',
   'admin',
   'operations',
-  'telecaller',
+  'crop_advisor',
   'agronomist',
   'manager',
   'viewer',

@@ -6,7 +6,7 @@ Source-of-truth files for icons and logos. Generated copies live in app and web 
 
 | Role | Location |
 |------|----------|
-| **Source masters** | `brand/app-icons/{farmer,warehouse,agronomist,telecaller}.jpeg` (or `.png`) |
+| **Source masters** | `brand/app-icons/{farmer,warehouse,agronomist,cropAdvisor}.jpeg` (or `.png`) |
 | **Build output** | `apps/<app>/assets/app-icon.png` (1024×1024 PNG, generated) |
 
 Regenerate after changing a master:

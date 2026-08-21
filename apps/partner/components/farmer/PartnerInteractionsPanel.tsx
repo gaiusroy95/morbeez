@@ -19,7 +19,7 @@ function toTeamEntry(entry: FarmerTimelineEntry): TeamTimelineEntry {
 
 function eventLabel(entry: TeamTimelineEntry): string {
   const src = entry.source ?? entry.entryType;
-  if (src === 'call') return 'Telecaller call';
+  if (src === 'call') return 'CropAdvisor call';
   if (src === 'visit') return 'Field visit';
   if (src === 'recommendation') return 'Expert recommendation';
   if (src === 'escalation') return 'Escalation';

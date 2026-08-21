@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 const PHOTO_MSG_TYPES = new Set(['image', 'document', 'audio', 'video']);
 export const visitEvidenceInboundService = {
     async tryHandleFarmerMessage(params) {
@@ -42,7 +42,7 @@ export const visitEvidenceInboundService = {
                 updated_at: new Date().toISOString(),
             })
                 .eq('id', caseRow.id);
-            void createTelecallerTask({
+            void createCropAdvisorTask({
                 farmerId: params.farmerId,
                 title: 'Visit evidence received',
                 notes: `Farmer replied to evidence request for ${String(caseRow.issue_name)}. Resume visit AI case ${String(caseRow.id).slice(0, 8)}.`,

@@ -11,7 +11,7 @@ type Props = {
 };
 
 function pathForHit(hit: GlobalSearchHit): string {
-  if (hit.type === 'lead') return toPath(paths.telecaller);
+  if (hit.type === 'lead') return toPath(paths.cropAdvisor);
   if (hit.type === 'farmer') return toPath(paths.commerce);
   if (hit.type === 'order') return toPath(paths.commerce);
   if (hit.hash.startsWith('/')) return hit.hash;

@@ -229,7 +229,7 @@ export function MarketingPerformancePanel({ canWrite }: Props) {
 
       {queueHealth ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-          <strong>Telecaller queue:</strong> New Meta leads waiting: {queueHealth.newMetaLeadsWaiting}
+          <strong>CropAdvisor queue:</strong> New Meta leads waiting: {queueHealth.newMetaLeadsWaiting}
           {queueHealth.newMetaLeadsWaiting > 0 && queueHealth.oldestWaitingHours != null ? (
             <>
               {' '}

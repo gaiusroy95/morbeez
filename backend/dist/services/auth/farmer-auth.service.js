@@ -141,10 +141,10 @@ export const farmerAuthService = {
                 leadId: leadResult.lead.id,
                 created: leadResult.created,
                 merged: leadResult.merged,
-            }, 'Signup telecaller lead upserted');
+            }, 'Signup cropAdvisor lead upserted');
         }
         catch (err) {
-            logger.error({ err, farmerId: data.id, phone }, 'Signup telecaller lead failed');
+            logger.error({ err, farmerId: data.id, phone }, 'Signup cropAdvisor lead failed');
         }
         try {
             const partnerEnroll = await partnerEnrollmentService.enrollFarmerWithPartner({

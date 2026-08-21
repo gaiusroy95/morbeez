@@ -36,12 +36,12 @@ export async function osMarketingRoutes(app) {
         return reply.send({ ok: true, campaigns });
     });
     app.get(`${api}/performance/queue-health`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const overview = await marketingPerformanceService.getOverview(dateRangeFromDays(7));
         return reply.send({ ok: true, queueHealth: overview.queueHealth });
     });
     app.get(`${api}/owners`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const owners = await marketingPerformanceService.listMarketingOwners();
         return reply.send({ ok: true, owners });
     });

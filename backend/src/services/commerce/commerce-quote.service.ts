@@ -283,7 +283,7 @@ async function applyQuotePricing(input: {
     leadId: input.leadId,
     adminUserId: input.adminUserId,
     orderType: input.orderType,
-    salesSource: 'telecaller',
+    salesSource: 'crop_advisor',
     preview,
     lineItems: input.lines,
   });
@@ -606,8 +606,8 @@ export const commerceQuoteService = {
     },
     adminId?: string
   ): Promise<CommerceQuote> {
-    const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+    const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
     const lead = detail.lead as {
       farmerId: string;
       farmerName: string;
@@ -732,8 +732,8 @@ export const commerceQuoteService = {
       throw new ValidationError('Bulk margin review was rejected — revise pricing before sending');
     }
 
-    const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+    const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
     const farmerId = String(detail.lead.farmerId);
     const phone = String(detail.lead.phone ?? quote.customerPhone ?? '');
     const text = buildQuoteShareText(quote);
@@ -756,10 +756,10 @@ export const commerceQuoteService = {
     if (channels.includes('whatsapp')) {
       if (phone.replace(/\D/g, '').length >= 10) {
         try {
-          await telecallerAdminService.sendWhatsAppMessage(
+          await cropAdvisorAdminService.sendWhatsAppMessage(
             farmerId,
             text,
-            agentEmail ?? 'Telecaller'
+            agentEmail ?? 'Crop Advisor'
           );
           result.whatsappSent = true;
           patch.whatsapp_sent_at = now;

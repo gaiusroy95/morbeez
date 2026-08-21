@@ -13,6 +13,13 @@ export type QuoteLineItem = {
     sgst: number;
     igst: number;
     amountInclGst: number;
+    channelPoolPct?: number | null;
+    channelPoolAgronomistPct?: number | null;
+    channelPoolPartnerPct?: number | null;
+    channelPoolVersionId?: string | null;
+    channelPoolVersionLabel?: string | null;
+    channelPoolEffectiveFrom?: string | null;
+    channelPoolAmount?: number | null;
 };
 export type CommerceQuote = {
     id: string;

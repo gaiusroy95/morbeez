@@ -9,7 +9,7 @@ ALTER TABLE admin_users
       'super_admin',
       'admin',
       'operations',
-      'telecaller',
+      'crop_advisor',
       'agronomist',
       'manager',
       'viewer'
@@ -34,7 +34,7 @@ DELETE FROM role_module_permissions;
 INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALUES
   -- super_admin: full access
   ('super_admin', 'dashboard', true, true),
-  ('super_admin', 'telecaller_crm', true, true),
+  ('super_admin', 'crop_advisor_crm', true, true),
   ('super_admin', 'operations', true, true),
   ('super_admin', 'intelligence', true, true),
   ('super_admin', 'agronomist', true, true),
@@ -46,7 +46,7 @@ INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALU
 
   -- admin: platform ops, no recommendation approval
   ('admin', 'dashboard', true, true),
-  ('admin', 'telecaller_crm', true, true),
+  ('admin', 'crop_advisor_crm', true, true),
   ('admin', 'operations', true, true),
   ('admin', 'intelligence', true, true),
   ('admin', 'agronomist', true, false),
@@ -57,21 +57,21 @@ INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALU
 
   -- operations: messaging, automation, commerce
   ('operations', 'dashboard', true, false),
-  ('operations', 'telecaller_crm', true, true),
+  ('operations', 'crop_advisor_crm', true, true),
   ('operations', 'operations', true, true),
   ('operations', 'intelligence', true, false),
   ('operations', 'commerce', true, true),
   ('operations', 'automation', true, true),
   ('operations', 'analytics', true, false),
 
-  -- telecaller: CRM primary
-  ('telecaller', 'dashboard', true, false),
-  ('telecaller', 'telecaller_crm', true, true),
-  ('telecaller', 'commerce', true, false),
+  -- cropAdvisor: CRM primary
+  ('crop_advisor', 'dashboard', true, false),
+  ('crop_advisor', 'crop_advisor_crm', true, true),
+  ('crop_advisor', 'commerce', true, false),
 
   -- agronomist: field workflow + intelligence
   ('agronomist', 'dashboard', true, false),
-  ('agronomist', 'telecaller_crm', true, false),
+  ('agronomist', 'crop_advisor_crm', true, false),
   ('agronomist', 'intelligence', true, true),
   ('agronomist', 'agronomist', true, true),
   ('agronomist', 'commerce', true, false),
@@ -79,7 +79,7 @@ INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALU
 
   -- manager: team oversight
   ('manager', 'dashboard', true, true),
-  ('manager', 'telecaller_crm', true, true),
+  ('manager', 'crop_advisor_crm', true, true),
   ('manager', 'operations', true, false),
   ('manager', 'intelligence', true, false),
   ('manager', 'agronomist', true, false),
@@ -90,7 +90,7 @@ INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALU
 
   -- viewer: read-only slices
   ('viewer', 'dashboard', true, false),
-  ('viewer', 'telecaller_crm', true, false),
+  ('viewer', 'crop_advisor_crm', true, false),
   ('viewer', 'commerce', true, false),
   ('viewer', 'analytics', true, false);
 

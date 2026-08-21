@@ -24,6 +24,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     };
     getById(id: string): Promise<{
         id: string;
@@ -48,6 +52,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     } | null>;
     getByPhone(phone: string): Promise<{
         id: string;
@@ -72,6 +80,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     } | null>;
     getByCode(partnerCode: string): Promise<{
         id: string;
@@ -96,6 +108,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     } | null>;
     getByQrToken(qrToken: string): Promise<{
         id: string;
@@ -120,6 +136,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     } | null>;
     list(filters?: {
         status?: PartnerStatus;
@@ -148,6 +168,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     }[]>;
     createFromApplication(input: {
         fullName: string;
@@ -160,6 +184,8 @@ export declare const partnerService: {
         languages?: string[];
         cropsExpertise?: string[];
         changedBy?: string;
+        status?: PartnerStatus;
+        metadata?: Record<string, unknown>;
     }): Promise<{
         id: string;
         partnerCode: string;
@@ -183,6 +209,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     }>;
     updateStatus(partnerId: string, toStatus: PartnerStatus, reason: string, changedBy?: string): Promise<{
         id: string;
@@ -207,6 +237,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     }>;
     updateTier(partnerId: string, tier: PartnerTier, changedBy?: string): Promise<{
         id: string;
@@ -231,6 +265,10 @@ export declare const partnerService: {
         leadAllocationWeight: number;
         commissionEligible: boolean;
         referralUrl: string;
+        territory: string | null;
+        cropAdvisor: string | null;
+        partnerType: string | null;
+        partnerSince: string | null;
     }>;
     incrementActiveFarmers(partnerId: string, delta?: number): Promise<number>;
 };

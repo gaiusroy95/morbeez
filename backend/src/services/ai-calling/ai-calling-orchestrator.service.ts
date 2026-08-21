@@ -18,7 +18,7 @@ import type {
   CropProtocolMatch,
   FarmerIntent,
 } from '../../domain/ai-calling/types.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { callingTelephonyProvider } from './providers/telephony.provider.js';
 
 type EnqueueInput = {
@@ -283,7 +283,7 @@ export const aiCallingOrchestrator = {
         farmer,
         prefs,
         channel: 'staff_script',
-        note: 'No outbound-call consent — queued for assigned agronomist / telecaller',
+        note: 'No outbound-call consent — queued for assigned agronomist / cropAdvisor',
       });
       return;
     }
@@ -452,7 +452,7 @@ export const aiCallingOrchestrator = {
       provider_call_id: params.providerCallId ?? null,
       summary: `${params.note}. Script: ${script.fullText}`,
     });
-    await createTelecallerTask({
+    await createCropAdvisorTask({
       farmerId: String(params.job.farmer_id),
       title: `AI calling — ${String(params.job.call_type).replace(/_/g, ' ')}`,
       notes: script.fullText,
@@ -743,7 +743,7 @@ export const aiCallingOrchestrator = {
       priority: params.priority,
     });
 
-    await createTelecallerTask({
+    await createCropAdvisorTask({
       farmerId: params.farmerId,
       title: `AI calling escalation — ${ladder}`,
       notes: `${params.reason}. Assigned: ${email ?? 'callback queue'}`,

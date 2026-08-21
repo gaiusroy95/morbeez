@@ -9,9 +9,9 @@ Seven staff roles control access to `/morbeez-staff` via `role_module_permission
 | Super Admin | Dashboard | Yes |
 | Admin | Dashboard | No |
 | Operations | Operations | No |
-| Telecaller | Telecaller CRM | No |
+| CropAdvisor | Crop Advisor CRM | No |
 | Agronomist | Agronomist hub | No |
-| Manager | Telecaller CRM | No |
+| Manager | Crop Advisor CRM | No |
 | Viewer | Dashboard | No |
 
 ## Staff management

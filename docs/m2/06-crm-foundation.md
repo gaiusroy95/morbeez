@@ -6,7 +6,7 @@
 |--------|---------|
 | `leads` | All inbound intents |
 | `quotation_inquiries` | Quote pipeline |
-| `callback_requests` | Telecaller queue |
+| `callback_requests` | CropAdvisor queue |
 | `interaction_logs` | Full comms history |
 | `crm_sync_queue` | Zoho outbound (M3) |
 
@@ -24,7 +24,7 @@ new → contacted → qualified → won | lost
 - `dealer` — B2B partnership
 - `general` — catch-all
 
-## Telecaller-ready fields
+## CropAdvisor-ready fields
 
 - `priority` (normal / high / urgent)
 - `assigned_to` (email or agent ID)

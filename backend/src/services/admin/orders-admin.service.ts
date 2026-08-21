@@ -111,7 +111,7 @@ function resolveOrderSource(row: Record<string, unknown>): NormalizedOrder['sour
   const orderSource = String(row.order_source ?? '');
   const shopifyId = row.shopify_order_id ? String(row.shopify_order_id) : '';
   if (
-    orderSource === 'telecaller_quote' ||
+    orderSource === 'crop_advisor_quote' ||
     shopifyId.startsWith('quote-paid-') ||
     shopifyId.startsWith('quote-cod-')
   ) {

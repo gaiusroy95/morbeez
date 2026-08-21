@@ -6,7 +6,7 @@ import { canAssignSuperAdmin, canManageStaff } from './console-roles.js';
 
 export type ConsoleModule =
   | 'dashboard'
-  | 'telecaller_crm'
+  | 'crop_advisor_crm'
   | 'operations'
   | 'intelligence'
   | 'agronomist'
@@ -30,7 +30,7 @@ export async function getModulesForRole(role: string): Promise<
   if (role === 'super_admin') {
     return [
       'dashboard',
-      'telecaller_crm',
+      'crop_advisor_crm',
       'operations',
       'intelligence',
       'agronomist',

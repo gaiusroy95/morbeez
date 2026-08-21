@@ -366,7 +366,7 @@ export const en = {
   chooseFromGallery: 'Choose from gallery',
   selectCategory: 'Select category',
   description: 'Description',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
   saveAddress: 'Save address',
   confirmedOn: 'Confirmed',
   linkedActivity: 'Linked activity',

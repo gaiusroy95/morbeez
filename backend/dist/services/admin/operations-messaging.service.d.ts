@@ -1,5 +1,5 @@
 import { type TemplateLanguage, type TemplateVariableContext } from './language-template-variables.js';
-export type QuickReplyCategory = 'general' | 'telecaller' | 'advisory' | 'orders' | 'broadcast';
+export type QuickReplyCategory = 'general' | 'crop_advisor' | 'advisory' | 'orders' | 'broadcast';
 export declare const operationsMessagingService: {
     listQuickReplies(category?: string): Promise<any[]>;
     upsertQuickReply(row: {

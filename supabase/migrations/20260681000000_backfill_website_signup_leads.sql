@@ -1,4 +1,4 @@
--- Farmers who registered on the website but had no telecaller lead (old skip-if-phone-exists logic)
+-- Farmers who registered on the website but had no cropAdvisor lead (old skip-if-phone-exists logic)
 INSERT INTO leads (
   farmer_id,
   intent,

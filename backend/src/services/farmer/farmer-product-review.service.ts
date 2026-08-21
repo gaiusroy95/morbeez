@@ -2,9 +2,9 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import {
-  telecallerFarmerOrdersService,
-  type TelecallerOrderRow,
-} from '../admin/telecaller-farmer-orders.service.js';
+  cropAdvisorFarmerOrdersService,
+  type CropAdvisorOrderRow,
+} from '../admin/crop-advisor-farmer-orders.service.js';
 
 export type ReviewableLineItem = {
   productKey: string;
@@ -28,7 +28,7 @@ function productKey(title: string, variantId?: string | null, sku?: string | nul
   return `title:${title.trim().toLowerCase().slice(0, 120)}`;
 }
 
-function lineItemsWithKeys(order: TelecallerOrderRow): ReviewableLineItem[] {
+function lineItemsWithKeys(order: CropAdvisorOrderRow): ReviewableLineItem[] {
   return order.lineItems.map((li) => {
     const variantId = (li as { shopifyVariantId?: string }).shopifyVariantId ?? null;
     const productId = (li as { shopifyProductId?: string }).shopifyProductId ?? null;
@@ -47,13 +47,13 @@ function lineItemsWithKeys(order: TelecallerOrderRow): ReviewableLineItem[] {
   });
 }
 
-function canReviewOrder(order: TelecallerOrderRow, omsStatus: string | null): boolean {
+function canReviewOrder(order: CropAdvisorOrderRow, omsStatus: string | null): boolean {
   if (order.status === 'cancelled') return false;
   if (order.status === 'delivered') return true;
   return omsStatus === 'delivered' || omsStatus === 'completed';
 }
 
-async function loadCommerceOms(order: TelecallerOrderRow): Promise<string | null> {
+async function loadCommerceOms(order: CropAdvisorOrderRow): Promise<string | null> {
   const commerceId = order.commerceOrderId ?? (order.source === 'commerce' ? order.id : null);
   if (!commerceId) return null;
   const { data, error } = await supabase
@@ -69,7 +69,7 @@ export const farmerProductReviewService = {
   productKey,
 
   async getReviewableLines(farmerId: string, orderId: string) {
-    const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+    const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
     const omsStatus = await loadCommerceOms(order);
     const canReview = canReviewOrder(order, omsStatus);
     const lines = lineItemsWithKeys(order);
@@ -114,7 +114,7 @@ export const farmerProductReviewService = {
       reviewText?: string;
     }
   ) {
-    const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+    const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
     const omsStatus = await loadCommerceOms(order);
     if (!canReviewOrder(order, omsStatus)) {
       throw new ValidationError('Reviews are available only after delivery');

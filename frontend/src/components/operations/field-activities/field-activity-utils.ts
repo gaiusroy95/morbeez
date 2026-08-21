@@ -159,7 +159,7 @@ export function fieldActivityAddedFromLabel(row: FieldActivity): string {
   const from = String(row.added_from ?? row.source_type ?? row.sourceType ?? row.source ?? '').toLowerCase();
   if (from.includes('voice') || from.includes('audio')) return 'Voice-derived';
   if (from === 'interaction') return 'Interaction';
-  if (from === 'telecaller') return 'Interaction';
+  if (from === 'crop_advisor') return 'Interaction';
   if (from === 'whatsapp') return 'WhatsApp';
   if (from === 'admin' || from === 'direct') return 'Direct Entry';
   return 'Direct Entry';

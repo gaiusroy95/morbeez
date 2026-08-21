@@ -138,6 +138,14 @@ export const omsWorkflowService = {
             patch.delivered_at = new Date().toISOString();
         const { error } = await supabase.from('commerce_orders').update(patch).eq('id', commerceOrderId);
         throwIfSupabaseError(error, 'OMS status update');
+        if (status === 'delivered' || status === 'completed') {
+            const { eligibleSaleEngine } = await import('../remuneration/eligible-sale.engine.js');
+            await eligibleSaleEngine.onDelivered(commerceOrderId).catch(() => { });
+        }
+        if (status === 'returned' || status === 'cancelled') {
+            const { eligibleSaleEngine } = await import('../remuneration/eligible-sale.engine.js');
+            await eligibleSaleEngine.onReturnOrRefund(commerceOrderId, `OMS ${status}`).catch(() => { });
+        }
     },
     async getOrderWorkflow(commerceOrderId) {
         const { data: order, error } = await supabase

@@ -77,7 +77,7 @@ export const farmerPurgeService = {
         await supabase.from('advisory_reuse_cases').delete().eq('source_farmer_id', farmerId);
         await supabase.from('ai_accuracy_events').delete().eq('farmer_id', farmerId);
         await supabase.from('ai_case_outcomes').delete().eq('farmer_id', farmerId);
-        await supabase.from('telecaller_notes').delete().eq('farmer_id', farmerId);
+        await supabase.from('crop_advisor_notes').delete().eq('farmer_id', farmerId);
         await supabase.from('farmer_roi_audit_log').delete().eq('farmer_id', farmerId);
         await supabase.from('farmer_roi_entries').delete().eq('farmer_id', farmerId);
         await supabase.from('farmer_roi_settings').delete().eq('farmer_id', farmerId);

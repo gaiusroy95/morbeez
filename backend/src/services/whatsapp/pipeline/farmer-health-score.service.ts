@@ -7,7 +7,7 @@ export type FarmerHealthSnapshot = {
 };
 
 /**
- * Lightweight engagement health for telecaller prioritization (computed, not stored).
+ * Lightweight engagement health for cropAdvisor prioritization (computed, not stored).
  */
 export const farmerHealthScoreService = {
   async compute(farmerId: string): Promise<FarmerHealthSnapshot> {
@@ -74,7 +74,7 @@ export const farmerHealthScoreService = {
     return { score, band, factors };
   },
 
-  telecallerPriorityFromHealth(band: FarmerHealthSnapshot['band']): 'normal' | 'high' {
+  cropAdvisorPriorityFromHealth(band: FarmerHealthSnapshot['band']): 'normal' | 'high' {
     return band === 'at_risk' ? 'high' : 'normal';
   },
 };

@@ -25,14 +25,14 @@ Website/mobile signup passes UTMs to `/api/v1/auth/signup`; leads get `lead_chan
 ## Operating rules
 
 1. **No source = no score** — leads without both `lead_channel` and `campaign_source` are Unattributed and excluded from marketer KPIs.
-2. **Telecaller SLA** — Meta leads in `new_lead` should be called within 24h (shown on Marketing tab queue strip).
+2. **CropAdvisor SLA** — Meta leads in `new_lead` should be called within 24h (shown on Marketing tab queue strip).
 3. **Single revenue definition** — ledger gross profit, 90-day window from lead creation.
 4. **First-touch only** — no multi-touch attribution in v1.
 
 ## Staff UI
 
 - **Commerce → Marketing** — performance dashboard, spend logging, Meta CSV import
-- **Telecaller → New lead / lead profile** — channel, campaign, marketer fields
+- **CropAdvisor → New lead / lead profile** — channel, campaign, marketer fields
 - **Queue row** — badge `Meta · Campaign name` when attributed
 
 ## Deploy

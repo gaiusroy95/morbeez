@@ -109,8 +109,8 @@ export function PartnerOverviewPanel({ workspace, onNavigate }: Props) {
 
       <Panel title="Team">
         <KeyValueRow
-          label="Telecaller"
-          value={ownership?.assignedTelecallerEmail ?? '—'}
+          label="Crop Advisor"
+          value={ownership?.assignedCropAdvisorEmail ?? '—'}
         />
         <KeyValueRow
           label="Expert"

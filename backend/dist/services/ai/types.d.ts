@@ -132,7 +132,7 @@ export interface DiagnoseInput {
         imageMimeType: string;
         imageStoragePath?: string;
     }>;
-    channel: 'api' | 'whatsapp' | 'web' | 'telecaller';
+    channel: 'api' | 'whatsapp' | 'web' | 'crop_advisor';
     /** WhatsApp pipeline: minimal history string (low token cost) */
     compactHistory?: string;
     /** Environmental + regional context (weather, season, nearby cases) */

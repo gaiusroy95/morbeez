@@ -433,7 +433,7 @@ export function FarmerFeedbackPanel({ canWrite }: { canWrite: boolean }) {
                     rows={3}
                     value={updatedRec}
                     onChange={(e) => setUpdatedRec(e.target.value)}
-                    placeholder="Revised advice for telecaller / WhatsApp if needed"
+                    placeholder="Revised advice for cropAdvisor / WhatsApp if needed"
                   />
                 </label>
                 <label className="block text-sm">

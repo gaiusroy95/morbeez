@@ -25,7 +25,7 @@ export function roleLabel(role: string): string {
     manager: 'Manager',
     viewer: 'Viewer',
     agronomist: 'Agronomist',
-    telecaller: 'Telecaller',
+    cropAdvisor: 'Crop Advisor',
     warehouse: 'Warehouse',
     picker_packer: 'Picker / Packer',
   };

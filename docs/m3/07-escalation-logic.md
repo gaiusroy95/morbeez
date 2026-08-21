@@ -17,6 +17,6 @@
 ## Manual review
 
 - `agronomist_notes`, `correction` JSON for future AI refinement
-- Telecaller notes table links farmer + session
+- CropAdvisor notes table links farmer + session
 
 Implementation: `escalation.service.ts`, `confidence.ts`

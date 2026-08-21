@@ -242,7 +242,7 @@ ALTER TABLE admin_users
       'admin',
       'operations',
       'agronomist',
-      'telecaller',
+      'crop_advisor',
       'manager',
       'viewer'
     )
@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS role_module_permissions (
 INSERT INTO role_module_permissions (role, module_key, can_read, can_write)
 SELECT * FROM (VALUES
   ('super_admin', 'dashboard', true, true),
-  ('super_admin', 'telecaller_crm', true, true),
+  ('super_admin', 'crop_advisor_crm', true, true),
   ('super_admin', 'operations', true, true),
   ('super_admin', 'intelligence', true, true),
   ('super_admin', 'agronomist', true, true),
@@ -273,23 +273,23 @@ SELECT * FROM (VALUES
   ('super_admin', 'settings', true, true),
   ('super_admin', 'approve_recommendations', true, true),
   ('operations', 'dashboard', true, false),
-  ('operations', 'telecaller_crm', true, true),
+  ('operations', 'crop_advisor_crm', true, true),
   ('operations', 'operations', true, true),
   ('operations', 'intelligence', true, false),
   ('operations', 'commerce', true, true),
   ('operations', 'automation', true, true),
   ('operations', 'analytics', true, false),
   ('agronomist', 'dashboard', true, false),
-  ('agronomist', 'telecaller_crm', true, true),
+  ('agronomist', 'crop_advisor_crm', true, true),
   ('agronomist', 'intelligence', true, true),
   ('agronomist', 'agronomist', true, true),
   ('agronomist', 'commerce', true, false),
   ('agronomist', 'analytics', true, false),
-  ('telecaller', 'dashboard', true, false),
-  ('telecaller', 'telecaller_crm', true, true),
-  ('telecaller', 'commerce', true, false),
+  ('crop_advisor', 'dashboard', true, false),
+  ('crop_advisor', 'crop_advisor_crm', true, true),
+  ('crop_advisor', 'commerce', true, false),
   ('viewer', 'dashboard', true, false),
-  ('viewer', 'telecaller_crm', true, false),
+  ('viewer', 'crop_advisor_crm', true, false),
   ('viewer', 'commerce', true, false)
 ) AS v(role, module_key, can_read, can_write)
 ON CONFLICT (role, module_key) DO NOTHING;

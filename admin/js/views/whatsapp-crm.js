@@ -11,8 +11,8 @@ async function loadThread(farmerId) {
 
   try {
     const [threadsRes, messagesRes, sessionRes] = await Promise.all([
-      api('/console/api/v1/telecaller/whatsapp'),
-      api(`/console/api/v1/telecaller/whatsapp/${farmerId}/messages`),
+      api('/console/api/v1/crop-advisor/whatsapp'),
+      api(`/console/api/v1/crop-advisor/whatsapp/${farmerId}/messages`),
       api(`/console/api/v1/whatsapp/${farmerId}/session`).catch(() => ({ session: null })),
     ]);
 
@@ -57,7 +57,7 @@ async function loadThread(farmerId) {
               ${['en','ml','ta','kn','hi'].map((l)=>`<option value="${l}" ${String(session?.preferred_language||'')===l?'selected':''}>${l.toUpperCase()}</option>`).join('')}
             </select>
             <select class="input" style="max-width:180px" data-wa-owner>
-              ${['ai','telecaller','agronomist'].map((o)=>`<option value="${o}" ${String(session?.conversation_owner||'ai')===o?'selected':''}>${o}</option>`).join('')}
+              ${['ai','crop_advisor','agronomist'].map((o)=>`<option value="${o}" ${String(session?.conversation_owner||'ai')===o?'selected':''}>${o}</option>`).join('')}
             </select>
             <button type="button" class="btn btn-primary btn-sm" data-wa-save>Save</button>
           </div>`
@@ -110,7 +110,7 @@ async function loadThread(farmerId) {
       const text = String(fd.get('text') || '').trim();
       if (!text) return;
       try {
-        const res = await api(`/console/api/v1/telecaller/whatsapp/${farmerId}/send`, {
+        const res = await api(`/console/api/v1/crop-advisor/whatsapp/${farmerId}/send`, {
           method: 'POST',
           body: JSON.stringify({ text }),
         });
@@ -131,7 +131,7 @@ export async function renderWhatsAppCrm() {
   el.innerHTML = '<div class="products-loading"><div class="spinner"></div></div>';
 
   try {
-    const data = await api('/console/api/v1/telecaller/whatsapp');
+    const data = await api('/console/api/v1/crop-advisor/whatsapp');
     const threads = data.threads || [];
 
     if (!selectedFarmerId && threads[0]) selectedFarmerId = threads[0].farmerId;

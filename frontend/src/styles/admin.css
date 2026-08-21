@@ -3926,9 +3926,9 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   box-shadow: inset 2px 0 0 rgba(125, 211, 252, 0.95);
 }
 
-/* â”€â”€â”€ Telecaller CRM â”€â”€â”€ */
+/* â”€â”€â”€ Crop Advisor CRM â”€â”€â”€ */
 
-.telecaller-page {
+.crop-advisor-page {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -4496,8 +4496,8 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   }
 }
 
-/* Telecaller workspace â€” responsive polish */
-.route-telecaller .content,
+/* CropAdvisor workspace â€” responsive polish */
+.route-crop-advisor .content,
 .route-lead-detail .content {
   padding-left: 20px;
   padding-right: 20px;
@@ -4505,7 +4505,7 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
 }
 
 @media (max-width: 1400px) {
-  .route-telecaller .content,
+  .route-crop-advisor .content,
   .route-lead-detail .content {
     padding-left: 16px;
     padding-right: 16px;
@@ -4524,7 +4524,7 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
 }
 
 @media (max-width: 768px) {
-  .telecaller-page {
+  .crop-advisor-page {
     gap: 14px;
   }
 
@@ -4853,8 +4853,8 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   }
 }
 
-/* â”€â”€â”€ CRM topbar (Telecaller workspace) â€” mockup layout â”€â”€â”€ */
-.route-telecaller .topbar.crm-topbar-shell,
+/* â”€â”€â”€ CRM topbar (CropAdvisor workspace) â€” mockup layout â”€â”€â”€ */
+.route-crop-advisor .topbar.crm-topbar-shell,
 .route-lead-detail .topbar.crm-topbar-shell {
   display: flex;
   align-items: center;
@@ -5057,7 +5057,7 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   cursor: not-allowed;
 }
 
-.route-telecaller .topbar.crm-topbar-shell {
+.route-crop-advisor .topbar.crm-topbar-shell {
   background: #fff;
 }
 
@@ -5148,7 +5148,7 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
     display: none;
   }
 
-  .route-telecaller .topbar.crm-topbar-shell,
+  .route-crop-advisor .topbar.crm-topbar-shell,
   .route-lead-detail .topbar.crm-topbar-shell {
     flex-wrap: wrap;
     gap: 10px 14px;
@@ -5166,7 +5166,7 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
 }
 
 @media (max-width: 900px) {
-  .route-telecaller .topbar.crm-topbar-shell,
+  .route-crop-advisor .topbar.crm-topbar-shell,
   .route-lead-detail .topbar.crm-topbar-shell {
     flex-wrap: wrap;
     gap: 12px;
@@ -5218,16 +5218,16 @@ body.sidebar-collapsed .sidebar-group-btn.has-flyout[data-tooltip]:focus-visible
   justify-content: center;
 }
 
-.route-telecaller .content,
+.route-crop-advisor .content,
 .route-lead-detail .content {
   padding: 20px 28px 36px;
 }
 
-.telecaller-list-page .tc-leads-card {
+.crop-advisor-list-page .tc-leads-card {
   margin-top: 0;
 }
 
-.telecaller-list-page .tc-leads-card .table-wrap {
+.crop-advisor-list-page .tc-leads-card .table-wrap {
   min-height: 280px;
 }
 

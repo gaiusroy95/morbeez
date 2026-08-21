@@ -3,7 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { blockService } from '../core/block.service.js';
 import { fieldStorageService } from '../core/field-storage.service.js';
-import { telecallerAdminService } from './telecaller-admin.service.js';
+import { cropAdvisorAdminService } from './crop-advisor-admin.service.js';
 function soilHealthMeta(raw) {
     const health = String(raw ?? 'good').toLowerCase();
     if (health === 'good') {
@@ -250,7 +250,7 @@ export const fieldPwaService = {
                 farmerId: input.farmerId,
             });
         }
-        const finding = await telecallerAdminService.createFieldFinding(input.farmerId, leadId ?? null, {
+        const finding = await cropAdvisorAdminService.createFieldFinding(input.farmerId, leadId ?? null, {
             blockId: input.blockId,
             blockName: input.blockName,
             cropType: input.cropType,

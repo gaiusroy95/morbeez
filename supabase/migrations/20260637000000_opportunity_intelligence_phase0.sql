@@ -74,14 +74,14 @@ CREATE TABLE IF NOT EXISTS employee_farmer_attribution (
     attribution_type IN (
       'first_engagement',
       'relationship_owner',
-      'telecaller_assigned',
+      'crop_advisor_assigned',
       'advisory',
       'conversion_assist',
       'reactivation'
     )
   ),
   CONSTRAINT employee_farmer_attribution_role_check CHECK (
-    employee_role IN ('telecaller', 'agronomist', 'operations', 'manager', 'admin', 'system')
+    employee_role IN ('crop_advisor', 'agronomist', 'operations', 'manager', 'admin', 'system')
   ),
   CONSTRAINT employee_farmer_attribution_unique UNIQUE (
     farmer_id,
@@ -278,7 +278,7 @@ CREATE POLICY farmer_metric_history_service ON farmer_metric_history
 COMMENT ON TABLE farmer_events IS
   'Canonical farmer behavioral events for opportunity + employee intelligence (auto-captured, Phase 1+).';
 COMMENT ON TABLE employee_farmer_attribution IS
-  'Multi-touch employee influence on a farmer (telecaller + agronomist + delayed conversion credit).';
+  'Multi-touch employee influence on a farmer (cropAdvisor + agronomist + delayed conversion credit).';
 COMMENT ON TABLE farmer_scores IS
   'Current farmer opportunity score 0–100 and weighted components (system-calculated).';
 COMMENT ON TABLE employee_scores IS

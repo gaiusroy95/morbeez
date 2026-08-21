@@ -7,7 +7,7 @@ flowchart TB
   subgraph clients [Clients]
     SF[Shopify Storefront]
     WA[WhatsApp Farmers]
-    TC[Telecaller / Admin]
+    TC[CropAdvisor / Admin]
   end
 
   subgraph morbeez_api [Morbeez API - Railway]

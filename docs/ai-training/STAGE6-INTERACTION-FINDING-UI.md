@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Replace free-text field findings in telecaller flows with **structured operational data**, and surface the **interaction → finding → recommendation → escalation** chain in CRM.
+Replace free-text field findings in cropAdvisor flows with **structured operational data**, and surface the **interaction → finding → recommendation → escalation** chain in CRM.
 
 ## UI changes
 
 ### Structured field finding form
 
-Shared component: `frontend/src/components/telecaller/StructuredFieldFindingFields.tsx`
+Shared component: `frontend/src/components/crop-advisor/StructuredFieldFindingFields.tsx`
 
 | Field | Required | Source |
 |-------|----------|--------|
@@ -37,14 +37,14 @@ Table columns now include **Type**, **Issue** (confirmed diagnosis), and severit
 
 ## API changes
 
-### Telecaller diagnosis labels
+### CropAdvisor diagnosis labels
 
-Telecallers can search/create diagnosis labels without agronomist module access:
+Crop Advisors can search/create diagnosis labels without agronomist module access:
 
 | Method | Path |
 |--------|------|
-| GET | `/telecaller/diagnosis-labels` |
-| POST | `/telecaller/diagnosis-labels` |
+| GET | `/crop-advisor/diagnosis-labels` |
+| POST | `/crop-advisor/diagnosis-labels` |
 
 ### Validation
 
@@ -78,7 +78,7 @@ operationalChain?: {
 
 ## Training impact
 
-Every telecaller-recorded finding now carries:
+Every crop-advisor-recorded finding now carries:
 
 - Canonical `finding_type` and `severity`
 - Master-backed `final_confirmed_issue` (via diagnosis labels)

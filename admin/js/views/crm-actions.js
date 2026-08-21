@@ -2,7 +2,7 @@ import { api, showToast, state } from '../core.js';
 
 export async function openCrmExport(leadId, type = 'lead') {
   try {
-    const res = await api(`/console/api/v1/telecaller/leads/${leadId}/export?type=${encodeURIComponent(type)}`);
+    const res = await api(`/console/api/v1/crop-advisor/leads/${leadId}/export?type=${encodeURIComponent(type)}`);
     const win = window.open('', '_blank');
     if (!win) {
       showToast('Allow pop-ups to export PDF', 'error');
@@ -21,7 +21,7 @@ export async function openWhatsAppShare(leadId, { type = 'lead', recId } = {}) {
   try {
     const q = new URLSearchParams({ type });
     if (recId) q.set('recId', recId);
-    const res = await api(`/console/api/v1/telecaller/leads/${leadId}/share?${q}`);
+    const res = await api(`/console/api/v1/crop-advisor/leads/${leadId}/share?${q}`);
     if (res.url) {
       window.open(res.url, '_blank', 'noopener');
     } else {
@@ -35,7 +35,7 @@ export async function openWhatsAppShare(leadId, { type = 'lead', recId } = {}) {
 export async function convertRecommendationToOrder(leadId, recId, onDone) {
   if (!confirm('Create a CRM order from this recommendation?')) return;
   try {
-    await api(`/console/api/v1/telecaller/leads/${leadId}/recommendations/${recId}/convert-order`, {
+    await api(`/console/api/v1/crop-advisor/leads/${leadId}/recommendations/${recId}/convert-order`, {
       method: 'POST',
       body: JSON.stringify({}),
     });
@@ -57,7 +57,7 @@ export function downloadIcs(icsContent, filename = 'morbeez-visit.ics') {
 }
 
 export async function scheduleVisitWithCalendar(leadId, payload) {
-  const res = await api(`/console/api/v1/telecaller/leads/${leadId}/schedule-visit`, {
+  const res = await api(`/console/api/v1/crop-advisor/leads/${leadId}/schedule-visit`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -117,14 +117,14 @@ export function filterChipsHtml(group, field, options, active) {
 }
 
 export function bindFilterChips(root, group, onChange) {
-  if (!state.telecaller.crmFilters) state.telecaller.crmFilters = {};
-  if (!state.telecaller.crmFilters[group]) state.telecaller.crmFilters[group] = {};
+  if (!state.cropAdvisor.crmFilters) state.cropAdvisor.crmFilters = {};
+  if (!state.cropAdvisor.crmFilters[group]) state.cropAdvisor.crmFilters[group] = {};
   root?.querySelectorAll(`[data-filter-group="${group}"]`).forEach((wrap) => {
     const field = wrap.dataset.filterField;
     wrap.querySelectorAll('[data-filter-val]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const val = btn.dataset.filterVal;
-        state.telecaller.crmFilters[group][field] = val === 'all' ? '' : val;
+        state.cropAdvisor.crmFilters[group][field] = val === 'all' ? '' : val;
         onChange?.();
       });
     });
@@ -132,7 +132,7 @@ export function bindFilterChips(root, group, onChange) {
 }
 
 export function interactionsQuery() {
-  const f = state.telecaller.crmFilters?.interactions || {};
+  const f = state.cropAdvisor.crmFilters?.interactions || {};
   const q = new URLSearchParams();
   if (f.type) q.set('type', f.type);
   if (f.status) q.set('status', f.status);

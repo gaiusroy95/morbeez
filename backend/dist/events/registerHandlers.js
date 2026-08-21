@@ -2,7 +2,7 @@ import { eventBus } from './bus.js';
 import { logger } from '../lib/logger.js';
 import { shiprocketService } from '../services/shiprocket/shiprocket.service.js';
 import { whatsappService } from '../services/whatsapp/whatsapp.service.js';
-import { createTelecallerTask } from '../services/whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../services/whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
 import { orderWhatsappService } from '../services/whatsapp/orders/order-whatsapp.service.js';
@@ -48,7 +48,7 @@ export function registerEventHandlers() {
         logger.debug({ phone: event.payload.phone, farmerId: event.payload.farmerId }, 'WhatsApp message processed');
     });
     eventBus.on('quotation.requested', async (event) => {
-        logger.info({ eventId: event.id }, 'Quotation requested — telecaller queue (M2)');
+        logger.info({ eventId: event.id }, 'Quotation requested — cropAdvisor queue (M2)');
     });
     eventBus.on('shopify.order.fulfilled', async (event) => {
         logger.info({ orderId: event.payload.shopifyOrderId, tracking: event.payload.trackingNumber }, 'Order fulfilled');
@@ -108,12 +108,12 @@ export function registerEventHandlers() {
         const priority = event.payload.priority ?? 'normal';
         logger.warn({ sessionId, escalationId: event.payload.escalationId, priority }, 'Agronomist escalation created');
         if (farmerId) {
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId,
                 title: 'Agronomist review — WhatsApp crop advisory',
                 notes: `Session ${sessionId ?? 'n/a'}: ${event.payload.reason ?? 'escalation'}`,
                 priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'normal',
-            }).catch((err) => logger.error({ err }, 'Telecaller escalation task failed'));
+            }).catch((err) => logger.error({ err }, 'CropAdvisor escalation task failed'));
         }
     });
     eventBus.on('advisory.completed', async (event) => {

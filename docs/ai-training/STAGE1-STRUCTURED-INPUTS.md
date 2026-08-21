@@ -49,7 +49,7 @@ Service: `backend/src/services/core/weather-snapshot.service.ts`
 
 ## API changes
 
-Telecaller field finding create/patch accepts optional structured fields via `structuredFieldFindingSchema`:
+CropAdvisor field finding create/patch accepts optional structured fields via `structuredFieldFindingSchema`:
 
 - `findingType`, `severity`, `affectedAreaPct`
 - `aiPrediction`, `finalConfirmedIssue`

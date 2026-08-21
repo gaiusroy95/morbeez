@@ -4,7 +4,7 @@ export const CONSOLE_ROLES = [
   'super_admin',
   'admin',
   'operations',
-  'telecaller',
+  'crop_advisor',
   'agronomist',
   'manager',
   'viewer',
@@ -51,12 +51,12 @@ export function getRoleHomePath(role: string): string {
   switch (role) {
     case 'operations':
       return '/operations';
-    case 'telecaller':
-      return '/telecaller';
+    case 'crop_advisor':
+      return '/crop_advisor';
     case 'agronomist':
       return '/agronomist';
     case 'manager':
-      return '/telecaller';
+      return '/crop_advisor';
     case 'viewer':
       return '/dashboard';
     case 'warehouse':

@@ -13,7 +13,7 @@ ALTER TABLE farmers
   ADD COLUMN IF NOT EXISTS service_model TEXT
     CHECK (service_model IS NULL OR service_model IN ('remote_advisory', 'partner_assisted')),
   ADD COLUMN IF NOT EXISTS assigned_partner_id UUID,
-  ADD COLUMN IF NOT EXISTS assigned_telecaller_email TEXT,
+  ADD COLUMN IF NOT EXISTS assigned_crop_advisor_email TEXT,
   ADD COLUMN IF NOT EXISTS assigned_expert_email TEXT,
   ADD COLUMN IF NOT EXISTS partner_code_at_enrollment TEXT;
 
@@ -241,7 +241,7 @@ CREATE TABLE IF NOT EXISTS crm_task_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES crm_tasks(id) ON DELETE CASCADE,
   author_email TEXT NOT NULL,
-  author_role TEXT NOT NULL DEFAULT 'telecaller',
+  author_role TEXT NOT NULL DEFAULT 'crop_advisor',
   author_name TEXT,
   body TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -257,7 +257,7 @@ CREATE POLICY crm_task_comments_service_role ON crm_task_comments
 
 ALTER TABLE crm_task_comments DROP CONSTRAINT IF EXISTS crm_task_comments_author_role_check;
 ALTER TABLE crm_task_comments ADD CONSTRAINT crm_task_comments_author_role_check
-  CHECK (author_role IN ('telecaller', 'agronomist', 'partner', 'expert', 'admin', 'system'));
+  CHECK (author_role IN ('crop_advisor', 'agronomist', 'partner', 'expert', 'admin', 'system'));
 
 ALTER TABLE crm_task_comments
   ADD COLUMN IF NOT EXISTS partner_id UUID REFERENCES partners(id) ON DELETE SET NULL,
@@ -274,7 +274,7 @@ CREATE TABLE IF NOT EXISTS farmer_timeline_entries (
   farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
   task_id UUID REFERENCES crm_tasks(id) ON DELETE SET NULL,
   field_finding_id UUID REFERENCES crm_field_findings(id) ON DELETE SET NULL,
-  author_type TEXT NOT NULL CHECK (author_type IN ('telecaller', 'partner', 'expert', 'admin', 'system')),
+  author_type TEXT NOT NULL CHECK (author_type IN ('crop_advisor', 'partner', 'expert', 'admin', 'system')),
   author_email TEXT,
   partner_id UUID REFERENCES partners(id) ON DELETE SET NULL,
   author_name TEXT,

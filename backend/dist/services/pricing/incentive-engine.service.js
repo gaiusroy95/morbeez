@@ -171,25 +171,36 @@ export const incentiveEngineService = {
             mult = retail.multiplier;
         }
         const allocations = allocateIncentive(lineInternals, totalIncentive);
-        const results = lineInternals.map((l, i) => ({
-            variantId: l.variantId,
-            sku: l.sku,
-            title: l.title,
-            qty: l.qty,
-            listedPrice: l.listedPrice,
-            sellingPrice: l.sellingPrice,
-            recommendedPrice: l.recommendedPrice,
-            safePrice: l.safePrice,
-            hardFloorPrice: l.hardFloorPrice,
-            realizationPct: l.realizationPct,
-            incentivePerUnit: l.qty > 0 ? round2(allocations[i] / l.qty) : 0,
-            incentiveTotal: allocations[i],
-            grossProfitPerUnit: l.grossProfitPerUnit,
-            grossProfitTotal: l.grossProfitTotal,
-            warningLevel: l.warningLevel,
-            warningMessage: l.warningMessage,
-            allowed: l.allowed,
-        }));
+        const { channelPoolService } = await import('./channel-pool.service.js');
+        const results = [];
+        for (let i = 0; i < lineInternals.length; i++) {
+            const l = lineInternals[i];
+            const pool = await channelPoolService.snapshotForLine({
+                variantId: l.variantId,
+                sku: l.sku,
+                salesInr: l.lineSales,
+            });
+            results.push({
+                variantId: l.variantId,
+                sku: l.sku,
+                title: l.title,
+                qty: l.qty,
+                listedPrice: l.listedPrice,
+                sellingPrice: l.sellingPrice,
+                recommendedPrice: l.recommendedPrice,
+                safePrice: l.safePrice,
+                hardFloorPrice: l.hardFloorPrice,
+                realizationPct: l.realizationPct,
+                incentivePerUnit: l.qty > 0 ? round2(allocations[i] / l.qty) : 0,
+                incentiveTotal: allocations[i],
+                grossProfitPerUnit: l.grossProfitPerUnit,
+                grossProfitTotal: l.grossProfitTotal,
+                warningLevel: l.warningLevel,
+                warningMessage: l.warningMessage,
+                allowed: l.allowed,
+                ...pool,
+            });
+        }
         if (retailOrBulk === 'retail') {
             mult = realizationMultiplier(avgRealizationPct, config);
         }
@@ -255,13 +266,20 @@ export const incentiveEngineService = {
                 realization_pct: line.realizationPct,
                 effective_cost: round2(line.sellingPrice - line.grossProfitPerUnit),
                 incentive_amount: line.incentiveTotal,
+                channel_pool_pct: line.channelPoolPct,
+                channel_pool_agronomist_pct: line.channelPoolAgronomistPct,
+                channel_pool_partner_pct: line.channelPoolPartnerPct,
+                channel_pool_version_id: line.channelPoolVersionId,
+                channel_pool_version_label: line.channelPoolVersionLabel,
+                channel_pool_effective_from: line.channelPoolEffectiveFrom,
+                channel_pool_amount: line.channelPoolAmount,
                 gross_profit: gp,
                 net_profit: gp,
                 order_type: input.preview.retailOrBulk === 'bulk' ? 'bulk' : 'standard',
                 retail_or_bulk: input.preview.retailOrBulk,
                 order_value_inr: orderValue,
                 gross_margin_pct: orderValue > 0 ? round2((input.preview.subtotalGrossProfit / orderValue) * 100) : 0,
-                sales_source: input.salesSource ?? 'telecaller',
+                sales_source: input.salesSource ?? 'crop_advisor',
                 status: 'quoted',
             };
         });
@@ -283,6 +301,17 @@ export const incentiveEngineService = {
                 bulkGrossMarginPct: input.preview.bulkGrossMarginPct,
                 performanceHint: input.preview.performanceHint,
                 warnings: input.preview.warnings,
+                channelPool: input.preview.lines.map((l) => ({
+                    sku: l.sku,
+                    variantId: l.variantId,
+                    channelPoolPct: l.channelPoolPct,
+                    channelPoolAgronomistPct: l.channelPoolAgronomistPct,
+                    channelPoolPartnerPct: l.channelPoolPartnerPct,
+                    channelPoolVersionId: l.channelPoolVersionId,
+                    channelPoolVersionLabel: l.channelPoolVersionLabel,
+                    channelPoolEffectiveFrom: l.channelPoolEffectiveFrom,
+                    channelPoolAmount: l.channelPoolAmount,
+                })),
             },
             total_incentive: input.preview.totalIncentive,
             avg_realization_pct: input.preview.avgRealizationPct,

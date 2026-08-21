@@ -9,7 +9,7 @@ type PendingAction = {
   run: (confirmPassword: string) => Promise<void>;
 };
 
-/** Password confirmation for staff with write access (telecaller / operations). */
+/** Password confirmation for staff with write access (cropAdvisor / operations). */
 export function useStaffPasswordConfirm(canWrite: boolean) {
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [password, setPassword] = useState('');

@@ -112,7 +112,7 @@ export async function showAddBlockModal(leadId, onDone) {
     async (close) => {
       const cropSel = $('#crm-b-crop');
       const cropName = cropSel?.selectedOptions?.[0]?.text;
-      await api(`/console/api/v1/telecaller/leads/${leadId}/blocks`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/blocks`, {
         method: 'POST',
         body: JSON.stringify({
           name: $('#crm-b-name')?.value?.trim(),
@@ -149,7 +149,7 @@ export async function showAddInteractionModal(leadId, blocks, onDone) {
     </div>`,
     async (close) => {
       const typeSel = $('#crm-ix-type');
-      await api(`/console/api/v1/telecaller/leads/${leadId}/interactions`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/interactions`, {
         method: 'POST',
         body: JSON.stringify({
           interactionType: typeSel?.selectedOptions?.[0]?.text || 'Note',
@@ -184,7 +184,7 @@ export async function showAddRecommendationModal(leadId, blocks, onDone) {
       <div class="field"><label>Follow-up date</label><input id="crm-rec-follow" type="datetime-local" class="input" /></div>
     </div>`,
     async (close) => {
-      await api(`/console/api/v1/telecaller/leads/${leadId}/recommendations`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/recommendations`, {
         method: 'POST',
         body: JSON.stringify({
           blockId: $('#crm-rec-block')?.value || undefined,
@@ -223,7 +223,7 @@ export async function showAddFieldFindingModal(leadId, blocks, onDone) {
       const blockSel = $('#crm-ff-block');
       const opt = blockSel?.selectedOptions?.[0];
       const disease = $('#crm-ff-disease')?.selectedOptions?.[0]?.text;
-      await api(`/console/api/v1/telecaller/leads/${leadId}/field-findings`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/field-findings`, {
         method: 'POST',
         body: JSON.stringify({
           blockId: blockSel?.value,
@@ -256,7 +256,7 @@ export async function showEditBlockModal(leadId, block, onDone) {
       <div class="field"><label>Growth %</label><input id="crm-eb-growth" type="number" class="input" value="${block.growthPercent ?? 65}" /></div>
     </div>`,
     async (close) => {
-      await api(`/console/api/v1/telecaller/leads/${leadId}/blocks/${block.id}`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/blocks/${block.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           name: $('#crm-eb-name')?.value?.trim(),
@@ -281,7 +281,7 @@ export async function showEditRecommendationModal(rec, onDone) {
       <div class="field"><label>Dosage</label><input id="crm-er-dosage" class="input" value="${escapeHtml(rec.dosage || '')}" /></div>
     </div>`,
     async (close) => {
-      await api(`/console/api/v1/telecaller/recommendations/${rec.id}`, {
+      await api(`/console/api/v1/crop-advisor/recommendations/${rec.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
           problem: $('#crm-er-problem')?.value?.trim(),
@@ -299,7 +299,7 @@ export async function showEditRecommendationModal(rec, onDone) {
 export async function showNewOrderModal(leadId, blocks, farmer, onDone) {
   let catalog = [];
   try {
-    const res = await api('/console/api/v1/telecaller/orders/catalog');
+    const res = await api('/console/api/v1/crop-advisor/orders/catalog');
     catalog = res.items || [];
   } catch {
     catalog = [];
@@ -334,7 +334,7 @@ export async function showNewOrderModal(leadId, blocks, farmer, onDone) {
       const title = sel?.dataset.title || sel?.text || 'Product';
       const price = Number($('#crm-ord-price')?.value) || Number(sel?.dataset.price) || 0;
       const qty = Number($('#crm-ord-qty')?.value) || 1;
-      await api(`/console/api/v1/telecaller/leads/${leadId}/orders`, {
+      await api(`/console/api/v1/crop-advisor/leads/${leadId}/orders`, {
         method: 'POST',
         body: JSON.stringify({
           blockId: $('#crm-ord-block')?.value || undefined,

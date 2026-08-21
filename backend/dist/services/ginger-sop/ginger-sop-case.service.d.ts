@@ -15,7 +15,7 @@ export declare const gingerSopCaseService: {
     }>;
     buildCase(input: GingerSopBuildInput): Promise<GingerSopCase | null>;
     persistToSession(sessionId: string, gingerCase: GingerSopCase): Promise<void>;
-    formatTelecallerNotes(gingerCase: GingerSopCase): string;
+    formatCropAdvisorNotes(gingerCase: GingerSopCase): string;
 };
 export {};
 //# sourceMappingURL=ginger-sop-case.service.d.ts.map

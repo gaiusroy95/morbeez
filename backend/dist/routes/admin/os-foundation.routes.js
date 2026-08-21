@@ -102,7 +102,7 @@ export async function osFoundationRoutes(app) {
         return reply.send({ ok: true, pincodes: rows });
     });
     app.post(`${api}/farmers/:farmerId/pincode`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'write');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'write');
         const { farmerId } = request.params;
         const body = z.object({ pincode: z.string().min(6).max(6) }).parse(request.body);
         const row = await pincodeService.assignFarmerPincode(farmerId, body.pincode);
@@ -111,7 +111,7 @@ export async function osFoundationRoutes(app) {
         return reply.send({ ok: true, pincode: row });
     });
     app.get(`${api}/farmers/:farmerId/blocks`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const { farmerId } = request.params;
         const blocks = await blockService.listByFarmer(farmerId);
         return reply.send({ ok: true, blocks });
@@ -124,7 +124,7 @@ export async function osFoundationRoutes(app) {
         return reply.code(201).send({ ok: true, block });
     });
     app.get(`${api}/blocks/:blockId`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const { blockId } = request.params;
         const q = request.query;
         const block = await blockService.getById(blockId, q.farmerId);
@@ -169,7 +169,7 @@ export async function osFoundationRoutes(app) {
         return reply.send({ ok: true, recommendations: result.items, total: result.total });
     });
     app.get(`${api}/farmers/:farmerId/recommendations`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const { farmerId } = request.params;
         const rows = await recommendationRecordsService.listByFarmer(farmerId);
         return reply.send({ ok: true, recommendations: rows });
@@ -258,9 +258,9 @@ export async function osFoundationRoutes(app) {
         return reply.send({ ok: true, kpis });
     });
     app.get(`${api}/recommendations/:id/follow-up`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
         const { id } = request.params;
-        const detail = await recommendationFollowUpService.getTelecallerFollowUpDetail(id);
+        const detail = await recommendationFollowUpService.getCropAdvisorFollowUpDetail(id);
         if (!detail)
             return reply.code(404).send({ ok: false, message: 'Recommendation not found' });
         return reply.send({ ok: true, ...detail });

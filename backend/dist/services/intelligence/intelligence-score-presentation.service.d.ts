@@ -18,7 +18,7 @@ export type FarmerScorePresentation = {
         negative: string[];
     };
     employeeInsights: {
-        telecaller: string | null;
+        cropAdvisor: string | null;
         agronomist: string | null;
     };
 };
@@ -36,7 +36,7 @@ export declare function buildFarmerMetrics100(components: FarmerScoreComponents,
 export declare function classifyFarmer(opportunityScore: number, metrics: MetricScore100[]): string;
 export declare function farmerBusinessInsight(classification: string, metrics: MetricScore100[], opportunityScore: number): string;
 export declare function farmerEmployeeInsights(metrics: MetricScore100[], classification: string): {
-    telecaller: string | null;
+    cropAdvisor: string | null;
     agronomist: string | null;
 };
 export declare function detectFarmerSignalsFromEvents(events: FarmerEventRow[]): {

@@ -1,6 +1,6 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
-import { telecallerAdminService } from '../admin/telecaller-admin.service.js';
+import { cropAdvisorAdminService } from '../admin/crop-advisor-admin.service.js';
 import { agronomistMobileService } from './agronomist-mobile.service.js';
 
 function todayIsoDate(): string {
@@ -95,7 +95,7 @@ export const visitCommandCenterService = {
     const [dashboard, scheduledVisits, priorityFindings, openFindings, escalationCount] =
       await Promise.all([
         agronomistMobileService.getMobileDashboard(email),
-        telecallerAdminService.listScheduledVisitsForAgronomist(email),
+        cropAdvisorAdminService.listScheduledVisitsForAgronomist(email),
         supabase
           .from('crm_field_findings')
           .select(

@@ -17,7 +17,7 @@ export const imageReviewBodySchema = z
     reviewNotes: z.string().max(1000).optional(),
 })
     .refine((data) => data.action !== 'correct_ai' || Boolean(data.agronomistLabel?.trim()), { message: 'agronomistLabel is required when correcting AI', path: ['agronomistLabel'] });
-/** Structured field finding payload — used by telecaller/agronomist APIs (Stage 1+) */
+/** Structured field finding payload — used by cropAdvisor/agronomist APIs (Stage 1+) */
 export const structuredFieldFindingSchema = z.object({
     findingType: findingTypeSchema.optional(),
     severity: reviewSeveritySchema.optional(),

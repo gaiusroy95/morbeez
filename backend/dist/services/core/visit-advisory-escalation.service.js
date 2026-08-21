@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { leadService } from '../crm/lead.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 const REASON_TITLES = {
     outcome_worse: 'Urgent — crop condition worsened',
     outcome_no_whatsapp_response: 'Outcome follow-up — no WhatsApp response',
@@ -29,13 +29,13 @@ export const visitAdvisoryEscalationService = {
             params.recommendationRecordId ? `Rec ${params.recommendationRecordId.slice(0, 8)}` : null,
             params.notes?.trim() || null,
         ].filter(Boolean);
-        const telecallerNotes = noteParts.join(' | ').slice(0, 500);
+        const cropAdvisorNotes = noteParts.join(' | ').slice(0, 500);
         const { count: existingCallbacks } = await supabase
             .from('callback_requests')
             .select('id', { count: 'exact', head: true })
             .eq('farmer_id', params.farmerId)
             .eq('status', 'pending')
-            .ilike('telecaller_notes', `${tag}%`);
+            .ilike('crop_advisor_notes', `${tag}%`);
         if ((existingCallbacks ?? 0) > 0) {
             logger.info({ farmerId: params.farmerId, reason: params.reason }, 'Visit escalation skipped — pending callback exists');
             return { callbackId: null, taskCreated: false };
@@ -47,18 +47,18 @@ export const visitAdvisoryEscalationService = {
             lead_id: params.leadId ?? null,
             preferred_time: 'any',
             status: 'pending',
-            telecaller_notes: telecallerNotes,
+            crop_advisor_notes: cropAdvisorNotes,
         })
             .select('id')
             .single();
         if (callbackErr) {
             logger.warn({ err: callbackErr.message, reason: params.reason }, 'Visit callback insert failed');
         }
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId: params.farmerId,
             leadId: params.leadId ?? undefined,
             title,
-            notes: telecallerNotes,
+            notes: cropAdvisorNotes,
             priority,
         });
         if (priority === 'high' || priority === 'urgent') {
@@ -69,7 +69,7 @@ export const visitAdvisoryEscalationService = {
                 status: 'new',
                 priority,
                 stage: 'follow_up',
-                notes: telecallerNotes,
+                notes: cropAdvisorNotes,
                 mergeNotes: true,
             });
         }

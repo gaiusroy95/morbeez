@@ -36,6 +36,22 @@ export const partnerService = {
             leadAllocationWeight: Number(row.lead_allocation_weight ?? 1),
             commissionEligible: Boolean(row.commission_eligible ?? true),
             referralUrl: referralUrl(slug, partnerCode),
+            territory: row.metadata?.territory != null
+                ? String(row.metadata.territory)
+                : row.district
+                    ? String(row.district)
+                    : null,
+            cropAdvisor: row.metadata?.cropAdvisor != null
+                ? String(row.metadata.cropAdvisor)
+                : null,
+            partnerType: row.metadata?.partnerType != null
+                ? String(row.metadata.partnerType)
+                : null,
+            partnerSince: row.activated_at
+                ? String(row.activated_at).slice(0, 10)
+                : row.created_at
+                    ? String(row.created_at).slice(0, 10)
+                    : null,
         };
     },
     async getById(id) {
@@ -102,6 +118,8 @@ export const partnerService = {
         const partnerCode = generatePartnerCode(input.fullName);
         const qrToken = generateQrToken(partnerCode);
         const referralSlug = partnerCode.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const status = input.status ?? 'verified';
+        const now = new Date().toISOString();
         const { data, error } = await supabase
             .from('partners')
             .insert({
@@ -117,7 +135,9 @@ export const partnerService = {
             crops_expertise: input.cropsExpertise ?? [],
             referral_slug: referralSlug,
             qr_token: qrToken,
-            status: 'verified',
+            status,
+            activated_at: status === 'active' ? now : null,
+            metadata: input.metadata ?? {},
         })
             .select('*')
             .single();
@@ -125,7 +145,7 @@ export const partnerService = {
         await supabase.from('partner_status_history').insert({
             partner_id: data.id,
             from_status: null,
-            to_status: 'verified',
+            to_status: status,
             reason: 'created_from_application',
             changed_by: input.changedBy ?? 'admin',
         });

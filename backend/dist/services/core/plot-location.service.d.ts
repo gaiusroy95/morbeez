@@ -1,4 +1,4 @@
-export type PlotLocationSource = 'field_pwa' | 'telecaller' | 'whatsapp' | 'api';
+export type PlotLocationSource = 'field_pwa' | 'crop_advisor' | 'whatsapp' | 'api';
 export type WeatherCoords = {
     lat: number;
     lon: number;

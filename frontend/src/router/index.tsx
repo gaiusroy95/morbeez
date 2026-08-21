@@ -8,7 +8,7 @@ import { AcceptInvitePage } from '../pages/AcceptInvitePage';
 import { ForgotPasswordPage } from '../pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '../pages/ResetPasswordPage';
 import { DashboardPage } from '../pages/DashboardPage';
-import { TelecallerCrmPage } from '../pages/TelecallerCrmPage';
+import { CropAdvisorCrmPage } from '../pages/CropAdvisorCrmPage';
 import { OperationsCenterPage } from '../pages/OperationsCenterPage';
 import { LanguageTemplateEditorPage } from '../pages/operations/LanguageTemplateEditorPage';
 import { BroadcastDashboardPage } from '../pages/broadcasts/BroadcastDashboardPage';
@@ -66,9 +66,9 @@ import { SettingsPage } from '../pages/SettingsPage';
 import { useAuth } from '../context/AuthContext';
 import { STAFF_PORTAL_BASENAME } from '../lib/staff-portal';
 
-function TelecallerRoute() {
+function CropAdvisorRoute() {
   const { can } = useAuth();
-  return <TelecallerCrmPage canWrite={can('telecaller_crm', 'write')} />;
+  return <CropAdvisorCrmPage canWrite={can('crop_advisor_crm', 'write')} />;
 }
 
 function OperationsRoute() {
@@ -236,10 +236,10 @@ export const appRouter = createBrowserRouter(
               ),
             },
             {
-              path: paths.telecaller,
+              path: paths.cropAdvisor,
               element: (
-                <ProtectedPage module="telecaller_crm">
-                  <TelecallerRoute />
+                <ProtectedPage module="crop_advisor_crm">
+                  <CropAdvisorRoute />
                 </ProtectedPage>
               ),
             },
@@ -422,7 +422,7 @@ export const appRouter = createBrowserRouter(
             {
               path: paths.escalationCommand,
               element: (
-                <ProtectedPage module="telecaller_crm">
+                <ProtectedPage module="crop_advisor_crm">
                   <EscalationCommandCenterPage />
                 </ProtectedPage>
               ),

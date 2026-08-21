@@ -25,6 +25,6 @@ export declare const farmerOwnershipService: {
     /** Set immutable enrollment ownership — only when not already set. */
     setEnrollmentOwnership(input: SetEnrollmentOwnershipInput): Promise<FarmerOwnership>;
     changeCustomerOwner(input: ChangeCustomerOwnerInput): Promise<FarmerOwnership>;
-    syncTelecallerAssignment(farmerId: string, telecallerEmail: string | null): Promise<void>;
+    syncCropAdvisorAssignment(farmerId: string, cropAdvisorEmail: string | null): Promise<void>;
 };
 //# sourceMappingURL=farmer-ownership.service.d.ts.map

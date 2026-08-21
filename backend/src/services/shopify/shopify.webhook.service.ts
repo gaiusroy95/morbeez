@@ -59,7 +59,7 @@ export const shopifyWebhookService = {
 
     logger.info(
       { farmerId: farmer.id, shopifyCustomerId, phone },
-      'Shopify customer synced to telecaller lead'
+      'Shopify customer synced to cropAdvisor lead'
     );
   },
 
@@ -189,10 +189,10 @@ export const shopifyWebhookService = {
     const tags = (order.tags ?? '').toLowerCase();
     const orderSource = tags.includes('website')
       ? 'website'
-      : tags.includes('telecaller') ||
+      : tags.includes('crop_advisor') ||
           tags.includes('commerce_quote') ||
           tags.includes('razorpay-checkout')
-        ? 'telecaller_quote'
+        ? 'crop_advisor_quote'
         : tags.includes('commerce_hub')
           ? 'commerce_hub'
           : 'website';

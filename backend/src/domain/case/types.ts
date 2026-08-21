@@ -3,13 +3,13 @@
 export const MAIOS_VERSION = '12.0' as const;
 
 export type MaiosTriageLevel = 'L1' | 'L2' | 'L3' | 'L4';
-export type MaiosChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+export type MaiosChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 export type EvidenceTier = 'T0' | 'T1' | 'T2' | 'T3' | 'T4' | 'T5';
 
 export type MaiosRoute =
   | 'auto_recommend'
   | 'agronomist_review'
-  | 'telecaller_validate'
+  | 'crop_advisor_validate'
   | 'collect_evidence'
   | 'field_visit'
   | 'emergency_callback';

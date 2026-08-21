@@ -6,7 +6,7 @@ export declare const ATTRIBUTION_CONVERSION_WINDOW_DAYS = 180;
  */
 export declare const employeeAttributionCaptureService: {
     upsertSafe(input: UpsertAttributionInput): Promise<void>;
-    trackTelecallerAssigned(farmerId: string, agentEmail: string): Promise<void>;
+    trackCropAdvisorAssigned(farmerId: string, agentEmail: string): Promise<void>;
     trackInboundEngagement(farmerId: string, assigneeEmail: string | null): Promise<void>;
     trackAdvisory(farmerId: string, agentEmail: string, metadata?: Record<string, unknown>): Promise<void>;
     trackReactivation(farmerId: string, employeeEmail: string | null): Promise<void>;

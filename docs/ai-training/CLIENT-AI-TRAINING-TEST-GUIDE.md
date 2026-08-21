@@ -25,7 +25,7 @@ Before the first test, your Morbeez onboarding or IT contact should confirm: Wha
 
 1. **Farmer** — Sends problem + photo on WhatsApp.  
 2. **Agronomist** — Reviews the case in the staff portal, approves or corrects the AI.  
-3. **Telecaller** *(optional)* — Logs a field visit or call with structured field finding.  
+3. **CropAdvisor** *(optional)* — Logs a field visit or call with structured field finding.  
 4. **Agronomist** *(a few days later)* — Records whether the advice helped (outcome).  
 5. **Lead agronomist / admin** — Opens **Training export** to see numbers and download the report.  
 6. *(Automatic)* **WhatsApp outcome KPI** — ~5–7 days after recommendation, farmer gets a short 4-option follow-up (no staff action needed for most farmers).  
@@ -61,7 +61,7 @@ Pick someone safe for a trial (a pilot farmer or internal test account), not a h
 |--------|---------------------------|
 | Person with the test phone | Sends WhatsApp messages (Step 1) |
 | Agronomist | Case review, image review, outcome review (Steps 2, 4) |
-| Telecaller | Optional field visit log (Step 3) |
+| CropAdvisor | Optional field visit log (Step 3) |
 | Senior agronomist or admin | Training export and download (Step 5); approvals if your process requires it |
 
 ---
@@ -157,13 +157,13 @@ Then:
 
 ---
 
-## Step 3 — Telecaller field follow-up (optional, real operations)
+## Step 3 — CropAdvisor field follow-up (optional, real operations)
 
 **When:** Day 0–2, if you want to test how field work links to the same farmer.
 
-**Who:** Telecaller or field staff with CRM access.
+**Who:** CropAdvisor or field staff with CRM access.
 
-1. Open **Telecaller CRM** in the staff portal.  
+1. Open **Crop Advisor CRM** in the staff portal.  
 2. Find the test farmer’s lead.  
 3. On the **WhatsApp** tab, confirm today’s messages appear.  
 4. **Add interaction** — log the call or visit.  
@@ -175,7 +175,7 @@ Then:
 7. Open that interaction and check the **Operational chain** — it should show the field finding (and recommendation link if applicable).  
 8. On the **Field findings** tab, confirm a new row for that farmer with type, issue, and severity.
 
-This step is optional but recommended if your real operation includes telecaller follow-up.
+This step is optional but recommended if your real operation includes cropAdvisor follow-up.
 
 ---
 
@@ -280,7 +280,7 @@ They can tap one option (or reply **1–4**). They may also send a **new leaf ph
 | Farmer answer | Typical system action |
 |---------------|----------------------|
 | Fully / slightly improved | Outcome saved; successful cases feed future advice |
-| No improvement or worse | Flagged for **staff verification**; telecaller/agronomist may follow up |
+| No improvement or worse | Flagged for **staff verification**; cropAdvisor/agronomist may follow up |
 | No reply | Reminder sent; then flagged if still silent |
 | Free-text or photo | AI interprets and classifies when possible |
 
@@ -441,7 +441,7 @@ Copy for each real-world test.
 - [ ] **Image review** done (if photo was sent)  
 - [ ] Reviewer name: ___________  
 
-**Day 0–2 — Telecaller (optional)**  
+**Day 0–2 — CropAdvisor (optional)**  
 - [ ] Interaction + field finding saved  
 - [ ] Operational chain visible  
 

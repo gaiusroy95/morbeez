@@ -171,7 +171,7 @@ export function VisitWhatsappPreviewStep({
             </View>
             <Text style={styles.noActionHint}>
               If farmer taps <Text style={styles.bold}>No</Text> →{' '}
-              {noAction === 'review' ? 'telecaller review task' : 'agronomist escalation'}
+              {noAction === 'review' ? 'cropAdvisor review task' : 'agronomist escalation'}
             </Text>
             <View style={styles.chipRow}>
               {(['escalate', 'review'] as WhatsappComplianceNoAction[]).map((action) => (

@@ -67,7 +67,7 @@ function isMissingDeletedAtColumn(error) {
 function resolveOrderSource(row) {
     const orderSource = String(row.order_source ?? '');
     const shopifyId = row.shopify_order_id ? String(row.shopify_order_id) : '';
-    if (orderSource === 'telecaller_quote' ||
+    if (orderSource === 'crop_advisor_quote' ||
         shopifyId.startsWith('quote-paid-') ||
         shopifyId.startsWith('quote-cod-')) {
         return 'quote';

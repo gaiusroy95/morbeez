@@ -47,7 +47,7 @@ export function PartnerCollaborationPanel({ farmerId }: Props) {
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
       <Panel title="Participants">
-        <Text style={styles.hint}>Telecaller · Partner · Expert · Admin</Text>
+        <Text style={styles.hint}>CropAdvisor · Partner · Expert · Admin</Text>
       </Panel>
       <Panel title="Add comment">
         <TextField label="Comment" value={draft} onChangeText={setDraft} multiline />

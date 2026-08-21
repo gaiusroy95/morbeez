@@ -4,10 +4,10 @@ export type FarmerHealthSnapshot = {
     factors: string[];
 };
 /**
- * Lightweight engagement health for telecaller prioritization (computed, not stored).
+ * Lightweight engagement health for cropAdvisor prioritization (computed, not stored).
  */
 export declare const farmerHealthScoreService: {
     compute(farmerId: string): Promise<FarmerHealthSnapshot>;
-    telecallerPriorityFromHealth(band: FarmerHealthSnapshot["band"]): "normal" | "high";
+    cropAdvisorPriorityFromHealth(band: FarmerHealthSnapshot["band"]): "normal" | "high";
 };
 //# sourceMappingURL=farmer-health-score.service.d.ts.map

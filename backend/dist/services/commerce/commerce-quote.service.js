@@ -76,6 +76,16 @@ function mapRow(row) {
             : null,
     };
 }
+async function creditQuotePaidRewards(quote, commerceOrderId) {
+    if (!commerceOrderId)
+        return;
+    const { creditOrderPaidRewards } = await import('../remuneration/order-paid-rewards.js');
+    await creditOrderPaidRewards({
+        farmerId: quote.farmerId,
+        orderId: commerceOrderId,
+        grossInr: quote.total,
+    });
+}
 function quoteViewUrl(quoteId) {
     const base = (env.CONSOLE_PUBLIC_URL ?? 'https://morbeez.vercel.app').replace(/\/$/, '');
     return `${base}/commerce/quotes/${quoteId}`;
@@ -164,7 +174,7 @@ async function applyQuotePricing(input) {
         leadId: input.leadId,
         adminUserId: input.adminUserId,
         orderType: input.orderType,
-        salesSource: 'telecaller',
+        salesSource: 'crop_advisor',
         preview,
         lineItems: input.lines,
     });
@@ -173,7 +183,30 @@ async function applyQuotePricing(input) {
 async function persistQuoteLines(quoteId, customerState, input) {
     if (!input.lines.length)
         throw new ValidationError('Add at least one product');
-    const totals = await computeLines(input.lines, customerState);
+    const { data: quoteRow } = await supabase
+        .from('commerce_quotes')
+        .select('created_at, line_items')
+        .eq('id', quoteId)
+        .maybeSingle();
+    const asOf = quoteRow?.created_at
+        ? String(quoteRow.created_at).slice(0, 10)
+        : undefined;
+    const existingLines = quoteRow?.line_items ?? [];
+    const linesWithPriorSnapshot = input.lines.map((line) => {
+        const prior = existingLines.find((e) => (line.variantId && e.variantId === line.variantId) ||
+            (line.sku && e.sku && e.sku === line.sku));
+        return {
+            ...line,
+            channelPoolPct: prior?.channelPoolPct,
+            channelPoolAgronomistPct: prior?.channelPoolAgronomistPct,
+            channelPoolPartnerPct: prior?.channelPoolPartnerPct,
+            channelPoolVersionId: prior?.channelPoolVersionId,
+            channelPoolVersionLabel: prior?.channelPoolVersionLabel,
+            channelPoolEffectiveFrom: prior?.channelPoolEffectiveFrom,
+            channelPoolAmount: prior?.channelPoolAmount,
+        };
+    });
+    const totals = await computeLines(linesWithPriorSnapshot, customerState, asOf);
     const paymentType = input.paymentType ?? 'advance';
     const prepaidAmount = input.prepaidAmount ?? 0;
     const codAmount = Math.max(0, totals.total - prepaidAmount);
@@ -218,10 +251,11 @@ function payAmount(quote) {
         return quote.prepaidAmount;
     return quote.prepaidAmount > 0 ? quote.prepaidAmount : quote.total;
 }
-async function computeLines(lines, customerState) {
+async function computeLines(lines, customerState, asOf) {
     const company = await companySettingsService.get();
     const companyState = normalizeIndianState(company.state || env.COMPANY_STATE);
     const custState = normalizeIndianState(customerState);
+    const { channelPoolService } = await import('../pricing/channel-pool.service.js');
     let subtotal = 0;
     let cgst = 0;
     let sgst = 0;
@@ -241,6 +275,21 @@ async function computeLines(lines, customerState) {
         sgst += breakup.sgst;
         igst += breakup.igst;
         const tax = breakup.cgst + breakup.sgst + breakup.igst;
+        const pool = await channelPoolService.snapshotForLine({
+            variantId: line.variantId,
+            sku: line.sku,
+            asOf,
+            salesInr: taxable,
+            existing: {
+                channelPoolPct: line.channelPoolPct,
+                channelPoolAgronomistPct: line.channelPoolAgronomistPct,
+                channelPoolPartnerPct: line.channelPoolPartnerPct,
+                channelPoolVersionId: line.channelPoolVersionId,
+                channelPoolVersionLabel: line.channelPoolVersionLabel,
+                channelPoolEffectiveFrom: line.channelPoolEffectiveFrom,
+                channelPoolAmount: line.channelPoolAmount,
+            },
+        });
         lineItems.push({
             variantId: line.variantId,
             productId: line.productId,
@@ -256,6 +305,13 @@ async function computeLines(lines, customerState) {
             sgst: breakup.sgst,
             igst: breakup.igst,
             amountInclGst: Math.round((taxable + tax) * 100) / 100,
+            channelPoolPct: pool.channelPoolPct,
+            channelPoolAgronomistPct: pool.channelPoolAgronomistPct,
+            channelPoolPartnerPct: pool.channelPoolPartnerPct,
+            channelPoolVersionId: pool.channelPoolVersionId,
+            channelPoolVersionLabel: pool.channelPoolVersionLabel,
+            channelPoolEffectiveFrom: pool.channelPoolEffectiveFrom,
+            channelPoolAmount: pool.channelPoolAmount,
         });
     }
     const total = Math.round((subtotal + cgst + sgst + igst) * 100) / 100;
@@ -364,8 +420,8 @@ export const commerceQuoteService = {
         };
     },
     async createFromLead(leadId, input, adminId) {
-        const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+        const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
         const lead = detail.lead;
         const farmer = detail.farmer;
         const shipLine = farmer.shippingAddress ??
@@ -450,8 +506,8 @@ export const commerceQuoteService = {
         if (quoteRow?.bulk_margin_review_status === 'rejected') {
             throw new ValidationError('Bulk margin review was rejected — revise pricing before sending');
         }
-        const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+        const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
         const farmerId = String(detail.lead.farmerId);
         const phone = String(detail.lead.phone ?? quote.customerPhone ?? '');
         const text = buildQuoteShareText(quote);
@@ -467,7 +523,7 @@ export const commerceQuoteService = {
         if (channels.includes('whatsapp')) {
             if (phone.replace(/\D/g, '').length >= 10) {
                 try {
-                    await telecallerAdminService.sendWhatsAppMessage(farmerId, text, agentEmail ?? 'Telecaller');
+                    await cropAdvisorAdminService.sendWhatsAppMessage(farmerId, text, agentEmail ?? 'Crop Advisor');
                     result.whatsappSent = true;
                     patch.whatsapp_sent_at = now;
                 }
@@ -847,6 +903,7 @@ export const commerceQuoteService = {
                 }
             }
         }
+        await creditQuotePaidRewards(quote, warehouse.commerceOrderId);
         return {
             alreadyCompleted: false,
             shopifyOrderId: shopifyOrder.shopifyOrderId,
@@ -955,6 +1012,7 @@ export const commerceQuoteService = {
             updated_at: new Date().toISOString(),
         })
             .eq('id', id);
+        await creditQuotePaidRewards(quote, warehouse.commerceOrderId);
         return {
             shopifyOrderId: shopifyOrder.shopifyOrderId,
             orderName: shopifyOrder.orderName,

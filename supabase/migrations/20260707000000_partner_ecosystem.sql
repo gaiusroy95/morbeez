@@ -13,14 +13,14 @@ CREATE TABLE IF NOT EXISTS sales_opportunities (
   notes TEXT,
   status TEXT NOT NULL DEFAULT 'interested'
     CHECK (status IN ('interested', 'hot_lead', 'ready_to_order', 'follow_up_required', 'converted', 'closed')),
-  assigned_telecaller_email TEXT,
+  assigned_crop_advisor_email TEXT,
   converted_order_id UUID,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_sales_opportunities_partner ON sales_opportunities(partner_id, status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_sales_opportunities_telecaller ON sales_opportunities(assigned_telecaller_email, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sales_opportunities_crop_advisor ON sales_opportunities(assigned_crop_advisor_email, status, created_at DESC);
 
 -- ─── Commission master ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS commission_master (

@@ -50,7 +50,7 @@ import type { VisitCopilotChatResponse, VisitCopilotWorkflowState } from '../vis
 
 const FIELD = `${STAFF_API_V1}/os/field`;
 const AGRO = `${STAFF_API_V1}/os/agronomist`;
-const TEL = `${STAFF_API_V1}/os/telecaller`;
+const TEL = `${STAFF_API_V1}/os/crop-advisor`;
 const EXPERT_CASES = `${STAFF_API_V1}/os/expert-cases`;
 const DASHBOARD_TTL_MS = 30_000;
 
@@ -302,7 +302,7 @@ export const agronomistClient = {
 
   async createFarmerReminder(
     farmerId: string,
-    body: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'telecaller' }
+    body: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'crop_advisor' }
   ) {
     return staffApi(`${AGRO}/farmers/${farmerId}/reminders`, { method: 'POST', body: JSON.stringify(body) });
   },

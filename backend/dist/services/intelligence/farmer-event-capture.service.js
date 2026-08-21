@@ -140,12 +140,12 @@ export const farmerEventCaptureService = {
         });
         if (params.assignedTo) {
             const { employeeAttributionCaptureService } = await import('./employee-attribution-capture.service.js');
-            void employeeAttributionCaptureService.trackTelecallerAssigned(params.farmerId, params.assignedTo);
+            void employeeAttributionCaptureService.trackCropAdvisorAssigned(params.farmerId, params.assignedTo);
         }
     },
     async trackLeadAssignment(farmerId, agentEmail) {
         const { employeeAttributionCaptureService } = await import('./employee-attribution-capture.service.js');
-        void employeeAttributionCaptureService.trackTelecallerAssigned(farmerId, agentEmail);
+        void employeeAttributionCaptureService.trackCropAdvisorAssigned(farmerId, agentEmail);
         await this.recordSafe({
             farmerId,
             eventType: 'CALLBACK_REQUESTED',

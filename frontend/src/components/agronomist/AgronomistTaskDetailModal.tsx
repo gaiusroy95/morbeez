@@ -38,18 +38,18 @@ type TaskDetail = AgronomistTaskRow & {
 
 type Props = {
   taskId: string | null;
-  apiBase: 'telecaller' | 'agronomist';
+  apiBase: 'crop_advisor' | 'agronomist';
   canWrite: boolean;
   onClose: () => void;
   onUpdated?: () => void;
 };
 
-const telecallerBase = '/morbeez-staff/api/v1/os/telecaller';
+const cropAdvisorBase = '/morbeez-staff/api/v1/os/crop-advisor';
 const agronomistBase = '/morbeez-staff/api/v1/os/agronomist';
 
 function roleLabel(role: string): string {
   if (role === 'agronomist') return 'Agronomist';
-  if (role === 'telecaller') return 'Telecaller';
+  if (role === 'crop_advisor') return 'Crop Advisor';
   return role;
 }
 
@@ -66,7 +66,7 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
     setLoading(true);
     setError('');
     try {
-      const base = apiBase === 'agronomist' ? agronomistBase : telecallerBase;
+      const base = apiBase === 'agronomist' ? agronomistBase : cropAdvisorBase;
       const path =
         apiBase === 'agronomist' ? `${base}/operations/tasks/${taskId}` : `${base}/tasks/${taskId}`;
       const data = await api<{ ok: boolean; task: TaskDetail; comments: TaskComment[] }>(path);
@@ -88,7 +88,7 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
     setSaving(true);
     setError('');
     try {
-      const base = apiBase === 'agronomist' ? agronomistBase : telecallerBase;
+      const base = apiBase === 'agronomist' ? agronomistBase : cropAdvisorBase;
       const path =
         apiBase === 'agronomist'
           ? `${base}/operations/tasks/${taskId}/comments`
@@ -97,7 +97,7 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
         method: 'POST',
         body: JSON.stringify({
           body: comment.trim(),
-          authorRole: apiBase === 'agronomist' ? 'agronomist' : 'telecaller',
+          authorRole: apiBase === 'agronomist' ? 'agronomist' : 'crop_advisor',
         }),
       });
       setComment('');
@@ -114,11 +114,11 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
     if (!taskId || !canWrite) return;
     setSaving(true);
     try {
-      const base = apiBase === 'agronomist' ? agronomistBase : telecallerBase;
+      const base = apiBase === 'agronomist' ? agronomistBase : cropAdvisorBase;
       const path =
         apiBase === 'agronomist'
           ? `${base}/operations/tasks/${taskId}/complete`
-          : `${telecallerBase}/tasks/${taskId}/complete`;
+          : `${cropAdvisorBase}/tasks/${taskId}/complete`;
       await api(path, { method: 'PATCH', body: '{}' });
       onUpdated?.();
       onClose();
@@ -176,7 +176,7 @@ export function AgronomistTaskDetailModal({ taskId, apiBase, canWrite, onClose, 
                   rows={3}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
-                  placeholder="Reply to telecaller or agronomist…"
+                  placeholder="Reply to cropAdvisor or agronomist…"
                 />
                 <div className="flex flex-wrap gap-2">
                   <Btn label={saving ? 'Sending…' : 'Send comment'} onClick={() => void postComment()} disabled={saving || !comment.trim()} />

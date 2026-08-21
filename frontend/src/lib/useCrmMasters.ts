@@ -16,7 +16,7 @@ function clearCacheForType(masterType: string) {
   }
 }
 
-const DEFAULT_MASTERS_API = '/morbeez-staff/api/v1/os/telecaller/masters';
+const DEFAULT_MASTERS_API = '/morbeez-staff/api/v1/os/crop-advisor/masters';
 
 export function useCrmMasters(
   masterType: string,

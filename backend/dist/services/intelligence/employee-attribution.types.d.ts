@@ -1,6 +1,6 @@
-export declare const ATTRIBUTION_TYPES: readonly ["first_engagement", "relationship_owner", "telecaller_assigned", "advisory", "conversion_assist", "reactivation"];
+export declare const ATTRIBUTION_TYPES: readonly ["first_engagement", "relationship_owner", "crop_advisor_assigned", "advisory", "conversion_assist", "reactivation"];
 export type AttributionType = (typeof ATTRIBUTION_TYPES)[number];
-export declare const ATTRIBUTION_EMPLOYEE_ROLES: readonly ["telecaller", "agronomist", "operations", "manager", "admin", "system"];
+export declare const ATTRIBUTION_EMPLOYEE_ROLES: readonly ["crop_advisor", "agronomist", "operations", "manager", "admin", "system"];
 export type AttributionEmployeeRole = (typeof ATTRIBUTION_EMPLOYEE_ROLES)[number];
 /** Default weights by attribution type (product rules — see PHASE0-ATTRIBUTION-RULES.md). */
 export declare const DEFAULT_ATTRIBUTION_WEIGHTS: Record<AttributionType, number>;

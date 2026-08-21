@@ -17,6 +17,13 @@ export type IncentiveLineResult = {
     warningLevel: 'none' | 'low_margin' | 'critical' | 'blocked';
     warningMessage: string | null;
     allowed: boolean;
+    channelPoolPct?: number | null;
+    channelPoolAgronomistPct?: number | null;
+    channelPoolPartnerPct?: number | null;
+    channelPoolVersionId?: string | null;
+    channelPoolVersionLabel?: string | null;
+    channelPoolEffectiveFrom?: string | null;
+    channelPoolAmount?: number | null;
 };
 export type IncentivePreviewResult = {
     lines: IncentiveLineResult[];

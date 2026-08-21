@@ -7,7 +7,7 @@ export declare const salesOpportunityService: {
         notes?: string;
     }): Promise<any>;
     listForPartner(partnerId: string): Promise<any[]>;
-    listForTelecaller(agentEmail: string): Promise<any[]>;
+    listForCropAdvisor(agentEmail: string): Promise<any[]>;
     updateStatus(id: string, status: string, agentEmail?: string): Promise<any>;
     listForFarmer(farmerId: string): Promise<any[]>;
 };

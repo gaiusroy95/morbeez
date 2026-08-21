@@ -69,4 +69,4 @@ await runEmployeePerformanceScoresNow({ limit: 200 });
 
 ## Next
 
-[Phase 5 — Dashboards & CRM](./PHASE5-DASHBOARDS.md): Opportunity console page, district/at-risk lists, telecaller farmer intelligence panel.
+[Phase 5 — Dashboards & CRM](./PHASE5-DASHBOARDS.md): Opportunity console page, district/at-risk lists, cropAdvisor farmer intelligence panel.

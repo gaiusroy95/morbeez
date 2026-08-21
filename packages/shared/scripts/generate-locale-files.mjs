@@ -244,7 +244,7 @@ const mlGaps = {
   chooseFromGallery: 'Gallery-യിൽ നിന്ന്',
   selectCategory: 'വിഭാഗം തിരഞ്ഞെടുക്കുക',
   description: 'വിവരണം',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
 };
 
 const hiGaps = {
@@ -268,7 +268,7 @@ const hiGaps = {
   chooseFromGallery: 'Gallery से चुनें',
   selectCategory: 'श्रेणी चुनें',
   description: 'विवरण',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
 };
 
 const taFull = {
@@ -636,7 +636,7 @@ const taFull = {
   chooseFromGallery: 'Gallery',
   selectCategory: 'Category select',
   description: 'விவரம்',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
 };
 
 const knFull = {
@@ -675,7 +675,7 @@ const knFull = {
   setPasswordHint: 'Email/mobile + password login ಗೆ password ರಚಿಸಿ.',
   tryAgain: 'ಮತ್ತೆ ಪ್ರಯತ್ನ',
   description: 'ವಿವರಣೆ',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
 };
 
 const en = parseEn();

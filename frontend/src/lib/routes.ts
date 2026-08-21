@@ -6,7 +6,7 @@ export const paths = {
   forgotPassword: 'forgot-password',
   resetPassword: 'reset-password',
   dashboard: 'dashboard',
-  telecaller: 'telecaller',
+  cropAdvisor: 'crop_advisor',
   operations: 'operations',
   operationsLanguageTemplate: 'operations/language-templates/:templateKey',
   broadcasts: 'broadcasts',
@@ -78,10 +78,10 @@ export const ROUTE_META: Record<
   { title: string; module: string; pageKey: string }
 > = {
   [toPath(paths.dashboard)]: { title: 'Dashboard', module: 'dashboard', pageKey: 'dashboard' },
-  [toPath(paths.telecaller)]: {
-    title: 'Telecaller CRM',
-    module: 'telecaller_crm',
-    pageKey: 'telecaller',
+  [toPath(paths.cropAdvisor)]: {
+    title: 'Crop Advisor CRM',
+    module: 'crop_advisor_crm',
+    pageKey: 'crop_advisor',
   },
   [toPath(paths.operations)]: {
     title: 'Operations Hub',

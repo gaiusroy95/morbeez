@@ -37,7 +37,7 @@ export const caseGatesService = {
         else if (input.eqs >= 50 && confPct >= 60)
             confRoute = 'agronomist_review';
         else if (confPct >= 50)
-            confRoute = 'telecaller_validate';
+            confRoute = 'crop_advisor_validate';
         else
             confRoute = 'field_visit';
         if (input.eqs < 50)
@@ -65,7 +65,7 @@ export const caseGatesService = {
                 ? 'Recovery validation loop scheduled'
                 : 'Recovery loop pending schedule',
         });
-        let route = confRoute ?? 'telecaller_validate';
+        let route = confRoute ?? 'crop_advisor_validate';
         if (!input.identityComplete && input.channel === 'whatsapp') {
             route = 'collect_evidence';
         }
@@ -79,7 +79,7 @@ export const caseGatesService = {
             route = 'collect_evidence';
         }
         else if (!profile.allowAutoRecommend) {
-            route = input.eqs > 70 ? 'agronomist_review' : 'telecaller_validate';
+            route = input.eqs > 70 ? 'agronomist_review' : 'crop_advisor_validate';
         }
         else if (input.needsNutrientAdvice && !input.hasSoilForNutrientRec) {
             route = 'collect_evidence';

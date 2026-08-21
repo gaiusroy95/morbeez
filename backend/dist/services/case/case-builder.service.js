@@ -360,7 +360,7 @@ export const caseBuilderService = {
             reasoning: reasoning ?? undefined,
         };
     },
-    formatTelecallerNotes(maiosCase) {
+    formatCropAdvisorNotes(maiosCase) {
         const h = maiosCase.diagnostics.hypotheses
             .slice(0, 3)
             .map((x) => `${x.label} (${x.probability}%)`)

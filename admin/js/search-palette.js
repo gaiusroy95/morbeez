@@ -83,7 +83,7 @@ export function openSearchPalette() {
         box.querySelectorAll('.search-result').forEach((btn) => {
           btn.addEventListener('click', () => {
             const leadId = btn.dataset.leadId;
-            if (leadId) state.telecaller.selectedLeadId = leadId;
+            if (leadId) state.cropAdvisor.selectedLeadId = leadId;
             location.hash = btn.dataset.hash;
             closePalette();
           });

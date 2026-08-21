@@ -8,7 +8,7 @@ ALTER TABLE admin_users
       'super_admin',
       'admin',
       'operations',
-      'telecaller',
+      'crop_advisor',
       'agronomist',
       'manager',
       'viewer',

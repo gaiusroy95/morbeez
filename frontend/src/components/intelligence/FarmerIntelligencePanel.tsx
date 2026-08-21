@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 
-const base = '/morbeez-staff/api/v1/os/telecaller';
+const base = '/morbeez-staff/api/v1/os/crop-advisor';
 
 type MetricScore = { key: string; label: string; score: number; max: number };
 
@@ -11,7 +11,7 @@ type Presentation = {
   classification: string;
   businessInsight: string;
   detectedSignals: { positive: string[]; negative: string[] };
-  employeeInsights: { telecaller: string | null; agronomist: string | null };
+  employeeInsights: { cropAdvisor: string | null; agronomist: string | null };
 };
 
 type Profile = {
@@ -188,7 +188,7 @@ function IntelligenceDetail({
 
         {(pres.detectedSignals.positive.length > 0 ||
           pres.detectedSignals.negative.length > 0 ||
-          pres.employeeInsights.telecaller ||
+          pres.employeeInsights.cropAdvisor ||
           pres.employeeInsights.agronomist) && (
           <div className="tc-intel-insights-grid">
             {(pres.detectedSignals.positive.length > 0 ||
@@ -211,10 +211,10 @@ function IntelligenceDetail({
                 ) : null}
               </div>
             )}
-            {pres.employeeInsights.telecaller ? (
+            {pres.employeeInsights.cropAdvisor ? (
               <div className="tc-intel-insight-col">
-                <h4>Telecaller insight</h4>
-                <p>{pres.employeeInsights.telecaller}</p>
+                <h4>CropAdvisor insight</h4>
+                <p>{pres.employeeInsights.cropAdvisor}</p>
               </div>
             ) : null}
             {pres.employeeInsights.agronomist ? (

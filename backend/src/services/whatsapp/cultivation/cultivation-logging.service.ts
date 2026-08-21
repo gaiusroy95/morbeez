@@ -3,7 +3,7 @@ import { logger } from '../../../lib/logger.js';
 import { supabase } from '../../../lib/supabase.js';
 import { loadApplicationFollowUpContext } from '../../core/application-follow-up-message.util.js';
 import { eventBus } from '../../../events/bus.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 import { conversationSessionService } from '../conversation-session.service.js';
 import { multiPlotService } from '../scenarios/multi-plot.service.js';
 import { fetchCompactFarmerContext } from '../pipeline/advisory-context.service.js';
@@ -328,7 +328,7 @@ export const cultivationLoggingService = {
       );
     }
 
-    await createTelecallerTask({
+    await createCropAdvisorTask({
       farmerId,
       title: 'Cultivation — no improvement after application',
       notes: `Activity ${activityId ?? 'n/a'} | Farmer phone ${phone}`,

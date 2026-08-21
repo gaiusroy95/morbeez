@@ -15,7 +15,7 @@ North star: WhatsApp is the farmer relationship + sales CX engine; staff console
 |-------|--------|--------|
 | **1** | Router foundation: menu (Crop Assessment / Track / Callback / More), response composer, input classifier, assessment playbooks, previous recommendations | **Done** |
 | **2** | Vision image classifier + text merge, blurry/dark photo handling, spray compatibility DB lookup on WhatsApp | **Done** |
-| **3** | Message fatigue, seasonal broadcast priority, farmer health score for telecaller prioritization | **Done** |
+| **3** | Message fatigue, seasonal broadcast priority, farmer health score for cropAdvisor prioritization | **Done** |
 | **4** | ROI tracker + ledger (WhatsApp flows, audit) | **Done** |
 | **5** | Self-learning loop: advisor correction → `ai_reuse` eligibility, terminology closure | **Done** |
 | **6** | Farmer Experience Learning: disagreement capture → agronomist validation → verified reuse | **Done** |
@@ -33,7 +33,7 @@ North star: WhatsApp is the farmer relationship + sales CX engine; staff console
 - `backend/src/services/whatsapp/pipeline/message-fatigue.service.ts`
 - `backend/src/services/whatsapp/pipeline/seasonal-priority.service.ts`
 - `backend/src/services/whatsapp/pipeline/farmer-health-score.service.ts`
-- `broadcast-throttle.service.ts`, `broadcast-engine.service.ts`, `telecaller-tasks.service.ts`
+- `broadcast-throttle.service.ts`, `broadcast-engine.service.ts`, `crop-advisor-tasks.service.ts`
 
 ## Phase 4 — Files
 
@@ -90,7 +90,7 @@ North star: WhatsApp is the farmer relationship + sales CX engine; staff console
 - After diagnosis: optional **AI is wrong** button; text like "this is thrips" starts capture
 - Approved feedback → `advisory_reuse_cases` + `local_practices` + Crop Doctor regional hints
 - **Staff-verified answers** (`verified-advisory-learning.service.ts`): Case review save / Farmer feedback approve / Super-admin recommendation approve → permanent `advisory_reuse_cases` keyed by farmer question text; WhatsApp agronomy + Crop Doctor reuse before OpenAI; `staffVerified` rows cannot be overwritten by auto-AI indexing
-- Telecaller **Edit farmer** → years growing crop (`crop_experience_years` on `farmers`)
+- CropAdvisor **Edit farmer** → years growing crop (`crop_experience_years` on `farmers`)
 
 ## Verify on WhatsApp
 
@@ -98,7 +98,7 @@ North star: WhatsApp is the farmer relationship + sales CX engine; staff console
 2. **Compatibility:** `Can I mix Mancozeb and Copper oxychloride?` → DB rule + jar-test note (seed data in migration).
 3. **Blurry photo:** Very unclear image → “send one close sharp photo” (vision quality).
 4. **Fatigue:** Farmers who ignore many outbound messages get fewer low-priority broadcasts.
-5. **Telecaller:** At-risk farmers get `high` priority on new CRM tasks when health score is low.
+5. **CropAdvisor:** At-risk farmers get `high` priority on new CRM tasks when health score is low.
 
 ## Golden journey (acceptance)
 
@@ -106,4 +106,4 @@ North star: WhatsApp is the farmer relationship + sales CX engine; staff console
 2. Crop Assessment → crop/plot picker → photo → vision classify → playbook or crop doctor → short reply + one question
 3. More → Previous recommendations (last 3)
 4. Tank mix question → compatibility lookup from `spray_compatibility_rules` + Morbeez **Calcium Nitrate chart** (`calcium-nitrate-tank-mix.knowledge.ts`, migration `20260631100000_calcium_nitrate_tank_mix_rules.sql`)
-5. Low-confidence pest → expert review + telecaller task (4h SLA)
+5. Low-confidence pest → expert review + cropAdvisor task (4h SLA)

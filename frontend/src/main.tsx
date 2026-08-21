@@ -4,7 +4,7 @@ import './index.css';
 import './styles/admin.css';
 import './styles/console-topbar.css';
 import './styles/console-overrides.css';
-import './styles/telecaller-crm.css';
+import './styles/crop-advisor-crm.css';
 import './styles/commerce-products.css';
 import './styles/commerce-inventory.css';
 import './styles/commerce-promotions.css';

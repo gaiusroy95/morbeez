@@ -1,15 +1,15 @@
 import { TOKEN_KEY, $, api, state, logout, initials, dateRangeLabel, canEdit } from './core.js';
 import { renderSidebarNav, ROUTE_TITLES, roleLabel, bindSidebarGroups } from './nav.js';
-import { renderTelecallerWorkspace } from './views/telecaller-workspace.js';
+import { renderCropAdvisorWorkspace } from './views/crop-advisor-workspace.js';
 import {
-  renderTelecallerLeadDetail,
-  bindTelecallerCrmTopbar,
+  renderCropAdvisorLeadDetail,
+  bindCropAdvisorCrmTopbar,
   restoreDefaultTopbar,
   refreshCrmTopbarUser,
-} from './views/telecaller-lead-detail.js';
-import { renderTelecallerFollowups } from './views/telecaller-followups.js';
-import { renderTelecallerCalls } from './views/telecaller-calls.js';
-import { renderTelecallerEscalations } from './views/telecaller-escalations.js';
+} from './views/crop-advisor-lead-detail.js';
+import { renderCropAdvisorFollowups } from './views/crop-advisor-followups.js';
+import { renderCropAdvisorCalls } from './views/crop-advisor-calls.js';
+import { renderCropAdvisorEscalations } from './views/crop-advisor-escalations.js';
 import { renderWhatsAppCrm } from './views/whatsapp-crm.js';
 import { initSearchPalette } from './search-palette.js';
 import { icon } from './icons.js';
@@ -109,10 +109,10 @@ function navigate(route, params = {}) {
   document.body.classList.toggle('route-ai-mapping', route === 'ai-mapping');
   document.body.classList.toggle('route-farmers', route === 'farmers');
   document.body.classList.toggle(
-    'route-telecaller',
-    route === 'telecaller' || route.startsWith('telecaller/')
+    'route-crop-advisor',
+    route === 'crop_advisor' || route.startsWith('cropAdvisor/')
   );
-  document.body.classList.toggle('route-lead-detail', route === 'telecaller/lead');
+  document.body.classList.toggle('route-lead-detail', route === 'cropAdvisor/lead');
   document.body.classList.toggle('route-whatsapp-crm', route === 'whatsapp-crm');
   document.body.classList.toggle(
     'route-product-wizard',
@@ -127,13 +127,13 @@ function navigate(route, params = {}) {
   if (route.startsWith('products/edit')) titleKey = 'products/edit';
   if (route.startsWith('products/new')) titleKey = 'products/new';
   if (route.startsWith('orders/detail')) titleKey = 'orders/detail';
-  if (route.startsWith('telecaller/')) titleKey = route;
+  if (route.startsWith('cropAdvisor/')) titleKey = route;
 
   const headerTitle = ROUTE_TITLES[titleKey] || ROUTE_TITLES[base] || 'Console';
-  const isCrmRoute = route === 'telecaller' || route.startsWith('telecaller/');
+  const isCrmRoute = route === 'crop_advisor' || route.startsWith('cropAdvisor/');
 
   if (isCrmRoute) {
-    bindTelecallerCrmTopbar(headerTitle);
+    bindCropAdvisorCrmTopbar(headerTitle);
   } else {
     restoreDefaultTopbar();
     injectTopbarIcons();
@@ -162,15 +162,15 @@ function navigate(route, params = {}) {
   else if (route === 'products/new') renderProductWizard();
   else if (route === 'products/edit') renderProductWizard(params.id);
   else if (route === 'inventory') renderInventory();
-  else if (route === 'telecaller') {
-    renderTelecallerWorkspace();
+  else if (route === 'crop_advisor') {
+    renderCropAdvisorWorkspace();
   }
-  else if (route === 'telecaller/lead') {
-    renderTelecallerLeadDetail(params.id);
+  else if (route === 'cropAdvisor/lead') {
+    renderCropAdvisorLeadDetail(params.id);
   }
-  else if (route === 'telecaller/followups') renderTelecallerFollowups();
-  else if (route === 'telecaller/calls') renderTelecallerCalls();
-  else if (route === 'telecaller/escalations') renderTelecallerEscalations();
+  else if (route === 'cropAdvisor/followups') renderCropAdvisorFollowups();
+  else if (route === 'cropAdvisor/calls') renderCropAdvisorCalls();
+  else if (route === 'cropAdvisor/escalations') renderCropAdvisorEscalations();
   else if (route === 'whatsapp-crm') renderWhatsAppCrm();
   else if (route === 'farmers') {
     bindFarmersTopbar();
@@ -212,9 +212,9 @@ function navigate(route, params = {}) {
 
 async function loadNavBadges() {
   try {
-    const data = await api('/console/api/v1/telecaller/nav-badges');
+    const data = await api('/console/api/v1/crop-advisor/nav-badges');
     window.__navBadges = data.badges || {};
-    state.telecaller.navBadges = data.badges || {};
+    state.cropAdvisor.navBadges = data.badges || {};
   } catch {
     window.__navBadges = {};
   }
@@ -277,8 +277,8 @@ function onHashChange() {
     navigate('products/new');
   } else if (hash.startsWith('orders/detail/')) {
     navigate('orders/detail', { id: hash.split('/')[2] });
-  } else if (hash.startsWith('telecaller/lead/')) {
-    navigate('telecaller/lead', { id: hash.split('/')[2] });
+  } else if (hash.startsWith('cropAdvisor/lead/')) {
+    navigate('cropAdvisor/lead', { id: hash.split('/')[2] });
   } else {
     navigate(hash);
   }

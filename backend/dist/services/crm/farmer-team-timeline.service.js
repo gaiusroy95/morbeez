@@ -60,7 +60,7 @@ export const farmerTeamTimelineService = {
                 source: 'task',
                 title: `Task: ${String(t.title ?? 'Task')}`,
                 body: `Status ${String(t.status)} · ${String(t.task_type ?? '')}`,
-                authorType: t.assigned_partner_id ? 'partner' : 'telecaller',
+                authorType: t.assigned_partner_id ? 'partner' : 'crop_advisor',
                 authorName: null,
                 at: String(t.updated_at ?? t.created_at),
                 taskId: String(t.id),

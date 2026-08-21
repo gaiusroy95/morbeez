@@ -236,7 +236,7 @@ INSERT INTO role_module_permissions (role, module_key, can_read, can_write) VALU
   ('manager', 'ai_calling', true, true),
   ('operations', 'ai_calling', true, false),
   ('agronomist', 'ai_calling', true, true),
-  ('telecaller', 'ai_calling', true, true)
+  ('crop_advisor', 'ai_calling', true, true)
 ON CONFLICT (role, module_key) DO UPDATE
 SET can_read = EXCLUDED.can_read,
     can_write = EXCLUDED.can_write;

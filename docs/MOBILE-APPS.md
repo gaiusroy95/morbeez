@@ -7,7 +7,7 @@ Three focused Expo apps replace the old single `mobile/` staff console mirror.
 | **Farmer** (client) | `apps/farmer` | `npm run dev:farmer` | Farmer JWT (email or OTP) |
 | **Pick & Pack** | `apps/warehouse` | `npm run dev:warehouse` | Staff JWT + `warehouse` write |
 | **Agronomist** | `apps/agronomist` | `npm run dev:agronomist` | Staff JWT + `agronomist` (OTP or email) |
-| **Telecaller** | `apps/telecaller` | `npm run dev:telecaller` | Staff JWT + `telecaller_crm` |
+| **CropAdvisor** | `apps/cropAdvisor` | `npm run dev:crop-advisor` | Staff JWT + `crop_advisor_crm` |
 | **Partner** | `apps/partner` | `npm run dev:partner` | Partner JWT (OTP or password) |
 
 Shared code: `packages/shared`, `packages/ui-native`.
@@ -126,15 +126,15 @@ Apply migrations `20260704000000_field_findings_v2.sql`, **`20260705000000_advis
 
 **Visit AI wizard (agronomist):** Overview → Photos (crop-specific types + optional voice-note transcript) → Measures → Issues → **AI Analysis** (image signal, confidence bands, similar cases with outcomes) → **Follow-up Q&A** (WhatsApp-grade questions; skip when ≥90% confidence) → **Recommendation draft** (custom review days 1–365) → **Agronomist Review** (escalation hints) → Summary & Submit. Recommendations are created as **draft** until the agronomist approves or modifies on the Review step; WhatsApp sends only after approve/correct actions. Training export JSON includes rich **`visitAiCases`** (photos paths, measurements, block assessment, outcomes).
 
-**Visit AI telecaller / follow-up triggers (visit-origin recs use `metadata.visitOrigin: true`):**
+**Visit AI cropAdvisor / follow-up triggers (visit-origin recs use `metadata.visitOrigin: true`):**
 
-| Trigger | Telecaller task | Escalation |
+| Trigger | CropAdvisor task | Escalation |
 |--------|-----------------|------------|
 | Approve + `escalate_urgent` review | Urgent visit escalation | High severity + low confidence |
 | No application reply (reminders exhausted) | Recommendation follow-up required | — |
 | Outcome: no improvement | Reassessment required | Via visit AI session when linked |
 | Outcome: worsened | Urgent — crop worsened | Urgent via visit AI session when linked |
-| Application: need help | Telecaller callback | — |
+| Application: need help | CropAdvisor callback | — |
 
 **Visit AI staging deploy:** apply migrations above on Supabase staging → set backend env → run `node backend/scripts/visit-ai-smoke.mjs` with `STAFF_TOKEN`, `FARMER_ID`, `BLOCK_ID` → agronomist mobile E2E: ginger visit with photos, disease issue, modify rec, confirm no WhatsApp until approve.
 
@@ -167,19 +167,19 @@ cp .env.example .env
 npx eas build --platform android --profile preview
 ```
 
-## Telecaller app — CRM + call intelligence
+## CropAdvisor app — CRM + call intelligence
 
 **Bottom tabs:** Dashboard · Farmers · Follow-ups · Notifications · Profile
 
 **Stack flows:** lead workspace (6 tabs) · call detail (read-only AI) · block workspace
 
-**Shared client:** `packages/shared/src/api/telecaller-client.ts`
+**Shared client:** `packages/shared/src/api/crop-advisor-client.ts`
 
-**Contexts:** `TelecallerDashboardProvider` (dashboard + offline call upload queue)
+**Contexts:** `CropAdvisorDashboardProvider` (dashboard + offline call upload queue)
 
-### Telecaller API (mobile)
+### CropAdvisor API (mobile)
 
-Base: `/morbeez-staff/api/v1/os/telecaller`
+Base: `/morbeez-staff/api/v1/os/crop-advisor`
 
 | Area | Endpoints |
 |------|-----------|
@@ -191,11 +191,11 @@ Base: `/morbeez-staff/api/v1/os/telecaller`
 | Notifications | `GET /mobile/notifications` |
 | Notes / tasks | `GET|POST /leads/:id/notes`, `POST /leads/:id/tasks` |
 
-See [telecaller-mobile smoke checklist](./telecaller-mobile/README.md).
+See [crop-advisor-mobile smoke checklist](./crop-advisor-mobile/README.md).
 
-### Telecaller smoke checklist
+### CropAdvisor smoke checklist
 
-1. Login as telecaller staff
+1. Login as cropAdvisor staff
 2. Dashboard: today's work, revenue, action queue, today's tasks
 3. Farmers: search + filter chips + FarmerCard quick actions
 4. Workspace: Overview KPIs, Interactions timeline, Blocks drill-down, Recommendations, Orders, Notes
@@ -204,10 +204,10 @@ See [telecaller-mobile smoke checklist](./telecaller-mobile/README.md).
 7. Notifications inbox with tap-through
 8. Profile: monthly revenue stats (no hidden admin performance scores)
 
-### Telecaller EAS
+### CropAdvisor EAS
 
 ```bash
-cd apps/telecaller
+cd apps/cropAdvisor
 cp .env.example .env
 npx eas build --platform android --profile preview
 ```
@@ -286,25 +286,25 @@ Apply migration `20260688000000_farmer_otp_mobile_source.sql` for OTP table + `m
 - Farmer app: `cd apps/farmer && npm test && npm run typecheck`
 - Warehouse app: `cd apps/warehouse && npm test && npm run typecheck`
 - Agronomist app: `cd apps/agronomist && npm run typecheck`
-- Telecaller app: `cd apps/telecaller && npm run typecheck`
+- CropAdvisor app: `cd apps/cropAdvisor && npm run typecheck`
 - Partner app: `cd apps/partner && npm run typecheck`
 - Partner ecosystem backend: `cd backend && node --import tsx --test tests/partner-communication.test.ts tests/sales-opportunity.test.ts tests/commission-engine.test.ts`
 
 ## Feature parity (vs web)
 
-| Surface | Mobile → web (staff `/agronomist`, `/telecaller`) | Web-only (unchanged) |
+| Surface | Mobile → web (staff `/agronomist`, `/cropAdvisor`) | Web-only (unchanged) |
 |---------|-----------------------------------------------------|----------------------|
 | **Visit AI 9-step wizard** | `/agronomist/visit` — shared `@morbeez/shared/visit-wizard` validation | — |
 | **Visit detail** | `/agronomist/visits/:findingId` | AI review hub case library links here |
 | **Farmer workspace (agronomist)** | `/agronomist` Farmers tab → 9 tabs (overview, calls, blocks, findings, recs, follow-ups, notes, team, orders) | — |
 | **Route planner + map** | `/agronomist/routes`, `/agronomist/map` | — |
-| **Telecaller follow-ups hub** | `/telecaller` Follow-ups tab (`listFollowUpSections`) | — |
-| **Sales opportunities inbox** | Telecaller workspace panel | — |
+| **CropAdvisor follow-ups hub** | `/cropAdvisor` Follow-ups tab (`listFollowUpSections`) | — |
+| **Sales opportunities inbox** | CropAdvisor workspace panel | — |
 | **Application tracking on blocks** | Blocks tab overview (agronomist farmer workspace) | — |
-| **AI review / QC / bulk CRM** | — | `/agronomist/ai-review`, telecaller Call QC, operations broadcasts |
+| **AI review / QC / bulk CRM** | — | `/agronomist/ai-review`, cropAdvisor Call QC, operations broadcasts |
 | **Warehouse / partner / farmer portal** | Out of scope for this parity pass | `/warehouse`, `/partners`, Shopify farmer portal |
 
-Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with token bridge (`frontend/src/lib/staff-shared-bridge.ts`).
+Staff web reuses `@morbeez/shared` `agronomistClient` / `cropAdvisorClient` with token bridge (`frontend/src/lib/staff-shared-bridge.ts`).
 
 ### Staff web E2E checklist (staging)
 
@@ -313,8 +313,8 @@ Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with 
 3. Case library / visit detail → `/agronomist/visits/:findingId` renders submitted visit.
 4. Route planner → create route, optimize, open in Google Maps.
 5. Farmer map → nearby assigned farmers list with map links.
-6. Log in as telecaller → **Follow-ups** tab → sections load; complete and snooze 1d work.
-7. Telecaller workspace → sales opportunities panel loads and status update works.
+6. Log in as cropAdvisor → **Follow-ups** tab → sections load; complete and snooze 1d work.
+7. CropAdvisor workspace → sales opportunities panel loads and status update works.
 8. Regression: `/agronomist/ai-review` image/outcome/export queues unchanged.
 9. Backend smoke after deploy: `node backend/scripts/visit-ai-smoke.mjs`
 
@@ -323,7 +323,7 @@ Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with 
 | **Farmer** | Mockup-aligned | OTP login, market/ROI tabs, charts, shop polish, i18n en/hi/ml, offline cache |
 | **Warehouse** | Production parity | Tabs, pick/pack/dispatch/LR, in-app print, label verify, batch assign, WhatsApp LR notify |
 | **Agronomist** | Visit + review + web parity | OTP login, dashboard, farmer workspace, visits, unified tasks, route planner; **web field ops on `/agronomist`** |
-| **Telecaller** | Production CRM + web parity | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox; **web Follow-ups tab on `/telecaller`** |
+| **CropAdvisor** | Production CRM + web parity | Farmers tab, lead workspace, call intelligence, follow-ups, notifications, sales opp inbox; **web Follow-ups tab on `/cropAdvisor`** |
 | **Partner** | Production shell | Dashboard, farmers workspace (9 tabs), full visit wizard, route planner, tasks, notifications, lead offers, earnings |
 
 ## Partner app
@@ -339,7 +339,7 @@ Staff web reuses `@morbeez/shared` `agronomistClient` / `telecallerClient` with 
 - GPS check-in → full structured visit wizard (12 UI steps mapping to the 16-step advisory spec: overview, photos, measures, soil/weather, issues, AI, Q&A, final diagnosis, rec planning, review, summary; partner skips rec approval) → submit → **expert review** (append-only; partner cannot approve)
 - Pincode-clustered route planner for field days
 - Partner-scoped tasks, read-only orders (no margin/ROI), escalations, and team collaboration timeline
-- Partner creates sales opportunity → telecaller dashboard inbox + status updates
+- Partner creates sales opportunity → cropAdvisor dashboard inbox + status updates
 - Referral QR on `app/referral.tsx` for event enrollment attribution
 
 Partner API excludes business intelligence fields (ROI, margins, commission logic, AI confidence scores).

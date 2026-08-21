@@ -20,8 +20,8 @@ const PROFILES: Record<MaiosChannel, ChannelProfile> = {
     minEqsForAutoRecommend: 60,
     allowAutoRecommend: true,
   },
-  telecaller: {
-    channel: 'telecaller',
+  crop_advisor: {
+    channel: 'crop_advisor',
     minCompletenessPct: 10,
     minEqsForAutoRecommend: 100,
     allowAutoRecommend: false,

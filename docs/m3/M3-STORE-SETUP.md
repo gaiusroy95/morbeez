@@ -42,5 +42,5 @@ curl -X POST https://YOUR_API/api/v1/advisory/diagnose \
 ## 6. Agronomist process
 
 1. Query pending escalations in Supabase
-2. Contact farmer via telecaller
+2. Contact farmer via crop advisor
 3. Update `agronomist_escalations.status` + `agronomist_notes`

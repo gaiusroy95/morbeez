@@ -89,7 +89,7 @@ export const farmerTeamTimelineService = {
         source: 'task',
         title: `Task: ${String(t.title ?? 'Task')}`,
         body: `Status ${String(t.status)} · ${String(t.task_type ?? '')}`,
-        authorType: t.assigned_partner_id ? 'partner' : 'telecaller',
+        authorType: t.assigned_partner_id ? 'partner' : 'crop_advisor',
         authorName: null,
         at: String(t.updated_at ?? t.created_at),
         taskId: String(t.id),
@@ -133,7 +133,7 @@ export const farmerTeamTimelineService = {
   async addComment(input: {
     farmerId: string;
     body: string;
-    authorType: 'telecaller' | 'partner' | 'expert' | 'admin';
+    authorType: 'crop_advisor' | 'partner' | 'expert' | 'admin';
     authorEmail?: string;
     authorName?: string;
     partnerId?: string;

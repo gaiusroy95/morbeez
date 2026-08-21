@@ -29,7 +29,7 @@
 
 1. Farmer requests quote (WhatsApp / form)
 2. `quotation_inquiries` row created
-3. Telecaller builds quote in Admin
+3. CropAdvisor builds quote in Admin
 4. `POST /api/v1/payments/link` → Razorpay link sent on WhatsApp
 5. On payment → link to Shopify order manually or via draft order API (M3)
 

@@ -1,11 +1,11 @@
 /** Morbeez AI Crop Doctor SOP v3.0 — ginger case model */
 export declare const GINGER_SOP_VERSION: "3.0";
 export type GingerTriageLevel = 'L1' | 'L2' | 'L3' | 'L4';
-export type GingerSopChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+export type GingerSopChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 export type GingerPhotoSlotId = 'field_wide' | 'affected_zone' | 'healthy_zone' | 'canopy_top' | 'canopy_side' | 'bed_bottom' | 'new_leaf_close' | 'old_leaf_close' | 'leaf_underside' | 'root_photo' | 'rhizome_outside' | 'rhizome_cut';
 export type GingerRiskTag = 'HIGH_PH_RISK' | 'LOW_PH_RISK' | 'HIGH_EC_RISK' | 'WATERLOG_RISK' | 'HEAT_STRESS' | 'WATER_STRESS' | 'FUNGAL_PRESSURE' | 'LOW_LIGHT_RISK' | 'NUTRIENT_DEFICIENCY_RISK' | 'ROOT_STRESS_RISK';
 export type GingerModuleKey = 'geo' | 'photo' | 'canopy' | 'field' | 'root' | 'soil' | 'water' | 'history' | 'weather';
-export type GingerSopRoute = 'auto_recommend' | 'agronomist_review' | 'telecaller_validate' | 'collect_evidence' | 'field_visit' | 'emergency_callback';
+export type GingerSopRoute = 'auto_recommend' | 'agronomist_review' | 'crop_advisor_validate' | 'collect_evidence' | 'field_visit' | 'emergency_callback';
 export type GingerGateId = 'G0_identity' | 'G1_evidence' | 'G2_triage' | 'G3_confidence' | 'G4_soil' | 'G5_recovery';
 export type GingerGateDecision = {
     gate: GingerGateId;

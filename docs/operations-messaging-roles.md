@@ -46,7 +46,7 @@ Workflow: WhatsApp messages → detection → known terms map to concepts; unkno
 
 | Role | Default section | Hidden sub-tabs |
 |------|-----------------|-----------------|
-| Telecaller / manager | Communications → Quick replies | Job monitor |
+| CropAdvisor / manager | Communications → Quick replies | Job monitor |
 | Operations staff | Market prices | Job monitor (optional) |
 | Agronomist | Knowledge → Terminology | Job monitor |
 | Admin / super admin | Communications → Broadcasts | — |

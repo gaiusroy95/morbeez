@@ -10,7 +10,7 @@ Migration: `supabase/migrations/20260523100000_m3_ai_advisory.sql`
 | `ai_advisory_outputs` | Structured GPT output |
 | `ai_product_recommendations` | Product mapping results |
 | `agronomist_escalations` | Human review queue |
-| `telecaller_notes` | Manual notes |
+| `crop_advisor_notes` | Manual notes |
 | `disease_history` | Analytics / farmer history |
 | `advisory_automation_jobs` | Scheduled follow-ups |
 | `ai_request_logs` | Provider audit trail |

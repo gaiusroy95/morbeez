@@ -67,7 +67,7 @@ export function PartnerFarmerHeader({ farmerId, workspace, onStartVisit }: Props
         value={header.totalAcreage != null ? `${header.totalAcreage} ac` : '—'}
       />
       <KeyValueRow label="Customer owner" value={header.customerOwnerType ?? '—'} />
-      <KeyValueRow label="Telecaller" value={header.assignedTelecallerEmail ?? '—'} />
+      <KeyValueRow label="Crop Advisor" value={header.assignedCropAdvisorEmail ?? '—'} />
       <View style={styles.actions}>
         <Btn label="Call" onPress={() => callHref && Linking.openURL(callHref)} disabled={!callHref} />
         <Btn

@@ -73,4 +73,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_leads_one_per_farmer
   ON leads (farmer_id)
   WHERE farmer_id IS NOT NULL;
 
-COMMENT ON INDEX idx_leads_one_per_farmer IS 'Telecaller CRM: at most one lead row per farmer';
+COMMENT ON INDEX idx_leads_one_per_farmer IS 'Crop Advisor CRM: at most one lead row per farmer';

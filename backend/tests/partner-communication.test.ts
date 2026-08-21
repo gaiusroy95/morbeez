@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 describe('partner communication timeline types', () => {
   it('maps author types for cross-role visibility', () => {
-    const roles = ['telecaller', 'partner', 'expert', 'system'];
+    const roles = ['crop_advisor', 'partner', 'expert', 'system'];
     assert.ok(roles.includes('partner'));
     assert.ok(roles.includes('expert'));
   });

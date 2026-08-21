@@ -1,5 +1,6 @@
+import { isNonDiagnosisAgricultureCategory } from '../pipeline/crop-photo-evidence.util.js';
 import { responseComposerService } from '../pipeline/response-composer.service.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 const COPY = {
     disease_stress: {
         en: { lead: '', question: '', expertEscalation: '' },
@@ -117,50 +118,81 @@ const COPY = {
         },
     },
     cultivation: {
-        en: { lead: '', question: '', expertEscalation: '' },
-        ml: { lead: '', question: '', expertEscalation: '' },
-        ta: { lead: '', question: '', expertEscalation: '' },
-        kn: { lead: '', question: '', expertEscalation: '' },
-        hi: { lead: '', question: '', expertEscalation: '' },
+        en: {
+            lead: 'This looks like a product / fertilizer / bag photo, not a crop leaf problem.',
+            question: 'For crop diagnosis, send a close photo of the affected leaves or plant.',
+            expertEscalation: 'We cannot diagnose crop disease from a product bag photo.\n\nSend a clear leaf/plant photo, or type *call* for help.',
+        },
+        ml: {
+            lead: 'ഇത് വിളയുടെ ഇല അല്ല, ഉൽപ്പന്നം / വളം ബാഗ് ഫോട്ടോ ആണെന്ന് തോന്നുന്നു.',
+            question: 'രോഗനിർണയത്തിന് ബാധിത ഇലയുടെ അടുത്ത ഫോട്ടോ അയയ്ക്കുക.',
+            expertEscalation: 'ഉൽപ്പന്നം ബാഗ് ഫോട്ടോയിൽ നിന്ന് രോഗനിർണയം സാധ്യമല്ല.\n\nവ്യക്തമായ ഇല ഫോട്ടോ അയയ്ക്കുക, അല്ലെങ്കിൽ *call*.',
+        },
+        ta: {
+            lead: 'இது பயிர் இலை அல்ல; உரம் / பொருள் பை படம் போல் உள்ளது.',
+            question: 'நோய் கண்டறிய பாதிக்கப்பட்ட இலையின் அருகில் படம் அனுப்பவும்.',
+            expertEscalation: 'பொருள் பை படத்தில் இருந்து நோய் கண்டறிய முடியாது.\n\nதெளிவான இலை படம் அனுப்பவும் அல்லது *call*.',
+        },
+        kn: {
+            lead: 'ಇದು ಬೆಳೆ ಎಲೆ ಅಲ್ಲ; ಗೊಬ್ಬರ / ಉತ್ಪನ್ನ ಚೀಲ ಫೋಟೋ ಎನಿಸುತ್ತದೆ.',
+            question: 'ರೋಗನಿರ್ಣಯಕ್ಕೆ ಬಾಧಿತ ಎಲೆಯ ಹತ್ತಿರದ ಫೋಟೋ ಕಳುಹಿಸಿ.',
+            expertEscalation: 'ಉತ್ಪನ್ನ ಚೀಲ ಫೋಟೋದಿಂದ ರೋಗನಿರ್ಣಯ ಸಾಧ್ಯವಿಲ್ಲ.\n\nಸ್ಪಷ್ಟ ಎಲೆ ಫೋಟೋ ಕಳುಹಿಸಿ ಅಥವಾ *call*.',
+        },
+        hi: {
+            lead: 'यह फसल पत्ती नहीं, खाद / प्रोडक्ट बैग की फोटो लगती है।',
+            question: 'निदान के लिए प्रभावित पत्ती की करीबी फोटो भेजें।',
+            expertEscalation: 'प्रोडक्ट बैग फोटो से रोग निदान संभव नहीं।\n\nसाफ पत्ती फोटो भेजें, या *call* लिखें।',
+        },
     },
     unknown_low_conf: {
         en: {
-            lead: 'We need a clearer look at this.',
-            question: 'Can you send one close photo of the affected area?',
-            expertEscalation: 'This needs expert review.\n\nOur crop advisor team will contact you within 4 hours.',
+            lead: 'This photo does not clearly show the crop or leaf problem.',
+            question: 'Please send one close photo of the affected leaves or plant (good light, fill the frame).',
+            expertEscalation: 'We could not diagnose from this image.\n\nSend a clear crop/leaf photo, or type *call* for expert help.',
         },
         ml: {
-            lead: 'കൂടുതൽ വ്യക്തമായ ചിത്രം വേണം.',
-            question: 'ബാധിത ഭാഗത്തിന്റെ അടുത്ത ഫോട്ടോ അയയ്ക്കാമോ?',
-            expertEscalation: 'വിദഗ്ധ പരിശോധന വേണം.\n\nടീം 4 മണിക്കൂറിനുള്ളിൽ ബന്ധപ്പെടും.',
+            lead: 'ഈ ഫോട്ടോയിൽ വിള/ഇല പ്രശ്നം വ്യക്തമല്ല.',
+            question: 'ബാധിത ഇലയുടെ അടുത്ത വ്യക്തമായ ഫോട്ടോ അയയ്ക്കുക (നല്ല വെളിച്ചം).',
+            expertEscalation: 'ഈ ചിത്രത്തിൽ നിന്ന് രോഗനിർണയം സാധ്യമല്ല.\n\nവ്യക്തമായ വിള ഫോട്ടോ അയയ്ക്കുക, അല്ലെങ്കിൽ *call*.',
         },
         ta: {
-            lead: 'தெளிவான படம் தேவை.',
-            question: 'பாதிக்கப்பட்ட பகுதியின் அருகில் படம் அனுப்ப முடியுமா?',
-            expertEscalation: 'நிபுணர் பார்வை தேவை.\n\nஅணி 4 மணி நேரத்தில் தொடர்பு கொள்ளும்.',
+            lead: 'இந்த படத்தில் பயிர் / இலை பிரச்சனை தெளிவாக இல்லை.',
+            question: 'பாதிக்கப்பட்ட இலையின் அருகில் தெளிவான படம் அனுப்பவும்.',
+            expertEscalation: 'இந்த படத்தில் இருந்து நோய் கண்டறிய முடியவில்லை.\n\nதெளிவான பயிர் படம் அனுப்பவும் அல்லது *call*.',
         },
         kn: {
-            lead: 'ಸ್ಪಷ್ಟ ಫೋಟೋ ಬೇಕು.',
-            question: 'ಬಾಧಿತ ಭಾಗದ ಹತ್ತಿರದ ಫೋಟೋ ಕಳುಹಿಸಬಹುದೇ?',
-            expertEscalation: 'ತಜ್ಞರ ಪರಿಶೀಲನೆ ಬೇಕು.\n\nತಂಡ 4 ಗಂಟೆಗಳಲ್ಲಿ ಸಂಪರ್ಕಿಸುತ್ತದೆ.',
+            lead: 'ಈ ಫೋಟೋದಲ್ಲಿ ಬೆಳೆ / ಎಲೆ ಸಮಸ್ಯೆ ಸ್ಪಷ್ಟವಿಲ್ಲ.',
+            question: 'ಬಾಧಿತ ಎಲೆಯ ಹತ್ತಿರದ ಸ್ಪಷ್ಟ ಫೋಟೋ ಕಳುಹಿಸಿ.',
+            expertEscalation: 'ಈ ಚಿತ್ರದಿಂದ ರೋಗನಿರ್ಣಯ ಸಾಧ್ಯವಿಲ್ಲ.\n\nಸ್ಪಷ್ಟ ಬೆಳೆ ಫೋಟೋ ಕಳುಹಿಸಿ ಅಥವಾ *call*.',
         },
         hi: {
-            lead: 'साफ फोटो चाहिए।',
-            question: 'प्रभावित हिस्से की करीबी फोटो भेज सकते हैं?',
-            expertEscalation: 'विशेषज्ञ समीक्षा जरूरी है।\n\nटीम 4 घंटे में संपर्क करेगी।',
+            lead: 'इस फोटो में फसल / पत्ती की समस्या साफ नहीं दिख रही।',
+            question: 'प्रभावित पत्ती की करीबी साफ फोटो भेजें।',
+            expertEscalation: 'इस तस्वीर से निदान संभव नहीं।\n\nसाफ फसल फोटो भेजें, या *call* लिखें।',
         },
     },
 };
 export const assessmentPlaybookService = {
     resolve(classification, language, options) {
         const cat = classification.category;
+        const copy = COPY[cat]?.[language] ?? COPY[cat]?.en ?? COPY.unknown_low_conf.en;
+        // Never run Crop Doctor on non-crop / unclear / product-bag photos.
+        if (options?.hasCropMedia && isNonDiagnosisAgricultureCategory(cat)) {
+            return {
+                action: 'reply',
+                message: responseComposerService.compose({
+                    body: copy.lead || COPY.unknown_low_conf.en.lead,
+                    validationQuestion: copy.question || COPY.unknown_low_conf.en.question,
+                    footer: responseComposerService.advisoryDisclaimer(language),
+                }),
+            };
+        }
         if (options?.hasCropMedia && cat !== 'compatibility') {
             return { action: 'continue_diagnosis' };
         }
         if (cat === 'disease_stress' || cat === 'cultivation') {
             return { action: 'continue_diagnosis' };
         }
-        const copy = COPY[cat][language] ?? COPY[cat].en;
         const lowConfidence = classification.confidence < 0.62;
         const noMedia = !options?.hasCropMedia;
         if (lowConfidence && (cat === 'insect' || cat === 'unknown_low_conf') && noMedia) {
@@ -194,7 +226,7 @@ export const assessmentPlaybookService = {
         };
     },
     async applyEscalation(farmerId, category, notes) {
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId,
             title: `WhatsApp ${category} — expert review`,
             notes: notes ?? `Playbook escalation for ${category}`,

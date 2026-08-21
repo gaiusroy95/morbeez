@@ -412,7 +412,7 @@ export const cropDoctorService = {
         const sharedCaseInput = {
             farmerId: input.farmerId,
             blockId: input.activePlotId,
-            channel: (input.channel === 'telecaller' ? 'telecaller' : input.channel),
+            channel: (input.channel === 'crop_advisor' ? 'crop_advisor' : input.channel),
             sessionId,
             symptomsText: input.symptomsText,
             photoCount,

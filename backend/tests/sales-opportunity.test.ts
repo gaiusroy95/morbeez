@@ -5,7 +5,7 @@ describe('sales opportunity statuses', () => {
   const open = ['interested', 'hot_lead', 'ready_to_order', 'follow_up_required'];
   const closed = ['converted', 'closed'];
 
-  it('telecaller inbox filters open statuses only', () => {
+  it('cropAdvisor inbox filters open statuses only', () => {
     const status = 'interested';
     assert.ok(open.includes(status));
     assert.ok(!closed.includes(status));

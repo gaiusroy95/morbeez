@@ -145,7 +145,7 @@ export declare const partnerMobileService: {
             customerOwnerPartnerId: string | null;
             serviceModel: import("./partner.types.js").ServiceModel | null;
             assignedPartnerId: string | null;
-            assignedTelecallerEmail: string | null;
+            assignedCropAdvisorEmail: string | null;
             partnerCodeAtEnrollment: string | null;
         } | null;
         farmSnapshot: import("./partner-farmer-workspace.service.js").PartnerFarmSnapshot;

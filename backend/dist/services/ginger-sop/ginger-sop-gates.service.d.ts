@@ -7,7 +7,7 @@ type GateInput = {
     fusedConfidence: number;
     hasSoilForNutrientRec: boolean;
     needsNutrientAdvice: boolean;
-    channel: 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+    channel: 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 };
 export declare const gingerSopGatesService: {
     evaluate(input: GateInput): {

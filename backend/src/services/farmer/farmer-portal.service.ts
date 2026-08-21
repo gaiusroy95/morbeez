@@ -3,9 +3,9 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { farmerAuthService } from '../auth/farmer-auth.service.js';
 import {
-  telecallerFarmerOrdersService,
-  type TelecallerOrderRow,
-} from '../admin/telecaller-farmer-orders.service.js';
+  cropAdvisorFarmerOrdersService,
+  type CropAdvisorOrderRow,
+} from '../admin/crop-advisor-farmer-orders.service.js';
 import { farmerProductReviewService } from './farmer-product-review.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import {
@@ -128,7 +128,7 @@ function formatShippingAddress(addr: Record<string, unknown> | null | undefined)
 }
 
 function buildOrderTimeline(
-  order: TelecallerOrderRow,
+  order: CropAdvisorOrderRow,
   commerce: Record<string, unknown> | null
 ): Array<{ key: string; label: string; at: string | null; done: boolean; pending?: boolean }> {
   const oms = commerce ? String(commerce.oms_status ?? '') : '';
@@ -245,7 +245,7 @@ export const farmerPortalService = {
         .is('archived_at', null)
         .order('is_primary', { ascending: false })
         .order('name'),
-      telecallerFarmerOrdersService.listForFarmer(farmerId),
+      cropAdvisorFarmerOrdersService.listForFarmer(farmerId),
       supabase
         .from('crm_recommendations')
         .select('id, recommendation, products, dosage, follow_up_at, created_at, status, farm_blocks(crop_name, name)')
@@ -429,12 +429,12 @@ export const farmerPortalService = {
   },
 
   async listOrders(farmerId: string) {
-    const { orders } = await telecallerFarmerOrdersService.listForFarmer(farmerId);
+    const { orders } = await cropAdvisorFarmerOrdersService.listForFarmer(farmerId);
     return { orders: orders.map(publicOrder) };
   },
 
   async getOrderTracking(farmerId: string, orderId: string) {
-    const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+    const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
 
     let commerce: Record<string, unknown> | null = null;
     const commerceId = order.commerceOrderId ?? (order.source === 'commerce' ? order.id : null);
@@ -724,7 +724,7 @@ export const farmerPortalService = {
         .lte('due_at', new Date(Date.now() + 3 * 86400000).toISOString())
         .order('due_at', { ascending: true })
         .limit(5),
-      telecallerFarmerOrdersService.listForFarmer(farmerId),
+      cropAdvisorFarmerOrdersService.listForFarmer(farmerId),
       supabase
         .from('crm_soil_reports')
         .select('id, reported_at')

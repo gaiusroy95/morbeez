@@ -2,7 +2,7 @@ import type { AdvisoryLanguage } from '../../ai/types.js';
 import type { AgricultureInputCategory, ClassificationResult } from '../pipeline/input-classifier.service.js';
 import { isNonDiagnosisAgricultureCategory } from '../pipeline/crop-photo-evidence.util.js';
 import { responseComposerService } from '../pipeline/response-composer.service.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 
 export type PlaybookResult =
   | { action: 'continue_diagnosis' }
@@ -282,7 +282,7 @@ export const assessmentPlaybookService = {
   },
 
   async applyEscalation(farmerId: string, category: AgricultureInputCategory, notes?: string): Promise<void> {
-    await createTelecallerTask({
+    await createCropAdvisorTask({
       farmerId,
       title: `WhatsApp ${category} — expert review`,
       notes: notes ?? `Playbook escalation for ${category}`,

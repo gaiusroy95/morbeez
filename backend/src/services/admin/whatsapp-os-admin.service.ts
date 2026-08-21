@@ -323,7 +323,7 @@ export const whatsappOsAdminService = {
     followUpRequired?: boolean;
     followUpDate?: string | null;
     status?: 'completed' | 'pending' | 'cancelled';
-    source?: 'admin' | 'telecaller' | 'whatsapp' | 'system' | 'mobile';
+    source?: 'admin' | 'crop_advisor' | 'whatsapp' | 'system' | 'mobile';
     assignedEmployee?: string;
   }) {
     const { data: block, error: bErr } = await supabase
@@ -742,7 +742,7 @@ export const whatsappOsAdminService = {
     farmerId: string,
     patch: {
       aiPaused?: boolean;
-      owner?: 'ai' | 'telecaller' | 'agronomist';
+      owner?: 'ai' | 'crop_advisor' | 'agronomist';
       preferredLanguage?: string | null;
       activePlotId?: string | null;
       activeBlockId?: string | null;

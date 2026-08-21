@@ -1,4 +1,4 @@
--- Agronomist operations: richer CRM tasks + comment threads between telecaller & agronomist
+-- Agronomist operations: richer CRM tasks + comment threads between cropAdvisor & agronomist
 
 ALTER TABLE crm_tasks
   ADD COLUMN IF NOT EXISTS priority TEXT NOT NULL DEFAULT 'medium'
@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS crm_task_comments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES crm_tasks(id) ON DELETE CASCADE,
   author_email TEXT NOT NULL,
-  author_role TEXT NOT NULL DEFAULT 'telecaller'
-    CHECK (author_role IN ('telecaller', 'agronomist', 'system')),
+  author_role TEXT NOT NULL DEFAULT 'crop_advisor'
+    CHECK (author_role IN ('crop_advisor', 'agronomist', 'system')),
   author_name TEXT,
   body TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -14,7 +14,7 @@ eventBus.publish('shopify.order.paid', payload, 'shopify');
 |-------|----------|
 | `shopify.order.paid` | Create Shiprocket shipment |
 | `whatsapp.message.received` | Optional welcome template |
-| `quotation.requested` | Log for telecaller |
+| `quotation.requested` | Log for cropAdvisor |
 | `lead.created` | Log (M3: notify Slack) |
 
 ## M3 automations (planned)

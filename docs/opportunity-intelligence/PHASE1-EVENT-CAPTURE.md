@@ -19,7 +19,7 @@ Apply migration `supabase/migrations/20260637000000_opportunity_intelligence_pha
 | Shopify | `shopify.order.paid` event bus | `ORDER_CONVERTED` |
 | Crop Doctor | `advisory.completed`, `callback.requested` | `ADVISORY_SESSION_COMPLETED`, `CROP_ASSESSMENT_REQUESTED`, `CALLBACK_REQUESTED` |
 | Agronomist case review | `submitReview` | `CROP_ASSESSMENT_REQUESTED` |
-| CRM telecaller | lead create/assign, task complete | `FARMER_ONBOARDED`, `FOLLOWUP_COMPLETED` |
+| CRM cropAdvisor | lead create/assign, task complete | `FARMER_ONBOARDED`, `FOLLOWUP_COMPLETED` |
 | CRM soil / visit | soil report, schedule visit | `SOIL_TEST_UPLOADED`, `SITE_VISIT_ACCEPTED` |
 | Field PWA | `createFieldFinding` | `FIELD_FINDING_LOGGED` |
 | Web / API lead | `leadService.ensureLeadForFarmer` (created) | `FARMER_ONBOARDED` via `lead.created` event |

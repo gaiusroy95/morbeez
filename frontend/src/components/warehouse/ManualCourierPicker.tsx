@@ -1,4 +1,4 @@
-import { MasterSelect } from '../telecaller/MasterSelect';
+import { MasterSelect } from '../crop-advisor/MasterSelect';
 import { WMS_API } from './warehouse-api';
 
 type Props = {

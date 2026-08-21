@@ -58,7 +58,7 @@ export const consoleSearchService = {
                 type: 'lead',
                 title: farmer ? displayName(farmer) : 'Lead',
                 subtitle: String(farmer?.phone ?? row.stage ?? ''),
-                hash: `telecaller`,
+                hash: `crop_advisor`,
                 meta: { leadId: row.id },
             };
         });

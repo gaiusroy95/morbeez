@@ -1,6 +1,6 @@
 import { api } from './api';
 
-const base = '/morbeez-staff/api/v1/os/telecaller';
+const base = '/morbeez-staff/api/v1/os/crop-advisor';
 
 export type ExportType = 'lead' | 'recommendations' | 'interactions' | 'findings';
 

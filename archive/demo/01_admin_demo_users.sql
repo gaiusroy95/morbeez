@@ -15,9 +15,9 @@ VALUES
   ),
   (
     'a0000000-0000-4000-8000-000000000002',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'b7a2b84280518791dec9d28e13e94201:273f9247e045167ef101adab5786ec5ccb50cfb9df70e732a4401cf7b4b41b39e240d10aa7ef77a372786faf1bf7304d04c81de56bb36c62729283dc30e8c0fe',
-    'Priya Telecaller',
+    'Priya crop advisor',
     'manager',
     true,
     NOW() - INTERVAL '2 hours'

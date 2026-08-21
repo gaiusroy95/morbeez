@@ -4,7 +4,7 @@ import { employeeAttributionService } from './employee-attribution.service.js';
 import { employeeProfileResolveService } from './employee-profile-resolve.service.js';
 export const ATTRIBUTION_CONVERSION_WINDOW_DAYS = 180;
 const CONVERSION_ELIGIBLE_TYPES = [
-    'telecaller_assigned',
+    'crop_advisor_assigned',
     'first_engagement',
     'relationship_owner',
     'advisory',
@@ -19,15 +19,15 @@ function mapProfileRole(role) {
     const r = (role ?? '').toLowerCase();
     if (r === 'agronomist' || r === 'field_agronomist')
         return 'agronomist';
-    if (r === 'telecaller' || r === 'crop_advisor')
-        return 'telecaller';
+    if (r === 'crop_advisor' || r === 'crop_advisor')
+        return 'crop_advisor';
     if (r === 'operations')
         return 'operations';
     if (r === 'manager' || r === 'super_admin')
         return 'manager';
     if (r === 'admin')
         return 'admin';
-    return 'telecaller';
+    return 'crop_advisor';
 }
 async function resolveStaff(employeeEmail, roleHint) {
     const profileId = await employeeProfileResolveService.resolve({
@@ -61,14 +61,14 @@ export const employeeAttributionCaptureService = {
             logger.warn({ err, farmerId: input.farmerId, type: input.attributionType }, 'Attribution capture failed');
         }
     },
-    async trackTelecallerAssigned(farmerId, agentEmail) {
-        const staff = await resolveStaff(agentEmail, 'telecaller');
+    async trackCropAdvisorAssigned(farmerId, agentEmail) {
+        const staff = await resolveStaff(agentEmail, 'crop_advisor');
         if (!staff)
             return;
         await this.upsertSafe({
             farmerId,
             employeeProfileId: staff.profileId,
-            attributionType: 'telecaller_assigned',
+            attributionType: 'crop_advisor_assigned',
             employeeRole: staff.role,
             metadata: { agentEmail: agentEmail.trim().toLowerCase() },
         });
@@ -77,7 +77,7 @@ export const employeeAttributionCaptureService = {
         const email = assigneeEmail ??
             (await supabase.from('leads').select('assigned_to').eq('farmer_id', farmerId).maybeSingle()).data
                 ?.assigned_to;
-        const staff = await resolveStaff(email ? String(email) : null, 'telecaller');
+        const staff = await resolveStaff(email ? String(email) : null, 'crop_advisor');
         if (!staff)
             return;
         const { data: assignedRow } = await supabase
@@ -85,13 +85,13 @@ export const employeeAttributionCaptureService = {
             .select('id')
             .eq('farmer_id', farmerId)
             .eq('employee_profile_id', staff.profileId)
-            .eq('attribution_type', 'telecaller_assigned')
+            .eq('attribution_type', 'crop_advisor_assigned')
             .maybeSingle();
         if (!assignedRow) {
             await this.upsertSafe({
                 farmerId,
                 employeeProfileId: staff.profileId,
-                attributionType: 'telecaller_assigned',
+                attributionType: 'crop_advisor_assigned',
                 employeeRole: staff.role,
                 metadata: { inferredFromEngagement: true },
             });
@@ -149,7 +149,7 @@ export const employeeAttributionCaptureService = {
                 .maybeSingle();
             email = lead?.assigned_to ? String(lead.assigned_to) : null;
         }
-        const staff = await resolveStaff(email, 'telecaller');
+        const staff = await resolveStaff(email, 'crop_advisor');
         if (!staff)
             return;
         await this.upsertSafe({

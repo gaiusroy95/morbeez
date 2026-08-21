@@ -1,6 +1,6 @@
 # Phase 5 — Dashboards & CRM integration
 
-Console dashboards and telecaller CRM surfaces for the full pipeline:
+Console dashboards and crop advisor CRM surfaces for the full pipeline:
 
 **Events → Attribution → Engines → Scores → Dashboards**
 
@@ -10,7 +10,7 @@ Console dashboards and telecaller CRM surfaces for the full pipeline:
 |------|------|
 | `opportunity-intelligence-dashboard.service.ts` | Overview KPIs, district heatmap, top/at-risk farmers, employee leaderboard, farmer profile |
 | `os-intelligence.routes.ts` | `GET /os/intelligence/opportunity-dashboard/*` |
-| `os-telecaller.routes.ts` | `GET /os/telecaller/leads/:id/intelligence` (CRM read via `telecaller_crm`) |
+| `os-crop-advisor.routes.ts` | `GET /os/crop-advisor/leads/:id/intelligence` (CRM read via `crop_advisor_crm`) |
 
 ### Dashboard APIs (`intelligence` read)
 
@@ -35,9 +35,9 @@ Recalculate (same as Phase 3/4):
 
 Nav: **Intelligence → Opportunity**
 
-## Telecaller CRM
+## Crop Advisor CRM
 
-`FarmerIntelligencePanel` on lead profile loads `GET .../telecaller/leads/:leadId/intelligence` and shows:
+`FarmerIntelligencePanel` on lead profile loads `GET .../crop-advisor/leads/:leadId/intelligence` and shows:
 
 - Opportunity score (engine or lead-score estimate fallback)
 - Retention band + score

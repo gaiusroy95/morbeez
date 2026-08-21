@@ -3,7 +3,6 @@ import { AppError } from '../../lib/errors.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { supabase } from '../../lib/supabase.js';
 import { parseHeroTitle, relativeStorefrontPath } from './banners-hero-title.util.js';
-import { resolveBannerSize } from './banners-size.util.js';
 import { shopifyAdmin } from '../shopify/shopify.client.js';
 function storefrontUrl(path) {
     const base = (env.SHOPIFY_STOREFRONT_URL ?? `https://${env.SHOPIFY_STORE_DOMAIN}`).replace(/\/$/, '');
@@ -77,11 +76,17 @@ function collectImports(template) {
                     title: slideTitle(settings),
                     badge: settings.eyebrow ? String(settings.eyebrow) : undefined,
                     description: settings.subheading ? String(settings.subheading) : undefined,
+                    imageUrl: settings.image_url ? String(settings.image_url) : undefined,
+                    imageUrlMobile: settings.image_url_mobile ? String(settings.image_url_mobile) : undefined,
                     ctaLabel: String(settings.button_label ?? 'Shop now'),
                     ctaUrl: settings.button_url ? storefrontUrl(String(settings.button_url)) : undefined,
                     placement: 'home_hero',
                     ...schedule,
                     sortOrder: sortOrder++,
+                    imageOnly: Boolean(settings.image_only),
+                    headingColor: settings.heading_color ? String(settings.heading_color) : undefined,
+                    highlightColor: settings.highlight_color ? String(settings.highlight_color) : undefined,
+                    textSize: settings.text_size ? String(settings.text_size) : undefined,
                 });
             }
         }
@@ -124,6 +129,18 @@ async function upsertImport(row) {
         source_ref: row.sourceRef,
         updated_at: new Date().toISOString(),
     };
+    if (row.imageUrl?.trim())
+        payload.image_url = row.imageUrl.trim();
+    if (row.imageUrlMobile?.trim())
+        payload.image_url_mobile = row.imageUrlMobile.trim();
+    if (row.imageOnly != null)
+        payload.image_only = row.imageOnly;
+    if (row.headingColor?.trim())
+        payload.heading_color = row.headingColor.trim();
+    if (row.highlightColor?.trim())
+        payload.highlight_color = row.highlightColor.trim();
+    if (row.textSize?.trim())
+        payload.text_size = row.textSize.trim();
     if (existing?.id) {
         const { error } = await supabase.from('commerce_banners').update(payload).eq('id', existing.id);
         throwIfSupabaseError(error, 'Could not update banner');
@@ -145,23 +162,25 @@ async function listActiveBanners() {
 }
 function buildHeroSlideSettings(banner) {
     const headings = parseHeroTitle(banner.title);
-    const size = resolveBannerSize({
-        sizeWidth: banner.size_width ?? undefined,
-        sizeHeight: banner.size_height ?? undefined,
-    });
     const settings = {
         eyebrow: banner.badge?.trim() || undefined,
         ...headings,
-        highlight_color: '#34B35E',
-        overlay: 45,
+        image_only: Boolean(banner.image_only),
+        heading_color: banner.heading_color?.trim() || '#ffffff',
+        highlight_color: banner.highlight_color?.trim() || '#34B35E',
+        text_size: banner.text_size === 'sm' || banner.text_size === 'lg' ? banner.text_size : 'md',
+        overlay: 20,
         button_label: banner.cta_label?.trim() || 'Shop now',
         button_url: relativeStorefrontPath(banner.cta_url),
-        banner_width: size.width,
-        banner_height: size.height,
     };
     const image = banner.image_url?.trim();
-    if (image)
+    if (image) {
         settings.image_url = image;
+    }
+    const mobile = banner.image_url_mobile?.trim();
+    if (mobile) {
+        settings.image_url_mobile = mobile;
+    }
     return settings;
 }
 function findHeroSectionId(template) {
@@ -209,10 +228,6 @@ export const bannersThemeSyncService = {
         if (heroSectionId && template.sections?.[heroSectionId]) {
             const blocks = {};
             const blockOrder = [];
-            const sectionSize = resolveBannerSize({
-                sizeWidth: heroBanners[0]?.size_width ?? undefined,
-                sizeHeight: heroBanners[0]?.size_height ?? undefined,
-            });
             for (let i = 0; i < heroBanners.length; i++) {
                 const banner = heroBanners[i];
                 const blockId = `staff_slide_${i + 1}`;
@@ -226,19 +241,10 @@ export const bannersThemeSyncService = {
                 ...template.sections[heroSectionId],
                 blocks,
                 block_order: blockOrder,
-                settings: {
-                    ...(template.sections[heroSectionId].settings ?? {}),
-                    banner_width: sectionSize.width,
-                    banner_height: sectionSize.height,
-                },
             };
         }
         const seasonalSectionId = findSeasonalSectionId(template);
         if (promoBanner && seasonalSectionId && template.sections?.[seasonalSectionId]) {
-            const promoSize = resolveBannerSize({
-                sizeWidth: promoBanner.size_width ?? undefined,
-                sizeHeight: promoBanner.size_height ?? undefined,
-            });
             const seasonalSettings = {
                 ...(template.sections[seasonalSectionId].settings ?? {}),
                 badge: promoBanner.badge?.trim() || undefined,
@@ -246,8 +252,6 @@ export const bannersThemeSyncService = {
                 text: promoBanner.description?.trim() || undefined,
                 cta_label: promoBanner.cta_label?.trim() || 'Shop now',
                 cta_url: relativeStorefrontPath(promoBanner.cta_url),
-                banner_width: promoSize.width,
-                banner_height: promoSize.height,
             };
             const image = promoBanner.image_url?.trim();
             if (image)

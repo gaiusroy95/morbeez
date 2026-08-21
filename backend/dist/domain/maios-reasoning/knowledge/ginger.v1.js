@@ -101,7 +101,8 @@ export const GINGER_KNOWLEDGE_V1 = {
     likelihoodRatios: [
         { evidenceKey: 'weather:heavy_rain', diseaseLabel: 'Rhizome rot / Pythium', lr: 2.8 },
         { evidenceKey: 'weather:high_humidity', diseaseLabel: 'Pyricularia leaf blast', lr: 2.4 },
-        { evidenceKey: 'weather:high_humidity', diseaseLabel: 'Anthracnose / fungal leaf spot', lr: 2.0 },
+        // Soft prior only — farmer WhatsApp must not name anthracnose without crop photo lesions.
+        { evidenceKey: 'weather:high_humidity', diseaseLabel: 'Anthracnose / fungal leaf spot', lr: 1.15 },
         { evidenceKey: 'symptom:spindle_lesion', diseaseLabel: 'Pyricularia leaf blast', lr: 3.2 },
         { evidenceKey: 'symptom:grey_center', diseaseLabel: 'Pyricularia leaf blast', lr: 2.6 },
         { evidenceKey: 'symptom:black_dots', diseaseLabel: 'Pyricularia leaf blast', lr: 2.9 },

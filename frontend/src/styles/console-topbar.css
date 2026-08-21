@@ -394,7 +394,7 @@
 
 /* Page content under workspace topbar */
 .console-page-content,
-.route-telecaller .content {
+.route-crop-advisor .content {
   padding: 20px 28px 36px;
   width: 100%;
   margin: 0 auto;
@@ -466,7 +466,7 @@
   }
 
   .console-page-content,
-  .route-telecaller .content {
+  .route-crop-advisor .content {
     padding: 16px;
   }
 }

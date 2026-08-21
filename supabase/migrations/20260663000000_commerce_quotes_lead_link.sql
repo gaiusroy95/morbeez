@@ -1,4 +1,4 @@
--- Link commerce quotes (estimates) to telecaller leads / farmers
+-- Link commerce quotes (estimates) to cropAdvisor leads / farmers
 
 ALTER TABLE commerce_quotes
   ADD COLUMN IF NOT EXISTS lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,

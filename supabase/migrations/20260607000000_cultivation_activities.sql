@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS cultivation_activities (
   crop_stage TEXT,
   dosage_notes TEXT,
   products JSONB DEFAULT '[]',
-  source TEXT NOT NULL DEFAULT 'whatsapp' CHECK (source IN ('whatsapp', 'admin', 'telecaller', 'system')),
+  source TEXT NOT NULL DEFAULT 'whatsapp' CHECK (source IN ('whatsapp', 'admin', 'crop_advisor', 'system')),
   notes TEXT,
   outcome TEXT CHECK (outcome IN ('better', 'partial', 'no_improvement', 'unknown')),
   outcome_at TIMESTAMPTZ,

@@ -32,7 +32,7 @@ export function roleLabel(role: string): string {
     manager: 'Manager',
     viewer: 'Viewer',
     agronomist: 'Agronomist',
-    telecaller: 'Telecaller',
+    crop_advisor: 'Crop Advisor',
   };
   return map[role] ?? role.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }

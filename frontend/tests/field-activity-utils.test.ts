@@ -57,7 +57,7 @@ test('fieldActivityAddedFromLabel prefers Voice-derived for confirmed voice rows
     'Voice-derived'
   );
   assert.equal(
-    fieldActivityAddedFromLabel(baseActivity({ added_from: 'telecaller' })),
+    fieldActivityAddedFromLabel(baseActivity({ added_from: 'crop_advisor' })),
     'Interaction'
   );
 });

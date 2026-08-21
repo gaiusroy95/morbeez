@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase.js';
 /**
- * Lightweight engagement health for telecaller prioritization (computed, not stored).
+ * Lightweight engagement health for cropAdvisor prioritization (computed, not stored).
  */
 export const farmerHealthScoreService = {
     async compute(farmerId) {
@@ -55,7 +55,7 @@ export const farmerHealthScoreService = {
         const band = score >= 65 ? 'healthy' : score >= 45 ? 'watch' : 'at_risk';
         return { score, band, factors };
     },
-    telecallerPriorityFromHealth(band) {
+    cropAdvisorPriorityFromHealth(band) {
         return band === 'at_risk' ? 'high' : 'normal';
     },
 };

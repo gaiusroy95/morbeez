@@ -1,5 +1,5 @@
--- Demo leads and CRM tasks (Telecaller + Employee workspace metrics)
--- Requires: telecaller CRM migration (leads.stage, crm_tasks)
+-- Demo leads and CRM tasks (CropAdvisor + Employee workspace metrics)
+-- Requires: crop advisor CRM migration (leads.stage, crm_tasks)
 
 INSERT INTO leads (id, farmer_id, intent, source, status, stage, assigned_to, notes, follow_up_at)
 VALUES
@@ -10,7 +10,7 @@ VALUES
     'whatsapp',
     'contacted',
     'follow_up',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'Interested in cardamom nutrition program',
     NOW() + INTERVAL '1 day'
   ),
@@ -21,7 +21,7 @@ VALUES
     'field_visit',
     'qualified',
     'recommendation',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'Ginger rhizome rot — awaiting agronomist rec',
     NOW() + INTERVAL '2 days'
   ),
@@ -32,7 +32,7 @@ VALUES
     'website',
     'new',
     'new_lead',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'Banana bunch weight concern',
     NOW() + INTERVAL '4 hours'
   )
@@ -48,7 +48,7 @@ VALUES
     'd0000000-0000-4000-8000-000000000201',
     'd0000000-0000-4000-8000-000000000001',
     'd0000000-0000-4000-8000-000000000101',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'follow_up',
     'Call Ravi — nutrition follow-up',
     NOW() + INTERVAL '6 hours',
@@ -58,7 +58,7 @@ VALUES
     'd0000000-0000-4000-8000-000000000202',
     'd0000000-0000-4000-8000-000000000002',
     'd0000000-0000-4000-8000-000000000102',
-    'telecaller.demo@morbeez.in',
+    'cropAdvisor.demo@morbeez.in',
     'whatsapp',
     'Send ginger spray quote',
     NOW() + INTERVAL '1 day',

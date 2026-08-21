@@ -191,7 +191,7 @@ declare const envSchema: z.ZodObject<{
     EXPERT_CASE_LEASE_SECONDS: z.ZodEffects<z.ZodNumber, number, unknown>;
     EXPERT_CASE_RECURRENCE_DAYS: z.ZodEffects<z.ZodNumber, number, unknown>;
     EXPERT_CASE_INTERRUPTION_LIMIT: z.ZodEffects<z.ZodNumber, number, unknown>;
-    /** Multilingual WhatsApp Farm Activity Assistant — phased, default off. */
+    /** WhatsApp fertilizer / labour / harvest logging. Default on so Crop Doctor handoff can save. */
     ENABLE_FARM_ACTIVITY_ASSISTANT: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_FARM_ACTIVITY_VOICE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
     ENABLE_FARM_ACTIVITY_INVOICE_OCR: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
@@ -208,6 +208,12 @@ declare const envSchema: z.ZodObject<{
     EXOTEL_TOKEN: z.ZodOptional<z.ZodString>;
     EXOTEL_CALLER_ID: z.ZodOptional<z.ZodString>;
     EXOTEL_SUBDOMAIN: z.ZodOptional<z.ZodString>;
+    /** AI farmer calling engine (jobs + WhatsApp/staff fallback). Voicebot is separate. */
+    ENABLE_AI_CALLING: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    /** Conversational outbound voice. Off until Sarvam TTS + Exotel applet exist. */
+    ENABLE_AI_CALLING_VOICE: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    AI_CALLING_WHATSAPP_FALLBACK: z.ZodDefault<z.ZodEffects<z.ZodString, boolean, string>>;
+    SARVAM_API_KEY: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     NODE_ENV: "development" | "staging" | "production" | "test";
     PORT: number;
@@ -329,6 +335,9 @@ declare const envSchema: z.ZodObject<{
     ENABLE_FARMER_TERMINOLOGY_MEMORY: boolean;
     FARM_ACTIVITY_DRAFT_TTL_MINUTES: number;
     FARM_ACTIVITY_MAX_CLARIFICATIONS: number;
+    ENABLE_AI_CALLING: boolean;
+    ENABLE_AI_CALLING_VOICE: boolean;
+    AI_CALLING_WHATSAPP_FALLBACK: boolean;
     API_BASE_URL?: string | undefined;
     SUPABASE_ANON_KEY?: string | undefined;
     SHOPIFY_LOCATION_ID?: string | undefined;
@@ -381,6 +390,7 @@ declare const envSchema: z.ZodObject<{
     EXOTEL_TOKEN?: string | undefined;
     EXOTEL_CALLER_ID?: string | undefined;
     EXOTEL_SUBDOMAIN?: string | undefined;
+    SARVAM_API_KEY?: string | undefined;
 }, {
     SUPABASE_URL: string;
     SUPABASE_SERVICE_ROLE_KEY: string;
@@ -554,6 +564,10 @@ declare const envSchema: z.ZodObject<{
     EXOTEL_TOKEN?: string | undefined;
     EXOTEL_CALLER_ID?: string | undefined;
     EXOTEL_SUBDOMAIN?: string | undefined;
+    ENABLE_AI_CALLING?: string | undefined;
+    ENABLE_AI_CALLING_VOICE?: string | undefined;
+    AI_CALLING_WHATSAPP_FALLBACK?: string | undefined;
+    SARVAM_API_KEY?: string | undefined;
 }>;
 export type Env = z.infer<typeof envSchema>;
 export declare const env: {
@@ -677,6 +691,9 @@ export declare const env: {
     ENABLE_FARMER_TERMINOLOGY_MEMORY: boolean;
     FARM_ACTIVITY_DRAFT_TTL_MINUTES: number;
     FARM_ACTIVITY_MAX_CLARIFICATIONS: number;
+    ENABLE_AI_CALLING: boolean;
+    ENABLE_AI_CALLING_VOICE: boolean;
+    AI_CALLING_WHATSAPP_FALLBACK: boolean;
     API_BASE_URL?: string | undefined;
     SUPABASE_ANON_KEY?: string | undefined;
     SHOPIFY_LOCATION_ID?: string | undefined;
@@ -729,6 +746,7 @@ export declare const env: {
     EXOTEL_TOKEN?: string | undefined;
     EXOTEL_CALLER_ID?: string | undefined;
     EXOTEL_SUBDOMAIN?: string | undefined;
+    SARVAM_API_KEY?: string | undefined;
 };
 export {};
 //# sourceMappingURL=env.d.ts.map

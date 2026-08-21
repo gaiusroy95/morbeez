@@ -78,7 +78,7 @@ CREATE TABLE callback_requests (
   lead_id UUID REFERENCES leads(id) ON DELETE SET NULL,
   preferred_time TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
-  telecaller_notes TEXT,
+  crop_advisor_notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

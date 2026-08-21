@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { logger } from '../../lib/logger.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { opportunityIntelligenceConfigService } from './opportunity-intelligence-config.service.js';
 import { MIN_ATTRIBUTED_FARMERS_FOR_LEADERBOARD } from './employee-performance-scoring.util.js';
 import { fetchOpportunityScoresByFarmerIds } from './intelligence-farmer-score-queries.util.js';
@@ -272,7 +272,7 @@ export const opportunityIntelligenceAlertsService = {
                 alertsResolved += 1;
                 continue;
             }
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId,
                 leadId: alert.leadId ?? undefined,
                 title: 'Retention follow-up (opportunity intelligence)',

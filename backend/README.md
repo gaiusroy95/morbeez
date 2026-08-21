@@ -68,7 +68,7 @@ Header: `x-api-key: <INTERNAL_API_KEY>`
 | GET | `/api/v1/farmers/:id` | Get farmer + crops |
 | POST | `/api/v1/farmers/:id/crops` | Add crop |
 | POST | `/api/v1/leads` | Create lead / quotation / callback |
-| GET | `/api/v1/leads?status=new` | List leads (telecaller) |
+| GET | `/api/v1/leads?status=new` | List leads (cropAdvisor) |
 | POST | `/api/v1/payments/link` | Razorpay payment link |
 
 ## Webhook endpoints

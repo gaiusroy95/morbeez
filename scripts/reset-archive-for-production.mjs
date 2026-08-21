@@ -218,7 +218,7 @@ const RETEST_TABLES = [
   'weather_snapshots',
   'crm_task_comments',
   'crm_interaction_sessions',
-  'telecaller_notes',
+  'crop_advisor_notes',
   'crm_internal_notes',
   'crm_manual_orders',
   'crm_field_findings',
@@ -292,7 +292,7 @@ async function resetFull(env) {
     'crm_sync_queue',
     'ai_request_logs',
     'advisory_automation_jobs',
-    'telecaller_notes',
+    'crop_advisor_notes',
     'ai_product_recommendations',
     'ai_advisory_outputs',
     'agronomist_escalations',
@@ -361,7 +361,7 @@ async function resetRetest(env) {
       'product catalog (product_intelligence, combos, offers, packaging), ' +
       'inventory (inventory_items, batches, stock movements, POs), crm_masters, pincode_master, whatsapp templates.'
   );
-  console.log('Next: test farmer signup, WhatsApp Crop Doctor, Telecaller CRM from a clean slate.');
+  console.log('Next: test farmer signup, WhatsApp Crop Doctor, Crop Advisor CRM from a clean slate.');
 }
 
 function parseMode() {

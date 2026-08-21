@@ -353,7 +353,7 @@ export type WhatsappPreviewMessage = {
 
   complianceQuestion?: string;
 
-  /** When farmer taps No on WhatsApp — escalate to agronomist or telecaller review */
+  /** When farmer taps No on WhatsApp — escalate to agronomist or cropAdvisor review */
   complianceNoAction?: import('./whatsapp-compliance.js').WhatsappComplianceNoAction;
 
 };

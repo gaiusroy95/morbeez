@@ -78,7 +78,7 @@ import { aiReuseService } from '../../ai/ai-reuse.service.js';
 import { cropDetectionService } from './crop-detection.service.js';
 import { contextPackService } from './context-pack.service.js';
 import { policyEngineService } from '../../ai/policy-engine.service.js';
-import { createTelecallerTask } from './telecaller-tasks.service.js';
+import { createCropAdvisorTask } from './crop-advisor-tasks.service.js';
 import { accuracyMetricsService } from '../../ai/accuracy-metrics.service.js';
 import { inputClassifierService } from './input-classifier.service.js';
 import { imageInputClassifierService } from './image-input-classifier.service.js';
@@ -1876,11 +1876,11 @@ export const whatsappInboundPipeline = {
         weatherRisk: assessment.weatherRiskBand,
       });
 
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: maiosCase?.triage.level === 'L4' ? 'MAIOS — emergency' : 'Symptom Confirmation Required',
         notes: maiosCase
-          ? caseBuilderService.formatTelecallerNotes(maiosCase)
+          ? caseBuilderService.formatCropAdvisorNotes(maiosCase)
           : `Probable issue: ${result.advisory.probableIssue}; confidence ${Math.round(result.advisory.confidence * 100)}%; crop ${memory.cropType}`,
         priority:
           maiosCase?.route === 'emergency_callback' || assessment.escalationPriority === 'urgent'
@@ -1920,7 +1920,7 @@ export const whatsappInboundPipeline = {
       }
 
       if (assessment.shouldRequestMoreEvidence) {
-        await createTelecallerTask({
+        await createCropAdvisorTask({
           farmerId: params.farmerId,
           title: 'Symptom confirmation required',
           notes: `Confidence ${Math.round(result.advisory.confidence * 100)}%, Crop ${memory.cropType}, WeatherRisk ${assessment.weatherRiskBand}`,
@@ -1979,9 +1979,9 @@ export const whatsappInboundPipeline = {
       }
 
       if (assessment.needsValidationQuestion) {
-        await createTelecallerTask({
+        await createCropAdvisorTask({
           farmerId: params.farmerId,
-          title: 'Telecaller symptom validation',
+          title: 'CropAdvisor symptom validation',
           notes: `AI confidence in medium band. Issue: ${result.advisory.probableIssue}`,
           priority: 'normal',
         });

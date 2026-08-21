@@ -23,7 +23,7 @@ import { weatherCorrelationService } from '../../services/core/weather-correlati
 import { visitCommandCenterService } from '../../services/agronomist/visit-command-center.service.js';
 import { agronomistMobileService } from '../../services/agronomist/agronomist-mobile.service.js';
 import { routePlannerService } from '../../services/agronomist/route-planner.service.js';
-import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
+import { cropAdvisorAdminService } from '../../services/admin/crop-advisor-admin.service.js';
 import { farmerNotesService } from '../../services/admin/farmer-notes.service.js';
 import { agronomistCopilotService } from '../../services/diagnosis/agronomist-copilot.service.js';
 import { outcomeIntelligenceService } from '../../services/intelligence/outcome-intelligence.service.js';
@@ -584,7 +584,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
   app.get(`${api}/operations/tasks`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
     const q = z.object({ status: z.enum(['pending', 'done', 'all']).optional() }).parse(request.query ?? {});
-    const tasks = await telecallerAdminService.listTasksForAgronomist(
+    const tasks = await cropAdvisorAdminService.listTasksForAgronomist(
       admin.email,
       q.status === 'all' ? undefined : { status: q.status ?? 'pending' }
     );
@@ -593,14 +593,14 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
 
   app.get(`${api}/operations/visits`, async (request, reply) => {
     const admin = await assertModuleAccess(request, 'agronomist', 'read');
-    const visits = await telecallerAdminService.listScheduledVisitsForAgronomist(admin.email);
+    const visits = await cropAdvisorAdminService.listScheduledVisitsForAgronomist(admin.email);
     return reply.send({ ok: true, visits });
   });
 
   app.get(`${api}/operations/tasks/:id`, async (request, reply) => {
     await assertModuleAccess(request, 'agronomist', 'read');
     const { id } = request.params as { id: string };
-    const detail = await telecallerAdminService.getTaskDetail(id);
+    const detail = await cropAdvisorAdminService.getTaskDetail(id);
     return reply.send({ ok: true, ...detail });
   });
 
@@ -608,7 +608,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
     const admin = await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
     const body = z.object({ body: z.string().min(1).max(4000) }).parse(request.body);
-    const comment = await telecallerAdminService.addTaskComment(id, {
+    const comment = await cropAdvisorAdminService.addTaskComment(id, {
       body: body.body,
       authorEmail: admin.email,
       authorRole: 'agronomist',
@@ -620,7 +620,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
   app.patch(`${api}/operations/tasks/:id/complete`, async (request, reply) => {
     await assertModuleAccess(request, 'agronomist', 'write');
     const { id } = request.params as { id: string };
-    await telecallerAdminService.completeTask(id);
+    await cropAdvisorAdminService.completeTask(id);
     return reply.send({ ok: true });
   });
 
@@ -635,7 +635,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
         blockId: z.string().uuid().optional(),
       })
       .parse(request.body);
-    const detail = await telecallerAdminService.getLeadDetail(leadId);
+    const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
     const result = await crmFarmerService.scheduleVisit(String(detail.lead.farmerId), leadId, {
       ...body,
       assignedAgronomist: admin.email,
@@ -737,7 +737,7 @@ export async function osAgronomistRoutes(app: FastifyInstance): Promise<void> {
       .object({
         reason: z.string().min(1).max(500),
         dueAt: z.string().datetime().optional(),
-        assignTo: z.enum(['agronomist', 'telecaller']).optional(),
+        assignTo: z.enum(['agronomist', 'crop_advisor']).optional(),
       })
       .parse(request.body);
     const task = await agronomistMobileService.createFarmerReminder(farmerId, admin.email, body);

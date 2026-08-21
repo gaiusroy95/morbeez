@@ -136,8 +136,8 @@ export const farmerRoiAdminService = {
             old_snapshot: snapshotFromRow(existing),
             new_snapshot: snapshotFromRow(updated),
             edited_by: params.staffEmail,
-            reason: 'Telecaller one-time correction',
-            actor: 'telecaller',
+            reason: 'CropAdvisor one-time correction',
+            actor: 'crop_advisor',
         });
         return mapEntry(updated);
     },

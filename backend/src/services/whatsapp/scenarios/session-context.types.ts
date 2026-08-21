@@ -51,7 +51,7 @@ export interface SessionContext {
   diagnosisInFlightAt?: string;
   /** Assessment playbook router (insect / weed / compatibility, etc.) */
   lastPlaybookCategory?: string;
-  /** ROI tracker (farmers add only; telecaller edits in CRM) */
+  /** ROI tracker (farmers add only; cropAdvisor edits in CRM) */
   roiPendingEntryType?: string;
   roiPendingEntryDate?: string;
   roiPendingAmount?: number;

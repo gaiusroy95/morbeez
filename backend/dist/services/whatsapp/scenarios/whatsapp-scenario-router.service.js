@@ -19,7 +19,7 @@ import { orderWhatsappService } from '../orders/order-whatsapp.service.js';
 import { cultivationLoggingService } from '../cultivation/cultivation-logging.service.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { accuracyMetricsService } from '../../ai/accuracy-metrics.service.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 import { cropSelectionService } from './crop-selection.service.js';
 import { resolveInboundUserText } from '../inbound-reply-text.util.js';
 import { farmerPurgeService } from '../../farmer/farmer-purge.service.js';
@@ -276,10 +276,12 @@ export const whatsappScenarioRouter = {
             if (roiHandled)
                 return { handled: true };
         }
-        if (farmActivityAssistantService.enabled() &&
-            (farmActivityAssistantService.isFarmActivityState(session.state) ||
-                farmActivityAssistantService.isActionButton(text) ||
-                Boolean(text && farmActivityAssistantService.looksLikeIntent(text)))) {
+        const farmInFlow = farmActivityAssistantService.isFarmActivityState(session.state) ||
+            farmActivityAssistantService.isActionButton(text);
+        if (farmInFlow ||
+            (farmActivityAssistantService.enabled() &&
+                Boolean(text && farmActivityAssistantService.looksLikeIntent(text)) &&
+                session.state !== 'farmer_feedback_capture')) {
             const farmHandled = await farmActivityAssistantService.tryHandleInbound({
                 farmerId: captured.farmerId,
                 phone: msg.phone,
@@ -291,9 +293,19 @@ export const whatsappScenarioRouter = {
                 modality: 'text',
                 conversationSessionId: session.id,
                 blockId: session.active_block_id ?? null,
+                force: farmInFlow,
             });
             if (farmHandled)
                 return { handled: true };
+        }
+        if (text) {
+            const { aiCallingOrchestrator } = await import('../../ai-calling/ai-calling-orchestrator.service.js');
+            const calling = await aiCallingOrchestrator.tryConsumeInboundReply(captured.farmerId, text);
+            if (calling.handled) {
+                if (calling.reply)
+                    await send.text(msg.phone, calling.reply);
+                return { handled: true };
+            }
         }
         if (session.state === 'post_diagnosis_intake') {
             const postResult = await diagnosisFollowUpService.handlePostDiagnosisMessage({
@@ -524,7 +536,7 @@ export const whatsappScenarioRouter = {
                 notes: `Inbound follow-up: ${text}`,
             });
             if (outcome === 'no_improvement' || outcome === 'worsened') {
-                await createTelecallerTask({
+                await createCropAdvisorTask({
                     farmerId: captured.farmerId,
                     title: outcome === 'worsened' ? 'Urgent escalation required' : 'No improvement follow-up',
                     notes: `Farmer reported "${text}" after advisory.`,
@@ -572,7 +584,7 @@ export const whatsappScenarioRouter = {
                 });
                 if (assigned.source === 'provisional') {
                     await send.text(msg.phone, pincodePendingVerifyReply(lang, assigned.row.pincode));
-                    void createTelecallerTask({
+                    void createCropAdvisorTask({
                         farmerId: captured.farmerId,
                         title: `Verify pincode ${assigned.row.pincode}`,
                         notes: `Farmer sent PIN ${assigned.row.pincode} during WhatsApp onboarding; not found in master/India Post. Confirm district/taluk.`,

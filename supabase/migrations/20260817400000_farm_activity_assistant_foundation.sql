@@ -384,7 +384,7 @@ CREATE INDEX IF NOT EXISTS idx_harvest_records_draft
   WHERE farm_activity_draft_id IS NOT NULL;
 
 -- Keep existing cultivation_activities.source CHECK values unchanged
--- (whatsapp/admin/telecaller/system/mobile). Assistant writes still use
+-- (whatsapp/admin/cropAdvisor/system/mobile). Assistant writes still use
 -- source='whatsapp' with input_modality/provenance for voice/text/invoice.
 
 COMMENT ON COLUMN cultivation_activities.farm_activity_draft_id IS

@@ -475,7 +475,7 @@ export const cropDoctorService = {
     const sharedCaseInput = {
       farmerId: input.farmerId,
       blockId: input.activePlotId,
-      channel: (input.channel === 'telecaller' ? 'telecaller' : input.channel) as MaiosChannel,
+      channel: (input.channel === 'crop_advisor' ? 'crop_advisor' : input.channel) as MaiosChannel,
       sessionId,
       symptomsText: input.symptomsText,
       photoCount,

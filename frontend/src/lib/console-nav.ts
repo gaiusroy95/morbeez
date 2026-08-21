@@ -26,11 +26,11 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
     items: [
       { id: 'dashboard', path: toPath(paths.dashboard), label: 'Dashboard', icon: 'dashboard', module: 'dashboard' },
       {
-        id: 'telecaller',
-        path: toPath(paths.telecaller),
-        label: 'Telecaller CRM',
+        id: 'crop_advisor',
+        path: toPath(paths.cropAdvisor),
+        label: 'Crop Advisor CRM',
         icon: 'phone',
-        module: 'telecaller_crm',
+        module: 'crop_advisor_crm',
       },
     ],
   },
@@ -221,7 +221,7 @@ export const NAV_GROUPS: Array<{ id: string; items: NavItem[] } | NavGroup> = [
         path: toPath(paths.escalationCommand),
         label: 'Escalations',
         icon: 'warning',
-        module: 'telecaller_crm',
+        module: 'crop_advisor_crm',
       },
       {
         id: 'commerce',

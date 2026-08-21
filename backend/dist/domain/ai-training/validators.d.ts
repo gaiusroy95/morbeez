@@ -34,7 +34,7 @@ export declare const imageReviewBodySchema: z.ZodEffects<z.ZodObject<{
     agronomistLabel?: string | undefined;
     reviewNotes?: string | undefined;
 }>;
-/** Structured field finding payload — used by telecaller/agronomist APIs (Stage 1+) */
+/** Structured field finding payload — used by cropAdvisor/agronomist APIs (Stage 1+) */
 export declare const structuredFieldFindingSchema: z.ZodObject<{
     findingType: z.ZodOptional<z.ZodEnum<["disease", "pest", "nutrient_deficiency", "irrigation", "weather_stress", "growth_observation", "other"]>>;
     severity: z.ZodOptional<z.ZodEnum<["mild", "moderate", "severe"]>>;

@@ -57,7 +57,7 @@ FROM (VALUES
   ('interaction_next_action', 'Recovery Check after 5 days', 3),
   ('interaction_next_action', 'Spray Follow-up after 3 days', 4),
   ('interaction_next_action', 'Agronomist Review', 5),
-  ('interaction_next_action', 'Telecaller Clarification', 6),
+  ('interaction_next_action', 'CropAdvisor Clarification', 6),
   ('interaction_next_action', 'Monitoring Follow-up', 7),
   ('interaction_next_action', 'Recovery Review after 4 days', 8)
 ) AS v(master_type, name, sort_order)

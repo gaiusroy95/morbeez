@@ -616,7 +616,7 @@ export const roiFlowService = {
         params.phone,
         params.language === 'ml'
           ? 'എൻട്രി തിരുത്തൽ ടെലികോളർ CRM-ൽ മാത്രം. നിങ്ങളുടെ ഓഫീസുമായി ബന്ധപ്പെടുക.'
-          : 'Entries can only be corrected by your telecaller in the office — not in this chat.'
+          : 'Entries can only be corrected by your cropAdvisor in the office — not in this chat.'
       );
       return true;
     }

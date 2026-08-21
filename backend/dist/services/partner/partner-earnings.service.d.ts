@@ -5,7 +5,18 @@ export declare const partnerEarningsService: {
         month?: string;
     }): Promise<{
         leadBonus: number;
+        cashRewards: number;
         reliabilityHoldPct: number;
+        farmersIntroduced: number;
+        farmersVerified: number;
+        eligibleIntroductions: number;
+        cashRewardEarned: number;
+        productRewardAvailable: number;
+        productRewardUsed: number;
+        productRewardBalance: number;
+        heldPayout: number;
+        duePayout: number;
+        months: import("../remuneration/earning-drilldown.service.js").MonthBucket[];
         productCommission: number;
         successBonus: number;
         serviceRevenue: number;

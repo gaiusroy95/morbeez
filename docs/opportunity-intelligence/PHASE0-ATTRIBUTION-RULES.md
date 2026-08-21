@@ -11,20 +11,20 @@ Product sign-off baseline for Phase 1–2 instrumentation. All scores remain **s
 
 | Type | When created | Typical role | Default weight |
 |------|----------------|--------------|----------------|
-| `telecaller_assigned` | Lead assigned / first outbound CRM or WhatsApp | telecaller | 0.20 |
-| `first_engagement` | First meaningful two-way WhatsApp (farmer reply) after assign | telecaller | 0.35 |
-| `relationship_owner` | Primary ongoing owner (longest active assign window) | telecaller | 0.25 |
+| `crop_advisor_assigned` | Lead assigned / first outbound CRM or WhatsApp | cropAdvisor | 0.20 |
+| `first_engagement` | First meaningful two-way WhatsApp (farmer reply) after assign | cropAdvisor | 0.35 |
+| `relationship_owner` | Primary ongoing owner (longest active assign window) | cropAdvisor | 0.25 |
 | `advisory` | Agronomist case review save, verified recommendation, field finding | agronomist | 0.40 |
 | `conversion_assist` | Order paid within 180d while attribution active | both | 0.30 |
-| `reactivation` | Farmer was inactive 30d+ then re-engaged after employee touch | telecaller / agronomist | 0.25 |
+| `reactivation` | Farmer was inactive 30d+ then re-engaged after employee touch | cropAdvisor / agronomist | 0.25 |
 
 Weights are **not** required to sum to 1 across employees; engines use them for fractional credit on delayed conversion.
 
 ## Multi-touch example
 
 ```text
-Telecaller assigns lead → telecaller_assigned
-Farmer replies on WhatsApp → first_engagement (telecaller)
+CropAdvisor assigns lead → crop_advisor_assigned
+Farmer replies on WhatsApp → first_engagement (cropAdvisor)
 Agronomist approves recommendation → advisory (agronomist)
 Order 90 days later → conversion_assist credited to both (weighted)
 ```

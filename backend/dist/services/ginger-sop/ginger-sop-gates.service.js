@@ -34,7 +34,7 @@ export const gingerSopGatesService = {
         else if (confPct >= 75)
             confRoute = 'agronomist_review';
         else if (confPct >= 50)
-            confRoute = 'telecaller_validate';
+            confRoute = 'crop_advisor_validate';
         else
             confRoute = 'field_visit';
         gates.push({
@@ -53,7 +53,7 @@ export const gingerSopGatesService = {
                 action: input.hasSoilForNutrientRec ? undefined : 'collect_evidence',
             });
         }
-        let route = confRoute ?? 'telecaller_validate';
+        let route = confRoute ?? 'crop_advisor_validate';
         if (!input.identityComplete && input.channel === 'whatsapp') {
             route = 'collect_evidence';
         }

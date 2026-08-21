@@ -246,7 +246,7 @@ export const weatherSnapshotService = {
     if (
       surface === 'case_review' ||
       surface === 'farmer_feedback' ||
-      surface === 'telecaller_escalation'
+      surface === 'crop_advisor_escalation'
     ) {
       return 'ai_session';
     }

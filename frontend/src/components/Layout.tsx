@@ -9,8 +9,8 @@ import { SidebarNav } from './SidebarNav';
 import { ConsoleTopbar } from './ConsoleTopbar';
 import { RoutedPageOutlet } from './RoutedPageOutlet';
 import { ConsolePageSearchProvider } from '../context/ConsolePageSearchContext';
-import { TelecallerHeaderProvider } from '../context/TelecallerHeaderContext';
-import { TelecallerWorkspaceHeader } from './telecaller/TelecallerWorkspaceHeader';
+import { CropAdvisorHeaderProvider } from '../context/CropAdvisorHeaderContext';
+import { CropAdvisorWorkspaceHeader } from './crop-advisor/CropAdvisorWorkspaceHeader';
 import { cn } from '../lib/cn';
 
 const NARROW_SIDEBAR_MQ = '(max-width: 900px)';
@@ -36,7 +36,7 @@ export function AppLayout() {
   const [dateText, setDateText] = useState('');
 
   const meta = matchRouteMeta(location.pathname);
-  const isTelecallerCrm = meta.pageKey === 'telecaller';
+  const isCropAdvisorCrm = meta.pageKey === 'crop_advisor';
   const displayName = admin?.fullName ?? admin?.email ?? '';
   const avatar = initials(displayName);
 
@@ -137,11 +137,11 @@ export function AppLayout() {
       </aside>
 
       <div className="main">
-        {isTelecallerCrm ? (
-          <TelecallerHeaderProvider>
-            <TelecallerWorkspaceHeader onOpenMenu={toggleSidebarCollapsed} onLogout={handleLogout} />
+        {isCropAdvisorCrm ? (
+          <CropAdvisorHeaderProvider>
+            <CropAdvisorWorkspaceHeader onOpenMenu={toggleSidebarCollapsed} onLogout={handleLogout} />
             <RoutedPageOutlet />
-          </TelecallerHeaderProvider>
+          </CropAdvisorHeaderProvider>
         ) : (
           <ConsolePageSearchProvider key={meta.pageKey} pageKey={meta.pageKey}>
             <ConsoleTopbar

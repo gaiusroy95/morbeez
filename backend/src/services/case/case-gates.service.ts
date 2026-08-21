@@ -61,7 +61,7 @@ export const caseGatesService = {
     let confRoute: MaiosRoute | undefined;
     if (input.eqs > 70 && confPct >= 75 && input.evidenceTier >= 'T2') confRoute = 'auto_recommend';
     else if (input.eqs >= 50 && confPct >= 60) confRoute = 'agronomist_review';
-    else if (confPct >= 50) confRoute = 'telecaller_validate';
+    else if (confPct >= 50) confRoute = 'crop_advisor_validate';
     else confRoute = 'field_visit';
 
     if (input.eqs < 50) confRoute = 'collect_evidence';
@@ -92,7 +92,7 @@ export const caseGatesService = {
         : 'Recovery loop pending schedule',
     });
 
-    let route: MaiosRoute = confRoute ?? 'telecaller_validate';
+    let route: MaiosRoute = confRoute ?? 'crop_advisor_validate';
 
     if (!input.identityComplete && input.channel === 'whatsapp') {
       route = 'collect_evidence';
@@ -103,7 +103,7 @@ export const caseGatesService = {
     } else if (input.eqs < 50) {
       route = 'collect_evidence';
     } else if (!profile.allowAutoRecommend) {
-      route = input.eqs > 70 ? 'agronomist_review' : 'telecaller_validate';
+      route = input.eqs > 70 ? 'agronomist_review' : 'crop_advisor_validate';
     } else if (input.needsNutrientAdvice && !input.hasSoilForNutrientRec) {
       route = 'collect_evidence';
     }

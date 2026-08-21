@@ -15,12 +15,12 @@ Deletion policy:
 | Module | Resource | Create | Read | Update | Delete |
 |---|---|---:|---:|---:|---:|
 | Employees / Settings | `admin_users` staff | Y | Y | Y | S |
-| Telecaller | Leads | Y | Y | Y | S |
-| Telecaller | Tasks (`crm_tasks`) | Y | Y | P | S |
-| Telecaller | Interactions (`interaction_logs`) | Y | Y | P | S |
-| Telecaller | Recommendations (`crm_recommendations`) | Y | Y | P | S |
-| Telecaller | Field findings (`crm_field_findings`) | Y | Y | P | S |
-| Telecaller | Blocks (`farm_blocks`) | Y | Y | Y | S |
+| CropAdvisor | Leads | Y | Y | Y | S |
+| CropAdvisor | Tasks (`crm_tasks`) | Y | Y | P | S |
+| CropAdvisor | Interactions (`interaction_logs`) | Y | Y | P | S |
+| CropAdvisor | Recommendations (`crm_recommendations`) | Y | Y | P | S |
+| CropAdvisor | Field findings (`crm_field_findings`) | Y | Y | P | S |
+| CropAdvisor | Blocks (`farm_blocks`) | Y | Y | Y | S |
 | Agronomist | Recommendation drafts | Y | Y | Y | S |
 | Operations | Broadcast rules | Y | Y | Y | S |
 | Operations | Crop prices | Y | Y | Y | S |
@@ -33,6 +33,6 @@ Deletion policy:
 | Commerce | Orders | Y | Y | P | S |
 
 ## Rollout notes
-- Phase 1: Staff + Telecaller + Agronomist endpoints and UI actions.
+- Phase 1: Staff + CropAdvisor + Agronomist endpoints and UI actions.
 - Phase 2: Operations + Intelligence + Commerce + Settings actions.
 - Phase 3: Add audit and guardrails (last super-admin, referenced-record protection).

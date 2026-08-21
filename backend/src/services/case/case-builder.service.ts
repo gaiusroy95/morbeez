@@ -426,7 +426,7 @@ export const caseBuilderService = {
     };
   },
 
-  formatTelecallerNotes(maiosCase: MaiosCase): string {
+  formatCropAdvisorNotes(maiosCase: MaiosCase): string {
     const h = maiosCase.diagnostics.hypotheses
       .slice(0, 3)
       .map((x) => `${x.label} (${x.probability}%)`)

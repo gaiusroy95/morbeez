@@ -58,7 +58,7 @@ export const manualOrderOmsService = {
             total_amount: Number(manual.total_amount) || 0,
             currency: 'INR',
             is_cod: isCod,
-            order_source: 'telecaller_manual',
+            order_source: 'crop_advisor_manual',
             payment_method: isCod ? 'COD' : isPaid ? 'Prepaid' : 'Pending',
             customer_state: farmer?.state ? String(farmer.state) : null,
             shipping_address: shipLine
@@ -88,6 +88,12 @@ export const manualOrderOmsService = {
                 hsnCode: line.hsnCode ?? null,
                 gstPercent: line.gstPercent ?? 18,
             });
+            const { channelPoolService } = await import('../pricing/channel-pool.service.js');
+            const pool = await channelPoolService.snapshotForLine({
+                variantId: line.variantId,
+                sku,
+                salesInr: unitPrice * qty,
+            });
             const { error: lineErr } = await supabase.from('commerce_order_lines').insert({
                 commerce_order_id: commerceOrder.id,
                 inventory_item_id: item.id,
@@ -97,6 +103,7 @@ export const manualOrderOmsService = {
                 unit_price: unitPrice,
                 hsn_code: line.hsnCode ?? item.hsn_code,
                 gst_percent: line.gstPercent ?? item.gst_percent,
+                ...((await import('../pricing/channel-pool.util.js')).poolColumnsFromSnapshot(pool)),
             });
             throwIfSupabaseError(lineErr, 'Manual order line sync');
         }

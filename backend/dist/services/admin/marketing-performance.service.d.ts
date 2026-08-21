@@ -13,10 +13,13 @@ export type FunnelCounts = {
     booked: number;
     paid: number;
     revenueInr: number;
+    eligibleOrders: number;
+    eligibleRevenueInr: number;
     conversionPct: number;
     suggestedBonusInr?: number;
     spendInr?: number;
     roi?: number | null;
+    cacInr?: number | null;
 };
 export declare const marketingPerformanceService: {
     getOverview(query: MarketingPerformanceQuery): Promise<{
@@ -47,15 +50,19 @@ export declare const marketingPerformanceService: {
         booked: number;
         paid: number;
         revenueInr: number;
+        eligibleOrders: number;
+        eligibleRevenueInr: number;
         conversionPct: number;
         spendInr?: number;
         roi?: number | null;
+        cacInr?: number | null;
         marketerId: string | null;
         marketerName: string;
     }[]>;
     getByCampaign(query: MarketingPerformanceQuery): Promise<{
         spendInr: number;
         roi: number | null;
+        cacInr: number | null;
         suggestedBonusInr: number;
         leads: number;
         connected: number;
@@ -63,6 +70,8 @@ export declare const marketingPerformanceService: {
         booked: number;
         paid: number;
         revenueInr: number;
+        eligibleOrders: number;
+        eligibleRevenueInr: number;
         conversionPct: number;
         campaign: string;
         channel: string | null;
@@ -73,6 +82,7 @@ export declare const marketingPerformanceService: {
         booked?: boolean | undefined;
         paid?: boolean | undefined;
         revenueInr?: number | undefined;
+        eligibleOrders?: number | undefined;
         leadId: string;
         farmerName: {} | null;
         phone: {} | null;

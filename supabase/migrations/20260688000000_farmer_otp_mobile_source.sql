@@ -19,4 +19,4 @@ CREATE POLICY farmer_otp_challenges_service ON farmer_otp_challenges FOR ALL USI
 ALTER TABLE cultivation_activities DROP CONSTRAINT IF EXISTS cultivation_activities_source_check;
 ALTER TABLE cultivation_activities
   ADD CONSTRAINT cultivation_activities_source_check
-  CHECK (source IN ('whatsapp', 'admin', 'telecaller', 'system', 'mobile'));
+  CHECK (source IN ('whatsapp', 'admin', 'crop_advisor', 'system', 'mobile'));

@@ -753,7 +753,7 @@ export function EmployeesPage({ canWrite = false }: { canWrite?: boolean }) {
             <option value="super_admin">Super Admin</option>
             <option value="admin">Admin</option>
             <option value="operations">Operations</option>
-            <option value="telecaller">Telecaller</option>
+            <option value="crop_advisor">Crop Advisor</option>
             <option value="agronomist">Agronomist</option>
             <option value="manager">Manager</option>
             <option value="viewer">Viewer</option>
@@ -1066,8 +1066,8 @@ function NewEmployeeModal({
 }) {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const defaultRole = assignableRoles.includes('telecaller')
-    ? 'telecaller'
+  const defaultRole = assignableRoles.includes('crop_advisor')
+    ? 'crop_advisor'
     : assignableRoles[0] ?? 'viewer';
   const [role, setRole] = useState(defaultRole);
   const [experiencedAgronomist, setExperiencedAgronomist] = useState(false);
@@ -1155,14 +1155,14 @@ function NewEmployeeModal({
           salary_cycle: 'monthly',
           joining_bonus: joiningBonus,
           travel_allowance: travelAllowance,
-          monthly_sales_target: role === 'telecaller' ? monthlySalesTarget : 0,
-          incentive_pct_after_target: role === 'telecaller' ? incentivePct : 0,
-          conversion_target_pct: role === 'telecaller' ? conversionTarget : 0,
-          additional_bonus_after_conversion: role === 'telecaller' ? additionalBonus : 0,
-          conversion_bonus_enabled: role === 'telecaller' ? conversionBonusEnabled : false,
-          retention_bonus_enabled: role === 'telecaller' ? retentionBonusEnabled : false,
-          relationship_bonus_enabled: role === 'telecaller' ? relationshipBonusEnabled : false,
-          follow_up_bonus_enabled: role === 'telecaller' ? followUpBonusEnabled : false,
+          monthly_sales_target: role === 'crop_advisor' ? monthlySalesTarget : 0,
+          incentive_pct_after_target: role === 'crop_advisor' ? incentivePct : 0,
+          conversion_target_pct: role === 'crop_advisor' ? conversionTarget : 0,
+          additional_bonus_after_conversion: role === 'crop_advisor' ? additionalBonus : 0,
+          conversion_bonus_enabled: role === 'crop_advisor' ? conversionBonusEnabled : false,
+          retention_bonus_enabled: role === 'crop_advisor' ? retentionBonusEnabled : false,
+          relationship_bonus_enabled: role === 'crop_advisor' ? relationshipBonusEnabled : false,
+          follow_up_bonus_enabled: role === 'crop_advisor' ? followUpBonusEnabled : false,
           farmer_retention_bonus: role === 'agronomist' ? farmerRetentionBonus : 0,
           recommendation_success_bonus: role === 'agronomist' ? recommendationSuccessBonus : 0,
           escalation_bonus: role === 'agronomist' ? escalationBonus : 0,
@@ -1372,9 +1372,9 @@ function NewEmployeeModal({
           Incentive enabled
         </label>
 
-        {role === 'telecaller' ? (
+        {role === 'crop_advisor' ? (
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 space-y-3">
-            <h5 className="text-sm font-semibold text-ink">Telecaller Conditional Fields</h5>
+            <h5 className="text-sm font-semibold text-ink">CropAdvisor Conditional Fields</h5>
             <Field label="Monthly Sales Target">
               <input type="number" className={inputClass} value={monthlySalesTarget} onChange={(e) => setMonthlySalesTarget(Number(e.target.value || 0))} />
             </Field>
@@ -1456,9 +1456,9 @@ function NewEmployeeModal({
           </div>
         ) : null}
 
-        {role !== 'telecaller' && role !== 'agronomist' ? (
+        {role !== 'crop_advisor' && role !== 'agronomist' ? (
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-ink-secondary">
-            Role-based conditional fields are disabled. Select role <strong>Telecaller</strong> or <strong>Agronomist</strong> to enable additional fields.
+            Role-based conditional fields are disabled. Select role <strong>Crop Advisor</strong> or <strong>Agronomist</strong> to enable additional fields.
           </div>
         ) : null}
 
@@ -1559,7 +1559,7 @@ function EditEmployeeModal({
               { value: 'super_admin', label: 'Super Admin' },
               { value: 'admin', label: 'Admin' },
               { value: 'operations', label: 'Operations' },
-              { value: 'telecaller', label: 'Telecaller' },
+              { value: 'crop_advisor', label: 'Crop Advisor' },
               { value: 'agronomist', label: 'Agronomist' },
               { value: 'manager', label: 'Manager' },
               { value: 'viewer', label: 'Viewer' },

@@ -618,7 +618,7 @@ export const crmFarmerService = {
             pagination: { page, limit, total: count ?? 0, pages: Math.max(1, Math.ceil((count ?? 0) / limit)) },
         };
     },
-    /** Telecaller CRM tab — operational workflow sessions only (no merged micro-events). */
+    /** Crop Advisor CRM tab — operational workflow sessions only (no merged micro-events). */
     async listHumanCrmInteractions(farmerId, leadId, page = 1, limit = 40) {
         const isDueToday = (iso) => {
             if (!iso)
@@ -806,11 +806,11 @@ export const crmFarmerService = {
             return {
                 id: interactionId,
                 source: 'call',
-                interactionType: 'Telecaller conversation done',
+                interactionType: 'CropAdvisor conversation done',
                 summary: `Phone call — ${c.outcome ?? 'completed'}`,
                 status: String(c.outcome ?? 'completed'),
-                by: String(c.agent_email ?? 'Telecaller'),
-                role: 'Telecaller',
+                by: String(c.agent_email ?? 'Crop Advisor'),
+                role: 'Crop Advisor',
                 createdLabel: formatDateTime(at) ?? '—',
                 at,
                 fields: [
@@ -851,8 +851,8 @@ export const crmFarmerService = {
                 completionStatus: isDone ? 'completed' : 'pending',
                 canEdit: !isDone && String(t.status ?? '') !== 'cancelled',
                 taskId: String(t.id),
-                by: String(t.assigned_to ?? 'Telecaller'),
-                role: 'Telecaller',
+                by: String(t.assigned_to ?? 'Crop Advisor'),
+                role: 'Crop Advisor',
                 createdLabel: formatDateTime(at) ?? '—',
                 at,
                 fields: [
@@ -1081,8 +1081,8 @@ export const crmFarmerService = {
             }
         }
         if (input.addFieldFinding && input.blockId && leadId && confirmedIssue) {
-            const { telecallerAdminService } = await import('./telecaller-admin.service.js');
-            const finding = await telecallerAdminService.createFieldFinding(farmerId, leadId, {
+            const { cropAdvisorAdminService } = await import('./crop-advisor-admin.service.js');
+            const finding = await cropAdvisorAdminService.createFieldFinding(farmerId, leadId, {
                 blockId: input.blockId,
                 blockName,
                 cropType,
@@ -1108,7 +1108,7 @@ export const crmFarmerService = {
                 activityLabel: fieldActivityLabel ?? undefined,
                 activityDate: fieldActivityDate,
                 notes: summary,
-                source: 'telecaller',
+                source: 'crop_advisor',
             });
             fieldActivityId = String(activity.id);
             await supabase
@@ -1128,7 +1128,7 @@ export const crmFarmerService = {
             const rec = await this.createRecommendation(farmerId, leadId, {
                 blockId: input.blockId,
                 recommendation: recommendationSummary,
-                recommendedBy: input.doneBy ?? 'Telecaller',
+                recommendedBy: input.doneBy ?? 'Crop Advisor',
                 recType: 'agronomist',
             });
             recommendationId = String(rec.id);
@@ -1139,8 +1139,8 @@ export const crmFarmerService = {
             Object.assign(data, sessionPatch);
         }
         if (input.escalate) {
-            const { telecallerEscalationService } = await import('./telecaller-escalation.service.js');
-            const esc = await telecallerEscalationService.escalateFromInteraction({
+            const { cropAdvisorEscalationService } = await import('./crop-advisor-escalation.service.js');
+            const esc = await cropAdvisorEscalationService.escalateFromInteraction({
                 farmerId,
                 leadId,
                 interactionLogId: String(data.id),
@@ -1148,7 +1148,7 @@ export const crmFarmerService = {
                 interactionType: input.interactionType,
                 blockId: input.blockId,
                 cropType,
-                agentEmail: input.doneBy ?? 'Telecaller',
+                agentEmail: input.doneBy ?? 'Crop Advisor',
             });
             await supabase
                 .from('interaction_logs')
@@ -1157,15 +1157,15 @@ export const crmFarmerService = {
             Object.assign(data, { escalation_id: esc.escalationId });
         }
         if (leadId && input.nextAction?.trim() && workflowStatus === 'Active') {
-            const { telecallerAdminService } = await import('./telecaller-admin.service.js');
-            await telecallerAdminService.createTask(leadId, {
+            const { cropAdvisorAdminService } = await import('./crop-advisor-admin.service.js');
+            await cropAdvisorAdminService.createTask(leadId, {
                 title: input.nextAction.trim(),
                 dueAt: resolvedDueAt ?? undefined,
                 notes: summary,
                 taskType: 'follow_up',
                 blockId: input.blockId,
                 interactionLogId: String(data.id),
-            }, input.doneBy ?? 'Telecaller');
+            }, input.doneBy ?? 'Crop Advisor');
         }
         const { farmerEventCaptureService } = await import('../intelligence/farmer-event-capture.service.js');
         void farmerEventCaptureService.trackInteractionSession({
@@ -1272,8 +1272,8 @@ export const crmFarmerService = {
             await this.createInteraction(farmerId, leadId, {
                 interactionType: 'Call',
                 summary: 'Initial outreach — farmer interested in nutrition schedule.',
-                doneBy: agentEmail ?? 'Telecaller',
-                doneByRole: 'Telecaller',
+                doneBy: agentEmail ?? 'Crop Advisor',
+                doneByRole: 'Crop Advisor',
                 status: 'completed',
             });
         }
@@ -1302,12 +1302,12 @@ export const crmFarmerService = {
         return { blocks, agronomist, interactions, recommendations, orders, internalNotes, ownership };
     },
     async listFarmerOrders(farmerId) {
-        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
-        return telecallerFarmerOrdersService.listForFarmer(farmerId);
+        const { cropAdvisorFarmerOrdersService } = await import('./crop-advisor-farmer-orders.service.js');
+        return cropAdvisorFarmerOrdersService.listForFarmer(farmerId);
     },
     async getFarmerOrderDetail(farmerId, orderId) {
-        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
-        return telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+        const { cropAdvisorFarmerOrdersService } = await import('./crop-advisor-farmer-orders.service.js');
+        return cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
     },
     async ensureDemoBlocks(farmerId) {
         const existing = await this.listBlocks(farmerId);
@@ -1541,8 +1541,8 @@ export const crmFarmerService = {
         throwIfSupabaseError(error, 'Could not create order');
         const { manualOrderOmsService } = await import('../oms/manual-order-oms.service.js');
         await manualOrderOmsService.tryPushOnCreate(String(data.id), input.createdBy);
-        const { telecallerFarmerOrdersService } = await import('./telecaller-farmer-orders.service.js');
-        return telecallerFarmerOrdersService.getDetail(farmerId, String(data.id));
+        const { cropAdvisorFarmerOrdersService } = await import('./crop-advisor-farmer-orders.service.js');
+        return cropAdvisorFarmerOrdersService.getDetail(farmerId, String(data.id));
     },
     async convertRecommendationToOrder(recommendationId, farmerId, leadId, createdBy) {
         const { data: rec, error } = await supabase
@@ -1907,7 +1907,7 @@ function mapOperationalSessionRow(r, isDueToday) {
         status: wfMeta.displayStatus,
         completionStatus,
         by: String(r.done_by ?? 'Staff'),
-        role: String(r.done_by_role ?? 'Telecaller'),
+        role: String(r.done_by_role ?? 'Crop Advisor'),
         createdLabel: formatDateShort(at) ?? formatDateTime(at) ?? '',
         dueLabel: nextActionAt ? formatDateTime(nextActionAt) : null,
         isDueToday: completionStatus === 'pending' && isDueToday(nextActionAt),
@@ -1986,7 +1986,7 @@ function mapInteraction(r) {
         typeLabel: type,
         icon: type.toLowerCase().includes('whatsapp') ? 'whatsapp' : type.toLowerCase().includes('call') ? 'phone' : 'ai',
         by: r.done_by ?? 'Staff',
-        role: r.done_by_role ?? 'Telecaller',
+        role: r.done_by_role ?? 'Crop Advisor',
         summary: r.summary ?? r.content ?? '',
         nextAction: r.next_action ?? '—',
         nextDate: formatDateTime(r.next_action_at) ?? '',

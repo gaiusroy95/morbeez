@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
-import { telecallerFarmerOrdersService, } from '../admin/telecaller-farmer-orders.service.js';
+import { cropAdvisorFarmerOrdersService, } from '../admin/crop-advisor-farmer-orders.service.js';
 function productKey(title, variantId, sku) {
     if (variantId)
         return `var:${variantId}`;
@@ -49,7 +49,7 @@ async function loadCommerceOms(order) {
 export const farmerProductReviewService = {
     productKey,
     async getReviewableLines(farmerId, orderId) {
-        const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+        const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
         const omsStatus = await loadCommerceOms(order);
         const canReview = canReviewOrder(order, omsStatus);
         const lines = lineItemsWithKeys(order);
@@ -78,7 +78,7 @@ export const farmerProductReviewService = {
         return { canReview, orderSource: order.source, lines };
     },
     async submitReview(farmerId, orderId, input) {
-        const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+        const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
         const omsStatus = await loadCommerceOms(order);
         if (!canReviewOrder(order, omsStatus)) {
             throw new ValidationError('Reviews are available only after delivery');

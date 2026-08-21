@@ -67,13 +67,14 @@ Example:
 
 🎯 Most Likely Problem
 
-Give ONLY one primary diagnosis.
+Give ONLY one primary diagnosis grounded in visible crop symptoms or clear field evidence.
 
-If another issue contributes, mention it as:
+Rules:
+- If the photo does NOT clearly show crop / leaf tissue, Primary must be "Unable to diagnose — crop not visible" and do NOT invent a disease name.
+- Do NOT add a Contributing Factor from weather/humidity alone (never invent "Anthracnose / fungal leaf spot" without lesion evidence in the photo or farmer text).
+- Contributing Factor is optional — only when a second issue is supported by the same evidence.
 
-Contributing Factor :
-
-Example
+Example (when crop lesions are clearly visible):
 
 Primary:
 Pyricularia Leaf Blast
@@ -85,14 +86,13 @@ Potassium deficiency
 
 📌 Why We Think This
 
-Explain using field evidence.
+Explain using field evidence (photo observations first). Weather may support risk, but must not invent a disease label.
 
 Example
 
-• Leaf spots match blast symptoms.
-• Heavy rainfall and wet soil favour disease spread.
-• High humidity supports fungal infection under wet canopy conditions.
-• Previous nutrient stress or recent fertilizer timing may affect uptake — cite soil test when available.
+• Leaf spots match blast symptoms on the photo.
+• Wet canopy conditions favour spread when lesions are already present.
+• Soil test / recent fertilizer may explain nutrient stress when cited.
 
 Maximum 4 points.
 

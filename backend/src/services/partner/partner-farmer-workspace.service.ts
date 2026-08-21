@@ -39,7 +39,7 @@ export type PartnerFarmerHeader = {
   primaryCrop: string | null;
   totalAcreage: number | null;
   customerOwnerType: string | null;
-  assignedTelecallerEmail: string | null;
+  assignedCropAdvisorEmail: string | null;
   serviceModel: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -187,7 +187,7 @@ export const partnerFarmerWorkspaceService = {
     const { data: farmerRow, error } = await supabase
       .from('farmers')
       .select(
-        'id, name, phone, village, district, service_model, preferred_language, total_acreage, assigned_telecaller_email, assigned_expert_email, customer_owner_type'
+        'id, name, phone, village, district, service_model, preferred_language, total_acreage, assigned_crop_advisor_email, assigned_expert_email, customer_owner_type'
       )
       .eq('id', farmerId)
       .single();
@@ -315,8 +315,8 @@ export const partnerFarmerWorkspaceService = {
       primaryCrop: farmSnapshot.primaryCrop,
       totalAcreage: farmSnapshot.totalAcreage,
       customerOwnerType: farmerRow!.customer_owner_type ? String(farmerRow!.customer_owner_type) : null,
-      assignedTelecallerEmail: farmerRow!.assigned_telecaller_email
-        ? String(farmerRow!.assigned_telecaller_email)
+      assignedCropAdvisorEmail: farmerRow!.assigned_crop_advisor_email
+        ? String(farmerRow!.assigned_crop_advisor_email)
         : null,
       serviceModel: farmerRow!.service_model ? String(farmerRow!.service_model) : null,
       latitude: coords.lat,

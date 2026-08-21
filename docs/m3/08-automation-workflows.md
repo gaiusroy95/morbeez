@@ -14,5 +14,5 @@
 ## Future (architecture-ready)
 
 - `seasonal_alert`, `follow_up_reminder`
-- Telecaller assignment from escalation queue
+- CropAdvisor assignment from escalation queue
 - Disease outbreak campaigns

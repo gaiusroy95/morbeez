@@ -3,7 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { env } from '../../config/env.js';
 import { farmerTeamTimelineService } from '../crm/farmer-team-timeline.service.js';
-import { telecallerAdminService } from '../admin/telecaller-admin.service.js';
+import { cropAdvisorAdminService } from '../admin/crop-advisor-admin.service.js';
 import { farmerOwnershipService } from './farmer-ownership.service.js';
 
 export const salesOpportunityService = {
@@ -22,7 +22,7 @@ export const salesOpportunityService = {
       throw new ValidationError('Sales opportunities are disabled');
     }
     const ownership = await farmerOwnershipService.getOwnership(farmerId);
-    const telecallerEmail = ownership?.assignedTelecallerEmail ?? null;
+    const cropAdvisorEmail = ownership?.assignedCropAdvisorEmail ?? null;
 
     const { data: lead } = await supabase
       .from('leads')
@@ -43,22 +43,22 @@ export const salesOpportunityService = {
         urgency: input.urgency ?? null,
         interest_level: input.interestLevel ?? null,
         notes: input.notes ?? null,
-        assigned_telecaller_email: telecallerEmail,
+        assigned_crop_advisor_email: cropAdvisorEmail,
         status: 'interested',
       })
       .select('*')
       .single();
     throwIfSupabaseError(error, 'Could not create sales opportunity');
 
-    if (lead?.id && telecallerEmail) {
-      await telecallerAdminService.createTask(
+    if (lead?.id && cropAdvisorEmail) {
+      await cropAdvisorAdminService.createTask(
         String(lead.id),
         {
           title: `Sales opportunity: ${input.product}`,
           notes: input.notes ?? undefined,
           taskCategory: 'other',
         },
-        telecallerEmail
+        cropAdvisorEmail
       );
     }
 
@@ -83,15 +83,15 @@ export const salesOpportunityService = {
     return data ?? [];
   },
 
-  async listForTelecaller(agentEmail: string) {
+  async listForCropAdvisor(agentEmail: string) {
     const { data, error } = await supabase
       .from('sales_opportunities')
       .select('*, farmers(name, first_name, last_name, phone)')
-      .eq('assigned_telecaller_email', agentEmail.toLowerCase())
+      .eq('assigned_crop_advisor_email', agentEmail.toLowerCase())
       .in('status', ['interested', 'hot_lead', 'ready_to_order', 'follow_up_required'])
       .order('created_at', { ascending: false })
       .limit(50);
-    throwIfSupabaseError(error, 'Could not list telecaller opportunities');
+    throwIfSupabaseError(error, 'Could not list cropAdvisor opportunities');
     return data ?? [];
   },
 

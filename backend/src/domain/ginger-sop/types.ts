@@ -4,7 +4,7 @@ export const GINGER_SOP_VERSION = '3.0' as const;
 
 export type GingerTriageLevel = 'L1' | 'L2' | 'L3' | 'L4';
 
-export type GingerSopChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+export type GingerSopChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 
 export type GingerPhotoSlotId =
   | 'field_wide'
@@ -46,7 +46,7 @@ export type GingerModuleKey =
 export type GingerSopRoute =
   | 'auto_recommend'
   | 'agronomist_review'
-  | 'telecaller_validate'
+  | 'crop_advisor_validate'
   | 'collect_evidence'
   | 'field_visit'
   | 'emergency_callback';

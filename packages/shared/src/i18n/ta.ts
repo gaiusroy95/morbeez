@@ -361,7 +361,7 @@ export const ta: Partial<Record<I18nKey, string>> = {
   chooseFromGallery: 'Gallery',
   selectCategory: 'Category select',
   description: 'விவரம்',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
   saveAddress: 'சேமி address',
 
   ecAiCopilot: 'AI Copilot',

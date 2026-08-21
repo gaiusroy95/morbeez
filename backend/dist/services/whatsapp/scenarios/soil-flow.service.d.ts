@@ -27,7 +27,7 @@ export declare const soilFlowService: {
     resolveSoilBlockId(farmerId: string, preferredBlockId?: string | null): Promise<string | null>;
     /**
      * Download WhatsApp soil report (photo/PDF), store file, insert crm_soil_reports
-     * so telecaller portal + farmer/agronomist apps can display it on the block.
+     * so cropAdvisor portal + farmer/agronomist apps can display it on the block.
      */
     saveUploadedReportFromWhatsApp(params: {
         farmerId: string;

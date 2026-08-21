@@ -73,7 +73,7 @@ export const manualOrderOmsService = {
         total_amount: Number(manual.total_amount) || 0,
         currency: 'INR',
         is_cod: isCod,
-        order_source: 'telecaller_manual',
+        order_source: 'crop_advisor_manual',
         payment_method: isCod ? 'COD' : isPaid ? 'Prepaid' : 'Pending',
         customer_state: farmer?.state ? String(farmer.state) : null,
         shipping_address: shipLine

@@ -13,7 +13,7 @@ export type FarmerOwnership = {
     customerOwnerPartnerId: string | null;
     serviceModel: ServiceModel | null;
     assignedPartnerId: string | null;
-    assignedTelecallerEmail: string | null;
+    assignedCropAdvisorEmail: string | null;
     assignedExpertEmail: string | null;
     partnerCodeAtEnrollment: string | null;
 };

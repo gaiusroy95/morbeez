@@ -361,7 +361,7 @@ export const ml: Partial<Record<I18nKey, string>> = {
   chooseFromGallery: 'Gallery-യിൽ നിന്ന്',
   selectCategory: 'വിഭാഗം തിരഞ്ഞെടുക്കുക',
   description: 'വിവരണം',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
   saveAddress: 'സേവ് address',
 
   ecAiCopilot: 'AI Copilot',

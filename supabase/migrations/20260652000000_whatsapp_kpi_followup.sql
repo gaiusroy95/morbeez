@@ -7,7 +7,7 @@ ALTER TABLE recommendation_records
       'whatsapp_kpi',
       'whatsapp_ai',
       'agronomist',
-      'telecaller',
+      'crop_advisor',
       'system'
     )
   ),

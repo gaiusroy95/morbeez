@@ -3,7 +3,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError } from '../../lib/errors.js';
 import { verifiedAdvisoryLearningService } from './verified-advisory-learning.service.js';
 import { blockService } from './block.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { farmerExperienceWeightService, trustWeightFromStats } from './farmer-experience-weight.service.js';
 import { localPracticesService } from './local-practices.service.js';
 import { weatherAlertsService } from '../whatsapp/scenarios/weather-alerts.service.js';
@@ -164,7 +164,7 @@ export const farmerExperienceLearningService = {
         await farmerExperienceWeightService
             .onFeedbackSubmitted(fb.farmer_id, sess?.crop_type ? String(sess.crop_type) : undefined)
             .catch(() => { });
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId: fb.farmer_id,
             title: 'Farmer corrected AI diagnosis — agronomist review',
             notes: [

@@ -40,7 +40,7 @@ export const quoteOmsBridgeService = {
             return { commerceOrderId: null, omsStatus: null };
         }
         const patch = {
-            order_source: 'telecaller_quote',
+            order_source: 'crop_advisor_quote',
             updated_at: new Date().toISOString(),
         };
         if (input.farmerId)
@@ -118,7 +118,7 @@ export const quoteOmsBridgeService = {
             currency: 'INR',
             is_cod: isCod,
             razorpay_payment_id: input.razorpayPaymentId,
-            order_source: 'telecaller_quote',
+            order_source: 'crop_advisor_quote',
             payment_method: isCod ? 'COD' : 'Prepaid',
             customer_state: normalizeShopifyProvince(input.customerState),
             shipping_address: {
@@ -159,6 +159,12 @@ export const quoteOmsBridgeService = {
                 unit_price: line.unitPrice,
                 hsn_code: line.hsnCode ?? item.hsn_code,
                 gst_percent: line.gstPercent ?? item.gst_percent,
+                channel_pool_pct: line.channelPoolPct ?? null,
+                channel_pool_agronomist_pct: line.channelPoolAgronomistPct ?? null,
+                channel_pool_partner_pct: line.channelPoolPartnerPct ?? null,
+                channel_pool_version_id: line.channelPoolVersionId ?? null,
+                channel_pool_version_label: line.channelPoolVersionLabel ?? null,
+                channel_pool_effective_from: line.channelPoolEffectiveFrom ?? null,
             });
         }
         await supabase

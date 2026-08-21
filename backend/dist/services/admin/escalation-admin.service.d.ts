@@ -25,12 +25,12 @@ export declare const escalationAdminService: {
     listEscalationComments(escalationId: string): Promise<{
         id: any;
         author: string;
-        authorRole: "agronomist" | "system" | "telecaller";
+        authorRole: "agronomist" | "system" | "crop_advisor";
         body: string;
         createdLabel: string;
         createdAt: any;
     }[]>;
-    addEscalationComment(escalationId: string, text: string, agentEmail: string, role: "telecaller" | "agronomist"): Promise<void>;
+    addEscalationComment(escalationId: string, text: string, agentEmail: string, role: "crop_advisor" | "agronomist"): Promise<void>;
     list(params: {
         status?: string;
         page?: number;
@@ -80,7 +80,7 @@ export declare const escalationAdminService: {
         comments: {
             id: any;
             author: string;
-            authorRole: "agronomist" | "system" | "telecaller";
+            authorRole: "agronomist" | "system" | "crop_advisor";
             body: string;
             createdLabel: string;
             createdAt: any;
@@ -113,7 +113,7 @@ export declare const escalationAdminService: {
         assignedTo?: string;
         agronomistNotes?: string;
         comment?: string;
-        commentRole?: "telecaller" | "agronomist";
+        commentRole?: "crop_advisor" | "agronomist";
         resolution?: string;
         correction?: Record<string, unknown>;
     }, agentEmail: string): Promise<{
@@ -138,7 +138,7 @@ export declare const escalationAdminService: {
         comments: {
             id: any;
             author: string;
-            authorRole: "agronomist" | "system" | "telecaller";
+            authorRole: "agronomist" | "system" | "crop_advisor";
             body: string;
             createdLabel: string;
             createdAt: any;

@@ -17,7 +17,7 @@ import { bannersAdminService } from '../../services/admin/banners-admin.service.
 import { bannersThemeSyncService } from '../../services/admin/banners-theme-sync.service.js';
 import { aiAdvisoryAdminService } from '../../services/admin/ai-advisory-admin.service.js';
 import { aiMappingAdminService } from '../../services/admin/ai-mapping-admin.service.js';
-import { telecallerAdminService } from '../../services/admin/telecaller-admin.service.js';
+import { cropAdvisorAdminService } from '../../services/admin/crop-advisor-admin.service.js';
 import { escalationAdminService } from '../../services/admin/escalation-admin.service.js';
 import { crmFarmerService } from '../../services/admin/crm-farmer.service.js';
 import { consoleSearchService } from '../../services/admin/console-search.service.js';
@@ -32,7 +32,7 @@ import { crmInternalNotesService } from '../../services/admin/crm-internal-notes
 import { osFoundationRoutes } from './os-foundation.routes.js';
 import { osOperationsRoutes } from './os-operations.routes.js';
 import { osBroadcastRoutes } from './os-broadcast.routes.js';
-import { osTelecallerRoutes } from './os-telecaller.routes.js';
+import { osCropAdvisorRoutes } from './os-crop-advisor.routes.js';
 import { osIntelligenceRoutes } from './os-intelligence.routes.js';
 import { osAgronomistRoutes } from './os-agronomist.routes.js';
 import { osFieldRoutes } from './os-field.routes.js';
@@ -42,6 +42,9 @@ import { osAnalyticsRoutes } from './os-analytics.routes.js';
 import { osSettingsRoutes } from './os-settings.routes.js';
 import { osWarehouseRoutes } from './os-warehouse.routes.js';
 import { osPricingRoutes } from './os-pricing.routes.js';
+import { osChannelPoolRoutes } from './os-channel-pool.routes.js';
+import { osKpiControlRoutes } from './os-kpi-control.routes.js';
+import { osAiCallingRoutes } from './os-ai-calling.routes.js';
 import { osPartnerRoutes } from './os-partner.routes.js';
 import { osMarketingRoutes } from './os-marketing.routes.js';
 import { getModulesForRole, canApproveRecommendations, assertModuleAccess, assertStaffManagement, assertCanAssignRole, } from '../../lib/rbac.js';
@@ -205,16 +208,18 @@ const bannerCreateSchema = z.object({
     badge: z.string().max(80).optional(),
     description: z.string().max(600).optional(),
     imageUrl: z.string().max(2000).optional(),
+    imageUrlMobile: z.string().max(2000).optional(),
     ctaLabel: z.string().max(60).optional(),
     ctaUrl: z.string().max(500).optional(),
     placement: z.enum(['home_hero', 'collection_top', 'promo_strip']).optional(),
-    size: z.string().regex(/^\d{3,4}x\d{2,4}$/).optional(),
-    sizeWidth: z.number().int().min(320).max(3840).optional(),
-    sizeHeight: z.number().int().min(120).max(2160).optional(),
     startsAt: z.string().min(1),
     endsAt: z.string().min(1),
     sortOrder: z.number().int().min(0).max(999).optional(),
     active: z.boolean().optional(),
+    imageOnly: z.boolean().optional(),
+    headingColor: z.string().max(20).optional(),
+    highlightColor: z.string().max(20).optional(),
+    textSize: z.enum(['sm', 'md', 'lg']).optional(),
 });
 const bannerUpdateSchema = bannerCreateSchema.partial();
 async function syncBannersToShopify() {
@@ -762,9 +767,9 @@ export async function adminRoutes(app) {
         const body = bannerCreateSchema.parse(request.body);
         const banner = await bannersAdminService.create({
             ...body,
-            imageUrl: body.imageUrl || undefined,
+            imageUrl: body.imageUrl,
+            imageUrlMobile: body.imageUrlMobile,
             ctaUrl: body.ctaUrl || undefined,
-            size: body.size || undefined,
         });
         const shopifySync = await syncBannersToShopify();
         return reply.status(201).send({ ok: true, banner, shopifySync });
@@ -775,9 +780,9 @@ export async function adminRoutes(app) {
         const body = bannerUpdateSchema.parse(request.body);
         const banner = await bannersAdminService.update(id, {
             ...body,
-            imageUrl: body.imageUrl || undefined,
+            imageUrl: body.imageUrl,
+            imageUrlMobile: body.imageUrlMobile,
             ctaUrl: body.ctaUrl || undefined,
-            size: body.size || undefined,
         });
         const shopifySync = await syncBannersToShopify();
         return reply.send({ ok: true, banner, shopifySync });
@@ -1307,17 +1312,17 @@ export async function adminRoutes(app) {
         });
         return reply.send({ ok: true });
     });
-    app.get(`${api}/telecaller/overview`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/overview`, async (request, reply) => {
         const admin = requireAdmin(request);
-        const overview = await telecallerAdminService.getOverview(admin.email);
+        const overview = await cropAdvisorAdminService.getOverview(admin.email);
         const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true });
         overview.allLeadsCount = count ?? 0;
         return reply.send({ ok: true, overview });
     });
-    app.get(`${api}/telecaller/leads`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads`, async (request, reply) => {
         const admin = requireAdmin(request);
         const q = request.query;
-        const result = await telecallerAdminService.listLeads({
+        const result = await cropAdvisorAdminService.listLeads({
             scope: q.scope === 'mine' ? 'mine' : 'all',
             stage: q.stage,
             search: q.search,
@@ -1326,13 +1331,13 @@ export async function adminRoutes(app) {
         }, admin.email);
         return reply.send({ ok: true, ...result });
     });
-    app.get(`${api}/telecaller/leads/:id`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         return reply.send({ ok: true, ...detail });
     });
-    app.post(`${api}/telecaller/leads`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const body = z
@@ -1345,10 +1350,10 @@ export async function adminRoutes(app) {
             state: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.createLead(body, admin.email);
+        const detail = await cropAdvisorAdminService.createLead(body, admin.email);
         return reply.status(201).send({ ok: true, ...detail });
     });
-    app.patch(`${api}/telecaller/leads/:id`, async (request, reply) => {
+    app.patch(`${api}/crop-advisor/leads/:id`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1370,18 +1375,18 @@ export async function adminRoutes(app) {
             priority: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.updateLead(id, body, admin.email);
+        const detail = await cropAdvisorAdminService.updateLead(id, body, admin.email);
         return reply.send({ ok: true, ...detail });
     });
-    app.post(`${api}/telecaller/leads/:id/notes`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/notes`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
         const { note } = z.object({ note: z.string().min(1) }).parse(request.body);
-        const detail = await telecallerAdminService.addNote(id, note, admin.email);
+        const detail = await cropAdvisorAdminService.addNote(id, note, admin.email);
         return reply.send({ ok: true, ...detail });
     });
-    app.post(`${api}/telecaller/leads/:id/calls`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/calls`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1392,10 +1397,10 @@ export async function adminRoutes(app) {
             durationSeconds: z.number().int().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.logCall(id, body, admin.email);
+        const detail = await cropAdvisorAdminService.logCall(id, body, admin.email);
         return reply.send({ ok: true, ...detail });
     });
-    app.post(`${api}/telecaller/leads/:id/tasks`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/tasks`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1407,43 +1412,43 @@ export async function adminRoutes(app) {
             taskType: z.string().optional(),
         })
             .parse(request.body);
-        const task = await telecallerAdminService.createTask(id, body, admin.email);
+        const task = await cropAdvisorAdminService.createTask(id, body, admin.email);
         return reply.send({ ok: true, task });
     });
-    app.patch(`${api}/telecaller/tasks/:id/complete`, async (request, reply) => {
+    app.patch(`${api}/crop-advisor/tasks/:id/complete`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const { id } = request.params;
-        await telecallerAdminService.completeTask(id);
+        await cropAdvisorAdminService.completeTask(id);
         return reply.send({ ok: true });
     });
-    app.get(`${api}/telecaller/tasks`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/tasks`, async (request, reply) => {
         const admin = requireAdmin(request);
         const q = request.query;
-        const tasks = await telecallerAdminService.listTasks(admin.email, q.status ?? 'pending');
+        const tasks = await cropAdvisorAdminService.listTasks(admin.email, q.status ?? 'pending');
         return reply.send({ ok: true, tasks });
     });
-    app.get(`${api}/telecaller/calls`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/calls`, async (request, reply) => {
         const admin = requireAdmin(request);
-        const calls = await telecallerAdminService.listCalls(admin.email);
+        const calls = await cropAdvisorAdminService.listCalls(admin.email);
         return reply.send({ ok: true, calls });
     });
-    app.get(`${api}/telecaller/whatsapp`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/whatsapp`, async (request, reply) => {
         requireAdmin(request);
-        const threads = await telecallerAdminService.listWhatsAppThreads();
+        const threads = await cropAdvisorAdminService.listWhatsAppThreads();
         return reply.send({ ok: true, threads });
     });
-    app.get(`${api}/telecaller/whatsapp/:farmerId/messages`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/whatsapp/:farmerId/messages`, async (request, reply) => {
         requireAdmin(request);
         const { farmerId } = request.params;
-        const messages = await telecallerAdminService.getWhatsAppMessages(farmerId);
+        const messages = await cropAdvisorAdminService.getWhatsAppMessages(farmerId);
         return reply.send({ ok: true, messages });
     });
-    app.post(`${api}/telecaller/whatsapp/:farmerId/send`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/whatsapp/:farmerId/send`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { farmerId } = request.params;
         const { text } = z.object({ text: z.string().min(1).max(4096) }).parse(request.body);
-        const result = await telecallerAdminService.sendWhatsAppMessage(farmerId, text, admin.email);
+        const result = await cropAdvisorAdminService.sendWhatsAppMessage(farmerId, text, admin.email);
         return reply.send({ ok: true, ...result });
     });
     // ─── WhatsApp OS controls (pause AI, set owner, set language) ─────────
@@ -1459,7 +1464,7 @@ export async function adminRoutes(app) {
         const body = z
             .object({
             aiPaused: z.boolean().optional(),
-            owner: z.enum(['ai', 'telecaller', 'agronomist']).optional(),
+            owner: z.enum(['ai', 'crop_advisor', 'agronomist']).optional(),
             preferredLanguage: z.enum(['en', 'ml', 'ta', 'kn', 'hi']).nullable().optional(),
             activePlotId: z.string().uuid().nullable().optional(),
             activeBlockId: z.string().uuid().nullable().optional(),
@@ -1573,20 +1578,20 @@ export async function adminRoutes(app) {
         const results = await consoleSearchService.search(q?.q ?? '');
         return reply.send({ ok: true, results });
     });
-    app.get(`${api}/telecaller/nav-badges`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/nav-badges`, async (request, reply) => {
         requireAdmin(request);
-        const badges = await telecallerAdminService.getNavBadges();
+        const badges = await cropAdvisorAdminService.getNavBadges();
         return reply.send({ ok: true, badges });
     });
-    app.get(`${api}/telecaller/leads/:id/field-findings`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/field-findings`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const q = request.query;
-        const detail = await telecallerAdminService.getLeadDetail(id);
-        const result = await telecallerAdminService.listFieldFindings(detail.lead.farmerId, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 10);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
+        const result = await cropAdvisorAdminService.listFieldFindings(detail.lead.farmerId, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 10);
         return reply.send({ ok: true, ...result });
     });
-    app.post(`${api}/telecaller/leads/:id/field-findings`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/field-findings`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const { id } = request.params;
         const body = z
@@ -1600,8 +1605,8 @@ export async function adminRoutes(app) {
             actionTaken: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
-        const finding = await telecallerAdminService.createFieldFinding(detail.lead.farmerId, id, body);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
+        const finding = await cropAdvisorAdminService.createFieldFinding(detail.lead.farmerId, id, body);
         return reply.status(201).send({ ok: true, finding });
     });
     app.get(`${api}/crm/farmers/:farmerId/internal-notes`, async (request, reply) => {
@@ -1716,23 +1721,23 @@ export async function adminRoutes(app) {
         const item = await crmFarmerService.updateMaster(id, { active: false });
         return reply.send({ ok: true, item });
     });
-    app.get(`${api}/telecaller/leads/:id/crm`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/crm`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const admin = requireAdmin(request);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const farmerId = detail.lead.farmerId;
         const bundle = await crmFarmerService.getFarmerCrmBundle(farmerId, id, admin.email);
         return reply.send({ ok: true, ...bundle });
     });
-    app.get(`${api}/telecaller/leads/:id/blocks`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/blocks`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const blocks = await crmFarmerService.ensureDemoBlocks(detail.lead.farmerId);
         return reply.send({ ok: true, blocks });
     });
-    app.post(`${api}/telecaller/leads/:id/blocks`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/blocks`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const { id } = request.params;
         const body = z
@@ -1749,22 +1754,22 @@ export async function adminRoutes(app) {
             spacing: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const block = await crmFarmerService.createBlock(detail.lead.farmerId, body);
         return reply.status(201).send({ ok: true, block });
     });
-    app.get(`${api}/telecaller/leads/:leadId/blocks/:blockId/workspace`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:leadId/blocks/:blockId/workspace`, async (request, reply) => {
         requireAdmin(request);
         const { leadId, blockId } = request.params;
-        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
         const workspace = await crmFarmerService.getBlockWorkspace(detail.lead.farmerId, blockId);
         return reply.send({ ok: true, ...workspace });
     });
-    app.get(`${api}/telecaller/leads/:id/interactions`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/interactions`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const q = request.query;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const page = q.page ? Number(q.page) : 1;
         const limit = q.limit ? Number(q.limit) : 10;
         const result = q.type || q.status || q.blockId
@@ -1772,7 +1777,7 @@ export async function adminRoutes(app) {
             : await crmFarmerService.listInteractions(detail.lead.farmerId, page, limit);
         return reply.send({ ok: true, ...result });
     });
-    app.post(`${api}/telecaller/leads/:id/interactions`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/interactions`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1799,23 +1804,23 @@ export async function adminRoutes(app) {
             status: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const interaction = await crmFarmerService.createInteraction(detail.lead.farmerId, id, {
             ...body,
             doneBy: admin.email,
-            doneByRole: 'Telecaller',
+            doneByRole: 'Crop Advisor',
         });
         return reply.status(201).send({ ok: true, interaction });
     });
-    app.get(`${api}/telecaller/leads/:id/recommendations`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/recommendations`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const q = request.query;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const result = await crmFarmerService.listRecommendations(detail.lead.farmerId, q.page ? Number(q.page) : 1, q.limit ? Number(q.limit) : 10);
         return reply.send({ ok: true, ...result });
     });
-    app.post(`${api}/telecaller/leads/:id/recommendations`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/recommendations`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1830,14 +1835,14 @@ export async function adminRoutes(app) {
             followUpAt: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const rec = await crmFarmerService.createRecommendation(detail.lead.farmerId, id, {
             ...body,
             recommendedBy: admin.email,
         });
         return reply.status(201).send({ ok: true, recommendation: rec });
     });
-    app.post(`${api}/telecaller/leads/:id/soil-reports`, async (request, reply) => {
+    app.post(`${api}/crop-advisor/leads/:id/soil-reports`, async (request, reply) => {
         requireAdminRole(request, 'admin', 'manager');
         const admin = requireAdmin(request);
         const { id } = request.params;
@@ -1848,15 +1853,15 @@ export async function adminRoutes(app) {
             pdfUrl: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const report = await crmFarmerService.createSoilReport(detail.lead.farmerId, {
             ...body,
             uploadedBy: admin.email,
         });
         return reply.status(201).send({ ok: true, report });
     });
-    app.patch(`${api}/telecaller/leads/:leadId/blocks/:blockId`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.patch(`${api}/crop-advisor/leads/:leadId/blocks/:blockId`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { leadId, blockId } = request.params;
         const body = z
             .object({
@@ -1868,11 +1873,11 @@ export async function adminRoutes(app) {
             planting_date: z.string().optional(),
             latitude: z.number().min(6).max(37.5).optional(),
             longitude: z.number().min(68).max(97.5).optional(),
-            location_source: z.enum(['field_pwa', 'telecaller', 'whatsapp', 'api']).optional(),
+            location_source: z.enum(['field_pwa', 'crop_advisor', 'whatsapp', 'api']).optional(),
             archived: z.boolean().optional(),
         })
             .parse(request.body ?? {});
-        const detail = await telecallerAdminService.getLeadDetail(leadId);
+        const detail = await cropAdvisorAdminService.getLeadDetail(leadId);
         const farmerId = detail.lead.farmerId;
         const patch = { ...body };
         if (body.latitude !== undefined && body.longitude !== undefined) {
@@ -1880,7 +1885,7 @@ export async function adminRoutes(app) {
             await plotLocationService.updateBlockLocation(blockId, {
                 latitude: body.latitude,
                 longitude: body.longitude,
-                source: body.location_source ?? 'telecaller',
+                source: body.location_source ?? 'crop_advisor',
                 farmerId,
             });
             delete patch.latitude;
@@ -1890,8 +1895,8 @@ export async function adminRoutes(app) {
         const block = await crmFarmerService.updateBlock(blockId, patch);
         return reply.send({ ok: true, block });
     });
-    app.patch(`${api}/telecaller/interactions/:id`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.patch(`${api}/crop-advisor/interactions/:id`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         const body = z
             .object({
@@ -1909,14 +1914,14 @@ export async function adminRoutes(app) {
         });
         return reply.send({ ok: true, interaction });
     });
-    app.post(`${api}/telecaller/interactions/:id/archive`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/interactions/:id/archive`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         await crmFarmerService.archiveInteraction(id);
         return reply.send({ ok: true });
     });
-    app.patch(`${api}/telecaller/recommendations/:id`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.patch(`${api}/crop-advisor/recommendations/:id`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         const body = z
             .object({
@@ -1929,22 +1934,22 @@ export async function adminRoutes(app) {
         const rec = await crmFarmerService.updateRecommendation(id, body);
         return reply.send({ ok: true, recommendation: rec });
     });
-    app.post(`${api}/telecaller/recommendations/:id/archive`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/recommendations/:id/archive`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         await crmFarmerService.archiveRecommendation(id);
         return reply.send({ ok: true });
     });
-    app.post(`${api}/telecaller/leads/:id/recommendations/:recId/convert-order`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/leads/:id/recommendations/:recId/convert-order`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const admin = requireAdmin(request);
         const { id, recId } = request.params;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const order = await crmFarmerService.convertRecommendationToOrder(recId, detail.lead.farmerId, id, admin.email);
         return reply.status(201).send({ ok: true, order });
     });
-    app.post(`${api}/telecaller/leads/:id/orders`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/leads/:id/orders`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const admin = requireAdmin(request);
         const { id } = request.params;
         const body = z
@@ -1961,21 +1966,21 @@ export async function adminRoutes(app) {
             notes: z.string().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const order = await crmFarmerService.createManualOrder(detail.lead.farmerId, id, {
             ...body,
             createdBy: admin.email,
         });
         return reply.status(201).send({ ok: true, order });
     });
-    app.get(`${api}/telecaller/orders/catalog`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/orders/catalog`, async (request, reply) => {
         requireAdmin(request);
         const q = request.query;
         const items = await crmFarmerService.getOrderCatalog(q.search);
         return reply.send({ ok: true, items });
     });
-    app.post(`${api}/telecaller/leads/:id/schedule-visit`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/leads/:id/schedule-visit`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const admin = requireAdmin(request);
         const { id } = request.params;
         const body = z
@@ -1986,16 +1991,16 @@ export async function adminRoutes(app) {
             blockId: z.string().uuid().optional(),
         })
             .parse(request.body);
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const result = await crmFarmerService.scheduleVisit(detail.lead.farmerId, id, { ...body, assignedTo: admin.email });
         return reply.status(201).send({ ok: true, ...result });
     });
-    app.get(`${api}/telecaller/leads/:id/export`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/export`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const q = request.query;
         const type = (q.type ?? 'lead');
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const farmerId = detail.lead.farmerId;
         let html = '';
         if (type === 'lead') {
@@ -2042,7 +2047,7 @@ export async function adminRoutes(app) {
             });
         }
         else {
-            const ff = await telecallerAdminService.listFieldFindings(farmerId, 1, 50);
+            const ff = await cropAdvisorAdminService.listFieldFindings(farmerId, 1, 50);
             html = crmFarmerService.buildExportHtml('findings', {
                 title: `Field Findings — ${detail.lead.farmerName}`,
                 table: {
@@ -2059,11 +2064,11 @@ export async function adminRoutes(app) {
         }
         return reply.send({ ok: true, html, filename: `morbeez-${type}-${id.slice(0, 8)}.html` });
     });
-    app.get(`${api}/telecaller/leads/:id/share`, async (request, reply) => {
+    app.get(`${api}/crop-advisor/leads/:id/share`, async (request, reply) => {
         requireAdmin(request);
         const { id } = request.params;
         const q = request.query;
-        const detail = await telecallerAdminService.getLeadDetail(id);
+        const detail = await cropAdvisorAdminService.getLeadDetail(id);
         const phone = String(detail.lead.phone ?? '');
         if (q.type === 'recommendation' && q.recId) {
             const { data } = await supabase.from('crm_recommendations').select('*').eq('id', q.recId).single();
@@ -2082,21 +2087,21 @@ export async function adminRoutes(app) {
         }, phone);
         return reply.send({ ok: true, ...share });
     });
-    app.patch(`${api}/telecaller/field-findings/:id`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.patch(`${api}/crop-advisor/field-findings/:id`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         const body = request.body;
-        const finding = await telecallerAdminService.updateFieldFinding(id, body);
+        const finding = await cropAdvisorAdminService.updateFieldFinding(id, body);
         return reply.send({ ok: true, finding });
     });
-    app.post(`${api}/telecaller/field-findings/:id/archive`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+    app.post(`${api}/crop-advisor/field-findings/:id/archive`, async (request, reply) => {
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         await crmFarmerService.archiveFieldFinding(id);
         return reply.send({ ok: true });
     });
     app.get(`${api}/escalations`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const q = request.query;
         const result = await escalationAdminService.list({
             status: q.status ?? 'pending',
@@ -2106,13 +2111,13 @@ export async function adminRoutes(app) {
         return reply.send({ ok: true, ...result });
     });
     app.get(`${api}/escalations/:id`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const { id } = request.params;
         const escalation = await escalationAdminService.getById(id);
         return reply.send({ ok: true, escalation });
     });
     app.patch(`${api}/escalations/:id`, async (request, reply) => {
-        requireAdminRole(request, 'admin', 'manager', 'telecaller');
+        requireAdminRole(request, 'admin', 'manager', 'crop_advisor');
         const admin = requireAdmin(request);
         const { id } = request.params;
         const body = z
@@ -2492,7 +2497,7 @@ export async function adminRoutes(app) {
     await app.register(osFoundationRoutes);
     await app.register(osOperationsRoutes);
     await app.register(osBroadcastRoutes);
-    await app.register(osTelecallerRoutes);
+    await app.register(osCropAdvisorRoutes);
     await app.register(osIntelligenceRoutes);
     await app.register(osAgronomistRoutes);
     await app.register(osFieldRoutes);
@@ -2502,6 +2507,9 @@ export async function adminRoutes(app) {
     await app.register(osSettingsRoutes);
     await app.register(osWarehouseRoutes);
     await app.register(osPricingRoutes);
+    await app.register(osChannelPoolRoutes);
+    await app.register(osKpiControlRoutes);
+    await app.register(osAiCallingRoutes);
     await app.register(osMarketingRoutes);
     await app.register(osPartnerRoutes);
     const { osSeoRoutes } = await import('./os-seo.routes.js');

@@ -501,7 +501,7 @@ export declare const agronomistMobileService: {
         openEscalationCount: number;
     }>;
     listFarmerOrders(farmerId: string): Promise<{
-        orders: import("../admin/telecaller-farmer-orders.service.js").TelecallerOrderRow[];
+        orders: import("../admin/crop-advisor-farmer-orders.service.js").CropAdvisorOrderRow[];
     }>;
     listWhatsAppHistory(farmerId: string, limit?: number): Promise<{
         id: string;
@@ -527,7 +527,7 @@ export declare const agronomistMobileService: {
             intent: unknown;
             source: unknown;
             status: unknown;
-            stage: import("../admin/telecaller-admin.service.js").LeadStage;
+            stage: import("../admin/crop-advisor-admin.service.js").LeadStage;
             stageLabel: string;
             priority: unknown;
             assignedTo: unknown;
@@ -635,7 +635,7 @@ export declare const agronomistMobileService: {
     createFarmerReminder(farmerId: string, agentEmail: string, input: {
         reason: string;
         dueAt?: string;
-        assignTo?: "agronomist" | "telecaller";
+        assignTo?: "agronomist" | "crop_advisor";
     }): Promise<any>;
     listFarmerVisits(farmerId: string, options?: {
         limit?: number;

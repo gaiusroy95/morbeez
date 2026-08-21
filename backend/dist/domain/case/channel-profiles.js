@@ -11,8 +11,8 @@ const PROFILES = {
         minEqsForAutoRecommend: 60,
         allowAutoRecommend: true,
     },
-    telecaller: {
-        channel: 'telecaller',
+    cropAdvisor: {
+        channel: 'crop_advisor',
         minCompletenessPct: 10,
         minEqsForAutoRecommend: 100,
         allowAutoRecommend: false,

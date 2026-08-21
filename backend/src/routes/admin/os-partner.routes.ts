@@ -432,7 +432,7 @@ export async function osPartnerRoutes(app: FastifyInstance): Promise<void> {
     const timeline = await farmerTeamTimelineService.listForFarmer(farmerId, 50);
     const { data: farmer } = await supabase
       .from('farmers')
-      .select('name, phone, village, district, assigned_telecaller_email, assigned_expert_email')
+      .select('name, phone, village, district, assigned_crop_advisor_email, assigned_expert_email')
       .eq('id', farmerId)
       .maybeSingle();
     let partnerReliability: Record<string, unknown> | null = null;

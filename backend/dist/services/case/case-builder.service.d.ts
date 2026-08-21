@@ -14,6 +14,6 @@ export declare const caseBuilderService: {
         missingFields: string[];
     }>;
     buildCase(input: MaiosBuildInput): Promise<MaiosCase | null>;
-    formatTelecallerNotes(maiosCase: MaiosCase): string;
+    formatCropAdvisorNotes(maiosCase: MaiosCase): string;
 };
 //# sourceMappingURL=case-builder.service.d.ts.map

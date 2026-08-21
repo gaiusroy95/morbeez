@@ -10,13 +10,13 @@ import {
 import { api } from '../../lib/api';
 import { CommunicationTimeline } from '../intelligence/CommunicationTimeline';
 import { Alert, Btn, HubTabs, Loading } from '../ui';
-import { BlocksTab } from '../telecaller/BlocksTab';
-import { FieldFindingsTab } from '../telecaller/FieldFindingsTab';
-import { CrmModals, type CrmModalType } from '../telecaller/CrmModals';
+import { BlocksTab } from '../crop-advisor/BlocksTab';
+import { FieldFindingsTab } from '../crop-advisor/FieldFindingsTab';
+import { CrmModals, type CrmModalType } from '../crop-advisor/CrmModals';
 import {
   FieldFindingDetailModal,
   type FieldFindingListRow,
-} from '../telecaller/FieldFindingDetailModal';
+} from '../crop-advisor/FieldFindingDetailModal';
 import { buildVisitWizardUrl } from '../../lib/visitNavigation';
 import { paths, toPath } from '../../lib/routes';
 
@@ -119,7 +119,7 @@ export function AgronomistFarmerWorkspacePanel({
 
       if (leadId) {
         const data = await api<{ ok: boolean; blocks: BlockOption[] }>(
-          `/morbeez-staff/api/v1/os/telecaller/leads/${leadId}/blocks`
+          `/morbeez-staff/api/v1/os/crop-advisor/leads/${leadId}/blocks`
         );
         setLeadBlocks(
           (data.blocks ?? []).map((b) => ({
@@ -162,7 +162,7 @@ export function AgronomistFarmerWorkspacePanel({
 
   async function archiveFinding(id: string) {
     if (!leadId) return;
-    await api(`/morbeez-staff/api/v1/os/telecaller/leads/${leadId}/field-findings/${id}`, {
+    await api(`/morbeez-staff/api/v1/os/crop-advisor/leads/${leadId}/field-findings/${id}`, {
       method: 'DELETE',
     });
     bump();

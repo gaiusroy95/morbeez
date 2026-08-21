@@ -12,7 +12,7 @@ export const PAGE_SEARCH_DEFAULTS: Record<string, PageSearchDefaults> = {
     mode: 'global',
     placeholder: 'Search farmers, leads, orders, phone…',
   },
-  telecaller: { mode: 'none' },
+  cropAdvisor: { mode: 'none' },
   operations: {
     mode: 'local',
     placeholder: 'Search prices, terms, quick replies, templates…',

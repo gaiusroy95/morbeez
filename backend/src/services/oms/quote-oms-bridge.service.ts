@@ -75,7 +75,7 @@ export const quoteOmsBridgeService = {
     }
 
     const patch: Record<string, unknown> = {
-      order_source: 'telecaller_quote',
+      order_source: 'crop_advisor_quote',
       updated_at: new Date().toISOString(),
     };
     if (input.farmerId) patch.farmer_id = input.farmerId;
@@ -177,7 +177,7 @@ export const quoteOmsBridgeService = {
         currency: 'INR',
         is_cod: isCod,
         razorpay_payment_id: input.razorpayPaymentId,
-        order_source: 'telecaller_quote',
+        order_source: 'crop_advisor_quote',
         payment_method: isCod ? 'COD' : 'Prepaid',
         customer_state: normalizeShopifyProvince(input.customerState),
         shipping_address: {

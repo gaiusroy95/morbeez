@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS ai_training_events (
   farmer_feedback_id UUID REFERENCES farmer_advisory_feedback(id) ON DELETE SET NULL,
   source TEXT NOT NULL DEFAULT 'whatsapp' CHECK (source IN ('whatsapp', 'field_visit', 'crm', 'api')),
   review_surface TEXT NOT NULL CHECK (review_surface IN (
-    'case_review', 'farmer_feedback', 'telecaller_escalation', 'field_finding'
+    'case_review', 'farmer_feedback', 'crop_advisor_escalation', 'field_finding'
   )),
   ai_prediction TEXT,
   ai_confidence DECIMAL(5, 4),

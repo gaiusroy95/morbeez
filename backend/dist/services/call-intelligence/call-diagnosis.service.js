@@ -33,7 +33,7 @@ export const callDiagnosisService = {
             language,
             symptomsText: expandedText,
             voiceTranscript: input.transcript,
-            channel: 'telecaller',
+            channel: 'crop_advisor',
             contextPack: pack,
             environmentalContext: contextPackService.formatForPrompt(pack),
             imageBase64: input.imageBase64,

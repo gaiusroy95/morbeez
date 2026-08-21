@@ -361,7 +361,7 @@ export const kn: Partial<Record<I18nKey, string>> = {
   chooseFromGallery: 'Gallery',
   selectCategory: 'Category select',
   description: 'ವಿವರಣೆ',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
   saveAddress: 'ಉಳಿಸಿ address',
 
   ecAiCopilot: 'AI Copilot',

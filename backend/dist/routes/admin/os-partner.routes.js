@@ -24,19 +24,101 @@ export async function osPartnerRoutes(app) {
         });
         return reply.send({ ok: true, partners });
     });
+    app.get(`${api}/earning-rules`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'read');
+        const { earningRulesService } = await import('../../services/remuneration/earning-rules.service.js');
+        const rules = await earningRulesService.list();
+        return reply.send({ ok: true, rules });
+    });
+    app.get(`${api}/settlements`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'read');
+        const q = request.query;
+        let query = supabase.from('earning_settlements').select('*').order('payable_on', { ascending: true }).limit(200);
+        if (q.partyType === 'partner' || q.partyType === 'employee')
+            query = query.eq('party_type', q.partyType);
+        if (q.partyId)
+            query = query.eq('party_id', q.partyId);
+        const { data } = await query;
+        return reply.send({ ok: true, settlements: data ?? [] });
+    });
+    app.get(`${api}/introductions`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'read');
+        const q = request.query;
+        const { farmerIntroductionService } = await import('../../services/remuneration/farmer-introduction.service.js');
+        const introductions = await farmerIntroductionService.list({
+            partnerId: q.partnerId,
+            status: q.status,
+        });
+        return reply.send({ ok: true, introductions });
+    });
+    app.post(`${api}/introductions/:id/refresh`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'write');
+        const { id } = request.params;
+        const { farmerIntroductionService } = await import('../../services/remuneration/farmer-introduction.service.js');
+        const row = await farmerIntroductionService.refresh(id);
+        return reply.send({ ok: true, introduction: row });
+    });
+    app.get(`${api}/payouts`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'read');
+        const q = request.query;
+        const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+        const batches = await partnerPayoutService.list(q.month);
+        return reply.send({ ok: true, batches });
+    });
+    app.post(`${api}/payouts/generate`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'partner_program', 'write');
+        const body = z.object({ month: z.string().optional() }).parse(request.body ?? {});
+        const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+        const result = await partnerPayoutService.generateMonth(body.month);
+        return reply.send({ ok: true, ...result, generatedBy: admin.email });
+    });
+    app.post(`${api}/payouts/:id/approve`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'partner_program', 'write');
+        const { id } = request.params;
+        const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+        const batch = await partnerPayoutService.approve(id, admin.email);
+        return reply.send({ ok: true, batch });
+    });
+    app.post(`${api}/payouts/:id/mark-paid`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'write');
+        const { id } = request.params;
+        const { partnerPayoutService } = await import('../../services/partner/partner-payout.service.js');
+        const batch = await partnerPayoutService.markPaid(id);
+        return reply.send({ ok: true, batch });
+    });
     app.get(`${api}/:id`, async (request, reply) => {
         await assertModuleAccess(request, 'partner_program', 'read');
         const { id } = request.params;
         const partner = await partnerService.getById(id);
         return reply.send({ ok: true, partner });
     });
-    app.get(`${api}/applications/list`, async (request, reply) => {
+    app.get(`${api}/:id/360`, async (request, reply) => {
         await assertModuleAccess(request, 'partner_program', 'read');
-        const q = request.query;
-        const applications = await partnerOnboardingService.listApplications(q.status);
-        return reply.send({ ok: true, applications });
+        const { id } = request.params;
+        const partner = await partnerService.getById(id);
+        const { farmerIntroductionService } = await import('../../services/remuneration/farmer-introduction.service.js');
+        const introductions = await farmerIntroductionService.list({ partnerId: id });
+        let settlements = [];
+        {
+            const { data } = await supabase
+                .from('earning_settlements')
+                .select('*')
+                .eq('party_type', 'partner')
+                .eq('party_id', id)
+                .order('payable_on', { ascending: false })
+                .limit(100);
+            settlements = (data ?? []);
+        }
+        const { data: kpiSnapshots } = await supabase
+            .from('partner_kpi_snapshots')
+            .select('*')
+            .eq('partner_id', id)
+            .order('period_start', { ascending: false })
+            .limit(12);
+        return reply.send({ ok: true, partner, introductions, settlements, kpiSnapshots });
     });
-    app.post(`${api}/applications`, async (request, reply) => {
+    app.post(`${api}`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'partner_program', 'write');
         const body = z
             .object({
             fullName: z.string().min(2),
@@ -47,16 +129,53 @@ export async function osPartnerRoutes(app) {
             village: z.string().optional(),
             languages: z.array(z.string()).optional(),
             experienceNotes: z.string().optional(),
+            metadata: z.record(z.unknown()).optional(),
+            createAppAccount: z.boolean().optional(),
+            sendActivation: z.boolean().optional(),
         })
             .parse(request.body);
-        const application = await partnerOnboardingService.submitApplication(body);
-        return reply.code(201).send({ ok: true, application });
+        const result = await partnerOnboardingService.createPartnerByAdmin(body, admin.email);
+        return reply.code(201).send({ ok: true, ...result });
+    });
+    app.post(`${api}/:id/send-activation`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'write');
+        const { id } = request.params;
+        const activation = await partnerOnboardingService.sendActivationInvite(id);
+        return reply.send({ ok: true, activation });
+    });
+    app.get(`${api}/applications/list`, async (request, reply) => {
+        await assertModuleAccess(request, 'partner_program', 'read');
+        const q = request.query;
+        const applications = await partnerOnboardingService.listApplications(q.status);
+        return reply.send({ ok: true, applications });
+    });
+    app.post(`${api}/applications`, async (request, reply) => {
+        const admin = await assertModuleAccess(request, 'partner_program', 'write');
+        const body = z
+            .object({
+            fullName: z.string().min(2),
+            phone: z.string().min(10),
+            email: z.string().email().optional(),
+            state: z.string().optional(),
+            district: z.string().optional(),
+            village: z.string().optional(),
+            languages: z.array(z.string()).optional(),
+            experienceNotes: z.string().optional(),
+            metadata: z.record(z.unknown()).optional(),
+            createAppAccount: z.boolean().optional(),
+            sendActivation: z.boolean().optional(),
+        })
+            .parse(request.body);
+        // Staff "Create Partner" must create a real partner row + send activation,
+        // not only a pending application (which never appears in Partners list).
+        const result = await partnerOnboardingService.createPartnerByAdmin(body, admin.email);
+        return reply.code(201).send({ ok: true, ...result });
     });
     app.post(`${api}/applications/:id/approve`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'partner_program', 'write');
         const { id } = request.params;
-        const partner = await partnerOnboardingService.approveApplication(id, admin.email);
-        return reply.send({ ok: true, partner });
+        const result = await partnerOnboardingService.approveApplication(id, admin.email);
+        return reply.send({ ok: true, ...result });
     });
     app.post(`${api}/applications/:id/reject`, async (request, reply) => {
         const admin = await assertModuleAccess(request, 'partner_program', 'write');
@@ -151,6 +270,12 @@ export async function osPartnerRoutes(app) {
             partnerId: body.partnerId,
             attributionType: 'enrollment',
             metadata: { source: 'admin_assign', changedBy: admin.email },
+        });
+        const { farmerIntroductionService } = await import('../../services/remuneration/farmer-introduction.service.js');
+        await farmerIntroductionService.createFromEnrollment({
+            farmerId,
+            partnerId: body.partnerId,
+            source: 'admin_assign',
         });
         const attributions = await partnerAttributionCaptureService.listForFarmer(farmerId);
         return reply.send({ ok: true, ownership, attributions });
@@ -256,7 +381,7 @@ export async function osPartnerRoutes(app) {
         const timeline = await farmerTeamTimelineService.listForFarmer(farmerId, 50);
         const { data: farmer } = await supabase
             .from('farmers')
-            .select('name, phone, village, district, assigned_telecaller_email, assigned_expert_email')
+            .select('name, phone, village, district, assigned_crop_advisor_email, assigned_expert_email')
             .eq('id', farmerId)
             .maybeSingle();
         let partnerReliability = null;

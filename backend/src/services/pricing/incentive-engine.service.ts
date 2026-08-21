@@ -380,7 +380,7 @@ export const incentiveEngineService = {
         order_value_inr: orderValue,
         gross_margin_pct:
           orderValue > 0 ? round2((input.preview.subtotalGrossProfit / orderValue) * 100) : 0,
-        sales_source: input.salesSource ?? 'telecaller',
+        sales_source: input.salesSource ?? 'crop_advisor',
         status: 'quoted',
       };
     });

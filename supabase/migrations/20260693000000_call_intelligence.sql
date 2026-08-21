@@ -1,4 +1,4 @@
--- Telecaller call intelligence: recording, STT, AI summary, QC
+-- CropAdvisor call intelligence: recording, STT, AI summary, QC
 
 ALTER TABLE crm_call_logs
   ADD COLUMN IF NOT EXISTS recording_url TEXT,
@@ -60,4 +60,4 @@ WHERE NOT EXISTS (SELECT 1 FROM call_qc_rubric WHERE is_active = true);
 ALTER TABLE call_qc_rubric ENABLE ROW LEVEL SECURITY;
 CREATE POLICY call_qc_rubric_all ON call_qc_rubric FOR ALL USING (true);
 
-COMMENT ON COLUMN crm_call_logs.processing_status IS 'pending→processing→completed; confirmed after telecaller accepts AI summary';
+COMMENT ON COLUMN crm_call_logs.processing_status IS 'pending→processing→completed; confirmed after cropAdvisor accepts AI summary';

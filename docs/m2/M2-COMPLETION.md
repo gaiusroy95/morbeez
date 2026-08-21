@@ -34,7 +34,7 @@
 
 ## Out of scope (M2)
 
-- Telecaller dashboard UI
+- CropAdvisor dashboard UI
 - Zoho CRM sync worker (queue table exists)
 - OpenAI / Plant.id
 - Mobile apps

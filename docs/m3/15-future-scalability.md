@@ -12,7 +12,7 @@
 
 - Android/iOS direct upload to `/api/v1/advisory/diagnose`
 - Zoho sync on escalation create
-- Telecaller dashboard (read escalations, add notes)
+- CropAdvisor dashboard (read escalations, add notes)
 - Yield intelligence, seasonal alerts
 - Recommendation ML from agronomist corrections
 - Vector store for past advisories per farmer

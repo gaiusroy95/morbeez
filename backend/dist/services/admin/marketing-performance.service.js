@@ -1,6 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { CONNECTED_CALL_OUTCOMES, INTERESTED_STAGES, PAID_STAGES, STAGE_RANK, } from '../../domain/marketing/lead-attribution.js';
+import { eligibleRoi, marketingCac } from '../../domain/remuneration/marketing-cac.js';
 function pct(numerator, denominator) {
     if (!denominator)
         return 0;
@@ -22,6 +23,7 @@ function aggregateFunnel(leadIds, flagsByLead) {
     let booked = 0;
     let paid = 0;
     let revenueInr = 0;
+    let eligibleOrders = 0;
     for (const id of leadIds) {
         const f = flagsByLead.get(id);
         if (!f)
@@ -35,6 +37,7 @@ function aggregateFunnel(leadIds, flagsByLead) {
         if (f.paid)
             paid += 1;
         revenueInr += f.revenueInr;
+        eligibleOrders += f.eligibleOrders;
     }
     return {
         leads,
@@ -43,6 +46,8 @@ function aggregateFunnel(leadIds, flagsByLead) {
         booked,
         paid,
         revenueInr: Math.round(revenueInr * 100) / 100,
+        eligibleOrders,
+        eligibleRevenueInr: Math.round(revenueInr * 100) / 100,
         conversionPct: pct(paid, leads),
     };
 }
@@ -83,12 +88,12 @@ async function buildFunnelFlags(leads) {
     };
     const callChunks = chunk(leadIds, 200);
     const quoteChunks = chunk(leadIds, 200);
-    const ledgerChunks = chunk(leadIds, 200);
     const soilChunks = chunk(farmerIds, 200);
+    const orderChunks = chunk(farmerIds, 200);
     const calls = [];
     const quotes = [];
     const soilReports = [];
-    const ledger = [];
+    const eligibleOrders = [];
     for (const ids of callChunks) {
         const { data } = await supabase
             .from('crm_call_logs')
@@ -107,14 +112,14 @@ async function buildFunnelFlags(leads) {
         if (data)
             soilReports.push(...data);
     }
-    for (const ids of ledgerChunks) {
+    for (const ids of orderChunks) {
         const { data } = await supabase
-            .from('employee_sales_ledger')
-            .select('lead_id, gross_profit, status, recorded_at')
-            .in('lead_id', ids)
-            .eq('status', 'paid');
+            .from('commerce_orders')
+            .select('id, farmer_id, total_amount, incentive_eligibility, incentive_eligible_at')
+            .in('farmer_id', ids)
+            .eq('incentive_eligibility', 'eligible');
         if (data)
-            ledger.push(...data);
+            eligibleOrders.push(...data);
     }
     const connectedByLead = new Set();
     for (const call of calls ?? []) {
@@ -128,10 +133,14 @@ async function buildFunnelFlags(leads) {
     }
     const quotedLeads = new Set((quotes ?? []).map((q) => String(q.lead_id)));
     const soilFarmers = new Set((soilReports ?? []).map((s) => String(s.farmer_id)));
-    const revenueByLead = new Map();
-    for (const row of ledger) {
-        const lid = String(row.lead_id);
-        revenueByLead.set(lid, (revenueByLead.get(lid) ?? 0) + Number(row.gross_profit ?? 0));
+    const ordersByFarmer = new Map();
+    for (const row of eligibleOrders) {
+        const fid = String(row.farmer_id ?? '');
+        if (!fid)
+            continue;
+        const list = ordersByFarmer.get(fid) ?? [];
+        list.push(row);
+        ordersByFarmer.set(fid, list);
     }
     for (const lead of leads) {
         const stage = String(lead.stage ?? 'new_lead');
@@ -143,23 +152,21 @@ async function buildFunnelFlags(leads) {
         const booked = quotedLeads.has(lead.id) ||
             soilFarmers.has(lead.farmer_id) ||
             stageRank >= (STAGE_RANK.recommendation ?? 4);
-        const paid = PAID_STAGES.has(stage) || revenueByLead.has(lead.id);
         const leadCreated = new Date(lead.created_at).getTime();
         const windowEnd = leadCreated + 90 * 86400000;
-        const revenueInr = ledger
-            .filter((r) => {
-            if (String(r.lead_id) !== lead.id)
-                return false;
-            const t = new Date(String(r.recorded_at)).getTime();
-            return t >= leadCreated && t <= windowEnd;
-        })
-            .reduce((s, r) => s + Number(r.gross_profit ?? 0), 0);
+        const farmerOrders = (ordersByFarmer.get(String(lead.farmer_id)) ?? []).filter((r) => {
+            const t = new Date(String(r.incentive_eligible_at ?? '')).getTime();
+            return Number.isFinite(t) && t >= leadCreated && t <= windowEnd;
+        });
+        const revenueInr = farmerOrders.reduce((s, r) => s + Number(r.total_amount ?? 0), 0);
+        const paid = PAID_STAGES.has(stage) || farmerOrders.length > 0;
         flags.set(lead.id, {
             connected,
             interested,
             booked,
             paid,
             revenueInr,
+            eligibleOrders: farmerOrders.length,
         });
     }
     return flags;
@@ -212,7 +219,8 @@ export const marketingPerformanceService = {
         const rule = await loadIncentiveRule();
         funnel.suggestedBonusInr = suggestedBonus(funnel, rule);
         funnel.spendInr = Math.round((await sumSpend(query)) * 100) / 100;
-        funnel.roi = funnel.spendInr > 0 ? Math.round((funnel.revenueInr / funnel.spendInr) * 100) / 100 : null;
+        funnel.roi = eligibleRoi(funnel.eligibleRevenueInr ?? funnel.revenueInr, funnel.spendInr);
+        funnel.cacInr = marketingCac(funnel.spendInr, funnel.eligibleOrders);
         const unattributedCount = leads.length - attributed.length;
         const { data: waitingMeta } = await supabase
             .from('leads')
@@ -317,7 +325,8 @@ export const marketingPerformanceService = {
                 channel: g.channel,
                 ...funnel,
                 spendInr,
-                roi: spendInr > 0 ? Math.round((funnel.revenueInr / spendInr) * 100) / 100 : null,
+                roi: eligibleRoi(funnel.eligibleRevenueInr ?? funnel.revenueInr, spendInr),
+                cacInr: marketingCac(spendInr, funnel.eligibleOrders),
                 suggestedBonusInr: suggestedBonus(funnel, rule),
             };
         })

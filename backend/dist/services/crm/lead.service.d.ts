@@ -25,7 +25,7 @@ export type EnsureLeadInput = {
 /** One CRM lead per farmer — returns existing or creates. */
 export declare const leadService: {
     /**
-     * Website / mobile / Shopify customer signup → telecaller lead list.
+     * Website / mobile / Shopify customer signup → cropAdvisor lead list.
      * Merges into an existing lead when the phone already has one (e.g. WhatsApp capture).
      */
     upsertSignupLead(input: {

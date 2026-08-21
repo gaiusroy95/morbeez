@@ -2,7 +2,7 @@
 
 ALTER TABLE commerce_orders
   ADD COLUMN IF NOT EXISTS order_source TEXT NOT NULL DEFAULT 'website'
-    CHECK (order_source IN ('website', 'telecaller_quote', 'telecaller_manual', 'commerce_hub')),
+    CHECK (order_source IN ('website', 'crop_advisor_quote', 'crop_advisor_manual', 'commerce_hub')),
   ADD COLUMN IF NOT EXISTS courier_name TEXT,
   ADD COLUMN IF NOT EXISTS payment_method TEXT;
 

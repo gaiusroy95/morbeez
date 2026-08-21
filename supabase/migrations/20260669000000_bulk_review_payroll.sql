@@ -33,7 +33,7 @@ ALTER TABLE commerce_quotes
 ALTER TABLE bulk_margin_review_requests ENABLE ROW LEVEL SECURITY;
 CREATE POLICY bulk_margin_review_requests_all ON bulk_margin_review_requests FOR ALL USING (true);
 
--- Default ₹30k salary / ₹6L target for telecallers missing compensation
+-- Default ₹30k salary / ₹6L target for crop advisors missing compensation
 INSERT INTO employee_compensation (
   employee_profile_id,
   fixed_salary,

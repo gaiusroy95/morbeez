@@ -2,7 +2,7 @@ export declare const partnerTimelineService: {
     addEntry(input: {
         farmerId: string;
         body: string;
-        authorType: "telecaller" | "partner" | "expert" | "admin" | "system";
+        authorType: "crop_advisor" | "partner" | "expert" | "admin" | "system";
         authorEmail?: string | null;
         partnerId?: string | null;
         authorName?: string | null;

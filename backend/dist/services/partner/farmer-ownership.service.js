@@ -15,8 +15,8 @@ function rowToOwnership(row) {
             : null,
         serviceModel: row.service_model ?? null,
         assignedPartnerId: row.assigned_partner_id ? String(row.assigned_partner_id) : null,
-        assignedTelecallerEmail: row.assigned_telecaller_email
-            ? String(row.assigned_telecaller_email)
+        assignedCropAdvisorEmail: row.assigned_crop_advisor_email
+            ? String(row.assigned_crop_advisor_email)
             : null,
         assignedExpertEmail: row.assigned_expert_email ? String(row.assigned_expert_email) : null,
         partnerCodeAtEnrollment: row.partner_code_at_enrollment
@@ -28,7 +28,7 @@ export const farmerOwnershipService = {
     async getOwnership(farmerId) {
         const { data, error } = await supabase
             .from('farmers')
-            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_telecaller_email, assigned_expert_email, partner_code_at_enrollment')
+            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_crop_advisor_email, assigned_expert_email, partner_code_at_enrollment')
             .eq('id', farmerId)
             .maybeSingle();
         throwIfSupabaseError(error, 'Could not load farmer ownership');
@@ -68,7 +68,7 @@ export const farmerOwnershipService = {
             .from('farmers')
             .update(patch)
             .eq('id', input.farmerId)
-            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_telecaller_email, assigned_expert_email, partner_code_at_enrollment')
+            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_crop_advisor_email, assigned_expert_email, partner_code_at_enrollment')
             .single();
         throwIfSupabaseError(error, 'Could not set enrollment ownership');
         if (!data)
@@ -100,7 +100,7 @@ export const farmerOwnershipService = {
             .from('farmers')
             .update(patch)
             .eq('id', input.farmerId)
-            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_telecaller_email, assigned_expert_email, partner_code_at_enrollment')
+            .select('enrollment_owner_type, enrollment_owner_partner_id, enrollment_source, enrollment_event_id, customer_owner_type, customer_owner_partner_id, service_model, assigned_partner_id, assigned_crop_advisor_email, assigned_expert_email, partner_code_at_enrollment')
             .single();
         throwIfSupabaseError(error, 'Could not change customer owner');
         if (!data)
@@ -116,15 +116,15 @@ export const farmerOwnershipService = {
         });
         return rowToOwnership(data);
     },
-    async syncTelecallerAssignment(farmerId, telecallerEmail) {
+    async syncCropAdvisorAssignment(farmerId, cropAdvisorEmail) {
         const { error } = await supabase
             .from('farmers')
             .update({
-            assigned_telecaller_email: telecallerEmail,
+            assigned_crop_advisor_email: cropAdvisorEmail,
             updated_at: new Date().toISOString(),
         })
             .eq('id', farmerId);
-        throwIfSupabaseError(error, 'Could not sync telecaller assignment');
+        throwIfSupabaseError(error, 'Could not sync cropAdvisor assignment');
     },
 };
 //# sourceMappingURL=farmer-ownership.service.js.map

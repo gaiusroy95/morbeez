@@ -57,7 +57,7 @@ Farmer message → Meta webhook → verify signature
 - Image uploads → `message.type === 'image'` stored in Supabase Storage
 - Voice notes → Whisper API pipeline
 - Multilingual replies → `preferred_language` + template locale
-- Telecaller escalation → `leads.priority = urgent`
+- CropAdvisor escalation → `leads.priority = urgent`
 
 ## Webhook setup (Meta Cloud API — `WHATSAPP_PROVIDER=cloud`)
 

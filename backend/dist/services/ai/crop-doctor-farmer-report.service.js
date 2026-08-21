@@ -1,17 +1,30 @@
 import { buildTreatmentSection } from './treatment-report-formatter.js';
+import { sanitizeAdvisoryForFarmerWhatsApp } from './advisory-farmer-sanitize.util.js';
+import { hasUsableCropPhotoEvidence } from '../whatsapp/pipeline/crop-photo-evidence.util.js';
 function na(value) {
     const v = value?.trim();
     return v || 'Not recorded';
 }
+const WEATHER_FILLER_CONTRIB_RE = /\banthracnose\b|\bfungal\s+leaf\s+spot\b|\bcolletotrichum\b/i;
 function contributingFactor(advisory) {
+    // Never invent fungal contributing factors without a usable crop photo.
+    if (!hasUsableCropPhotoEvidence(advisory.imageObservations)) {
+        return null;
+    }
     const fromRanked = advisory.diagnosisRanked?.find((r) => r.role === 'contributing');
-    if (fromRanked?.label)
+    if (fromRanked?.label) {
+        if (WEATHER_FILLER_CONTRIB_RE.test(fromRanked.label))
+            return null;
         return fromRanked.label;
+    }
     const highNutrient = advisory.nutrientDeficiency?.find((n) => n.likelihood === 'high');
     if (highNutrient?.nutrient) {
         return `${highNutrient.nutrient} deficiency`;
     }
-    return advisory.contributingFactor?.trim() || null;
+    const raw = advisory.contributingFactor?.trim() || null;
+    if (raw && WEATHER_FILLER_CONTRIB_RE.test(raw))
+        return null;
+    return raw;
 }
 function primaryLabel(advisory) {
     return advisory.probableIssue?.trim() || 'Field issue under review';
@@ -280,29 +293,62 @@ function buildTechnicalReport(advisory, reasoning) {
     }
     return lines.join('\n').trim();
 }
+function buildAskAgainReport(advisory, ctx) {
+    const observations = (advisory.imageObservations ?? []).slice(0, 4);
+    return [
+        '🌱 MORBEEZ CROP DOCTOR',
+        '',
+        '📍 Crop Information',
+        '',
+        `Crop: ${na(ctx.cropType)}`,
+        `Location: ${na(ctx.location ?? ctx.plotLabel)}`,
+        '',
+        '🔍 What We Found',
+        '',
+        ...(observations.length
+            ? observations.map((o) => `• ${o.replace(/^•\s*/, '')}`)
+            : ['• Crop / leaf not clearly visible in this photo']),
+        '',
+        '🎯 Most Likely Problem',
+        '',
+        'Primary: Unable to diagnose from this photo',
+        '',
+        'Please send one close photo of the affected leaves or plant in good light.',
+        'Do not send product bags, screenshots, or unrelated images for crop diagnosis.',
+    ].join('\n');
+}
 export const cropDoctorFarmerReportService = {
     buildFarmerReport,
     buildTechnicalReport,
     attachReports(advisory, ctx) {
-        const morbeezDataUsed = [...(advisory.morbeezDataUsed ?? [])];
+        const sanitized = sanitizeAdvisoryForFarmerWhatsApp(advisory);
+        const base = sanitized.advisory;
+        const morbeezDataUsed = [...(base.morbeezDataUsed ?? [])];
         if (ctx.soilSummary?.trim() && !morbeezDataUsed.includes(ctx.soilSummary.trim())) {
             morbeezDataUsed.push(ctx.soilSummary.trim());
         }
         const enriched = {
-            ...(morbeezDataUsed.length ? { ...advisory, morbeezDataUsed } : advisory),
-            previousDisease: ctx.previousDisease?.trim() || advisory.previousDisease,
-            previousRecommendation: ctx.previousRecommendation?.trim() || advisory.previousRecommendation,
-            previousDiagnosisStatus: ctx.previousDiagnosisStatus?.trim() || advisory.previousDiagnosisStatus,
-            lastFertilizer: ctx.lastFertilizer?.label ?? advisory.lastFertilizer,
-            lastFertilizerDate: ctx.lastFertilizer?.date ?? advisory.lastFertilizerDate,
-            lastFertilizerDaysAgo: ctx.lastFertilizer?.daysAgo ?? advisory.lastFertilizerDaysAgo,
-            lastFoliarSpray: ctx.lastFoliarSpray?.label ?? advisory.lastFoliarSpray,
-            lastFoliarSprayDate: ctx.lastFoliarSpray?.date ?? advisory.lastFoliarSprayDate,
-            lastFoliarSprayDaysAgo: ctx.lastFoliarSpray?.daysAgo ?? advisory.lastFoliarSprayDaysAgo,
-            lastDrench: ctx.lastDrench?.label ?? advisory.lastDrench,
-            lastDrenchDate: ctx.lastDrench?.date ?? advisory.lastDrenchDate,
-            lastDrenchDaysAgo: ctx.lastDrench?.daysAgo ?? advisory.lastDrenchDaysAgo,
+            ...(morbeezDataUsed.length ? { ...base, morbeezDataUsed } : base),
+            previousDisease: ctx.previousDisease?.trim() || base.previousDisease,
+            previousRecommendation: ctx.previousRecommendation?.trim() || base.previousRecommendation,
+            previousDiagnosisStatus: ctx.previousDiagnosisStatus?.trim() || base.previousDiagnosisStatus,
+            lastFertilizer: ctx.lastFertilizer?.label ?? base.lastFertilizer,
+            lastFertilizerDate: ctx.lastFertilizer?.date ?? base.lastFertilizerDate,
+            lastFertilizerDaysAgo: ctx.lastFertilizer?.daysAgo ?? base.lastFertilizerDaysAgo,
+            lastFoliarSpray: ctx.lastFoliarSpray?.label ?? base.lastFoliarSpray,
+            lastFoliarSprayDate: ctx.lastFoliarSpray?.date ?? base.lastFoliarSprayDate,
+            lastFoliarSprayDaysAgo: ctx.lastFoliarSpray?.daysAgo ?? base.lastFoliarSprayDaysAgo,
+            lastDrench: ctx.lastDrench?.label ?? base.lastDrench,
+            lastDrenchDate: ctx.lastDrench?.date ?? base.lastDrenchDate,
+            lastDrenchDaysAgo: ctx.lastDrench?.daysAgo ?? base.lastDrenchDaysAgo,
         };
+        if (sanitized.blockDiagnosis) {
+            return {
+                ...enriched,
+                farmerReport: buildAskAgainReport(enriched, ctx),
+                technicalReport: buildTechnicalReport(enriched, ctx.reasoning),
+            };
+        }
         return {
             ...enriched,
             farmerReport: buildFarmerReport(enriched, ctx),

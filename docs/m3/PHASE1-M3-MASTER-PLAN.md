@@ -97,7 +97,7 @@ Farmer (WhatsApp / Web / API)
 |-----|-------|
 | D6 | WhatsApp image/audio pipeline |
 | D7 | Product recommendation rules + Shopify handles |
-| D8 | Escalation + telecaller hooks |
+| D8 | Escalation + cropAdvisor hooks |
 | D9 | Automation worker + follow-ups |
 | D10 | Theme Crop Doctor form + app proxy |
 

@@ -73,9 +73,6 @@ export const farmActivityCommitService = {
         return env.ENABLE_FARM_ACTIVITY_ASSISTANT === true;
     },
     async commitDraft(input) {
-        if (!this.enabled()) {
-            throw new ValidationError('Farm Activity Assistant is disabled');
-        }
         const draftRow = await farmActivityDraftService.getById(input.draftId);
         if (!draftRow || draftRow.farmer_id !== input.farmerId) {
             throw new NotFoundError('Farm activity draft not found');

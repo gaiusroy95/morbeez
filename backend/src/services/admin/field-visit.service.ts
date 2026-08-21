@@ -4,7 +4,7 @@ import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { blockService } from '../core/block.service.js';
 import { fieldStorageService } from '../core/field-storage.service.js';
-import { telecallerAdminService } from './telecaller-admin.service.js';
+import { cropAdvisorAdminService } from './crop-advisor-admin.service.js';
 import { recommendationRecordsService } from '../core/recommendation-records.service.js';
 import { outcomeReviewService } from '../core/outcome-review.service.js';
 import { aiTrainingEventService } from '../core/ai-training-event.service.js';
@@ -125,7 +125,7 @@ export const fieldVisitService = {
       value: m.unit ? `${m.value} ${m.unit}` : m.value,
     }));
 
-    const findingRow = await telecallerAdminService.createFieldFinding(input.farmerId, leadId, {
+    const findingRow = await cropAdvisorAdminService.createFieldFinding(input.farmerId, leadId, {
       blockId: input.blockId,
       blockName: block.name,
       cropType: block.crop_type,
@@ -584,10 +584,10 @@ export const fieldVisitService = {
               .catch(() => {});
           }
         } else if (reviewAction === 'escalate_urgent') {
-          const { createTelecallerTask } = await import(
-            '../whatsapp/pipeline/telecaller-tasks.service.js'
+          const { createCropAdvisorTask } = await import(
+            '../whatsapp/pipeline/crop-advisor-tasks.service.js'
           );
-          void createTelecallerTask({
+          void createCropAdvisorTask({
             farmerId: input.farmerId,
             title: `Visit escalation: ${humanFinalLabel}`,
             notes:

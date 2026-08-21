@@ -11,7 +11,7 @@ Centralized confidence routing with auditable lifecycle on every `ai_advisory_se
 | Confidence | Band | Action |
 |------------|------|--------|
 | ≥ 95% | `auto_send` | Deliver to farmer without agronomist gate |
-| 80–94% | `employee_review` | Employee / telecaller validation |
+| 80–94% | `employee_review` | Employee / cropAdvisor validation |
 | < 80% | `escalate` | Agronomist case review |
 
 Env vars: `AI_AUTO_SEND_THRESHOLD` (0.95), `AI_REVIEW_THRESHOLD` (0.80)

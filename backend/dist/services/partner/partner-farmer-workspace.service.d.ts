@@ -19,7 +19,7 @@ export type PartnerFarmerHeader = {
     primaryCrop: string | null;
     totalAcreage: number | null;
     customerOwnerType: string | null;
-    assignedTelecallerEmail: string | null;
+    assignedCropAdvisorEmail: string | null;
     serviceModel: string | null;
     latitude: number | null;
     longitude: number | null;
@@ -89,7 +89,7 @@ export declare const partnerFarmerWorkspaceService: {
             customerOwnerPartnerId: string | null;
             serviceModel: import("./partner.types.js").ServiceModel | null;
             assignedPartnerId: string | null;
-            assignedTelecallerEmail: string | null;
+            assignedCropAdvisorEmail: string | null;
             partnerCodeAtEnrollment: string | null;
         } | null;
         farmSnapshot: PartnerFarmSnapshot;

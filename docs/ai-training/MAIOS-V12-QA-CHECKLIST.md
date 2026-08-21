@@ -21,7 +21,7 @@
 4. **Recovery loop** — After recommendation communicated
    - Verify `maios_recovery_d3/d7/d14` jobs scheduled (not `ginger_sop_recovery_*`)
    - Tap Improved / Same / Worse buttons
-   - Worse → telecaller task + `failureType` on case + `ml_gold_queue` row
+   - Worse → cropAdvisor task + `failureType` on case + `ml_gold_queue` row
 
 5. **KPI API** — `GET /morbeez-staff/api/v1/os/analytics/maios?days=30`
    - Verify `casesWithMaios`, `d14RecoveryRate`, `avgEqs` return

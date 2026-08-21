@@ -5,7 +5,7 @@ import { ATTRIBUTION_CONVERSION_WINDOW_DAYS } from '../src/services/intelligence
 describe('opportunity-intelligence phase2 attribution', () => {
   it('defines all attribution types from product rules', () => {
     const required = [
-      'telecaller_assigned',
+      'crop_advisor_assigned',
       'first_engagement',
       'relationship_owner',
       'advisory',
@@ -24,7 +24,7 @@ describe('opportunity-intelligence phase2 attribution', () => {
   it('conversion_assist weight is configured', () => {
     expect(DEFAULT_ATTRIBUTION_WEIGHTS.conversion_assist).toBe(0.3);
     expect(DEFAULT_ATTRIBUTION_WEIGHTS.advisory).toBeGreaterThan(
-      DEFAULT_ATTRIBUTION_WEIGHTS.telecaller_assigned
+      DEFAULT_ATTRIBUTION_WEIGHTS.crop_advisor_assigned
     );
   });
 });

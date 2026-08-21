@@ -102,27 +102,27 @@ export function farmerEmployeeInsights(metrics, classification) {
     const eng = metrics.find((m) => m.key === 'engagement')?.score ?? 0;
     const trust = metrics.find((m) => m.key === 'trust')?.score ?? 0;
     const rel = metrics.find((m) => m.key === 'relationship')?.score ?? 0;
-    let telecaller = null;
+    let cropAdvisor = null;
     let agronomist = null;
     if (eng >= 75)
-        telecaller = 'Excellent engagement builder';
+        cropAdvisor = 'Excellent engagement builder';
     else if (eng >= 45)
-        telecaller = 'Moderate engagement — room to grow';
+        cropAdvisor = 'Moderate engagement — room to grow';
     else if (classification === 'Weak Long-Term Relationship') {
-        telecaller = 'Good short-term sales BUT poor relationship retention quality';
+        cropAdvisor = 'Good short-term sales BUT poor relationship retention quality';
     }
     else
-        telecaller = 'Needs stronger follow-up and WhatsApp engagement';
+        cropAdvisor = 'Needs stronger follow-up and WhatsApp engagement';
     if (trust >= 80)
         agronomist = 'High trust advisor';
     else if (trust >= 55)
         agronomist = 'Building trust — keep recommendations clear';
     else
         agronomist = 'Low trust continuity — reinforce outcomes';
-    if (rel >= 85 && !telecaller?.includes('Excellent')) {
-        telecaller = 'Strong relationship continuity';
+    if (rel >= 85 && !cropAdvisor?.includes('Excellent')) {
+        cropAdvisor = 'Strong relationship continuity';
     }
-    return { telecaller, agronomist };
+    return { cropAdvisor, agronomist };
 }
 const INBOUND_TYPES = new Set(['MESSAGE_REPLY', 'IMAGE_UPLOAD', 'VOICE_NOTE', 'FARMER_REACTIVATED']);
 export function detectFarmerSignalsFromEvents(events) {

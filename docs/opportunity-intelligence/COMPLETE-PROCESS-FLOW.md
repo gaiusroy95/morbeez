@@ -21,7 +21,7 @@ Farmer interaction
 | Step | Business intent | Implementation |
 |------|-----------------|----------------|
 | 1 | Farmer enters system | `farmer.service`, `lead.service`, WhatsApp onboarding |
-| 2 | Employee assignment | `leads.assigned_to`, `employeeAttributionCaptureService.trackTelecallerAssigned` |
+| 2 | Employee assignment | `leads.assigned_to`, `employeeAttributionCaptureService.trackCropAdvisorAssigned` |
 | 3 | Farmer interaction | WhatsApp pipeline, CRM, ROI, agronomist workflows |
 | 4 | System events | `farmer_events` via `farmerEventCaptureService` — see [PHASE1](./PHASE1-EVENT-CAPTURE.md) |
 | 5 | Engagement engine | `scoreEngagement()` in `farmer-opportunity-scoring.util.ts` |
@@ -32,7 +32,7 @@ Farmer interaction
 | 10 | Opportunity score | `farmerOpportunityEngineService.scoreFarmer()` — [PHASE3](./PHASE3-OPPORTUNITY-SCORES.md) |
 | 11 | Employee performance | `employeePerformanceEngineService` — [PHASE4](./PHASE4-EMPLOYEE-PERFORMANCE.md) |
 | 12 | Delayed conversion | `scoreDelayedConversion()` on employee rollup (30–180d orders vs attribution) |
-| 13 | Dashboards | Opportunity dashboard + telecaller `FarmerIntelligencePanel` — [PHASE5](./PHASE5-DASHBOARDS.md) |
+| 13 | Dashboards | Opportunity dashboard + cropAdvisor `FarmerIntelligencePanel` — [PHASE5](./PHASE5-DASHBOARDS.md) |
 | 14 | Business actions | Alerts + CRM task enqueue — [PHASE6](./PHASE6-REFINEMENT.md) |
 | 15 | Learning loop | Nightly worker + `intelligencePipelineService` (debounced recalc on key events) + `learningLoopService` for advisory outcomes |
 
@@ -61,8 +61,8 @@ Defined in `backend/src/services/intelligence/farmer-event.types.ts`. Captured f
 | Purpose | Path |
 |---------|------|
 | Farmer score | `GET /os/farmers/:id/opportunity-score` |
-| Farmer intelligence profile | `GET /os/telecaller/leads/:id/intelligence` |
-| Telecaller workspace intelligence | `GET /os/telecaller/workspace-intelligence` |
+| Farmer intelligence profile | `GET /os/crop-advisor/leads/:id/intelligence` |
+| CropAdvisor workspace intelligence | `GET /os/crop-advisor/workspace-intelligence` |
 | Agronomist workspace intelligence | `GET /os/agronomist/workspace-intelligence` |
 | Metric history (engagement/trust/…) | `GET /os/intelligence/opportunity-scores/farmers/:id/metric-history` |
 | Recalculate batch | `POST /os/intelligence/opportunity-scores/recalculate` |
@@ -75,7 +75,7 @@ Defined in `backend/src/services/intelligence/farmer-event.types.ts`. Captured f
 2. Set `ENABLE_OPPORTUNITY_SCORE_WORKER=true` and `ENABLE_OPPORTUNITY_NURTURE_WHATSAPP=true` (see `.env.example`).
 3. Run backfill if needed: `npx tsx scripts/backfill-farmer-events.ts`
 4. **Recalculate scores** with `{ "runBusinessActions": true }` or use **Run alerts + CRM tasks** on Opportunity page.
-5. **Telecaller CRM** and **Agronomist hub** show intelligence bars after scores exist.
+5. **Crop Advisor CRM** and **Agronomist hub** show intelligence bars after scores exist.
 
 ## Phase index
 

@@ -27,7 +27,7 @@ export const callQcService = {
         const criteriaDesc = criteria
             .map((c) => `${c.key}: ${c.label} (0-${c.maxPoints})`)
             .join('\n');
-        const raw = await openaiJsonCompletion('You QC telecaller calls for an Indian agri-input company. Score each rubric 0 to max. Flag if greeting missing, no next action, or rude language.', `Agent: ${input.agentEmail}\n\nRubric:\n${criteriaDesc}\n\nSummary:\n${input.summary}\n\nTranscript excerpt:\n${input.transcript.slice(0, 4000)}\n\nReturn JSON: { scores: { key: number }, notes: { key: string }, flagged: boolean, flagReason: string|null }`);
+        const raw = await openaiJsonCompletion('You QC cropAdvisor calls for an Indian agri-input company. Score each rubric 0 to max. Flag if greeting missing, no next action, or rude language.', `Agent: ${input.agentEmail}\n\nRubric:\n${criteriaDesc}\n\nSummary:\n${input.summary}\n\nTranscript excerpt:\n${input.transcript.slice(0, 4000)}\n\nReturn JSON: { scores: { key: number }, notes: { key: string }, flagged: boolean, flagReason: string|null }`);
         const rubric = {};
         let totalScore = 0;
         for (const c of criteria) {

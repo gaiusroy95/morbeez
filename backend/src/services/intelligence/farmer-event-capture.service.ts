@@ -177,7 +177,7 @@ export const farmerEventCaptureService = {
       const { employeeAttributionCaptureService } = await import(
         './employee-attribution-capture.service.js'
       );
-      void employeeAttributionCaptureService.trackTelecallerAssigned(
+      void employeeAttributionCaptureService.trackCropAdvisorAssigned(
         params.farmerId,
         params.assignedTo
       );
@@ -188,7 +188,7 @@ export const farmerEventCaptureService = {
     const { employeeAttributionCaptureService } = await import(
       './employee-attribution-capture.service.js'
     );
-    void employeeAttributionCaptureService.trackTelecallerAssigned(farmerId, agentEmail);
+    void employeeAttributionCaptureService.trackCropAdvisorAssigned(farmerId, agentEmail);
 
     await this.recordSafe({
       farmerId,

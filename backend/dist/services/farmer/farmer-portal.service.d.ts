@@ -183,7 +183,7 @@ export declare const farmerPortalService: {
             done: boolean;
             pending?: boolean;
         }[];
-        lineItems: import("../admin/telecaller-farmer-orders.service.js").TelecallerOrderLine[];
+        lineItems: import("../admin/crop-advisor-farmer-orders.service.js").CropAdvisorOrderLine[];
         canReview: boolean;
         reviewLines: import("./farmer-product-review.service.js").ReviewableLineItem[];
     }>;

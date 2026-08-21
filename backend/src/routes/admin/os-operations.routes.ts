@@ -902,7 +902,7 @@ export async function osOperationsRoutes(app: FastifyInstance): Promise<void> {
       .object({
         id: z.string().uuid().optional(),
         shortcutKey: z.string().min(1).max(60),
-        category: z.enum(['general', 'telecaller', 'advisory', 'orders', 'broadcast']).optional(),
+        category: z.enum(['general', 'crop_advisor', 'advisory', 'orders', 'broadcast']).optional(),
         labelEn: z.string().min(1),
         bodyEn: z.string().min(1),
         bodyMl: z.string().optional(),

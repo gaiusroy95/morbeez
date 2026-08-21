@@ -32,7 +32,7 @@ import { orderWhatsappService } from '../orders/order-whatsapp.service.js';
 import { cultivationLoggingService } from '../cultivation/cultivation-logging.service.js';
 import { sendReplyButtonMenu } from '../whatsapp-interactive-menu.service.js';
 import { accuracyMetricsService } from '../../ai/accuracy-metrics.service.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 import { cropSelectionService } from './crop-selection.service.js';
 import { resolveInboundUserText } from '../inbound-reply-text.util.js';
 import { farmerPurgeService } from '../../farmer/farmer-purge.service.js';
@@ -713,7 +713,7 @@ export const whatsappScenarioRouter = {
         notes: `Inbound follow-up: ${text}`,
       });
       if (outcome === 'no_improvement' || outcome === 'worsened') {
-        await createTelecallerTask({
+        await createCropAdvisorTask({
           farmerId: captured.farmerId,
           title: outcome === 'worsened' ? 'Urgent escalation required' : 'No improvement follow-up',
           notes: `Farmer reported "${text}" after advisory.`,
@@ -766,7 +766,7 @@ export const whatsappScenarioRouter = {
         });
         if (assigned.source === 'provisional') {
           await send.text(msg.phone, pincodePendingVerifyReply(lang, assigned.row.pincode));
-          void createTelecallerTask({
+          void createCropAdvisorTask({
             farmerId: captured.farmerId,
             title: `Verify pincode ${assigned.row.pincode}`,
             notes: `Farmer sent PIN ${assigned.row.pincode} during WhatsApp onboarding; not found in master/India Post. Confirm district/taluk.`,

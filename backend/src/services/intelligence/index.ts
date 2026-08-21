@@ -7,13 +7,13 @@ export { employeeProfileResolveService } from './employee-profile-resolve.servic
 export { opportunityScoreStoreService } from './opportunity-score-store.service.js';
 export { farmerEventCaptureService } from './farmer-event-capture.service.js';
 export { intelligencePipelineService } from './intelligence-pipeline.service.js';
-export { telecallerIntelligenceService } from './telecaller-intelligence.service.js';
+export { cropAdvisorIntelligenceService } from './crop-advisor-intelligence.service.js';
 export { agronomistIntelligenceService } from './agronomist-intelligence.service.js';
 export { opportunityNurtureService } from './opportunity-nurture.service.js';
 export type {
-  TelecallerWorkspaceIntelligence,
-  TelecallerPriorityFarmer,
-} from './telecaller-intelligence.service.js';
+  CropAdvisorWorkspaceIntelligence,
+  CropAdvisorPriorityFarmer,
+} from './crop-advisor-intelligence.service.js';
 export { employeeAttributionCaptureService } from './employee-attribution-capture.service.js';
 export { farmerOpportunityEngineService } from './farmer-opportunity-engine.service.js';
 export * from './farmer-opportunity-scoring.util.js';

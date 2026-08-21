@@ -36,16 +36,16 @@
 
 Broadcast Center, Daily Pricing, Terminology queue, Meta messaging settings (env read-only), weather rules list. Phase 2.3 adds CRUD for `whatsapp_quick_replies` and `whatsapp_language_templates`, plus advisory automation job list/stats/cancel/retry under Operations.
 
-### Phase 3 — Telecaller CRM completion
+### Phase 3 — Crop Advisor CRM completion
 
 | # | Deliverable | Status |
 |---|-------------|--------|
-| 3.1 | RBAC APIs `/console/api/v1/os/telecaller/*` | Done |
+| 3.1 | RBAC APIs `/console/api/v1/os/crop-advisor/*` | Done |
 | 3.2 | React workspace: leads list, profile tabs, blocks/DAP, WhatsApp | Done |
 | 3.3 | Full modals: add block, interaction, recommendation, orders, calls, tasks, visits | Done |
 | 3.4 | Escalations UI, export/share, CRM master pickers | Done |
 
-Farmer profile tabs: overview, blocks (DAP), interactions, recommendations, field findings, orders, WhatsApp. Write actions via `/console/api/v1/os/telecaller/*`.
+Farmer profile tabs: overview, blocks (DAP), interactions, recommendations, field findings, orders, WhatsApp. Write actions via `/console/api/v1/os/crop-advisor/*`.
 
 ### Phase 4 — Agriculture Intelligence masters
 
@@ -99,10 +99,10 @@ Full cutover to React build output. Legacy `admin/js` is no longer served.
 
 ## Role → module matrix (Phase 1)
 
-| Module | super_admin | operations | agronomist | telecaller | viewer |
+| Module | super_admin | operations | agronomist | cropAdvisor | viewer |
 |--------|-------------|------------|------------|------------|--------|
 | dashboard | ✓ | ✓ | ✓ | ✓ | ✓ |
-| telecaller_crm | ✓ | ✓ | ✓ | ✓ | read |
+| crop_advisor_crm | ✓ | ✓ | ✓ | ✓ | read |
 | operations | ✓ | ✓ | read | — | — |
 | intelligence | ✓ | read | ✓ | read | read |
 | agronomist | ✓ | read | ✓ | — | read |

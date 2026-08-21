@@ -61,7 +61,7 @@ CREATE POLICY crop_images_service ON crop_images FOR ALL USING (true) WITH CHECK
 ALTER TABLE ai_training_events DROP CONSTRAINT IF EXISTS ai_training_events_review_surface_check;
 ALTER TABLE ai_training_events ADD CONSTRAINT ai_training_events_review_surface_check
   CHECK (review_surface IN (
-    'case_review', 'farmer_feedback', 'telecaller_escalation', 'field_finding', 'image_review'
+    'case_review', 'farmer_feedback', 'crop_advisor_escalation', 'field_finding', 'image_review'
   ));
 
 ALTER TABLE ai_training_events DROP CONSTRAINT IF EXISTS ai_training_events_human_action_check;

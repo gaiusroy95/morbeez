@@ -14,7 +14,7 @@ import {
 } from './language-template-variables.js';
 import { languageTemplateTranslateService } from './language-template-translate.service.js';
 
-export type QuickReplyCategory = 'general' | 'telecaller' | 'advisory' | 'orders' | 'broadcast';
+export type QuickReplyCategory = 'general' | 'crop_advisor' | 'advisory' | 'orders' | 'broadcast';
 
 type DefRow = {
   template_key: string;

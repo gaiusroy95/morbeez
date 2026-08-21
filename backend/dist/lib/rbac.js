@@ -8,7 +8,7 @@ export async function getModulesForRole(role) {
     if (role === 'super_admin') {
         return [
             'dashboard',
-            'telecaller_crm',
+            'crop_advisor_crm',
             'operations',
             'intelligence',
             'agronomist',
@@ -20,6 +20,8 @@ export async function getModulesForRole(role) {
             'settings',
             'approve_recommendations',
             'partner_program',
+            'channel_pool',
+            'ai_calling',
         ].map((moduleKey) => ({ moduleKey, canRead: true, canWrite: true }));
     }
     const { data, error } = await supabase

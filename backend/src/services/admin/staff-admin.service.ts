@@ -14,7 +14,7 @@ const STAFF_ROLES = [
   'admin',
   'operations',
   'agronomist',
-  'telecaller',
+  'crop_advisor',
   'manager',
   'viewer',
 ] as const;

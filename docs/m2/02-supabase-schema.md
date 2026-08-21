@@ -61,7 +61,7 @@ erDiagram
 |-------|---------|
 | `farmers` | Master farmer identity (phone unique) |
 | `farmer_crops` | Crop portfolio per farmer |
-| `leads` | CRM leads with intent + telecaller status |
+| `leads` | CRM leads with intent + cropAdvisor status |
 | `quotation_inquiries` | B2B/quote workflow before checkout |
 | `callback_requests` | Scheduled callback queue |
 | `commerce_orders` | Shopify order mirror |
@@ -84,7 +84,7 @@ Columns reserved in `farmers.metadata` JSONB until normalized.
 ## Indexes strategy
 
 - Phone lookup (WhatsApp inbound)
-- Lead status (telecaller dashboard)
+- Lead status (cropAdvisor dashboard)
 - Webhook idempotency unique constraint
 - Outbox `status + created_at` for worker poll
 

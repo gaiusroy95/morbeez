@@ -172,8 +172,8 @@ export const farmerRoiAdminService = {
       old_snapshot: snapshotFromRow(existing as Record<string, unknown>),
       new_snapshot: snapshotFromRow(updated as Record<string, unknown>),
       edited_by: params.staffEmail,
-      reason: 'Telecaller one-time correction',
-      actor: 'telecaller',
+      reason: 'CropAdvisor one-time correction',
+      actor: 'crop_advisor',
     });
 
     return mapEntry(updated as Record<string, unknown>);

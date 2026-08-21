@@ -1,6 +1,6 @@
 # Morbeez staff console (`@morbeez/console`).
 
-React SPA for operations, telecaller CRM, agronomist review, and commerce admin.
+React SPA for operations, crop advisor CRM, agronomist review, and commerce admin.
 
 ## Architecture
 

@@ -82,8 +82,8 @@ CREATE TABLE IF NOT EXISTS employee_sales_ledger (
   net_profit NUMERIC(12, 2) NOT NULL DEFAULT 0,
   order_type TEXT NOT NULL DEFAULT 'standard'
     CHECK (order_type IN ('standard', 'bulk', 'clearance', 'strategic', 'liquidation')),
-  sales_source TEXT NOT NULL DEFAULT 'telecaller'
-    CHECK (sales_source IN ('telecaller', 'whatsapp', 'website', 'quotation')),
+  sales_source TEXT NOT NULL DEFAULT 'crop_advisor'
+    CHECK (sales_source IN ('crop_advisor', 'whatsapp', 'website', 'quotation')),
   customer_type TEXT,
   status TEXT NOT NULL DEFAULT 'quoted'
     CHECK (status IN ('quoted', 'confirmed', 'paid', 'cancelled', 'returned')),

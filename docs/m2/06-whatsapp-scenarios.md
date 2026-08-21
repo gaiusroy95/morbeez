@@ -140,7 +140,7 @@ After order dispatch or Crop Doctor with product recommendations:
 ### Scenario 31 — Result validation (10 days after applied)
 - *How is the crop now?*
 - Buttons: **Better** · **Partial** · **No Improve** (list also has **Need Agronomist**)
-- **No improvement** → agronomist escalation + telecaller task
+- **No improvement** → agronomist escalation + cropAdvisor task
 
 ### Env
 ```env
@@ -151,7 +151,7 @@ CULTIVATION_RESULT_DAYS=10
 ```
 
 ### Data
-Table `cultivation_activities` — visible to admin/CRM (AI, telecaller, agronomist context via farmer profile).
+Table `cultivation_activities` — visible to admin/CRM (AI, cropAdvisor, agronomist context via farmer profile).
 
 ## AI reuse cache (Scenario 38) — implemented
 
@@ -181,7 +181,7 @@ Examples: evening-call preference, high acreage, repeated monsoon fungal issues.
 - `PATCH /admin/api/crm/internal-notes/:noteId`
 - `DELETE /admin/api/crm/internal-notes/:noteId` (archives)
 
-Included in telecaller CRM bundle: `GET .../telecaller/leads/:id/crm` → `internalNotes`.
+Included in crop advisor CRM bundle: `GET .../crop-advisor/leads/:id/crm` → `internalNotes`.
 
 ## Cultivation knowledge broadcasts (Scenario 42) — implemented
 

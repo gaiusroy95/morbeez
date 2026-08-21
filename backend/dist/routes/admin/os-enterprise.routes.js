@@ -56,14 +56,14 @@ export async function osEnterpriseRoutes(app) {
         return reply.send({ ok: true, variants: data ?? [] });
     });
     app.get(`${api}/escalations/unified`, async (request, reply) => {
-        await assertModuleAccess(request, 'telecaller_crm', 'read');
-        const [telecaller, aiQueue] = await Promise.all([
+        await assertModuleAccess(request, 'crop_advisor_crm', 'read');
+        const [cropAdvisor, aiQueue] = await Promise.all([
             escalationAdminService.list({ status: 'open' }).catch(() => []),
             agronomistCaseReviewService.listQueue({ status: 'open', page: 1, limit: 50 }).catch(() => ({ cases: [] })),
         ]);
         return reply.send({
             ok: true,
-            telecallerEscalations: telecaller,
+            cropAdvisorEscalations: cropAdvisor,
             aiReviewCases: aiQueue.cases ?? [],
         });
     });

@@ -34,7 +34,7 @@ export const callIntelligenceProcessor = {
             channel: 'call',
             language: input.language,
         });
-        const raw = await openaiJsonCompletion('You summarize telecaller CRM calls for Indian farmers. Output valid JSON only.', summaryPrompt(input.transcript, expandedText));
+        const raw = await openaiJsonCompletion('You summarize crop advisor CRM calls for Indian farmers. Output valid JSON only.', summaryPrompt(input.transcript, expandedText));
         const bullets = Array.isArray(raw.bullets) ? raw.bullets.map(String).filter(Boolean) : [];
         const summary = {
             bullets,

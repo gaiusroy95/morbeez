@@ -3571,9 +3571,9 @@ tr:hover td {
   font-weight: 600;
 }
 
-/* ─── Telecaller CRM ─── */
+/* ─── Crop Advisor CRM ─── */
 
-.telecaller-page {
+.crop-advisor-page {
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -4141,8 +4141,8 @@ tr:hover td {
   }
 }
 
-/* Telecaller workspace — responsive polish */
-.route-telecaller .content,
+/* CropAdvisor workspace — responsive polish */
+.route-crop-advisor .content,
 .route-lead-detail .content {
   padding-left: 20px;
   padding-right: 20px;
@@ -4150,7 +4150,7 @@ tr:hover td {
 }
 
 @media (max-width: 1400px) {
-  .route-telecaller .content,
+  .route-crop-advisor .content,
   .route-lead-detail .content {
     padding-left: 16px;
     padding-right: 16px;
@@ -4169,7 +4169,7 @@ tr:hover td {
 }
 
 @media (max-width: 768px) {
-  .telecaller-page {
+  .crop-advisor-page {
     gap: 14px;
   }
 
@@ -4498,8 +4498,8 @@ tr:hover td {
   }
 }
 
-/* ─── CRM topbar (Telecaller workspace) — mockup layout ─── */
-.route-telecaller .topbar.crm-topbar-shell,
+/* ─── CRM topbar (CropAdvisor workspace) — mockup layout ─── */
+.route-crop-advisor .topbar.crm-topbar-shell,
 .route-lead-detail .topbar.crm-topbar-shell {
   display: flex;
   align-items: center;
@@ -4715,7 +4715,7 @@ tr:hover td {
     display: none;
   }
 
-  .route-telecaller .topbar.crm-topbar-shell,
+  .route-crop-advisor .topbar.crm-topbar-shell,
   .route-lead-detail .topbar.crm-topbar-shell {
     flex-wrap: wrap;
     gap: 10px 14px;
@@ -4733,7 +4733,7 @@ tr:hover td {
 }
 
 @media (max-width: 900px) {
-  .route-telecaller .topbar.crm-topbar-shell,
+  .route-crop-advisor .topbar.crm-topbar-shell,
   .route-lead-detail .topbar.crm-topbar-shell {
     flex-wrap: wrap;
     gap: 12px;
@@ -4785,16 +4785,16 @@ tr:hover td {
   justify-content: center;
 }
 
-.route-telecaller .content,
+.route-crop-advisor .content,
 .route-lead-detail .content {
   padding: 20px 28px 36px;
 }
 
-.telecaller-list-page .tc-leads-card {
+.crop-advisor-list-page .tc-leads-card {
   margin-top: 0;
 }
 
-.telecaller-list-page .tc-leads-card .table-wrap {
+.crop-advisor-list-page .tc-leads-card .table-wrap {
   min-height: 280px;
 }
 

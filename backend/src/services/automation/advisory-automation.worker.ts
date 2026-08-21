@@ -69,10 +69,10 @@ async function processJob(job: {
       job.farmer_id,
       'system',
       'outbound',
-      'Callback reminder queued for telecaller',
+      'Callback reminder queued for cropAdvisor',
       { sessionId: job.payload.sessionId }
     );
-    logger.info({ farmerId: job.farmer_id }, 'Callback reminder — telecaller queue');
+    logger.info({ farmerId: job.farmer_id }, 'Callback reminder — cropAdvisor queue');
   } else if (job.job_type === 'cultivation_application_prompt') {
     await cultivationLoggingService.sendApplicationPrompt(
       farmer.phone,

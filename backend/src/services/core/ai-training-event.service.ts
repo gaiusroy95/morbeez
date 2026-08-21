@@ -5,7 +5,7 @@ import type { ReviewAction, FarmerFeedbackDecision, ImageReviewAction } from '..
 export type TrainingReviewSurface =
   | 'case_review'
   | 'farmer_feedback'
-  | 'telecaller_escalation'
+  | 'crop_advisor_escalation'
   | 'field_finding'
   | 'image_review';
 

@@ -9,7 +9,7 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 ICONS_DIR = ROOT / "brand" / "app-icons"
-APPS = ("farmer", "warehouse", "agronomist", "telecaller")
+APPS = ("farmer", "warehouse", "agronomist", "crop_advisor")
 EXTENSIONS = (".jpeg", ".jpg", ".png", ".webp")
 SIZE = 1024
 

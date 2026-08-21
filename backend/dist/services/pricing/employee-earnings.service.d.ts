@@ -45,6 +45,34 @@ export declare const employeeEarningsService: {
         currentMonth: MonthlyEarningsRow;
         monthlyHistory: MonthlyEarningsRow[];
         recentSales: SalesLedgerRow[];
+        agronomist: {
+            salesDueInr: number;
+            visitBonus: number;
+            recBonus: number;
+            escalationBonus: number;
+            retentionBonus: number;
+            kmInr: number;
+            kmTotal: number;
+            bonusTotal: number;
+            salesIncentive: number;
+            eventCount: number;
+        };
+        agronomistEvents: {
+            id: any;
+            event_type: any;
+            amount_inr: any;
+            km: any;
+            status: any;
+            period_month: any;
+            notes: any;
+            created_at: any;
+            source_id: any;
+        }[];
+        lastThreeMonths: {
+            months: import("../remuneration/earning-drilldown.service.js").MonthBucket[];
+            dueNow: number;
+            heldNow: number;
+        };
         config: {
             monthlySalesTargetInr: number;
             bulkOrderThresholdInr: number;

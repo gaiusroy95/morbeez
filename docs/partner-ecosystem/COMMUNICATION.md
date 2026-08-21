@@ -19,14 +19,14 @@ Aggregates:
 | Role | Endpoint |
 |------|----------|
 | Partner | `GET/POST /morbeez-partner/api/v1/farmers/:id/team-timeline` |
-| Telecaller | `GET/POST /os/telecaller/leads/:id/team-timeline` |
+| CropAdvisor | `GET/POST /os/crop-advisor/leads/:id/team-timeline` |
 | Expert | `GET/POST /os/agronomist/farmers/:id/team-timeline` |
 
 **Feature flag:** `ENABLE_UNIFIED_TEAM_TIMELINE` (default `true`)
 
 ## Task handoffs
 
-When telecaller creates a `visit_request` task for a `partner_assisted` farmer, the task routes to `assigned_partner_id` with `assigned_to_role = partner`.
+When cropAdvisor creates a `visit_request` task for a `partner_assisted` farmer, the task routes to `assigned_partner_id` with `assigned_to_role = partner`.
 
 Partner mobile supports **Accept / Reject / Reschedule / Complete** via partner API.
 
@@ -45,13 +45,13 @@ Creates timeline entry + expert CRM task when `assigned_expert_email` is set.
 
 | App | Endpoint | Categories |
 |-----|----------|------------|
-| Telecaller | `GET /os/telecaller/mobile/notifications` | tasks, escalations, orders, sales opportunities, partner task completions |
+| CropAdvisor | `GET /os/crop-advisor/mobile/notifications` | tasks, escalations, orders, sales opportunities, partner task completions |
 | Partner | `GET /morbeez-partner/api/v1/notifications` | tasks, lead offers, visit approvals |
 | Expert | `GET /os/agronomist/mobile/notifications` | pending reviews, escalations, support requests |
 
 ## Sales opportunities
 
-Partner creates interest handoff (no order fields). Telecaller converts via mobile dashboard + `PATCH /os/telecaller/sales-opportunities/:id`.
+Partner creates interest handoff (no order fields). CropAdvisor converts via mobile dashboard + `PATCH /os/crop-advisor/sales-opportunities/:id`.
 
 **Feature flag:** `ENABLE_SALES_OPPORTUNITIES`
 
@@ -59,10 +59,10 @@ Partner creates interest handoff (no order fields). Telecaller converts via mobi
 
 1. Partner check-in visit (GPS) → submit findings
 2. Expert sees pending review notification → approves recommendation
-3. Telecaller sees partner visit + sales opp on dashboard action queue
-4. Telecaller posts team comment → visible on partner farmer workspace Team tab
+3. CropAdvisor sees partner visit + sales opp on dashboard action queue
+4. CropAdvisor posts team comment → visible on partner farmer workspace Team tab
 5. D2C order paid → commission ledger row (when `ENABLE_PARTNER_COMMISSION`)
 
 ## Escalation path
 
-Partner escalation/support → Expert task → Telecaller follow-up → Resolved entries on shared timeline.
+Partner escalation/support → Expert task → CropAdvisor follow-up → Resolved entries on shared timeline.

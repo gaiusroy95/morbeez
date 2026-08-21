@@ -34,7 +34,7 @@ async function logCallEvidence(agentEmail: string, durationSeconds: number) {
       event_type: 'call',
       event_count: 1,
       active_minutes: minutes,
-      metadata: { source: 'telecaller_crm' },
+      metadata: { source: 'crop_advisor_crm' },
     });
   } catch (err) {
     logger.warn({ err, agentEmail }, 'activity_evidence_logs insert failed');
@@ -183,7 +183,7 @@ export const callIntelligenceService = {
           nextActionAt: followUpAt ?? undefined,
           workflowStatus: summary.interestLevel === 'high' ? 'Active' : 'Closed',
           doneBy: String(call.agent_email),
-          doneByRole: 'telecaller',
+          doneByRole: 'crop_advisor',
         }
       );
 

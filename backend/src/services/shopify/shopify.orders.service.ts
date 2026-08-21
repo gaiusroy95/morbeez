@@ -127,7 +127,7 @@ async function createShopifyOrderPayload(input: CreatePaidOrderInput, financialS
     send_receipt: false,
     inventory_behaviour: 'decrement_obeying_policy',
     note: input.note ?? `Paid via Razorpay (${input.razorpayPaymentId})`,
-    tags: input.tags ?? 'razorpay-checkout,commerce_quote,telecaller',
+    tags: input.tags ?? 'razorpay-checkout,commerce_quote,cropAdvisor',
     taxes_included: false,
     currency: 'INR',
   };
@@ -196,8 +196,8 @@ export const shopifyOrdersService = {
       financial_status: 'pending',
       send_receipt: false,
       inventory_behaviour: 'decrement_obeying_policy',
-      note: input.note ?? 'COD order from telecaller quote',
-      tags: input.tags ?? 'cod,commerce_quote,telecaller',
+      note: input.note ?? 'COD order from cropAdvisor quote',
+      tags: input.tags ?? 'cod,commerce_quote,cropAdvisor',
       taxes_included: false,
       currency: 'INR',
     };

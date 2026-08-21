@@ -24,7 +24,7 @@ export declare const farmerTeamTimelineService: {
     addComment(input: {
         farmerId: string;
         body: string;
-        authorType: "telecaller" | "partner" | "expert" | "admin";
+        authorType: "crop_advisor" | "partner" | "expert" | "admin";
         authorEmail?: string;
         authorName?: string;
         partnerId?: string;

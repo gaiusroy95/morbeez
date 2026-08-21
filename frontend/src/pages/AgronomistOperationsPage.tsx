@@ -9,7 +9,7 @@ import { Alert, Btn, HubTabs, Loading, PageHeader, ReadOnlyBanner, StatCard } fr
 import '../styles/agronomist-ops.css';
 
 const agroBase = '/morbeez-staff/api/v1/os/agronomist';
-const telBase = '/morbeez-staff/api/v1/os/telecaller';
+const telBase = '/morbeez-staff/api/v1/os/crop-advisor';
 
 type OpsTab = 'dashboard' | 'tasks' | 'visits' | 'farmers';
 

@@ -15,7 +15,7 @@ import { StaticSelect } from '../ui';
 const base = '/morbeez-staff/api/v1/os/operations';
 
 const LANGS = ['en', 'ml', 'ta', 'kn', 'hi'] as const;
-const CATEGORIES = ['general', 'telecaller', 'advisory', 'orders', 'broadcast'] as const;
+const CATEGORIES = ['general', 'crop_advisor', 'advisory', 'orders', 'broadcast'] as const;
 const JOB_TYPES = [
   'follow_up_reminder',
   'callback_reminder',

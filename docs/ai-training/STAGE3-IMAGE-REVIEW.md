@@ -26,7 +26,7 @@ Build a **supervised visual disease dataset** by labeling every crop photo with 
 | Source | Trigger |
 |--------|---------|
 | WhatsApp AI | `crop-doctor.service` after session with `imageStoragePath` |
-| Field findings | `telecaller-admin.createFieldFinding` for each photo |
+| Field findings | `crop-advisor-admin.createFieldFinding` for each photo |
 | Backfill | `listQueue` syncs existing sessions + findings without rows |
 
 ## API (`/morbeez-staff/api/v1/os/agronomist`)

@@ -141,7 +141,7 @@ export const outcomeReviewService = {
         const rec = await recommendationFollowUpService.loadRecord(recommendationId);
         if (!rec)
             throw new NotFoundError('Recommendation not found');
-        const detail = await recommendationFollowUpService.getTelecallerFollowUpDetail(recommendationId);
+        const detail = await recommendationFollowUpService.getCropAdvisorFollowUpDetail(recommendationId);
         const { data: row } = await supabase
             .from('recommendation_records')
             .select(`*, farmers(name, phone, district, preferred_language), farm_blocks(name, crop_type, plot_label)`)

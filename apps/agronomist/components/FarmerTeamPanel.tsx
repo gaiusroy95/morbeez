@@ -48,7 +48,7 @@ export function FarmerTeamPanel({ farmerId }: Props) {
     <View style={styles.root}>
       {error ? <AlertBox>{error}</AlertBox> : null}
       <Panel title="Internal team discussion">
-        <Text style={styles.hint}>Visible to telecaller, partner, expert, and admin — not the farmer.</Text>
+        <Text style={styles.hint}>Visible to cropAdvisor, partner, expert, and admin — not the farmer.</Text>
         <TextField label="Comment" value={draft} onChangeText={setDraft} placeholder="Add internal note…" multiline />
         <Btn label={saving ? 'Posting…' : 'Post comment'} onPress={() => void save()} disabled={saving} />
       </Panel>

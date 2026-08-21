@@ -1,4 +1,4 @@
-declare const STAFF_ROLES: readonly ["super_admin", "admin", "operations", "agronomist", "telecaller", "manager", "viewer"];
+declare const STAFF_ROLES: readonly ["super_admin", "admin", "operations", "agronomist", "crop_advisor", "manager", "viewer"];
 export type StaffRole = (typeof STAFF_ROLES)[number];
 export type StaffMember = {
     id: string;

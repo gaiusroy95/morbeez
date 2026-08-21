@@ -2,7 +2,7 @@ import { supabase } from '../../lib/supabase.js';
 import { throwIfSupabaseError } from '../../lib/supabase-errors.js';
 import { NotFoundError, ValidationError } from '../../lib/errors.js';
 import { farmerAuthService } from '../auth/farmer-auth.service.js';
-import { telecallerFarmerOrdersService, } from '../admin/telecaller-farmer-orders.service.js';
+import { cropAdvisorFarmerOrdersService, } from '../admin/crop-advisor-farmer-orders.service.js';
 import { farmerProductReviewService } from './farmer-product-review.service.js';
 import { farmerRoiAdminService } from '../admin/farmer-roi-admin.service.js';
 import { advisoryImageStorageService, resolveAdvisoryImageUrl, } from '../core/advisory-image-storage.service.js';
@@ -209,7 +209,7 @@ export const farmerPortalService = {
                 .is('archived_at', null)
                 .order('is_primary', { ascending: false })
                 .order('name'),
-            telecallerFarmerOrdersService.listForFarmer(farmerId),
+            cropAdvisorFarmerOrdersService.listForFarmer(farmerId),
             supabase
                 .from('crm_recommendations')
                 .select('id, recommendation, products, dosage, follow_up_at, created_at, status, farm_blocks(crop_name, name)')
@@ -377,11 +377,11 @@ export const farmerPortalService = {
         };
     },
     async listOrders(farmerId) {
-        const { orders } = await telecallerFarmerOrdersService.listForFarmer(farmerId);
+        const { orders } = await cropAdvisorFarmerOrdersService.listForFarmer(farmerId);
         return { orders: orders.map(publicOrder) };
     },
     async getOrderTracking(farmerId, orderId) {
-        const order = await telecallerFarmerOrdersService.getDetail(farmerId, orderId);
+        const order = await cropAdvisorFarmerOrdersService.getDetail(farmerId, orderId);
         let commerce = null;
         const commerceId = order.commerceOrderId ?? (order.source === 'commerce' ? order.id : null);
         if (commerceId) {
@@ -607,7 +607,7 @@ export const farmerPortalService = {
                 .lte('due_at', new Date(Date.now() + 3 * 86400000).toISOString())
                 .order('due_at', { ascending: true })
                 .limit(5),
-            telecallerFarmerOrdersService.listForFarmer(farmerId),
+            cropAdvisorFarmerOrdersService.listForFarmer(farmerId),
             supabase
                 .from('crm_soil_reports')
                 .select('id, reported_at')

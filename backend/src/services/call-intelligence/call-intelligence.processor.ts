@@ -47,7 +47,7 @@ export const callIntelligenceProcessor = {
     });
 
     const raw = await openaiJsonCompletion<CallSummaryJson>(
-      'You summarize telecaller CRM calls for Indian farmers. Output valid JSON only.',
+      'You summarize crop advisor CRM calls for Indian farmers. Output valid JSON only.',
       summaryPrompt(input.transcript, expandedText)
     );
 

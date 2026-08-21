@@ -88,8 +88,8 @@ CREATE TABLE agronomist_escalations (
 CREATE INDEX idx_escalations_status ON agronomist_escalations(status);
 CREATE INDEX idx_escalations_farmer ON agronomist_escalations(farmer_id);
 
--- ─── Telecaller / agronomist notes ─────────────────────────
-CREATE TABLE telecaller_notes (
+-- ─── CropAdvisor / agronomist notes ─────────────────────────
+CREATE TABLE crop_advisor_notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
   session_id UUID REFERENCES ai_advisory_sessions(id) ON DELETE SET NULL,

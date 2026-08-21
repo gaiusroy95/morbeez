@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { whatsappService } from '../whatsapp/whatsapp.service.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { cropPackLoaderService } from '../crop-pack/crop-pack-loader.service.js';
 import { failureAnalysisService } from './failure-analysis.service.js';
 import { executionVerificationService } from './execution-verification.service.js';
@@ -256,7 +256,7 @@ export const recoveryValidationService = {
     }
 
     if (params.outcome === 'worse') {
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: 'MAIOS — no recovery',
         notes: `Day ${params.day} recovery check: farmer reported WORSE. Session ${params.sessionId ?? 'n/a'}`,
@@ -265,7 +265,7 @@ export const recoveryValidationService = {
       return 'Thank you. We marked this as urgent — our agronomist team will contact you soon.';
     }
     if (params.outcome === 'same' && params.day >= 7) {
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId: params.farmerId,
         title: 'MAIOS — stagnant recovery',
         notes: `Day ${params.day}: no improvement reported.`,

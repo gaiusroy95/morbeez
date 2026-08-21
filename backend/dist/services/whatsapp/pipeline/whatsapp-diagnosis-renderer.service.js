@@ -1,5 +1,6 @@
 import { diagnosisLabelsMatch } from '../../maios-reasoning/diagnosis-fusion.service.js';
 import { pickLocalizedFarmerSummary } from './crop-message-intent.service.js';
+import { hasUsableCropPhotoEvidence } from './crop-photo-evidence.util.js';
 const LABELS = {
     en: {
         whatISee: '🔍 What I see',
@@ -83,7 +84,7 @@ const LABELS = {
     },
 };
 function hasImageEvidence(advisory) {
-    return Boolean(advisory.imageObservations?.length);
+    return hasUsableCropPhotoEvidence(advisory.imageObservations);
 }
 function hasRichSections(advisory) {
     return Boolean(advisory.farmerReport?.trim() ||

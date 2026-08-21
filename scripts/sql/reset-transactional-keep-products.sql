@@ -116,10 +116,10 @@ DELETE FROM recommendation_applications;
 DELETE FROM recommendation_records;
 DELETE FROM weather_snapshots;
 
--- ─── CRM / telecaller ──────────────────────────────────────
+-- ─── CRM / cropAdvisor ──────────────────────────────────────
 DELETE FROM crm_task_comments;
 DELETE FROM crm_interaction_sessions;
-DELETE FROM telecaller_notes;
+DELETE FROM crop_advisor_notes;
 DELETE FROM crm_internal_notes;
 DELETE FROM crm_manual_orders;
 DELETE FROM crm_field_findings;
@@ -187,5 +187,5 @@ DELETE FROM farmers;
 
 COMMIT;
 
--- After reset: re-test signup, WhatsApp, Telecaller CRM, Crop Doctor.
+-- After reset: re-test signup, WhatsApp, Crop Advisor CRM, Crop Doctor.
 -- Morbeez employee records, product catalog, and inventory master data are unchanged.

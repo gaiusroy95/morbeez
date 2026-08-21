@@ -79,16 +79,19 @@ export function parseFarmerOutcomeAnswer(text) {
     const t = text.trim();
     if (!t || looksLikeFarmActivityMessage(t))
         return null;
-    if (t.length > 60 && /\b(applied|fertiliz|spray|labou?r|kg|paid|per acre)\b/i.test(t)) {
+    if (t.length > 48)
         return null;
-    }
-    if (/^(improved|better|good|recovered|fine)\b|മെച്ചം|சரி|हो गया|recover/i.test(t)) {
+    if (/\b(applied|fertiliz|fertilis|spray|labou?r|kg|paid|per acre)\b/i.test(t))
+        return null;
+    if (/^(improved|better|good|recovered|fine)\b/i.test(t) || /^(മെച്ചം|சரி)$/u.test(t) || /^हो गया/.test(t)) {
         return 'improved';
     }
-    if (/^(partial|partially|some improvement)\b|ഭാഗിക|कुछ हद/i.test(t)) {
+    if (/^(partial|partially|some improvement)\b/i.test(t) ||
+        /^(ഭാഗിക|कुछ हद)/u.test(t)) {
         return 'partial';
     }
-    if (/^(no change|same|not improved|worse|no improvement)\b|ഇല്ല|नहीं|same/i.test(t)) {
+    if (/^(no change|same|not improved|worse|no improvement)\b/i.test(t) ||
+        /^(ഇല്ല|नहीं)$/u.test(t)) {
         return 'no_change';
     }
     if (/^[1１]$/.test(t))
@@ -110,24 +113,25 @@ async function recordAppliedTreatmentDuringFeedback(params) {
             step: params.step,
         },
     });
-    if (farmActivityAssistantService.enabled()) {
-        const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
-        const handled = await farmActivityAssistantService.tryHandleInbound({
-            farmerId: params.farmerId,
-            phone: params.phone,
-            language: params.lang,
-            text: params.text,
-            messageId: params.messageId ?? `feedback:${params.feedbackId}`,
-            sessionState: session.state,
-            send: params.send,
-            modality: 'text',
-            conversationSessionId: session.id,
-            blockId: session.active_block_id ?? null,
-        });
-        if (handled)
-            return;
-    }
-    await params.send.text(params.phone, askOutcomeAfterActivity(params.lang));
+    const session = await conversationSessionService.ensureWhatsAppSession(params.farmerId);
+    const handled = await farmActivityAssistantService.tryHandleInbound({
+        farmerId: params.farmerId,
+        phone: params.phone,
+        language: params.lang,
+        text: params.text,
+        messageId: params.messageId ?? `feedback:${params.feedbackId}`,
+        sessionState: session.state,
+        send: params.send,
+        modality: 'text',
+        conversationSessionId: session.id,
+        blockId: session.active_block_id ?? null,
+        force: true,
+    });
+    if (handled)
+        return;
+    await params.send.text(params.phone, params.lang === 'ml'
+        ? 'വളം/തൊഴിലാളി റെക്കോർഡ് ഇപ്പോൾ സേവ് ആയില്ല. വിളയുടെ ഫലം പറയുക: മെച്ചം / ഭാഗികം / ഇല്ല.'
+        : 'Could not save the fertilizer/labour record yet. How was the crop after treatment?\n\nReply: improved / partial / no change');
 }
 function submittedReply(lang) {
     if (lang === 'ml') {
@@ -320,6 +324,19 @@ export const farmerFeedbackFlowService = {
         const text = params.text.trim();
         if (!text || text.startsWith('menu.'))
             return false;
+        if (looksLikeFarmActivityMessage(text) && !farmActivityAssistantService.isActionButton(text)) {
+            await recordAppliedTreatmentDuringFeedback({
+                farmerId: params.farmerId,
+                phone: params.phone,
+                lang: params.lang,
+                text,
+                feedbackId,
+                step,
+                send: params.send,
+                messageId: params.messageId,
+            });
+            return true;
+        }
         if (step === 'diagnosis') {
             if (!isFarmerFreeTextHypothesis(text)) {
                 await params.send.text(params.phone, askFreeTextDiagnosisRetry(params.lang));
@@ -400,19 +417,6 @@ export const farmerFeedbackFlowService = {
             return true;
         }
         if (step === 'outcome') {
-            if (looksLikeFarmActivityMessage(text)) {
-                await recordAppliedTreatmentDuringFeedback({
-                    farmerId: params.farmerId,
-                    phone: params.phone,
-                    lang: params.lang,
-                    text,
-                    feedbackId,
-                    step: 'outcome',
-                    send: params.send,
-                    messageId: params.messageId,
-                });
-                return true;
-            }
             const outcome = parseFarmerOutcomeAnswer(text);
             if (!outcome) {
                 await params.send.text(params.phone, askOutcomeRetry(params.lang));

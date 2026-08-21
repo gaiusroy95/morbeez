@@ -30,7 +30,7 @@ SET escalation_id = m.keep_id
 FROM _escalation_dedupe_map m
 WHERE fb.escalation_id = m.drop_id;
 
-UPDATE telecaller_notes n
+UPDATE crop_advisor_notes n
 SET escalation_id = m.keep_id
 FROM _escalation_dedupe_map m
 WHERE n.escalation_id = m.drop_id;

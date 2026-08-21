@@ -174,7 +174,7 @@ export function scoreRelationship(signals) {
     let raw = 0;
     if (signals.hasAssignedLead) {
         raw += 3;
-        factors.push({ code: 'relationship_assigned', label: 'Assigned telecaller lead', delta: 3 });
+        factors.push({ code: 'relationship_assigned', label: 'Assigned cropAdvisor lead', delta: 3 });
     }
     if (signals.activeAttributionTouches30d > 0) {
         raw += 4;

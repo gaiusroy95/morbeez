@@ -39,7 +39,7 @@ export const SECTION_SUB_TABS: Record<
 
 export const SECTION_DESCRIPTIONS: Record<OpsSection, string> = {
   communications:
-    'WhatsApp broadcasts, system message templates, and telecaller quick replies — everything farmers receive from Morbeez.',
+    'WhatsApp broadcasts, system message templates, and cropAdvisor quick replies — everything farmers receive from Morbeez.',
   knowledge:
     'Regional farmer language, agricultural concepts, and localized terminology for accurate AI replies.',
   automation:
@@ -65,7 +65,7 @@ export function isSubTabForSection(section: OpsSection, tab: string | null): tab
 
 export function defaultSectionForRole(role: string | undefined | null): OpsSection {
   switch (role) {
-    case 'telecaller':
+    case 'crop_advisor':
     case 'manager':
       return 'communications';
     case 'agronomist':
@@ -81,7 +81,7 @@ export function defaultSectionForRole(role: string | undefined | null): OpsSecti
 }
 
 export function defaultTabForRole(role: string | undefined | null, section: OpsSection): OpsSubTab {
-  if (section === 'communications' && (role === 'telecaller' || role === 'manager')) {
+  if (section === 'communications' && (role === 'crop_advisor' || role === 'manager')) {
     return 'quickReplies';
   }
   return DEFAULT_TAB[section];

@@ -22,7 +22,7 @@ Run migration: `supabase/migrations/20260601000000_whatsapp_ai_pipeline.sql`
 7. **Route** — voice → Whisper → diagnose; image → quality + duplicate check → diagnose; text → FAQ or diagnose
 8. **Compact context** — crop, stage, last 3 issues only (no full chat history)
 9. **Crop Doctor** — OpenAI vision/text, safety validation, escalation
-10. **Telecaller task** — on `advisory.escalated` event → `crm_tasks` + high-priority lead if urgent
+10. **CropAdvisor task** — on `advisory.escalated` event → `crm_tasks` + high-priority lead if urgent
 
 ## Webhook URLs
 
@@ -55,7 +55,7 @@ WHATSAPP_OUTBOUND_TEMPLATE=your_agent_outbound_template_name
 ```
 
 - **Welcome template** — sent once on a farmer’s first WhatsApp message (Ads Gyani `send-template-message`).
-- **Outbound template** — used when telecaller sends a message outside the 24h session window.
+- **Outbound template** — used when cropAdvisor sends a message outside the 24h session window.
 
 ## Shopify product links
 
@@ -67,6 +67,6 @@ SHOPIFY_STOREFRONT_URL=https://morbeez.in
 
 ## Agronomist escalations UI
 
-Admin → **AI Advisory → Escalations** (`#telecaller/escalations`)
+Admin → **AI Advisory → Escalations** (`#cropAdvisor/escalations`)
 
 API: `GET/PATCH /console/api/v1/escalations`

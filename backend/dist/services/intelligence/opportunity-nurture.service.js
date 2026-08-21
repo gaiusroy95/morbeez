@@ -1,7 +1,7 @@
 import { supabase } from '../../lib/supabase.js';
 import { logger } from '../../lib/logger.js';
 import { env } from '../../config/env.js';
-import { createTelecallerTask } from '../whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { opportunityIntelligenceConfigService } from './opportunity-intelligence-config.service.js';
 function daysAgoIso(days) {
     return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -65,7 +65,7 @@ export const opportunityNurtureService = {
                 .order('updated_at', { ascending: false })
                 .limit(1)
                 .maybeSingle();
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId,
                 leadId: lead?.id ? String(lead.id) : undefined,
                 title: NURTURE_TASK_TITLE,

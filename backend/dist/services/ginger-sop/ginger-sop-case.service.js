@@ -203,7 +203,7 @@ export const gingerSopCaseService = {
         })
             .eq('id', sessionId);
     },
-    formatTelecallerNotes(gingerCase) {
+    formatCropAdvisorNotes(gingerCase) {
         const h = gingerCase.diagnostics.hypotheses
             .slice(0, 3)
             .map((x) => `${x.label} (${x.probability}%)`)

@@ -1,6 +1,6 @@
 import { supabase } from '../../../lib/supabase.js';
 import { leadService } from '../../crm/lead.service.js';
-import { createTelecallerTask } from '../pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../pipeline/crop-advisor-tasks.service.js';
 import { t } from './whatsapp-flow-copy.js';
 /** Scenario 20 — callback request. */
 export const callbackFlowService = {
@@ -14,9 +14,9 @@ export const callbackFlowService = {
             farmer_id: farmerId,
             preferred_time: 'any',
             status: 'pending',
-            telecaller_notes: notes?.slice(0, 500) ?? `WhatsApp callback (${language})`,
+            crop_advisor_notes: notes?.slice(0, 500) ?? `WhatsApp callback (${language})`,
         });
-        await createTelecallerTask({
+        await createCropAdvisorTask({
             farmerId,
             title: 'WhatsApp callback requested',
             notes: `District: ${farmer?.district ?? 'unknown'} | ${notes ?? ''}`,
@@ -32,6 +32,8 @@ export const callbackFlowService = {
             notes: notes?.slice(0, 500) ?? 'Callback from WhatsApp menu',
             mergeNotes: true,
         });
+        const { aiCallingTriggers } = await import('../../ai-calling/ai-calling-triggers.js');
+        aiCallingTriggers.onCallbackRequested({ farmerId, notes });
         return t('callbackReceived', language);
     },
 };

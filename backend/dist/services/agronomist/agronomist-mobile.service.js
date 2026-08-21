@@ -655,7 +655,7 @@ export const agronomistMobileService = {
     async listCallbacks(_agentEmail) {
         const { data, error } = await supabase
             .from('callback_requests')
-            .select('id, farmer_id, telecaller_notes, status, created_at, preferred_time, farmers(name, phone)')
+            .select('id, farmer_id, crop_advisor_notes, status, created_at, preferred_time, farmers(name, phone)')
             .in('status', ['pending', 'open', 'requested'])
             .order('created_at', { ascending: false })
             .limit(40);
@@ -667,7 +667,7 @@ export const agronomistMobileService = {
                 farmerId: String(r.farmer_id),
                 farmerName: f?.name ?? null,
                 phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
-                reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
+                reason: r.crop_advisor_notes ? String(r.crop_advisor_notes) : null,
                 status: String(r.status),
                 requestedAt: String(r.created_at),
                 dueAt: parseOptionalDueAt(r.preferred_time ? String(r.preferred_time) : null),
@@ -692,7 +692,7 @@ export const agronomistMobileService = {
             .insert({
             farmer_id: input.farmerId,
             lead_id: leadId,
-            telecaller_notes: input.reason.slice(0, 500),
+            crop_advisor_notes: input.reason.slice(0, 500),
             status: 'pending',
             preferred_time: dueAt,
         })
@@ -816,6 +816,19 @@ export const agronomistMobileService = {
             .select('*')
             .single();
         throwIfSupabaseError(error, 'Could not check out');
+        if (String(data.agent_type ?? 'agronomist') !== 'partner') {
+            const { agronomistEarningsTriggers } = await import('../remuneration/agronomist-earnings-triggers.js');
+            agronomistEarningsTriggers.onVisitCheckout({
+                id: String(data.id),
+                agronomist_email: String(data.agronomist_email),
+                farmer_id: String(data.farmer_id),
+                field_finding_id: data.field_finding_id ? String(data.field_finding_id) : null,
+                check_in_lat: data.check_in_lat != null ? Number(data.check_in_lat) : null,
+                check_in_lng: data.check_in_lng != null ? Number(data.check_in_lng) : null,
+                check_out_lat: data.check_out_lat != null ? Number(data.check_out_lat) : null,
+                check_out_lng: data.check_out_lng != null ? Number(data.check_out_lng) : null,
+            });
+        }
         return data;
     },
     async listFarmerRecommendations(farmerId, limit = 20) {
@@ -1151,8 +1164,8 @@ export const agronomistMobileService = {
         const leadId = await resolveLeadId(farmerId);
         if (!leadId)
             throw new NotFoundError('No lead linked for this farmer');
-        const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-        return telecallerAdminService.logCall(leadId, input, agentEmail);
+        const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+        return cropAdvisorAdminService.logCall(leadId, input, agentEmail);
     },
     async createFarmerReminder(farmerId, agentEmail, input) {
         const leadId = await resolveLeadId(farmerId);

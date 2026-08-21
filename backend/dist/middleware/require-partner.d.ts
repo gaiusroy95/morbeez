@@ -26,5 +26,9 @@ export declare function requirePartner(request: FastifyRequest): Promise<{
     leadAllocationWeight: number;
     commissionEligible: boolean;
     referralUrl: string;
+    territory: string | null;
+    cropAdvisor: string | null;
+    partnerType: string | null;
+    partnerSince: string | null;
 }>;
 //# sourceMappingURL=require-partner.d.ts.map

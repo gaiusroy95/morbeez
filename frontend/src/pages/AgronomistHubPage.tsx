@@ -19,7 +19,7 @@ import { AgronomistIntelligenceBar } from '../components/agronomist/AgronomistIn
 import { OutcomeIntelligencePage } from './agronomist/OutcomeIntelligencePage';
 import { WeaknessDashboardPage } from './ai-ops/WeaknessDashboardPage';
 import { RetrainingOpsPage } from './ai-ops/RetrainingOpsPage';
-import { MyEarningsPanel } from '../components/telecaller/MyEarningsPanel';
+import { MyEarningsPanel } from '../components/crop-advisor/MyEarningsPanel';
 
 const base = '/morbeez-staff/api/v1/os/agronomist';
 

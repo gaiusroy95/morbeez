@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS conversation_sessions (
   channel TEXT NOT NULL DEFAULT 'whatsapp',
   state TEXT NOT NULL DEFAULT 'language_select',
   preferred_language TEXT,
-  conversation_owner TEXT NOT NULL DEFAULT 'ai' CHECK (conversation_owner IN ('ai', 'telecaller', 'agronomist')),
+  conversation_owner TEXT NOT NULL DEFAULT 'ai' CHECK (conversation_owner IN ('ai', 'crop_advisor', 'agronomist')),
   active_plot_id UUID,
   last_menu_at TIMESTAMPTZ,
   last_ai_at TIMESTAMPTZ,
@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS agronomy_terms (
   district TEXT,
   confidence REAL NOT NULL DEFAULT 0.7,
   examples TEXT[] NOT NULL DEFAULT '{}',
-  created_by TEXT NOT NULL DEFAULT 'system' CHECK (created_by IN ('system', 'telecaller', 'agronomist', 'admin')),
+  created_by TEXT NOT NULL DEFAULT 'system' CHECK (created_by IN ('system', 'crop_advisor', 'agronomist', 'admin')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (term, language, crop_type, district)

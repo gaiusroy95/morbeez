@@ -11,13 +11,13 @@ Multi-touch rows in `employee_farmer_attribution`, driven by Phase 1 farmer even
 
 | Trigger | Attribution type | Role |
 |---------|------------------|------|
-| Lead create / reassign (`trackLeadAssignment`) | `telecaller_assigned` | telecaller |
-| Farmer WhatsApp reply (`MESSAGE_REPLY`) | `first_engagement`, `relationship_owner` (+ inferred assign if missing) | telecaller |
+| Lead create / reassign (`trackLeadAssignment`) | `crop_advisor_assigned` | cropAdvisor |
+| Farmer WhatsApp reply (`MESSAGE_REPLY`) | `first_engagement`, `relationship_owner` (+ inferred assign if missing) | cropAdvisor |
 | Recommendation approved | `advisory` | agronomist |
 | Case review submitted for approval | `advisory` | agronomist |
 | Field finding logged | `advisory` | agronomist |
 | Order paid (`ORDER_CONVERTED`) | `conversion_assist` per eligible employee | prior role |
-| Farmer reactivated (30d+ gap) | `reactivation` | telecaller / last touch |
+| Farmer reactivated (30d+ gap) | `reactivation` | cropAdvisor / last touch |
 
 ## Conversion credit (180 days)
 
@@ -32,7 +32,7 @@ Requires `intelligence` read access.
 
 ## Employee resolution
 
-Staff email or `admin_users` → `employee_profiles.id` via `employeeProfileResolveService`. Role on the row comes from `employee_profiles.role` (defaults to `telecaller` when unknown).
+Staff email or `admin_users` → `employee_profiles.id` via `employeeProfileResolveService`. Role on the row comes from `employee_profiles.role` (defaults to `crop_advisor` when unknown).
 
 ## Phase 3
 

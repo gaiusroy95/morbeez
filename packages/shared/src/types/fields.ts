@@ -1,6 +1,6 @@
 export type FieldHealthStatus = 'stable' | 'monitor' | 'alert' | 'critical';
 
-/** Active crop from CRM masters (same list as staff telecaller workspace). */
+/** Active crop from CRM masters (same list as staff cropAdvisor workspace). */
 export type CropMaster = {
   id: string;
   name: string;

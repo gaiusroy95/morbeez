@@ -26,7 +26,7 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get(`${api}/tiers`, async (request, reply) => {
-    await assertModuleAccess(request, 'telecaller_crm', 'read');
+    await assertModuleAccess(request, 'crop_advisor_crm', 'read');
     const q = request.query as { variantId?: string; sku?: string; listedPrice?: string };
     const tiers = await safePriceEngineService.resolveByVariantOrSku({
       variantId: q.variantId,
@@ -40,7 +40,7 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.post(`${api}/preview`, async (request, reply) => {
-    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const admin = await assertModuleAccess(request, 'crop_advisor_crm', 'read');
     const body = z
       .object({
         orderType: z.enum(['standard', 'bulk', 'clearance', 'strategic', 'liquidation']).optional(),
@@ -153,7 +153,7 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   app.get(`${api}/earnings/me`, async (request, reply) => {
     let admin;
     try {
-      admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+      admin = await assertModuleAccess(request, 'crop_advisor_crm', 'read');
     } catch {
       admin = await assertModuleAccess(request, 'agronomist', 'read');
     }
@@ -165,7 +165,7 @@ export async function osPricingRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get(`${api}/performance/me`, async (request, reply) => {
-    const admin = await assertModuleAccess(request, 'telecaller_crm', 'read');
+    const admin = await assertModuleAccess(request, 'crop_advisor_crm', 'read');
     const performance = await employeePerformanceService.getMyPerformance(admin.id);
     return reply.send({ ok: true, performance });
   });

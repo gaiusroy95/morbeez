@@ -116,7 +116,7 @@ Shopify (commerce)  ──webhooks──►  Morbeez API  ◄──webhooks─�
 
 ### P2 (M3)
 12. OpenAI / vision pipelines  
-13. Telecaller dashboard  
+13. CropAdvisor dashboard  
 
 ---
 

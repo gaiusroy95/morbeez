@@ -1,9 +1,9 @@
 /** MAIOS v12 — universal crop intelligence case model */
 export declare const MAIOS_VERSION: "12.0";
 export type MaiosTriageLevel = 'L1' | 'L2' | 'L3' | 'L4';
-export type MaiosChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'telecaller';
+export type MaiosChannel = 'whatsapp' | 'api' | 'web' | 'field_visit' | 'crop_advisor';
 export type EvidenceTier = 'T0' | 'T1' | 'T2' | 'T3' | 'T4' | 'T5';
-export type MaiosRoute = 'auto_recommend' | 'agronomist_review' | 'telecaller_validate' | 'collect_evidence' | 'field_visit' | 'emergency_callback';
+export type MaiosRoute = 'auto_recommend' | 'agronomist_review' | 'crop_advisor_validate' | 'collect_evidence' | 'field_visit' | 'emergency_callback';
 export type MaiosGateId = 'G0_identity' | 'G1_evidence' | 'G2_triage' | 'G3_confidence' | 'G4_soil' | 'G5_recovery';
 export type MaiosModuleKey = 'geo' | 'photo' | 'canopy' | 'field' | 'root' | 'soil' | 'water' | 'history' | 'weather' | 'regional' | 'lab';
 export type MaiosRiskTag = 'HIGH_PH_RISK' | 'LOW_PH_RISK' | 'HIGH_EC_RISK' | 'WATERLOG_RISK' | 'HEAT_STRESS' | 'WATER_STRESS' | 'FUNGAL_PRESSURE' | 'LOW_LIGHT_RISK' | 'NUTRIENT_DEFICIENCY_RISK' | 'ROOT_STRESS_RISK' | 'RESISTANCE_RISK';

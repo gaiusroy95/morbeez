@@ -2,7 +2,7 @@ import { eventBus } from './bus.js';
 import { logger } from '../lib/logger.js';
 import { shiprocketService } from '../services/shiprocket/shiprocket.service.js';
 import { whatsappService } from '../services/whatsapp/whatsapp.service.js';
-import { createTelecallerTask } from '../services/whatsapp/pipeline/telecaller-tasks.service.js';
+import { createCropAdvisorTask } from '../services/whatsapp/pipeline/crop-advisor-tasks.service.js';
 import { env } from '../config/env.js';
 import { supabase } from '../lib/supabase.js';
 import { orderWhatsappService } from '../services/whatsapp/orders/order-whatsapp.service.js';
@@ -60,7 +60,7 @@ export function registerEventHandlers(): void {
   });
 
   eventBus.on('quotation.requested', async (event) => {
-    logger.info({ eventId: event.id }, 'Quotation requested — telecaller queue (M2)');
+    logger.info({ eventId: event.id }, 'Quotation requested — cropAdvisor queue (M2)');
   });
 
   eventBus.on('shopify.order.fulfilled', async (event) => {
@@ -129,12 +129,12 @@ export function registerEventHandlers(): void {
     );
 
     if (farmerId) {
-      await createTelecallerTask({
+      await createCropAdvisorTask({
         farmerId,
         title: 'Agronomist review — WhatsApp crop advisory',
         notes: `Session ${sessionId ?? 'n/a'}: ${event.payload.reason ?? 'escalation'}`,
         priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'normal',
-      }).catch((err) => logger.error({ err }, 'Telecaller escalation task failed'));
+      }).catch((err) => logger.error({ err }, 'CropAdvisor escalation task failed'));
     }
   });
 

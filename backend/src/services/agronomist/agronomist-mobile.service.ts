@@ -809,7 +809,7 @@ export const agronomistMobileService = {
   async listCallbacks(_agentEmail: string) {
     const { data, error } = await supabase
       .from('callback_requests')
-      .select('id, farmer_id, telecaller_notes, status, created_at, preferred_time, farmers(name, phone)')
+      .select('id, farmer_id, crop_advisor_notes, status, created_at, preferred_time, farmers(name, phone)')
       .in('status', ['pending', 'open', 'requested'])
       .order('created_at', { ascending: false })
       .limit(40);
@@ -822,7 +822,7 @@ export const agronomistMobileService = {
         farmerId: String(r.farmer_id),
         farmerName: f?.name ?? null,
         phone: formatPhoneE164(f?.phone != null ? String(f.phone) : null),
-        reason: r.telecaller_notes ? String(r.telecaller_notes) : null,
+        reason: r.crop_advisor_notes ? String(r.crop_advisor_notes) : null,
         status: String(r.status),
         requestedAt: String(r.created_at),
         dueAt: parseOptionalDueAt(r.preferred_time ? String(r.preferred_time) : null),
@@ -852,7 +852,7 @@ export const agronomistMobileService = {
       .insert({
         farmer_id: input.farmerId,
         lead_id: leadId,
-        telecaller_notes: input.reason.slice(0, 500),
+        crop_advisor_notes: input.reason.slice(0, 500),
         status: 'pending',
         preferred_time: dueAt,
       })
@@ -1393,14 +1393,14 @@ export const agronomistMobileService = {
   ) {
     const leadId = await resolveLeadId(farmerId);
     if (!leadId) throw new NotFoundError('No lead linked for this farmer');
-    const { telecallerAdminService } = await import('../admin/telecaller-admin.service.js');
-    return telecallerAdminService.logCall(leadId, input, agentEmail);
+    const { cropAdvisorAdminService } = await import('../admin/crop-advisor-admin.service.js');
+    return cropAdvisorAdminService.logCall(leadId, input, agentEmail);
   },
 
   async createFarmerReminder(
     farmerId: string,
     agentEmail: string,
-    input: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'telecaller' }
+    input: { reason: string; dueAt?: string; assignTo?: 'agronomist' | 'crop_advisor' }
   ) {
     const leadId = await resolveLeadId(farmerId);
     const dueAt = input.dueAt ?? new Date(Date.now() + 3 * 86400000).toISOString();

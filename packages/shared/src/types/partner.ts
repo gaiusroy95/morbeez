@@ -35,7 +35,7 @@ export type FarmerOwnership = {
   serviceModel: ServiceModel | null;
   assignedPartnerId: string | null;
   assignedPartnerName?: string | null;
-  assignedTelecallerEmail: string | null;
+  assignedCropAdvisorEmail: string | null;
   assignedExpertEmail: string | null;
   partnerCodeAtEnrollment: string | null;
 };
@@ -103,7 +103,7 @@ export type FarmerTimelineEntry = {
   farmerId: string;
   taskId: string | null;
   fieldFindingId: string | null;
-  authorType: 'telecaller' | 'partner' | 'expert' | 'admin' | 'system';
+  authorType: 'crop_advisor' | 'partner' | 'expert' | 'admin' | 'system';
   authorName: string | null;
   authorEmail?: string | null;
   entryType: 'note' | 'comment' | 'escalation' | 'support_request' | 'review_request' | 'system_event';
@@ -146,7 +146,7 @@ export type PartnerFarmerHeader = {
   primaryCrop: string | null;
   totalAcreage: number | null;
   customerOwnerType: string | null;
-  assignedTelecallerEmail: string | null;
+  assignedCropAdvisorEmail: string | null;
   serviceModel: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -259,7 +259,7 @@ export type SalesOpportunity = {
   interestLevel?: string | null;
   notes?: string | null;
   status: SalesOpportunityStatus;
-  assignedTelecallerEmail?: string | null;
+  assignedCropAdvisorEmail?: string | null;
   leadId?: string | null;
   createdAt: string;
 };

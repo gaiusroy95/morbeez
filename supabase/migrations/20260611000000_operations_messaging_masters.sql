@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_quick_replies (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   shortcut_key TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'general' CHECK (
-    category IN ('general', 'telecaller', 'advisory', 'orders', 'broadcast')
+    category IN ('general', 'crop_advisor', 'advisory', 'orders', 'broadcast')
   ),
   label_en TEXT NOT NULL,
   body_en TEXT NOT NULL,
@@ -49,7 +49,7 @@ INSERT INTO whatsapp_quick_replies (shortcut_key, category, label_en, body_en, b
 SELECT * FROM (VALUES
   ('greet', 'general', 'Greeting', 'Namaskaram! Morbeez Krishi Sahayam here. How can we help your crop today?', 'നമസ്കാരം! മോർബീസ് കൃഷി സഹായം. ഇന്ന് എന്ത് സഹായം വേണം?', 10),
   ('ask_photo', 'advisory', 'Ask for photo', 'Please send a clear photo of the affected leaves or rhizome in good light.', 'ബാധിത ഇലയുടെ അല്ലെങ്കിൽ റൈസോമിന്റെ ചിത്രം അയയ്ക്കൂ.', 20),
-  ('follow_up', 'telecaller', 'Follow-up', 'We will call you tomorrow to check progress. Thank you!', 'നാളെ വിളിച്ച് നില പരിശോധിക്കാം. നന്ദി!', 30),
+  ('follow_up', 'crop_advisor', 'Follow-up', 'We will call you tomorrow to check progress. Thank you!', 'നാളെ വിളിച്ച് നില പരിശോധിക്കാം. നന്ദി!', 30),
   ('price_info', 'orders', 'Price enquiry', 'Please share your crop and quantity — we will send today''s best offer.', 'വിളയും അളവും പറയൂ — ഇന്നത്തെ ഓഫർ അയയ്ക്കാം.', 40)
 ) AS v(shortcut_key, category, label_en, body_en, body_ml, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM whatsapp_quick_replies LIMIT 1);

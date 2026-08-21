@@ -1,4 +1,4 @@
--- Demo farmers and farm blocks (Agronomist + Telecaller)
+-- Demo farmers and farm blocks (Agronomist + CropAdvisor)
 -- Requires: m2 foundation + crm masters blocks migrations
 
 INSERT INTO farmers (id, phone, name, preferred_language, district, state, village, source)

@@ -3,6 +3,7 @@ import { logger } from './lib/logger.js';
 import { buildApp } from './app.js';
 import { startOutboxWorkerIfEnabled } from './services/events/outbox.worker.js';
 import { startAdvisoryAutomationWorker } from './services/automation/advisory-automation.worker.js';
+import { startAiCallingWorker } from './services/ai-calling/ai-calling.worker.js';
 import { startRetentionCleanupWorker } from './services/retention/retention-cleanup.worker.js';
 import { startWhatsAppBroadcastWorker } from './services/whatsapp/broadcasts/whatsapp-broadcast.worker.js';
 import { startBroadcastCampaignWorker } from './services/whatsapp/broadcasts/broadcast-campaign.worker.js';
@@ -11,6 +12,7 @@ import { startRoiDailyPromptWorker } from './services/whatsapp/roi/roi-daily-pro
 import { startFarmerOpportunityScoreWorker } from './services/intelligence/farmer-opportunity-score.worker.js';
 import { startRegionalThreatRadarWorker } from './services/intelligence/regional-threat-radar.worker.js';
 import { startExpertCopilotWorker } from './services/expert-case/expert-copilot.worker.js';
+import { startEligibleSaleWorker } from './services/remuneration/eligible-sale.worker.js';
 import { startSensorMqttConsumer } from './workers/sensor-mqtt.worker.js';
 async function main() {
     if (!env.OPENAI_API_KEY?.trim()) {
@@ -19,6 +21,7 @@ async function main() {
     const app = await buildApp();
     startOutboxWorkerIfEnabled();
     startAdvisoryAutomationWorker();
+    startAiCallingWorker();
     startRetentionCleanupWorker();
     startWhatsAppBroadcastWorker();
     startBroadcastCampaignWorker();
@@ -27,6 +30,7 @@ async function main() {
     startFarmerOpportunityScoreWorker();
     startRegionalThreatRadarWorker();
     startExpertCopilotWorker();
+    startEligibleSaleWorker();
     void startSensorMqttConsumer();
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     logger.info({ port: env.PORT, env: env.NODE_ENV }, 'Morbeez API started');

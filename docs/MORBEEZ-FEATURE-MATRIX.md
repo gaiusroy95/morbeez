@@ -66,7 +66,7 @@
 
 | # | Feature | Status | Evidence / gap |
 |---|---------|--------|----------------|
-| B1 | Telecaller CRM (leads, blocks, findings) | **Full** | Mature pre-existing stack |
+| B1 | Crop Advisor CRM (leads, blocks, findings) | **Full** | Mature pre-existing stack |
 | B2 | Farmer 360 API | **Full** | `farmer-intelligence.service.ts`; snapshot migration |
 | B3 | Farmer 360 UI | **Full** | `Farmer360Page.tsx`; read-heavy |
 | B4 | Compliance / risk / opportunity scores | **Full** | Displayed on 360; no UI write path |
@@ -76,12 +76,12 @@
 | B8 | Farmer 360 link in agronomist workspace | **Full** | Link + timeline embed; not full 360 iframe |
 | B9 | Opportunity intelligence dashboard | **Full** | Pre-existing |
 | B10 | Farmer notes | **Full** | CRM notes API + UI |
-| B11 | Interactions / call log | **Full** | Telecaller + workspace calls tab |
+| B11 | Interactions / call log | **Full** | CropAdvisor + workspace calls tab |
 | B12 | Follow-ups hub | **Full** | Tasks, callbacks, rec follow-ups |
 | B13 | Orders / purchase summary | **Full** | Workspace + 360 |
 | B14 | Team timeline | **Full** | `getFarmerTeamTimeline` |
 | B15 | `farmer_intelligence_snapshots` persistence | **Full** | Migration exists; compute-on-read dominant |
-| B16 | Block workspace CRM tab | **Full** | Telecaller block tab; plot intel link thin |
+| B16 | Block workspace CRM tab | **Full** | CropAdvisor block tab; plot intel link thin |
 
 ---
 
@@ -210,7 +210,7 @@
 | H4 | Economic dashboard | **Full** | Flat variant list |
 | H5 | Escalation command center | **Full** | `EscalationCommandCenterPage.tsx` |
 | H6 | SLA aging columns | **Full** | Client-side from `created_at` |
-| H7 | Unified escalations API | **Full** | Telecaller + AI queue merge |
+| H7 | Unified escalations API | **Full** | CropAdvisor + AI queue merge |
 | H8 | Regional threat radar page | **Full** | `RegionalThreatRadarPage.tsx` |
 | H9 | Threat radar background worker | **Full** | Signal ingestion |
 | H10 | Executive weekly digest email | **Full** | `operations-messaging.service`; automation job |
@@ -219,7 +219,7 @@
 | H13 | Broadcast analytics | **Full** | Analytics hub |
 | H14 | Agent KPI filter on cockpit | **Full** | Query param only |
 | H15 | Escalation policy config write | **Full** | No SLA policy admin UI |
-| H16 | Telecaller escalations panel reuse | **Full** | Separate pages; not shared row components |
+| H16 | CropAdvisor escalations panel reuse | **Full** | Separate pages; not shared row components |
 
 ---
 

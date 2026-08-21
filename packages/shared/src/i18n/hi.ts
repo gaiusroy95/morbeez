@@ -361,7 +361,7 @@ export const hi: Partial<Record<I18nKey, string>> = {
   chooseFromGallery: 'Gallery से चुनें',
   selectCategory: 'श्रेणी चुनें',
   description: 'विवरण',
-  telecaller: 'Telecaller',
+  cropAdvisor: 'Crop Advisor',
   saveAddress: 'सेव address',
   confirmedOn: 'पुष्टि',
   linkedActivity: 'जुड़ी activity',

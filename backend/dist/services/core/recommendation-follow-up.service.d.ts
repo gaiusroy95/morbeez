@@ -98,7 +98,7 @@ export declare const recommendationFollowUpService: {
     escalateNoImprovement(farmerId: string, recommendationRecordId: string, rec: RecRow): Promise<void>;
     escalateWorsened(farmerId: string, rec: RecRow): Promise<void>;
     scheduleNoResponseEscalation(recommendationRecordId: string, farmerId: string): Promise<void>;
-    getTelecallerFollowUpDetail(recommendationRecordId: string): Promise<{
+    getCropAdvisorFollowUpDetail(recommendationRecordId: string): Promise<{
         recommendation: RecRow;
         application: any;
         followUps: any[];

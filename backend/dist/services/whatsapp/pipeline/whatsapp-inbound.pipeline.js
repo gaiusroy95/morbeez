@@ -50,7 +50,7 @@ import { aiReuseService } from '../../ai/ai-reuse.service.js';
 import { cropDetectionService } from './crop-detection.service.js';
 import { contextPackService } from './context-pack.service.js';
 import { policyEngineService } from '../../ai/policy-engine.service.js';
-import { createTelecallerTask } from './telecaller-tasks.service.js';
+import { createCropAdvisorTask } from './crop-advisor-tasks.service.js';
 import { accuracyMetricsService } from '../../ai/accuracy-metrics.service.js';
 import { inputClassifierService } from './input-classifier.service.js';
 import { imageInputClassifierService } from './image-input-classifier.service.js';
@@ -703,11 +703,14 @@ export const whatsappInboundPipeline = {
         }
         let transcript = await transcriptionService.transcribeVoice(media.audioBuffer, media.audioMimeType ?? 'audio/ogg', captured.language);
         const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+        const farmVoiceInFlow = farmActivityAssistantService.isFarmActivityState(session.state) ||
+            farmActivityAssistantService.isActionButton(transcript?.trim() ?? '');
         if (farmActivityAssistantService.voiceEnabled() &&
             send &&
             transcript?.trim() &&
-            (farmActivityAssistantService.isFarmActivityState(session.state) ||
-                farmActivityAssistantService.looksLikeIntent(transcript))) {
+            (farmVoiceInFlow ||
+                (farmActivityAssistantService.looksLikeIntent(transcript) &&
+                    session.state !== 'farmer_feedback_capture'))) {
             const farmHandled = await farmActivityAssistantService.tryHandleInbound({
                 farmerId: captured.farmerId,
                 phone: captured.phone,
@@ -1030,6 +1033,18 @@ export const whatsappInboundPipeline = {
         await classifyCommercialLead(captured.farmerId, msg.text);
         if (looksLikeFarmActivityMessage(msg.text)) {
             const session = await conversationSessionService.ensureWhatsAppSession(captured.farmerId);
+            if (session.state === 'farmer_feedback_capture') {
+                const handled = await farmerFeedbackFlowService.tryHandleCapture({
+                    farmerId: captured.farmerId,
+                    phone: captured.phone,
+                    lang: captured.language,
+                    text: msg.text,
+                    send: { text: sendText },
+                    messageId: msg.messageId,
+                });
+                if (handled)
+                    return;
+            }
             if (farmActivityAssistantService.enabled()) {
                 const farmHandled = await farmActivityAssistantService.tryHandleInbound({
                     farmerId: captured.farmerId,
@@ -1412,11 +1427,11 @@ export const whatsappInboundPipeline = {
                 source: params.channel ?? 'whatsapp',
                 weatherRisk: assessment.weatherRiskBand,
             });
-            await createTelecallerTask({
+            await createCropAdvisorTask({
                 farmerId: params.farmerId,
                 title: maiosCase?.triage.level === 'L4' ? 'MAIOS — emergency' : 'Symptom Confirmation Required',
                 notes: maiosCase
-                    ? caseBuilderService.formatTelecallerNotes(maiosCase)
+                    ? caseBuilderService.formatCropAdvisorNotes(maiosCase)
                     : `Probable issue: ${result.advisory.probableIssue}; confidence ${Math.round(result.advisory.confidence * 100)}%; crop ${memory.cropType}`,
                 priority: maiosCase?.route === 'emergency_callback' || assessment.escalationPriority === 'urgent'
                     ? 'urgent'
@@ -1444,7 +1459,7 @@ export const whatsappInboundPipeline = {
                 return;
             }
             if (assessment.shouldRequestMoreEvidence) {
-                await createTelecallerTask({
+                await createCropAdvisorTask({
                     farmerId: params.farmerId,
                     title: 'Symptom confirmation required',
                     notes: `Confidence ${Math.round(result.advisory.confidence * 100)}%, Crop ${memory.cropType}, WeatherRisk ${assessment.weatherRiskBand}`,
@@ -1482,9 +1497,9 @@ export const whatsappInboundPipeline = {
                 return;
             }
             if (assessment.needsValidationQuestion) {
-                await createTelecallerTask({
+                await createCropAdvisorTask({
                     farmerId: params.farmerId,
-                    title: 'Telecaller symptom validation',
+                    title: 'CropAdvisor symptom validation',
                     notes: `AI confidence in medium band. Issue: ${result.advisory.probableIssue}`,
                     priority: 'normal',
                 });
